@@ -107,7 +107,7 @@ async def create_strategy(
     )
 
 
-@router.get("/{strategyId}", response_model=StrategyResponse)
+@router.get("/{strategyId:uuid}", response_model=StrategyResponse)
 async def get_strategy(
     strategyId: UUID,
     strategy_repo: StrategyRepo,
@@ -168,7 +168,7 @@ async def get_strategy(
     )
 
 
-@router.patch("/{strategyId}", response_model=StrategyResponse)
+@router.patch("/{strategyId:uuid}", response_model=StrategyResponse)
 async def update_strategy(
     strategyId: UUID,
     request: UpdateStrategyRequest,
@@ -230,7 +230,7 @@ async def update_strategy(
     )
 
 
-@router.delete("/{strategyId}", status_code=204)
+@router.delete("/{strategyId:uuid}", status_code=204)
 async def delete_strategy(
     strategyId: UUID,
     strategy_repo: StrategyRepo,

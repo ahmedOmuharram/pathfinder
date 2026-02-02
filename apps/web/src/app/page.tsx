@@ -208,6 +208,7 @@ export default function HomePage() {
             <div className="h-full pb-44">
               <StrategySidebar
                 siteId={selectedSite}
+                onToast={addToast}
                 onOpenStrategy={(source) =>
                   setActiveView(source === "new" ? "chat" : "graph")
                 }

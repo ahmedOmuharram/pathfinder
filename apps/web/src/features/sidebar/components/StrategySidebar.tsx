@@ -10,7 +10,9 @@ import {
   listWdkStrategies,
   openStrategy,
   pushStrategy,
+  syncStrategyFromWdk,
 } from "@/lib/api/client";
+import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { SitePicker } from "@/features/sites/components/SitePicker";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
@@ -20,6 +22,10 @@ import { serializeStrategyPlan } from "@/features/strategy/domain/graph";
 interface StrategySidebarProps {
   siteId: string;
   onOpenStrategy?: (source: "new" | "open") => void;
+  onToast?: (toast: {
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }) => void;
 }
 
 interface StrategyListItem {
@@ -30,12 +36,18 @@ interface StrategyListItem {
   wdkStrategyId?: number;
   source: "draft" | "synced";
   isRemote?: boolean;
+  isTemporary?: boolean;
 }
 
-export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps) {
+export function StrategySidebar({
+  siteId,
+  onOpenStrategy,
+  onToast,
+}: StrategySidebarProps) {
   const [mounted, setMounted] = useState(false);
   const [siteLabels, setSiteLabels] = useState<Record<string, string>>({});
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [syncingStrategyId, setSyncingStrategyId] = useState<string | null>(null);
   const strategyId = useSessionStore((state) => state.strategyId);
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
   const setSelectedSite = useSessionStore((state) => state.setSelectedSite);
@@ -66,6 +78,20 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
     isSubmitting: boolean;
     error: string | null;
   } | null>(null);
+
+  const reportError = (message: string) => {
+    if (typeof onToast === "function") {
+      onToast({ type: "error", message });
+      return;
+    }
+    setDeleteError(message);
+  };
+
+  const reportSuccess = (message: string) => {
+    if (typeof onToast === "function") {
+      onToast({ type: "success", message });
+    }
+  };
 
   const applyOpenResult = async (
     response: Awaited<ReturnType<typeof openStrategy>>,
@@ -102,7 +128,10 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
   };
 
   const refreshStrategies = () => {
-    return Promise.allSettled([listStrategies(siteId), listWdkStrategies(siteId)])
+    return Promise.allSettled([
+      listStrategies(siteId),
+      listWdkStrategies(siteId),
+    ])
       .then(([localResult, remoteResult]) => {
         const local = localResult.status === "fulfilled" ? localResult.value : [];
         const remote =
@@ -122,7 +151,7 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
             .map((item) => [item.wdkStrategyId, item])
         );
         const remoteItems: StrategyListItem[] = (remote || [])
-          .filter((item) => item?.wdkStrategyId && !item?.isTemporary)
+          .filter((item) => item?.wdkStrategyId)
           .map((item) => ({
             id: `wdk:${item.wdkStrategyId}`,
             name: item.name,
@@ -131,6 +160,7 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
             wdkStrategyId: item.wdkStrategyId,
             source: "synced" as const,
             isRemote: !localByWdkId.has(item.wdkStrategyId),
+            isTemporary: Boolean(item.isTemporary),
           }))
           .filter((item) => item.isRemote);
         setStrategyItems([...localItems, ...remoteItems]);
@@ -198,6 +228,31 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
   const handlePushOrLocalize = async (item: StrategyListItem) => {
     await pushStrategy(item.id);
     refreshStrategies();
+  };
+
+  const handleSyncFromWdk = async (item: StrategyListItem) => {
+    if (!item.wdkStrategyId) {
+      reportError("Strategy must be linked to WDK to sync.");
+      return;
+    }
+    setSyncingStrategyId(item.id);
+    try {
+      const updated = await syncStrategyFromWdk(item.id);
+      if (strategyId === item.id) {
+        setStrategy(updated);
+        setStrategyMeta({
+          name: updated.name,
+          recordType: updated.recordType ?? undefined,
+          siteId: updated.siteId,
+        });
+      }
+      reportSuccess(`Synced strategy from WDK (#${item.wdkStrategyId}).`);
+      refreshStrategies();
+    } catch (e) {
+      reportError(toUserMessage(e, "Failed to sync strategy from WDK."));
+    } finally {
+      setSyncingStrategyId(null);
+    }
   };
 
   useEffect(() => {
@@ -341,7 +396,13 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
                   )}
                 </div>
                 <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                  {s.source === "synced" ? "Synced" : "Draft"}
+                  {s.isRemote
+                    ? s.isTemporary
+                      ? "WDK (open)"
+                      : "WDK"
+                    : s.source === "synced"
+                      ? "Synced"
+                      : "Draft"}
                 </span>
                 {s.siteId && (
                   <span className="text-[10px] uppercase tracking-wide text-slate-400">
@@ -412,7 +473,7 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
               const item = contextMenu.item;
               setContextMenu(null);
               handlePushOrLocalize(item).catch(() => {
-                setDeleteError("Failed to push strategy.");
+                reportError("Failed to push strategy.");
               });
             }}
             className="w-full rounded px-2 py-1 text-left hover:bg-slate-50"
@@ -424,13 +485,29 @@ export function StrategySidebar({ siteId, onOpenStrategy }: StrategySidebarProps
               "site"
             }`}
           </button>
+          {contextMenu.item.wdkStrategyId && (
+            <button
+              type="button"
+              onClick={() => {
+                const item = contextMenu.item;
+                setContextMenu(null);
+                void handleSyncFromWdk(item);
+              }}
+              disabled={syncingStrategyId === contextMenu.item.id}
+              className="w-full rounded px-2 py-1 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {syncingStrategyId === contextMenu.item.id
+                ? "Syncing from WDK..."
+                : "Sync from WDK"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
               const item = contextMenu.item;
               setContextMenu(null);
               handleDeleteWorkflow(item).catch(() => {
-                setDeleteError("Failed to delete strategy. Please try again.");
+                reportError("Failed to delete strategy. Please try again.");
               });
             }}
             className="w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50"

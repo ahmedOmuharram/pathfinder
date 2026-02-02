@@ -245,7 +245,7 @@ async def import_wdk_strategy(
         raise WDKError("Failed to import strategy from WDK")
 
 
-@router.post("/{strategyId}/push", response_model=PushResultResponse)
+@router.post("/{strategyId:uuid}/push", response_model=PushResultResponse)
 async def push_to_wdk(
     strategyId: UUID,
     strategy_repo: StrategyRepo,
@@ -347,7 +347,7 @@ async def push_to_wdk(
         raise WDKError(f"WDK error: {e}")
 
 
-@router.post("/{strategyId}/sync-wdk", response_model=StrategyResponse)
+@router.post("/{strategyId:uuid}/sync-wdk", response_model=StrategyResponse)
 async def sync_strategy_from_wdk(
     strategyId: UUID,
     strategy_repo: StrategyRepo,
