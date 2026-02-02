@@ -113,14 +113,17 @@ class VEuPathDBClient:
                 return None
             return response.json()
         except httpx.HTTPStatusError as e:
+            allow = e.response.headers.get("allow") or e.response.headers.get("Allow")
             logger.error(
                 "VEuPathDB HTTP error",
+                method=method,
                 status_code=e.response.status_code,
                 path=path,
+                allow=allow,
                 response_text=e.response.text[:500],
             )
             raise WDKError(
-                f"HTTP {e.response.status_code}: {e.response.text[:200]}",
+                f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}",
                 status=e.response.status_code,
             )
         except httpx.RequestError as e:

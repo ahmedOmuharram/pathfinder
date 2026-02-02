@@ -2856,9 +2856,9 @@ components:
           - type: boolean
           - type: 'null'
           title: Issaved
-        isTemporary:
+        isInternal:
           type: boolean
-          title: Istemporary
+          title: Isinternal
           default: false
       type: object
       required:

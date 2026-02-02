@@ -1658,10 +1658,10 @@ export type components = {
             /** Issaved */
             isSaved?: boolean | null;
             /**
-             * Istemporary
+             * Isinternal
              * @default false
              */
-            isTemporary: boolean;
+            isInternal: boolean;
         };
     };
     responses: never;

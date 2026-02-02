@@ -54,7 +54,7 @@ class WdkStrategySummaryResponse(BaseModel):
     wdk_url: str | None = Field(default=None, alias="wdkUrl")
     root_step_id: int | None = Field(default=None, alias="rootStepId")
     is_saved: bool | None = Field(default=None, alias="isSaved")
-    is_temporary: bool = Field(default=False, alias="isTemporary")
+    is_internal: bool = Field(default=False, alias="isInternal")
 
     model_config = {"populate_by_name": True}
 

@@ -416,7 +416,7 @@ export interface WdkStrategySummary {
   wdkUrl?: string | null;
   rootStepId?: number | null;
   isSaved?: boolean;
-  isTemporary?: boolean;
+  isInternal?: boolean;
 }
 
 // ============================================================================

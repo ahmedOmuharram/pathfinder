@@ -161,7 +161,7 @@ async def list_wdk_strategies(
                 if is_saved is None:
                     is_saved = item.get("is_saved")
                 name = item.get("name") or f"WDK Strategy {wdk_id}"
-                is_temporary = bool(is_saved is False or name == "Pathfinder step counts")
+                is_internal = bool(name == "Pathfinder step counts")
                 results.append(
                     {
                         "wdkStrategyId": wdk_id,
@@ -172,7 +172,7 @@ async def list_wdk_strategies(
                         else None,
                         "rootStepId": root_step_id,
                         "isSaved": is_saved,
-                        "isTemporary": is_temporary,
+                        "isInternal": is_internal,
                     }
                 )
         except Exception as e:

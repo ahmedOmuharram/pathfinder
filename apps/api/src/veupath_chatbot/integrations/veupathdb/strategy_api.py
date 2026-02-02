@@ -70,10 +70,34 @@ class StrategyAPI:
         }
 
     async def _ensure_session(self) -> None:
-        """Initialize session cookies for the current user."""
+        """Initialize session and resolve user id for mutation endpoints.
+
+        Some WDK deployments allow GET/POST using `/users/current/...` but do NOT
+        allow PUT/PATCH/DELETE on `/users/current/...` (405 Method Not Allowed).
+        Resolve the concrete user id once and then use `/users/{userId}/...`.
+        """
         if self._session_initialized:
             return
-        await self.client.get("/users/current")
+        me = await self.client.get("/users/current")
+        resolved_user_id: str | None = None
+        if isinstance(me, dict):
+            # Different deployments vary in the key name.
+            candidate = (
+                me.get("userId")
+                or me.get("userID")
+                or me.get("id")
+                or me.get("user_id")
+            )
+            if candidate is not None:
+                resolved_user_id = str(candidate)
+
+        # Only override when we were using the placeholder "current".
+        if self.user_id == CURRENT_USER and resolved_user_id:
+            logger.info(
+                "Resolved WDK user id for mutations",
+                resolved_user_id=resolved_user_id,
+            )
+            self.user_id = resolved_user_id
         self._session_initialized = True
 
     async def _get_boolean_search_name(self, record_type: str) -> str:
@@ -372,29 +396,22 @@ class StrategyAPI:
         name: str | None = None,
     ) -> dict[str, Any]:
         """Update a strategy."""
-        payload: dict[str, Any] = {}
-        if step_tree:
-            # Different WDK deployments use different field names ("stepTree" vs
-            # "stepTreeNode") for the strategy tree. Send both defensively.
-            tree = step_tree.to_dict()
-            payload["stepTree"] = tree
-            payload["stepTreeNode"] = tree
-        if name:
-            payload["name"] = name
-
         await self._ensure_session()
-        # Some deployments accept PATCH but ignore the tree update; PUT is more
-        # consistently honored for updating the strategy structure.
-        try:
-            return await self.client.put(
-                f"/users/{self.user_id}/strategies/{strategy_id}",
-                json=payload,
+
+        if step_tree is not None:
+            await self.client.put(
+                f"/users/{self.user_id}/strategies/{strategy_id}/step-tree",
+                json={"stepTree": step_tree.to_dict()},
             )
-        except Exception:
-            return await self.client.patch(
+
+        if name:
+            await self.client.patch(
                 f"/users/{self.user_id}/strategies/{strategy_id}",
-                json=payload,
+                json={"name": name},
             )
+
+        # Return the updated strategy payload (best-effort).
+        return await self.get_strategy(strategy_id)
 
     async def delete_strategy(self, strategy_id: int) -> None:
         """Delete a strategy."""

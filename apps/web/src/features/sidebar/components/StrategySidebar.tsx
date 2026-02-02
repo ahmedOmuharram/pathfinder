@@ -36,7 +36,7 @@ interface StrategyListItem {
   wdkStrategyId?: number;
   source: "draft" | "synced";
   isRemote?: boolean;
-  isTemporary?: boolean;
+  isInternal?: boolean;
 }
 
 export function StrategySidebar({
@@ -160,8 +160,11 @@ export function StrategySidebar({
             wdkStrategyId: item.wdkStrategyId,
             source: "synced" as const,
             isRemote: !localByWdkId.has(item.wdkStrategyId),
-            isTemporary: Boolean(item.isTemporary),
+            isInternal: Boolean(item.isInternal),
           }))
+          // Hide the app-created "Pathfinder step counts" strategy (it is purely
+          // an internal implementation detail used to compute counts).
+          .filter((item) => !item.isInternal)
           .filter((item) => item.isRemote);
         setStrategyItems([...localItems, ...remoteItems]);
       })
@@ -397,8 +400,8 @@ export function StrategySidebar({
                 </div>
                 <span className="text-[10px] uppercase tracking-wide text-slate-400">
                   {s.isRemote
-                    ? s.isTemporary
-                      ? "WDK (open)"
+                    ? s.isInternal
+                      ? "WDK (internal)"
                       : "WDK"
                     : s.source === "synced"
                       ? "Synced"
