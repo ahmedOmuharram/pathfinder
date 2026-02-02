@@ -1,9 +1,11 @@
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@pathfinder/shared'],
   turbopack: {
-    root: __dirname,
+    root: path.resolve(__dirname, "../.."),
   },
   experimental: {
     serverActions: {
