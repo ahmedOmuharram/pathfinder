@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pathfinder.veupathdb.org/schemas/strategy_plan.json",
+  "title": "StrategyPlan",
+  "description": "Internal DSL for representing VEuPathDB search strategies as an AST",
+  "type": "object",
+  "properties": {
+    "recordType": {
+      "type": "string",
+      "description": "The record type this strategy operates on (e.g., gene, transcript, snp)"
+    },
+    "root": {
+      "$ref": "#/$defs/PlanNode",
+      "description": "The root node of the strategy tree"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "siteId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "required": ["recordType", "root"],
+  "$defs": {
+    "PlanNode": {
+      "oneOf": [
+        { "$ref": "#/$defs/SearchNode" },
+        { "$ref": "#/$defs/CombineNode" },
+        { "$ref": "#/$defs/TransformNode" }
+      ]
+    },
+    "SearchNode": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "search" },
+        "id": {
+          "type": "string",
+          "description": "Local step ID for referencing"
+        },
+        "searchName": {
+          "type": "string",
+          "description": "Name of the WDK search to execute"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable name for this step"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Search parameters as key-value pairs"
+        }
+      },
+      "required": ["type", "searchName", "parameters"],
+      "additionalProperties": false
+    },
+    "CombineNode": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "combine" },
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "operator": {
+          "$ref": "#/$defs/CombineOperator"
+        },
+        "left": {
+          "$ref": "#/$defs/PlanNode",
+          "description": "Left/primary input step"
+        },
+        "right": {
+          "$ref": "#/$defs/PlanNode",
+          "description": "Right/secondary input step"
+        },
+        "colocationParams": {
+          "$ref": "#/$defs/ColocationParams",
+          "description": "Parameters for genomic colocation (only when operator is COLOCATE)"
+        }
+      },
+      "required": ["type", "operator", "left", "right"],
+      "additionalProperties": false
+    },
+    "TransformNode": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "transform" },
+        "id": { "type": "string" },
+        "displayName": { "type": "string" },
+        "transformName": {
+          "type": "string",
+          "description": "Name of the transform (e.g., orthology expansion)"
+        },
+        "input": {
+          "$ref": "#/$defs/PlanNode",
+          "description": "Input step to transform"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["type", "transformName", "input"],
+      "additionalProperties": false
+    },
+    "CombineOperator": {
+      "type": "string",
+      "enum": ["INTERSECT", "UNION", "MINUS_LEFT", "MINUS_RIGHT", "COLOCATE"],
+      "description": "Set operation for combining two steps"
+    },
+    "ColocationParams": {
+      "type": "object",
+      "properties": {
+        "upstream": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Upstream distance in base pairs"
+        },
+        "downstream": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Downstream distance in base pairs"
+        },
+        "strand": {
+          "type": "string",
+          "enum": ["same", "opposite", "both"],
+          "default": "both"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

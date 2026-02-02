@@ -1,0 +1,84 @@
+"""Combine operations for strategy building."""
+
+from dataclasses import dataclass
+from enum import Enum
+from typing import Literal
+
+
+class CombineOp(str, Enum):
+    """Set operations for combining two step results."""
+
+    # IDs in common (AND) - intersection
+    INTERSECT = "INTERSECT"
+
+    # Combined (OR) - union
+    UNION = "UNION"
+
+    # Left minus right - IDs in left but not in right
+    MINUS_LEFT = "MINUS_LEFT"
+
+    # Right minus left - IDs in right but not in left
+    MINUS_RIGHT = "MINUS_RIGHT"
+
+    # Genomic colocation - genes near each other
+    COLOCATE = "COLOCATE"
+
+
+# User-friendly labels for operators
+OP_LABELS: dict[CombineOp, str] = {
+    CombineOp.INTERSECT: "IDs in common (AND)",
+    CombineOp.UNION: "Combined (OR)",
+    CombineOp.MINUS_LEFT: "In left, not in right",
+    CombineOp.MINUS_RIGHT: "In right, not in left",
+    CombineOp.COLOCATE: "Genomic colocation",
+}
+
+# Map to WDK boolean operator names
+WDK_BOOLEAN_OPS: dict[CombineOp, str] = {
+    CombineOp.INTERSECT: "INTERSECT",
+    CombineOp.UNION: "UNION",
+    CombineOp.MINUS_LEFT: "MINUS",  # Left minus (LMINUS rejected by WDK)
+    CombineOp.MINUS_RIGHT: "RMINUS",  # Right minus
+    # COLOCATE uses a different mechanism in WDK
+}
+
+
+@dataclass
+class ColocationParams:
+    """Parameters for genomic colocation operation."""
+
+    upstream: int = 0
+    downstream: int = 0
+    strand: Literal["same", "opposite", "both"] = "both"
+
+    def validate(self) -> list[str]:
+        """Validate parameters."""
+        errors = []
+        if self.upstream < 0:
+            errors.append("Upstream distance must be non-negative")
+        if self.downstream < 0:
+            errors.append("Downstream distance must be non-negative")
+        if self.strand not in ("same", "opposite", "both"):
+            errors.append(f"Invalid strand option: {self.strand}")
+        return errors
+
+
+def get_op_label(op: CombineOp) -> str:
+    """Get human-readable label for an operator."""
+    return OP_LABELS.get(op, op.value)
+
+
+def get_wdk_operator(op: CombineOp) -> str:
+    """Get WDK boolean operator name."""
+    if op == CombineOp.COLOCATE:
+        raise ValueError("COLOCATE requires special handling, not boolean operator")
+    return WDK_BOOLEAN_OPS[op]
+
+
+def parse_op(value: str) -> CombineOp:
+    """Parse operator from string value."""
+    try:
+        return CombineOp(value)
+    except ValueError:
+        raise ValueError(f"Unknown operator: {value}")
+

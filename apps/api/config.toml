@@ -1,0 +1,36 @@
+api_env = "development"
+api_host = "0.0.0.0"
+api_port = 8000
+api_debug = false
+api_docs_enabled = true
+
+# Database (SQLite for dev, PostgreSQL for prod)
+database_url = "sqlite+aiosqlite:///./pathfinder.db"
+
+# Redis
+redis_url = "redis://localhost:6379/0"
+
+# OpenAI
+openai_model = "gpt-4o"
+openai_temperature = 0.0
+openai_top_p = 1.0
+
+# Sub-kani orchestration
+subkani_model = "gpt-4o"
+subkani_temperature = 0.0
+subkani_top_p = 1.0
+subkani_max_concurrency = 6
+subkani_timeout_seconds = 120
+
+# VEuPathDB
+veupathdb_default_site = "plasmodb"
+veupathdb_cache_ttl = 3600
+veupathdb_oauth_url = ""
+veupathdb_oauth_client_id = ""
+
+# Logging
+log_level = "INFO"
+log_format = "json"
+
+# CORS
+cors_origins = ["http://localhost:3000"]

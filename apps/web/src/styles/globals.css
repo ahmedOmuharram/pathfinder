@@ -1,0 +1,275 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --primary: #0f172a;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #e2e8f0;
+  --muted-foreground: #64748b;
+  --accent: #0f172a;
+  --accent-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --ring: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-display), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes save-attention {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    border-color: rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+}
+
+.save-attention {
+  animation: save-attention 2s ease-in-out infinite;
+}
+
+@keyframes warning-dash {
+  0% {
+    background-position: 0 0, 100% 0, 0 100%, 0 0;
+  }
+  100% {
+    background-position: 24px 0, 100% 24px, -24px 100%, 0 -24px;
+  }
+}
+
+.warning-dash {
+  position: relative;
+}
+
+.warning-dash::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+        90deg,
+        rgba(245, 158, 11, 0.9) 0 6px,
+        rgba(245, 158, 11, 0) 6px 12px
+      )
+      0 0 / 100% 2px no-repeat,
+    repeating-linear-gradient(
+        180deg,
+        rgba(245, 158, 11, 0.9) 0 6px,
+        rgba(245, 158, 11, 0) 6px 12px
+      )
+      100% 0 / 2px 100% no-repeat,
+    repeating-linear-gradient(
+        90deg,
+        rgba(245, 158, 11, 0.9) 0 6px,
+        rgba(245, 158, 11, 0) 6px 12px
+      )
+      0 100% / 100% 2px no-repeat,
+    repeating-linear-gradient(
+        180deg,
+        rgba(245, 158, 11, 0.9) 0 6px,
+        rgba(245, 158, 11, 0) 6px 12px
+      )
+      0 0 / 2px 100% no-repeat;
+  animation: warning-dash 2.5s linear infinite;
+}
+
+.warning-group-node {
+  background: transparent;
+  pointer-events: none;
+}
+
+@keyframes toast-in-out {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.toast-animate {
+  animation: toast-in-out var(--toast-duration, 3500ms) ease-in-out forwards;
+}
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.toast-progress {
+  animation: toast-progress var(--toast-duration, 3500ms) linear forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    var(--secondary) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* React Flow customizations */
+.react-flow__node {
+  transition: transform 0.2s ease;
+}
+
+.react-flow__edge-path {
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+/* Markdown content styling */
+.markdown-content h1 {
+  @apply text-2xl font-bold text-slate-900 mt-4 mb-2;
+}
+
+.markdown-content h2 {
+  @apply text-xl font-semibold text-slate-800 mt-3 mb-2;
+}
+
+.markdown-content a {
+  @apply text-slate-900 underline decoration-slate-300 underline-offset-4;
+}
+
+.markdown-content a:hover {
+  @apply text-slate-700;
+}
+
+.markdown-content p {
+  @apply mb-3 leading-relaxed;
+}
+
+.chat-messages .markdown-content p {
+  margin-bottom: 0.25rem;
+}
+
+.chat-messages .markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-mono text-sm;
+}
+
+.markdown-content pre {
+  @apply bg-slate-100 p-4 rounded-lg overflow-x-auto mb-4;
+}
+
+.markdown-content ul {
+  @apply list-disc list-inside mb-3 space-y-1;
+}
+
+.markdown-content ol {
+  @apply list-decimal list-inside mb-3 space-y-1;
+}
+

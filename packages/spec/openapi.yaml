@@ -1,0 +1,2879 @@
+openapi: 3.1.0
+info:
+  title: Pathfinder API
+  description: VEuPathDB Strategy Builder Chatbot API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      summary: Health Check
+      description: Liveness check - is the service running?
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /health/ready:
+    get:
+      tags:
+      - health
+      summary: Readiness Check
+      description: 'Readiness check - is the service ready to accept requests?
+
+
+        In production, this should check database and cache connectivity.'
+      operationId: readiness_check_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/sites:
+    get:
+      tags:
+      - sites
+      summary: List Sites
+      description: List all available VEuPathDB sites.
+      operationId: list_sites_api_v1_sites_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SiteResponse'
+                type: array
+                title: Response List Sites Api V1 Sites Get
+  /api/v1/sites/{siteId}:
+    get:
+      tags:
+      - sites
+      summary: Get Site
+      description: Get a single site by ID.
+      operationId: get_site_api_v1_sites__siteId__get
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/record-types:
+    get:
+      tags:
+      - sites
+      summary: Get Record Types
+      description: Get record types available on a site.
+      operationId: get_record_types_api_v1_sites__siteId__record_types_get
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecordTypeResponse'
+                title: Response Get Record Types Api V1 Sites  Siteid  Record Types Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches:
+    get:
+      tags:
+      - sites
+      summary: Get Searches
+      description: 'Get searches available on a site.
+
+
+        Optionally filter by record type.'
+      operationId: get_searches_api_v1_sites__siteId__searches_get
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordtype
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResponse'
+                title: Response Get Searches Api V1 Sites  Siteid  Searches Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches/{recordType}/{searchName}:
+    get:
+      tags:
+      - sites
+      summary: Get Search Details
+      description: Get detailed search configuration with parameters.
+      operationId: get_search_details_api_v1_sites__siteId__searches__recordType___searchName__get
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchDetailsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches/{recordType}/{searchName}/dependent-params:
+    post:
+      tags:
+      - sites
+      summary: Get Dependent Params
+      description: Get dependent parameter vocabulary values.
+      operationId: get_dependent_params_api_v1_sites__siteId__searches__recordType___searchName__dependent_params_post
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependentParamsRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependentParamsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches/{recordType}/{searchName}/validate:
+    post:
+      tags:
+      - sites
+      summary: Validate Search Params
+      description: Validate search parameters (UI-friendly).
+      operationId: validate_search_params_api_v1_sites__siteId__searches__recordType___searchName__validate_post
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchValidationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchValidationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches/{recordType}/{searchName}/param-specs:
+    get:
+      tags:
+      - sites
+      summary: Get Param Specs
+      description: Return normalized parameter specs for UI consumption.
+      operationId: get_param_specs_api_v1_sites__siteId__searches__recordType___searchName__param_specs_get
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParamSpecResponse'
+                title: Response Get Param Specs Api V1 Sites  Siteid  Searches  Recordtype   Searchname  Param Specs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chat:
+    post:
+      tags:
+      - chat
+      summary: Chat
+      description: 'Send a chat message and receive streaming response.
+
+
+        Returns a Server-Sent Events stream with response chunks.'
+      operationId: chat_api_v1_chat_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
+  /api/v1/strategies:
+    get:
+      tags:
+      - strategies
+      summary: List Strategies
+      description: List user's saved strategies.
+      operationId: list_strategies_api_v1_strategies_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StrategySummaryResponse'
+                title: Response List Strategies Api V1 Strategies Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - strategies
+      summary: Create Strategy
+      description: Create a new strategy.
+      operationId: create_strategy_api_v1_strategies_post
+      security:
+      - APIKeyCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStrategyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}:
+    get:
+      tags:
+      - strategies
+      summary: Get Strategy
+      description: Get a strategy by ID.
+      operationId: get_strategy_api_v1_strategies__strategyId__get
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - strategies
+      summary: Update Strategy
+      description: Update a strategy.
+      operationId: update_strategy_api_v1_strategies__strategyId__patch
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStrategyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - strategies
+      summary: Delete Strategy
+      description: Delete a strategy.
+      operationId: delete_strategy_api_v1_strategies__strategyId__delete
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/step-counts:
+    post:
+      tags:
+      - strategies
+      summary: Compute Step Counts
+      description: Compute step counts by executing the plan in WDK.
+      operationId: compute_step_counts_api_v1_strategies_step_counts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepCountsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepCountsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
+  /api/v1/strategies/plan/normalize:
+    post:
+      tags:
+      - strategies
+      summary: Normalize Plan
+      description: 'Normalize/coerce plan parameters using backend-owned rules.
+
+
+        This endpoint exists so the frontend can be a consumer of backend canonicalization
+
+        (and avoid re-implementing CSV/JSON parsing and WDK quirks).'
+      operationId: normalize_plan_api_v1_strategies_plan_normalize_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanNormalizeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanNormalizeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/open:
+    post:
+      tags:
+      - strategies
+      summary: Open Strategy
+      description: Open a strategy by local or WDK strategy.
+      operationId: open_strategy_api_v1_strategies_open_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenStrategyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenStrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
+  /api/v1/strategies/wdk:
+    get:
+      tags:
+      - strategies
+      summary: List Wdk Strategies
+      description: List strategies from VEuPathDB WDK.
+      operationId: list_wdk_strategies_api_v1_strategies_wdk_get
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WdkStrategySummaryResponse'
+                title: Response List Wdk Strategies Api V1 Strategies Wdk Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/wdk/{wdkStrategyId}:
+    delete:
+      tags:
+      - strategies
+      summary: Delete Wdk Strategy
+      description: Delete a strategy from VEuPathDB WDK.
+      operationId: delete_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__delete
+      parameters:
+      - name: wdkStrategyId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Wdkstrategyid
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/wdk/{wdkStrategyId}/import:
+    post:
+      tags:
+      - strategies
+      summary: Import Wdk Strategy
+      description: Import a WDK strategy as a local snapshot.
+      operationId: import_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__import_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: wdkStrategyId
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Wdkstrategyid
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/push:
+    post:
+      tags:
+      - strategies
+      summary: Push To Wdk
+      description: Push strategy to VEuPathDB WDK.
+      operationId: push_to_wdk_api_v1_strategies__strategyId__push_post
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResultResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/sync-wdk:
+    post:
+      tags:
+      - strategies
+      summary: Sync Strategy From Wdk
+      description: Sync local strategy snapshot from VEuPathDB WDK.
+      operationId: sync_strategy_from_wdk_api_v1_strategies__strategyId__sync_wdk_post
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}:
+    get:
+      tags:
+      - steps
+      summary: Get Step
+      description: Get a step from a strategy.
+      operationId: get_step_api_v1_strategies__strategyId__steps__step_id__get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/filters:
+    get:
+      tags:
+      - steps
+      summary: List Step Filters
+      description: List filters attached to a step.
+      operationId: list_step_filters_api_v1_strategies__strategyId__steps__step_id__filters_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StepFilterResponse'
+                title: Response List Step Filters Api V1 Strategies  Strategyid  Steps  Step Id  Filters Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/filters/available:
+    get:
+      tags:
+      - steps
+      summary: List Available Filters
+      description: List available filters for a step (WDK-backed).
+      operationId: list_available_filters_api_v1_strategies__strategyId__steps__step_id__filters_available_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Available Filters Api V1 Strategies  Strategyid  Steps  Step Id  Filters Available Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/filters/{filter_name}:
+    put:
+      tags:
+      - steps
+      summary: Set Step Filter
+      description: Add or update a filter for a step.
+      operationId: set_step_filter_api_v1_strategies__strategyId__steps__step_id__filters__filter_name__put
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      - name: filter_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Filter Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepFilterRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepFiltersResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - steps
+      summary: Delete Step Filter
+      description: Remove a filter from a step.
+      operationId: delete_step_filter_api_v1_strategies__strategyId__steps__step_id__filters__filter_name__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      - name: filter_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Filter Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepFiltersResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/analysis-types:
+    get:
+      tags:
+      - steps
+      summary: List Analysis Types
+      description: List available analysis types for a step.
+      operationId: list_analysis_types_api_v1_strategies__strategyId__steps__step_id__analysis_types_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Analysis Types Api V1 Strategies  Strategyid  Steps  Step Id  Analysis Types Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/analysis-types/{analysis_type}:
+    get:
+      tags:
+      - steps
+      summary: Get Analysis Type
+      description: Get analysis form metadata for a step.
+      operationId: get_analysis_type_api_v1_strategies__strategyId__steps__step_id__analysis_types__analysis_type__get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      - name: analysis_type
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Analysis Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Analysis Type Api V1 Strategies  Strategyid  Steps  Step Id  Analysis Types  Analysis
+                  Type  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/analyses:
+    get:
+      tags:
+      - steps
+      summary: List Step Analyses
+      description: List analysis instances for a step.
+      operationId: list_step_analyses_api_v1_strategies__strategyId__steps__step_id__analyses_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Step Analyses Api V1 Strategies  Strategyid  Steps  Step Id  Analyses Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - steps
+      summary: Run Step Analysis
+      description: Run a step analysis and attach it locally.
+      operationId: run_step_analysis_api_v1_strategies__strategyId__steps__step_id__analyses_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepAnalysisRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepAnalysisRunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/steps/{step_id}/reports:
+    post:
+      tags:
+      - steps
+      summary: Run Step Report
+      description: Run a report and attach it locally.
+      operationId: run_step_report_api_v1_strategies__strategyId__steps__step_id__reports_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: step_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Step Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepReportRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepReportRunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/results/preview:
+    post:
+      tags:
+      - results
+      summary: Preview Results
+      description: 'Preview step results.
+
+
+        Returns a sample of records and total count for the specified step.
+
+        The strategy must have been pushed to WDK first.'
+      operationId: preview_results_api_v1_results_preview_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/results/download:
+    post:
+      tags:
+      - results
+      summary: Download Results
+      description: 'Get download URL for step results.
+
+
+        Creates a temporary result on VEuPathDB and returns a download URL.'
+      operationId: download_results_api_v1_results_download_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DownloadRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/veupathdb/auth/login:
+    post:
+      tags:
+      - veupathdb-auth
+      summary: Login With Password
+      description: Login via VEuPathDB /login and store auth cookie.
+      operationId: login_with_password_api_v1_veupathdb_auth_login_post
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: redirectTo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Redirectto
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/LoginPayload'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/veupathdb/auth/token:
+    post:
+      tags:
+      - veupathdb-auth
+      summary: Accept Token
+      description: Accept a VEuPathDB Authorization token and store it as a cookie.
+      operationId: accept_token_api_v1_veupathdb_auth_token_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/TokenPayload'
+              - type: 'null'
+              title: Payload
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/veupathdb/auth/logout:
+    post:
+      tags:
+      - veupathdb-auth
+      summary: Logout
+      description: Clear local auth cookie and log out of VEuPathDB.
+      operationId: logout_api_v1_veupathdb_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+  /api/v1/veupathdb/auth/status:
+    get:
+      tags:
+      - veupathdb-auth
+      summary: Auth Status
+      description: Return current VEuPathDB auth status.
+      operationId: auth_status_api_v1_veupathdb_auth_status_get
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AuthStatusResponse:
+      properties:
+        signedIn:
+          type: boolean
+          title: Signedin
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+      type: object
+      required:
+      - signedIn
+      title: AuthStatusResponse
+      description: Current auth status response.
+    AuthSuccessResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+      type: object
+      required:
+      - success
+      title: AuthSuccessResponse
+      description: Simple success response.
+    ChatRequest:
+      properties:
+        strategyId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Strategyid
+        siteId:
+          type: string
+          title: Siteid
+        message:
+          type: string
+          maxLength: 10000
+          minLength: 1
+          title: Message
+      type: object
+      required:
+      - siteId
+      - message
+      title: ChatRequest
+      description: Request to send a chat message.
+    ColocationParams:
+      properties:
+        upstream:
+          type: integer
+          minimum: 0.0
+          title: Upstream
+        downstream:
+          type: integer
+          minimum: 0.0
+          title: Downstream
+        strand:
+          type: string
+          title: Strand
+          default: both
+      type: object
+      required:
+      - upstream
+      - downstream
+      title: ColocationParams
+    CombinePlanNode-Input:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec'
+            type: array
+          - type: 'null'
+          title: Reports
+        type:
+          type: string
+          const: combine
+          title: Type
+        operator:
+          type: string
+          title: Operator
+        left:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Input'
+          - $ref: '#/components/schemas/TransformPlanNode-Input'
+          title: Left
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Input'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Input'
+        right:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Input'
+          - $ref: '#/components/schemas/TransformPlanNode-Input'
+          title: Right
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Input'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Input'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - operator
+      - left
+      - right
+      title: CombinePlanNode
+    CombinePlanNode-Output:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec'
+            type: array
+          - type: 'null'
+          title: Reports
+        type:
+          type: string
+          const: combine
+          title: Type
+        operator:
+          type: string
+          title: Operator
+        left:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Output'
+          - $ref: '#/components/schemas/TransformPlanNode-Output'
+          title: Left
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Output'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Output'
+        right:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Output'
+          - $ref: '#/components/schemas/TransformPlanNode-Output'
+          title: Right
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Output'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Output'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - operator
+      - left
+      - right
+      title: CombinePlanNode
+    CreateStrategyRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        plan:
+          $ref: '#/components/schemas/StrategyPlan-Input'
+      type: object
+      required:
+      - name
+      - siteId
+      - plan
+      title: CreateStrategyRequest
+      description: Request to create a strategy.
+    DependentParamsRequest:
+      properties:
+        parameterName:
+          type: string
+          title: Parametername
+        contextValues:
+          additionalProperties: true
+          type: object
+          title: Contextvalues
+      type: object
+      required:
+      - parameterName
+      title: DependentParamsRequest
+      description: Dependent parameter values request.
+    DependentParamsResponse:
+      items:
+        additionalProperties: true
+        type: object
+      type: array
+      title: DependentParamsResponse
+      description: Dependent parameter values response.
+    DownloadRequest:
+      properties:
+        strategyId:
+          type: string
+          format: uuid
+          title: Strategyid
+        stepId:
+          type: string
+          title: Stepid
+        format:
+          type: string
+          title: Format
+          default: csv
+        attributes:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Attributes
+      type: object
+      required:
+      - strategyId
+      - stepId
+      title: DownloadRequest
+      description: Request to download results.
+    DownloadResponse:
+      properties:
+        downloadUrl:
+          type: string
+          title: Downloadurl
+        expiresAt:
+          type: string
+          format: date-time
+          title: Expiresat
+      type: object
+      required:
+      - downloadUrl
+      - expiresAt
+      title: DownloadResponse
+      description: Download response with URL.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        version:
+          type: string
+          title: Version
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+      type: object
+      required:
+      - status
+      - version
+      - timestamp
+      title: HealthResponse
+      description: Health check response.
+    LoginPayload:
+      properties:
+        email:
+          type: string
+          title: Email
+        password:
+          type: string
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginPayload
+    MessageResponse:
+      properties:
+        role:
+          type: string
+          title: Role
+        content:
+          type: string
+          title: Content
+        toolCalls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCallResponse'
+            type: array
+          - type: 'null'
+          title: Toolcalls
+        subKaniActivity:
+          anyOf:
+          - $ref: '#/components/schemas/SubKaniActivityResponse'
+          - type: 'null'
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+      type: object
+      required:
+      - role
+      - content
+      - timestamp
+      title: MessageResponse
+      description: Chat message.
+    OpenStrategyRequest:
+      properties:
+        strategyId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Strategyid
+        wdkStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkstrategyid
+        siteId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+      type: object
+      title: OpenStrategyRequest
+      description: Request to open a strategy.
+    OpenStrategyResponse:
+      properties:
+        strategyId:
+          type: string
+          format: uuid
+          title: Strategyid
+      type: object
+      required:
+      - strategyId
+      title: OpenStrategyResponse
+      description: Open strategy response.
+    ParamSpecResponse:
+      properties:
+        name:
+          type: string
+          title: Name
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        type:
+          type: string
+          title: Type
+        allowEmptyValue:
+          type: boolean
+          title: Allowemptyvalue
+          default: false
+        minSelectedCount:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Minselectedcount
+        maxSelectedCount:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Maxselectedcount
+        countOnlyLeaves:
+          type: boolean
+          title: Countonlyleaves
+          default: false
+        vocabulary:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Vocabulary
+      type: object
+      required:
+      - name
+      - type
+      title: ParamSpecResponse
+      description: Normalized parameter spec (UI-friendly).
+    PlanMetadata:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        siteId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+        createdAt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Createdat
+      type: object
+      title: PlanMetadata
+    PlanNormalizeRequest:
+      properties:
+        siteId:
+          type: string
+          title: Siteid
+        plan:
+          $ref: '#/components/schemas/StrategyPlan-Input'
+      type: object
+      required:
+      - siteId
+      - plan
+      title: PlanNormalizeRequest
+    PlanNormalizeResponse:
+      properties:
+        plan:
+          $ref: '#/components/schemas/StrategyPlan-Output'
+        warnings:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Warnings
+      type: object
+      required:
+      - plan
+      title: PlanNormalizeResponse
+    PreviewRequest:
+      properties:
+        strategyId:
+          type: string
+          format: uuid
+          title: Strategyid
+        stepId:
+          type: string
+          title: Stepid
+        limit:
+          type: integer
+          maximum: 1000.0
+          minimum: 1.0
+          title: Limit
+          default: 100
+      type: object
+      required:
+      - strategyId
+      - stepId
+      title: PreviewRequest
+      description: Request to preview results.
+    PreviewResponse:
+      properties:
+        totalCount:
+          type: integer
+          title: Totalcount
+        records:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Records
+        columns:
+          items:
+            type: string
+          type: array
+          title: Columns
+      type: object
+      required:
+      - totalCount
+      - records
+      - columns
+      title: PreviewResponse
+      description: Preview results response.
+    PushResultResponse:
+      properties:
+        wdkStrategyId:
+          type: integer
+          title: Wdkstrategyid
+        wdkUrl:
+          type: string
+          title: Wdkurl
+      type: object
+      required:
+      - wdkStrategyId
+      - wdkUrl
+      title: PushResultResponse
+      description: Result of pushing strategy to WDK.
+    RecordTypeResponse:
+      properties:
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - name
+      - displayName
+      title: RecordTypeResponse
+      description: Record type information.
+    SearchDetailsResponse:
+      properties:
+        searchData:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Searchdata
+        validation:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Validation
+        searchConfig:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Searchconfig
+        parameters:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Parameters
+        paramMap:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Parammap
+        question:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Question
+      additionalProperties: true
+      type: object
+      title: SearchDetailsResponse
+      description: Search details payload (UI-facing).
+    SearchPlanNode:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec'
+            type: array
+          - type: 'null'
+          title: Reports
+        type:
+          type: string
+          const: search
+          title: Type
+        searchName:
+          type: string
+          title: Searchname
+        parameters:
+          additionalProperties: true
+          type: object
+          title: Parameters
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - searchName
+      title: SearchPlanNode
+    SearchResponse:
+      properties:
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        recordType:
+          type: string
+          title: Recordtype
+      type: object
+      required:
+      - name
+      - displayName
+      - recordType
+      title: SearchResponse
+      description: Search information.
+    SearchValidationErrors:
+      properties:
+        general:
+          items:
+            type: string
+          type: array
+          title: General
+        byKey:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Bykey
+      type: object
+      title: SearchValidationErrors
+    SearchValidationPayload:
+      properties:
+        isValid:
+          type: boolean
+          title: Isvalid
+        normalizedContextValues:
+          additionalProperties: true
+          type: object
+          title: Normalizedcontextvalues
+        errors:
+          $ref: '#/components/schemas/SearchValidationErrors'
+      type: object
+      required:
+      - isValid
+      title: SearchValidationPayload
+    SearchValidationRequest:
+      properties:
+        contextValues:
+          additionalProperties: true
+          type: object
+          title: Contextvalues
+      type: object
+      title: SearchValidationRequest
+      description: Search parameter validation request.
+    SearchValidationResponse:
+      properties:
+        validation:
+          $ref: '#/components/schemas/SearchValidationPayload'
+      type: object
+      required:
+      - validation
+      title: SearchValidationResponse
+      description: Stable validation response for UI consumption.
+    SiteResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        baseUrl:
+          type: string
+          title: Baseurl
+        projectId:
+          type: string
+          title: Projectid
+        isPortal:
+          type: boolean
+          title: Isportal
+      type: object
+      required:
+      - id
+      - name
+      - displayName
+      - baseUrl
+      - projectId
+      - isPortal
+      title: SiteResponse
+      description: VEuPathDB site information.
+    StepAnalysisRequest:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          additionalProperties: true
+          type: object
+          title: Parameters
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysisRequest
+      description: Request to run a step analysis.
+    StepAnalysisResponse:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          additionalProperties: true
+          type: object
+          title: Parameters
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysisResponse
+      description: Analysis configuration attached to a step.
+    StepAnalysisRunResponse:
+      properties:
+        analysis:
+          $ref: '#/components/schemas/StepAnalysisResponse'
+        wdk:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Wdk
+      type: object
+      required:
+      - analysis
+      title: StepAnalysisRunResponse
+      description: Result of running a step analysis.
+    StepAnalysisSpec:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          additionalProperties: true
+          type: object
+          title: Parameters
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysisSpec
+    StepCountsRequest:
+      properties:
+        siteId:
+          type: string
+          title: Siteid
+        plan:
+          $ref: '#/components/schemas/StrategyPlan-Input'
+      type: object
+      required:
+      - siteId
+      - plan
+      title: StepCountsRequest
+      description: Request to compute step counts from a plan.
+    StepCountsResponse:
+      properties:
+        counts:
+          additionalProperties:
+            anyOf:
+            - type: integer
+            - type: 'null'
+          type: object
+          title: Counts
+      type: object
+      required:
+      - counts
+      title: StepCountsResponse
+      description: Step counts keyed by local step ID.
+    StepFilterRequest:
+      properties:
+        value:
+          title: Value
+        disabled:
+          type: boolean
+          title: Disabled
+          default: false
+      type: object
+      required:
+      - value
+      title: StepFilterRequest
+      description: Request to set or update a step filter.
+    StepFilterResponse:
+      properties:
+        name:
+          type: string
+          title: Name
+        value:
+          title: Value
+        disabled:
+          type: boolean
+          title: Disabled
+          default: false
+      type: object
+      required:
+      - name
+      - value
+      title: StepFilterResponse
+      description: Filter attached to a step.
+    StepFilterSpec:
+      properties:
+        name:
+          type: string
+          title: Name
+        value:
+          title: Value
+        disabled:
+          type: boolean
+          title: Disabled
+          default: false
+      type: object
+      required:
+      - name
+      - value
+      title: StepFilterSpec
+    StepFiltersResponse:
+      properties:
+        filters:
+          items:
+            $ref: '#/components/schemas/StepFilterResponse'
+          type: array
+          title: Filters
+      type: object
+      required:
+      - filters
+      title: StepFiltersResponse
+      description: Container for step filters.
+    StepReportRequest:
+      properties:
+        reportName:
+          type: string
+          title: Reportname
+          default: standard
+        config:
+          additionalProperties: true
+          type: object
+          title: Config
+      type: object
+      title: StepReportRequest
+      description: Request to run a step report.
+    StepReportResponse:
+      properties:
+        reportName:
+          type: string
+          title: Reportname
+          default: standard
+        config:
+          additionalProperties: true
+          type: object
+          title: Config
+      type: object
+      title: StepReportResponse
+      description: Report configuration attached to a step.
+    StepReportRunResponse:
+      properties:
+        report:
+          $ref: '#/components/schemas/StepReportResponse'
+        wdk:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Wdk
+      type: object
+      required:
+      - report
+      title: StepReportRunResponse
+      description: Result of running a step report.
+    StepReportSpec:
+      properties:
+        reportName:
+          type: string
+          title: Reportname
+          default: standard
+        config:
+          additionalProperties: true
+          type: object
+          title: Config
+      type: object
+      title: StepReportSpec
+    StepResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        type:
+          type: string
+          title: Type
+        displayName:
+          type: string
+          title: Displayname
+        searchName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Searchname
+        transformName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Transformname
+        recordType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordtype
+        parameters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Parameters
+        operator:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator
+        primaryInputStepId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Primaryinputstepid
+        secondaryInputStepId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Secondaryinputstepid
+        resultCount:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Resultcount
+        wdkStepId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkstepid
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterResponse'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisResponse'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportResponse'
+            type: array
+          - type: 'null'
+          title: Reports
+      type: object
+      required:
+      - id
+      - type
+      - displayName
+      title: StepResponse
+      description: Strategy step.
+    StrategyPlan-Input:
+      properties:
+        recordType:
+          type: string
+          title: Recordtype
+        root:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Input'
+          - $ref: '#/components/schemas/TransformPlanNode-Input'
+          title: Root
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Input'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Input'
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/PlanMetadata'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - recordType
+      - root
+      title: StrategyPlan
+    StrategyPlan-Output:
+      properties:
+        recordType:
+          type: string
+          title: Recordtype
+        root:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Output'
+          - $ref: '#/components/schemas/TransformPlanNode-Output'
+          title: Root
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Output'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Output'
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/PlanMetadata'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - recordType
+      - root
+      title: StrategyPlan
+    StrategyResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordtype
+        steps:
+          items:
+            $ref: '#/components/schemas/StepResponse'
+          type: array
+          title: Steps
+        rootStepId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rootstepid
+        wdkStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkstrategyid
+        messages:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MessageResponse'
+            type: array
+          - type: 'null'
+          title: Messages
+        thinking:
+          anyOf:
+          - $ref: '#/components/schemas/ThinkingResponse'
+          - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+      type: object
+      required:
+      - id
+      - name
+      - siteId
+      - recordType
+      - steps
+      - rootStepId
+      - createdAt
+      - updatedAt
+      title: StrategyResponse
+      description: Full strategy with steps.
+    StrategySummaryResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordtype
+        stepCount:
+          type: integer
+          title: Stepcount
+        resultCount:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Resultcount
+        wdkStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkstrategyid
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+      type: object
+      required:
+      - id
+      - name
+      - siteId
+      - recordType
+      - stepCount
+      - createdAt
+      - updatedAt
+      title: StrategySummaryResponse
+      description: Strategy summary for list views.
+    SubKaniActivityResponse:
+      properties:
+        calls:
+          additionalProperties:
+            items:
+              $ref: '#/components/schemas/ToolCallResponse'
+            type: array
+          type: object
+          title: Calls
+        status:
+          additionalProperties:
+            type: string
+          type: object
+          title: Status
+      type: object
+      required:
+      - calls
+      - status
+      title: SubKaniActivityResponse
+      description: Sub-kani tool call activity.
+    ThinkingResponse:
+      properties:
+        toolCalls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCallResponse'
+            type: array
+          - type: 'null'
+          title: Toolcalls
+        subKaniCalls:
+          anyOf:
+          - additionalProperties:
+              items:
+                $ref: '#/components/schemas/ToolCallResponse'
+              type: array
+            type: object
+          - type: 'null'
+          title: Subkanicalls
+        subKaniStatus:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          title: Subkanistatus
+        updatedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updatedat
+      type: object
+      title: ThinkingResponse
+      description: In-progress tool call state.
+    TokenPayload:
+      properties:
+        token:
+          type: string
+          title: Token
+      type: object
+      required:
+      - token
+      title: TokenPayload
+    ToolCallResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        arguments:
+          additionalProperties: true
+          type: object
+          title: Arguments
+        result:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result
+      type: object
+      required:
+      - id
+      - name
+      - arguments
+      title: ToolCallResponse
+      description: Tool call information.
+    TransformPlanNode-Input:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec'
+            type: array
+          - type: 'null'
+          title: Reports
+        type:
+          type: string
+          const: transform
+          title: Type
+        transformName:
+          type: string
+          title: Transformname
+        input:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Input'
+          - $ref: '#/components/schemas/TransformPlanNode-Input'
+          title: Input
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Input'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Input'
+        parameters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Parameters
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - transformName
+      - input
+      title: TransformPlanNode
+    TransformPlanNode-Output:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec'
+            type: array
+          - type: 'null'
+          title: Reports
+        type:
+          type: string
+          const: transform
+          title: Type
+        transformName:
+          type: string
+          title: Transformname
+        input:
+          oneOf:
+          - $ref: '#/components/schemas/SearchPlanNode'
+          - $ref: '#/components/schemas/CombinePlanNode-Output'
+          - $ref: '#/components/schemas/TransformPlanNode-Output'
+          title: Input
+          discriminator:
+            propertyName: type
+            mapping:
+              combine: '#/components/schemas/CombinePlanNode-Output'
+              search: '#/components/schemas/SearchPlanNode'
+              transform: '#/components/schemas/TransformPlanNode-Output'
+        parameters:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Parameters
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - transformName
+      - input
+      title: TransformPlanNode
+    UpdateStrategyRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 255
+            minLength: 1
+          - type: 'null'
+          title: Name
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyPlan-Input'
+          - type: 'null'
+        wdkStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkstrategyid
+      type: object
+      title: UpdateStrategyRequest
+      description: Request to update a strategy.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WdkStrategySummaryResponse:
+      properties:
+        wdkStrategyId:
+          type: integer
+          title: Wdkstrategyid
+        name:
+          type: string
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        wdkUrl:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wdkurl
+        rootStepId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rootstepid
+        isSaved:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Issaved
+        isTemporary:
+          type: boolean
+          title: Istemporary
+          default: false
+      type: object
+      required:
+      - wdkStrategyId
+      - name
+      - siteId
+      title: WdkStrategySummaryResponse
+      description: WDK strategy summary for list views.
+  securitySchemes:
+    APIKeyCookie:
+      type: apiKey
+      in: cookie
+      name: pathfinder-auth
+servers:
+- url: http://localhost:8000
+  description: Local development
+- url: https://api.pathfinder.veupathdb.org
+  description: Production

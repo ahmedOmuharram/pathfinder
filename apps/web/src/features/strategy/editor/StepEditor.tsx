@@ -1,0 +1,452 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RecordType, Search, SearchValidationResponse } from "@pathfinder/shared";
+import { getRecordTypes, getSearches, validateSearchParams } from "@/lib/api/client";
+import type { StrategyStep } from "@/types/strategy";
+import { StepCombineOperatorSelect } from "./components/StepCombineOperatorSelect";
+import { StepEditorFooter } from "./components/StepEditorFooter";
+import { StepEditorHeader } from "./components/StepEditorHeader";
+import { StepNameFields } from "./components/StepNameFields";
+import { StepParamFields } from "./components/StepParamFields";
+import { StepRawParamsEditor } from "./components/StepRawParamsEditor";
+import { StepSearchSelector } from "./components/StepSearchSelector";
+import { useParamSpecs } from "./components/useParamSpecs";
+import {
+  extractSpecVocabulary,
+  extractVocabOptions,
+  type VocabOption,
+} from "./components/stepEditorUtils";
+import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
+import { normalizeRecordType, toApiRecordType } from "@/features/strategy/recordType";
+import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
+import { toUserMessage } from "@/lib/api/errors";
+
+interface StepEditorProps {
+  step: StrategyStep;
+  siteId: string;
+  recordType: string | null;
+  strategyId: string | null;
+  onUpdate: (updates: Partial<StrategyStep>) => void;
+  onClose: () => void;
+}
+
+
+export function StepEditor({
+  step,
+  siteId,
+  recordType,
+  onUpdate,
+  onClose,
+}: StepEditorProps) {
+  const [oldName, setOldName] = useState(step.displayName);
+  const [name, setName] = useState(step.displayName);
+  const [editableSearchName, setEditableSearchName] = useState(
+    step.searchName || step.transformName || ""
+  );
+  const [operatorValue, setOperatorValue] = useState(step.operator || "");
+  const [recordTypeValue, setRecordTypeValue] = useState(
+    normalizeRecordType(step.recordType || recordType)
+  );
+  const [parameters, setParameters] = useState<Record<string, unknown>>(
+    step.parameters || {}
+  );
+  const [recordTypeOptions, setRecordTypeOptions] = useState<RecordType[]>([]);
+  const [recordTypeFilter, setRecordTypeFilter] = useState("");
+  const [searchOptions, setSearchOptions] = useState<Search[]>([]);
+  const [isLoadingSearches, setIsLoadingSearches] = useState(false);
+  const [searchListError, setSearchListError] = useState<string | null>(null);
+  const dependentOptions: Record<string, VocabOption[]> = {};
+  const dependentLoading: Record<string, boolean> = {};
+  const dependentErrors: Record<string, string | null> = {};
+  const lastStepIdRef = useRef<string | null>(null);
+  const [rawParams, setRawParams] = useState(
+    JSON.stringify(step.parameters || {}, null, 2)
+  );
+  const [showRaw, setShowRaw] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const searchName = editableSearchName.trim();
+  const normalizedRecordTypeValue = normalizeRecordType(recordTypeValue);
+  const apiRecordTypeValue = toApiRecordType(normalizedRecordTypeValue);
+  const stepValidationError = step.validationError;
+  const selectedSearch = useMemo(() => {
+    if (!searchName) return null;
+    return searchOptions.find((option) => option.name === searchName) || null;
+  }, [searchName, searchOptions]);
+  const isSearchNameAvailable = useMemo(
+    () => (searchName ? searchOptions.some((option) => option.name === searchName) : true),
+    [searchName, searchOptions]
+  );
+  const lastSpecKeyRef = useRef<string | null>(null);
+
+  const filteredSearchOptions = useMemo(() => {
+    const query = editableSearchName.trim().toLowerCase();
+    if (!query) return searchOptions;
+    return searchOptions.filter((option) => {
+      const label = (option.displayName || option.name).toLowerCase();
+      return label.includes(query) || option.name.toLowerCase().includes(query);
+    });
+  }, [editableSearchName, searchOptions]);
+
+  const filteredRecordTypes = useMemo(() => {
+    const query = recordTypeFilter.trim().toLowerCase();
+    if (!query) return recordTypeOptions;
+    return recordTypeOptions.filter((option) => {
+      const label = (option.displayName || option.name).toLowerCase();
+      return label.includes(query) || option.name.toLowerCase().includes(query);
+    });
+  }, [recordTypeFilter, recordTypeOptions]);
+
+  useEffect(() => {
+    let isActive = true;
+    getRecordTypes(siteId)
+      .then((results) => {
+        if (!isActive) return;
+        const options = (results || [])
+          .filter((item): item is RecordType => Boolean(item && item.name))
+          .sort((a, b) =>
+            (a.displayName || a.name).localeCompare(b.displayName || b.name)
+          );
+        const hasTranscript = options.some((option) => option.name === "transcript");
+        const hasGene = options.some((option) => option.name === "gene");
+        const withGene = hasTranscript && !hasGene
+          ? [
+              {
+                name: "gene",
+                displayName: "Gene",
+                description: "Gene (mapped to transcript searches in WDK).",
+              } as RecordType,
+              ...options,
+            ]
+          : options;
+        setRecordTypeOptions(withGene);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setRecordTypeOptions([]);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [siteId]);
+
+  useEffect(() => {
+    if (recordTypeOptions.length === 0) return;
+    if (!recordTypeValue) return;
+    const normalized = normalizeRecordType(recordTypeValue);
+    const exists = recordTypeOptions.some((option) => option.name === normalized);
+    if (!exists) {
+      setRecordTypeValue("");
+    }
+  }, [recordTypeOptions, recordTypeValue]);
+
+  const resolveRecordTypeForSearch = useCallback(
+    (searchRecordType?: string | null) => {
+      const normalized = normalizeRecordType(searchRecordType || "");
+      if (normalized) {
+        const exists = recordTypeOptions.some(
+          (option) => option.name === normalized
+        );
+        if (exists) return normalized;
+      }
+      return normalizeRecordType(recordTypeValue || recordType) || "";
+    },
+    [recordType, recordTypeOptions, recordTypeValue]
+  );
+
+  const { paramSpecs, isLoading } = useParamSpecs({
+    siteId,
+    recordType,
+    searchName,
+    selectedSearch,
+    isSearchNameAvailable,
+    apiRecordTypeValue,
+    resolveRecordTypeForSearch,
+  });
+
+  const validationErrorKeys = useMemo(() => {
+    if (!stepValidationError) return new Set<string>();
+    const keys = new Set<string>();
+    const paramNames = new Set(
+      paramSpecs.map((spec) => spec.name).filter(Boolean) as string[]
+    );
+    stepValidationError
+      .replace(/^Cannot be saved:\s*/i, "")
+      .split(";")
+      .map((part) => part.trim())
+      .forEach((part) => {
+        if (!part) return;
+        const splitIndex = part.indexOf(":");
+        if (splitIndex === -1) return;
+        const key = part.slice(0, splitIndex).trim();
+        if (paramNames.has(key)) {
+          keys.add(key);
+        }
+      });
+    return keys;
+  }, [stepValidationError, paramSpecs]);
+
+  useEffect(() => {
+    let isActive = true;
+    const rawRecordType = resolveRecordTypeForSearch();
+    const normalizedRecordType = toApiRecordType(rawRecordType || recordType);
+    if (!normalizedRecordType && !rawRecordType) {
+      setSearchOptions([]);
+      setSearchListError(null);
+      return;
+    }
+    setIsLoadingSearches(true);
+    setSearchListError(null);
+    const requests: Promise<Search[]>[] = [];
+    if (normalizedRecordType) {
+      requests.push(getSearches(siteId, normalizedRecordType));
+    }
+    if (rawRecordType && rawRecordType !== normalizedRecordType) {
+      requests.push(getSearches(siteId, rawRecordType));
+    }
+    const hasGeneOption = recordTypeOptions.some((option) => option.name === "gene");
+    if (
+      normalizedRecordType === "transcript" &&
+      rawRecordType !== "gene" &&
+      hasGeneOption
+    ) {
+      requests.push(getSearches(siteId, "gene"));
+    }
+
+    Promise.allSettled(requests)
+      .then((results) => {
+        if (!isActive) return;
+        const merged = new Map<string, Search>();
+        results.forEach((entry) => {
+          if (entry.status !== "fulfilled") return;
+          (entry.value || [])
+            .filter((item): item is Search => Boolean(item && item.name))
+            .forEach((item) => {
+              merged.set(item.name, item);
+            });
+        });
+        const options = Array.from(merged.values()).sort((a, b) =>
+          (a.displayName || a.name).localeCompare(b.displayName || b.name)
+        );
+        setSearchOptions(options);
+        if (options.length === 0) {
+          setSearchListError("No searches available for this record type.");
+        }
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setSearchOptions([]);
+        setSearchListError("Failed to load search list.");
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setIsLoadingSearches(false);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [siteId, recordType, recordTypeOptions, recordTypeValue]);
+
+  useEffect(() => {
+    const resolvedRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
+    const nextKey = `${step.id}:${resolvedRecordType || ""}:${searchName || ""}`;
+    if (lastSpecKeyRef.current === null) {
+      lastSpecKeyRef.current = nextKey;
+      return;
+    }
+    if (lastSpecKeyRef.current === nextKey) return;
+    lastSpecKeyRef.current = nextKey;
+    setParameters({});
+    setRawParams("{}");
+  }, [searchName, selectedSearch, resolveRecordTypeForSearch, step.id]);
+
+  useEffect(() => {
+    const nextParams = coerceParametersForSpecs(
+      (step.parameters || {}) as Record<string, unknown>,
+      paramSpecs,
+      // Normal UI flow: do not accept/parse stringified arrays or CSV.
+      { allowStringParsing: false }
+    );
+    const isNewStep = lastStepIdRef.current !== step.id;
+    if (!isNewStep) return;
+
+    const nextOldName = step.displayName;
+    const nextName = nextOldName;
+    const nextSearchName = step.searchName || step.transformName || "";
+    setOldName(nextOldName);
+    setName(nextName);
+    setEditableSearchName(nextSearchName);
+    setOperatorValue(step.operator || "");
+    setRecordTypeValue(normalizeRecordType(step.recordType || recordType));
+    setParameters(nextParams);
+    setRawParams(JSON.stringify(nextParams, null, 2));
+    setShowRaw(false);
+    lastStepIdRef.current = step.id;
+  }, [step.id, paramSpecs]);
+
+
+  const vocabOptions = useMemo(() => {
+    return paramSpecs.reduce<Record<string, VocabOption[]>>((acc, spec) => {
+      if (!spec.name) return acc;
+      const vocabulary = extractSpecVocabulary(spec);
+      if (vocabulary) {
+        acc[spec.name] = extractVocabOptions(vocabulary);
+      }
+      return acc;
+    }, {});
+  }, [paramSpecs]);
+
+  const handleSave = async () => {
+    try {
+      const nextName = (name || "").trim() || oldName;
+      const nextSearchName = searchName || (step.searchName || step.transformName || "");
+      let parsedParams = parameters;
+      if (showRaw) {
+        parsedParams = JSON.parse(rawParams);
+      }
+      parsedParams = coerceParametersForSpecs(
+        parsedParams as Record<string, unknown>,
+        paramSpecs,
+        // Normal save path: do not accept stringified arrays/CSV.
+        { allowStringParsing: false }
+      );
+      // Do not enforce business-required checks here (backend is authoritative).
+      const updates: Partial<StrategyStep> = {
+        displayName: nextName,
+        parameters: parsedParams as Record<string, unknown>,
+      };
+      const selectedRecordType = resolveRecordTypeForSearch(
+        selectedSearch?.recordType
+      );
+      const resolvedRecordType = toApiRecordType(selectedRecordType);
+      if (selectedRecordType) {
+        updates.recordType = selectedRecordType;
+      }
+      if (step.type === "search") {
+        updates.searchName = nextSearchName;
+      }
+      if (step.type === "transform") {
+        updates.transformName = nextSearchName;
+      }
+      if (step.type === "combine") {
+        const nextOperator = operatorValue || step.operator;
+        if (nextOperator) {
+          updates.operator = nextOperator as StrategyStep["operator"];
+        }
+      }
+      let validationError: string | null = null;
+      if (!isSearchNameAvailable && step.type === "search") {
+        validationError =
+          "Cannot be saved: search name is not available for this record type.";
+      }
+      if (
+        step.type === "search" &&
+        resolvedRecordType &&
+        nextSearchName &&
+        !validationError
+      ) {
+        try {
+          const response: SearchValidationResponse = await validateSearchParams(
+            siteId,
+            resolvedRecordType,
+            nextSearchName,
+            parsedParams as Record<string, unknown>
+          );
+          const formatted = formatSearchValidationResponse(response);
+          if (formatted.message) {
+            validationError = formatted.message;
+          }
+        } catch (err) {
+          validationError = `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
+        }
+      }
+      updates.validationError = validationError || undefined;
+      onUpdate(updates);
+      onClose();
+    } catch {
+      setError("Invalid JSON in parameters");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-4xl rounded-lg border border-slate-200 bg-white shadow-xl">
+        <StepEditorHeader onClose={onClose} />
+
+        {/* Content */}
+        <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
+          {stepValidationError && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
+              {stepValidationError}
+            </div>
+          )}
+          <StepNameFields
+            oldName={oldName}
+            name={name}
+            onNameChange={setName}
+          />
+
+          {(step.type === "search" || step.type === "transform") && (
+            <>
+              <StepSearchSelector
+                stepType={step.type}
+                recordTypeFilter={recordTypeFilter}
+                onRecordTypeFilterChange={setRecordTypeFilter}
+                filteredRecordTypes={filteredRecordTypes}
+                normalizedRecordTypeValue={normalizedRecordTypeValue}
+                onRecordTypeValueChange={setRecordTypeValue}
+                editableSearchName={editableSearchName}
+                onSearchNameChange={setEditableSearchName}
+                isLoadingSearches={isLoadingSearches}
+                searchOptions={searchOptions}
+                filteredSearchOptions={filteredSearchOptions}
+                searchName={searchName}
+                selectedSearch={selectedSearch}
+                isSearchNameAvailable={isSearchNameAvailable}
+                searchListError={searchListError}
+                recordTypeValue={recordTypeValue ?? null}
+                recordType={recordType}
+                recordTypeOptions={recordTypeOptions}
+              />
+
+              <StepParamFields
+                paramSpecs={paramSpecs}
+                showRaw={showRaw}
+                parameters={parameters}
+                vocabOptions={vocabOptions}
+                dependentOptions={dependentOptions}
+                dependentLoading={dependentLoading}
+                dependentErrors={dependentErrors}
+                validationErrorKeys={validationErrorKeys}
+                setParameters={setParameters}
+              />
+
+              <StepRawParamsEditor
+                showRaw={showRaw}
+                rawParams={rawParams}
+                error={error}
+                isLoading={isLoading}
+                onShowRawChange={setShowRaw}
+                onRawParamsChange={(nextValue) => {
+                  setRawParams(nextValue);
+                  setError(null);
+                }}
+              />
+            </>
+          )}
+
+          {step.type === "combine" && (
+            <StepCombineOperatorSelect
+              operatorValue={operatorValue}
+              onOperatorChange={setOperatorValue}
+            />
+          )}
+        </div>
+
+        <StepEditorFooter onClose={onClose} onSave={handleSave} />
+      </div>
+    </div>
+  );
+}
+

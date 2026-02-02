@@ -1,0 +1,194 @@
+import type { Step } from "./types";
+
+export type StrategyGraphError = {
+  code:
+    | "MISSING_INPUT"
+    | "UNKNOWN_STEP"
+    | "MISSING_OPERATOR"
+    | "MISSING_TYPE"
+    | "ORPHAN_STEP"
+    | "MULTIPLE_ROOTS";
+  message: string;
+  stepId?: string;
+  inputStepId?: string;
+};
+
+export type CombineRecordTypeMismatch = {
+  stepId: string;
+  leftType: string | null;
+  rightType: string | null;
+};
+
+export type CombineMismatchGroup = {
+  id: string;
+  ids: Set<string>;
+  message: string;
+};
+
+export function resolveRecordType(
+  stepId: string | undefined,
+  stepsMap: Map<string, Step>
+): string | null {
+  if (!stepId) return null;
+  const step = stepsMap.get(stepId);
+  if (!step) return null;
+  if (step.recordType) return step.recordType;
+  if (step.type === "transform" && step.primaryInputStepId) {
+    return resolveRecordType(step.primaryInputStepId, stepsMap);
+  }
+  if (step.type === "combine") {
+    const left = resolveRecordType(step.primaryInputStepId, stepsMap);
+    const right = resolveRecordType(step.secondaryInputStepId, stepsMap);
+    if (left && right && left !== right) return "__mismatch__";
+    return left || right || null;
+  }
+  return null;
+}
+
+export function findCombineRecordTypeMismatch(
+  stepsList: Step[]
+): CombineRecordTypeMismatch | null {
+  const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
+  for (const step of stepsList) {
+    if (step.type !== "combine") continue;
+    const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
+    const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
+    if (
+      leftType &&
+      rightType &&
+      leftType !== rightType &&
+      leftType !== "__mismatch__" &&
+      rightType !== "__mismatch__"
+    ) {
+      return { stepId: step.id, leftType, rightType };
+    }
+    if (leftType === "__mismatch__" || rightType === "__mismatch__") {
+      return { stepId: step.id, leftType, rightType };
+    }
+  }
+  return null;
+}
+
+export function getRootSteps(steps: Step[]): Step[] {
+  if (steps.length === 0) return [];
+  const referenced = new Set<string>();
+  for (const step of steps) {
+    if (step.primaryInputStepId) referenced.add(step.primaryInputStepId);
+    if (step.secondaryInputStepId) referenced.add(step.secondaryInputStepId);
+  }
+  return steps.filter((step) => !referenced.has(step.id));
+}
+
+export function getRootStepId(steps: Step[]): string | null {
+  if (steps.length === 0) return null;
+  const roots = getRootSteps(steps);
+  if (roots.length > 0) {
+    return roots[roots.length - 1].id;
+  }
+  return steps[steps.length - 1].id;
+}
+
+export function getCombineMismatchGroups(steps: Step[]): CombineMismatchGroup[] {
+  if (steps.length === 0) return [];
+  const stepsMap = new Map(steps.map((step) => [step.id, step]));
+  const groups: CombineMismatchGroup[] = [];
+  for (const step of steps) {
+    if (step.type !== "combine") continue;
+    const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
+    const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
+    if (!leftType || !rightType) continue;
+    if (
+      leftType === "__mismatch__" ||
+      rightType === "__mismatch__" ||
+      leftType !== rightType
+    ) {
+      const ids = new Set<string>([step.id]);
+      if (step.primaryInputStepId) ids.add(step.primaryInputStepId);
+      if (step.secondaryInputStepId) ids.add(step.secondaryInputStepId);
+      groups.push({
+        id: step.id,
+        ids,
+        message: "Cannot combine steps with different record types.",
+      });
+    }
+  }
+  return groups;
+}
+
+export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
+  const errors: StrategyGraphError[] = [];
+  if (steps.length === 0) return errors;
+
+  const stepIds = new Set(steps.map((step) => step.id));
+  const referenced = new Set<string>();
+
+  for (const step of steps) {
+    if (!step.type) {
+      errors.push({
+        code: "MISSING_TYPE",
+        message: "Step type is required.",
+        stepId: step.id,
+      });
+    }
+
+    if (step.type === "combine") {
+      if (!step.operator) {
+        errors.push({
+          code: "MISSING_OPERATOR",
+          message: "Combine steps require an operator.",
+          stepId: step.id,
+        });
+      }
+      if (!step.primaryInputStepId || !step.secondaryInputStepId) {
+        errors.push({
+          code: "MISSING_INPUT",
+          message: "Combine steps require two inputs.",
+          stepId: step.id,
+        });
+      }
+    }
+
+    if (step.type === "transform" && !step.primaryInputStepId) {
+      errors.push({
+        code: "MISSING_INPUT",
+        message: "Transform steps require an input.",
+        stepId: step.id,
+      });
+    }
+
+    if (step.primaryInputStepId) referenced.add(step.primaryInputStepId);
+    if (step.secondaryInputStepId) referenced.add(step.secondaryInputStepId);
+
+    if (step.primaryInputStepId && !stepIds.has(step.primaryInputStepId)) {
+      errors.push({
+        code: "UNKNOWN_STEP",
+        message: "Primary input step does not exist.",
+        stepId: step.id,
+        inputStepId: step.primaryInputStepId,
+      });
+    }
+    if (step.secondaryInputStepId && !stepIds.has(step.secondaryInputStepId)) {
+      errors.push({
+        code: "UNKNOWN_STEP",
+        message: "Secondary input step does not exist.",
+        stepId: step.id,
+        inputStepId: step.secondaryInputStepId,
+      });
+    }
+  }
+
+  const roots = getRootSteps(steps);
+  if (roots.length === 0) {
+    errors.push({
+      code: "ORPHAN_STEP",
+      message: "Strategy graph has no root steps.",
+    });
+  } else if (roots.length > 1) {
+    errors.push({
+      code: "MULTIPLE_ROOTS",
+      message: "Strategy graph must have a single final output step.",
+    });
+  }
+
+  return errors;
+}

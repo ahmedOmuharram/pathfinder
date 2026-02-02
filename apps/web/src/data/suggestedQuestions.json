@@ -1,0 +1,66 @@
+{
+  "plasmodb": [
+    "Find genes from either Plasmodium falciparum 3D7 or Plasmodium falciparum Dd2.",
+    "Find genes upregulated in P. berghei gametocytes using Otto 2014 and Yeoh 2017 (male and female). Map this combination to P. falciparum orthologs, and keep only orthologs that are also upregulated in Lasonder 2016 male and female gametocytes."
+  ],
+  "toxodb": [
+    "Find Toxoplasma gondii genes that are upregulated in bradyzoites and have signal peptides.",
+    "Find Toxoplasma gondii genes with apicoplast targeting and keep only those with orthologs in Plasmodium falciparum.",
+    "Find Toxoplasma gondii genes annotated with microneme proteins and intersect with genes expressed in tachyzoites."
+  ],
+  "cryptodb": [
+    "Find Cryptosporidium parvum genes that are highly expressed in oocysts and have transmembrane domains.",
+    "Find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins.",
+    "Find Cryptosporidium hominis genes with orthologs in Plasmodium falciparum but not in Toxoplasma gondii."
+  ],
+  "piroplasmadb": [
+    "Find Babesia bovis genes with signal peptides and stage-specific expression in blood.",
+    "Find Theileria genes with transmembrane domains and intersect with genes annotated as surface proteins.",
+    "Find PiroplasmaDB genes with orthologs in Plasmodium falciparum and keep only those with known domains."
+  ],
+  "giardiadb": [
+    "Find Giardia lamblia genes expressed in trophozoites and annotated as surface proteins.",
+    "Find Giardia genes with signal peptides and intersect with genes annotated as cyst wall proteins.",
+    "Find Giardia genes with orthologs in Cryptosporidium but not in Toxoplasma."
+  ],
+  "amoebadb": [
+    "Find Entamoeba histolytica genes upregulated in cysts and with signal peptides.",
+    "Find AmoebaDB genes annotated as adhesion proteins and intersect with genes expressed in trophozoites.",
+    "Find AmoebaDB genes with orthologs in Giardia and filter for transmembrane domains."
+  ],
+  "microsporidiadb": [
+    "Find Microsporidia genes with signal peptides and high expression in spores.",
+    "Find Microsporidia genes annotated as secreted proteins and intersect with genes with transmembrane domains.",
+    "Find Microsporidia genes with orthologs in fungi and filter for conserved domains."
+  ],
+  "tritrypdb": [
+    "Find Trypanosoma brucei genes upregulated in bloodstream forms and with signal peptides.",
+    "Find Leishmania genes annotated as surface proteins and intersect with genes expressed in promastigotes.",
+    "Find TriTrypDB genes with orthologs in Trypanosoma cruzi and filter for transmembrane domains."
+  ],
+  "fungidb": [
+    "Find fungal genes annotated as cell wall proteins and with signal peptides.",
+    "Find FungiDB genes upregulated during hyphal growth and intersect with genes with transmembrane domains.",
+    "Find FungiDB genes with orthologs in Candida and filter for transcription factors."
+  ],
+  "hostdb": [
+    "Find host immune genes upregulated during Plasmodium infection in blood.",
+    "Find HostDB genes annotated with cytokine activity and intersect with genes expressed in macrophages.",
+    "Find HostDB genes with orthologs across mammals and filter for signal peptides."
+  ],
+  "vectorbase": [
+    "Find Anopheles genes upregulated after blood feeding and with signal peptides.",
+    "Find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut.",
+    "Find VectorBase genes with orthologs in Aedes and filter for transmembrane domains."
+  ],
+  "orthomcl": [
+    "Find OrthoMCL groups that contain Plasmodium falciparum and Toxoplasma gondii orthologs.",
+    "Find OrthoMCL groups shared between Trypanosoma brucei and Leishmania major.",
+    "Find OrthoMCL groups present in Plasmodium and absent in Cryptosporidium."
+  ],
+  "veupathdb": [
+    "Find studies about malaria transmission blocking vaccines and list associated datasets.",
+    "Find vector studies mentioning insecticide resistance in Anopheles and return matching datasets.",
+    "Find host transcriptomics studies involving Plasmodium falciparum and gametocytes."
+  ]
+}

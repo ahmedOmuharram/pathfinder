@@ -1,0 +1,482 @@
+/**
+ * Shared TypeScript types for Pathfinder - VEuPathDB Strategy Builder
+ */
+
+// ============================================================================
+// Combine Operations
+// ============================================================================
+
+export const CombineOperator = {
+  INTERSECT: "INTERSECT",
+  UNION: "UNION",
+  MINUS_LEFT: "MINUS_LEFT",
+  MINUS_RIGHT: "MINUS_RIGHT",
+  COLOCATE: "COLOCATE",
+} as const;
+
+export type CombineOperator =
+  (typeof CombineOperator)[keyof typeof CombineOperator];
+
+export const CombineOperatorLabels: Record<CombineOperator, string> = {
+  INTERSECT: "IDs in common (AND)",
+  UNION: "Combined (OR)",
+  MINUS_LEFT: "Not in right",
+  MINUS_RIGHT: "Not in left",
+  COLOCATE: "Genomic colocation",
+};
+
+// ============================================================================
+// Strategy Plan DSL (AST)
+// ============================================================================
+
+export interface ColocationParams {
+  upstream: number;
+  downstream: number;
+  strand: "same" | "opposite" | "both";
+}
+
+export interface BasePlanNode {
+  id?: string;
+  displayName?: string;
+  filters?: StepFilter[];
+  analyses?: StepAnalysis[];
+  reports?: StepReport[];
+}
+
+export interface SearchNode extends BasePlanNode {
+  type: "search";
+  searchName: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface CombineNode extends BasePlanNode {
+  type: "combine";
+  operator: CombineOperator;
+  left: PlanNode;
+  right: PlanNode;
+  colocationParams?: ColocationParams;
+}
+
+export interface TransformNode extends BasePlanNode {
+  type: "transform";
+  transformName: string;
+  input: PlanNode;
+  parameters?: Record<string, unknown>;
+}
+
+export type PlanNode = SearchNode | CombineNode | TransformNode;
+
+export interface StrategyPlan {
+  recordType: string;
+  root: PlanNode;
+  metadata?: {
+    name?: string;
+    description?: string;
+    siteId?: string;
+    createdAt?: string;
+  };
+}
+
+// ============================================================================
+// VEuPathDB Site Configuration
+// ============================================================================
+
+export interface VEuPathDBSite {
+  id: string;
+  name: string;
+  displayName: string;
+  baseUrl: string;
+  projectId: string;
+  isPortal: boolean;
+}
+
+export const VEUPATHDB_SITES: VEuPathDBSite[] = [
+  {
+    id: "veupathdb",
+    name: "VEuPathDB",
+    displayName: "VEuPathDB Portal (All organisms)",
+    baseUrl: "https://veupathdb.org",
+    projectId: "EuPathDB",
+    isPortal: true,
+  },
+  {
+    id: "plasmodb",
+    name: "PlasmoDB",
+    displayName: "PlasmoDB (Plasmodium)",
+    baseUrl: "https://plasmodb.org",
+    projectId: "PlasmoDB",
+    isPortal: false,
+  },
+  {
+    id: "toxodb",
+    name: "ToxoDB",
+    displayName: "ToxoDB (Toxoplasma)",
+    baseUrl: "https://toxodb.org",
+    projectId: "ToxoDB",
+    isPortal: false,
+  },
+  {
+    id: "cryptodb",
+    name: "CryptoDB",
+    displayName: "CryptoDB (Cryptosporidium)",
+    baseUrl: "https://cryptodb.org",
+    projectId: "CryptoDB",
+    isPortal: false,
+  },
+  {
+    id: "giardiadb",
+    name: "GiardiaDB",
+    displayName: "GiardiaDB (Giardia)",
+    baseUrl: "https://giardiadb.org",
+    projectId: "GiardiaDB",
+    isPortal: false,
+  },
+  {
+    id: "amoebadb",
+    name: "AmoebaDB",
+    displayName: "AmoebaDB (Amoeba)",
+    baseUrl: "https://amoebadb.org",
+    projectId: "AmoebaDB",
+    isPortal: false,
+  },
+  {
+    id: "microsporidiadb",
+    name: "MicrosporidiaDB",
+    displayName: "MicrosporidiaDB (Microsporidia)",
+    baseUrl: "https://microsporidiadb.org",
+    projectId: "MicrosporidiaDB",
+    isPortal: false,
+  },
+  {
+    id: "piroplasmadb",
+    name: "PiroplasmaDB",
+    displayName: "PiroplasmaDB (Piroplasma)",
+    baseUrl: "https://piroplasmadb.org",
+    projectId: "PiroplasmaDB",
+    isPortal: false,
+  },
+  {
+    id: "tritrypdb",
+    name: "TriTrypDB",
+    displayName: "TriTrypDB (Kinetoplastids)",
+    baseUrl: "https://tritrypdb.org",
+    projectId: "TriTrypDB",
+    isPortal: false,
+  },
+  {
+    id: "fungidb",
+    name: "FungiDB",
+    displayName: "FungiDB (Fungi)",
+    baseUrl: "https://fungidb.org",
+    projectId: "FungiDB",
+    isPortal: false,
+  },
+  {
+    id: "hostdb",
+    name: "HostDB",
+    displayName: "HostDB (Hosts)",
+    baseUrl: "https://hostdb.org",
+    projectId: "HostDB",
+    isPortal: false,
+  },
+  {
+    id: "vectorbase",
+    name: "VectorBase",
+    displayName: "VectorBase (Vectors)",
+    baseUrl: "https://vectorbase.org",
+    projectId: "VectorBase",
+    isPortal: false,
+  },
+  {
+    id: "orthomcl",
+    name: "OrthoMCL",
+    displayName: "OrthoMCL (Orthologs)",
+    baseUrl: "https://orthomcl.org",
+    projectId: "OrthoMCL",
+    isPortal: false,
+  },
+];
+
+// ============================================================================
+// API Types
+// ============================================================================
+
+export interface RecordType {
+  name: string;
+  displayName: string;
+  description?: string;
+}
+
+export interface Search {
+  name: string;
+  displayName: string;
+  description?: string;
+  recordType: string;
+}
+
+// ============================================================================
+// Strategy Types
+// ============================================================================
+
+export interface Step {
+  id: string;
+  type: "search" | "combine" | "transform";
+  displayName: string;
+  searchName?: string;
+  transformName?: string;
+  recordType?: string;
+  parameters?: Record<string, unknown>;
+  operator?: CombineOperator;
+  primaryInputStepId?: string;
+  secondaryInputStepId?: string;
+  resultCount?: number | null;
+  wdkStepId?: number;
+  filters?: StepFilter[];
+  analyses?: StepAnalysis[];
+  reports?: StepReport[];
+}
+
+export interface StepFilter {
+  name: string;
+  value: unknown;
+  disabled?: boolean;
+}
+
+export interface StepAnalysis {
+  analysisType: string;
+  parameters?: Record<string, unknown>;
+  customName?: string;
+}
+
+export interface StepReport {
+  reportName: string;
+  config?: Record<string, unknown>;
+}
+
+export interface Strategy {
+  id: string;
+  name: string;
+  title?: string | null;
+  description?: string | null;
+  siteId: string;
+  recordType: string | null;
+  steps: Step[];
+  rootStepId: string | null;
+  wdkStrategyId?: number;
+  messages?: Message[];
+  thinking?: Thinking;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StrategySummary {
+  id: string;
+  name: string;
+  title?: string | null;
+  siteId: string;
+  recordType: string | null;
+  stepCount: number;
+  resultCount?: number | null;
+  wdkStrategyId?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================================
+// Chat Types
+// ============================================================================
+
+export type MessageRole = "user" | "assistant" | "system";
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  result?: string | null;
+}
+
+export interface SubKaniActivity {
+  calls: Record<string, ToolCall[]>;
+  status: Record<string, string>;
+}
+
+export interface Thinking {
+  toolCalls?: ToolCall[];
+  subKaniCalls?: Record<string, ToolCall[]>;
+  subKaniStatus?: Record<string, string>;
+  updatedAt?: string;
+}
+
+export interface Message {
+  role: MessageRole;
+  content: string;
+  toolCalls?: ToolCall[];
+  subKaniActivity?: SubKaniActivity;
+  timestamp: string;
+}
+
+export interface Conversation {
+  id: string;
+  siteId: string;
+  title?: string;
+  messages: Message[];
+  strategyId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatRequest {
+  strategyId?: string;
+  siteId: string;
+  message: string;
+}
+
+// ============================================================================
+// Search parameter validation/specs (UI-facing)
+// ============================================================================
+
+export interface SearchDetailsResponse {
+  searchData?: Record<string, unknown>;
+  validation?: Record<string, unknown>;
+  searchConfig?: Record<string, unknown>;
+  parameters?: Record<string, unknown>[];
+  paramMap?: Record<string, unknown>;
+  question?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export type DependentParamsResponse = Record<string, unknown>[];
+
+export interface SearchValidationErrors {
+  general: string[];
+  byKey: Record<string, string[]>;
+}
+
+export interface SearchValidationPayload {
+  isValid: boolean;
+  normalizedContextValues: Record<string, unknown>;
+  errors: SearchValidationErrors;
+}
+
+export interface SearchValidationResponse {
+  validation: SearchValidationPayload;
+}
+
+export interface ParamSpec {
+  name: string;
+  displayName?: string;
+  type: string;
+  allowEmptyValue?: boolean;
+  minSelectedCount?: number;
+  maxSelectedCount?: number;
+  countOnlyLeaves?: boolean;
+  vocabulary?: unknown;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// Strategy Requests/Responses
+// ============================================================================
+
+export interface StepCountsResponse {
+  counts: Record<string, number | null>;
+}
+
+export interface OpenStrategyRequest {
+  strategyId?: string;
+  wdkStrategyId?: number;
+  siteId?: string;
+}
+
+export interface OpenStrategyResponse {
+  strategyId: string;
+}
+
+export interface CreateStrategyRequest {
+  name: string;
+  siteId: string;
+  plan: StrategyPlan;
+}
+
+export interface UpdateStrategyRequest {
+  name?: string;
+  plan?: StrategyPlan;
+  wdkStrategyId?: number | null;
+}
+
+export interface PushResult {
+  wdkStrategyId: number;
+  wdkUrl: string;
+}
+
+export interface WdkStrategySummary {
+  wdkStrategyId: number;
+  name: string;
+  siteId: string;
+  wdkUrl?: string | null;
+  rootStepId?: number | null;
+  isSaved?: boolean;
+  isTemporary?: boolean;
+}
+
+// ============================================================================
+// SSE Event Types
+// ============================================================================
+
+export type SSEEventType =
+  | "message_start"
+  | "content_delta"
+  | "tool_call_start"
+  | "tool_call_delta"
+  | "tool_call_end"
+  | "message_end"
+  | "error";
+
+export interface SSEEvent {
+  type: SSEEventType;
+  data: unknown;
+}
+
+export interface ContentDeltaEvent {
+  type: "content_delta";
+  data: { delta: string };
+}
+
+export interface ToolCallStartEvent {
+  type: "tool_call_start";
+  data: { id: string; name: string };
+}
+
+export interface ToolCallEndEvent {
+  type: "tool_call_end";
+  data: { id: string; result: string };
+}
+
+// ============================================================================
+// Result Types
+// ============================================================================
+
+export interface PreviewRequest {
+  strategyId: string;
+  stepId: string;
+  limit?: number;
+}
+
+export interface PreviewResponse {
+  totalCount: number;
+  records: Record<string, unknown>[];
+  columns: string[];
+}
+
+export interface DownloadRequest {
+  strategyId: string;
+  stepId: string;
+  format: "csv" | "json" | "tab";
+  attributes?: string[];
+}
+
+export interface DownloadResponse {
+  downloadUrl: string;
+  expiresAt: string;
+}
+

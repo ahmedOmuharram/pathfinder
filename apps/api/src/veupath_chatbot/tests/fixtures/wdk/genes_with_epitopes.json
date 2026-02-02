@@ -1,0 +1,40 @@
+{
+  "searchData": {
+    "parameters": [
+      {
+        "name": "organism",
+        "type": "multi-pick-vocabulary",
+        "allowEmptyValue": false,
+        "minSelectedCount": 1,
+        "maxSelectedCount": null,
+        "countOnlyLeaves": true,
+        "vocabulary": {
+          "data": {
+            "display": "Plasmodium",
+            "term": "Plasmodium"
+          },
+          "children": [
+            {
+              "data": {
+                "display": "Plasmodium falciparum 3D7",
+                "term": "Plasmodium falciparum 3D7"
+              },
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "epitope_confidence",
+        "type": "multi-pick-vocabulary",
+        "allowEmptyValue": false,
+        "minSelectedCount": 1,
+        "vocabulary": [
+          ["High", "High"],
+          ["Medium", "Medium"],
+          ["Low", "Low"]
+        ]
+      }
+    ]
+  }
+}

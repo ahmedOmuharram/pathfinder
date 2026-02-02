@@ -1,0 +1,200 @@
+import { useCallback, useState } from "react";
+import type { Message, ToolCall } from "@pathfinder/shared";
+import type { ChatSSEEvent } from "@/features/chat/sse_events";
+import { streamChat } from "@/features/chat/stream";
+import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
+import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
+import { encodeNodeSelection } from "@/features/chat/node_selection";
+import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
+import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
+import type { MutableRef } from "@/shared/types/refs";
+
+type Thinking = ReturnType<typeof useThinkingState>;
+type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
+
+interface UseChatStreamingArgs {
+  siteId: string;
+  strategyId: string | null;
+  draftSelection: Record<string, unknown> | null;
+  setDraftSelection: (selection: Record<string, unknown> | null) => void;
+  thinking: Thinking;
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  setUndoSnapshots: React.Dispatch<
+    React.SetStateAction<Record<number, StrategyWithMeta>>
+  >;
+  pendingUndoSnapshotRef: MutableRef<StrategyWithMeta | null>;
+  appliedSnapshotRef: MutableRef<boolean>;
+  loadGraph: (graphId: string) => void;
+  addStrategy: (strategy: AddStrategyInput) => void;
+  addExecutedStrategy: (strategy: StrategyWithMeta) => void;
+  setStrategyId: (id: string | null) => void;
+  setAuthToken: (token: string | null) => void;
+  setWdkInfo: ChatEventContext["setWdkInfo"];
+  setStrategy: (strategy: StrategyWithMeta | null) => void;
+  setStrategyMeta: ChatEventContext["setStrategyMeta"];
+  clearStrategy: () => void;
+  addStep: (step: StrategyStep) => void;
+  parseToolArguments: ChatEventContext["parseToolArguments"];
+  parseToolResult: ChatEventContext["parseToolResult"];
+  applyGraphSnapshot: (graphSnapshot: GraphSnapshotInput) => void;
+  getStrategy: (id: string) => Promise<StrategyWithMeta>;
+  strategyRef: MutableRef<StrategyWithMeta | null>;
+  currentStrategy: StrategyWithMeta | null;
+  attachThinkingToLastAssistant: (
+    calls: ToolCall[],
+    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> }
+  ) => void;
+}
+
+export function useChatStreaming({
+  siteId,
+  strategyId,
+  draftSelection,
+  setDraftSelection,
+  thinking,
+  setMessages,
+  setUndoSnapshots,
+  pendingUndoSnapshotRef,
+  appliedSnapshotRef,
+  loadGraph,
+  addStrategy,
+  addExecutedStrategy,
+  setStrategyId,
+  setAuthToken,
+  setWdkInfo,
+  setStrategy,
+  setStrategyMeta,
+  clearStrategy,
+  addStep,
+  parseToolArguments,
+  parseToolResult,
+  applyGraphSnapshot,
+  getStrategy,
+  strategyRef,
+  currentStrategy,
+  attachThinkingToLastAssistant,
+}: UseChatStreamingArgs) {
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const handleSendMessage = useCallback(
+    async (content: string) => {
+      const finalContent = encodeNodeSelection(draftSelection, content);
+      const userMessage: Message = {
+        role: "user",
+        content: finalContent,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      if (draftSelection) {
+        setDraftSelection(null);
+      }
+      setIsStreaming(true);
+      setApiError(null);
+      thinking.reset();
+      pendingUndoSnapshotRef.current = null;
+      appliedSnapshotRef.current = false;
+
+      const toolCalls: ToolCall[] = [];
+
+      await streamChat(
+        finalContent,
+        siteId,
+        {
+          onMessage: (event: ChatSSEEvent) => {
+            handleChatEvent(
+              {
+                siteId,
+                strategyIdAtStart: strategyId,
+                toolCallsBuffer: toolCalls,
+                thinking,
+                setStrategyId,
+                setAuthToken,
+                addStrategy,
+                addExecutedStrategy,
+                setWdkInfo,
+                setStrategy,
+                setStrategyMeta,
+                clearStrategy,
+                addStep,
+                loadGraph,
+                pendingUndoSnapshotRef,
+                appliedSnapshotRef,
+                strategyRef,
+                currentStrategy,
+                setMessages,
+                setUndoSnapshots,
+                parseToolArguments,
+                parseToolResult,
+                applyGraphSnapshot,
+                getStrategy,
+              },
+              event
+            );
+          },
+
+          onComplete: () => {
+            setIsStreaming(false);
+            thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+            const subKaniActivity = thinking.snapshotSubKaniActivity();
+            attachThinkingToLastAssistant(
+              toolCalls.length > 0 ? [...toolCalls] : [],
+              subKaniActivity
+            );
+            if (strategyId && !appliedSnapshotRef.current) {
+              getStrategy(strategyId)
+                .then((full) => {
+                  setStrategy(full);
+                  setStrategyMeta({
+                    name: full.name,
+                    recordType: full.recordType ?? undefined,
+                    siteId: full.siteId,
+                  });
+                })
+                .catch(() => {});
+            }
+          },
+
+          onError: (error) => {
+            console.error("Chat error:", error);
+            setIsStreaming(false);
+            thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+            setApiError(error.message || "Unable to reach the API.");
+          },
+        },
+        strategyId ?? undefined
+      );
+    },
+    [
+      draftSelection,
+      setMessages,
+      setDraftSelection,
+      thinking,
+      pendingUndoSnapshotRef,
+      appliedSnapshotRef,
+      siteId,
+      strategyId,
+      setStrategyId,
+      setAuthToken,
+      addStrategy,
+      addExecutedStrategy,
+      setWdkInfo,
+      setStrategy,
+      setStrategyMeta,
+      clearStrategy,
+      addStep,
+      loadGraph,
+      strategyRef,
+      currentStrategy,
+      setUndoSnapshots,
+      parseToolArguments,
+      parseToolResult,
+      applyGraphSnapshot,
+      getStrategy,
+      attachThinkingToLastAssistant,
+    ]
+  );
+
+  return { handleSendMessage, isStreaming, apiError, setIsStreaming };
+}

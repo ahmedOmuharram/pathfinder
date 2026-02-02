@@ -1,0 +1,30 @@
+{
+  "searchData": {
+    "parameters": [
+      {
+        "name": "inputStepId",
+        "type": "input-step",
+        "allowEmptyValue": true
+      },
+      {
+        "name": "organism",
+        "type": "multi-pick-vocabulary",
+        "allowEmptyValue": false,
+        "minSelectedCount": 1,
+        "vocabulary": [
+          ["Plasmodium falciparum 3D7", "Plasmodium falciparum 3D7"],
+          ["Plasmodium vivax P01", "Plasmodium vivax P01"]
+        ]
+      },
+      {
+        "name": "isSyntenic",
+        "type": "single-pick-vocabulary",
+        "allowEmptyValue": true,
+        "vocabulary": [
+          ["yes", "yes"],
+          ["no", "no"]
+        ]
+      }
+    ]
+  }
+}
