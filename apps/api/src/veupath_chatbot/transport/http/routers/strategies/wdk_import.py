@@ -93,9 +93,13 @@ async def open_strategy(
         try:
             api = get_strategy_api(request.site_id)
             wdk_strategy = await api.get_strategy(request.wdk_strategy_id)
+        except WDKError as e:
+            # Preserve upstream status/detail for debugging (e.g. 403/404 from WDK).
+            logger.error("WDK fetch failed", error=str(e))
+            raise
         except Exception as e:
             logger.error("WDK fetch failed", error=str(e))
-            raise WDKError("Failed to load WDK strategy")
+            raise WDKError(f"Failed to load WDK strategy: {e}")
 
         ast, steps_data = _build_snapshot_from_wdk(
             wdk_strategy, record_type_fallback="gene"
@@ -240,9 +244,15 @@ async def import_wdk_strategy(
             createdAt=created.created_at,
             updatedAt=created.updated_at,
         )
+    except AppError:
+        raise
+    except WDKError as e:
+        # Preserve upstream status/detail for debugging (e.g. permission denied).
+        logger.error("WDK import failed", error=str(e))
+        raise
     except Exception as e:
         logger.error("WDK import failed", error=str(e))
-        raise WDKError("Failed to import strategy from WDK")
+        raise WDKError(f"Failed to import strategy from WDK: {e}")
 
 
 @router.post("/{strategyId:uuid}/push", response_model=PushResultResponse)
@@ -410,7 +420,10 @@ async def sync_strategy_from_wdk(
         )
     except AppError:
         raise
+    except WDKError as e:
+        logger.error("WDK sync failed", error=str(e))
+        raise
     except Exception as e:
         logger.error("WDK sync failed", error=str(e))
-        raise WDKError("Failed to sync strategy from WDK")
+        raise WDKError(f"Failed to sync strategy from WDK: {e}")
 

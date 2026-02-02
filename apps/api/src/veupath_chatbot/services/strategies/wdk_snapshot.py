@@ -19,6 +19,60 @@ from .step_builders import build_steps_data_from_ast
 
 logger = get_logger(__name__)
 
+def _record_type_identifier(value: Any) -> str | None:
+    """Extract the record type identifier (e.g. 'transcript') from WDK payload values."""
+    if isinstance(value, str):
+        v = value.strip()
+        if not v:
+            return None
+        # Some payloads use the record class name; strip the suffix to get the URL segment.
+        if v.endswith("RecordClass"):
+            v = v[: -len("RecordClass")]
+        return v or None
+    if isinstance(value, dict):
+        # Prefer stable identifier fields over display names.
+        for key in ("urlSegment", "name", "id"):
+            v = value.get(key)
+            if isinstance(v, str):
+                ident = _record_type_identifier(v)
+                if ident:
+                    return ident
+    return None
+
+
+def _infer_record_type_from_wdk(
+    wdk_strategy: dict[str, Any],
+    steps: dict[str, Any] | list[dict[str, Any]],
+    fallback: str,
+) -> str:
+    """Infer record type from WDK strategy + first step (prefer recordClassName)."""
+    # 1) Strategy-level fields (most reliable when present)
+    for key in (
+        "recordClassName",
+        "record_class_name",
+        "recordType",
+        "record_type",
+        "recordTypeName",
+        "recordTypeId",
+    ):
+        ident = _record_type_identifier(wdk_strategy.get(key))
+        if ident:
+            return ident
+
+    # 2) Fall back to the first step's record fields
+    first: Any | None = None
+    if isinstance(steps, dict) and steps:
+        first = next(iter(steps.values()))
+    elif isinstance(steps, list) and steps:
+        first = steps[0]
+    if isinstance(first, dict):
+        for key in ("recordClassName", "recordType", "recordTypeId", "recordTypeName"):
+            ident = _record_type_identifier(first.get(key))
+            if ident:
+                return ident
+
+    return fallback
+
 
 def _get_step_info(
     steps: dict[str, Any] | list[dict[str, Any]], step_id: int
@@ -182,17 +236,7 @@ def _build_snapshot_from_wdk(
 ) -> tuple[StrategyAST, list[dict[str, Any]]]:
     step_tree = wdk_strategy.get("stepTree") or wdk_strategy.get("stepTreeNode")
     steps = wdk_strategy.get("steps") or {}
-    record_type = (
-        wdk_strategy.get("recordType")
-        or wdk_strategy.get("record_type")
-        or wdk_strategy.get("recordTypeId")
-    )
-    if not record_type:
-        if isinstance(steps, dict) and steps:
-            record_type = next(iter(steps.values())).get("recordType")
-        if isinstance(steps, list) and steps:
-            record_type = steps[0].get("recordType")
-    record_type = record_type or record_type_fallback
+    record_type = _infer_record_type_from_wdk(wdk_strategy, steps, record_type_fallback)
 
     if not step_tree:
         raise ValueError("WDK strategy does not include stepTree")
