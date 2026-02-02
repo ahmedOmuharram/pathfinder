@@ -11,7 +11,6 @@ import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { getStrategy } from "@/lib/api/client";
 import type { Message } from "@pathfinder/shared";
 import { ToastContainer } from "@/app/components/ToastContainer";
-import { BuildModal } from "@/app/components/BuildModal";
 import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useActiveView } from "@/app/hooks/useActiveView";
@@ -28,11 +27,8 @@ export default function HomePage() {
   const { strategy } = useStrategyStore();
   const buildPlan = useStrategyStore((state) => state.buildPlan);
   const clearStrategy = useStrategyStore((state) => state.clear);
-  const setBuiltInfo = useStrategyStore((state) => state.setBuiltInfo);
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
   const setWdkInfo = useStrategyStore((state) => state.setWdkInfo);
-  const lastBuiltStrategyId = useStrategyStore((state) => state.lastBuiltStrategyId);
-  const lastBuiltPlanHash = useStrategyStore((state) => state.lastBuiltPlanHash);
   const addExecutedStrategy = useStrategyListStore(
     (state) => state.addExecutedStrategy
   );
@@ -125,29 +121,18 @@ export default function HomePage() {
 
   const planResult = buildPlan();
   const canBuild = !!planResult;
-  const planHash = planResult ? JSON.stringify(planResult.plan) : null;
-  const isDirty =
-    !!planHash && !!lastBuiltPlanHash && planHash !== lastBuiltPlanHash;
   const {
     isBuilding,
-    showBuildModal,
-    setShowBuildModal,
     handleBuild,
-    handlePushWithoutRebuild,
-    handleRebuildAndPush,
   } = useBuildStrategy({
     selectedSite,
     selectedSiteDisplayName,
     strategy,
     planResult,
-    planHash,
-    lastBuiltStrategyId,
-    isDirty,
     veupathdbSignedIn,
     addExecutedStrategy,
     setStrategyMeta,
     setWdkInfo,
-    setBuiltInfo,
     addToast,
   });
 
@@ -162,13 +147,6 @@ export default function HomePage() {
   return (
     <div className="flex h-screen flex-col bg-slate-50 text-slate-900">
       <ToastContainer toasts={toasts} durationMs={durationMs} onDismiss={removeToast} />
-      {showBuildModal && (
-        <BuildModal
-          onCancel={() => setShowBuildModal(false)}
-          onPushAnyway={handlePushWithoutRebuild}
-          onRebuild={handleRebuildAndPush}
-        />
-      )}
       <div className="border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">

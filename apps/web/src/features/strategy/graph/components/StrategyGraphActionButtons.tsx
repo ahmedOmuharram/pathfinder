@@ -29,7 +29,7 @@ export function StrategyGraphActionButtons({
   isUnsaved,
 }: StrategyGraphActionButtonsProps) {
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-10 flex flex-col gap-2">
+    <div className="pointer-events-auto absolute bottom-4 right-4 z-10 flex flex-col gap-2">
       <div className="flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur">
         {showPush && onPush && (
           <button

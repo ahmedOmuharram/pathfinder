@@ -340,7 +340,14 @@ async def push_to_wdk(
         )
 
         site = get_site(strategy.site_id)
-        wdk_url = site.strategy_url(wdk_strategy_id, result.root_step_id)
+        # Prefer the rootStepId from the persisted WDK strategy payload; when a strategy
+        # update fails (or is ignored), `result.root_step_id` refers to a detached step.
+        root_step_id = None
+        if isinstance(wdk_strategy, dict):
+            root_step_id = wdk_strategy.get("rootStepId") or wdk_strategy.get("root_step_id")
+        if isinstance(root_step_id, str) and root_step_id.isdigit():
+            root_step_id = int(root_step_id)
+        wdk_url = site.strategy_url(wdk_strategy_id, root_step_id or result.root_step_id)
 
         return PushResultResponse(
             wdkStrategyId=wdk_strategy_id,

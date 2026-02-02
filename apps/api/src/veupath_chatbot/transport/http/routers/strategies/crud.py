@@ -179,9 +179,27 @@ async def update_strategy(
     root_step_id = None
     record_type = None
     if request.plan:
+        existing = await strategy_repo.get_by_id(strategyId)
+        existing_steps = list(existing.steps or []) if existing else []
         plan = request.plan.model_dump(exclude_none=True)
         strategy_ast = validate_plan_or_raise(plan)
         steps_data = build_steps_data_from_plan(plan)
+        # Preserve WDK metadata across saves. The UI saves the plan, but the plan
+        # does not include `wdkStepId` / `resultCount`. Without merging, a save
+        # after a push will "lose" these fields and the graph won't show updates.
+        if existing_steps and steps_data:
+            existing_by_key: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
+            for step in existing_steps:
+                existing_by_key.setdefault(_step_identity_key(step), []).append(step)
+            for step in steps_data:
+                match_list = existing_by_key.get(_step_identity_key(step))
+                if not match_list:
+                    continue
+                prev = match_list.pop(0)
+                if not step.get("wdkStepId") and prev.get("wdkStepId"):
+                    step["wdkStepId"] = prev.get("wdkStepId")
+                if step.get("resultCount") is None and prev.get("resultCount") is not None:
+                    step["resultCount"] = prev.get("resultCount")
         root_step_id = strategy_ast.root.id
         record_type = strategy_ast.record_type
     else:

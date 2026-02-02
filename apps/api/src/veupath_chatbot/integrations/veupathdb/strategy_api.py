@@ -374,15 +374,27 @@ class StrategyAPI:
         """Update a strategy."""
         payload: dict[str, Any] = {}
         if step_tree:
-            payload["stepTree"] = step_tree.to_dict()
+            # Different WDK deployments use different field names ("stepTree" vs
+            # "stepTreeNode") for the strategy tree. Send both defensively.
+            tree = step_tree.to_dict()
+            payload["stepTree"] = tree
+            payload["stepTreeNode"] = tree
         if name:
             payload["name"] = name
 
         await self._ensure_session()
-        return await self.client.patch(
-            f"/users/{self.user_id}/strategies/{strategy_id}",
-            json=payload,
-        )
+        # Some deployments accept PATCH but ignore the tree update; PUT is more
+        # consistently honored for updating the strategy structure.
+        try:
+            return await self.client.put(
+                f"/users/{self.user_id}/strategies/{strategy_id}",
+                json=payload,
+            )
+        except Exception:
+            return await self.client.patch(
+                f"/users/{self.user_id}/strategies/{strategy_id}",
+                json=payload,
+            )
 
     async def delete_strategy(self, strategy_id: int) -> None:
         """Delete a strategy."""

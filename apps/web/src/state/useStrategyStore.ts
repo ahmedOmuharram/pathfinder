@@ -71,9 +71,6 @@ interface StrategyState {
   buildPlan: () =>
     | { plan: StrategyPlan; name: string; recordType: string | null }
     | null;
-  setBuiltInfo: (strategyId: string, planHash: string) => void;
-  lastBuiltStrategyId: string | null;
-  lastBuiltPlanHash: string | null;
   setStepValidationErrors: (errors: Record<string, string | undefined>) => void;
   setStepCounts: (counts: Record<string, number | null | undefined>) => void;
   clear: () => void;
@@ -118,8 +115,6 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
   stepsById: {},
   history: [],
   historyIndex: -1,
-  lastBuiltStrategyId: null,
-  lastBuiltPlanHash: null,
 
   addStep: (step) => {
     set((state) => {
@@ -268,13 +263,6 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
     return serializeStrategyPlan(state.stepsById, state.strategy);
   },
 
-  setBuiltInfo: (strategyId, planHash) => {
-    set({
-      lastBuiltStrategyId: strategyId,
-      lastBuiltPlanHash: planHash,
-    });
-  },
-
   setStepValidationErrors: (errors) => {
     set((state) => {
       if (!state.strategy) return state;
@@ -325,8 +313,6 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
       stepsById: {},
       history: [],
       historyIndex: -1,
-      lastBuiltStrategyId: null,
-      lastBuiltPlanHash: null,
     });
   },
 
