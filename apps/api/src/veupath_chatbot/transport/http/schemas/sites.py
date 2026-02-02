@@ -75,6 +75,14 @@ class SearchValidationRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ParamSpecsRequest(BaseModel):
+    """Parameter specs request (optionally contextual)."""
+
+    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+
+    model_config = {"populate_by_name": True}
+
+
 class SearchValidationErrors(BaseModel):
     general: list[str] = Field(default_factory=list)
     by_key: dict[str, list[str]] = Field(default_factory=dict, alias="byKey")
@@ -107,6 +115,8 @@ class ParamSpecResponse(BaseModel):
     display_name: str | None = Field(default=None, alias="displayName")
     type: str
     allow_empty_value: bool = Field(default=False, alias="allowEmptyValue")
+    allow_multiple_values: bool | None = Field(default=None, alias="allowMultipleValues")
+    multi_pick: bool | None = Field(default=None, alias="multiPick")
     min_selected_count: int | None = Field(default=None, alias="minSelectedCount")
     max_selected_count: int | None = Field(default=None, alias="maxSelectedCount")
     count_only_leaves: bool = Field(default=False, alias="countOnlyLeaves")

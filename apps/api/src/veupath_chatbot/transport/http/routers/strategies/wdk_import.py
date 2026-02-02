@@ -289,26 +289,23 @@ async def push_to_wdk(
             wdk_strategy_id = wdk_result.get("strategyId") or wdk_result.get("id")
 
         compiled_map = {s.local_id: s.wdk_step_id for s in result.steps}
-        step_counts: dict[int, int] = {}
-        for wdk_step_id in compiled_map.values():
-            if not wdk_step_id:
-                continue
+        # Pull step counts from the strategy payload. Calling
+        # /steps/{id}/reports/standard can fail for detached steps (422).
+        wdk_strategy: dict[str, Any] | None = None
+        if wdk_strategy_id is not None:
             try:
-                count = await api.get_step_count(wdk_step_id)
+                wdk_strategy = await api.get_strategy(wdk_strategy_id)
             except Exception:
-                continue
-            if isinstance(count, int):
-                step_counts[wdk_step_id] = count
+                wdk_strategy = None
         steps_with_wdk = []
         for step in strategy.steps:
             local_id = step.get("id")
             step_data = dict(step)
             if local_id in compiled_map:
                 step_data["wdkStepId"] = compiled_map[local_id]
-                wdk_step_id = compiled_map[local_id]
-                if wdk_step_id in step_counts:
-                    step_data["resultCount"] = step_counts[wdk_step_id]
             steps_with_wdk.append(step_data)
+        if wdk_strategy is not None:
+            _attach_counts_from_wdk_strategy(steps_with_wdk, wdk_strategy)
 
         for step in strategy_ast.get_all_steps():
             wdk_step_id = compiled_map.get(step.id)

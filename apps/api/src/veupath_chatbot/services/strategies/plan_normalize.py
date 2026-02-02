@@ -13,6 +13,8 @@ This module provides two distinct concepts:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
@@ -42,7 +44,9 @@ async def canonicalize_plan_parameters(
             errors=[{"path": "recordType", "message": "Required", "code": "INVALID_STRATEGY"}],
         )
 
-    specs_cache: dict[tuple[str, str], dict[str, Any]] = {}
+    # NOTE: search details can be context-dependent (dependent vocabularies).
+    # Cache by (record_type, search_name, context_hash) to avoid incorrect reuse.
+    specs_cache: dict[tuple[str, str, str], dict[str, Any]] = {}
 
     async def canonicalize_node(node: dict[str, Any]) -> dict[str, Any]:
         node_type = node.get("type")
@@ -60,11 +64,24 @@ async def canonicalize_plan_parameters(
                         }
                     ],
                 )
-            cache_key = (record_type, name)
+            params = node.get("parameters")
+            if params is None:
+                params = {}
+            if not isinstance(params, dict):
+                raise ValidationError(
+                    title="Invalid plan",
+                    detail="Step parameters must be an object.",
+                    errors=[{"path": "parameters", "message": "Expected object"}],
+                )
+
+            ctx_raw = json.dumps(params, sort_keys=True, default=str)
+            ctx_hash = hashlib.sha1(ctx_raw.encode("utf-8")).hexdigest()
+
+            cache_key = (record_type, name, ctx_hash)
             details = specs_cache.get(cache_key)
             if details is None:
                 try:
-                    details = await load_search_details(record_type, name)
+                    details = await load_search_details(record_type, name, params)
                 except Exception as exc:
                     raise ValidationError(
                         title="Failed to load search metadata",
@@ -78,15 +95,6 @@ async def canonicalize_plan_parameters(
                 specs_cache[cache_key] = details if isinstance(details, dict) else {}
             spec_map = adapt_param_specs(details if isinstance(details, dict) else {})
             canonicalizer = ParameterCanonicalizer(spec_map)
-            params = node.get("parameters")
-            if params is None:
-                params = {}
-            if not isinstance(params, dict):
-                raise ValidationError(
-                    title="Invalid plan",
-                    detail="Step parameters must be an object.",
-                    errors=[{"path": "parameters", "message": "Expected object"}],
-                )
             node["parameters"] = canonicalizer.canonicalize(params)
 
         if node_type == "combine":

@@ -8,6 +8,8 @@ from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs, extract_param_specs
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.client import encode_context_param_values_for_wdk
+from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 
 
 async def validate_parameters(
@@ -41,9 +43,23 @@ async def validate_parameters(
             ],
         )
     try:
-        details = await discovery.get_search_details(
-            site_id, resolved_record_type, search_name, expand_params=True
-        )
+        # Many WDK param vocabularies are context-dependent. Prefer the POST variant
+        # that accepts `contextParamValues`, so values like "maximum2" validate when
+        # the chosen sample sets require them.
+        wdk_client = get_wdk_client(site_id)
+        context = encode_context_param_values_for_wdk(parameters)
+        try:
+            details = await wdk_client.get_search_details_with_params(
+                resolved_record_type,
+                search_name,
+                context=context,
+                expand_params=True,
+            )
+        except Exception:
+            # Fallback: non-contextual specs (may be incomplete for dependent params).
+            details = await discovery.get_search_details(
+                site_id, resolved_record_type, search_name, expand_params=True
+            )
     except Exception as exc:
         searches = await discovery.get_searches(site_id, resolved_record_type)
         available = [s.get("name") or s.get("urlSegment") for s in searches]

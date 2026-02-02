@@ -25,7 +25,7 @@ export function coerceMultiValue(
 
   if (typeof value === "string") {
     const trimmed = value.trim();
-    if (allowStringParsing && trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
       try {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed)) {

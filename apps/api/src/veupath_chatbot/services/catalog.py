@@ -297,28 +297,15 @@ async def expand_search_details_with_params(
     normalized_context: dict[str, Any] = {}
     details: dict[str, Any] | None = None
     allowed: set[str] = set()
-    try:
-        discovery = get_discovery_service()
-        details = await discovery.get_search_details(
-            site_id, record_type, search_name, expand_params=True
-        )
-        allowed = _extract_param_names(details)
-    except Exception:
-        details = None
-        allowed = set()
-
-    filtered_context = (
-        {key: value for key, value in raw_context.items() if key in allowed}
-        if allowed
-        else dict(raw_context)
+    details, allowed = await _load_discovery_details_and_allowed(
+        site_id=site_id,
+        record_type=record_type,
+        search_name=search_name,
     )
+    filtered_context = _filter_context_values(raw_context, allowed)
 
-    if details:
-        if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-            details = details["searchData"]
-        specs = adapt_param_specs(details if isinstance(details, dict) else {})
-    else:
-        specs = {}
+    details_unwrapped = _unwrap_search_data(details)
+    specs = adapt_param_specs(details_unwrapped) if details_unwrapped else {}
 
     if specs:
         normalizer = ParameterNormalizer(specs)
@@ -352,21 +339,13 @@ async def expand_search_details_with_params(
     resolved_record_type = await _resolve_record_type_for_search(
         client, record_type, search_name
     )
-    try:
-        return await client.get_search_details_with_params(
-            resolved_record_type,
-            search_name,
-            normalized_context,
-        )
-    except WDKError as exc:
-        if site_id != "veupathdb":
-            portal_client = get_wdk_client("veupathdb")
-            return await portal_client.get_search_details_with_params(
-                resolved_record_type,
-                search_name,
-                normalized_context,
-            )
-        raise exc
+    return await _get_search_details_with_portal_fallback(
+        site_id=site_id,
+        client=client,
+        record_type=resolved_record_type,
+        search_name=search_name,
+        context_values=normalized_context,
+    )
 
 
 async def validate_search_params(
@@ -392,12 +371,15 @@ async def validate_search_params(
     normalized_context: dict[str, Any] = {}
     details: dict[str, Any] | None = None
     allowed: set[str] = set()
-    discovery = get_discovery_service()
+
     try:
-        details = await discovery.get_search_details(
-            site_id, record_type, search_name, expand_params=True
+        details = await expand_search_details_with_params(
+            site_id=site_id,
+            record_type=record_type,
+            search_name=search_name,
+            context_values=raw_context,
         )
-        allowed = _extract_param_names(details)
+        allowed = _extract_param_names(details if isinstance(details, dict) else {})
     except Exception as exc:
         return {
             "validation": {
@@ -410,15 +392,8 @@ async def validate_search_params(
             }
         }
 
-    filtered_context = (
-        {key: value for key, value in raw_context.items() if key in allowed}
-        if allowed
-        else dict(raw_context)
-    )
-
-    if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-        details = details["searchData"]
-    spec_payload = details if isinstance(details, dict) else {}
+    filtered_context = _filter_context_values(raw_context, allowed)
+    spec_payload = _unwrap_search_data(details) or {}
     spec_map = adapt_param_specs(spec_payload)
     raw_specs = extract_param_specs(spec_payload)
 
@@ -500,6 +475,60 @@ def _normalize_param_value(value: object) -> str:
     if isinstance(value, dict):
         return str(value)
     return str(value)
+
+
+def _filter_context_values(raw_context: dict[str, Any], allowed: set[str]) -> dict[str, Any]:
+    """Filter context values to keys WDK recognizes for the search (best-effort)."""
+    return {key: value for key, value in raw_context.items() if key in allowed} if allowed else dict(raw_context)
+
+
+def _unwrap_search_data(details: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Normalize WDK/discovery payload shape to the dict that contains parameters."""
+    if not isinstance(details, dict):
+        return None
+    if isinstance(details.get("searchData"), dict):
+        return details["searchData"]
+    return details
+
+
+async def _load_discovery_details_and_allowed(
+    *, site_id: str, record_type: str, search_name: str
+) -> tuple[dict[str, Any] | None, set[str]]:
+    """Load discovery search details + extract allowed param names (best-effort)."""
+    try:
+        discovery = get_discovery_service()
+        details = await discovery.get_search_details(
+            site_id, record_type, search_name, expand_params=True
+        )
+        return details, _extract_param_names(details if isinstance(details, dict) else {})
+    except Exception:
+        return None, set()
+
+
+async def _get_search_details_with_portal_fallback(
+    *,
+    site_id: str,
+    client: VEuPathDBClient,
+    record_type: str,
+    search_name: str,
+    context_values: dict[str, Any],
+) -> dict[str, Any]:
+    """Call WDK contextual search details, falling back to portal when appropriate."""
+    try:
+        return await client.get_search_details_with_params(
+            record_type,
+            search_name,
+            context_values,
+        )
+    except WDKError as exc:
+        if site_id != "veupathdb":
+            portal_client = get_wdk_client("veupathdb")
+            return await portal_client.get_search_details_with_params(
+                record_type,
+                search_name,
+                context_values,
+            )
+        raise exc
 
 
 def _extract_param_names(details: dict[str, Any]) -> set[str]:

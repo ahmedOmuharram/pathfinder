@@ -151,6 +151,7 @@ export function StepEditor({
     isSearchNameAvailable,
     apiRecordTypeValue,
     resolveRecordTypeForSearch,
+    contextValues: parameters,
   });
 
   const validationErrorKeys = useMemo(() => {

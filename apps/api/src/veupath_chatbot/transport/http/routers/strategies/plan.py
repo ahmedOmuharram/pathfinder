@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from veupath_chatbot.integrations.veupathdb.client import encode_context_param_values_for_wdk
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.services.strategies.plan_normalize import canonicalize_plan_parameters
 from veupath_chatbot.transport.http.schemas import PlanNormalizeRequest, PlanNormalizeResponse
@@ -21,8 +22,16 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
     api = get_strategy_api(payload.siteId)
     plan = payload.plan.model_dump(exclude_none=True)
 
-    async def load_details(record_type: str, name: str):
-        return await api.client.get_search_details(record_type, name, expand_params=True)
+    async def load_details(record_type: str, name: str, params: dict[str, object]):
+        # Use context-dependent search details so vocab-dependent params (e.g. min/max/avg ops)
+        # validate correctly when the plan already contains concrete selections.
+        context = encode_context_param_values_for_wdk(params or {})
+        return await api.client.get_search_details_with_params(
+            record_type,
+            name,
+            context=context,
+            expand_params=True,
+        )
 
     canonical = await canonicalize_plan_parameters(
         plan=plan,

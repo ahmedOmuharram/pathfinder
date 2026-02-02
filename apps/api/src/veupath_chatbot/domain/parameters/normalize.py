@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+import math
+
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.domain.parameters._decode_values import decode_values
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
@@ -142,13 +144,34 @@ class ParameterNormalizer:
         vocab = spec.vocabulary
         if not vocab:
             return value
+        value_norm = value.strip() if isinstance(value, str) else str(value)
+
+        def numeric_equivalent(a: str | None, b: str | None) -> bool:
+            if not a or not b:
+                return False
+            try:
+                fa = float(str(a).strip())
+                fb = float(str(b).strip())
+            except Exception:
+                return False
+            if not (math.isfinite(fa) and math.isfinite(fb)):
+                return False
+            # Accept if they are effectively the same number; this handles cases
+            # where WDK vocab values are parsed as floats (losing precision) while
+            # imported strategies store the full-precision decimal string.
+            return math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-12)
+
         entries = flatten_vocab(vocab, prefer_term=True)
         for entry in entries:
             display = entry.get("display")
             raw_value = entry.get("value")
-            if value == display:
+            if value_norm == (display or ""):
                 return raw_value or display or value
-            if value == raw_value:
+            if value_norm == (raw_value or ""):
+                return raw_value or value
+            if numeric_equivalent(value_norm, display):
+                return raw_value or display or value
+            if numeric_equivalent(value_norm, raw_value):
                 return raw_value or value
         raise ValidationError(
             title="Invalid parameter value",

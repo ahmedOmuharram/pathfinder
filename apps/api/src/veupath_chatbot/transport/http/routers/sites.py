@@ -9,6 +9,7 @@ from veupath_chatbot.services import catalog
 from veupath_chatbot.transport.http.schemas import (
     DependentParamsResponse,
     DependentParamsRequest,
+    ParamSpecsRequest,
     ParamSpecResponse,
     RecordTypeResponse,
     SearchResponse,
@@ -21,6 +22,32 @@ from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
+
+def _build_param_specs(payload: dict) -> list[ParamSpecResponse]:
+    from veupath_chatbot.domain.parameters.specs import adapt_param_specs, extract_param_specs
+
+    spec_map = adapt_param_specs(payload)
+    raw_specs = extract_param_specs(payload)
+    by_name = {s.get("name"): s for s in raw_specs if isinstance(s, dict) and s.get("name")}
+    results: list[ParamSpecResponse] = []
+    for name, normalized in spec_map.items():
+        raw = by_name.get(name, {})
+        results.append(
+            ParamSpecResponse(
+                name=name,
+                displayName=raw.get("displayName") or raw.get("display") or raw.get("label"),
+                type=normalized.param_type,
+                allowEmptyValue=normalized.allow_empty_value,
+                allowMultipleValues=raw.get("allowMultipleValues"),
+                multiPick=raw.get("multiPick"),
+                minSelectedCount=normalized.min_selected_count,
+                maxSelectedCount=normalized.max_selected_count,
+                countOnlyLeaves=normalized.count_only_leaves,
+                vocabulary=raw.get("vocabulary"),
+            )
+        )
+    results.sort(key=lambda s: s.name)
+    return results
 
 
 @router.get("", response_model=list[SiteResponse])
@@ -194,26 +221,28 @@ async def get_param_specs(
     if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
         details = details["searchData"]
     payload = details if isinstance(details, dict) else {}
-    from veupath_chatbot.domain.parameters.specs import adapt_param_specs, extract_param_specs
+    return _build_param_specs(payload)
 
-    spec_map = adapt_param_specs(payload)
-    raw_specs = extract_param_specs(payload)
-    by_name = {s.get("name"): s for s in raw_specs if isinstance(s, dict) and s.get("name")}
-    results: list[ParamSpecResponse] = []
-    for name, normalized in spec_map.items():
-        raw = by_name.get(name, {})
-        results.append(
-            ParamSpecResponse(
-                name=name,
-                displayName=raw.get("displayName") or raw.get("display") or raw.get("label"),
-                type=normalized.param_type,
-                allowEmptyValue=normalized.allow_empty_value,
-                minSelectedCount=normalized.min_selected_count,
-                maxSelectedCount=normalized.max_selected_count,
-                countOnlyLeaves=normalized.count_only_leaves,
-                vocabulary=raw.get("vocabulary"),
-            )
-        )
-    results.sort(key=lambda s: s.name)
-    return results
+
+@router.post(
+    "/{siteId}/searches/{recordType}/{searchName}/param-specs",
+    response_model=list[ParamSpecResponse],
+)
+async def get_param_specs_with_context(
+    siteId: str,
+    recordType: str,
+    searchName: str,
+    payload: ParamSpecsRequest,
+) -> list[ParamSpecResponse]:
+    """Return normalized parameter specs, using contextual WDK vocab when provided."""
+    details = await catalog.expand_search_details_with_params(
+        site_id=siteId,
+        record_type=recordType,
+        search_name=searchName,
+        context_values=payload.context_values or {},
+    )
+    if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
+        details = details["searchData"]
+    spec_payload = details if isinstance(details, dict) else {}
+    return _build_param_specs(spec_payload)
 

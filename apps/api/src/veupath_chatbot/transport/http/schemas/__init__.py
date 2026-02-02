@@ -13,6 +13,7 @@ from .results import DownloadRequest, DownloadResponse, PreviewRequest, PreviewR
 from .sites import (
     DependentParamsResponse,
     DependentParamsRequest,
+    ParamSpecsRequest,
     ParamSpecResponse,
     RecordTypeResponse,
     SearchResponse,
@@ -52,6 +53,7 @@ __all__ = [
     "CreateStrategyRequest",
     "DependentParamsResponse",
     "DependentParamsRequest",
+    "ParamSpecsRequest",
     "ParamSpecResponse",
     "DownloadRequest",
     "DownloadResponse",

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/client";
 import { normalizeRecordType } from "@/features/strategy/recordType";
+import { buildContextValues } from "./stepEditorUtils";
 
 type UseParamSpecsArgs = {
   siteId: string;
@@ -13,6 +14,7 @@ type UseParamSpecsArgs = {
   isSearchNameAvailable: boolean;
   apiRecordTypeValue: string | null | undefined;
   resolveRecordTypeForSearch: (searchRecordType?: string | null) => string;
+  contextValues?: Record<string, unknown>;
 };
 
 export function useParamSpecs({
@@ -23,6 +25,7 @@ export function useParamSpecs({
   isSearchNameAvailable,
   apiRecordTypeValue,
   resolveRecordTypeForSearch,
+  contextValues,
 }: UseParamSpecsArgs) {
   const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,7 +48,12 @@ export function useParamSpecs({
     const timeout = window.setTimeout(() => {
       setIsLoading(true);
       const trySpecs = (recordTypeToUse: string) =>
-        getParamSpecs(siteId, recordTypeToUse, searchName);
+        getParamSpecs(
+          siteId,
+          recordTypeToUse,
+          searchName,
+          buildContextValues(contextValues || {})
+        );
 
       trySpecs(resolvedRecordType)
         .then((details) => {
@@ -73,6 +81,7 @@ export function useParamSpecs({
     isSearchNameAvailable,
     apiRecordTypeValue,
     resolveRecordTypeForSearch,
+    contextValues,
   ]);
 
   return { paramSpecs, isLoading };

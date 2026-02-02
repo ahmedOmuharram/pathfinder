@@ -3,6 +3,7 @@
 from typing import Any
 
 import httpx
+import json
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -16,6 +17,28 @@ from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
+
+def _encode_context_param_values_for_wdk(context: dict[str, Any]) -> dict[str, Any]:
+    """Encode contextParamValues in the format WDK expects.
+
+    Many WDK endpoints expect multi-pick values as JSON-encoded *strings*
+    (e.g. '["a","b"]'), not arrays.
+    """
+    encoded: dict[str, Any] = {}
+    for k, v in (context or {}).items():
+        if v is None:
+            continue
+        if isinstance(v, str):
+            encoded[k] = v
+        elif isinstance(v, (list, dict)):
+            encoded[k] = json.dumps(v)
+        else:
+            encoded[k] = str(v)
+    return encoded
+
+def encode_context_param_values_for_wdk(context: dict[str, Any]) -> dict[str, Any]:
+    """Public helper: encode contextParamValues for WDK wire format."""
+    return _encode_context_param_values_for_wdk(context)
 
 
 class VEuPathDBClient:
@@ -168,9 +191,10 @@ class VEuPathDBClient:
     ) -> dict[str, Any]:
         """Get detailed search configuration using provided parameters."""
         params = {"expandParams": "true"} if expand_params else None
+        encoded_context = _encode_context_param_values_for_wdk(context or {})
         return await self.post(
             f"/record-types/{record_type}/searches/{search_name}",
-            json={"contextParamValues": context},
+            json={"contextParamValues": encoded_context},
             params=params,
         )
 
@@ -197,14 +221,15 @@ class VEuPathDBClient:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """Refresh dependent params using WDK's refreshed-dependent-params endpoint."""
+        encoded_context = _encode_context_param_values_for_wdk(context or {})
         return await self.post(
             f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
             json={
                 "changedParam": {
                     "name": param_name,
-                    "value": context.get(param_name, ""),
+                    "value": encoded_context.get(param_name, ""),
                 },
-                "contextParamValues": context,
+                "contextParamValues": encoded_context,
             },
         )
 
