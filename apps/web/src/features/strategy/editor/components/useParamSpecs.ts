@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/client";
-import { normalizeRecordType, toApiRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/features/strategy/recordType";
 
 type UseParamSpecsArgs = {
   siteId: string;
@@ -37,8 +37,7 @@ export function useParamSpecs({
       setParamSpecs([]);
       return;
     }
-    const resolvedRecordType = toApiRecordType(preferredRecordType);
-    const fallbackRecordType = normalizeRecordType(preferredRecordType);
+    const resolvedRecordType = normalizeRecordType(preferredRecordType);
     if (!searchName || !resolvedRecordType) {
       setParamSpecs([]);
       return;
@@ -55,29 +54,7 @@ export function useParamSpecs({
         })
         .catch(() => {
           if (!isActive) return;
-          const fallbackTypes: string[] = [];
-          if (fallbackRecordType && fallbackRecordType !== resolvedRecordType) {
-            fallbackTypes.push(fallbackRecordType);
-          }
-          const next = fallbackTypes.shift();
-          if (!next) {
-            setParamSpecs([]);
-            return;
-          }
-
-          trySpecs(next)
-            .then((details) => {
-              if (!isActive) return;
-              setParamSpecs(details || []);
-            })
-            .catch(() => {
-              if (!isActive) return;
-              setParamSpecs([]);
-            })
-            .finally(() => {
-              if (!isActive) return;
-              setIsLoading(false);
-            });
+          setParamSpecs([]);
         })
         .finally(() => {
           if (!isActive) return;

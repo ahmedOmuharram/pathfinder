@@ -194,7 +194,8 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
     }
     const existingSteps = get().stepsById;
     const stepsById: Record<string, StrategyStep> = {};
-    const mergedSteps = strategy.steps.map((step) => {
+    const incomingSteps = strategy.steps ?? [];
+    const mergedSteps = incomingSteps.map((step) => {
       let nextStep = step;
       const existing = existingSteps[step.id];
       if (!existing) {

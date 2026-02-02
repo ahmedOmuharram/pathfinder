@@ -221,7 +221,8 @@ export function StrategyGraph(props: StrategyGraphProps) {
     fitView: () => reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 }),
   });
 
-  const nodeHistory = useNodePositionHistory({ setNodes });
+  const { pushSnapshot, reset: resetNodeHistory, tryUndo, tryRedo } =
+    useNodePositionHistory({ setNodes });
 
   useResetGraphUiOnStrategyChange({
     strategyId: strategy?.id,
@@ -315,13 +316,13 @@ export function StrategyGraph(props: StrategyGraphProps) {
   });
 
   const handleNodeDragStop = useCallback(() => {
-    nodeHistory.pushSnapshot(nodes);
-  }, [nodes, nodeHistory]);
+    pushSnapshot(nodes);
+  }, [nodes, pushSnapshot]);
 
   useUndoRedoHotkeys({
     enabled: true,
-    tryUndoLocal: nodeHistory.tryUndo,
-    tryRedoLocal: nodeHistory.tryRedo,
+    tryUndoLocal: tryUndo,
+    tryRedoLocal: tryRedo,
     canUndoGlobal: canUndo,
     canRedoGlobal: canRedo,
     undoGlobal: undo,
@@ -350,7 +351,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     );
     setNodes(newNodes);
     setEdges(newEdges);
-    nodeHistory.reset(newNodes);
+    resetNodeHistory(newNodes);
   }, [
     strategy,
     setNodes,
@@ -360,7 +361,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     handleAddToChat,
     handleOpenDetails,
     layoutSeed,
-    nodeHistory,
+    resetNodeHistory,
     dirtyStepIds,
     isUnsaved,
   ]);

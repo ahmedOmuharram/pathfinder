@@ -18,7 +18,7 @@ import {
   type VocabOption,
 } from "./components/stepEditorUtils";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
-import { normalizeRecordType, toApiRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/features/strategy/recordType";
 import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
 import { toUserMessage } from "@/lib/api/errors";
 
@@ -68,7 +68,7 @@ export function StepEditor({
 
   const searchName = editableSearchName.trim();
   const normalizedRecordTypeValue = normalizeRecordType(recordTypeValue);
-  const apiRecordTypeValue = toApiRecordType(normalizedRecordTypeValue);
+  const apiRecordTypeValue = normalizedRecordTypeValue;
   const stepValidationError = step.validationError;
   const selectedSearch = useMemo(() => {
     if (!searchName) return null;
@@ -108,19 +108,7 @@ export function StepEditor({
           .sort((a, b) =>
             (a.displayName || a.name).localeCompare(b.displayName || b.name)
           );
-        const hasTranscript = options.some((option) => option.name === "transcript");
-        const hasGene = options.some((option) => option.name === "gene");
-        const withGene = hasTranscript && !hasGene
-          ? [
-              {
-                name: "gene",
-                displayName: "Gene",
-                description: "Gene (mapped to transcript searches in WDK).",
-              } as RecordType,
-              ...options,
-            ]
-          : options;
-        setRecordTypeOptions(withGene);
+        setRecordTypeOptions(options);
       })
       .catch(() => {
         if (!isActive) return;
@@ -189,46 +177,23 @@ export function StepEditor({
 
   useEffect(() => {
     let isActive = true;
-    const rawRecordType = resolveRecordTypeForSearch();
-    const normalizedRecordType = toApiRecordType(rawRecordType || recordType);
-    if (!normalizedRecordType && !rawRecordType) {
+    const resolvedRecordType = resolveRecordTypeForSearch();
+    const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
+    if (!normalizedRecordType) {
       setSearchOptions([]);
       setSearchListError(null);
       return;
     }
     setIsLoadingSearches(true);
     setSearchListError(null);
-    const requests: Promise<Search[]>[] = [];
-    if (normalizedRecordType) {
-      requests.push(getSearches(siteId, normalizedRecordType));
-    }
-    if (rawRecordType && rawRecordType !== normalizedRecordType) {
-      requests.push(getSearches(siteId, rawRecordType));
-    }
-    const hasGeneOption = recordTypeOptions.some((option) => option.name === "gene");
-    if (
-      normalizedRecordType === "transcript" &&
-      rawRecordType !== "gene" &&
-      hasGeneOption
-    ) {
-      requests.push(getSearches(siteId, "gene"));
-    }
-
-    Promise.allSettled(requests)
+    getSearches(siteId, normalizedRecordType)
       .then((results) => {
         if (!isActive) return;
-        const merged = new Map<string, Search>();
-        results.forEach((entry) => {
-          if (entry.status !== "fulfilled") return;
-          (entry.value || [])
-            .filter((item): item is Search => Boolean(item && item.name))
-            .forEach((item) => {
-              merged.set(item.name, item);
-            });
-        });
-        const options = Array.from(merged.values()).sort((a, b) =>
-          (a.displayName || a.name).localeCompare(b.displayName || b.name)
-        );
+        const options = (results || [])
+          .filter((item): item is Search => Boolean(item && item.name))
+          .sort((a, b) =>
+            (a.displayName || a.name).localeCompare(b.displayName || b.name)
+          );
         setSearchOptions(options);
         if (options.length === 0) {
           setSearchListError("No searches available for this record type.");
@@ -246,7 +211,7 @@ export function StepEditor({
     return () => {
       isActive = false;
     };
-  }, [siteId, recordType, recordTypeOptions, recordTypeValue]);
+  }, [siteId, recordType, resolveRecordTypeForSearch]);
 
   useEffect(() => {
     const resolvedRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
@@ -319,7 +284,7 @@ export function StepEditor({
       const selectedRecordType = resolveRecordTypeForSearch(
         selectedSearch?.recordType
       );
-      const resolvedRecordType = toApiRecordType(selectedRecordType);
+      const resolvedRecordType = normalizeRecordType(selectedRecordType);
       if (selectedRecordType) {
         updates.recordType = selectedRecordType;
       }

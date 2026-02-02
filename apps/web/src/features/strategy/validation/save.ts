@@ -3,7 +3,7 @@ import { validateSearchParams } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
 import { validateStrategySteps } from "@/features/strategy/domain/graph";
-import { toApiRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/features/strategy/recordType";
 
 export async function validateStepsForSave(args: {
   siteId: string;
@@ -32,8 +32,7 @@ export async function validateStepsForSave(args: {
       }
 
       const rawRecordType = step.recordType || strategy?.recordType || undefined;
-      // Preserve existing behavior: some sites use transcript for gene-level endpoints.
-      const recordType = toApiRecordType(rawRecordType);
+      const recordType = normalizeRecordType(rawRecordType);
       const searchName = step.searchName;
 
       if (!recordType || !searchName) {

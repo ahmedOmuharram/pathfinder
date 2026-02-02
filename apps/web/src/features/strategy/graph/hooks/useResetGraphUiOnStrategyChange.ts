@@ -16,6 +16,6 @@ export function useResetGraphUiOnStrategyChange(args: {
     autoFitReset();
     setSelectedNodeIds([]);
     selectedNodeIdsRef.current = [];
-  }, [strategyId, setUserHasMoved, autoFitReset, setSelectedNodeIds, selectedNodeIdsRef]);
+  }, [strategyId]);
 }
 

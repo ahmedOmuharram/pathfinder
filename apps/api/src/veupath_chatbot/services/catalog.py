@@ -240,7 +240,6 @@ async def search_for_searches(
         record_types = [str(rt) for rt in record_type if rt]
     elif isinstance(record_type, str) and record_type:
         record_types = [record_type]
-    record_types.extend(["transcript", "gene"])
     record_types = list(dict.fromkeys(record_types))
 
     raw_terms = re.findall(r"[A-Za-z0-9]+", query or "")

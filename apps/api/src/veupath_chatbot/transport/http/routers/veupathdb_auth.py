@@ -143,7 +143,7 @@ async def auth_status(
 ):
     """Return current VEuPathDB auth status."""
     del site_id  # auth uses VEuPathDB portal
-    site = get_site(site_id)
+    site = get_site("veupathdb")
     client = get_wdk_client(site.id)
     try:
         user = await client.get("/users/current")
