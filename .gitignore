@@ -77,3 +77,9 @@ apps/web/src/lib/api/generated.ts
 # WDK - Repository cloned for local development
 WDK-master/
 wdk-client/
+
+# Docker / CI placeholders
+docker-compose.yml
+**/Dockerfile
+.github/
+
