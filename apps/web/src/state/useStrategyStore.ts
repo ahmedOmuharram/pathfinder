@@ -119,27 +119,36 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
   addStep: (step) => {
     set((state) => {
       const existing = state.stepsById[step.id];
-      let nextStep = step;
-      if (existing?.recordType && !nextStep.recordType) {
-        nextStep = { ...nextStep, recordType: existing.recordType };
+      // AI-driven updates often send partial step payloads.
+      // Treat this as an upsert+patch: only overwrite fields that are present
+      // (not `undefined`), otherwise keep the existing values.
+      let nextStep = existing ? { ...existing } : ({} as typeof step);
+      for (const [key, value] of Object.entries(step)) {
+        if (value !== undefined) {
+          (nextStep as any)[key] = value;
+        }
       }
+
+      // Preserve recordType if incoming omits it.
+      if (existing?.recordType && !nextStep.recordType) {
+        nextStep = { ...(nextStep as any), recordType: existing.recordType };
+      }
+
+      // Preserve user-edited (non-fallback) displayName.
       if (existing?.displayName) {
         const existingName = existing.displayName;
-        const incomingName = step.displayName;
+        const incomingName = (step as any).displayName;
         const keepExisting =
           !incomingName ||
           !isFallbackDisplayName(existingName, existing) ||
           isFallbackDisplayName(incomingName, step);
         if (keepExisting) {
-          nextStep = { ...step, displayName: existingName };
+          nextStep = { ...(nextStep as any), displayName: existingName };
         }
       }
       const newStepsById = { ...state.stepsById, [step.id]: nextStep };
       const strategy = buildStrategy(newStepsById, state.strategy);
-      
-      console.log("Adding step to store:", step.id, nextStep);
-      console.log("New strategy:", strategy);
-      
+
       const historyState = pushHistory(state, strategy);
       return {
         stepsById: newStepsById,
