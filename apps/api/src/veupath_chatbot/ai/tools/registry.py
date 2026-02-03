@@ -115,6 +115,11 @@ class AgentToolRegistryMixin:
         return await self.strategy_tools.delete_step(step_id, graph_id)
 
     @ai_function()
+    async def undo_last_change(self, graph_id: str | None = None):
+        """Undo the last change to the current graph."""
+        return await self.strategy_tools.undo_last_change(graph_id)
+
+    @ai_function()
     async def rename_step(self, step_id: str, new_name: str, graph_id: str | None = None):
         """Rename a step's display name."""
         return await self.strategy_tools.rename_step(step_id, new_name, graph_id)
@@ -197,15 +202,50 @@ class AgentToolRegistryMixin:
         )
 
     @ai_function()
+    async def preview_results(self, step_id: str, limit: int = 10, graph_id: str | None = None):
+        """Preview results for a step (best-effort / may be simulated)."""
+        return await self.execution_tools.preview_results(step_id, limit, graph_id)
+
+    @ai_function()
     async def get_result_count(self, wdk_step_id: int):
         """Get the result count for a built step."""
         return await self.execution_tools.get_result_count(wdk_step_id)
+
+    @ai_function()
+    async def get_download_url(
+        self,
+        wdk_step_id: int,
+        format: str = "csv",
+        attributes: list[str] | None = None,
+    ):
+        """Get a download URL for executed step results."""
+        return await self.execution_tools.get_download_url(wdk_step_id, format, attributes)
+
+    @ai_function()
+    async def get_sample_records(self, wdk_step_id: int, limit: int = 5):
+        """Get sample records for an executed step."""
+        return await self.execution_tools.get_sample_records(wdk_step_id, limit)
 
     # Conversation tools
     @ai_function()
     async def save_strategy(self, name: str, description: str | None = None):
         """Save the current strategy for later use."""
         return await self.conversation_tools.save_strategy(name, description)
+
+    @ai_function()
+    async def rename_strategy(
+        self,
+        new_name: str,
+        description: str,
+        graph_id: str | None = None,
+    ):
+        """Rename the current strategy (name + description required)."""
+        return await self.conversation_tools.rename_strategy(new_name, description, graph_id)
+
+    @ai_function()
+    async def clear_strategy(self, graph_id: str | None = None, confirm: bool = False):
+        """Clear all steps from a graph (requires confirm=true)."""
+        return await self.conversation_tools.clear_strategy(graph_id, confirm)
 
     @ai_function()
     async def get_strategy_summary(self):

@@ -90,13 +90,6 @@ class StrategySession:
         self.graph = graph
         return graph
 
-    def remove_graph(self, graph_id: str) -> bool:
-        """Remove a graph from the session context."""
-        if not self.graph or self.graph.id != graph_id:
-            return False
-        self.graph = None
-        return True
-
     def get_graph(self, graph_id: str | None) -> StrategyGraph | None:
         """Get graph by ID (or active graph if None)."""
         if not self.graph:

@@ -53,9 +53,9 @@ class StrategyEditOps:
         if not remaining:
             return self._tool_error(
                 ErrorCode.VALIDATION_ERROR,
-                "Deleting this step would remove all nodes. Use delete_graph.",
+                "Deleting this step would remove all nodes. Use clear_strategy(confirm=true) to start over.",
                 graphId=graph.id,
-                requiresGraphDelete=True,
+                requiresConfirmation=True,
             )
 
         for sid in to_remove:

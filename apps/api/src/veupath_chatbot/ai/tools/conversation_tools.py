@@ -154,7 +154,7 @@ class ConversationTools:
         if not confirm:
             return self._tool_error(
                 ErrorCode.VALIDATION_ERROR,
-                "Refusing to clear graph without confirmation. Use confirm=true or delete_graph.",
+                "Refusing to clear the strategy without confirmation. Use confirm=true.",
                 graphId=graph.id,
                 requiresConfirmation=True,
             )
@@ -169,34 +169,6 @@ class ConversationTools:
             "graphId": graph.id,
             "cleared": True,
             "message": "Strategy cleared. Ready to start fresh.",
-        }
-
-    @ai_function()
-    async def delete_graph(
-        self,
-        graph_id: Annotated[str, AIParam(desc="Graph ID to delete")],
-        confirm: Annotated[
-            bool,
-            AIParam(desc="Set true to confirm deleting the entire graph"),
-        ] = False,
-    ) -> dict[str, Any]:
-        """Fully delete a graph from the current strategy session."""
-        if not confirm:
-            return self._tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "Refusing to delete graph without confirmation.",
-                graphId=graph_id,
-                requiresConfirmation=True,
-            )
-        removed = self.session.remove_graph(graph_id)
-        if not removed:
-            return self._tool_error(
-                ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id
-            )
-        return {
-            "ok": True,
-            "graphId": graph_id,
-            "graphDeleted": True,
         }
 
     @ai_function()

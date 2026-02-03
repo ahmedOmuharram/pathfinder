@@ -72,6 +72,23 @@ class SubtaskAgent(Kani):
         )
 
     @ai_function()
+    async def transform_step(
+        self,
+        input_step_id: str,
+        transform_name: str,
+        parameters: dict | None = None,
+        display_name: str | None = None,
+        graph_id: str | None = None,
+    ):
+        return await self.strategy_tools.transform_step(
+            input_step_id=input_step_id,
+            transform_name=transform_name,
+            parameters=parameters,
+            display_name=display_name,
+            graph_id=graph_id or self.graph_id,
+        )
+
+    @ai_function()
     async def combine_steps(
         self,
         left_step_id: str,
@@ -90,6 +107,33 @@ class SubtaskAgent(Kani):
             upstream=upstream,
             downstream=downstream,
             graph_id=graph_id or self.graph_id,
+        )
+
+    @ai_function()
+    async def list_current_steps(self, graph_id: str | None = None):
+        return await self.strategy_tools.list_current_steps(graph_id or self.graph_id)
+
+    @ai_function()
+    async def update_step_parameters(
+        self,
+        step_id: str,
+        parameters: dict,
+        display_name: str | None = None,
+        graph_id: str | None = None,
+    ):
+        return await self.strategy_tools.update_step_parameters(
+            step_id=step_id,
+            parameters=parameters,
+            display_name=display_name,
+            graph_id=graph_id or self.graph_id,
+        )
+
+    @ai_function()
+    async def rename_step(
+        self, step_id: str, new_name: str, graph_id: str | None = None
+    ):
+        return await self.strategy_tools.rename_step(
+            step_id=step_id, new_name=new_name, graph_id=graph_id or self.graph_id
         )
 
     @ai_function()
