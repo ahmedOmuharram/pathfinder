@@ -16,11 +16,8 @@ Catalog tools:
 Graph tools:
 
 - `list_current_steps(graph_id?)`
-- `create_search_step(record_type, search_name, parameters?, display_name?, graph_id?)`
-- `transform_step(input_step_id, transform_name, parameters?, display_name?, graph_id?)`
-- `find_orthologs(input_step_id, target_organisms, is_syntenic?, display_name?, graph_id?)`
-- `combine_steps(left_step_id, right_step_id, operator, display_name?, upstream?, downstream?, graph_id?)`
-- `update_step_parameters(step_id, parameters, display_name?, graph_id?)`
+- `create_step(search_name?, parameters?, record_type?, primary_input_step_id?, secondary_input_step_id?, operator?, display_name?, upstream?, downstream?, strand?, graph_id?)`
+- `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)`
 - `rename_step(step_id, new_name, graph_id?)`
 
 ## Mandatory Workflow (repeatable)
@@ -31,8 +28,8 @@ Graph tools:
 2. **Discover the right search/transform**
    - Use `search_for_searches` and then `get_search_parameters`.
 3. **Create or edit exactly what the task asks**
-   - If the task says “modify/update/rename”: prefer `update_step_parameters` / `rename_step` on the specified step IDs.
-   - If the task says “create”: use `create_search_step` (or `transform_step`/`find_orthologs` when appropriate).
+   - If the task says “modify/update/rename”: prefer `update_step` / `rename_step` on the specified step IDs.
+   - If the task says “create”: use `create_step`.
 4. **Keep changes scoped**
    - Only operate on the provided graph (always pass `graph_id` if given).
    - Do not create extra “nice-to-have” steps.
@@ -47,11 +44,10 @@ Graph tools:
 - Your job is to complete **your subtask** (produce **exactly one** meaningful step unless explicitly asked to only edit).
 - Do **not** attempt to globally unify multiple roots unless the task explicitly instructs you to combine specific step IDs.
 
-## Orthology / Transforms
+## Input-dependent steps
 
-- For ortholog tasks: prefer `find_orthologs` (it uses the standard `GenesByOrthologs` transform).
-- Use `transform_step` for other transforms when the task provides (or dependency context contains) an input step ID.
-- Do not use `create_search_step` for searches that require an `input-step` parameter; those must be done via `transform_step`.
+- For any step that depends on a prior result, set `primary_input_step_id` in `create_step`.
+- For binary operations, set `secondary_input_step_id` + `operator` in `create_step`.
 
 ## Parameter Encoding (must-follow)
 

@@ -1,4 +1,4 @@
-"""AST node types for strategy representation."""
+"""AST node types for strategy representation (WDK-aligned, untyped tree)."""
 
 from __future__ import annotations
 
@@ -63,61 +63,50 @@ class StepReport:
 
 
 @dataclass
-class SearchStep:
-    """A search step that queries a VEuPathDB search question."""
+class PlanStepNode:
+    """
+    Untyped recursive strategy node.
 
-    record_type: str
+    Kind is inferred from structure:
+    - combine: primary_input and secondary_input
+    - transform: primary_input only
+    - search: no inputs
+    """
+
     search_name: str
-    parameters: dict[str, Any]
+    parameters: dict[str, Any] = field(default_factory=dict)
+    primary_input: "PlanStepNode | None" = None
+    secondary_input: "PlanStepNode | None" = None
+    operator: CombineOp | None = None
+    colocation_params: ColocationParams | None = None
     display_name: str | None = None
     filters: list[StepFilter] = field(default_factory=list)
     analyses: list[StepAnalysis] = field(default_factory=list)
     reports: list[StepReport] = field(default_factory=list)
     id: str = field(default_factory=generate_step_id)
 
+    def infer_kind(self) -> str:
+        if self.primary_input is not None and self.secondary_input is not None:
+            return "combine"
+        if self.primary_input is not None:
+            return "transform"
+        return "search"
+
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
-        result = {
-            "type": "search",
+        result: dict[str, Any] = {
             "id": self.id,
             "searchName": self.search_name,
             "displayName": self.display_name or self.search_name,
-            "parameters": self.parameters,
+            "parameters": self.parameters or {},
         }
-        if self.filters:
-            result["filters"] = [f.to_dict() for f in self.filters]
-        if self.analyses:
-            result["analyses"] = [a.to_dict() for a in self.analyses]
-        if self.reports:
-            result["reports"] = [r.to_dict() for r in self.reports]
-        return result
 
-
-@dataclass
-class CombineStep:
-    """A combine step that applies a set operation to two inputs."""
-
-    op: CombineOp
-    left: StepNode
-    right: StepNode
-    display_name: str | None = None
-    filters: list[StepFilter] = field(default_factory=list)
-    analyses: list[StepAnalysis] = field(default_factory=list)
-    reports: list[StepReport] = field(default_factory=list)
-    colocation_params: ColocationParams | None = None
-    id: str = field(default_factory=generate_step_id)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
-        result: dict[str, Any] = {
-            "type": "combine",
-            "id": self.id,
-            "displayName": self.display_name or f"{self.op.value}",
-            "operator": self.op.value,
-            "left": self.left.to_dict(),
-            "right": self.right.to_dict(),
-        }
-        if self.colocation_params:
+        if self.primary_input is not None:
+            result["primaryInput"] = self.primary_input.to_dict()
+        if self.secondary_input is not None:
+            result["secondaryInput"] = self.secondary_input.to_dict()
+        if self.operator is not None:
+            result["operator"] = self.operator.value
+        if self.colocation_params is not None:
             result["colocationParams"] = {
                 "upstream": self.colocation_params.upstream,
                 "downstream": self.colocation_params.downstream,
@@ -133,80 +122,44 @@ class CombineStep:
 
 
 @dataclass
-class TransformStep:
-    """A transform step that modifies its input (e.g., orthology expansion)."""
-
-    transform_name: str
-    input: StepNode
-    parameters: dict[str, Any] = field(default_factory=dict)
-    display_name: str | None = None
-    filters: list[StepFilter] = field(default_factory=list)
-    analyses: list[StepAnalysis] = field(default_factory=list)
-    reports: list[StepReport] = field(default_factory=list)
-    id: str = field(default_factory=generate_step_id)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
-        result = {
-            "type": "transform",
-            "id": self.id,
-            "displayName": self.display_name or self.transform_name,
-            "transformName": self.transform_name,
-            "input": self.input.to_dict(),
-            "parameters": self.parameters,
-        }
-        if self.filters:
-            result["filters"] = [f.to_dict() for f in self.filters]
-        if self.analyses:
-            result["analyses"] = [a.to_dict() for a in self.analyses]
-        if self.reports:
-            result["reports"] = [r.to_dict() for r in self.reports]
-        return result
-
-
-# Union type for all step nodes
-StepNode = SearchStep | CombineStep | TransformStep
-
-
-@dataclass
 class StrategyAST:
     """Complete strategy represented as an AST."""
 
     record_type: str
-    root: StepNode
+    root: PlanStepNode
     name: str | None = None
     description: str | None = None
+    metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
+        metadata: dict[str, Any] = dict(self.metadata or {})
+        # Ensure name/description are always reflected in metadata.
+        if self.name is not None:
+            metadata["name"] = self.name
+        if self.description is not None:
+            metadata["description"] = self.description
         return {
             "recordType": self.record_type,
             "root": self.root.to_dict(),
-            "metadata": {
-                "name": self.name,
-                "description": self.description,
-            },
+            "metadata": metadata or None,
         }
 
-    def get_all_steps(self) -> list[StepNode]:
+    def get_all_steps(self) -> list[PlanStepNode]:
         """Get all steps in the tree (depth-first)."""
-        steps: list[StepNode] = []
+        steps: list[PlanStepNode] = []
 
-        def visit(node: StepNode) -> None:
-            if isinstance(node, SearchStep):
-                steps.append(node)
-            elif isinstance(node, CombineStep):
-                visit(node.left)
-                visit(node.right)
-                steps.append(node)
-            elif isinstance(node, TransformStep):
-                visit(node.input)
-                steps.append(node)
+        def visit(node: PlanStepNode) -> None:
+            if node.primary_input is not None:
+                visit(node.primary_input)
+            if node.secondary_input is not None:
+                visit(node.secondary_input)
+            steps.append(node)
 
         visit(self.root)
         return steps
 
-    def get_step_by_id(self, step_id: str) -> StepNode | None:
+    def get_step_by_id(self, step_id: str) -> PlanStepNode | None:
         """Find a step by its ID."""
         for step in self.get_all_steps():
             if step.id == step_id:
@@ -265,59 +218,62 @@ def from_dict(data: dict[str, Any]) -> StrategyAST:
             )
         return reports
 
-    def parse_node(node_data: dict[str, Any]) -> StepNode:
-        node_type = node_data.get("type")
+    def parse_node(node_data: dict[str, Any]) -> PlanStepNode:
+        search_name = node_data.get("searchName")
+        if not isinstance(search_name, str) or not search_name:
+            raise ValueError("Missing searchName")
 
-        if node_type == "search":
-            return SearchStep(
-                record_type=data.get("recordType", ""),
-                search_name=node_data["searchName"],
-                parameters=node_data.get("parameters", {}),
-                display_name=node_data.get("displayName"),
-                filters=parse_filters(node_data),
-                analyses=parse_analyses(node_data),
-                reports=parse_reports(node_data),
-                id=node_data.get("id", generate_step_id()),
-            )
-        if node_type == "combine":
-            colocation = None
-            if "colocationParams" in node_data:
-                cp = node_data["colocationParams"]
-                colocation = ColocationParams(
-                    upstream=cp.get("upstream", 0),
-                    downstream=cp.get("downstream", 0),
-                    strand=cp.get("strand", "both"),
-                )
-            return CombineStep(
-                op=CombineOp(node_data["operator"]),
-                left=parse_node(node_data["left"]),
-                right=parse_node(node_data["right"]),
-                display_name=node_data.get("displayName"),
-                colocation_params=colocation,
-                filters=parse_filters(node_data),
-                analyses=parse_analyses(node_data),
-                reports=parse_reports(node_data),
-                id=node_data.get("id", generate_step_id()),
-            )
-        if node_type == "transform":
-            return TransformStep(
-                transform_name=node_data["transformName"],
-                input=parse_node(node_data["input"]),
-                parameters=node_data.get("parameters", {}),
-                display_name=node_data.get("displayName"),
-                filters=parse_filters(node_data),
-                analyses=parse_analyses(node_data),
-                reports=parse_reports(node_data),
-                id=node_data.get("id", generate_step_id()),
+        params = node_data.get("parameters") or {}
+        if not isinstance(params, dict):
+            raise ValueError("parameters must be an object")
+
+        primary_raw = node_data.get("primaryInput")
+        secondary_raw = node_data.get("secondaryInput")
+        primary = parse_node(primary_raw) if isinstance(primary_raw, dict) else None
+        secondary = parse_node(secondary_raw) if isinstance(secondary_raw, dict) else None
+
+        op_raw = node_data.get("operator")
+        operator = CombineOp(op_raw) if isinstance(op_raw, str) and op_raw else None
+
+        colocation = None
+        if isinstance(node_data.get("colocationParams"), dict):
+            cp = node_data["colocationParams"]
+            colocation = ColocationParams(
+                upstream=cp.get("upstream", 0),
+                downstream=cp.get("downstream", 0),
+                strand=cp.get("strand", "both"),
             )
 
-        raise ValueError(f"Unknown node type: {node_type}")
+        # basic structural constraints
+        if secondary is not None and primary is None:
+            raise ValueError("secondaryInput requires primaryInput")
+        if secondary is not None and operator is None:
+            raise ValueError("operator is required when secondaryInput is present")
+        if operator == CombineOp.COLOCATE and colocation is None:
+            raise ValueError("colocationParams is required when operator is COLOCATE")
+        if operator != CombineOp.COLOCATE and colocation is not None:
+            raise ValueError("colocationParams is only allowed when operator is COLOCATE")
+
+        return PlanStepNode(
+            search_name=search_name,
+            parameters=params,
+            primary_input=primary,
+            secondary_input=secondary,
+            operator=operator,
+            colocation_params=colocation,
+            display_name=node_data.get("displayName"),
+            filters=parse_filters(node_data),
+            analyses=parse_analyses(node_data),
+            reports=parse_reports(node_data),
+            id=node_data.get("id", generate_step_id()),
+        )
 
     metadata = data.get("metadata", {})
     return StrategyAST(
         record_type=data["recordType"],
         root=parse_node(data["root"]),
-        name=metadata.get("name"),
-        description=metadata.get("description"),
+        name=metadata.get("name") if isinstance(metadata, dict) else None,
+        description=metadata.get("description") if isinstance(metadata, dict) else None,
+        metadata=metadata if isinstance(metadata, dict) else None,
     )
 

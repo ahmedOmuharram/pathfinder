@@ -4,6 +4,7 @@ import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
 import { getRootSteps, validateStrategySteps } from "@/features/strategy/domain/graph";
 import { normalizeRecordType } from "@/features/strategy/recordType";
+import { inferStepKind } from "@/core/strategyGraph";
 
 export async function validateStepsForSave(args: {
   siteId: string;
@@ -44,7 +45,7 @@ export async function validateStepsForSave(args: {
 
   await Promise.all(
     steps.map(async (step) => {
-      if (step.type !== "search") {
+      if (inferStepKind(step) !== "search") {
         errorsByStepId[step.id] = undefined;
         return;
       }

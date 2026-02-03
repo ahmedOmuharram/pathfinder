@@ -131,7 +131,7 @@ async def run_subkani_task(
                             "allSteps": [
                                 {
                                     "stepId": sid,
-                                    "type": s.__class__.__name__.lower().replace("step", ""),
+                                    "kind": getattr(s, "infer_kind", lambda: None)(),
                                     "displayName": s.display_name,
                                 }
                                 for sid, s in (graph.steps.items() if graph else [])
@@ -168,8 +168,9 @@ async def run_subkani_task(
                 "- Use get_search_parameters(record_type, search_name) to learn required params.\n"
                 "Execution rules:\n"
                 "- All parameter values must be strings.\n"
-                "- If the chosen search requires an input-step, do NOT use create_search_step; use transform_step.\n"
-                "- For orthology tasks, prefer find_orthologs.\n"
+                "- Use create_step for all step creation.\n"
+                "- If the step depends on a prior step, set primary_input_step_id.\n"
+                "- If the step needs a binary operator, set secondary_input_step_id + operator.\n"
                 f"Previous issue: {error_hint}\n"
                 f"Task: {task}\n"
                 f"Graph: {graph_id}\n"
@@ -262,9 +263,9 @@ async def delegate_strategy_subtasks(
             last_response: dict[str, Any] | None = None
             for index, next_step_id in enumerate(resolved_inputs[1:], start=1):
                 is_final = index == len(resolved_inputs) - 1
-                response = await strategy_tools.combine_steps(
-                    left_step_id=current_step_id,
-                    right_step_id=next_step_id,
+                response = await strategy_tools.create_step(
+                    primary_input_step_id=current_step_id,
+                    secondary_input_step_id=next_step_id,
                     operator=str(operator),
                     display_name=combine.get("display_name") if is_final else None,
                     upstream=combine.get("upstream"),

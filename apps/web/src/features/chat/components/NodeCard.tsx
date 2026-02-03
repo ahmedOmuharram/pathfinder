@@ -1,20 +1,21 @@
 export type ChatNodeCardData = {
   type?: string;
+  kind?: string;
   displayName?: string;
   searchName?: string;
-  transformName?: string;
   operator?: string;
   selected?: boolean;
 };
 
 export function NodeCard({ node }: { node: ChatNodeCardData }) {
   const isSelected = Boolean(node.selected);
+  const kind = node.kind || node.type;
   const typeLabel =
-    node.type === "search"
+    kind === "search"
       ? "Search"
-      : node.type === "combine"
+      : kind === "combine"
         ? "Combine"
-        : node.type === "transform"
+        : kind === "transform"
           ? "Transform"
           : "Step";
 
@@ -46,9 +47,9 @@ export function NodeCard({ node }: { node: ChatNodeCardData }) {
       <div className="mt-1 text-sm font-medium text-slate-900">
         {node.displayName || "Untitled step"}
       </div>
-      {(node.searchName || node.transformName) && (
+      {node.searchName && (
         <div className="mt-0.5 text-[11px] text-slate-500">
-          {node.searchName || node.transformName}
+          {node.searchName}
         </div>
       )}
     </div>

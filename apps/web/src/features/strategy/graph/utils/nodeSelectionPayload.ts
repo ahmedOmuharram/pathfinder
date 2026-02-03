@@ -1,5 +1,6 @@
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { NodeSelection } from "@/features/chat/node_selection";
+import { inferStepKind } from "@/core/strategyGraph";
 
 export function buildNodeSelectionPayload(
   strategy: StrategyWithMeta | null,
@@ -32,10 +33,10 @@ export function buildNodeSelectionPayload(
       .filter((step) => contextSet.has(step.id))
       .map((step) => ({
         id: step.id,
-        type: step.type,
+        kind: inferStepKind(step),
+        type: inferStepKind(step), // legacy consumer compatibility
         displayName: step.displayName,
         searchName: step.searchName,
-        transformName: step.transformName,
         operator: step.operator,
         parameters: step.parameters,
         recordType: step.recordType,

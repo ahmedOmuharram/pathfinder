@@ -7,6 +7,7 @@ export type {
 } from "./types";
 export { deserializeStrategyToGraph } from "./deserialize";
 export { serializeStrategyPlan } from "./serialize";
+export { inferStepKind } from "./kind";
 export {
   resolveRecordType,
   findCombineRecordTypeMismatch,

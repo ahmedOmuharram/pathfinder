@@ -37,6 +37,7 @@ import { useSessionStore } from "@/state/useSessionStore";
 import {
   deserializeStrategyToGraph,
   getCombineMismatchGroups,
+  inferStepKind,
 } from "@/features/strategy/domain/graph";
 
 interface StrategyGraphProps {
@@ -132,11 +133,11 @@ export function StrategyGraph(props: StrategyGraphProps) {
   );
   // Update nodes and edges when strategy changes
   const buildStepSignature = useCallback((step: StrategyStep) => {
+    const kind = inferStepKind(step);
     return JSON.stringify({
-      type: step.type,
+      kind,
       displayName: step.displayName,
       searchName: step.searchName,
-      transformName: step.transformName,
       operator: step.operator,
       parameters: step.parameters ?? {},
       primaryInputStepId: step.primaryInputStepId,
@@ -185,8 +186,9 @@ export function StrategyGraph(props: StrategyGraphProps) {
         changed = false;
         for (const step of stepsList) {
           if (toRemove.has(step.id)) continue;
+          const kind = inferStepKind(step);
           if (
-            step.type === "transform" &&
+            kind === "transform" &&
             step.primaryInputStepId &&
             toRemove.has(step.primaryInputStepId)
           ) {
@@ -194,7 +196,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
             changed = true;
           }
           if (
-            step.type === "combine" &&
+            kind === "combine" &&
             ((step.primaryInputStepId && toRemove.has(step.primaryInputStepId)) ||
               (step.secondaryInputStepId &&
                 toRemove.has(step.secondaryInputStepId)))

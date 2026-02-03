@@ -34,7 +34,8 @@ def tool_result_to_events(
                     "allSteps": [
                         {
                             "stepId": sid,
-                            "type": s.__class__.__name__.lower().replace("step", ""),
+                            # legacy compatibility: include both kind and type
+                            "kind": getattr(s, "infer_kind", lambda: None)(),
                             "displayName": s.display_name,
                         }
                         for sid, s in (graph.steps.items() if graph else [])

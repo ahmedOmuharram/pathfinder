@@ -49,65 +49,57 @@ async def canonicalize_plan_parameters(
     specs_cache: dict[tuple[str, str, str], dict[str, Any]] = {}
 
     async def canonicalize_node(node: dict[str, Any]) -> dict[str, Any]:
-        node_type = node.get("type")
-        if node_type in {"search", "transform"}:
-            name = node.get("searchName") if node_type == "search" else node.get("transformName")
-            if not isinstance(name, str) or not name:
+        name = node.get("searchName")
+        if not isinstance(name, str) or not name:
+            raise ValidationError(
+                title="Invalid plan",
+                detail="Missing searchName.",
+                errors=[
+                    {
+                        "path": "root",
+                        "message": "Missing step searchName",
+                        "code": "INVALID_STRATEGY",
+                    }
+                ],
+            )
+
+        params = node.get("parameters")
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            raise ValidationError(
+                title="Invalid plan",
+                detail="Step parameters must be an object.",
+                errors=[{"path": "parameters", "message": "Expected object"}],
+            )
+
+        ctx_raw = json.dumps(params, sort_keys=True, default=str)
+        ctx_hash = hashlib.sha1(ctx_raw.encode("utf-8")).hexdigest()
+
+        cache_key = (record_type, name, ctx_hash)
+        details = specs_cache.get(cache_key)
+        if details is None:
+            try:
+                details = await load_search_details(record_type, name, params)
+            except Exception as exc:
                 raise ValidationError(
-                    title="Invalid plan",
-                    detail=f"Missing {('searchName' if node_type == 'search' else 'transformName')}.",
-                    errors=[
-                        {
-                            "path": "root",
-                            "message": "Missing step name",
-                            "code": "INVALID_STRATEGY",
-                        }
-                    ],
-                )
-            params = node.get("parameters")
-            if params is None:
-                params = {}
-            if not isinstance(params, dict):
-                raise ValidationError(
-                    title="Invalid plan",
-                    detail="Step parameters must be an object.",
-                    errors=[{"path": "parameters", "message": "Expected object"}],
-                )
+                    title="Failed to load search metadata",
+                    detail=f"Unable to load parameter metadata for '{name}' ({record_type}).",
+                    errors=[{"searchName": name, "recordType": record_type, "siteId": site_id}],
+                ) from exc
+            if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
+                details = details["searchData"]
+            specs_cache[cache_key] = details if isinstance(details, dict) else {}
+        spec_map = adapt_param_specs(details if isinstance(details, dict) else {})
+        canonicalizer = ParameterCanonicalizer(spec_map)
+        node["parameters"] = canonicalizer.canonicalize(params)
 
-            ctx_raw = json.dumps(params, sort_keys=True, default=str)
-            ctx_hash = hashlib.sha1(ctx_raw.encode("utf-8")).hexdigest()
-
-            cache_key = (record_type, name, ctx_hash)
-            details = specs_cache.get(cache_key)
-            if details is None:
-                try:
-                    details = await load_search_details(record_type, name, params)
-                except Exception as exc:
-                    raise ValidationError(
-                        title="Failed to load search metadata",
-                        detail=f"Unable to load parameter metadata for '{name}' ({record_type}).",
-                        errors=[
-                            {"searchName": name, "recordType": record_type, "siteId": site_id}
-                        ],
-                    ) from exc
-                if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-                    details = details["searchData"]
-                specs_cache[cache_key] = details if isinstance(details, dict) else {}
-            spec_map = adapt_param_specs(details if isinstance(details, dict) else {})
-            canonicalizer = ParameterCanonicalizer(spec_map)
-            node["parameters"] = canonicalizer.canonicalize(params)
-
-        if node_type == "combine":
-            left = node.get("left")
-            right = node.get("right")
-            if isinstance(left, dict):
-                await canonicalize_node(left)
-            if isinstance(right, dict):
-                await canonicalize_node(right)
-        if node_type == "transform":
-            input_node = node.get("input")
-            if isinstance(input_node, dict):
-                await canonicalize_node(input_node)
+        primary = node.get("primaryInput")
+        secondary = node.get("secondaryInput")
+        if isinstance(primary, dict):
+            await canonicalize_node(primary)
+        if isinstance(secondary, dict):
+            await canonicalize_node(secondary)
         return node
 
     await canonicalize_node(root)
@@ -137,25 +129,19 @@ def _normalize_plan_parameters_to_wdk_strings(plan: dict[str, Any]) -> dict[str,
         return plan
 
     def normalize_node(node: dict[str, Any]) -> dict[str, Any]:
-        node_type = node.get("type")
-        if node_type in {"search", "transform"}:
-            params = node.get("parameters")
-            if isinstance(params, dict):
-                node["parameters"] = {
-                    key: _normalize_param_value_to_wdk_string(value)
-                    for key, value in params.items()
-                }
-        if node_type == "combine":
-            left = node.get("left")
-            right = node.get("right")
-            if isinstance(left, dict):
-                normalize_node(left)
-            if isinstance(right, dict):
-                normalize_node(right)
-        if node_type == "transform":
-            input_node = node.get("input")
-            if isinstance(input_node, dict):
-                normalize_node(input_node)
+        params = node.get("parameters")
+        if isinstance(params, dict):
+            node["parameters"] = {
+                key: _normalize_param_value_to_wdk_string(value)
+                for key, value in params.items()
+            }
+
+        primary = node.get("primaryInput")
+        secondary = node.get("secondaryInput")
+        if isinstance(primary, dict):
+            normalize_node(primary)
+        if isinstance(secondary, dict):
+            normalize_node(secondary)
         return node
 
     normalize_node(root)

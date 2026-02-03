@@ -43,60 +43,33 @@ class AgentToolRegistryMixin:
 
     # Strategy tools
     @ai_function()
-    async def create_search_step(
+    async def create_step(
         self,
-        record_type: str,
-        search_name: str,
-        display_name: str | None = None,
+        search_name: str | None = None,
         parameters: dict | None = None,
-    ):
-        """Create a new search step in the strategy graph."""
-        return await self.strategy_tools.create_search_step(
-            record_type, search_name, parameters or {}, display_name
-        )
-
-    @ai_function()
-    async def combine_steps(
-        self,
-        left_step_id: str,
-        right_step_id: str,
-        operator: str,
+        record_type: str | None = None,
+        primary_input_step_id: str | None = None,
+        secondary_input_step_id: str | None = None,
+        operator: str | None = None,
         display_name: str | None = None,
         upstream: int | None = None,
         downstream: int | None = None,
+        strand: str | None = None,
+        graph_id: str | None = None,
     ):
-        """Combine two steps with a set operation."""
-        return await self.strategy_tools.combine_steps(
-            left_step_id, right_step_id, operator, display_name, upstream, downstream
-        )
-
-    @ai_function()
-    async def transform_step(
-        self,
-        input_step_id: str,
-        transform_name: str,
-        parameters: dict | None = None,
-        display_name: str | None = None,
-    ):
-        """Apply a transform to a step's results."""
-        return await self.strategy_tools.transform_step(
-            input_step_id, transform_name, parameters, display_name
-        )
-
-    @ai_function()
-    async def find_orthologs(
-        self,
-        input_step_id: str,
-        target_organisms: list[str] | str,
-        is_syntenic: str | bool | None = None,
-        display_name: str | None = None,
-    ):
-        """Find orthologs for genes in a step."""
-        return await self.strategy_tools.find_orthologs(
-            input_step_id,
-            target_organisms,
-            is_syntenic,
-            display_name,
+        """Create a new strategy step (single step-construction API)."""
+        return await self.strategy_tools.create_step(
+            search_name=search_name,
+            parameters=parameters,
+            record_type=record_type,
+            primary_input_step_id=primary_input_step_id,
+            secondary_input_step_id=secondary_input_step_id,
+            operator=operator,
+            display_name=display_name,
+            upstream=upstream,
+            downstream=downstream,
+            strand=strand,
+            graph_id=graph_id,
         )
 
     @ai_function()
@@ -145,25 +118,23 @@ class AgentToolRegistryMixin:
         return await self.strategy_tools.rename_step(step_id, new_name, graph_id)
 
     @ai_function()
-    async def update_step_parameters(
+    async def update_step(
         self,
         step_id: str,
-        parameters: dict,
+        search_name: str | None = None,
+        parameters: dict | None = None,
+        operator: str | None = None,
         display_name: str | None = None,
         graph_id: str | None = None,
     ):
-        """Update parameters for a search or transform step."""
-        return await self.strategy_tools.update_step_parameters(
-            step_id, parameters, display_name, graph_id
-        )
-
-    @ai_function()
-    async def update_combine_operator(
-        self, step_id: str, operator: str, graph_id: str | None = None
-    ):
-        """Update a combine step operator."""
-        return await self.strategy_tools.update_combine_operator(
-            step_id, operator, graph_id
+        """Update an existing strategy step."""
+        return await self.strategy_tools.update_step(
+            step_id=step_id,
+            search_name=search_name,
+            parameters=parameters,
+            operator=operator,
+            display_name=display_name,
+            graph_id=graph_id,
         )
 
     @ai_function()

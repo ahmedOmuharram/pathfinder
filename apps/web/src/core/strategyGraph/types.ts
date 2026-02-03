@@ -1,13 +1,12 @@
-import type { Step, Strategy } from "@pathfinder/shared";
+import type { Step, Strategy, StepKind } from "@pathfinder/shared";
 
 export type { Step, Strategy };
 
 export type StrategyNode = {
   id: string;
-  type: string;
+  kind?: StepKind;
   displayName?: string;
   searchName?: string;
-  transformName?: string;
   operator?: string;
   parameters?: Record<string, unknown>;
   recordType?: string;

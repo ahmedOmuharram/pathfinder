@@ -7,10 +7,8 @@ from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.domain.strategy.ast import (
-    CombineStep,
-    SearchStep,
+    PlanStepNode,
     StrategyAST,
-    TransformStep,
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -184,7 +182,7 @@ def _build_node_from_wdk(
     step_tree: dict[str, Any],
     steps: dict[str, Any] | list[dict[str, Any]],
     record_type: str,
-) -> SearchStep | CombineStep | TransformStep:
+) -> PlanStepNode:
     step_id = step_tree.get("stepId")
     if step_id is None:
         raise ValueError("Missing stepId in WDK stepTree node")
@@ -205,24 +203,24 @@ def _build_node_from_wdk(
         left = _build_node_from_wdk(primary_input, steps, record_type)
         right = _build_node_from_wdk(secondary_input, steps, record_type)
         operator = _normalize_operator(_extract_operator(parameters))
-        return CombineStep(
-            op=parse_op(operator),
-            left=left,
-            right=right,
+        return PlanStepNode(
+            search_name=search_name or "boolean_question",
+            operator=parse_op(operator),
+            primary_input=left,
+            secondary_input=right,
             display_name=display_name,
             id=str(step_id),
         )
     if primary_input:
         input_node = _build_node_from_wdk(primary_input, steps, record_type)
-        return TransformStep(
-            transform_name=search_name or "Transform",
-            input=input_node,
+        return PlanStepNode(
+            search_name=search_name or "Transform",
+            primary_input=input_node,
             parameters=parameters,
             display_name=display_name,
             id=str(step_id),
         )
-    return SearchStep(
-        record_type=record_type,
+    return PlanStepNode(
         search_name=search_name or "UnknownSearch",
         parameters=parameters,
         display_name=display_name,
@@ -280,14 +278,10 @@ async def _normalize_synced_parameters(
     spec_cache: dict[tuple[str, str], dict[str, Any]] = {}
 
     for step in ast.get_all_steps():
-        if isinstance(step, CombineStep):
+        if step.infer_kind() == "combine":
             continue
-        if isinstance(step, SearchStep):
-            search_name = step.search_name
-            record_type = step.record_type
-        else:
-            search_name = step.transform_name
-            record_type = ast.record_type
+        search_name = step.search_name
+        record_type = ast.record_type
 
         if not search_name or not record_type:
             continue

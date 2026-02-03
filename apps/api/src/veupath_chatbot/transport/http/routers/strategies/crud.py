@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from typing import Annotated
 from uuid import UUID
 
@@ -20,12 +19,13 @@ from veupath_chatbot.transport.http.schemas import (
     UpdateStrategyRequest,
 )
 
-from veupath_chatbot.services.strategies.serialization import build_steps_data_from_plan
+from veupath_chatbot.services.strategies.serialization import (
+    build_steps_data_from_plan,
+    count_steps_in_plan,
+)
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
-from veupath_chatbot.services.strategies.step_builders import _step_identity_key
 from veupath_chatbot.services.strategies.wdk_snapshot import (
     _attach_counts_from_wdk_strategy,
-    _build_snapshot_from_wdk,
 )
 
 from ._shared import build_step_response
@@ -49,7 +49,7 @@ async def list_strategies(
             title=s.title,
             siteId=s.site_id,
             recordType=s.record_type,
-            stepCount=len(s.steps),
+            stepCount=count_steps_in_plan(s.plan or {}),
             resultCount=s.result_count,
             wdkStrategyId=s.wdk_strategy_id,
             createdAt=s.created_at or datetime.now(timezone.utc),
@@ -66,9 +66,10 @@ async def create_strategy(
     user_id: CurrentUser,
 ):
     """Create a new strategy."""
-    plan = request.plan.model_dump(exclude_none=True)
-    strategy_ast = validate_plan_or_raise(plan)
-
+    plan_in = request.plan.model_dump(exclude_none=True)
+    strategy_ast = validate_plan_or_raise(plan_in)
+    # Persist canonical plan (ensures all nodes have ids, and keeps metadata).
+    plan = strategy_ast.to_dict()
     steps_data = build_steps_data_from_plan(plan)
 
     strategy = await strategy_repo.create(
@@ -78,13 +79,11 @@ async def create_strategy(
         site_id=request.site_id,
         record_type=strategy_ast.record_type,
         plan=plan,
-        steps=steps_data,
-        root_step_id=strategy_ast.root.id,
     )
 
     strategy_data = strategy.__dict__
     plan = strategy_data.get("plan") or {}
-    steps = strategy_data.get("steps") or []
+    steps = steps_data
     description = (
         plan.get("metadata", {}).get("description") if isinstance(plan, dict) else None
     )
@@ -98,7 +97,7 @@ async def create_strategy(
         siteId=strategy_data.get("site_id") or strategy.site_id,
         recordType=strategy_data.get("record_type") or strategy.record_type,
         steps=[build_step_response(s) for s in steps],
-        rootStepId=strategy_data.get("root_step_id"),
+        rootStepId=strategy_ast.root.id,
         wdkStrategyId=strategy_data.get("wdk_strategy_id"),
         messages=strategy_data.get("messages") or strategy.messages,
         thinking=strategy_data.get("thinking") or strategy.thinking,
@@ -122,33 +121,17 @@ async def get_strategy(
         if isinstance(strategy.plan, dict)
         else None
     )
-    steps = list(strategy.steps or [])
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    root_step_id = (
+        (strategy.plan or {}).get("root", {}).get("id")
+        if isinstance(strategy.plan, dict)
+        else None
+    )
     if strategy.wdk_strategy_id and steps:
         try:
             api = get_strategy_api(strategy.site_id)
             wdk_strategy = await api.get_strategy(strategy.wdk_strategy_id)
             _attach_counts_from_wdk_strategy(steps, wdk_strategy)
-            if not any(isinstance(step.get("resultCount"), int) for step in steps):
-                _, wdk_steps = _build_snapshot_from_wdk(
-                    wdk_strategy, record_type_fallback=strategy.record_type or "gene"
-                )
-                wdk_by_key: dict[
-                    tuple[str, str, str, str, str], list[dict[str, Any]]
-                ] = {}
-                for wdk_step in wdk_steps:
-                    wdk_by_key.setdefault(_step_identity_key(wdk_step), []).append(wdk_step)
-                for step in steps:
-                    match_list = wdk_by_key.get(_step_identity_key(step))
-                    if not match_list:
-                        continue
-                    wdk_step = match_list.pop(0)
-                    if (
-                        step.get("resultCount") is None
-                        and wdk_step.get("resultCount") is not None
-                    ):
-                        step["resultCount"] = wdk_step.get("resultCount")
-                    if not step.get("wdkStepId") and wdk_step.get("wdkStepId"):
-                        step["wdkStepId"] = wdk_step.get("wdkStepId")
         except Exception as e:
             logger.warning("WDK count refresh skipped", error=str(e))
     return StrategyResponse(
@@ -159,7 +142,7 @@ async def get_strategy(
         siteId=strategy.site_id,
         recordType=strategy.record_type,
         steps=[build_step_response(s) for s in steps],
-        rootStepId=strategy.root_step_id,
+        rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
         messages=strategy.messages,
         thinking=strategy.thinking,
@@ -175,32 +158,11 @@ async def update_strategy(
     strategy_repo: StrategyRepo,
 ):
     """Update a strategy."""
-    steps_data = None
-    root_step_id = None
     record_type = None
     if request.plan:
-        existing = await strategy_repo.get_by_id(strategyId)
-        existing_steps = list(existing.steps or []) if existing else []
-        plan = request.plan.model_dump(exclude_none=True)
-        strategy_ast = validate_plan_or_raise(plan)
-        steps_data = build_steps_data_from_plan(plan)
-        # Preserve WDK metadata across saves. The UI saves the plan, but the plan
-        # does not include `wdkStepId` / `resultCount`. Without merging, a save
-        # after a push will "lose" these fields and the graph won't show updates.
-        if existing_steps and steps_data:
-            existing_by_key: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
-            for step in existing_steps:
-                existing_by_key.setdefault(_step_identity_key(step), []).append(step)
-            for step in steps_data:
-                match_list = existing_by_key.get(_step_identity_key(step))
-                if not match_list:
-                    continue
-                prev = match_list.pop(0)
-                if not step.get("wdkStepId") and prev.get("wdkStepId"):
-                    step["wdkStepId"] = prev.get("wdkStepId")
-                if step.get("resultCount") is None and prev.get("resultCount") is not None:
-                    step["resultCount"] = prev.get("resultCount")
-        root_step_id = strategy_ast.root.id
+        plan_in = request.plan.model_dump(exclude_none=True)
+        strategy_ast = validate_plan_or_raise(plan_in)
+        plan = strategy_ast.to_dict()
         record_type = strategy_ast.record_type
     else:
         plan = None
@@ -213,8 +175,6 @@ async def update_strategy(
         name=request.name,
         title=request.name,
         plan=plan,
-        steps=steps_data,
-        root_step_id=root_step_id,
         record_type=record_type,
         wdk_strategy_id=request.wdk_strategy_id,
         wdk_strategy_id_set=wdk_strategy_id_set,
@@ -231,6 +191,12 @@ async def update_strategy(
         if isinstance(strategy.plan, dict)
         else None
     )
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    root_step_id = (
+        (strategy.plan or {}).get("root", {}).get("id")
+        if isinstance(strategy.plan, dict)
+        else None
+    )
     return StrategyResponse(
         id=strategy.id,
         name=strategy.name,
@@ -238,8 +204,8 @@ async def update_strategy(
         description=description,
         siteId=strategy.site_id,
         recordType=strategy.record_type,
-        steps=[build_step_response(s) for s in strategy.steps],
-        rootStepId=strategy.root_step_id,
+        steps=[build_step_response(s) for s in steps],
+        rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
         messages=strategy.messages,
         thinking=strategy.thinking,

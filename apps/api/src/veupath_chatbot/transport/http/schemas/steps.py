@@ -58,13 +58,13 @@ class StepResponse(BaseModel):
     """Strategy step."""
 
     id: str
-    type: str
+    kind: str | None = None
     display_name: str = Field(alias="displayName")
     search_name: str | None = Field(default=None, alias="searchName")
-    transform_name: str | None = Field(default=None, alias="transformName")
     record_type: str | None = Field(default=None, alias="recordType")
     parameters: dict[str, Any] | None = None
     operator: str | None = None
+    colocation_params: dict[str, Any] | None = Field(default=None, alias="colocationParams")
     primary_input_step_id: str | None = Field(default=None, alias="primaryInputStepId")
     secondary_input_step_id: str | None = Field(
         default=None, alias="secondaryInputStepId"

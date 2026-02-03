@@ -207,6 +207,7 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         step: {
           stepId: string;
           type: string;
+          kind?: string;
           displayName: string;
           searchName?: string;
           transformName?: string;
@@ -214,6 +215,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
           leftStepId?: string;
           rightStepId?: string;
           inputStepId?: string;
+          primaryInputStepId?: string;
+          secondaryInputStepId?: string;
           parameters?: Record<string, unknown>;
           name?: string | null;
           description?: string | null;
@@ -240,14 +243,14 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       if (!strategyIdAtStart || strategyIdAtStart === targetGraphId) {
         addStep({
           id: step.stepId,
-          type: step.type as StrategyStep["type"],
-          displayName: step.displayName || step.type,
+          kind: (step.kind ?? step.type) as StrategyStep["kind"],
+          displayName: step.displayName || step.kind || step.type,
           recordType: step.recordType ?? undefined,
           searchName: step.searchName,
-          transformName: step.transformName,
           operator: (step.operator as StrategyStep["operator"]) ?? undefined,
-          primaryInputStepId: step.leftStepId || step.inputStepId,
-          secondaryInputStepId: step.rightStepId,
+          primaryInputStepId:
+            step.primaryInputStepId || step.leftStepId || step.inputStepId,
+          secondaryInputStepId: step.secondaryInputStepId || step.rightStepId,
           parameters: step.parameters,
         });
         appliedSnapshotRef.current = true;

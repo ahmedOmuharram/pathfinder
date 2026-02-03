@@ -14,14 +14,12 @@ from typing import Any
 from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
-    CombineStep,
-    SearchStep,
+    PlanStepNode,
     StrategyAST,
-    TransformStep,
     from_dict,
 )
 
-Step = SearchStep | CombineStep | TransformStep
+Step = PlanStepNode
 
 
 class StrategyGraph:
@@ -31,6 +29,9 @@ class StrategyGraph:
         self.id = graph_id
         self.name = name
         self.site_id = site_id
+        # Best-effort record type context for the working graph (e.g. "gene").
+        # Set when the first step is created or when importing a WDK strategy.
+        self.record_type: str | None = None
         self.current_strategy: StrategyAST | None = None
         self.steps: dict[str, Step] = {}
         self.history: list[dict[str, Any]] = []

@@ -6,6 +6,7 @@ import { create } from "zustand";
 import type { StrategyPlan } from "@pathfinder/shared";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import { getRootSteps, getRootStepId, serializeStrategyPlan } from "@/features/strategy/domain/graph";
+import { inferStepKind } from "@/core/strategyGraph";
 
 const isUrlLike = (value: string | null | undefined) =>
   typeof value === "string" &&
@@ -20,8 +21,7 @@ const isFallbackDisplayName = (name: string | null | undefined, step: StrategySt
   const normalized = normalizeName(name);
   const candidates = new Set<string>([
     normalizeName(step.searchName),
-    normalizeName(step.transformName),
-    normalizeName(step.type),
+    normalizeName(inferStepKind(step)),
   ]);
   if (step.operator) {
     const op = normalizeName(step.operator);

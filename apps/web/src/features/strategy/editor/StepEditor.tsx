@@ -21,6 +21,7 @@ import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce"
 import { normalizeRecordType } from "@/features/strategy/recordType";
 import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
 import { toUserMessage } from "@/lib/api/errors";
+import { inferStepKind } from "@/core/strategyGraph";
 
 interface StepEditorProps {
   step: StrategyStep;
@@ -42,9 +43,10 @@ export function StepEditor({
   const [oldName, setOldName] = useState(step.displayName);
   const [name, setName] = useState(step.displayName);
   const [editableSearchName, setEditableSearchName] = useState(
-    step.searchName || step.transformName || ""
+    step.searchName || ""
   );
   const [operatorValue, setOperatorValue] = useState(step.operator || "");
+  const [colocationParams, setColocationParams] = useState(step.colocationParams);
   const [recordTypeValue, setRecordTypeValue] = useState(
     normalizeRecordType(step.recordType || recordType)
   );
@@ -67,6 +69,7 @@ export function StepEditor({
   const [error, setError] = useState<string | null>(null);
 
   const searchName = editableSearchName.trim();
+  const kind = inferStepKind(step);
   const normalizedRecordTypeValue = normalizeRecordType(recordTypeValue);
   const apiRecordTypeValue = normalizedRecordTypeValue;
   const stepValidationError = step.validationError;
@@ -239,11 +242,12 @@ export function StepEditor({
 
     const nextOldName = step.displayName;
     const nextName = nextOldName;
-    const nextSearchName = step.searchName || step.transformName || "";
+    const nextSearchName = step.searchName || "";
     setOldName(nextOldName);
     setName(nextName);
     setEditableSearchName(nextSearchName);
     setOperatorValue(step.operator || "");
+    setColocationParams(step.colocationParams);
     setRecordTypeValue(normalizeRecordType(step.recordType || recordType));
     setParameters(nextParams);
     setRawParams(JSON.stringify(nextParams, null, 2));
@@ -266,7 +270,7 @@ export function StepEditor({
   const handleSave = async () => {
     try {
       const nextName = (name || "").trim() || oldName;
-      const nextSearchName = searchName || (step.searchName || step.transformName || "");
+      const nextSearchName = searchName || step.searchName || "";
       let parsedParams = parameters;
       if (showRaw) {
         parsedParams = JSON.parse(rawParams);
@@ -289,25 +293,31 @@ export function StepEditor({
       if (selectedRecordType) {
         updates.recordType = selectedRecordType;
       }
-      if (step.type === "search") {
+      if (kind !== "combine") {
         updates.searchName = nextSearchName;
       }
-      if (step.type === "transform") {
-        updates.transformName = nextSearchName;
-      }
-      if (step.type === "combine") {
+      if (kind === "combine") {
         const nextOperator = operatorValue || step.operator;
         if (nextOperator) {
           updates.operator = nextOperator as StrategyStep["operator"];
         }
+        if (nextOperator === "COLOCATE") {
+          updates.colocationParams = colocationParams ?? {
+            upstream: 0,
+            downstream: 0,
+            strand: "both",
+          };
+        } else {
+          updates.colocationParams = undefined;
+        }
       }
       let validationError: string | null = null;
-      if (!isSearchNameAvailable && step.type === "search") {
+      if (!isSearchNameAvailable && kind === "search") {
         validationError =
           "Cannot be saved: search name is not available for this record type.";
       }
       if (
-        step.type === "search" &&
+        kind === "search" &&
         resolvedRecordType &&
         nextSearchName &&
         !validationError
@@ -353,10 +363,10 @@ export function StepEditor({
             onNameChange={setName}
           />
 
-          {(step.type === "search" || step.type === "transform") && (
+          {(kind === "search" || kind === "transform") && (
             <>
               <StepSearchSelector
-                stepType={step.type}
+                stepType={kind}
                 recordTypeFilter={recordTypeFilter}
                 onRecordTypeFilterChange={setRecordTypeFilter}
                 filteredRecordTypes={filteredRecordTypes}
@@ -402,10 +412,12 @@ export function StepEditor({
             </>
           )}
 
-          {step.type === "combine" && (
+          {kind === "combine" && (
             <StepCombineOperatorSelect
               operatorValue={operatorValue}
               onOperatorChange={setOperatorValue}
+              colocationParams={colocationParams}
+              onColocationParamsChange={setColocationParams}
             />
           )}
         </div>

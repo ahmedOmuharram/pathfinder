@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from veupath_chatbot.domain.strategy.ast import CombineStep, TransformStep
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.services.strategy_session import StrategyGraph
 
 
@@ -38,17 +38,14 @@ class GraphIntegrityError:
 def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
     referenced: set[str] = set()
     for step in graph.steps.values():
-        if isinstance(step, TransformStep):
-            ref = getattr(step.input, "id", None)
-            if isinstance(ref, str) and ref:
-                referenced.add(ref)
-        elif isinstance(step, CombineStep):
-            left = getattr(step.left, "id", None)
-            right = getattr(step.right, "id", None)
-            if isinstance(left, str) and left:
-                referenced.add(left)
-            if isinstance(right, str) and right:
-                referenced.add(right)
+        if not isinstance(step, PlanStepNode):
+            continue
+        primary = getattr(step.primary_input, "id", None)
+        secondary = getattr(step.secondary_input, "id", None)
+        if isinstance(primary, str) and primary:
+            referenced.add(primary)
+        if isinstance(secondary, str) and secondary:
+            referenced.add(secondary)
     return referenced
 
 
@@ -79,23 +76,18 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
 
     referenced: set[str] = set()
     for step_id, step in graph.steps.items():
-        if isinstance(step, TransformStep):
-            ref = getattr(step.input, "id", None)
-            if isinstance(ref, str) and ref:
-                referenced.add(ref)
-                if ref not in all_ids:
-                    add_missing(ref, step_id, "transform_input")
-        elif isinstance(step, CombineStep):
-            left = getattr(step.left, "id", None)
-            right = getattr(step.right, "id", None)
-            if isinstance(left, str) and left:
-                referenced.add(left)
-                if left not in all_ids:
-                    add_missing(left, step_id, "combine_left")
-            if isinstance(right, str) and right:
-                referenced.add(right)
-                if right not in all_ids:
-                    add_missing(right, step_id, "combine_right")
+        if not isinstance(step, PlanStepNode):
+            continue
+        primary = getattr(step.primary_input, "id", None)
+        secondary = getattr(step.secondary_input, "id", None)
+        if isinstance(primary, str) and primary:
+            referenced.add(primary)
+            if primary not in all_ids:
+                add_missing(primary, step_id, "primary_input")
+        if isinstance(secondary, str) and secondary:
+            referenced.add(secondary)
+            if secondary not in all_ids:
+                add_missing(secondary, step_id, "secondary_input")
 
     root_ids = [sid for sid in graph.steps.keys() if sid not in referenced]
     if len(root_ids) == 0:

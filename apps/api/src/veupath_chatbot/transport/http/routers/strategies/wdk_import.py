@@ -76,8 +76,6 @@ async def open_strategy(
             site_id=request.site_id,
             record_type=None,
             plan={},
-            steps=[],
-            root_step_id=None,
         )
     elif request.strategy_id:
         assert user_id is not None
@@ -114,10 +112,9 @@ async def open_strategy(
                 strategy_id=existing.id,
                 name=ast.name or existing.name,
                 plan=ast.to_dict(),
-                steps=steps_data,
-                root_step_id=ast.root.id,
                 record_type=ast.record_type,
                 wdk_strategy_id=request.wdk_strategy_id,
+                wdk_strategy_id_set=True,
             )
             if not strategy:
                 raise NotFoundError(
@@ -130,8 +127,6 @@ async def open_strategy(
                 site_id=request.site_id,
                 record_type=ast.record_type,
                 plan=ast.to_dict(),
-                steps=steps_data,
-                root_step_id=ast.root.id,
                 wdk_strategy_id=request.wdk_strategy_id,
             )
 
@@ -219,8 +214,6 @@ async def import_wdk_strategy(
             site_id=siteId,
             record_type=ast.record_type,
             plan=ast.to_dict(),
-            steps=steps_data,
-            root_step_id=ast.root.id,
             wdk_strategy_id=wdkStrategyId,
         )
 
@@ -236,8 +229,8 @@ async def import_wdk_strategy(
             description=description,
             siteId=created.site_id,
             recordType=created.record_type,
-            steps=[build_step_response(s) for s in created.steps],
-            rootStepId=created.root_step_id,
+            steps=[build_step_response(s) for s in steps_data],
+            rootStepId=ast.root.id,
             wdkStrategyId=created.wdk_strategy_id,
             messages=created.messages,
             thinking=created.thinking,
@@ -297,15 +290,6 @@ async def push_to_wdk(
                 wdk_strategy = await api.get_strategy(wdk_strategy_id)
             except Exception:
                 wdk_strategy = None
-        steps_with_wdk = []
-        for step in strategy.steps:
-            local_id = step.get("id")
-            step_data = dict(step)
-            if local_id in compiled_map:
-                step_data["wdkStepId"] = compiled_map[local_id]
-            steps_with_wdk.append(step_data)
-        if wdk_strategy is not None:
-            _attach_counts_from_wdk_strategy(steps_with_wdk, wdk_strategy)
 
         for step in strategy_ast.get_all_steps():
             wdk_step_id = compiled_map.get(step.id)
@@ -332,11 +316,18 @@ async def push_to_wdk(
                     config=report.config,
                 )
 
+        # Rewrite local ids to WDK ids in the persisted plan.
+        for step in strategy_ast.get_all_steps():
+            wdk_step_id = compiled_map.get(step.id)
+            if wdk_step_id:
+                step.id = str(wdk_step_id)
+
         await strategy_repo.update(
             strategy_id=strategyId,
             wdk_strategy_id=wdk_strategy_id,
             wdk_strategy_id_set=True,
-            steps=steps_with_wdk,
+            plan=strategy_ast.to_dict(),
+            record_type=strategy_ast.record_type,
         )
 
         site = get_site(strategy.site_id)
@@ -397,8 +388,6 @@ async def sync_strategy_from_wdk(
             strategy_id=strategyId,
             name=ast.name or strategy.name,
             plan=ast.to_dict(),
-            steps=steps_data,
-            root_step_id=ast.root.id,
         )
         if not updated:
             raise NotFoundError(
@@ -416,8 +405,8 @@ async def sync_strategy_from_wdk(
             description=description,
             siteId=updated.site_id,
             recordType=updated.record_type,
-            steps=[build_step_response(s) for s in updated.steps],
-            rootStepId=updated.root_step_id,
+            steps=[build_step_response(s) for s in steps_data],
+            rootStepId=ast.root.id,
             wdkStrategyId=updated.wdk_strategy_id,
             createdAt=updated.created_at,
             updatedAt=updated.updated_at,

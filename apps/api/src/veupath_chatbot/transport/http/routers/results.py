@@ -9,6 +9,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.transport.http.deps import StrategyRepo
 from veupath_chatbot.transport.http.routers._authz import get_strategy_or_404
 from veupath_chatbot.integrations.veupathdb.factory import get_results_api
+from veupath_chatbot.services.strategies.serialization import build_steps_data_from_plan
 from veupath_chatbot.transport.http.schemas import (
     DownloadRequest,
     DownloadResponse,
@@ -46,7 +47,8 @@ async def preview_results(
 
     # Find the step
     step_data = None
-    for s in strategy.steps:
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    for s in steps:
         if s.get("id") == request.step_id:
             step_data = s
             break
@@ -117,7 +119,8 @@ async def download_results(
         results_api = get_results_api(strategy.site_id)
 
         wdk_step_id = None
-        for s in strategy.steps:
+        steps = build_steps_data_from_plan(strategy.plan or {})
+        for s in steps:
             if s.get("id") == request.step_id:
                 wdk_step_id = s.get("wdkStepId") or strategy.wdk_strategy_id
                 break

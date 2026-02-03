@@ -47,8 +47,6 @@ async def ensure_strategy(
                 site_id=site_id,
                 record_type=None,
                 plan={},
-                steps=[],
-                root_step_id=None,
                 strategy_id=strategy_id,
             )
     else:
@@ -59,8 +57,6 @@ async def ensure_strategy(
             site_id=site_id,
             record_type=None,
             plan={},
-            steps=[],
-            root_step_id=None,
         )
     if not strategy:
         raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")

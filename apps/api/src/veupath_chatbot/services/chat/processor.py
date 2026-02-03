@@ -127,8 +127,6 @@ class ChatStreamProcessor:
                     strategy_id=graph_uuid,
                     title="Draft Strategy",
                     plan={},
-                    steps=[],
-                    root_step_id=None,
                     record_type=None,
                     wdk_strategy_id=None,
                 )
@@ -141,8 +139,6 @@ class ChatStreamProcessor:
                     strategy_id=graph_uuid,
                     title=None,
                     plan={},
-                    steps=[],
-                    root_step_id=None,
                     record_type=None,
                     wdk_strategy_id=None,
                     wdk_strategy_id_set=True,
@@ -225,8 +221,6 @@ class ChatStreamProcessor:
                             site_id=self.site_id,
                             record_type=None,
                             plan={},
-                            steps=[],
-                            root_step_id=None,
                             wdk_strategy_id=wdk_strategy_id,
                             strategy_id=graph_uuid,
                         )
@@ -289,6 +283,7 @@ class ChatStreamProcessor:
 
                 try:
                     if isinstance(snapshot, dict) and snapshot.get("steps"):
+                        # Snapshot-only persistence is deprecated; prefer plan persistence.
                         steps_data = build_steps_data_from_graph_snapshot(snapshot)
                     else:
                         steps_data = (
@@ -305,17 +300,14 @@ class ChatStreamProcessor:
                     else:
                         root_step_id = None
 
-                    if root_step_id is None:
-                        strategy_ast = from_dict(latest_plan)
-                        root_step_id = strategy_ast.root.id
+                    strategy_ast = from_dict(latest_plan)
+                    canonical_plan = strategy_ast.to_dict()
 
                     updated = await self.strategy_repo.update(
                         strategy_id=graph_uuid,
                         name=latest_name,
                         title=latest_name,
-                        plan=latest_plan,
-                        steps=steps_data,
-                        root_step_id=root_step_id,
+                        plan=canonical_plan,
                         record_type=latest_record_type,
                     )
                     if not updated:
@@ -325,9 +317,7 @@ class ChatStreamProcessor:
                             title=latest_name,
                             site_id=self.site_id,
                             record_type=latest_record_type,
-                            plan=latest_plan,
-                            steps=steps_data,
-                            root_step_id=root_step_id,
+                            plan=canonical_plan,
                             strategy_id=graph_uuid,
                         )
                     if graph_uuid == self.strategy.id:
@@ -369,8 +359,6 @@ class ChatStreamProcessor:
                     name=name,
                     title=name,
                     record_type=record_type,
-                    steps=steps_data,
-                    root_step_id=root_step_id,
                 )
                 if not updated:
                     await self.strategy_repo.create(
@@ -380,8 +368,6 @@ class ChatStreamProcessor:
                         site_id=self.site_id,
                         record_type=record_type,
                         plan={},
-                        steps=steps_data,
-                        root_step_id=root_step_id,
                         strategy_id=graph_uuid,
                     )
                 if graph_uuid == self.strategy.id:

@@ -57,38 +57,56 @@ const BasePlanNodeSchema = z.object({
     .optional(),
 });
 
-export const SearchNodeSchema = BasePlanNodeSchema.extend({
-  type: z.literal("search"),
-  searchName: z.string(),
-  parameters: z.record(z.unknown()),
-});
-
-// Recursive schemas: avoid explicit `z.ZodType<...>` annotations here, because
-// TypeScript treats them as self-referential and errors on circular types.
-export const CombineNodeSchema: z.AnyZodObject = BasePlanNodeSchema.extend({
-  type: z.literal("combine"),
-  operator: CombineOperatorSchema,
-  left: z.lazy(() => PlanNodeSchema),
-  right: z.lazy(() => PlanNodeSchema),
+// Recursive schema (untyped plan tree): avoid explicit `z.ZodType<...>` annotations here,
+// because TypeScript treats them as self-referential and errors on circular types.
+export const PlanStepNodeSchema: z.ZodTypeAny = BasePlanNodeSchema.extend({
+  searchName: z.string().min(1),
+  parameters: z.record(z.unknown()).optional().default({}),
+  primaryInput: z.lazy(() => PlanStepNodeSchema).optional(),
+  secondaryInput: z.lazy(() => PlanStepNodeSchema).optional(),
+  operator: CombineOperatorSchema.optional(),
   colocationParams: ColocationParamsSchema.optional(),
-}) as z.AnyZodObject;
+})
+  .superRefine((node, ctx) => {
+    const hasPrimary = node.primaryInput != null;
+    const hasSecondary = node.secondaryInput != null;
 
-export const TransformNodeSchema: z.AnyZodObject = BasePlanNodeSchema.extend({
-  type: z.literal("transform"),
-  transformName: z.string(),
-  input: z.lazy(() => PlanNodeSchema),
-  parameters: z.record(z.unknown()).optional(),
-}) as z.AnyZodObject;
+    if (hasSecondary && !hasPrimary) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "secondaryInput requires primaryInput",
+        path: ["secondaryInput"],
+      });
+    }
 
-export const PlanNodeSchema: z.ZodTypeAny = z.discriminatedUnion("type", [
-  SearchNodeSchema,
-  CombineNodeSchema,
-  TransformNodeSchema,
-]);
+    if (hasSecondary && !node.operator) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "operator is required when secondaryInput is present",
+        path: ["operator"],
+      });
+    }
+
+    if (node.operator === "COLOCATE" && !node.colocationParams) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "colocationParams is required when operator is COLOCATE",
+        path: ["colocationParams"],
+      });
+    }
+
+    if (node.operator !== "COLOCATE" && node.colocationParams != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "colocationParams is only allowed when operator is COLOCATE",
+        path: ["colocationParams"],
+      });
+    }
+  });
 
 export const StrategyPlanSchema = z.object({
   recordType: z.string(),
-  root: PlanNodeSchema,
+  root: PlanStepNodeSchema,
   metadata: z
     .object({
       name: z.string().optional(),

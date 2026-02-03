@@ -2,13 +2,15 @@ import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 
 export interface GraphSnapshotStepInput {
   id: string;
-  type: string;
+  type?: string; // legacy
+  kind?: string;
   displayName?: string;
   searchName?: string;
-  transformName?: string;
   operator?: string;
   parameters?: Record<string, unknown>;
   inputStepIds?: string[];
+  primaryInputStepId?: string;
+  secondaryInputStepId?: string;
   recordType?: string;
 }
 
@@ -33,8 +35,8 @@ const isFallbackDisplayName = (
   name: string | null | undefined,
   step: {
     type?: string;
+    kind?: string;
     searchName?: string;
-    transformName?: string;
     operator?: string;
   }
 ) => {
@@ -43,7 +45,7 @@ const isFallbackDisplayName = (
   const normalized = normalizeName(name);
   const candidates = new Set<string>([
     normalizeName(step.searchName),
-    normalizeName(step.transformName),
+    normalizeName(step.kind),
     normalizeName(step.type),
   ]);
   if (step.operator) {
@@ -72,28 +74,36 @@ export function buildStrategyFromGraphSnapshot(args: {
     .filter((step): step is GraphSnapshotStepInput => !!step && typeof step.id === "string")
     .map((step) => {
       const existing = stepsById[step.id];
-      const incomingName = step.displayName || step.type;
+      const incomingName = step.displayName || step.kind || step.type;
       const existingName = existing?.displayName;
       const keepExisting =
         !!existingName &&
         (!incomingName ||
           !isFallbackDisplayName(existingName, existing) ||
           isFallbackDisplayName(incomingName, step));
-      const resolvedName = keepExisting ? existingName : incomingName;
+      const resolvedName =
+        (keepExisting ? existingName : incomingName) ||
+        step.searchName ||
+        step.kind ||
+        step.type ||
+        step.id;
       const resolvedRecordType = step.recordType ?? existing?.recordType;
       const inputs = toStringArray(step.inputStepIds);
+      const primaryInputStepId =
+        step.primaryInputStepId ?? inputs[0] ?? undefined;
+      const secondaryInputStepId =
+        step.secondaryInputStepId ?? inputs[1] ?? undefined;
 
       return {
         id: step.id,
-        type: step.type as StrategyStep["type"],
+        kind: (step.kind ?? step.type) as StrategyStep["kind"],
         displayName: resolvedName,
         recordType: resolvedRecordType ?? undefined,
         searchName: step.searchName,
-        transformName: step.transformName,
         operator: (step.operator as StrategyStep["operator"]) ?? undefined,
         parameters: step.parameters,
-        primaryInputStepId: inputs[0],
-        secondaryInputStepId: inputs[1],
+        primaryInputStepId,
+        secondaryInputStepId,
       };
     });
 

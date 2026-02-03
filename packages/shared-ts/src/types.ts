@@ -43,32 +43,56 @@ export interface BasePlanNode {
   reports?: StepReport[];
 }
 
-export interface SearchNode extends BasePlanNode {
-  type: "search";
+/**
+ * Untyped recursive plan node.
+ *
+ * A node's kind is inferred from structure:
+ * - combine: primaryInput && secondaryInput
+ * - transform: primaryInput && !secondaryInput
+ * - search: !primaryInput && !secondaryInput
+ *
+ * All nodes use `searchName` to identify the underlying WDK question/search.
+ */
+export interface PlanStepNode extends BasePlanNode {
+  /**
+   * Name of the WDK search/question to execute (search, transform, or boolean operator).
+   */
   searchName: string;
-  parameters: Record<string, unknown>;
-}
 
-export interface CombineNode extends BasePlanNode {
-  type: "combine";
-  operator: CombineOperator;
-  left: PlanNode;
-  right: PlanNode;
+  /**
+   * Parameters passed to the underlying WDK question/search.
+   *
+   * - For leaf searches and transforms: the question parameters
+   * - For combine/operator steps: typically includes operator param(s) in WDK, but we also
+   *   store `operator` explicitly in the plan for convenience/validation.
+   */
+  parameters?: Record<string, unknown>;
+
+  /**
+   * Primary input step (unary/binary operations).
+   */
+  primaryInput?: PlanStepNode;
+
+  /**
+   * Secondary input step (binary operations).
+   * When present, this node represents a combine operation.
+   */
+  secondaryInput?: PlanStepNode;
+
+  /**
+   * Required when `secondaryInput` is present.
+   */
+  operator?: CombineOperator;
+
+  /**
+   * Only relevant when operator is COLOCATE.
+   */
   colocationParams?: ColocationParams;
 }
 
-export interface TransformNode extends BasePlanNode {
-  type: "transform";
-  transformName: string;
-  input: PlanNode;
-  parameters?: Record<string, unknown>;
-}
-
-export type PlanNode = SearchNode | CombineNode | TransformNode;
-
 export interface StrategyPlan {
   recordType: string;
-  root: PlanNode;
+  root: PlanStepNode;
   metadata?: {
     name?: string;
     description?: string;
@@ -218,15 +242,27 @@ export interface Search {
 // Strategy Types
 // ============================================================================
 
+export type StepKind = "search" | "transform" | "combine";
+
 export interface Step {
   id: string;
-  type: "search" | "combine" | "transform";
+  /**
+   * Derived convenience field. Do not persist as source-of-truth.
+   * Inferred from presence of input edges.
+   */
+  kind?: StepKind;
   displayName: string;
+  /**
+   * Name of the underlying WDK question/search for this step.
+   *
+   * For transforms and combines, this is still the WDK question name
+   * (e.g. boolean_question_* or a transform question).
+   */
   searchName?: string;
-  transformName?: string;
   recordType?: string;
   parameters?: Record<string, unknown>;
   operator?: CombineOperator;
+  colocationParams?: ColocationParams;
   primaryInputStepId?: string;
   secondaryInputStepId?: string;
   resultCount?: number | null;

@@ -1,4 +1,4 @@
-import type { PlanNode, StrategyPlan } from "@pathfinder/shared";
+import type { PlanStepNode, StrategyPlan } from "@pathfinder/shared";
 import type { Step, Strategy } from "./types";
 
 export type SerializedStrategyPlan = {
@@ -38,54 +38,39 @@ export function serializeStrategyPlan(
   if (rootSteps.length !== 1) return null;
   const rootStep = rootSteps[0];
 
-  const buildNode = (stepId: string): PlanNode | null => {
+  const buildNode = (stepId: string): PlanStepNode | null => {
     const step = stepsById[stepId];
     if (!step) return null;
 
-    if (step.type === "search") {
-      if (!step.searchName) return null;
-      return {
-        type: "search",
-        id: step.id,
-        searchName: step.searchName,
-        displayName: step.displayName,
-        parameters: sanitizeParametersForPlan(step.parameters || {}),
-      };
+    if (!step.searchName) return null;
+
+    const node: PlanStepNode = {
+      id: step.id,
+      searchName: step.searchName,
+      displayName: step.displayName,
+      parameters: sanitizeParametersForPlan(step.parameters || {}),
+    };
+
+    if (step.primaryInputStepId) {
+      const primary = buildNode(step.primaryInputStepId);
+      if (!primary) return null;
+      node.primaryInput = primary;
     }
 
-    if (step.type === "combine") {
-      if (!step.primaryInputStepId || !step.secondaryInputStepId) return null;
-      if (!step.operator) return null;
-      const left = buildNode(step.primaryInputStepId);
-      const right = buildNode(step.secondaryInputStepId);
-      if (!left || !right) return null;
-      return {
-        type: "combine",
-        id: step.id,
-        displayName: step.displayName,
-        operator: step.operator,
-        left,
-        right,
-      };
-    }
-
-    if (step.type === "transform") {
+    if (step.secondaryInputStepId) {
+      // secondary implies primary for our plan contract
       if (!step.primaryInputStepId) return null;
-      const transformName = step.transformName ?? step.searchName;
-      if (!transformName) return null;
-      const input = buildNode(step.primaryInputStepId);
-      if (!input) return null;
-      return {
-        type: "transform",
-        id: step.id,
-        displayName: step.displayName,
-        transformName,
-        parameters: sanitizeParametersForPlan(step.parameters || {}),
-        input,
-      };
+      const secondary = buildNode(step.secondaryInputStepId);
+      if (!secondary) return null;
+      node.secondaryInput = secondary;
+      if (!step.operator) return null;
+      node.operator = step.operator;
+      if (step.operator === "COLOCATE" && step.colocationParams) {
+        node.colocationParams = step.colocationParams;
+      }
     }
 
-    return null;
+    return node;
   };
 
   const rootNode = buildNode(rootStep.id);

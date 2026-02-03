@@ -110,9 +110,9 @@ class StrategyGraphOps:
         last_response: dict[str, Any] | None = None
         for index, next_id in enumerate(root_ids[1:], start=1):
             is_final = index == len(root_ids) - 1
-            last_response = await self.combine_steps(
-                left_step_id=current,
-                right_step_id=next_id,
+            last_response = await self.create_step(
+                primary_input_step_id=current,
+                secondary_input_step_id=next_id,
                 operator=str(operator),
                 display_name=(display_name or "Combined output") if is_final else None,
                 graph_id=graph.id,

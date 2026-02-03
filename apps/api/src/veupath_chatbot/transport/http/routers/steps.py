@@ -26,6 +26,7 @@ from veupath_chatbot.transport.http.schemas import (
 )
 from veupath_chatbot.transport.http.routers._authz import get_owned_strategy_or_404
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.services.strategies.serialization import build_steps_data_from_plan
 
 router = APIRouter(prefix="/api/v1/strategies/{strategyId}/steps", tags=["steps"])
 logger = get_logger(__name__)
@@ -74,7 +75,8 @@ async def get_step(
 ):
     """Get a step from a strategy."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
     return StepResponse(**step)
@@ -89,7 +91,8 @@ async def list_step_filters(
 ):
     """List filters attached to a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
     return step.get("filters", []) or []
@@ -99,7 +102,8 @@ async def list_step_filters(
 async def list_available_filters(strategyId: UUID, step_id: str, strategy_repo: StrategyRepo, user_id: CurrentUser):
     """List available filters for a step (WDK-backed)."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step or not step.get("wdkStepId"):
         raise ValidationError(
             detail="WDK step not available",
@@ -127,7 +131,8 @@ async def set_step_filter(
 ):
     """Add or update a filter for a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
 
@@ -145,26 +150,18 @@ async def set_step_filter(
 
     plan = strategy.plan if isinstance(strategy.plan, dict) else {}
     updated_plan = _update_plan(plan, step_id, {"filters": filters})
-
-    for idx, entry in enumerate(strategy.steps):
-        if entry.get("id") == step_id:
-            strategy.steps[idx] = {
-                **entry,
-                "filters": [f.to_dict() for f in filters],
-            }
-            break
-
     await strategy_repo.update(
         strategy_id=strategyId,
         plan=updated_plan,
-        steps=strategy.steps,
     )
 
-    if step.get("wdkStepId"):
+    updated_steps = build_steps_data_from_plan(updated_plan)
+    updated_step = _find_step(updated_steps, step_id) or step
+    if updated_step.get("wdkStepId"):
         try:
             api = get_strategy_api(strategy.site_id)
             await api.set_step_filter(
-                step_id=step["wdkStepId"],
+                step_id=updated_step["wdkStepId"],
                 filter_name=filter_name,
                 value=request.value,
                 disabled=request.disabled,
@@ -185,7 +182,8 @@ async def delete_step_filter(
 ):
     """Remove a filter from a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
 
@@ -200,25 +198,17 @@ async def delete_step_filter(
     ]
     plan = strategy.plan if isinstance(strategy.plan, dict) else {}
     updated_plan = _update_plan(plan, step_id, {"filters": filters})
-
-    for idx, entry in enumerate(strategy.steps):
-        if entry.get("id") == step_id:
-            strategy.steps[idx] = {
-                **entry,
-                "filters": [f.to_dict() for f in filters],
-            }
-            break
-
     await strategy_repo.update(
         strategy_id=strategyId,
         plan=updated_plan,
-        steps=strategy.steps,
     )
 
-    if step.get("wdkStepId"):
+    updated_steps = build_steps_data_from_plan(updated_plan)
+    updated_step = _find_step(updated_steps, step_id) or step
+    if updated_step.get("wdkStepId"):
         try:
             api = get_strategy_api(strategy.site_id)
-            await api.delete_step_filter(step_id=step["wdkStepId"], filter_name=filter_name)
+            await api.delete_step_filter(step_id=updated_step["wdkStepId"], filter_name=filter_name)
         except Exception as e:
             logger.warning("WDK filter delete failed", error=str(e))
 
@@ -234,7 +224,8 @@ async def list_analysis_types(
 ):
     """List available analysis types for a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step or not step.get("wdkStepId"):
         raise ValidationError(
             detail="WDK step not available",
@@ -260,7 +251,8 @@ async def get_analysis_type(
 ):
     """Get analysis form metadata for a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step or not step.get("wdkStepId"):
         raise ValidationError(
             detail="WDK step not available",
@@ -280,7 +272,8 @@ async def get_analysis_type(
 async def list_step_analyses(strategyId: UUID, step_id: str, strategy_repo: StrategyRepo, user_id: CurrentUser):
     """List analysis instances for a step."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step or not step.get("wdkStepId"):
         raise ValidationError(
             detail="WDK step not available",
@@ -306,7 +299,8 @@ async def run_step_analysis(
 ):
     """Run a step analysis and attach it locally."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
 
@@ -329,26 +323,19 @@ async def run_step_analysis(
 
     plan = strategy.plan if isinstance(strategy.plan, dict) else {}
     updated_plan = _update_plan(plan, step_id, {"analyses": analyses})
-    for idx, entry in enumerate(strategy.steps):
-        if entry.get("id") == step_id:
-            strategy.steps[idx] = {
-                **entry,
-                "analyses": [a.to_dict() for a in analyses],
-            }
-            break
-
     await strategy_repo.update(
         strategy_id=strategyId,
         plan=updated_plan,
-        steps=strategy.steps,
     )
 
     wdk_result = None
-    if step.get("wdkStepId"):
+    updated_steps = build_steps_data_from_plan(updated_plan)
+    updated_step = _find_step(updated_steps, step_id) or step
+    if updated_step.get("wdkStepId"):
         try:
             api = get_strategy_api(strategy.site_id)
             wdk_result = await api.run_step_analysis(
-                step_id=step["wdkStepId"],
+                step_id=updated_step["wdkStepId"],
                 analysis_type=request.analysis_type,
                 parameters=request.parameters,
                 custom_name=request.custom_name,
@@ -369,7 +356,8 @@ async def run_step_report(
 ):
     """Run a report and attach it locally."""
     strategy = await get_owned_strategy_or_404(strategy_repo, strategyId, user_id)
-    step = _find_step(strategy.steps, step_id)
+    steps = build_steps_data_from_plan(strategy.plan or {})
+    step = _find_step(steps, step_id)
     if not step:
         raise NotFoundError(code=ErrorCode.STEP_NOT_FOUND, title="Step not found")
 
@@ -385,26 +373,19 @@ async def run_step_report(
 
     plan = strategy.plan if isinstance(strategy.plan, dict) else {}
     updated_plan = _update_plan(plan, step_id, {"reports": reports})
-    for idx, entry in enumerate(strategy.steps):
-        if entry.get("id") == step_id:
-            strategy.steps[idx] = {
-                **entry,
-                "reports": [r.to_dict() for r in reports],
-            }
-            break
-
     await strategy_repo.update(
         strategy_id=strategyId,
         plan=updated_plan,
-        steps=strategy.steps,
     )
 
     wdk_result = None
-    if step.get("wdkStepId"):
+    updated_steps = build_steps_data_from_plan(updated_plan)
+    updated_step = _find_step(updated_steps, step_id) or step
+    if updated_step.get("wdkStepId"):
         try:
             api = get_strategy_api(strategy.site_id)
             wdk_result = await api.run_step_report(
-                step_id=step["wdkStepId"],
+                step_id=updated_step["wdkStepId"],
                 report_name=request.report_name,
                 config=request.config,
             )

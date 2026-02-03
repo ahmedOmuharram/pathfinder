@@ -1,8 +1,8 @@
 "use client";
 
 import { Handle, Position } from "reactflow";
-import { CombineOperator } from "@pathfinder/shared";
 import type { StrategyStep } from "@/types/strategy";
+import { inferStepKind } from "@/core/strategyGraph";
 import { OpBadge } from "./OpBadge";
 import { AlertTriangle, MessageSquarePlus } from "lucide-react";
 import { getZeroResultSuggestions } from "@/features/strategy/validation/zeroResultAdvisor";
@@ -41,14 +41,14 @@ const TYPE_STYLES: Record<
 
 export function StepNode({ data, selected }: StepNodeProps) {
   const { step, onOperatorChange, onAddToChat, isUnsaved, onOpenDetails } = data;
-  const operatorOptions = Object.values(CombineOperator);
 
   const handleAddToChat = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     onAddToChat?.(step.id);
   };
-  const typeStyle = TYPE_STYLES[step.type] || TYPE_STYLES.default;
-  const isTransform = step.type === "transform";
+  const kind = inferStepKind(step);
+  const typeStyle = TYPE_STYLES[kind] || TYPE_STYLES.default;
+  const isTransform = kind === "transform";
 
   const validationError = step.validationError;
   const isZeroResults = step.resultCount === 0;
@@ -94,7 +94,7 @@ export function StepNode({ data, selected }: StepNodeProps) {
         </svg>
       )}
       {/* Input handles */}
-      {(step.type === "combine" || step.type === "transform") && (
+      {(kind === "combine" || kind === "transform") && (
         <>
           <Handle
             type="target"
@@ -102,7 +102,7 @@ export function StepNode({ data, selected }: StepNodeProps) {
             id="left"
             className="h-3 w-3 border-2 border-white bg-slate-700 z-10"
           />
-          {step.type === "combine" && (
+          {kind === "combine" && (
             <Handle
               type="target"
               position={Position.Left}
@@ -154,7 +154,7 @@ export function StepNode({ data, selected }: StepNodeProps) {
         >
           {step.displayName}
         </div>
-        {step.type === "search" && step.searchName && (
+        {kind === "search" && step.searchName && (
           <div
             className="w-full text-center text-[11px] leading-tight text-slate-500"
             style={{
@@ -170,7 +170,7 @@ export function StepNode({ data, selected }: StepNodeProps) {
             {step.searchName}
           </div>
         )}
-        {step.type === "transform" && (step.transformName || step.searchName) && (
+        {kind === "transform" && step.searchName && (
           <div
             className="w-full text-center text-[11px] font-medium leading-tight text-violet-700"
             style={{
@@ -183,27 +183,12 @@ export function StepNode({ data, selected }: StepNodeProps) {
               wordBreak: "break-word",
             }}
           >
-            {step.transformName || step.searchName}
+            {step.searchName}
           </div>
         )}
-        {step.type === "combine" && step.operator && (
+        {kind === "combine" && step.operator && (
           <div className="mt-1 flex items-center gap-2">
             <OpBadge operator={step.operator} size="sm" />
-            {onOperatorChange && (
-              <select
-                value={step.operator}
-                onChange={(event) =>
-                  onOperatorChange(step.id, event.target.value)
-                }
-                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600"
-              >
-                {operatorOptions.map((op) => (
-                  <option key={op} value={op}>
-                    {op}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
         )}
         <div className="mt-1 text-[11px] font-mono text-slate-600">

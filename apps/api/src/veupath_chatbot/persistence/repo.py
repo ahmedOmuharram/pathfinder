@@ -79,8 +79,6 @@ class StrategyRepository:
         site_id: str,
         record_type: str | None,
         plan: dict[str, Any],
-        steps: list[dict[str, Any]],
-        root_step_id: str | None,
         wdk_strategy_id: int | None = None,
         strategy_id: UUID | None = None,
         title: str | None = None,
@@ -94,8 +92,9 @@ class StrategyRepository:
             site_id=site_id,
             record_type=record_type,
             plan=plan,
-            steps=steps,
-            root_step_id=root_step_id,
+            # plan-only persistence: derive steps/root at read-time
+            steps=[],
+            root_step_id=None,
             wdk_strategy_id=wdk_strategy_id,
         )
         self.session.add(strategy)
@@ -119,8 +118,6 @@ class StrategyRepository:
         name: str | None = None,
         title: str | None = None,
         plan: dict[str, Any] | None = None,
-        steps: list[dict[str, Any]] | None = None,
-        root_step_id: str | None = None,
         wdk_strategy_id: int | None = None,
         wdk_strategy_id_set: bool = False,
         result_count: int | None = None,
@@ -139,10 +136,9 @@ class StrategyRepository:
             strategy.title = title
         if plan is not None:
             strategy.plan = plan
-        if steps is not None:
-            strategy.steps = steps
-        if root_step_id is not None:
-            strategy.root_step_id = root_step_id
+            # plan-only persistence: always clear derived fields on save
+            strategy.steps = []
+            strategy.root_step_id = None
         if wdk_strategy_id_set:
             strategy.wdk_strategy_id = wdk_strategy_id
         if result_count is not None:

@@ -55,57 +55,25 @@ class SubtaskAgent(Kani):
         return await self.catalog_tools.get_search_parameters(self.site_id, record_type, search_name)
 
     @ai_function()
-    async def create_search_step(
+    async def create_step(
         self,
-        record_type: str,
-        search_name: str,
+        search_name: str | None = None,
         parameters: dict | None = None,
+        record_type: str | None = None,
+        primary_input_step_id: str | None = None,
+        secondary_input_step_id: str | None = None,
+        operator: str | None = None,
         display_name: str | None = None,
         graph_id: str | None = None,
     ):
-        return await self.strategy_tools.create_search_step(
-            record_type=record_type,
+        return await self.strategy_tools.create_step(
             search_name=search_name,
             parameters=parameters,
-            display_name=display_name,
-            graph_id=graph_id or self.graph_id,
-        )
-
-    @ai_function()
-    async def transform_step(
-        self,
-        input_step_id: str,
-        transform_name: str,
-        parameters: dict | None = None,
-        display_name: str | None = None,
-        graph_id: str | None = None,
-    ):
-        return await self.strategy_tools.transform_step(
-            input_step_id=input_step_id,
-            transform_name=transform_name,
-            parameters=parameters,
-            display_name=display_name,
-            graph_id=graph_id or self.graph_id,
-        )
-
-    @ai_function()
-    async def combine_steps(
-        self,
-        left_step_id: str,
-        right_step_id: str,
-        operator: str,
-        display_name: str | None = None,
-        upstream: int | None = None,
-        downstream: int | None = None,
-        graph_id: str | None = None,
-    ):
-        return await self.strategy_tools.combine_steps(
-            left_step_id=left_step_id,
-            right_step_id=right_step_id,
+            record_type=record_type,
+            primary_input_step_id=primary_input_step_id,
+            secondary_input_step_id=secondary_input_step_id,
             operator=operator,
             display_name=display_name,
-            upstream=upstream,
-            downstream=downstream,
             graph_id=graph_id or self.graph_id,
         )
 
@@ -114,16 +82,20 @@ class SubtaskAgent(Kani):
         return await self.strategy_tools.list_current_steps(graph_id or self.graph_id)
 
     @ai_function()
-    async def update_step_parameters(
+    async def update_step(
         self,
         step_id: str,
-        parameters: dict,
+        search_name: str | None = None,
+        parameters: dict | None = None,
+        operator: str | None = None,
         display_name: str | None = None,
         graph_id: str | None = None,
     ):
-        return await self.strategy_tools.update_step_parameters(
+        return await self.strategy_tools.update_step(
             step_id=step_id,
+            search_name=search_name,
             parameters=parameters,
+            operator=operator,
             display_name=display_name,
             graph_id=graph_id or self.graph_id,
         )
@@ -134,22 +106,5 @@ class SubtaskAgent(Kani):
     ):
         return await self.strategy_tools.rename_step(
             step_id=step_id, new_name=new_name, graph_id=graph_id or self.graph_id
-        )
-
-    @ai_function()
-    async def find_orthologs(
-        self,
-        input_step_id: str,
-        target_organisms: list[str] | str,
-        is_syntenic: str | bool | None = None,
-        display_name: str | None = None,
-        graph_id: str | None = None,
-    ):
-        return await self.strategy_tools.find_orthologs(
-            input_step_id=input_step_id,
-            target_organisms=target_organisms,
-            is_syntenic=is_syntenic,
-            display_name=display_name,
-            graph_id=graph_id or self.graph_id,
         )
 

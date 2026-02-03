@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs
-from veupath_chatbot.domain.strategy.ast import SearchStep, StrategyAST, TransformStep
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import StrategyCompiler
 
 
@@ -58,8 +58,7 @@ async def test_compile_search_normalizes_multi_pick_params():
     api = FakeStrategyAPI(fixtures)
     compiler = StrategyCompiler(api, resolve_record_type=False)
 
-    step = SearchStep(
-        record_type="transcript",
+    step = PlanStepNode(
         search_name="GenesWithEpitopes",
         parameters={
             "organism": ["Plasmodium"],
@@ -84,8 +83,7 @@ async def test_compile_search_accepts_csv_multi_pick_params():
     api = FakeStrategyAPI(fixtures)
     compiler = StrategyCompiler(api, resolve_record_type=False)
 
-    step = SearchStep(
-        record_type="transcript",
+    step = PlanStepNode(
         search_name="GenesWithEpitopes",
         parameters={
             "organism": "Plasmodium, Plasmodium falciparum 3D7",
@@ -110,8 +108,7 @@ async def test_compile_search_accepts_bracketed_csv_values():
     api = FakeStrategyAPI(fixtures)
     compiler = StrategyCompiler(api, resolve_record_type=False)
 
-    step = SearchStep(
-        record_type="transcript",
+    step = PlanStepNode(
         search_name="GenesWithEpitopes",
         parameters={
             "organism": "['Plasmodium', 'Plasmodium falciparum 3D7']",
@@ -139,17 +136,16 @@ async def test_compile_transform_clears_input_step_param():
     api = FakeStrategyAPI(fixtures)
     compiler = StrategyCompiler(api, resolve_record_type=False)
 
-    search = SearchStep(
-        record_type="transcript",
+    search = PlanStepNode(
         search_name="GenesWithEpitopes",
         parameters={
             "organism": ["Plasmodium"],
             "epitope_confidence": ["High"],
         },
     )
-    transform = TransformStep(
-        transform_name="GenesByOrthologs",
-        input=search,
+    transform = PlanStepNode(
+        search_name="GenesByOrthologs",
+        primary_input=search,
         parameters={
             "organism": ["Plasmodium falciparum 3D7"],
             "isSyntenic": "no",

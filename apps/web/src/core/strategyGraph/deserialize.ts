@@ -96,6 +96,15 @@ export function deserializeStrategyToGraph(
         sourceHandle: "right",
         targetHandle: "left",
         type: "step",
+        label: step.secondaryInputStepId ? "L" : undefined,
+        labelStyle: step.secondaryInputStepId
+          ? { fontSize: 11, fontWeight: 700, fill: "#0f172a" }
+          : undefined,
+        labelBgStyle: step.secondaryInputStepId
+          ? { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 }
+          : undefined,
+        labelBgPadding: step.secondaryInputStepId ? [6, 2] : undefined,
+        labelBgBorderRadius: step.secondaryInputStepId ? 6 : undefined,
         style: { stroke: "#94a3b8", strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -114,6 +123,11 @@ export function deserializeStrategyToGraph(
         sourceHandle: "right",
         targetHandle: "left-secondary",
         type: "step",
+        label: "R",
+        labelStyle: { fontSize: 11, fontWeight: 700, fill: "#0f172a" },
+        labelBgStyle: { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 },
+        labelBgPadding: [6, 2],
+        labelBgBorderRadius: 6,
         style: { stroke: "#64748b", strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,

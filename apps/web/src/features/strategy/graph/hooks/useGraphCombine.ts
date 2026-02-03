@@ -36,10 +36,12 @@ export function useGraphCombine({
   const handleCombineCreate = useCallback(
     async (operator: CombineOperator) => {
       if (!pendingCombine) return;
+      let inferredRecordType: string | null = null;
       if (steps.length) {
         const stepsMap = new Map(steps.map((step) => [step.id, step]));
         const leftType = resolveRecordType(pendingCombine.sourceId, stepsMap);
         const rightType = resolveRecordType(pendingCombine.targetId, stepsMap);
+        inferredRecordType = leftType && leftType !== "__mismatch__" ? leftType : rightType;
         if (
           leftType &&
           rightType &&
@@ -52,11 +54,17 @@ export function useGraphCombine({
           return;
         }
       }
+      const searchName =
+        inferredRecordType && typeof inferredRecordType === "string"
+          ? `boolean_question_${inferredRecordType}`
+          : "boolean_question";
       const nextStep: StrategyStep = {
         id: generateStepId(),
-        type: "combine",
+        kind: "combine",
         displayName: `${operator} combine`,
+        searchName,
         operator,
+        recordType: inferredRecordType ?? undefined,
         primaryInputStepId: pendingCombine.sourceId,
         secondaryInputStepId: pendingCombine.targetId,
       };

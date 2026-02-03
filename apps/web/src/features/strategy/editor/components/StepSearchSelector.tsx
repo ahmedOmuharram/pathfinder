@@ -1,10 +1,11 @@
 "use client";
 
 import type { RecordType, Search, Step } from "@pathfinder/shared";
+import type { StepKind } from "@pathfinder/shared";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 
 type StepSearchSelectorProps = {
-  stepType: Step["type"];
+  stepType: StepKind;
   recordTypeFilter: string;
   onRecordTypeFilterChange: (nextValue: string) => void;
   filteredRecordTypes: RecordType[];

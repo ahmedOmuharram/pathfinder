@@ -1,4 +1,5 @@
 import type { StrategyStep } from "@/types/strategy";
+import { inferStepKind } from "@/core/strategyGraph";
 
 export function getZeroResultSuggestions(step: StrategyStep): string[] {
   const suggestions: string[] = [];
@@ -7,7 +8,8 @@ export function getZeroResultSuggestions(step: StrategyStep): string[] {
   suggestions.push("Relax overly strict parameters/filters (broader thresholds, stages, datasets).");
   suggestions.push("Verify organism / life stage / strain matches the dataset/search you picked.");
 
-  if (step.type === "combine") {
+  const kind = inferStepKind(step);
+  if (kind === "combine") {
     const op = step.operator;
     if (op === "INTERSECT") {
       suggestions.push("If you expected results from either branch, change INTERSECT (AND) to UNION (OR).");
@@ -17,10 +19,10 @@ export function getZeroResultSuggestions(step: StrategyStep): string[] {
       suggestions.push("For COLOCATE/NEAR, increase upstream/downstream distance and verify feature types.");
     }
     suggestions.push("Check that both input steps are non-zero before combining.");
-  } else if (step.type === "transform") {
+  } else if (kind === "transform") {
     suggestions.push("If the input step is zero, fix upstream; otherwise adjust transform parameters.");
     suggestions.push("For cross-species mapping, consider an orthology transform (find orthologs) before/after this step.");
-  } else if (step.type === "search") {
+  } else if (kind === "search") {
     suggestions.push("Try an alternative search with similar meaning (broader keyword / different dataset).");
   }
 

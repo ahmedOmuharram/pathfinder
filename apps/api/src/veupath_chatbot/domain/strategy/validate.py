@@ -3,11 +3,8 @@
 from dataclasses import dataclass
 
 from veupath_chatbot.domain.strategy.ast import (
-    CombineStep,
-    SearchStep,
-    StepNode,
+    PlanStepNode,
     StrategyAST,
-    TransformStep,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp
 
@@ -87,104 +84,86 @@ class StrategyValidator:
 
     def _validate_node(
         self,
-        node: StepNode,
+        node: PlanStepNode,
         path: str,
         expected_record_type: str,
         errors: list[ValidationError],
     ) -> None:
         """Validate a single node in the AST."""
-        if isinstance(node, SearchStep):
-            self._validate_search_step(node, path, expected_record_type, errors)
-        elif isinstance(node, CombineStep):
-            self._validate_combine_step(node, path, expected_record_type, errors)
-        elif isinstance(node, TransformStep):
-            self._validate_transform_step(node, path, expected_record_type, errors)
+        kind = node.infer_kind()
 
-    def _validate_search_step(
-        self,
-        step: SearchStep,
-        path: str,
-        expected_record_type: str,
-        errors: list[ValidationError],
-    ) -> None:
-        """Validate a search step."""
-        if not step.search_name:
+        if not node.search_name:
             errors.append(
                 ValidationError(
                     path=f"{path}.searchName",
-                    message="Search name is required",
+                    message="searchName is required",
                     code="MISSING_SEARCH_NAME",
                 )
             )
 
         if self.available_searches:
             rt_searches = self.available_searches.get(expected_record_type, [])
-            if step.search_name and step.search_name not in rt_searches:
+            if node.search_name and node.search_name not in rt_searches:
                 errors.append(
                     ValidationError(
                         path=f"{path}.searchName",
-                        message=f"Unknown search: {step.search_name}",
+                        message=f"Unknown search: {node.search_name}",
                         code="UNKNOWN_SEARCH",
                     )
                 )
 
-    def _validate_combine_step(
-        self,
-        step: CombineStep,
-        path: str,
-        expected_record_type: str,
-        errors: list[ValidationError],
-    ) -> None:
-        """Validate a combine step."""
-        if step.op not in CombineOp:
-            errors.append(
-                ValidationError(
-                    path=f"{path}.operator",
-                    message=f"Invalid operator: {step.op}",
-                    code="INVALID_OPERATOR",
-                )
-            )
-
-        if step.op == CombineOp.COLOCATE and step.colocation_params:
-            for err in step.colocation_params.validate():
+        if kind == "combine":
+            if node.operator is None:
                 errors.append(
                     ValidationError(
-                        path=f"{path}.colocationParams",
-                        message=err,
-                        code="INVALID_COLOCATION_PARAMS",
+                        path=f"{path}.operator",
+                        message="operator is required for combine nodes",
+                        code="MISSING_OPERATOR",
                     )
                 )
-
-        self._validate_node(step.left, f"{path}.left", expected_record_type, errors)
-        self._validate_node(step.right, f"{path}.right", expected_record_type, errors)
-
-    def _validate_transform_step(
-        self,
-        step: TransformStep,
-        path: str,
-        expected_record_type: str,
-        errors: list[ValidationError],
-    ) -> None:
-        """Validate a transform step."""
-        if not step.transform_name:
-            errors.append(
-                ValidationError(
-                    path=f"{path}.transformName",
-                    message="Transform name is required",
-                    code="MISSING_TRANSFORM_NAME",
+            elif node.operator not in CombineOp:
+                errors.append(
+                    ValidationError(
+                        path=f"{path}.operator",
+                        message=f"Invalid operator: {node.operator}",
+                        code="INVALID_OPERATOR",
+                    )
                 )
-            )
-
-        if self.available_transforms and step.transform_name not in self.available_transforms:
-            errors.append(
-                ValidationError(
-                    path=f"{path}.transformName",
-                    message=f"Unknown transform: {step.transform_name}",
-                    code="UNKNOWN_TRANSFORM",
+            if node.primary_input is None or node.secondary_input is None:
+                errors.append(
+                    ValidationError(
+                        path=path,
+                        message="Combine nodes require two inputs",
+                        code="MISSING_INPUT",
+                    )
                 )
-            )
+            if node.operator == CombineOp.COLOCATE:
+                if node.colocation_params is None:
+                    errors.append(
+                        ValidationError(
+                            path=f"{path}.colocationParams",
+                            message="colocationParams is required for COLOCATE",
+                            code="MISSING_COLOCATION_PARAMS",
+                        )
+                    )
+                else:
+                    for err in node.colocation_params.validate():
+                        errors.append(
+                            ValidationError(
+                                path=f"{path}.colocationParams",
+                                message=err,
+                                code="INVALID_COLOCATION_PARAMS",
+                            )
+                        )
 
-        self._validate_node(step.input, f"{path}.input", expected_record_type, errors)
+        if node.secondary_input is not None:
+            self._validate_node(
+                node.secondary_input, f"{path}.secondaryInput", expected_record_type, errors
+            )
+        if node.primary_input is not None:
+            self._validate_node(
+                node.primary_input, f"{path}.primaryInput", expected_record_type, errors
+            )
 
 
 def validate_strategy(strategy: StrategyAST) -> ValidationResult:

@@ -19,11 +19,19 @@ def build_steps_data_from_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return build_steps_data_from_ast(ast, search_name_fallback_to_transform=True)
 
 
+def count_steps_in_plan(plan: dict[str, Any]) -> int:
+    """Count steps in a plan without relying on persisted step lists."""
+    try:
+        ast = from_dict(plan)
+    except Exception:
+        return 0
+    return len(ast.get_all_steps())
+
+
 def build_steps_data_from_graph_snapshot(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     """Build persisted steps list from a `graphSnapshot` payload.
 
-    The `graphSnapshot.steps[*]` shape uses `inputStepIds`, which we normalize into
-    `primaryInputStepId` / `secondaryInputStepId`.
+    Normalizes whatever the UI sends into our canonical derived step shape.
     """
     steps_data: list[dict[str, Any]] = []
     snapshot_steps = snapshot.get("steps") or []
@@ -33,21 +41,19 @@ def build_steps_data_from_graph_snapshot(snapshot: dict[str, Any]) -> list[dict[
     for step in snapshot_steps:
         if not isinstance(step, dict):
             continue
-        input_ids = step.get("inputStepIds") or []
-        if not isinstance(input_ids, list):
-            input_ids = []
+        primary_input = step.get("primaryInputStepId")
+        secondary_input = step.get("secondaryInputStepId")
         steps_data.append(
             {
                 "id": step.get("id"),
-                "type": step.get("type"),
+                "kind": step.get("kind"),
                 "displayName": step.get("displayName"),
-                "searchName": step.get("searchName") or step.get("transformName"),
-                "transformName": step.get("transformName"),
+                "searchName": step.get("searchName"),
                 "recordType": step.get("recordType"),
                 "parameters": step.get("parameters"),
                 "operator": step.get("operator"),
-                "primaryInputStepId": input_ids[0] if len(input_ids) > 0 else None,
-                "secondaryInputStepId": input_ids[1] if len(input_ids) > 1 else None,
+                "primaryInputStepId": primary_input,
+                "secondaryInputStepId": secondary_input,
                 "filters": step.get("filters"),
                 "analyses": step.get("analyses"),
                 "reports": step.get("reports"),

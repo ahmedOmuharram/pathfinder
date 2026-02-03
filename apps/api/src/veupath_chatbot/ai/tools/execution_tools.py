@@ -6,7 +6,6 @@ from kani import AIParam, ai_function
 
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.domain.strategy.ast_utils import infer_record_type_from_step
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.domain.strategy.ast import StrategyAST
@@ -126,7 +125,7 @@ class ExecutionTools:
                     graphId=graph.id,
                 )
 
-            inferred_record_type = record_type or infer_record_type_from_step(root_step)
+            inferred_record_type = record_type or graph.record_type
             if not inferred_record_type:
                 return self._tool_error(
                     ErrorCode.VALIDATION_ERROR,

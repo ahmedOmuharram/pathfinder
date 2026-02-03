@@ -6,9 +6,9 @@ These models make the plan contract explicit in OpenAPI instead of using
 
 from __future__ import annotations
 
-from typing import Any, Annotated, Literal
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PlanMetadata(BaseModel):
@@ -46,36 +46,51 @@ class BasePlanNode(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class SearchPlanNode(BasePlanNode):
-    type: Literal["search"]
-    searchName: str
-    parameters: dict[str, Any] = Field(default_factory=dict)
-
-
 class ColocationParams(BaseModel):
     upstream: int = Field(ge=0)
     downstream: int = Field(ge=0)
     strand: str = "both"
 
 
-class CombinePlanNode(BasePlanNode):
-    type: Literal["combine"]
-    operator: str
-    left: "PlanNode"
-    right: "PlanNode"
+class PlanNode(BasePlanNode):
+    """
+    Untyped recursive plan node (WDK-aligned).
+
+    Kind is inferred from structure:
+    - combine: primaryInput + secondaryInput
+    - transform: primaryInput only
+    - search: no inputs
+    """
+
+    searchName: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+    primaryInput: "PlanNode | None" = Field(default=None)
+    secondaryInput: "PlanNode | None" = Field(default=None)
+
+    # Required iff secondaryInput present
+    operator: str | None = None
     colocationParams: ColocationParams | None = None
 
+    model_config = {"extra": "allow"}
 
-class TransformPlanNode(BasePlanNode):
-    type: Literal["transform"]
-    transformName: str
-    input: "PlanNode"
-    parameters: dict[str, Any] | None = None
+    @model_validator(mode="after")
+    def _validate_structure(self) -> "PlanNode":
+        # secondary requires primary
+        if self.secondaryInput is not None and self.primaryInput is None:
+            raise ValueError("secondaryInput requires primaryInput")
 
+        # operator required when secondary present
+        if self.secondaryInput is not None and not self.operator:
+            raise ValueError("operator is required when secondaryInput is present")
 
-PlanNode = Annotated[
-    SearchPlanNode | CombinePlanNode | TransformPlanNode, Field(discriminator="type")
-]
+        # colocationParams constraints
+        if self.operator == "COLOCATE" and self.colocationParams is None:
+            raise ValueError("colocationParams is required when operator is COLOCATE")
+        if self.operator != "COLOCATE" and self.colocationParams is not None:
+            raise ValueError("colocationParams is only allowed when operator is COLOCATE")
+
+        return self
 
 
 class StrategyPlan(BaseModel):
@@ -97,8 +112,6 @@ class PlanNormalizeResponse(BaseModel):
 
 
 # Resolve forward references for recursive node types.
-SearchPlanNode.model_rebuild()
-CombinePlanNode.model_rebuild()
-TransformPlanNode.model_rebuild()
+PlanNode.model_rebuild()
 StrategyPlan.model_rebuild()
 

@@ -5,7 +5,7 @@ export type StrategyGraphError = {
     | "MISSING_INPUT"
     | "UNKNOWN_STEP"
     | "MISSING_OPERATOR"
-    | "MISSING_TYPE"
+    | "MISSING_SEARCH_NAME"
     | "ORPHAN_STEP"
     | "MULTIPLE_ROOTS";
   message: string;
@@ -25,6 +25,13 @@ export type CombineMismatchGroup = {
   message: string;
 };
 
+function inferKind(step: Step): "search" | "transform" | "combine" | "invalid" {
+  if (step.secondaryInputStepId && !step.primaryInputStepId) return "invalid";
+  if (step.primaryInputStepId && step.secondaryInputStepId) return "combine";
+  if (step.primaryInputStepId) return "transform";
+  return "search";
+}
+
 export function resolveRecordType(
   stepId: string | undefined,
   stepsMap: Map<string, Step>
@@ -33,10 +40,11 @@ export function resolveRecordType(
   const step = stepsMap.get(stepId);
   if (!step) return null;
   if (step.recordType) return step.recordType;
-  if (step.type === "transform" && step.primaryInputStepId) {
+  const kind = inferKind(step);
+  if (kind === "transform" && step.primaryInputStepId) {
     return resolveRecordType(step.primaryInputStepId, stepsMap);
   }
-  if (step.type === "combine") {
+  if (kind === "combine") {
     const left = resolveRecordType(step.primaryInputStepId, stepsMap);
     const right = resolveRecordType(step.secondaryInputStepId, stepsMap);
     if (left && right && left !== right) return "__mismatch__";
@@ -50,7 +58,7 @@ export function findCombineRecordTypeMismatch(
 ): CombineRecordTypeMismatch | null {
   const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
   for (const step of stepsList) {
-    if (step.type !== "combine") continue;
+    if (inferKind(step) !== "combine") continue;
     const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
     const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
     if (
@@ -93,7 +101,7 @@ export function getCombineMismatchGroups(steps: Step[]): CombineMismatchGroup[] 
   const stepsMap = new Map(steps.map((step) => [step.id, step]));
   const groups: CombineMismatchGroup[] = [];
   for (const step of steps) {
-    if (step.type !== "combine") continue;
+    if (inferKind(step) !== "combine") continue;
     const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
     const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
     if (!leftType || !rightType) continue;
@@ -123,19 +131,35 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
   const referenced = new Set<string>();
 
   for (const step of steps) {
-    if (!step.type) {
+    if (!step.searchName) {
       errors.push({
-        code: "MISSING_TYPE",
-        message: "Step type is required.",
+        code: "MISSING_SEARCH_NAME",
+        message: "searchName is required.",
         stepId: step.id,
       });
     }
 
-    if (step.type === "combine") {
+    const kind = inferKind(step);
+    if (kind === "invalid") {
+      errors.push({
+        code: "MISSING_INPUT",
+        message: "secondaryInput requires primaryInput.",
+        stepId: step.id,
+      });
+    }
+
+    if (kind === "combine") {
       if (!step.operator) {
         errors.push({
           code: "MISSING_OPERATOR",
           message: "Combine steps require an operator.",
+          stepId: step.id,
+        });
+      }
+      if (step.operator === "COLOCATE" && !step.colocationParams) {
+        errors.push({
+          code: "MISSING_INPUT",
+          message: "COLOCATE requires colocationParams (upstream/downstream/strand).",
           stepId: step.id,
         });
       }
@@ -146,14 +170,6 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
           stepId: step.id,
         });
       }
-    }
-
-    if (step.type === "transform" && !step.primaryInputStepId) {
-      errors.push({
-        code: "MISSING_INPUT",
-        message: "Transform steps require an input.",
-        stepId: step.id,
-      });
     }
 
     if (step.primaryInputStepId) referenced.add(step.primaryInputStepId);

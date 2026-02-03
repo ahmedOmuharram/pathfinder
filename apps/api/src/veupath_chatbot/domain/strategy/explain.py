@@ -1,11 +1,8 @@
 """Generate human-readable explanations of strategies."""
 
 from veupath_chatbot.domain.strategy.ast import (
-    CombineStep,
-    SearchStep,
-    StepNode,
+    PlanStepNode,
     StrategyAST,
-    TransformStep,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_op_label
 
@@ -21,22 +18,24 @@ def explain_strategy(strategy: StrategyAST) -> str:
 
     step_num = 0
 
-    def explain_node(node: StepNode, indent: int = 0) -> list[str]:
+    def explain_node(node: PlanStepNode, indent: int = 0) -> list[str]:
         nonlocal step_num
         step_num += 1
         prefix = "  " * indent
 
-        if isinstance(node, SearchStep):
+        kind = node.infer_kind()
+
+        if kind == "search":
             return [
                 f"{prefix}{step_num}. **Search**: {node.display_name or node.search_name}",
                 f"{prefix}   Parameters: {_format_params(node.parameters)}",
             ]
 
-        if isinstance(node, CombineStep):
-            left_lines = explain_node(node.left, indent + 1)
-            right_lines = explain_node(node.right, indent + 1)
+        if kind == "combine":
+            left_lines = explain_node(node.primary_input, indent + 1) if node.primary_input else []
+            right_lines = explain_node(node.secondary_input, indent + 1) if node.secondary_input else []
 
-            op_label = get_op_label(node.op)
+            op_label = get_op_label(node.operator) if node.operator else "Unknown"
             result = [
                 f"{prefix}{step_num}. **Combine** ({op_label}):",
                 f"{prefix}   Left input:",
@@ -45,7 +44,7 @@ def explain_strategy(strategy: StrategyAST) -> str:
             result.append(f"{prefix}   Right input:")
             result.extend(right_lines)
 
-            if node.op == CombineOp.COLOCATE and node.colocation_params:
+            if node.operator == CombineOp.COLOCATE and node.colocation_params:
                 cp = node.colocation_params
                 result.append(
                     f"{prefix}   Colocation: ±{cp.upstream}bp upstream, "
@@ -54,11 +53,13 @@ def explain_strategy(strategy: StrategyAST) -> str:
 
             return result
 
-        if isinstance(node, TransformStep):
-            input_lines = explain_node(node.input, indent + 1)
+        if kind == "transform":
+            input_lines = (
+                explain_node(node.primary_input, indent + 1) if node.primary_input else []
+            )
 
             result = [
-                f"{prefix}{step_num}. **Transform**: {node.display_name or node.transform_name}",
+                f"{prefix}{step_num}. **Transform**: {node.display_name or node.search_name}",
             ]
             if node.parameters:
                 result.append(f"{prefix}   Parameters: {_format_params(node.parameters)}")
@@ -77,15 +78,16 @@ def explain_strategy(strategy: StrategyAST) -> str:
     return "\n".join(lines)
 
 
-def explain_step(step: StepNode) -> str:
+def explain_step(step: PlanStepNode) -> str:
     """Generate a short explanation of a single step."""
-    if isinstance(step, SearchStep):
+    kind = step.infer_kind()
+    if kind == "search":
         return f"Search: {step.display_name or step.search_name}"
-    if isinstance(step, CombineStep):
-        op_label = get_op_label(step.op)
+    if kind == "combine":
+        op_label = get_op_label(step.operator) if step.operator else "Unknown"
         return f"Combine ({op_label})"
-    if isinstance(step, TransformStep):
-        return f"Transform: {step.display_name or step.transform_name}"
+    if kind == "transform":
+        return f"Transform: {step.display_name or step.search_name}"
     return "Unknown step"
 
 

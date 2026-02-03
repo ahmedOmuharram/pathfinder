@@ -7,13 +7,7 @@ from typing import Any
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.domain.parameters.vocab_utils import flatten_vocab, normalize_vocab_key
-from veupath_chatbot.domain.strategy.ast_utils import infer_record_type_from_step
-from veupath_chatbot.domain.strategy.ast import (
-    CombineStep,
-    SearchStep,
-    StrategyAST,
-    TransformStep,
-)
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.services.strategy_session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
@@ -67,19 +61,16 @@ class StrategyToolsHelpers(StrategyToolsBase):
     def _derive_strategy_name(
         self,
         record_type: str | None,
-        root_step: SearchStep | CombineStep | TransformStep,
+        root_step: PlanStepNode,
     ) -> str:
         base = None
-        if isinstance(root_step, SearchStep):
+        kind = root_step.infer_kind()
+        if kind == "search":
             base = root_step.display_name or root_step.search_name
-        elif isinstance(root_step, TransformStep):
-            base = (
-                root_step.display_name
-                or root_step.transform_name
-                or root_step.search_name
-            )
-        elif isinstance(root_step, CombineStep):
-            base = root_step.display_name or explain_operation(root_step)
+        elif kind == "transform":
+            base = root_step.display_name or root_step.search_name
+        elif kind == "combine":
+            base = root_step.display_name or explain_operation(root_step.operator)  # type: ignore[arg-type]
         base = (base or "").strip()
         if not base:
             base = f"{record_type.title()} strategy" if record_type else "Strategy"
@@ -90,20 +81,17 @@ class StrategyToolsHelpers(StrategyToolsBase):
     def _derive_strategy_description(
         self,
         record_type: str | None,
-        root_step: SearchStep | CombineStep | TransformStep,
+        root_step: PlanStepNode,
     ) -> str:
-        if isinstance(root_step, SearchStep):
+        kind = root_step.infer_kind()
+        if kind == "search":
             summary = root_step.display_name or root_step.search_name
             verb = "Find"
-        elif isinstance(root_step, TransformStep):
-            summary = (
-                root_step.display_name
-                or root_step.transform_name
-                or root_step.search_name
-            )
+        elif kind == "transform":
+            summary = root_step.display_name or root_step.search_name
             verb = "Transform"
         else:
-            summary = explain_operation(root_step)
+            summary = explain_operation(root_step.operator)  # type: ignore[arg-type]
             verb = "Combine"
         summary = (summary or "").strip()
         if not summary:
@@ -112,10 +100,10 @@ class StrategyToolsHelpers(StrategyToolsBase):
             return f"{verb} {record_type} results for {summary}."
         return f"{verb} results for {summary}."
 
-    def _infer_record_type(
-        self, step: SearchStep | CombineStep | TransformStep
-    ) -> str | None:
-        return infer_record_type_from_step(step)
+    def _infer_record_type(self, step: PlanStepNode) -> str | None:
+        # Plan steps no longer store record_type; prefer graph-level context when available.
+        graph = self._get_graph(None)
+        return graph.record_type if graph else None
 
     def _filter_search_options(
         self, searches: list[dict[str, Any]], query: str, limit: int = 20
@@ -383,66 +371,50 @@ class StrategyToolsHelpers(StrategyToolsBase):
     def _serialize_step(
         self,
         graph: StrategyGraph,
-        step: SearchStep | CombineStep | TransformStep,
+        step: PlanStepNode,
     ) -> dict[str, Any]:
-        default_name = None
-        if isinstance(step, SearchStep):
-            default_name = step.search_name
-        elif isinstance(step, TransformStep):
-            default_name = step.transform_name
+        default_name = step.search_name
         info: dict[str, Any] = {
             "graphId": graph.id,
             "graphName": graph.name,
             "stepId": step.id,
             "displayName": step.display_name or default_name,
-            "recordType": infer_record_type_from_step(step),
+            "recordType": graph.record_type,
         }
-        if isinstance(step, SearchStep):
-            info["type"] = "search"
-            info["searchName"] = step.search_name
-            info["parameters"] = step.parameters
-        elif isinstance(step, CombineStep):
-            info["type"] = "combine"
-            info["operator"] = step.op.value
-            info["leftStepId"] = step.left.id
-            info["rightStepId"] = step.right.id
-        elif isinstance(step, TransformStep):
-            info["type"] = "transform"
-            info["transformName"] = step.transform_name
-            info["inputStepId"] = step.input.id
-            info["parameters"] = step.parameters
+        kind = step.infer_kind()
+        info["kind"] = kind
+        info["searchName"] = step.search_name
+        info["parameters"] = step.parameters
+        if kind == "combine":
+            info["operator"] = step.operator.value if step.operator else None
+            info["primaryInputStepId"] = step.primary_input.id if step.primary_input else None
+            info["secondaryInputStepId"] = (
+                step.secondary_input.id if step.secondary_input else None
+            )
+        elif kind == "transform":
+            info["primaryInputStepId"] = step.primary_input.id if step.primary_input else None
         info["filters"] = [f.to_dict() for f in getattr(step, "filters", []) or []]
         info["analyses"] = [a.to_dict() for a in getattr(step, "analyses", []) or []]
         info["reports"] = [r.to_dict() for r in getattr(step, "reports", []) or []]
         return info
 
-    def _serialize_graph_step(
-        self, step: SearchStep | CombineStep | TransformStep
-    ) -> dict[str, Any]:
-        default_name = None
-        if isinstance(step, SearchStep):
-            default_name = step.search_name
-        elif isinstance(step, TransformStep):
-            default_name = step.transform_name
-        elif isinstance(step, CombineStep):
-            default_name = step.op.value
+    def _serialize_graph_step(self, step: PlanStepNode) -> dict[str, Any]:
+        kind = step.infer_kind()
+        default_name = step.search_name
         base: dict[str, Any] = {
             "id": step.id,
-            "type": step.__class__.__name__.lower().replace("step", ""),
+            "kind": kind,
             "displayName": step.display_name or default_name,
-            "recordType": infer_record_type_from_step(step),
+            "recordType": graph.record_type if (graph := self._get_graph(None)) else None,
         }
-        if isinstance(step, SearchStep):
-            base["searchName"] = step.search_name
-            base["parameters"] = step.parameters
-            base["inputStepIds"] = []
-        elif isinstance(step, TransformStep):
-            base["transformName"] = step.transform_name
-            base["parameters"] = step.parameters
-            base["inputStepIds"] = [step.input.id]
-        elif isinstance(step, CombineStep):
-            base["operator"] = step.op.value
-            base["inputStepIds"] = [step.left.id, step.right.id]
+        base["searchName"] = step.search_name
+        base["parameters"] = step.parameters
+        base["primaryInputStepId"] = step.primary_input.id if step.primary_input else None
+        base["secondaryInputStepId"] = (
+            step.secondary_input.id if step.secondary_input else None
+        )
+        if kind == "combine":
+            base["operator"] = step.operator.value if step.operator else None
         base["filters"] = [f.to_dict() for f in getattr(step, "filters", []) or []]
         base["analyses"] = [a.to_dict() for a in getattr(step, "analyses", []) or []]
         base["reports"] = [r.to_dict() for r in getattr(step, "reports", []) or []]
@@ -462,27 +434,20 @@ class StrategyToolsHelpers(StrategyToolsBase):
         steps = [self._serialize_graph_step(step) for step in graph.steps.values()]
         edges: list[dict[str, Any]] = []
         for step in graph.steps.values():
-            if isinstance(step, TransformStep):
+            if getattr(step, "primary_input", None) is not None:
                 edges.append(
                     {
-                        "sourceId": step.input.id,
+                        "sourceId": step.primary_input.id,
                         "targetId": step.id,
-                        "kind": "input",
+                        "kind": "primary",
                     }
                 )
-            elif isinstance(step, CombineStep):
+            if getattr(step, "secondary_input", None) is not None:
                 edges.append(
                     {
-                        "sourceId": step.left.id,
+                        "sourceId": step.secondary_input.id,
                         "targetId": step.id,
-                        "kind": "left",
-                    }
-                )
-                edges.append(
-                    {
-                        "sourceId": step.right.id,
-                        "targetId": step.id,
-                        "kind": "right",
+                        "kind": "secondary",
                     }
                 )
 
@@ -503,7 +468,7 @@ class StrategyToolsHelpers(StrategyToolsBase):
         root_step = graph.get_step(graph.last_step_id)
         if not root_step:
             return None
-        record_type = infer_record_type_from_step(root_step)
+        record_type = graph.record_type
         if not record_type:
             return None
         name = graph.current_strategy.name if graph.current_strategy else graph.name
