@@ -83,7 +83,13 @@ export function useGraphSave({
         });
       }
       const result = buildPlan();
-      if (!result) return;
+      if (!result) {
+        const message =
+          "Cannot save: strategy must have a single final output step. Add a final combine step (e.g., UNION) to produce one output.";
+        setSaveError(message);
+        onToast?.({ type: "error", message });
+        return;
+      }
       let nextPlan = { ...result.plan };
       const nextMeta =
         typeof nextPlan.metadata === "object" && nextPlan.metadata !== null
@@ -153,7 +159,14 @@ export function useGraphSave({
 
   const persistStrategyDetails = useCallback(
     async (name: string, description: string) => {
-      if (!buildPlan() || !draftStrategy?.id) return;
+      if (!draftStrategy?.id) return;
+      if (!buildPlan()) {
+        const message =
+          "Cannot save: strategy must have a single final output step. Add a final combine step (e.g., UNION) to produce one output.";
+        setSaveError(message);
+        onToast?.({ type: "error", message });
+        return;
+      }
       await persistPlan(name, description);
     },
     [buildPlan, draftStrategy?.id, persistPlan]

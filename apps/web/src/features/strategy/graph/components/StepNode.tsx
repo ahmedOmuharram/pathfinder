@@ -4,7 +4,8 @@ import { Handle, Position } from "reactflow";
 import { CombineOperator } from "@pathfinder/shared";
 import type { StrategyStep } from "@/types/strategy";
 import { OpBadge } from "./OpBadge";
-import { MessageSquarePlus } from "lucide-react";
+import { AlertTriangle, MessageSquarePlus } from "lucide-react";
+import { getZeroResultSuggestions } from "@/features/strategy/validation/zeroResultAdvisor";
 
 interface StepNodeProps {
   data: {
@@ -50,6 +51,7 @@ export function StepNode({ data, selected }: StepNodeProps) {
   const isTransform = step.type === "transform";
 
   const validationError = step.validationError;
+  const isZeroResults = step.resultCount === 0;
   const resultLabel = step.recordType
     ? `${step.recordType}${step.resultCount === 1 ? "" : "s"}`
     : "results";
@@ -68,6 +70,10 @@ export function StepNode({ data, selected }: StepNodeProps) {
       } ${selected ? "ring-2 ring-slate-300" : ""} ${
         validationError && !isTransform
           ? "border-red-400 bg-red-50/60 ring-2 ring-red-200"
+          : ""
+      } ${
+        isZeroResults && !validationError && !isTransform
+          ? "border-amber-400 bg-amber-50/60 ring-2 ring-amber-200"
           : ""
       }`}
     >
@@ -207,6 +213,20 @@ export function StepNode({ data, selected }: StepNodeProps) {
               ? `? ${resultLabel}`
               : "Loading..."}
         </div>
+        {isZeroResults && !validationError && (
+          <div className="group relative -mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span>0 results</span>
+            <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 w-56 -translate-x-1/2 rounded-md border border-amber-200 bg-white px-2 py-2 text-[11px] font-medium text-amber-800 opacity-0 shadow-sm transition group-hover:opacity-100">
+              <div className="mb-1 font-semibold">Suggestions</div>
+              <ul className="list-disc space-y-1 pl-4">
+                {getZeroResultSuggestions(step).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
         {validationError && (
           <div className="mt-1 text-center text-[10px] font-semibold text-red-600">
             {validationError}

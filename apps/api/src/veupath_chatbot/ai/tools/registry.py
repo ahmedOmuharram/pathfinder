@@ -110,6 +110,26 @@ class AgentToolRegistryMixin:
         return await self.strategy_tools.list_current_steps()
 
     @ai_function()
+    async def validate_graph_structure(self, graph_id: str | None = None):
+        """Validate graph structure and single-output invariant."""
+        return await self.strategy_tools.validate_graph_structure(graph_id)
+
+    @ai_function()
+    async def ensure_single_output(
+        self,
+        graph_id: str | None = None,
+        operator: str = "UNION",
+        display_name: str | None = None,
+    ):
+        """Ensure graph has a single output by combining roots (default UNION)."""
+        return await self.strategy_tools.ensure_single_output(graph_id, operator, display_name)
+
+    @ai_function()
+    async def get_draft_step_counts(self, graph_id: str | None = None):
+        """Compute draft step counts (WDK-backed) for local step IDs."""
+        return await self.strategy_tools.get_draft_step_counts(graph_id)
+
+    @ai_function()
     async def delete_step(self, step_id: str, graph_id: str | None = None):
         """Delete a step from the current graph."""
         return await self.strategy_tools.delete_step(step_id, graph_id)

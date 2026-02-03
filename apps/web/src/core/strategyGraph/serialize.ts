@@ -33,8 +33,10 @@ export function serializeStrategyPlan(
     if (step.secondaryInputStepId) inputStepIds.add(step.secondaryInputStepId);
   }
   const rootSteps = steps.filter((s) => !inputStepIds.has(s.id));
-  const rootStep =
-    rootSteps.length > 0 ? rootSteps[rootSteps.length - 1] : steps[steps.length - 1];
+  // Single-output invariant: do not serialize a plan if the graph has multiple outputs.
+  // This prevents silently "picking" an arbitrary root and saving a broken strategy.
+  if (rootSteps.length !== 1) return null;
+  const rootStep = rootSteps[0];
 
   const buildNode = (stepId: string): PlanNode | null => {
     const step = stepsById[stepId];

@@ -82,10 +82,10 @@ export function getRootSteps(steps: Step[]): Step[] {
 export function getRootStepId(steps: Step[]): string | null {
   if (steps.length === 0) return null;
   const roots = getRootSteps(steps);
-  if (roots.length > 0) {
-    return roots[roots.length - 1].id;
-  }
-  return steps[steps.length - 1].id;
+  // Single-output invariant: a valid graph must have exactly one root.
+  // When the graph is invalid (0 or multiple roots), do not guess a root.
+  if (roots.length !== 1) return null;
+  return roots[0].id;
 }
 
 export function getCombineMismatchGroups(steps: Step[]): CombineMismatchGroup[] {

@@ -19,6 +19,7 @@ from veupath_chatbot.services.strategy_session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 
 from .base import StrategyToolsBase
+from .graph_integrity import find_root_step_ids
 
 
 class StrategyToolsHelpers(StrategyToolsBase):
@@ -452,11 +453,11 @@ class StrategyToolsHelpers(StrategyToolsBase):
         record_type = plan_payload.get("recordType") if plan_payload else None
         name = plan_payload.get("name") if plan_payload else graph.name
         description = plan_payload.get("description") if plan_payload else None
-        root_step_id = None
-        if graph.current_strategy:
-            root_step_id = graph.current_strategy.root.id
-        elif graph.last_step_id:
-            root_step_id = graph.last_step_id
+        # IMPORTANT: rootStepId should only be set when the working graph has exactly
+        # one output (one root). Do not guess based on "last_step_id" when multiple
+        # roots exist, otherwise the UI/agent may incorrectly assume the strategy is done.
+        roots = find_root_step_ids(graph)
+        root_step_id = roots[0] if len(roots) == 1 else None
 
         steps = [self._serialize_graph_step(step) for step in graph.steps.values()]
         edges: list[dict[str, Any]] = []

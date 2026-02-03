@@ -291,7 +291,7 @@ export function StrategySidebar({
   const activeId = strategyId || draftStrategy?.id || null;
 
   return (
-    <div className="flex h-full flex-col gap-5 border-r border-slate-200 bg-white px-3 py-4">
+    <div className="flex h-full min-h-0 flex-col gap-5 border-r border-slate-200 bg-white px-3 py-4">
       <div>
         <SitePicker
           value={siteId}
@@ -349,78 +349,80 @@ export function StrategySidebar({
         </div>
       </div>
 
-      <div>
+      <div className="flex min-h-0 flex-1 flex-col">
         {deleteError && (
           <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
             {deleteError}
           </div>
         )}
-        <div className="space-y-2">
-          {filteredItems.length === 0 && (
-            <div className="text-[11px] text-slate-500">No strategies yet.</div>
-          )}
-          {filteredItems.map((s) => (
-            <div
-              key={s.id}
-              onContextMenu={(event) => {
-                if (s.isRemote) {
-                  return;
-                }
-                event.preventDefault();
-                setContextMenu({ x: event.clientX, y: event.clientY, item: s });
-              }}
-              className={`group flex items-center justify-between rounded-md border px-3 py-2 text-[11px] ${
-                activeId === s.id
-                  ? "border-slate-300 bg-slate-100 text-slate-900"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-              }`}
-            >
-              <button
-                onClick={() => {
-                  const isRemote = s.isRemote && s.wdkStrategyId;
-                  const payload = isRemote
-                    ? { wdkStrategyId: s.wdkStrategyId, siteId }
-                    : { strategyId: s.id };
-                  openStrategy(payload)
-                    .then((response) => applyOpenResult(response, "open"))
-                    .catch(() => {});
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="space-y-2">
+            {filteredItems.length === 0 && (
+              <div className="text-[11px] text-slate-500">No strategies yet.</div>
+            )}
+            {filteredItems.map((s) => (
+              <div
+                key={s.id}
+                onContextMenu={(event) => {
+                  if (s.isRemote) {
+                    return;
+                  }
+                  event.preventDefault();
+                  setContextMenu({ x: event.clientX, y: event.clientY, item: s });
                 }}
-                className="flex flex-1 flex-col text-left"
+                className={`group flex items-center justify-between rounded-md border px-3 py-2 text-[11px] ${
+                  activeId === s.id
+                    ? "border-slate-300 bg-slate-100 text-slate-900"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-800">
-                    {s.name}
-                  </span>
-                  {graphValidationStatus[s.id] && (
-                    <span
-                      className="inline-flex h-2 w-2 rounded-full bg-red-500"
-                      title="Validation issues"
-                    />
-                  )}
-                </div>
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                  {s.isRemote
-                    ? s.isInternal
-                      ? "WDK (internal)"
-                      : "WDK"
-                    : s.source === "synced"
-                      ? "Synced"
-                      : "Draft"}
-                </span>
-                {s.siteId && (
+                <button
+                  onClick={() => {
+                    const isRemote = s.isRemote && s.wdkStrategyId;
+                    const payload = isRemote
+                      ? { wdkStrategyId: s.wdkStrategyId, siteId }
+                      : { strategyId: s.id };
+                    openStrategy(payload)
+                      .then((response) => applyOpenResult(response, "open"))
+                      .catch(() => {});
+                  }}
+                  className="flex flex-1 flex-col text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-800">
+                      {s.name}
+                    </span>
+                    {graphValidationStatus[s.id] && (
+                      <span
+                        className="inline-flex h-2 w-2 rounded-full bg-red-500"
+                        title="Validation issues"
+                      />
+                    )}
+                  </div>
                   <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                    {siteLabels[s.siteId] || s.siteId}
+                    {s.isRemote
+                      ? s.isInternal
+                        ? "WDK (internal)"
+                        : "WDK"
+                      : s.source === "synced"
+                        ? "Synced"
+                        : "Draft"}
                   </span>
-                )}
-                <span className="text-[10px] text-slate-500">
-                  {mounted
-                    ? new Date(s.updatedAt).toLocaleString()
-                    : s.updatedAt}
-                </span>
-              </button>
-              {null}
-            </div>
-          ))}
+                  {s.siteId && (
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                      {siteLabels[s.siteId] || s.siteId}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-slate-500">
+                    {mounted
+                      ? new Date(s.updatedAt).toLocaleString()
+                      : s.updatedAt}
+                  </span>
+                </button>
+                {null}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {contextMenu && (

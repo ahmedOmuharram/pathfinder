@@ -5,7 +5,7 @@
 import { create } from "zustand";
 import type { StrategyPlan } from "@pathfinder/shared";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
-import { getRootStepId, serializeStrategyPlan } from "@/features/strategy/domain/graph";
+import { getRootSteps, getRootStepId, serializeStrategyPlan } from "@/features/strategy/domain/graph";
 
 const isUrlLike = (value: string | null | undefined) =>
   typeof value === "string" &&
@@ -90,9 +90,11 @@ function buildStrategy(
   const steps = Object.values(stepsById);
   if (steps.length === 0) return null;
   
-  // Find the root step (the step that isn't an input to any other step)
-  const rootStepId = getRootStepId(steps);
-  if (!rootStepId) return null;
+  // Find the root step (the step that isn't an input to any other step).
+  // IMPORTANT: We keep the strategy visible even when the graph is invalid (multi-root),
+  // but we represent invalidity by setting rootStepId=null.
+  const roots = getRootSteps(steps);
+  const rootStepId = roots.length === 1 ? getRootStepId(steps) : null;
   
   return {
     id: existing?.id || "draft",

@@ -2,7 +2,7 @@ import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import { validateSearchParams } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
-import { validateStrategySteps } from "@/features/strategy/domain/graph";
+import { getRootSteps, validateStrategySteps } from "@/features/strategy/domain/graph";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 
 export async function validateStepsForSave(args: {
@@ -20,8 +20,26 @@ export async function validateStepsForSave(args: {
 
   const structuralErrors = validateStrategySteps(steps);
   for (const issue of structuralErrors) {
-    if (!issue.stepId) continue;
-    errorsByStepId[issue.stepId] = `Cannot be saved: ${issue.message}`;
+    if (issue.stepId) {
+      errorsByStepId[issue.stepId] = `Cannot be saved: ${issue.message}`;
+      continue;
+    }
+
+    // Some structural errors are graph-level (no specific stepId). Assign them to
+    // relevant steps so the UI can surface the issue and saving is blocked.
+    if (issue.code === "MULTIPLE_ROOTS") {
+      const roots = getRootSteps(steps);
+      for (const root of roots) {
+        errorsByStepId[root.id] = `Cannot be saved: ${issue.message}`;
+      }
+      continue;
+    }
+    if (issue.code === "ORPHAN_STEP") {
+      for (const step of steps) {
+        errorsByStepId[step.id] = `Cannot be saved: ${issue.message}`;
+      }
+      continue;
+    }
   }
 
   await Promise.all(
