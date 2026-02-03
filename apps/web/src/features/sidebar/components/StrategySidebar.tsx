@@ -515,7 +515,7 @@ export function StrategySidebar({
             }}
             className="w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50"
           >
-            Delete workflow
+            Delete strategy
           </button>
         </div>
       )}
@@ -523,7 +523,7 @@ export function StrategySidebar({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
             <h3 className="text-sm font-semibold text-slate-800">
-              Duplicate workflow
+              Duplicate strategy
             </h3>
             <div className="mt-3 space-y-2">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -598,7 +598,7 @@ export function StrategySidebar({
                         ? {
                             ...prev,
                             isSubmitting: false,
-                            error: "Failed to duplicate workflow.",
+                            error: "Failed to duplicate strategy.",
                           }
                         : prev
                     );

@@ -93,7 +93,10 @@ async def run_subkani_task(
     emitted_step_ids: set[str] = set()
     last_errors: list[str] = []
 
-    for attempt in range(3):
+    # If a sub-kani produces no steps, treat it as a retryable failure.
+    # These retries are intentionally more aggressive than tool-level retries
+    # because "no_steps" usually means "wrong search" or "missing required params".
+    for attempt in range(5):
         try:
             _, round_steps, round_errors = await asyncio.wait_for(
                 consume_subkani_round(
@@ -152,15 +155,21 @@ async def run_subkani_task(
             )
             return {"task": task, "steps": created_steps, "notes": "created"}
 
-        if attempt < 2:
+        if attempt < 4:
             await emit_event(
                 {"type": "subkani_task_retry", "data": {"task": task, "attempt": attempt + 2}}
             )
             error_hint = "; ".join(last_errors) if last_errors else "no steps created"
             prompt = (
-                "Retry the task using different searches or parameters.\n"
-                "Use get_record_types, search_for_searches, and get_search_parameters "
-                "to find alternatives before creating a step.\n"
+                "Retry the task and you MUST create at least one valid step.\n"
+                "Before creating anything:\n"
+                "- Use get_record_types() if record type is unclear.\n"
+                "- Use search_for_searches(record_type, query) to find relevant searches.\n"
+                "- Use get_search_parameters(record_type, search_name) to learn required params.\n"
+                "Execution rules:\n"
+                "- All parameter values must be strings.\n"
+                "- If the chosen search requires an input-step, do NOT use create_search_step; use transform_step.\n"
+                "- For orthology tasks, prefer find_orthologs.\n"
                 f"Previous issue: {error_hint}\n"
                 f"Task: {task}\n"
                 f"Graph: {graph_id}\n"

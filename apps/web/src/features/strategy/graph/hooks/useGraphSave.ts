@@ -1,9 +1,16 @@
 import { useCallback, useState } from "react";
 import { normalizePlan, updateStrategy } from "@/lib/api/client";
+import { APIError } from "@/lib/api/http";
+import { toUserMessage } from "@/lib/api/errors";
 import type { StrategyPlan } from "@pathfinder/shared";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { CombineMismatchGroup } from "@/features/strategy/domain/graph";
 import type { MutableRef } from "@/shared/types/refs";
+
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 
 interface UseGraphSaveArgs {
   strategy: StrategyWithMeta | null;
@@ -55,6 +62,16 @@ export function useGraphSave({
     async (overrideName?: string, overrideDescription?: string) => {
       if (!draftStrategy?.id) return;
       setSaveError(null);
+      if (!isUuid(draftStrategy.id)) {
+        const message =
+          "This draft isn't linked to a saved strategy yet. Open or create a strategy first, then save.";
+        console.warn("Refusing to save: strategy id is not a UUID", {
+          id: draftStrategy.id,
+        });
+        setSaveError(message);
+        onToast?.({ type: "error", message });
+        return;
+      }
       if (combineMismatchGroups.length > 0) {
         failCombineMismatch();
         return;
@@ -104,9 +121,18 @@ export function useGraphSave({
         }
         onToast?.({ type: "success", message: "Strategy saved." });
       } catch (error) {
-        console.error("Failed to save strategy", error);
-        setSaveError("Failed to save strategy.");
-        onToast?.({ type: "error", message: "Failed to save strategy." });
+        if (error instanceof APIError) {
+          console.error("Failed to save strategy (API error)", {
+            status: error.status,
+            statusText: error.statusText,
+            data: error.data,
+          });
+        } else {
+          console.error("Failed to save strategy", error);
+        }
+        const message = toUserMessage(error, "Failed to save strategy.");
+        setSaveError(message);
+        onToast?.({ type: "error", message });
       } finally {
         setIsSaving(false);
       }

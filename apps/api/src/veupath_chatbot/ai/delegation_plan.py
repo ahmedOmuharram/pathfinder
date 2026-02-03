@@ -54,10 +54,17 @@ def build_delegation_plan(
             "Subtasks are required when delegating.",
             "Provide a non-empty 'subtasks' list instead of only 'goal'.",
         )
-    if not (post_plan and post_plan.strip()) and not combines:
+
+    if not (post_plan and post_plan.strip()):
         return plan_error(
-            "A combine plan or post_plan is required when delegating.",
-            "Provide 'combines' for union/intersect/minus steps or a short post_plan.",
+            "post_plan is required when delegating.",
+            "Provide a non-empty 'post_plan' describing what to do after subtasks finish.",
+        )
+
+    if combines is None:
+        return plan_error(
+            "combines is required when delegating.",
+            "Provide a 'combines' list (use an empty list [] if no set operations are needed).",
         )
 
     raw_tasks = [task for task in subtasks if task]
@@ -72,13 +79,22 @@ def build_delegation_plan(
 
     for index, item in enumerate(raw_tasks, start=1):
         if isinstance(item, str):
-            task_id = f"task_{index}"
-            task_text = item.strip()
-            depends_on: list[str] = []
-            how = None
+            return plan_error(
+                "Invalid subtask entry.",
+                "Each subtask must be an object with explicit depends_on (use [] when none).",
+                subtaskIndex=index,
+            )
         elif isinstance(item, dict):
             task_id = str(item.get("id") or f"task_{index}").strip()
             task_text = str(item.get("task") or item.get("text") or "").strip()
+            has_depends_key = ("depends_on" in item) or ("dependsOn" in item)
+            if not has_depends_key:
+                return plan_error(
+                    "depends_on is required for each subtask.",
+                    "Include depends_on: [] when the task has no dependencies.",
+                    subtaskId=task_id,
+                    subtaskIndex=index,
+                )
             depends_raw = item.get("depends_on") or item.get("dependsOn") or []
             if isinstance(depends_raw, str):
                 depends_on = [depends_raw.strip()] if depends_raw.strip() else []
@@ -86,103 +102,19 @@ def build_delegation_plan(
                 depends_on = [str(dep).strip() for dep in depends_raw if str(dep).strip()]
             else:
                 depends_on = []
-            how = item.get("how")
+            # 'how' used to exist but is not consumed by execution; reject it to avoid ambiguity.
+            if "how" in item:
+                return plan_error(
+                    "Unsupported subtask field: how.",
+                    "Remove 'how'. Dependencies must be expressed via depends_on and explicit combine nodes in 'combines'.",
+                    subtaskId=task_id,
+                    subtaskIndex=index,
+                )
         else:
             continue
 
         if not task_text:
             continue
-
-        normalized_how = None
-        if how is not None:
-            if not depends_on:
-                return plan_error(
-                    "How requires dependencies.",
-                    f"Subtask '{task_id}' how requires depends_on.",
-                )
-
-            normalized_how = []
-            if isinstance(how, str):
-                if len(depends_on) != 1:
-                    return plan_error(
-                        "How must provide one operator per dependency.",
-                        (
-                            f"Subtask '{task_id}' has {len(depends_on)} dependencies "
-                            f"({', '.join(depends_on)}). Provide one operator per dependency."
-                        ),
-                    )
-                op = _op_value(how)
-                if not op:
-                    return plan_error(
-                        "Invalid how operator.",
-                        f"Subtask '{task_id}' how operator must be a valid combine op.",
-                    )
-                normalized_how.append({"depends_on": depends_on[0], "operator": op})
-            elif isinstance(how, list):
-                if len(how) != len(depends_on):
-                    return plan_error(
-                        "How must provide one operator per dependency.",
-                        (
-                            f"Subtask '{task_id}' has {len(depends_on)} dependencies "
-                            f"({', '.join(depends_on)}) but {len(how)} how entries."
-                        ),
-                    )
-                for dep_id, entry in zip(depends_on, how):
-                    op = None
-                    if isinstance(entry, str):
-                        op = _op_value(entry)
-                    elif isinstance(entry, dict):
-                        op = _op_value(entry.get("operator") or entry.get("op") or entry.get("combine"))
-                    if not op:
-                        return plan_error(
-                            "Invalid how operator.",
-                            f"Subtask '{task_id}' how operator must be a valid combine op.",
-                        )
-                    normalized_how.append({"depends_on": dep_id, "operator": op})
-            elif isinstance(how, dict):
-                has_operator_key = any(key in how for key in ("operator", "op", "combine"))
-                if has_operator_key:
-                    if len(depends_on) != 1:
-                        return plan_error(
-                            "How must provide one operator per dependency.",
-                            (
-                                f"Subtask '{task_id}' has {len(depends_on)} dependencies "
-                                f"({', '.join(depends_on)}). Provide one operator per dependency."
-                            ),
-                        )
-                    op = _op_value(how.get("operator") or how.get("op") or how.get("combine"))
-                    if not op:
-                        return plan_error(
-                            "Invalid how operator.",
-                            f"Subtask '{task_id}' how operator must be a valid combine op.",
-                        )
-                    normalized_how.append({"depends_on": depends_on[0], "operator": op})
-                else:
-                    for dep_id in depends_on:
-                        if dep_id not in how:
-                            return plan_error(
-                                "How must provide one operator per dependency.",
-                                (
-                                    f"Subtask '{task_id}' how is missing operator for dependency '{dep_id}'."
-                                ),
-                            )
-                        entry = how.get(dep_id)
-                        op = None
-                        if isinstance(entry, str):
-                            op = _op_value(entry)
-                        elif isinstance(entry, dict):
-                            op = _op_value(entry.get("operator") or entry.get("op") or entry.get("combine"))
-                        if not op:
-                            return plan_error(
-                                "Invalid how operator.",
-                                f"Subtask '{task_id}' how operator must be a valid combine op.",
-                            )
-                        normalized_how.append({"depends_on": dep_id, "operator": op})
-            else:
-                return plan_error(
-                    "Invalid how field.",
-                    f"Subtask '{task_id}' how must be a string, list, or object.",
-                )
 
         if task_id in seen_ids:
             return plan_error(
@@ -191,7 +123,7 @@ def build_delegation_plan(
             )
         seen_ids.add(task_id)
         normalized.append(
-            {"id": task_id, "task": task_text, "depends_on": depends_on, "how": normalized_how}
+            {"id": task_id, "task": task_text, "depends_on": depends_on}
         )
 
     if not normalized:
