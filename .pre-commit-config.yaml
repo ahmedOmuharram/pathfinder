@@ -25,10 +25,38 @@ repos:
         entry: bash -c "cd apps/web && npm run format"
         language: system
         pass_filenames: false
-        types: [javascript, jsx, ts, tsx]
+        files: ^(apps/web/|packages/shared-ts/).*
       - id: eslint-web
         name: eslint (web)
         entry: bash -c "cd apps/web && npm run lint"
         language: system
         pass_filenames: false
-        types: [javascript, jsx, ts, tsx]
+        files: ^(apps/web/|packages/shared-ts/).*
+      - id: typecheck-web
+        name: tsc --noEmit (web)
+        entry: bash -c "cd apps/web && npm run typecheck"
+        language: system
+        pass_filenames: false
+        files: ^(apps/web/|packages/shared-ts/).*
+      - id: build-web
+        name: next build (web)
+        entry: bash -c "cd apps/web && NEXT_PUBLIC_API_URL='http://localhost:8000' npm run build"
+        language: system
+        pass_filenames: false
+        files: ^(apps/web/|packages/shared-ts/).*
+        stages: [pre-push]
+      - id: openapi-check-api
+        name: openapi spec up-to-date (api)
+        entry: bash -c "cd apps/api && uv run python -m veupath_chatbot.devtools.openapi check"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^apps/api/.*
+        stages: [pre-push]
+      - id: shared-ts-openapi
+        name: openapi types up-to-date (shared-ts)
+        entry: bash -c "cd packages/shared-ts && npm run check:openapi"
+        language: system
+        pass_filenames: false
+        files: ^(packages/shared-ts/|apps/api/).*
+        stages: [pre-push]
