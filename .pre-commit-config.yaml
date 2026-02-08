@@ -15,7 +15,7 @@ repos:
         types: [python]
       - id: mypy-api
         name: mypy (api)
-        entry: uv run --project apps/api mypy apps/api/src
+        entry: bash -c "cd apps/api && uv run --project . mypy src"
         language: system
         pass_filenames: false
         types: [python]
