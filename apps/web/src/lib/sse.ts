@@ -1,0 +1,118 @@
+import { buildUrl, getAuthHeaders } from "./api/http";
+
+export type RawSSEEvent = { type: string; data: string };
+
+type StreamSSEArgs = {
+  method?: "GET" | "POST";
+  body?: unknown;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+};
+
+type StreamSSEOptions = {
+  onEvent: (event: RawSSEEvent) => void;
+  onError?: (error: Error) => void;
+  onComplete?: () => void;
+  maxRetries?: number;
+  retryDelay?: number;
+};
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+function parseSSEChunk(buffer: string): { events: RawSSEEvent[]; rest: string } {
+  const events: RawSSEEvent[] = [];
+  // SSE messages are separated by a blank line.
+  const parts = buffer.split(/\r?\n\r?\n/);
+  const rest = parts.pop() ?? "";
+
+  for (const part of parts) {
+    const lines = part.split(/\r?\n/);
+    let type = "message";
+    const dataLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        type = line.slice("event:".length).trim() || type;
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice("data:".length).trimStart());
+      }
+    }
+
+    // Ignore keep-alives that have no data.
+    if (dataLines.length === 0) continue;
+    events.push({ type, data: dataLines.join("\n") });
+  }
+
+  return { events, rest };
+}
+
+async function runOnce(
+  path: string,
+  args: StreamSSEArgs,
+  options: StreamSSEOptions,
+): Promise<void> {
+  const url = buildUrl(path);
+  const hasBody = args.body !== undefined;
+
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(undefined, {
+      accept: "text/event-stream",
+      contentType: hasBody ? "application/json" : undefined,
+    }),
+    ...(args.headers ?? {}),
+  };
+
+  const resp = await fetch(url, {
+    method: args.method ?? "POST",
+    headers,
+    body: hasBody ? JSON.stringify(args.body) : undefined,
+    signal: args.signal,
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`SSE request failed: HTTP ${resp.status} ${resp.statusText}`);
+  }
+  if (!resp.body) {
+    throw new Error("SSE response has no body.");
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = parseSSEChunk(buffer);
+    buffer = parsed.rest;
+    for (const evt of parsed.events) {
+      options.onEvent(evt);
+    }
+  }
+}
+
+export async function streamSSE(
+  path: string,
+  args: StreamSSEArgs,
+  options: StreamSSEOptions,
+): Promise<void> {
+  const maxRetries = options.maxRetries ?? 0;
+  const retryDelay = options.retryDelay ?? 500;
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await runOnce(path, args, options);
+      options.onComplete?.();
+      return;
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      options.onError?.(err);
+      if (attempt >= maxRetries) throw err;
+      await sleep(retryDelay);
+    }
+  }
+}

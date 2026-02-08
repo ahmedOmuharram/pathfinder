@@ -4,5 +4,6 @@ dist
 out
 coverage
 playwright-report
+test-results
 pnpm-lock.yaml
 yarn.lock

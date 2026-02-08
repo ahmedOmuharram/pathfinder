@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from kani import ChatMessage, Kani
+from kani import ChatMessage
 from kani.engines.openai import OpenAIEngine
+
+if TYPE_CHECKING:
+    from veupath_chatbot.ai.stubs.kani import Kani
+else:
+    from kani import Kani
 
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
@@ -23,7 +29,7 @@ def _load_subtask_system_prompt() -> str:
     return prompt_path.read_text()
 
 
-class SubtaskAgent(AgentToolRegistryMixin, Kani):  # type: ignore[misc]
+class SubtaskAgent(AgentToolRegistryMixin, Kani):
     """Sub-kani agent for search discovery and parameter lookup."""
 
     def _combined_result(

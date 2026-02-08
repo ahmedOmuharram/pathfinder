@@ -203,7 +203,11 @@ export type paths = {
          */
         get: operations["get_param_specs_api_v1_sites__siteId__searches__recordType___searchName__param_specs_get"];
         put?: never;
-        post?: never;
+        /**
+         * Get Param Specs With Context
+         * @description Return normalized parameter specs, using contextual WDK vocab when provided.
+         */
+        post: operations["get_param_specs_with_context_api_v1_sites__siteId__searches__recordType___searchName__param_specs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -274,13 +278,15 @@ export type paths = {
             cookie?: never;
         };
         /** Get Plan */
-        get: operations["get_plan_api_v1_plans__plansessionid__get"];
+        get: operations["get_plan_api_v1_plans__planSessionId__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Plan */
+        delete: operations["delete_plan_api_v1_plans__planSessionId__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Plan */
+        patch: operations["update_plan_api_v1_plans__planSessionId__patch"];
         trace?: never;
     };
     "/api/v1/strategies": {
@@ -849,60 +855,6 @@ export type components = {
              */
             strand: string;
         };
-        /** CombinePlanNode */
-        "CombinePlanNode-Input": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "combine";
-            /** Operator */
-            operator: string;
-            /** Left */
-            left: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Input"] | components["schemas"]["TransformPlanNode-Input"];
-            /** Right */
-            right: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Input"] | components["schemas"]["TransformPlanNode-Input"];
-            colocationParams?: components["schemas"]["ColocationParams"] | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** CombinePlanNode */
-        "CombinePlanNode-Output": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "combine";
-            /** Operator */
-            operator: string;
-            /** Left */
-            left: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Output"] | components["schemas"]["TransformPlanNode-Output"];
-            /** Right */
-            right: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Output"] | components["schemas"]["TransformPlanNode-Output"];
-            colocationParams?: components["schemas"]["ColocationParams"] | null;
-        } & {
-            [key: string]: unknown;
-        };
         /**
          * CreateStrategyRequest
          * @description Request to create a strategy.
@@ -921,18 +873,13 @@ export type components = {
         DependentParamsRequest: {
             /** Parametername */
             parameterName: string;
-            /** Contextvalues */
-            contextValues?: {
-                [key: string]: unknown;
-            };
+            contextValues?: components["schemas"]["JSONObject"];
         };
         /**
          * DependentParamsResponse
          * @description Dependent parameter values response.
          */
-        DependentParamsResponse: {
-            [key: string]: unknown;
-        }[];
+        DependentParamsResponse: components["schemas"]["JSONArray"];
         /**
          * DownloadRequest
          * @description Request to download results.
@@ -986,6 +933,12 @@ export type components = {
              */
             timestamp: string;
         };
+        JSONArray: components["schemas"]["JSONValue"][];
+        JSONObject: {
+            [key: string]: components["schemas"]["JSONValue"];
+        };
+        JSONValue: unknown;
+        JsonValue: unknown;
         /** LoginPayload */
         LoginPayload: {
             /** Email */
@@ -1005,11 +958,32 @@ export type components = {
             /** Toolcalls */
             toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
             subKaniActivity?: components["schemas"]["SubKaniActivityResponse"] | null;
+            /** Mode */
+            mode?: ("execute" | "plan") | null;
+            citations?: components["schemas"]["JSONArray"] | null;
+            planningArtifacts?: components["schemas"]["JSONArray"] | null;
             /**
              * Timestamp
              * Format: date-time
              */
             timestamp: string;
+        };
+        /** OpenPlanSessionRequest */
+        OpenPlanSessionRequest: {
+            /** Plansessionid */
+            planSessionId?: string | null;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** OpenPlanSessionResponse */
+        OpenPlanSessionResponse: {
+            /**
+             * Plansessionid
+             * Format: uuid
+             */
+            planSessionId: string;
         };
         /**
          * OpenStrategyRequest
@@ -1050,6 +1024,10 @@ export type components = {
              * @default false
              */
             allowEmptyValue: boolean;
+            /** Allowmultiplevalues */
+            allowMultipleValues?: boolean | null;
+            /** Multipick */
+            multiPick?: boolean | null;
             /** Minselectedcount */
             minSelectedCount?: number | null;
             /** Maxselectedcount */
@@ -1059,8 +1037,14 @@ export type components = {
              * @default false
              */
             countOnlyLeaves: boolean;
-            /** Vocabulary */
-            vocabulary?: unknown | null;
+            vocabulary?: components["schemas"]["JSONValue"] | null;
+        };
+        /**
+         * ParamSpecsRequest
+         * @description Parameter specs request (optionally contextual).
+         */
+        ParamSpecsRequest: {
+            contextValues?: components["schemas"]["JSONObject"];
         };
         /** PlanMetadata */
         PlanMetadata: {
@@ -1073,6 +1057,68 @@ export type components = {
             /** Createdat */
             createdAt?: string | null;
         };
+        /**
+         * PlanNode
+         * @description Untyped recursive plan node (WDK-aligned).
+         *
+         *     Kind is inferred from structure:
+         *     - combine: primaryInput + secondaryInput
+         *     - transform: primaryInput only
+         *     - search: no inputs
+         */
+        "PlanNode-Input": {
+            /** Id */
+            id?: string | null;
+            /** Displayname */
+            displayName?: string | null;
+            /** Filters */
+            filters?: components["schemas"]["StepFilterSpec"][] | null;
+            /** Analyses */
+            analyses?: components["schemas"]["StepAnalysisSpec-Input"][] | null;
+            /** Reports */
+            reports?: components["schemas"]["StepReportSpec-Input"][] | null;
+            /** Searchname */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            primaryInput?: components["schemas"]["PlanNode-Input"] | null;
+            secondaryInput?: components["schemas"]["PlanNode-Input"] | null;
+            /** Operator */
+            operator?: string | null;
+            colocationParams?: components["schemas"]["ColocationParams"] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * PlanNode
+         * @description Untyped recursive plan node (WDK-aligned).
+         *
+         *     Kind is inferred from structure:
+         *     - combine: primaryInput + secondaryInput
+         *     - transform: primaryInput only
+         *     - search: no inputs
+         */
+        "PlanNode-Output": {
+            /** Id */
+            id?: string | null;
+            /** Displayname */
+            displayName?: string | null;
+            /** Filters */
+            filters?: components["schemas"]["StepFilterSpec"][] | null;
+            /** Analyses */
+            analyses?: components["schemas"]["StepAnalysisSpec-Output"][] | null;
+            /** Reports */
+            reports?: components["schemas"]["StepReportSpec-Output"][] | null;
+            /** Searchname */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            primaryInput?: components["schemas"]["PlanNode-Output"] | null;
+            secondaryInput?: components["schemas"]["PlanNode-Output"] | null;
+            /** Operator */
+            operator?: string | null;
+            colocationParams?: components["schemas"]["ColocationParams"] | null;
+        } & {
+            [key: string]: unknown;
+        };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
             /** Siteid */
@@ -1082,10 +1128,55 @@ export type components = {
         /** PlanNormalizeResponse */
         PlanNormalizeResponse: {
             plan: components["schemas"]["StrategyPlan-Output"];
-            /** Warnings */
-            warnings?: {
-                [key: string]: unknown;
-            }[] | null;
+            warnings?: components["schemas"]["JSONArray"] | null;
+        };
+        /** PlanSessionResponse */
+        PlanSessionResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title: string;
+            /** Messages */
+            messages?: components["schemas"]["MessageResponse"][] | null;
+            thinking?: components["schemas"]["ThinkingResponse"] | null;
+            planningArtifacts?: components["schemas"]["JSONArray"] | null;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /** PlanSessionSummaryResponse */
+        PlanSessionSummaryResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /**
          * PreviewRequest
@@ -1112,10 +1203,7 @@ export type components = {
         PreviewResponse: {
             /** Totalcount */
             totalCount: number;
-            /** Records */
-            records: {
-                [key: string]: unknown;
-            }[];
+            records: components["schemas"]["JSONArray"];
             /** Columns */
             columns: string[];
         };
@@ -1146,56 +1234,12 @@ export type components = {
          * @description Search details payload (UI-facing).
          */
         SearchDetailsResponse: {
-            /** Searchdata */
-            searchData?: {
-                [key: string]: unknown;
-            } | null;
-            /** Validation */
-            validation?: {
-                [key: string]: unknown;
-            } | null;
-            /** Searchconfig */
-            searchConfig?: {
-                [key: string]: unknown;
-            } | null;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            }[] | null;
-            /** Parammap */
-            paramMap?: {
-                [key: string]: unknown;
-            } | null;
-            /** Question */
-            question?: {
-                [key: string]: unknown;
-            } | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** SearchPlanNode */
-        SearchPlanNode: {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "search";
-            /** Searchname */
-            searchName: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            };
+            searchData?: components["schemas"]["JSONObject"] | null;
+            validation?: components["schemas"]["JSONObject"] | null;
+            searchConfig?: components["schemas"]["JSONObject"] | null;
+            parameters?: components["schemas"]["JSONArray"] | null;
+            paramMap?: components["schemas"]["JSONObject"] | null;
+            question?: components["schemas"]["JSONObject"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -1226,10 +1270,7 @@ export type components = {
         SearchValidationPayload: {
             /** Isvalid */
             isValid: boolean;
-            /** Normalizedcontextvalues */
-            normalizedContextValues?: {
-                [key: string]: unknown;
-            };
+            normalizedContextValues?: components["schemas"]["JSONObject"];
             errors?: components["schemas"]["SearchValidationErrors"];
         };
         /**
@@ -1237,10 +1278,7 @@ export type components = {
          * @description Search parameter validation request.
          */
         SearchValidationRequest: {
-            /** Contextvalues */
-            contextValues?: {
-                [key: string]: unknown;
-            };
+            contextValues?: components["schemas"]["JSONObject"];
         };
         /**
          * SearchValidationResponse
@@ -1274,10 +1312,7 @@ export type components = {
         StepAnalysisRequest: {
             /** Analysistype */
             analysisType: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            };
+            parameters?: components["schemas"]["JSONObject"];
             /** Customname */
             customName?: string | null;
         };
@@ -1288,10 +1323,7 @@ export type components = {
         StepAnalysisResponse: {
             /** Analysistype */
             analysisType: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            };
+            parameters?: components["schemas"]["JSONObject"];
             /** Customname */
             customName?: string | null;
         };
@@ -1301,19 +1333,21 @@ export type components = {
          */
         StepAnalysisRunResponse: {
             analysis: components["schemas"]["StepAnalysisResponse"];
-            /** Wdk */
-            wdk?: {
-                [key: string]: unknown;
-            } | null;
+            wdk?: components["schemas"]["JSONObject"] | null;
         };
         /** StepAnalysisSpec */
-        StepAnalysisSpec: {
+        "StepAnalysisSpec-Input": {
             /** Analysistype */
             analysisType: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            };
+            parameters?: components["schemas"]["JSONObject"];
+            /** Customname */
+            customName?: string | null;
+        };
+        /** StepAnalysisSpec */
+        "StepAnalysisSpec-Output": {
+            /** Analysistype */
+            analysisType: string;
+            parameters?: components["schemas"]["JSONObject"];
             /** Customname */
             customName?: string | null;
         };
@@ -1341,8 +1375,7 @@ export type components = {
          * @description Request to set or update a step filter.
          */
         StepFilterRequest: {
-            /** Value */
-            value: unknown;
+            value: components["schemas"]["JSONValue"];
             /**
              * Disabled
              * @default false
@@ -1356,8 +1389,7 @@ export type components = {
         StepFilterResponse: {
             /** Name */
             name: string;
-            /** Value */
-            value: unknown;
+            value: components["schemas"]["JSONValue"];
             /**
              * Disabled
              * @default false
@@ -1368,8 +1400,7 @@ export type components = {
         StepFilterSpec: {
             /** Name */
             name: string;
-            /** Value */
-            value: unknown;
+            value: components["schemas"]["JSONValue"];
             /**
              * Disabled
              * @default false
@@ -1394,10 +1425,7 @@ export type components = {
              * @default standard
              */
             reportName: string;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            };
+            config?: components["schemas"]["JSONObject"];
         };
         /**
          * StepReportResponse
@@ -1409,10 +1437,7 @@ export type components = {
              * @default standard
              */
             reportName: string;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            };
+            config?: components["schemas"]["JSONObject"];
         };
         /**
          * StepReportRunResponse
@@ -1420,22 +1445,25 @@ export type components = {
          */
         StepReportRunResponse: {
             report: components["schemas"]["StepReportResponse"];
-            /** Wdk */
-            wdk?: {
-                [key: string]: unknown;
-            } | null;
+            wdk?: components["schemas"]["JSONObject"] | null;
         };
         /** StepReportSpec */
-        StepReportSpec: {
+        "StepReportSpec-Input": {
             /**
              * Reportname
              * @default standard
              */
             reportName: string;
-            /** Config */
-            config?: {
-                [key: string]: unknown;
-            };
+            config?: components["schemas"]["JSONObject"];
+        };
+        /** StepReportSpec */
+        "StepReportSpec-Output": {
+            /**
+             * Reportname
+             * @default standard
+             */
+            reportName: string;
+            config?: components["schemas"]["JSONObject"];
         };
         /**
          * StepResponse
@@ -1444,22 +1472,18 @@ export type components = {
         StepResponse: {
             /** Id */
             id: string;
-            /** Type */
-            type: string;
+            /** Kind */
+            kind?: string | null;
             /** Displayname */
             displayName: string;
             /** Searchname */
             searchName?: string | null;
-            /** Transformname */
-            transformName?: string | null;
             /** Recordtype */
             recordType?: string | null;
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            } | null;
+            parameters?: components["schemas"]["JSONObject"] | null;
             /** Operator */
             operator?: string | null;
+            colocationParams?: components["schemas"]["JSONObject"] | null;
             /** Primaryinputstepid */
             primaryInputStepId?: string | null;
             /** Secondaryinputstepid */
@@ -1479,8 +1503,7 @@ export type components = {
         "StrategyPlan-Input": {
             /** Recordtype */
             recordType: string;
-            /** Root */
-            root: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Input"] | components["schemas"]["TransformPlanNode-Input"];
+            root: components["schemas"]["PlanNode-Input"];
             metadata?: components["schemas"]["PlanMetadata"] | null;
         } & {
             [key: string]: unknown;
@@ -1489,8 +1512,7 @@ export type components = {
         "StrategyPlan-Output": {
             /** Recordtype */
             recordType: string;
-            /** Root */
-            root: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Output"] | components["schemas"]["TransformPlanNode-Output"];
+            root: components["schemas"]["PlanNode-Output"];
             metadata?: components["schemas"]["PlanMetadata"] | null;
         } & {
             [key: string]: unknown;
@@ -1591,6 +1613,8 @@ export type components = {
         ThinkingResponse: {
             /** Toolcalls */
             toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
+            /** Lasttoolcalls */
+            lastToolCalls?: components["schemas"]["ToolCallResponse"][] | null;
             /** Subkanicalls */
             subKaniCalls?: {
                 [key: string]: components["schemas"]["ToolCallResponse"][];
@@ -1603,73 +1627,6 @@ export type components = {
             reasoning?: string | null;
             /** Updatedat */
             updatedAt?: string | null;
-        };
-        /** OpenPlanSessionRequest */
-        OpenPlanSessionRequest: {
-            /** Plansessionid */
-            planSessionId?: string | null;
-            /** Siteid */
-            siteId: string;
-            /** Title */
-            title?: string | null;
-        };
-        /** OpenPlanSessionResponse */
-        OpenPlanSessionResponse: {
-            /**
-             * Plansessionid
-             * Format: uuid
-             */
-            planSessionId: string;
-        };
-        /** PlanSessionSummaryResponse */
-        PlanSessionSummaryResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Siteid */
-            siteId: string;
-            /** Title */
-            title: string;
-            /**
-             * Updatedat
-             * Format: date-time
-             */
-            updatedAt: string;
-            /**
-             * Createdat
-             * Format: date-time
-             */
-            createdAt: string;
-        };
-        /** PlanSessionResponse */
-        PlanSessionResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Siteid */
-            siteId: string;
-            /** Title */
-            title: string;
-            /** Messages */
-            messages?: components["schemas"]["MessageResponse"][] | null;
-            /** Thinking */
-            thinking?: components["schemas"]["ThinkingResponse"] | null;
-            /** Planningartifacts */
-            planningArtifacts?: unknown[] | null;
-            /**
-             * Updatedat
-             * Format: date-time
-             */
-            updatedAt: string;
-            /**
-             * Createdat
-             * Format: date-time
-             */
-            createdAt: string;
         };
         /** TokenPayload */
         TokenPayload: {
@@ -1685,68 +1642,14 @@ export type components = {
             id: string;
             /** Name */
             name: string;
-            /** Arguments */
-            arguments: {
-                [key: string]: unknown;
-            };
+            arguments: components["schemas"]["JSONObject"];
             /** Result */
             result?: string | null;
         };
-        /** TransformPlanNode */
-        "TransformPlanNode-Input": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "transform";
-            /** Transformname */
-            transformName: string;
-            /** Input */
-            input: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Input"] | components["schemas"]["TransformPlanNode-Input"];
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            } | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** TransformPlanNode */
-        "TransformPlanNode-Output": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec"][] | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "transform";
-            /** Transformname */
-            transformName: string;
-            /** Input */
-            input: components["schemas"]["SearchPlanNode"] | components["schemas"]["CombinePlanNode-Output"] | components["schemas"]["TransformPlanNode-Output"];
-            /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            } | null;
-        } & {
-            [key: string]: unknown;
+        /** UpdatePlanSessionRequest */
+        UpdatePlanSessionRequest: {
+            /** Title */
+            title?: string | null;
         };
         /**
          * UpdateStrategyRequest
@@ -2097,6 +2000,43 @@ export interface operations {
             };
         };
     };
+    get_param_specs_with_context_api_v1_sites__siteId__searches__recordType___searchName__param_specs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+                recordType: string;
+                searchName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParamSpecsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamSpecResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_api_v1_chat_post: {
         parameters: {
             query?: never;
@@ -2194,7 +2134,7 @@ export interface operations {
             };
         };
     };
-    get_plan_api_v1_plans__plansessionid__get: {
+    get_plan_api_v1_plans__planSessionId__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2212,6 +2152,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_api_v1_plans__planSessionId__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plan_api_v1_plans__planSessionId__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlanSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSessionSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2722,9 +2730,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["JSONArray"];
                 };
             };
             /** @description Validation Error */
@@ -2826,9 +2832,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["JSONArray"];
                 };
             };
             /** @description Validation Error */
@@ -2861,9 +2865,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["JSONObject"];
                 };
             };
             /** @description Validation Error */
@@ -2895,9 +2897,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["JSONArray"];
                 };
             };
             /** @description Validation Error */

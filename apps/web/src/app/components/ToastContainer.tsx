@@ -11,7 +11,7 @@ export function ToastContainer({ toasts, durationMs, onDismiss }: ToastContainer
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed right-6 top-6 z-50 flex flex-col gap-2">
+    <div className="pointer-events-none fixed right-6 top-6 z-50 flex flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -20,7 +20,7 @@ export function ToastContainer({ toasts, durationMs, onDismiss }: ToastContainer
               "--toast-duration": `${durationMs}ms`,
             } as React.CSSProperties
           }
-          className={`toast-animate relative flex items-start gap-3 overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-lg ${
+          className={`toast-animate pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-lg ${
             toast.type === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-900"
               : toast.type === "warning"

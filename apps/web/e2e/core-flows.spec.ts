@@ -8,8 +8,8 @@ test("execute mode: send message and see streamed response", async ({ page }) =>
   await page.getByTestId("message-input").fill("hello from e2e");
   await page.getByTestId("send-button").click();
 
-  await expect(page.getByText("[mock:execute]")).toBeVisible();
-  await expect(page.getByText("hello from e2e")).toBeVisible();
+  await expect(page.getByText("[mock:execute]", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("hello from e2e", { exact: true }).first()).toBeVisible();
 });
 
 test("execute mode: stop streaming", async ({ page }) => {
@@ -38,7 +38,7 @@ test("plan mode: send message and transition to executor", async ({ page }) => {
   await page.getByTestId("send-button").click();
 
   // We should see a plan-mode response first.
-  await expect(page.getByText("[mock:plan]")).toBeVisible();
+  await expect(page.locator("text=[mock:plan]").first()).toBeVisible();
 
   // Then the UI should switch to executor mode (triggered by executor_build_request).
   await expect(page.getByTestId("mode-toggle-execute")).toHaveAttribute(

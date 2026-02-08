@@ -78,16 +78,15 @@ async def get_plan(
         raise NotFoundError(code=ErrorCode.NOT_FOUND, title="Plan session not found")
     now = datetime.now(UTC)
 
-    # Convert JSONArray to list[MessageResponse]
-    messages: list[MessageResponse] | None = None
-    if isinstance(ps.messages, list) and ps.messages:
-        try:
-            parsed_messages: list[MessageResponse] = []
-            for msg in ps.messages:
-                parsed_messages.append(MessageResponse.model_validate(msg))
-            messages = parsed_messages
-        except Exception:
-            messages = None
+    # Always return a list for messages (empty plan sessions should serialize as []).
+    messages: list[MessageResponse] = []
+    if isinstance(ps.messages, list):
+        for msg in ps.messages:
+            try:
+                messages.append(MessageResponse.model_validate(msg))
+            except Exception:
+                # Tolerate malformed persisted messages rather than 500'ing.
+                continue
 
     # Convert JSONObject to ThinkingResponse
     thinking: ThinkingResponse | None = None

@@ -60,7 +60,7 @@ export type ChatSSEEvent =
     }
   | { type: "strategy_cleared"; data: { graphId?: string } }
   | { type: "error"; data: { error: string } }
-  | { type: "unknown"; data: Record<string, unknown>; rawType: string };
+  | { type: "unknown"; data: Record<string, unknown> | string; rawType: string };
 
 function safeJsonParse(text: string): Record<string, unknown> | string {
   try {
@@ -103,7 +103,7 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
       return {
         type: "unknown",
         rawType: type,
-        data: typeof data === "string" ? { raw: data } : data,
+        data,
       };
   }
 }

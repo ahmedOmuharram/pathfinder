@@ -54,11 +54,66 @@ export function PlanPanel(props: { siteId: string }) {
   const streamingAssistantIndexRef = useRef<number | null>(null);
   const streamingAssistantMessageIdRef = useRef<string | null>(null);
   const lastPlanSessionIdRef = useRef<string | null>(null);
+  const pendingExecutorBuildMessageRef = useRef<string | null>(null);
 
   const clearStrategy = useStrategyStore((s) => s.clear);
   const setStrategy = useStrategyStore((s) => s.setStrategy);
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
   const addStrategy = useStrategyListStore((s) => s.addStrategy);
+
+  const startExecutorBuild = useCallback(
+    (messageText: string) => {
+      // Switch to executor mode and create a new strategy. The executor chat will auto-send
+      // the message once it mounts; do not prefill the composer (leave input empty).
+      setChatMode("execute");
+      openStrategy({ siteId })
+        .then(async (response) => {
+          const nextId = response.strategyId;
+          setStrategyId(nextId);
+          addStrategy({
+            id: nextId,
+            name: "Draft Strategy",
+            title: "Draft Strategy",
+            siteId,
+            recordType: null,
+            stepCount: 0,
+            resultCount: undefined,
+            wdkStrategyId: undefined,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          clearStrategy();
+          try {
+            const full = await getStrategy(nextId);
+            setStrategy(full);
+            setStrategyMeta({
+              name: full.name,
+              recordType: full.recordType ?? undefined,
+              siteId: full.siteId,
+            });
+            window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
+            // Persist a pending send so executor chat can send after it mounts.
+            setPendingExecutorSend({ strategyId: nextId, message: messageText });
+          } catch (error) {
+            setApiError(toUserMessage(error, "Failed to load the new strategy."));
+          }
+        })
+        .catch((error) => {
+          setApiError(toUserMessage(error, "Failed to open a new strategy."));
+        });
+    },
+    [
+      addStrategy,
+      clearStrategy,
+      setApiError,
+      setChatMode,
+      setPendingExecutorSend,
+      setStrategy,
+      setStrategyId,
+      setStrategyMeta,
+      siteId,
+    ],
+  );
 
   const handlePlanError = useCallback(
     (error: unknown, fallback: string) => {
@@ -290,44 +345,9 @@ export function PlanPanel(props: { siteId: string }) {
               : null;
           const messageText = typeof message === "string" ? message : null;
           if (messageText) {
-            // Switch to executor mode and create a new strategy. The executor chat will auto-send
-            // the message once it mounts; do not prefill the composer (leave input empty).
-            setChatMode("execute");
-            openStrategy({ siteId })
-              .then(async (response) => {
-                const nextId = response.strategyId;
-                setStrategyId(nextId);
-                addStrategy({
-                  id: nextId,
-                  name: "Draft Strategy",
-                  title: "Draft Strategy",
-                  siteId,
-                  recordType: null,
-                  stepCount: 0,
-                  resultCount: undefined,
-                  wdkStrategyId: undefined,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                });
-                clearStrategy();
-                try {
-                  const full = await getStrategy(nextId);
-                  setStrategy(full);
-                  setStrategyMeta({
-                    name: full.name,
-                    recordType: full.recordType ?? undefined,
-                    siteId: full.siteId,
-                  });
-                  window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
-                  // Persist a pending send so executor chat can send after it mounts.
-                  setPendingExecutorSend({ strategyId: nextId, message: messageText });
-                } catch (error) {
-                  setApiError(toUserMessage(error, "Failed to load the new strategy."));
-                }
-              })
-              .catch((error) => {
-                setApiError(toUserMessage(error, "Failed to open a new strategy."));
-              });
+            // Defer the UI transition until after the plan stream completes so the user
+            // can see the plan response (and Playwright can assert on it reliably).
+            pendingExecutorBuildMessageRef.current = messageText;
           }
           break;
         }
@@ -365,17 +385,13 @@ export function PlanPanel(props: { siteId: string }) {
       }
     },
     [
-      addStrategy,
-      clearStrategy,
-      setAuthToken,
-      setChatMode,
-      setMessages,
-      setPendingExecutorSend,
       setPlanSessionId,
-      setStrategy,
-      setStrategyId,
-      setStrategyMeta,
-      siteId,
+      setAuthToken,
+      setMessages,
+      setSessionArtifacts,
+      setPlanTitle,
+      setDraftTitle,
+      setApiError,
       updateActiveFromBuffer,
       updateReasoning,
     ],
@@ -415,6 +431,12 @@ export function PlanPanel(props: { siteId: string }) {
             setChatIsStreaming(false);
             abortRef.current = null;
             finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+            const msg = pendingExecutorBuildMessageRef.current;
+            if (msg) {
+              pendingExecutorBuildMessageRef.current = null;
+              // Small delay to ensure plan transcript renders before switching modes.
+              window.setTimeout(() => startExecutorBuild(msg), 1000);
+            }
           },
           onError: (error) => {
             setIsStreaming(false);
@@ -422,6 +444,7 @@ export function PlanPanel(props: { siteId: string }) {
             abortRef.current = null;
             finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             handlePlanError(error, "Unable to reach the API.");
+            pendingExecutorBuildMessageRef.current = null;
           },
         },
         { planSessionId: planSessionId ?? undefined },
@@ -437,6 +460,7 @@ export function PlanPanel(props: { siteId: string }) {
       finalizeToolCalls,
       setChatIsStreaming,
       handlePlanError,
+      startExecutorBuild,
     ],
   );
 

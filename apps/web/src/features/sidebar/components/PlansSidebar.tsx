@@ -24,27 +24,44 @@ export function PlansSidebar(props: {
   const planSessionId = useSessionStore((s) => s.planSessionId);
   const setPlanSessionId = useSessionStore((s) => s.setPlanSessionId);
   const setAuthToken = useSessionStore((s) => s.setAuthToken);
+  const authToken = useSessionStore((s) => s.authToken);
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
 
   const [items, setItems] = useState<PlanSessionSummary[]>([]);
   const [query, setQuery] = useState("");
 
-  const reportError = (message: string) => {
-    onToast?.({ type: "error", message });
-  };
+  const reportError = useCallback(
+    (message: string) => {
+      onToast?.({ type: "error", message });
+    },
+    [onToast],
+  );
 
-  const handlePlanError = (error: unknown, fallback: string) => {
-    if (error instanceof APIError && error.status === 401) {
-      setAuthToken(null);
-      setPlanSessionId(null);
-      setItems([]);
-      reportError("Session expired. Refresh to start a new plan.");
-      return;
-    }
-    reportError(toUserMessage(error, fallback));
-  };
+  const handlePlanError = useCallback(
+    (error: unknown, fallback: string) => {
+      if (error instanceof APIError && error.status === 401) {
+        // If we don't have a token yet, treat 401 as "not signed in" rather than "expired".
+        // (E2E runs and first-time visitors should not get a blocking error toast.)
+        if (!authToken) {
+          setItems([]);
+          return;
+        }
+        setAuthToken(null);
+        setPlanSessionId(null);
+        setItems([]);
+        reportError("Session expired. Refresh to start a new plan.");
+        return;
+      }
+      reportError(toUserMessage(error, fallback));
+    },
+    [authToken, reportError, setAuthToken, setPlanSessionId],
+  );
 
   const refresh = useCallback(async () => {
+    if (!authToken) {
+      setItems([]);
+      return;
+    }
     try {
       const sessions = await listPlans(siteId);
       setItems(sessions);
@@ -52,7 +69,7 @@ export function PlansSidebar(props: {
       setItems([]);
       handlePlanError(error, "Failed to load plans.");
     }
-  }, [handlePlanError, siteId]);
+  }, [authToken, handlePlanError, siteId]);
 
   useEffect(() => {
     void refresh();
@@ -82,6 +99,7 @@ export function PlansSidebar(props: {
   }, [visibleItems, query]);
 
   const ensureActivePlan = useCallback(async () => {
+    if (!authToken) return;
     if (planSessionId) return;
     // On refresh, don't create a new plan session; reuse the most recent if it exists.
     const existing = await listPlans(siteId).catch((error) => {
@@ -100,7 +118,7 @@ export function PlansSidebar(props: {
     } catch (error) {
       handlePlanError(error, "Failed to open a new plan.");
     }
-  }, [handlePlanError, planSessionId, refresh, setPlanSessionId, siteId]);
+  }, [authToken, handlePlanError, planSessionId, refresh, setPlanSessionId, siteId]);
 
   useEffect(() => {
     void ensureActivePlan();

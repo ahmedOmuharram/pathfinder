@@ -1,11 +1,16 @@
 """Kani agent runtime (class + subkani orchestration)."""
 
 import asyncio
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
-from kani import AIParam, ChatMessage, Kani, ai_function
+from kani import AIParam, ChatMessage, ai_function
 from kani.engines.base import BaseEngine
+
+if TYPE_CHECKING:
+    from veupath_chatbot.ai.stubs.kani import Kani
+else:
+    from kani import Kani
 
 from veupath_chatbot.ai.strategy_session_factory import build_strategy_session
 from veupath_chatbot.ai.subkani.orchestrator import (
@@ -25,7 +30,7 @@ from veupath_chatbot.platform.types import JSONObject
 logger = get_logger(__name__)
 
 
-class PathfinderAgent(AgentToolRegistryMixin, Kani):  # type: ignore[misc]
+class PathfinderAgent(AgentToolRegistryMixin, Kani):
     """VEuPathDB Strategy Builder Agent with Kani tools."""
 
     def __init__(

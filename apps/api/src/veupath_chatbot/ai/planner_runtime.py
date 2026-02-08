@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from kani import ChatMessage, Kani
+from kani import ChatMessage
 from kani.engines.base import BaseEngine
+
+if TYPE_CHECKING:
+    from veupath_chatbot.ai.stubs.kani import Kani
+else:
+    from kani import Kani
 
 from veupath_chatbot.ai.planner_prompt import build_planner_system_prompt
 from veupath_chatbot.ai.strategy_session_factory import build_strategy_session
@@ -22,7 +28,7 @@ from veupath_chatbot.services.research import (
 )
 
 
-class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):  # type: ignore[misc]
+class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
     """Planner agent: cooperative strategy planning (no graph mutation by default)."""
 
     def __init__(

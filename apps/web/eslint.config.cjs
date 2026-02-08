@@ -7,7 +7,7 @@ const compat = new FlatCompat({
 
 module.exports = defineConfig([
   {
-    ignores: [".next/**", "node_modules/**"],
+    ignores: [".next/**", "node_modules/**", "playwright-report/**", "test-results/**"],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
