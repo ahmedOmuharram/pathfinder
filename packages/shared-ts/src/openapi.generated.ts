@@ -232,6 +232,57 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plans */
+        get: operations["list_plans_api_v1_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open Plan */
+        post: operations["open_plan_api_v1_plans_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planSessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_api_v1_plans__plansessionid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/strategies": {
         parameters: {
             query?: never;
@@ -773,6 +824,8 @@ export type components = {
         ChatRequest: {
             /** Strategyid */
             strategyId?: string | null;
+            /** Plansessionid */
+            planSessionId?: string | null;
             /** Siteid */
             siteId: string;
             /** Message */
@@ -1546,8 +1599,77 @@ export type components = {
             subKaniStatus?: {
                 [key: string]: string;
             } | null;
+            /** Reasoning */
+            reasoning?: string | null;
             /** Updatedat */
             updatedAt?: string | null;
+        };
+        /** OpenPlanSessionRequest */
+        OpenPlanSessionRequest: {
+            /** Plansessionid */
+            planSessionId?: string | null;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** OpenPlanSessionResponse */
+        OpenPlanSessionResponse: {
+            /**
+             * Plansessionid
+             * Format: uuid
+             */
+            planSessionId: string;
+        };
+        /** PlanSessionSummaryResponse */
+        PlanSessionSummaryResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title: string;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /** PlanSessionResponse */
+        PlanSessionResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Siteid */
+            siteId: string;
+            /** Title */
+            title: string;
+            /** Messages */
+            messages?: components["schemas"]["MessageResponse"][] | null;
+            /** Thinking */
+            thinking?: components["schemas"]["ThinkingResponse"] | null;
+            /** Planningartifacts */
+            planningArtifacts?: unknown[] | null;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /** TokenPayload */
         TokenPayload: {
@@ -1995,6 +2117,101 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_plans_api_v1_plans_get: {
+        parameters: {
+            query?: {
+                siteId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSessionSummaryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_plan_api_v1_plans_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlanSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenPlanSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_api_v1_plans__plansessionid__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanSessionResponse"];
                 };
             };
             /** @description Validation Error */
