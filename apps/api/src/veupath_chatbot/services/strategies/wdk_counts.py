@@ -13,8 +13,6 @@ from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
-from .wdk_snapshot import _extract_result_count
-
 logger = get_logger(__name__)
 
 _STEP_COUNTS_CACHE: "OrderedDict[str, dict[str, int | None]]" = OrderedDict()
@@ -47,47 +45,49 @@ async def compute_step_counts_for_plan(
         resolve_record_type=True,
     )
 
-    counts: dict[str, int | None] = {step.local_id: None for step in result.steps}
+    # WDK step reports (used for counts) require that the step be part of a strategy.
+    # The compiler creates steps + a stepTree, but does not persist a WDK strategy.
+    # Create a temporary (unsaved) WDK strategy so counts can be computed, then delete it.
     temp_strategy_id: int | None = None
     try:
-        temp_strategy = await api.create_strategy(
+        created = await api.create_strategy(
             step_tree=result.step_tree,
             name="Pathfinder step counts",
             description=None,
-            is_public=False,
-            is_saved=False,
+            is_internal=True,
         )
-        temp_strategy_id = temp_strategy.get("strategyId") or temp_strategy.get("id")
-        if temp_strategy_id is not None:
-            strategy_payload = await api.get_strategy(temp_strategy_id)
-            steps_payload = strategy_payload.get("steps") or {}
-            for step in result.steps:
-                step_info = steps_payload.get(str(step.wdk_step_id)) or steps_payload.get(
-                    step.wdk_step_id
-                )
-                if isinstance(step_info, dict):
-                    extracted = _extract_result_count(step_info)
-                else:
-                    extracted = None
-                counts[step.local_id] = extracted if isinstance(extracted, int) else None
-    except Exception as exc:
-        logger.warning("WDK temp strategy failed", error=str(exc))
+        raw_id = (
+            (created or {}).get("id")
+            or (created or {}).get("strategyId")
+            or (created or {}).get("strategy_id")
+        )
+        if raw_id is not None:
+            try:
+                temp_strategy_id = int(raw_id)
+            except (TypeError, ValueError):
+                temp_strategy_id = None
+    except Exception:
+        # Best-effort: if we can't create a strategy, counts will likely remain unknown.
+        temp_strategy_id = None
 
-    missing = [step for step in result.steps if counts.get(step.local_id) is None]
-    if missing:
+    counts: dict[str, int | None] = {step.local_id: None for step in result.steps}
 
-        async def fetch_count(step_id: int) -> int | None:
+    semaphore = asyncio.Semaphore(8)
+
+    async def fetch_count(step_id: int) -> int | None:
+        async with semaphore:
             try:
                 return await api.get_step_count(step_id)
             except Exception:
                 return None
 
-        tasks = [fetch_count(step.wdk_step_id) for step in missing]
-        counts_raw = await asyncio.gather(*tasks, return_exceptions=False)
-        for step, count in zip(missing, counts_raw):
-            if isinstance(count, int):
-                counts[step.local_id] = count
+    tasks = [fetch_count(step.wdk_step_id) for step in result.steps]
+    counts_raw = await asyncio.gather(*tasks, return_exceptions=False)
+    for step, count in zip(result.steps, counts_raw):
+        if isinstance(count, int):
+            counts[step.local_id] = count
 
+    # Best-effort cleanup (avoid polluting the user's WDK account).
     if temp_strategy_id is not None:
         try:
             await api.delete_strategy(temp_strategy_id)

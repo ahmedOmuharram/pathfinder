@@ -777,6 +777,12 @@ export type components = {
             siteId: string;
             /** Message */
             message: string;
+            /**
+             * Mode
+             * @default execute
+             * @enum {string}
+             */
+            mode: "execute" | "plan";
         };
         /** ColocationParams */
         ColocationParams: {

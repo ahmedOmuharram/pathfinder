@@ -66,57 +66,76 @@ export function buildStrategyFromGraphSnapshot(args: {
   siteId: string;
   graphSnapshot: GraphSnapshotInput;
   stepsById: Record<string, StrategyStep | undefined>;
+  existingStrategy?: StrategyWithMeta | null;
 }): StrategyWithMeta {
-  const { snapshotId, siteId, graphSnapshot, stepsById } = args;
-  const snapshotSteps = Array.isArray(graphSnapshot.steps) ? graphSnapshot.steps : [];
+  const { snapshotId, siteId, graphSnapshot, stepsById, existingStrategy = null } = args;
+  const hasStepsField = "steps" in (graphSnapshot as Record<string, unknown>);
+  const snapshotSteps = Array.isArray(graphSnapshot.steps) ? graphSnapshot.steps : null;
 
   const steps: StrategyStep[] = snapshotSteps
-    .filter((step): step is GraphSnapshotStepInput => !!step && typeof step.id === "string")
-    .map((step) => {
-      const existing = stepsById[step.id];
-      const incomingName = step.displayName || step.kind || step.type;
-      const existingName = existing?.displayName;
-      const keepExisting =
-        !!existingName &&
-        (!incomingName ||
-          !isFallbackDisplayName(existingName, existing) ||
-          isFallbackDisplayName(incomingName, step));
-      const resolvedName =
-        (keepExisting ? existingName : incomingName) ||
-        step.searchName ||
-        step.kind ||
-        step.type ||
-        step.id;
-      const resolvedRecordType = step.recordType ?? existing?.recordType;
-      const inputs = toStringArray(step.inputStepIds);
-      const primaryInputStepId =
-        step.primaryInputStepId ?? inputs[0] ?? undefined;
-      const secondaryInputStepId =
-        step.secondaryInputStepId ?? inputs[1] ?? undefined;
+    ? snapshotSteps
+        .filter((step): step is GraphSnapshotStepInput => !!step && typeof step.id === "string")
+        .map((step) => {
+          const existing = stepsById[step.id];
+          const incomingName = step.displayName || step.kind || step.type;
+          const existingName = existing?.displayName;
+          const keepExisting =
+            !!existingName &&
+            (!incomingName ||
+              !isFallbackDisplayName(existingName, existing) ||
+              isFallbackDisplayName(incomingName, step));
+          const resolvedName =
+            (keepExisting ? existingName : incomingName) ||
+            step.searchName ||
+            step.kind ||
+            step.type ||
+            step.id;
+          const resolvedRecordType = step.recordType ?? existing?.recordType;
+          const inputs = toStringArray(step.inputStepIds);
+          const primaryInputStepId = step.primaryInputStepId ?? inputs[0] ?? undefined;
+          const secondaryInputStepId = step.secondaryInputStepId ?? inputs[1] ?? undefined;
 
-      return {
-        id: step.id,
-        kind: (step.kind ?? step.type) as StrategyStep["kind"],
-        displayName: resolvedName,
-        recordType: resolvedRecordType ?? undefined,
-        searchName: step.searchName,
-        operator: (step.operator as StrategyStep["operator"]) ?? undefined,
-        parameters: step.parameters,
-        primaryInputStepId,
-        secondaryInputStepId,
-      };
-    });
+          return {
+            id: step.id,
+            kind: (step.kind ?? step.type) as StrategyStep["kind"],
+            displayName: resolvedName,
+            recordType: resolvedRecordType ?? undefined,
+            searchName: step.searchName,
+            operator: (step.operator as StrategyStep["operator"]) ?? undefined,
+            parameters: step.parameters,
+            primaryInputStepId,
+            secondaryInputStepId,
+          };
+        })
+    : // If the snapshot omitted `steps` entirely, treat this as a metadata-only update
+      // and keep the current graph steps instead of wiping the UI.
+      hasStepsField
+      ? []
+      : Object.values(stepsById).filter((s): s is StrategyStep => !!s);
 
   const now = new Date().toISOString();
   return {
     id: snapshotId,
-    name: graphSnapshot.name || graphSnapshot.graphName || "Draft Strategy",
+    name:
+      graphSnapshot.name ||
+      graphSnapshot.graphName ||
+      existingStrategy?.name ||
+      "Draft Strategy",
     siteId,
-    recordType: graphSnapshot.recordType ?? null,
+    recordType:
+      graphSnapshot.recordType !== undefined
+        ? graphSnapshot.recordType ?? null
+        : (existingStrategy?.recordType ?? null),
     steps,
-    rootStepId: graphSnapshot.rootStepId ?? null,
-    description: graphSnapshot.description ?? undefined,
-    createdAt: now,
+    rootStepId:
+      graphSnapshot.rootStepId !== undefined
+        ? graphSnapshot.rootStepId ?? null
+        : (existingStrategy?.rootStepId ?? null),
+    description:
+      graphSnapshot.description !== undefined
+        ? graphSnapshot.description ?? undefined
+        : existingStrategy?.description,
+    createdAt: existingStrategy?.createdAt || now,
     updatedAt: now,
   };
 }

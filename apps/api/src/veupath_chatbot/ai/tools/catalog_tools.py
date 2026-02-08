@@ -54,11 +54,8 @@ class CatalogTools:
     async def search_for_searches(
         self,
         site_id: Annotated[str, AIParam(desc="Site ID")],
-        record_type: Annotated[
-            str | list[str] | None,
-            AIParam(desc="Record type(s) to search (optional)"),
-        ],
         query: Annotated[str, AIParam(desc="Search term to find relevant searches")],
     ) -> list[dict[str, str]]:
-        return await catalog.search_for_searches(site_id, record_type, query)
+        # Search broadly across record types for better recall.
+        return await catalog.search_for_searches(site_id, record_type=None, query=query)
 

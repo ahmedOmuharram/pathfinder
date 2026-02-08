@@ -21,10 +21,11 @@ from .events import (
     GRAPH_PLAN,
     GRAPH_SNAPSHOT,
     STRATEGY_LINK,
+    STRATEGY_META,
 )
 from .sse import sse_event, sse_error, sse_message_start
 from .thinking import build_thinking_payload, normalize_subkani_activity, normalize_tool_calls
-from .utils import parse_uuid
+from .utils import parse_uuid, sanitize_markdown
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,7 @@ class ChatStreamProcessor:
         strategy: Strategy,
         auth_token: str,
         strategy_payload: dict[str, Any],
+        mode: str = "execute",
     ) -> None:
         self.strategy_repo = strategy_repo
         self.site_id = site_id
@@ -48,8 +50,11 @@ class ChatStreamProcessor:
         self.strategy = strategy
         self.auth_token = auth_token
         self.strategy_payload = strategy_payload
+        self.mode = mode
 
         self.assistant_messages: list[str] = []
+        self.citations: list[dict[str, Any]] = []
+        self.planning_artifacts: list[dict[str, Any]] = []
         self.tool_calls: list[dict[str, Any]] = []
         self.tool_calls_by_id: dict[str, dict[str, Any]] = {}
         self.subkani_calls: dict[str, list[dict[str, Any]]] = {}
@@ -85,9 +90,9 @@ class ChatStreamProcessor:
 
     def start_event(self) -> str:
         return sse_message_start(
+            auth_token=self.auth_token,
             strategy_id=str(self.strategy.id),
             strategy=self.strategy_payload,
-            auth_token=self.auth_token,
         )
 
     async def on_event(self, event_type: str, event_data: dict[str, Any]) -> str | None:
@@ -96,9 +101,22 @@ class ChatStreamProcessor:
             return None
 
         if event_type == "assistant_message":
-            content = event_data.get("content", "")
+            content = sanitize_markdown(event_data.get("content", "") or "")
+            event_data["content"] = content
             if content:
                 self.assistant_messages.append(content)
+
+        elif event_type == "citations":
+            citations = event_data.get("citations")
+            if isinstance(citations, list):
+                for c in citations:
+                    if isinstance(c, dict):
+                        self.citations.append(c)
+
+        elif event_type == "planning_artifact":
+            artifact = event_data.get("planningArtifact")
+            if isinstance(artifact, dict):
+                self.planning_artifacts.append(artifact)
 
         elif event_type == GRAPH_SNAPSHOT:
             snapshot = event_data.get("graphSnapshot")
@@ -108,6 +126,34 @@ class ChatStreamProcessor:
                     snapshot["graphId"] = graph_id
                     event_data["graphSnapshot"] = snapshot
                     self.latest_graph_snapshots[str(graph_id)] = snapshot
+                    # Persist immediately so model-added steps are never "unsaved".
+                    graph_uuid = parse_uuid(graph_id)
+                    if graph_uuid:
+                        steps_data = build_steps_data_from_graph_snapshot(snapshot)
+                        root_step_id = snapshot.get("rootStepId") or None
+                        name = snapshot.get("name") or snapshot.get("graphName")
+                        record_type = snapshot.get("recordType")
+                        updated = await self.strategy_repo.update(
+                            strategy_id=graph_uuid,
+                            name=name,
+                            title=name,
+                            record_type=record_type,
+                            steps=steps_data,
+                            root_step_id=root_step_id,
+                            root_step_id_set=True,
+                        )
+                        if not updated:
+                            await self.strategy_repo.create(
+                                user_id=self.user_id,
+                                name=name or "Draft Strategy",
+                                title=name or "Draft Strategy",
+                                site_id=self.site_id,
+                                record_type=record_type,
+                                plan={},
+                                steps=steps_data,
+                                root_step_id=root_step_id,
+                                strategy_id=graph_uuid,
+                            )
 
         elif event_type == GRAPH_PLAN:
             graph_id = self.resolve_graph_id(event_data.get("graphId"))
@@ -118,6 +164,17 @@ class ChatStreamProcessor:
                     "recordType": event_data.get("recordType"),
                     "description": event_data.get("description"),
                 }
+
+        elif event_type == STRATEGY_META:
+            graph_id = self.resolve_graph_id(event_data.get("graphId"))
+            graph_uuid = parse_uuid(graph_id)
+            if graph_uuid:
+                await self.strategy_repo.update(
+                    strategy_id=graph_uuid,
+                    name=event_data.get("name") or event_data.get("graphName"),
+                    title=event_data.get("name") or event_data.get("graphName"),
+                    record_type=event_data.get("recordType"),
+                )
 
         elif event_type == GRAPH_CLEARED:
             graph_id = self.resolve_graph_id(event_data.get("graphId"))
@@ -259,8 +316,14 @@ class ChatStreamProcessor:
                 "content": content,
                 "toolCalls": tool_calls_payload,
                 "subKaniActivity": subkani_payload,
+                "mode": self.mode,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
+            if index == len(self.assistant_messages) - 1:
+                if self.citations:
+                    assistant_message["citations"] = self.citations
+                if self.planning_artifacts:
+                    assistant_message["planningArtifacts"] = self.planning_artifacts
             await self.strategy_repo.add_message(self.strategy.id, assistant_message)
 
         if self.latest_plans:
@@ -300,26 +363,54 @@ class ChatStreamProcessor:
                     else:
                         root_step_id = None
 
-                    strategy_ast = from_dict(latest_plan)
-                    canonical_plan = strategy_ast.to_dict()
+                    # Try plan persistence first; if the plan can't be parsed/validated yet,
+                    # fall back to snapshot-derived steps persistence so refresh won't lose the graph.
+                    try:
+                        strategy_ast = from_dict(latest_plan)
+                        canonical_plan = strategy_ast.to_dict()
+                    except Exception:
+                        canonical_plan = None
 
-                    updated = await self.strategy_repo.update(
-                        strategy_id=graph_uuid,
-                        name=latest_name,
-                        title=latest_name,
-                        plan=canonical_plan,
-                        record_type=latest_record_type,
-                    )
-                    if not updated:
-                        await self.strategy_repo.create(
-                            user_id=self.user_id,
+                    if canonical_plan is not None:
+                        updated = await self.strategy_repo.update(
+                            strategy_id=graph_uuid,
                             name=latest_name,
                             title=latest_name,
-                            site_id=self.site_id,
-                            record_type=latest_record_type,
                             plan=canonical_plan,
-                            strategy_id=graph_uuid,
+                            record_type=latest_record_type,
                         )
+                        if not updated:
+                            await self.strategy_repo.create(
+                                user_id=self.user_id,
+                                name=latest_name,
+                                title=latest_name,
+                                site_id=self.site_id,
+                                record_type=latest_record_type,
+                                plan=canonical_plan,
+                                strategy_id=graph_uuid,
+                            )
+                    else:
+                        updated = await self.strategy_repo.update(
+                            strategy_id=graph_uuid,
+                            name=latest_name,
+                            title=latest_name,
+                            record_type=latest_record_type,
+                            steps=steps_data,
+                            root_step_id=root_step_id,
+                            root_step_id_set=True,
+                        )
+                        if not updated:
+                            await self.strategy_repo.create(
+                                user_id=self.user_id,
+                                name=latest_name,
+                                title=latest_name,
+                                site_id=self.site_id,
+                                record_type=latest_record_type,
+                                plan={},
+                                steps=steps_data,
+                                root_step_id=root_step_id,
+                                strategy_id=graph_uuid,
+                            )
                     if graph_uuid == self.strategy.id:
                         await self.strategy_repo.update(
                             strategy_id=self.strategy.id,
@@ -359,6 +450,9 @@ class ChatStreamProcessor:
                     name=name,
                     title=name,
                     record_type=record_type,
+                    steps=steps_data,
+                    root_step_id=root_step_id,
+                    root_step_id_set=True,
                 )
                 if not updated:
                     await self.strategy_repo.create(
@@ -368,6 +462,8 @@ class ChatStreamProcessor:
                         site_id=self.site_id,
                         record_type=record_type,
                         plan={},
+                        steps=steps_data,
+                        root_step_id=root_step_id,
                         strategy_id=graph_uuid,
                     )
                 if graph_uuid == self.strategy.id:

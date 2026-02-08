@@ -3,8 +3,10 @@ import type { ToolCall } from "@pathfinder/shared";
 
 export type ThinkingPayload = {
   toolCalls?: ToolCall[];
+  lastToolCalls?: ToolCall[];
   subKaniCalls?: Record<string, ToolCall[]>;
   subKaniStatus?: Record<string, string>;
+  reasoning?: string;
   updatedAt?: string;
 };
 
@@ -13,6 +15,7 @@ export function useThinkingState() {
   const [lastToolCalls, setLastToolCalls] = useState<ToolCall[]>([]);
   const [subKaniCalls, setSubKaniCalls] = useState<Record<string, ToolCall[]>>({});
   const [subKaniStatus, setSubKaniStatus] = useState<Record<string, string>>({});
+  const [reasoning, setReasoning] = useState<string | null>(null);
 
   const subKaniCallsRef = useRef<Record<string, ToolCall[]>>({});
   const subKaniStatusRef = useRef<Record<string, string>>({});
@@ -30,6 +33,7 @@ export function useThinkingState() {
     setLastToolCalls([]);
     setSubKaniCalls({});
     setSubKaniStatus({});
+    setReasoning(null);
   }, []);
 
   const applyThinkingPayload = useCallback((payload: ThinkingPayload | null): boolean => {
@@ -37,10 +41,24 @@ export function useThinkingState() {
     const updatedAt = payload.updatedAt ? new Date(payload.updatedAt).getTime() : 0;
     const isStale = !updatedAt || Date.now() - updatedAt > 10 * 60 * 1000;
     if (isStale) return false;
-    setActiveToolCalls(payload.toolCalls || []);
+    const toolCalls = payload.toolCalls || [];
+    setActiveToolCalls(toolCalls);
+    setLastToolCalls(payload.lastToolCalls || []);
     setSubKaniCalls(payload.subKaniCalls || {});
     setSubKaniStatus(payload.subKaniStatus || {});
-    return true;
+    setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
+
+    const anyActiveTool = toolCalls.some(
+      (c) => c && (c.result === undefined || c.result === null),
+    );
+    const anySubKaniRunning = Object.values(payload.subKaniStatus || {}).some(
+      (s) => s === "running",
+    );
+    return anyActiveTool || anySubKaniRunning;
+  }, []);
+
+  const updateReasoning = useCallback((text: string | null) => {
+    setReasoning(text);
   }, []);
 
   const updateActiveFromBuffer = useCallback((toolCalls: ToolCall[]) => {
@@ -96,11 +114,13 @@ export function useThinkingState() {
     lastToolCalls,
     subKaniCalls,
     subKaniStatus,
+    reasoning,
     subKaniActivity,
     reset,
     applyThinkingPayload,
     updateActiveFromBuffer,
     finalizeToolCalls,
+    updateReasoning,
     subKaniTaskStart,
     subKaniToolCallStart,
     subKaniToolCallEnd,

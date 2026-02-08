@@ -352,6 +352,95 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - APIKeyCookie: []
+  /api/v1/plans:
+    get:
+      tags:
+      - plans
+      summary: List Plans
+      operationId: list_plans_api_v1_plans_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanSessionSummaryResponse'
+                title: Response List Plans Api V1 Plans Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/plans/open:
+    post:
+      tags:
+      - plans
+      summary: Open Plan
+      operationId: open_plan_api_v1_plans_open_post
+      security:
+      - APIKeyCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlanSessionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenPlanSessionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/plans/{planSessionId}:
+    get:
+      tags:
+      - plans
+      summary: Get Plan
+      operationId: get_plan_api_v1_plans__plansessionid__get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: planSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Plansessionid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSessionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/strategies:
     get:
       tags:
@@ -1360,6 +1449,12 @@ components:
             format: uuid
           - type: 'null'
           title: Strategyid
+        planSessionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Plansessionid
         siteId:
           type: string
           title: Siteid
@@ -1368,6 +1463,13 @@ components:
           maxLength: 10000
           minLength: 1
           title: Message
+        mode:
+          type: string
+          enum:
+          - execute
+          - plan
+          default: execute
+          title: Mode
       type: object
       required:
       - siteId
@@ -2616,6 +2718,11 @@ components:
             type: object
           - type: 'null'
           title: Subkanistatus
+        reasoning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reasoning
         updatedAt:
           anyOf:
           - type: string
@@ -2625,6 +2732,110 @@ components:
       type: object
       title: ThinkingResponse
       description: In-progress tool call state.
+    OpenPlanSessionRequest:
+      properties:
+        planSessionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Plansessionid
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      type: object
+      required:
+      - siteId
+      title: OpenPlanSessionRequest
+    OpenPlanSessionResponse:
+      properties:
+        planSessionId:
+          type: string
+          format: uuid
+          title: Plansessionid
+      type: object
+      required:
+      - planSessionId
+      title: OpenPlanSessionResponse
+    PlanSessionSummaryResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          type: string
+          title: Title
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+      type: object
+      required:
+      - id
+      - siteId
+      - title
+      - updatedAt
+      - createdAt
+      title: PlanSessionSummaryResponse
+    PlanSessionResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          type: string
+          title: Title
+        messages:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MessageResponse'
+            type: array
+          - type: 'null'
+          title: Messages
+        thinking:
+          anyOf:
+          - $ref: '#/components/schemas/ThinkingResponse'
+          - type: 'null'
+          title: Thinking
+        planningArtifacts:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Planningartifacts
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+      type: object
+      required:
+      - id
+      - siteId
+      - title
+      - updatedAt
+      - createdAt
+      title: PlanSessionResponse
     TokenPayload:
       properties:
         token:

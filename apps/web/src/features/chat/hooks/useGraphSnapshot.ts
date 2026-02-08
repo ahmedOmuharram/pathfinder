@@ -50,6 +50,7 @@ export function useGraphSnapshot({
         siteId,
         graphSnapshot,
         stepsById,
+        existingStrategy: snapshot,
       });
       setStrategy(nextStrategy);
       setStrategyMeta({

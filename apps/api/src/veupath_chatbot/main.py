@@ -18,6 +18,7 @@ from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.transport.http.routers import (
     chat,
     health,
+    plans,
     results,
     sites,
     steps,
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(sites.router)
     app.include_router(chat.router)
+    app.include_router(plans.router)
     app.include_router(strategies.router)
     app.include_router(steps.router)
     app.include_router(results.router)

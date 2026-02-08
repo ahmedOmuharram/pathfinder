@@ -231,6 +231,8 @@ class StrategySummary(BaseModel):
 # Chat Types
 # ============================================================================
 
+ChatMode = Literal["execute", "plan"]
+
 
 class ToolCall(BaseModel):
     """A tool call made by the assistant."""
@@ -247,6 +249,11 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     tool_calls: list[ToolCall] | None = Field(default=None, alias="toolCalls")
+    mode: ChatMode | None = None
+    citations: list[dict[str, Any]] | None = None
+    planning_artifacts: list[dict[str, Any]] | None = Field(
+        default=None, alias="planningArtifacts"
+    )
     timestamp: datetime
 
     model_config = {"populate_by_name": True}
@@ -272,6 +279,7 @@ class ChatRequest(BaseModel):
     conversation_id: UUID | None = Field(default=None, alias="conversationId")
     site_id: str = Field(alias="siteId")
     message: str = Field(min_length=1, max_length=10000)
+    mode: ChatMode = Field(default="execute")
 
     model_config = {"populate_by_name": True}
 

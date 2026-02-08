@@ -15,7 +15,11 @@ from .step_builders import build_steps_data_from_ast
 
 def build_steps_data_from_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Build persisted steps list from a plan dict (AST payload)."""
-    ast = from_dict(plan)
+    try:
+        ast = from_dict(plan)
+    except Exception:
+        # Treat empty/invalid plans as “no steps” for read paths.
+        return []
     return build_steps_data_from_ast(ast, search_name_fallback_to_transform=True)
 
 

@@ -15,6 +15,7 @@ type UseParamSpecsArgs = {
   apiRecordTypeValue: string | null | undefined;
   resolveRecordTypeForSearch: (searchRecordType?: string | null) => string;
   contextValues?: Record<string, unknown>;
+  enabled?: boolean;
 };
 
 export function useParamSpecs({
@@ -26,12 +27,18 @@ export function useParamSpecs({
   apiRecordTypeValue,
   resolveRecordTypeForSearch,
   contextValues,
+  enabled = true,
 }: UseParamSpecsArgs) {
   const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let isActive = true;
+    if (!enabled) {
+      setParamSpecs([]);
+      setIsLoading(false);
+      return;
+    }
     const preferredRecordType =
       resolveRecordTypeForSearch(selectedSearch?.recordType) ||
       apiRecordTypeValue ||
@@ -74,6 +81,7 @@ export function useParamSpecs({
       window.clearTimeout(timeout);
     };
   }, [
+    enabled,
     siteId,
     recordType,
     searchName,

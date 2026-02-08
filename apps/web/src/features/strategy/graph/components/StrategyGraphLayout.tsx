@@ -1,6 +1,7 @@
 import React from "react";
 import ReactFlow, {
   Background,
+  ConnectionMode,
   Controls,
   Edge,
   EdgeChange,
@@ -34,14 +35,20 @@ interface StrategyGraphLayoutProps {
   onRelayout: () => void;
   onAddSelectionToChat: () => void;
   canAddSelectionToChat: boolean;
+  selectedCount: number;
+  onStartCombine?: () => void;
+  onStartOrthologTransform?: () => void;
   showPush: boolean;
   onPush: () => void;
   canPush: boolean;
   isPushing: boolean;
   pushLabel: string;
   pushDisabledReason?: string;
+  onPushDisabled?: () => void;
   canSave: boolean;
   onSave: () => void;
+  onSaveDisabled?: () => void;
+  saveDisabledReason?: string;
   isSaving: boolean;
   isUnsaved: boolean;
   nodes: Node[];
@@ -51,9 +58,12 @@ interface StrategyGraphLayoutProps {
   onNodesDelete: (nodes: Node[]) => void;
   onNodeDragStop: () => void;
   onConnect: (connection: Connection) => void;
+  isValidConnection: (connection: Connection) => boolean;
   nodeTypes: Record<string, React.ComponentType<any>>;
   onInit: (instance: ReactFlowInstance) => void;
   onMoveStart: () => void;
+  onPaneClick?: (event: React.MouseEvent) => void;
+  onEdgeClick?: (event: React.MouseEvent, edge: Edge) => void;
   selectionOnDrag: boolean;
   onSelectionChange: (nodes: Node[]) => void;
   panOnDrag: boolean;
@@ -81,14 +91,20 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
     onRelayout,
     onAddSelectionToChat,
     canAddSelectionToChat,
+    selectedCount,
+    onStartCombine,
+    onStartOrthologTransform,
     showPush,
     onPush,
     canPush,
     isPushing,
     pushLabel,
     pushDisabledReason,
+    onPushDisabled,
     canSave,
     onSave,
+    onSaveDisabled,
+    saveDisabledReason,
     isSaving,
     isUnsaved,
     nodes,
@@ -98,9 +114,12 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
     onNodesDelete,
     onNodeDragStop,
     onConnect,
+    isValidConnection,
     nodeTypes,
     onInit,
     onMoveStart,
+    onPaneClick,
+    onEdgeClick,
     selectionOnDrag,
     onSelectionChange,
     panOnDrag,
@@ -137,6 +156,9 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
           onSetInteractionMode={onSetInteractionMode}
           onAddSelectionToChat={onAddSelectionToChat}
           canAddSelectionToChat={canAddSelectionToChat}
+          selectedCount={selectedCount}
+          onStartCombine={onStartCombine}
+          onStartOrthologTransform={onStartOrthologTransform}
         />
         {!isCompact && (
           <StrategyGraphActionButtons
@@ -146,8 +168,11 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
             isPushing={isPushing}
             pushLabel={pushLabel}
             pushDisabledReason={pushDisabledReason}
+            onPushDisabled={onPushDisabled}
             canSave={canSave}
             onSave={onSave}
+            onSaveDisabled={onSaveDisabled}
+            saveDisabledReason={saveDisabledReason}
             isSaving={isSaving}
             isUnsaved={isUnsaved}
           />
@@ -160,14 +185,18 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
           onNodesDelete={onNodesDelete}
           onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
+          isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={{ type: "step" }}
           onInit={onInit}
           onMoveStart={onMoveStart}
+          onPaneClick={onPaneClick}
+          onEdgeClick={onEdgeClick}
           selectionOnDrag={selectionOnDrag}
           selectionMode={SelectionMode.Partial}
           onSelectionChange={({ nodes: selectedNodes }) => onSelectionChange(selectedNodes)}
           panOnDrag={panOnDrag}
+          connectionMode={ConnectionMode.Loose}
           onNodeClick={
             isCompact || !onNodeClick
               ? undefined

@@ -43,7 +43,9 @@ class ParameterNormalizer:
         if param_type == "multi-pick-vocabulary":
             values = [self._stringify(v) for v in decode_values(value, spec.name)]
             values = [self._match_vocab_value(spec, v) for v in values]
-            values = self._enforce_leaf_values(spec, values)
+            # Do not expand selections to leaf terms. Even when WDK marks a vocabulary
+            # as `countOnlyLeaves`, users may legitimately select higher-level nodes
+            # (e.g. a genus) and WDK will interpret it appropriately.
             self._validate_multi_count(spec, values)
             return json.dumps(values)
 
@@ -60,7 +62,8 @@ class ParameterNormalizer:
                 self._validate_single_required(spec)
                 return ""
             selected = self._match_vocab_value(spec, selected)
-            selected = self._enforce_leaf_value(spec, selected)
+            # See note above for multi-pick vocabularies: do not coerce selections
+            # to leaf terms based on `countOnlyLeaves`.
             if not selected:
                 self._validate_single_required(spec)
             return self._stringify(selected)

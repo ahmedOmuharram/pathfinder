@@ -3,21 +3,28 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, AsyncIterator, TYPE_CHECKING
+from uuid import uuid4
 
 from kani.models import ChatRole
 
+from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.parsing import parse_jsonish
+from veupath_chatbot.platform.pydantic_validation import (
+    parse_pydantic_validation_error_text,
+)
+from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.services.chat.events import tool_result_to_events
 
 if TYPE_CHECKING:  # pragma: no cover
-    from veupath_chatbot.ai.agent_runtime import PathfinderAgent
+    from kani import Kani
 
 logger = get_logger(__name__)
 
 
-async def stream_chat(agent: "PathfinderAgent", message: str) -> AsyncIterator[dict]:
+async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
     """Stream chat responses from the agent as SSE-friendly events."""
     yield {"type": "message_start", "data": {}}
 
@@ -28,12 +35,41 @@ async def stream_chat(agent: "PathfinderAgent", message: str) -> AsyncIterator[d
         try:
             saw_assistant_message = False
 
-            async for msg in agent.full_round(message):
-                if msg.role == ChatRole.ASSISTANT:
-                    if msg.content:
+            async for stream in agent.full_round_stream(message):
+                # Assistant messages stream tokens; function calls typically do not, but are still emitted
+                # as StreamManager entries in full_round_stream.
+                if stream.role == ChatRole.ASSISTANT:
+                    message_id = str(uuid4())
+                    streamed_any = False
+                    async for token in stream:
+                        if not token:
+                            continue
+                        streamed_any = True
                         saw_assistant_message = True
                         await queue.put(
-                            {"type": "assistant_message", "data": {"content": msg.content}}
+                            {
+                                "type": "assistant_delta",
+                                "data": {"messageId": message_id, "delta": token},
+                            }
+                        )
+
+                    msg = await stream.message()
+                    if msg.content:
+                        saw_assistant_message = True
+                        # If nothing streamed (or final content differs), emit the final content as a message.
+                        await queue.put(
+                            {
+                                "type": "assistant_message",
+                                "data": {"messageId": message_id, "content": msg.content},
+                            }
+                        )
+                    elif streamed_any:
+                        # We streamed tokens but final message content is empty (rare). Keep the streamed message.
+                        await queue.put(
+                            {
+                                "type": "assistant_message",
+                                "data": {"messageId": message_id, "content": ""},
+                            }
                         )
 
                     if msg.tool_calls:
@@ -49,16 +85,34 @@ async def stream_chat(agent: "PathfinderAgent", message: str) -> AsyncIterator[d
                                 }
                             )
 
-                elif msg.role == ChatRole.FUNCTION:
+                elif stream.role == ChatRole.FUNCTION:
+                    msg = await stream.message()
+                    tool_result_text = msg.content
+                    parsed = parse_jsonish(tool_result_text)
+
+                    # Normalize tool-argument validation errors into structured tool_error payloads.
+                    # This catches cases like missing/extra params that the tool framework surfaces
+                    # as a plain Pydantic ValidationError string.
+                    if parsed is None and isinstance(tool_result_text, str):
+                        pyd = parse_pydantic_validation_error_text(tool_result_text)
+                        if pyd is not None:
+                            payload = tool_error(
+                                ErrorCode.VALIDATION_ERROR,
+                                "Tool arguments failed validation.",
+                                toolCallId=getattr(msg, "tool_call_id", None),
+                                **pyd,
+                            )
+                            tool_result_text = json.dumps(payload)
+                            parsed = payload
+
                     await queue.put(
                         {
                             "type": "tool_call_end",
-                            "data": {"id": msg.tool_call_id, "result": msg.content},
+                            "data": {"id": msg.tool_call_id, "result": tool_result_text},
                         }
                     )
 
                     try:
-                        parsed = parse_jsonish(msg.content)
                         result: dict | list | Any
                         if parsed is None:
                             result = {}
@@ -78,7 +132,7 @@ async def stream_chat(agent: "PathfinderAgent", message: str) -> AsyncIterator[d
                 await queue.put(
                     {
                         "type": "assistant_message",
-                        "data": {"content": "I processed your request."},
+                        "data": {"messageId": str(uuid4()), "content": "I processed your request."},
                     }
                 )
         except Exception as e:  # pragma: no cover
@@ -89,11 +143,39 @@ async def stream_chat(agent: "PathfinderAgent", message: str) -> AsyncIterator[d
 
     producer = asyncio.create_task(_produce_events())
     try:
+        # Important: sub-kani events are emitted via the same queue. In rare cases,
+        # `message_end` can be enqueued before late-arriving sub-kani status updates.
+        # If we break immediately, the UI can show "running" forever. To prevent this,
+        # we delay yielding `message_end` until the queue has been quiescent briefly.
+        pending_end: dict | None = None
+        idle_grace_seconds = 0.25
+
         while True:
-            event = await queue.get()
-            yield event
-            if event.get("type") == "message_end":
-                break
+            if pending_end is None:
+                event = await queue.get()
+                if event.get("type") == "message_end":
+                    pending_end = event
+                    continue
+                yield event
+                continue
+
+            # After receiving message_end, keep draining for a short grace period to
+            # capture any late-emitted sub-kani events, then close the stream.
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=idle_grace_seconds)
+            except asyncio.TimeoutError:
+                # If producer finished and nothing else is queued, we can end safely.
+                if producer.done() and queue.empty():
+                    break
+                continue
+
+            # Ignore duplicate message_end; yield anything else.
+            if event.get("type") != "message_end":
+                yield event
+
+        # Now emit the stored end event as the final item.
+        if pending_end is not None:
+            yield pending_end
     finally:
         await producer
 

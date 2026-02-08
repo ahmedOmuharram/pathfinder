@@ -47,6 +47,13 @@ from .strategies import (
     UpdateStrategyRequest,
 )
 from .veupathdb_auth import AuthStatusResponse, AuthSuccessResponse
+from .plans import (
+    OpenPlanSessionRequest,
+    OpenPlanSessionResponse,
+    PlanSessionResponse,
+    PlanSessionSummaryResponse,
+    UpdatePlanSessionRequest,
+)
 
 __all__ = [
     "ChatRequest",
@@ -94,4 +101,9 @@ __all__ = [
     "UpdateStrategyRequest",
     "AuthSuccessResponse",
     "AuthStatusResponse",
+    "PlanSessionSummaryResponse",
+    "PlanSessionResponse",
+    "OpenPlanSessionRequest",
+    "OpenPlanSessionResponse",
+    "UpdatePlanSessionRequest",
 ]

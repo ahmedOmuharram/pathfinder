@@ -73,6 +73,29 @@ async def canonicalize_plan_parameters(
                 errors=[{"path": "parameters", "message": "Expected object"}],
             )
 
+        primary = node.get("primaryInput")
+        secondary = node.get("secondaryInput")
+        is_combine = isinstance(primary, dict) and isinstance(secondary, dict)
+
+        # Combine nodes are structural (primary+secondary+operator) and do not require
+        # WDK parameter metadata. Some WDK deployments do not expose a corresponding
+        # `boolean_question_*` search for every record type, so attempting to load
+        # metadata here can incorrectly fail normalization.
+        if is_combine:
+            # Defensive cleanup: if a caller encoded a combine using WDK boolean-question
+            # parameter conventions, strip those keys from persisted plans.
+            for k in list(params.keys()):
+                key = str(k)
+                if key == "bq_operator" or key.startswith("bq_left_op") or key.startswith(
+                    "bq_right_op"
+                ):
+                    params.pop(k, None)
+            node["parameters"] = params
+
+            await canonicalize_node(primary)
+            await canonicalize_node(secondary)
+            return node
+
         ctx_raw = json.dumps(params, sort_keys=True, default=str)
         ctx_hash = hashlib.sha1(ctx_raw.encode("utf-8")).hexdigest()
 
@@ -94,8 +117,6 @@ async def canonicalize_plan_parameters(
         canonicalizer = ParameterCanonicalizer(spec_map)
         node["parameters"] = canonicalizer.canonicalize(params)
 
-        primary = node.get("primaryInput")
-        secondary = node.get("secondaryInput")
         if isinstance(primary, dict):
             await canonicalize_node(primary)
         if isinstance(secondary, dict):

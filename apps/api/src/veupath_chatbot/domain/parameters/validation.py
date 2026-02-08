@@ -26,7 +26,7 @@ async def validate_parameters(
 ) -> None:
     discovery = get_discovery_service()
     resolved_record_type = await resolve_record_type_for_search(
-        record_type, search_name, True, False
+        record_type, search_name, True, True
     )
     if resolved_record_type is None:
         record_type_hint = await find_record_type_hint(search_name, exclude=record_type)

@@ -1,10 +1,23 @@
 "use client";
 
-import type { RecordType, Search, Step } from "@pathfinder/shared";
+import type { RecordType, Search } from "@pathfinder/shared";
 import type { StepKind } from "@pathfinder/shared";
+import { VEUPATHDB_SITES } from "@pathfinder/shared";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 
+function rewriteRelativeAssetUrls(html: string, origin: string): string {
+  if (!html) return html;
+  if (!origin) return html;
+  const base = origin.replace(/\/$/, "");
+  // Rewrite WDK-relative assets like /a/images/yes.gif to absolute site URLs.
+  return html.replace(
+    /(src|href)=(['"])(\/a\/[^'"]+)\2/gi,
+    (_match, attr, quote, path) => `${attr}=${quote}${base}${path}${quote}`
+  );
+}
+
 type StepSearchSelectorProps = {
+  siteId: string;
   stepType: StepKind;
   recordTypeFilter: string;
   onRecordTypeFilterChange: (nextValue: string) => void;
@@ -26,6 +39,7 @@ type StepSearchSelectorProps = {
 };
 
 export function StepSearchSelector({
+  siteId,
   stepType,
   recordTypeFilter,
   onRecordTypeFilterChange,
@@ -45,6 +59,9 @@ export function StepSearchSelector({
   recordType,
   recordTypeOptions,
 }: StepSearchSelectorProps) {
+  const siteOrigin =
+    VEUPATHDB_SITES.find((s) => s.id === siteId)?.baseUrl ||
+    `https://${siteId}.org`;
   return (
     <>
       <div>
@@ -137,8 +154,12 @@ export function StepSearchSelector({
         {selectedSearch && (
           <div className="mt-1 text-[11px] text-slate-500">
             <div
+              className="[&_img]:inline-block [&_img]:align-middle [&_img]:!m-0 [&_img]:h-[12px] [&_img]:w-[12px]"
               dangerouslySetInnerHTML={{
-                __html: selectedSearch.description || "No description available.",
+                __html: rewriteRelativeAssetUrls(
+                  selectedSearch.description || "No description available.",
+                  siteOrigin
+                ),
               }}
             />
             <span className="text-slate-400">ID: {selectedSearch.name}</span>

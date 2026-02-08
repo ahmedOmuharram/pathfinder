@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from kani import ai_function
+from kani import AIParam, ai_function
 
 from veupath_chatbot.services.strategy_tools.graph_integrity import (
     find_root_step_ids,
@@ -18,7 +18,10 @@ class StrategyGraphOps:
     """Graph inspection tools."""
 
     @ai_function()
-    async def list_current_steps(self, graph_id: str | None = None) -> list[dict[str, Any]]:
+    async def list_current_steps(
+        self,
+        graph_id: Annotated[str | None, AIParam(desc="Graph ID to inspect")] = None,
+    ) -> list[dict[str, Any]]:
         """List all steps in the current strategy context.
 
         Shows what steps have been created and their relationships.
@@ -32,7 +35,10 @@ class StrategyGraphOps:
         return steps
 
     @ai_function()
-    async def validate_graph_structure(self, graph_id: str | None = None) -> dict[str, Any]:
+    async def validate_graph_structure(
+        self,
+        graph_id: Annotated[str | None, AIParam(desc="Graph ID to validate")] = None,
+    ) -> dict[str, Any]:
         """Validate that the working graph is structurally sound and has one output.
 
         This is a "done check" tool for the orchestrator. It verifies the single-output
@@ -69,9 +75,9 @@ class StrategyGraphOps:
     @ai_function()
     async def ensure_single_output(
         self,
-        graph_id: str | None = None,
-        operator: str = "UNION",
-        display_name: str | None = None,
+        graph_id: Annotated[str | None, AIParam(desc="Graph ID to repair")] = None,
+        operator: Annotated[str, AIParam(desc="Combine operator to use (default UNION)")] = "UNION",
+        display_name: Annotated[str | None, AIParam(desc="Optional display name for the final combine")] = None,
     ) -> dict[str, Any]:
         """Ensure the graph has exactly one output by combining roots (default UNION).
 
@@ -143,7 +149,10 @@ class StrategyGraphOps:
         }
 
     @ai_function()
-    async def get_draft_step_counts(self, graph_id: str | None = None) -> dict[str, Any]:
+    async def get_draft_step_counts(
+        self,
+        graph_id: Annotated[str | None, AIParam(desc="Graph ID to compute counts for")] = None,
+    ) -> dict[str, Any]:
         """Compute result counts for each draft step (WDK-backed, no build required).
 
         This compiles and executes the *current plan* in a temporary WDK strategy, then

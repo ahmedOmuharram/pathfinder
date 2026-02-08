@@ -13,6 +13,17 @@ describe("parseChatSSEEvent", () => {
     }
   });
 
+  it("parses assistant_delta events", () => {
+    const evt = parseChatSSEEvent({
+      type: "assistant_delta",
+      data: JSON.stringify({ messageId: "m1", delta: "hel" }),
+    });
+    expect(evt.type).toBe("assistant_delta");
+    if (evt.type === "assistant_delta") {
+      expect(evt.data).toEqual({ messageId: "m1", delta: "hel" });
+    }
+  });
+
   it("returns unknown for forward-compatible events", () => {
     const evt = parseChatSSEEvent({ type: "future_event", data: "x" });
     expect(evt.type).toBe("unknown");

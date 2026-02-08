@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.persistence.models import Strategy, StrategyHistory, User
+from veupath_chatbot.persistence.models import PlanSession, Strategy, StrategyHistory, User
 
 
 class UserRepository:
@@ -79,6 +79,8 @@ class StrategyRepository:
         site_id: str,
         record_type: str | None,
         plan: dict[str, Any],
+        steps: list[dict[str, Any]] | None = None,
+        root_step_id: str | None = None,
         wdk_strategy_id: int | None = None,
         strategy_id: UUID | None = None,
         title: str | None = None,
@@ -92,9 +94,10 @@ class StrategyRepository:
             site_id=site_id,
             record_type=record_type,
             plan=plan,
-            # plan-only persistence: derive steps/root at read-time
-            steps=[],
-            root_step_id=None,
+            # When plan is present/valid we derive steps at read-time,
+            # but we also support snapshot-only persistence (steps/root without plan).
+            steps=steps or [],
+            root_step_id=root_step_id,
             wdk_strategy_id=wdk_strategy_id,
         )
         self.session.add(strategy)
@@ -118,6 +121,9 @@ class StrategyRepository:
         name: str | None = None,
         title: str | None = None,
         plan: dict[str, Any] | None = None,
+        steps: list[dict[str, Any]] | None = None,
+        root_step_id: str | None = None,
+        root_step_id_set: bool = False,
         wdk_strategy_id: int | None = None,
         wdk_strategy_id_set: bool = False,
         result_count: int | None = None,
@@ -139,6 +145,11 @@ class StrategyRepository:
             # plan-only persistence: always clear derived fields on save
             strategy.steps = []
             strategy.root_step_id = None
+        # Snapshot-only persistence: allow storing derived steps/root without requiring a plan.
+        if steps is not None:
+            strategy.steps = steps
+        if root_step_id_set:
+            strategy.root_step_id = root_step_id
         if wdk_strategy_id_set:
             strategy.wdk_strategy_id = wdk_strategy_id
         if result_count is not None:
@@ -225,5 +236,140 @@ class StrategyRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+
+class PlanSessionRepository:
+    """Plan session CRUD operations."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_id(self, plan_session_id: UUID) -> PlanSession | None:
+        return await self.session.get(PlanSession, plan_session_id)
+
+    async def get_by_id_for_user(
+        self, *, plan_session_id: UUID, user_id: UUID
+    ) -> PlanSession | None:
+        stmt = select(PlanSession).where(
+            PlanSession.id == plan_session_id, PlanSession.user_id == user_id
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_by_user(
+        self, user_id: UUID, site_id: str | None = None, limit: int = 50
+    ) -> list[PlanSession]:
+        stmt = (
+            select(PlanSession)
+            .where(PlanSession.user_id == user_id)
+            .order_by(PlanSession.updated_at.desc())
+            .limit(limit)
+        )
+        if site_id:
+            stmt = stmt.where(PlanSession.site_id == site_id)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def create(
+        self,
+        *,
+        user_id: UUID,
+        site_id: str,
+        title: str = "Plan",
+        plan_session_id: UUID | None = None,
+    ) -> PlanSession:
+        ps = PlanSession(
+            id=plan_session_id,
+            user_id=user_id,
+            site_id=site_id,
+            title=title,
+            messages=[],
+            planning_artifacts=[],
+            thinking=None,
+        )
+        self.session.add(ps)
+        await self.session.flush()
+        return ps
+
+    async def add_message(self, plan_session_id: UUID, message: dict[str, Any]) -> PlanSession | None:
+        ps = await self.get_by_id(plan_session_id)
+        if ps is None:
+            return None
+        ps.messages = [*(ps.messages or []), message]
+        await self.session.flush()
+        return ps
+
+    async def update_thinking(
+        self, plan_session_id: UUID, thinking: dict[str, Any] | None
+    ) -> PlanSession | None:
+        ps = await self.get_by_id(plan_session_id)
+        if ps is None:
+            return None
+        ps.thinking = thinking
+        await self.session.flush()
+        return ps
+
+    async def clear_thinking(self, plan_session_id: UUID) -> PlanSession | None:
+        return await self.update_thinking(plan_session_id, None)
+
+    async def append_planning_artifacts(
+        self, plan_session_id: UUID, artifacts: list[dict[str, Any]]
+    ) -> PlanSession | None:
+        ps = await self.get_by_id(plan_session_id)
+        if ps is None:
+            return None
+        existing = ps.planning_artifacts or []
+        incoming = [a for a in (artifacts or []) if isinstance(a, dict)]
+        if not incoming:
+            return ps
+
+        # Upsert by artifact id (so "draft" artifacts can be updated without duplication).
+        by_id: dict[str, dict[str, Any]] = {}
+        ordered: list[dict[str, Any]] = []
+        for a in existing:
+            if not isinstance(a, dict):
+                continue
+            aid = a.get("id")
+            if isinstance(aid, str) and aid:
+                by_id[aid] = a
+            ordered.append(a)
+
+        for a in incoming:
+            aid = a.get("id")
+            if isinstance(aid, str) and aid and aid in by_id:
+                # Replace in the ordered list at the original position.
+                for i, old in enumerate(ordered):
+                    if isinstance(old, dict) and old.get("id") == aid:
+                        ordered[i] = a
+                        break
+                by_id[aid] = a
+            else:
+                ordered.append(a)
+                if isinstance(aid, str) and aid:
+                    by_id[aid] = a
+
+        ps.planning_artifacts = ordered
+        await self.session.flush()
+        return ps
+
+    async def refresh(self, plan_session: PlanSession) -> None:
+        await self.session.refresh(plan_session)
+
+    async def delete(self, *, plan_session_id: UUID, user_id: UUID) -> bool:
+        ps = await self.get_by_id_for_user(plan_session_id=plan_session_id, user_id=user_id)
+        if ps is None:
+            return False
+        await self.session.delete(ps)
+        return True
+
+    async def update_title(
+        self, *, plan_session_id: UUID, user_id: UUID, title: str
+    ) -> PlanSession | None:
+        ps = await self.get_by_id_for_user(plan_session_id=plan_session_id, user_id=user_id)
+        if ps is None:
+            return None
+        ps.title = title
+        await self.session.flush()
+        return ps
 
 

@@ -10,7 +10,11 @@ from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import site_id_ctx
 from veupath_chatbot.platform.security import get_current_user, get_optional_user
 from veupath_chatbot.persistence.session import get_db_session
-from veupath_chatbot.persistence.repo import StrategyRepository, UserRepository
+from veupath_chatbot.persistence.repo import (
+    PlanSessionRepository,
+    StrategyRepository,
+    UserRepository,
+)
 from veupath_chatbot.integrations.veupathdb.factory import SiteInfo, get_site
 
 
@@ -29,9 +33,14 @@ async def get_strategy_repo(session: DBSession) -> StrategyRepository:
     """Get strategy repository."""
     return StrategyRepository(session)
 
+async def get_plan_session_repo(session: DBSession) -> PlanSessionRepository:
+    """Get plan session repository."""
+    return PlanSessionRepository(session)
+
 
 UserRepo = Annotated[UserRepository, Depends(get_user_repo)]
 StrategyRepo = Annotated[StrategyRepository, Depends(get_strategy_repo)]
+PlanSessionRepo = Annotated[PlanSessionRepository, Depends(get_plan_session_repo)]
 
 
 async def get_site_context(

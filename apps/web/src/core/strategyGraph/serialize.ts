@@ -27,6 +27,8 @@ export function serializeStrategyPlan(
   const steps = Object.values(stepsById);
   if (steps.length === 0) return null;
 
+  const recordType = strategy?.recordType || steps[0]?.recordType || "gene";
+
   const inputStepIds = new Set<string>();
   for (const step of steps) {
     if (step.primaryInputStepId) inputStepIds.add(step.primaryInputStepId);
@@ -42,11 +44,17 @@ export function serializeStrategyPlan(
     const step = stepsById[stepId];
     if (!step) return null;
 
-    if (!step.searchName) return null;
+    const isCombine = Boolean(step.primaryInputStepId && step.secondaryInputStepId);
+    // Combine nodes don't have a user-selected searchName in the UI; use the backend's
+    // placeholder. Combine steps are structural (primary+secondary+operator) and do not
+    // require a real WDK question name.
+    const resolvedSearchName =
+      step.searchName || (isCombine ? "__combine__" : null);
+    if (!resolvedSearchName) return null;
 
     const node: PlanStepNode = {
       id: step.id,
-      searchName: step.searchName,
+      searchName: resolvedSearchName,
       displayName: step.displayName,
       parameters: sanitizeParametersForPlan(step.parameters || {}),
     };
@@ -77,7 +85,6 @@ export function serializeStrategyPlan(
   if (!rootNode) return null;
 
   const name = strategy?.name || "Draft Strategy";
-  const recordType = strategy?.recordType || steps[0]?.recordType || "gene";
   return {
     name,
     recordType,

@@ -77,8 +77,36 @@ def get_wdk_operator(op: CombineOp) -> str:
 
 def parse_op(value: str) -> CombineOp:
     """Parse operator from string value."""
+    raw = (value or "").strip()
+    if not raw:
+        raise ValueError("Unknown operator: <empty>")
+
+    # Normalize common user inputs.
+    norm = raw.upper().replace("-", "_").replace(" ", "_")
+    aliases: dict[str, CombineOp] = {
+        "AND": CombineOp.INTERSECT,
+        "INTERSECTION": CombineOp.INTERSECT,
+        "OR": CombineOp.UNION,
+        "PLUS": CombineOp.UNION,
+        "UNION": CombineOp.UNION,
+        "INTERSECT": CombineOp.INTERSECT,
+        # Default MINUS to left-minus semantics (WDK boolean op name).
+        "MINUS": CombineOp.MINUS_LEFT,
+        "NOT": CombineOp.MINUS_LEFT,
+        "MINUS_LEFT": CombineOp.MINUS_LEFT,
+        "MINUS_RIGHT": CombineOp.MINUS_RIGHT,
+        "LEFT_MINUS": CombineOp.MINUS_LEFT,
+        "RIGHT_MINUS": CombineOp.MINUS_RIGHT,
+        "LMINUS": CombineOp.MINUS_LEFT,
+        "RMINUS": CombineOp.MINUS_RIGHT,
+        "COLOCATE": CombineOp.COLOCATE,
+    }
+    if norm in aliases:
+        return aliases[norm]
+
+    # Fallback: accept exact enum values (case-insensitive).
     try:
-        return CombineOp(value)
-    except ValueError:
-        raise ValueError(f"Unknown operator: {value}")
+        return CombineOp(norm)
+    except ValueError as exc:
+        raise ValueError(f"Unknown operator: {value}") from exc
 

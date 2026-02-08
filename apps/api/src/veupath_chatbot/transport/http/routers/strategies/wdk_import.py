@@ -18,6 +18,7 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.security import create_user_token
 from veupath_chatbot.domain.strategy.compile import compile_strategy
+from veupath_chatbot.domain.parameters.specs import adapt_param_specs, find_input_step_param
 from veupath_chatbot.services.strategies.wdk_snapshot import (
     _attach_counts_from_wdk_strategy,
     _build_snapshot_from_wdk,
@@ -27,6 +28,10 @@ from veupath_chatbot.services.strategies.plan_validation import validate_plan_or
 from veupath_chatbot.transport.http.deps import CurrentUser, OptionalUser, StrategyRepo, UserRepo
 from veupath_chatbot.transport.http.routers._authz import get_owned_strategy_or_404
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.strategy_api import (
+    is_internal_wdk_strategy_name,
+    strip_internal_wdk_strategy_name,
+)
 from veupath_chatbot.transport.http.schemas import (
     OpenStrategyRequest,
     OpenStrategyResponse,
@@ -40,6 +45,58 @@ from ._shared import build_step_response
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 logger = get_logger(__name__)
+
+async def _validate_transform_steps_accept_input(
+    *, strategy_ast: Any, api: Any
+) -> None:
+    """Reject plans that encode non-input questions as transforms.
+
+    Root cause we guard against: a node is structurally a transform (has primaryInput),
+    but its WDK question does not define an input-step AnswerParam. WDK will then reject
+    strategy creation with: "Step <id> does not allow a primary input step."
+    """
+    # StrategyAST/PlanStepNode are imported indirectly here; keep this helper tolerant.
+    for step in getattr(strategy_ast, "get_all_steps", lambda: [])():
+        try:
+            kind = step.infer_kind()
+        except Exception:
+            continue
+        if kind != "transform":
+            continue
+        record_type = getattr(strategy_ast, "record_type", None)
+        search_name = getattr(step, "search_name", None)
+        if not isinstance(record_type, str) or not record_type:
+            continue
+        if not isinstance(search_name, str) or not search_name:
+            continue
+        # Placeholder used in internal graph representations; not a real WDK question.
+        if search_name == "__combine__":
+            continue
+        try:
+            details = await api.client.get_search_details(
+                record_type, search_name, expand_params=True
+            )
+        except Exception:
+            # If we cannot load metadata, let compilation surface a clearer upstream error.
+            continue
+        if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
+            details = details["searchData"]
+        specs = adapt_param_specs(details if isinstance(details, dict) else {})
+        if not find_input_step_param(specs):
+            raise ValidationError(
+                title="Invalid plan",
+                detail=f"Step '{search_name}' cannot be used as a transform in WDK (no input-step parameter).",
+                errors=[
+                    {
+                        "path": "plan.root",
+                        "code": ErrorCode.INVALID_STRATEGY.value,
+                        "recordType": record_type,
+                        "searchName": search_name,
+                        "stepId": getattr(step, "id", None),
+                        "message": "Transform steps must reference a WDK question that accepts an input step.",
+                    }
+                ],
+            )
 
 
 @router.post("/open", response_model=OpenStrategyResponse)
@@ -156,7 +213,9 @@ async def list_wdk_strategies(
                 if is_saved is None:
                     is_saved = item.get("is_saved")
                 name = item.get("name") or f"WDK Strategy {wdk_id}"
-                is_internal = bool(name == "Pathfinder step counts")
+                is_internal = is_internal_wdk_strategy_name(name)
+                if is_internal:
+                    name = strip_internal_wdk_strategy_name(name)
                 results.append(
                     {
                         "wdkStrategyId": wdk_id,
@@ -263,6 +322,8 @@ async def push_to_wdk(
         strategy_ast = validate_plan_or_raise(plan)
 
         api = get_strategy_api(strategy.site_id)
+
+        await _validate_transform_steps_accept_input(strategy_ast=strategy_ast, api=api)
 
         result = await compile_strategy(strategy_ast, api, site_id=strategy.site_id)
 

@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { Message, ToolCall } from "@pathfinder/shared";
+import type { Message, ToolCall, Citation, PlanningArtifact } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
@@ -11,6 +11,8 @@ export type ChatEventContext = {
   siteId: string;
   strategyIdAtStart: string | null;
   toolCallsBuffer: ToolCall[];
+  citationsBuffer: Citation[];
+  planningArtifactsBuffer: PlanningArtifact[];
   thinking: Thinking;
 
   // Strategy/session actions
@@ -56,6 +58,8 @@ export type ChatEventContext = {
   parseToolResult: (result?: string | null) => { graphSnapshot?: unknown } | null;
   applyGraphSnapshot: (graphSnapshot: any) => void;
   getStrategy: (id: string) => Promise<StrategyWithMeta>;
+  streamingAssistantIndexRef: MutableRef<number | null>;
+  streamingAssistantMessageIdRef: MutableRef<string | null>;
 };
 
 export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
@@ -63,6 +67,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     siteId,
     strategyIdAtStart,
     toolCallsBuffer,
+    citationsBuffer,
+    planningArtifactsBuffer,
     thinking,
     setStrategyId,
     setAuthToken,
@@ -84,6 +90,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     parseToolResult,
     applyGraphSnapshot,
     getStrategy,
+    streamingAssistantIndexRef,
+    streamingAssistantMessageIdRef,
   } = ctx;
 
   switch (event.type) {
@@ -120,15 +128,81 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       }
       break;
     }
-    case "assistant_message": {
-      const content = (event.data as { content?: string })?.content || "";
-      if (content) {
-        const subKaniActivity = thinking.snapshotSubKaniActivity();
+    case "assistant_delta": {
+      const { messageId, delta } = event.data as { messageId?: string; delta?: string };
+      if (!delta) break;
+      // If this is a new streaming assistant message, append it and remember its index.
+      if (
+        streamingAssistantIndexRef.current === null ||
+        (messageId && streamingAssistantMessageIdRef.current !== messageId)
+      ) {
         const assistantMessage: Message = {
           role: "assistant",
-          content,
+          content: delta,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => {
+          const next = [...prev, assistantMessage];
+          streamingAssistantIndexRef.current = next.length - 1;
+          streamingAssistantMessageIdRef.current = messageId || null;
+          return next;
+        });
+        break;
+      }
+
+      const idx = streamingAssistantIndexRef.current;
+      if (idx === null) break;
+      setMessages((prev) => {
+        if (idx < 0 || idx >= prev.length) return prev;
+        const next = [...prev];
+        const existing = next[idx];
+        if (!existing || existing.role !== "assistant") return prev;
+        next[idx] = { ...existing, content: (existing.content || "") + delta };
+        return next;
+      });
+      break;
+    }
+    case "assistant_message": {
+      const { messageId, content } = event.data as { messageId?: string; content?: string };
+      const finalContent = content || "";
+      const subKaniActivity = thinking.snapshotSubKaniActivity();
+
+      const idx = streamingAssistantIndexRef.current;
+      if (
+        idx !== null &&
+        idx >= 0 &&
+        idx < Number.MAX_SAFE_INTEGER &&
+        (!messageId || streamingAssistantMessageIdRef.current === messageId)
+      ) {
+        // Finalize the in-progress assistant message.
+        setMessages((prev) => {
+          if (idx < 0 || idx >= prev.length) return prev;
+          const next = [...prev];
+          const existing = next[idx];
+          if (!existing || existing.role !== "assistant") return prev;
+          next[idx] = {
+            ...existing,
+            content: finalContent || existing.content,
+            toolCalls: toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : existing.toolCalls,
+            subKaniActivity,
+            citations: citationsBuffer.length > 0 ? [...citationsBuffer] : existing.citations,
+            planningArtifacts:
+              planningArtifactsBuffer.length > 0
+                ? [...planningArtifactsBuffer]
+                : existing.planningArtifacts,
+          };
+          return next;
+        });
+      } else if (finalContent) {
+        // No streaming message active; append as before.
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: finalContent,
           toolCalls: toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : undefined,
           subKaniActivity,
+          citations: citationsBuffer.length > 0 ? [...citationsBuffer] : undefined,
+          planningArtifacts:
+            planningArtifactsBuffer.length > 0 ? [...planningArtifactsBuffer] : undefined,
           timestamp: new Date().toISOString(),
         };
         const snapshot = pendingUndoSnapshotRef.current;
@@ -142,8 +216,39 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
           }
           return next;
         });
-        pendingUndoSnapshotRef.current = null;
-        toolCallsBuffer.length = 0;
+      }
+
+      // Reset per-message buffers and streaming pointers.
+      pendingUndoSnapshotRef.current = null;
+      streamingAssistantIndexRef.current = null;
+      streamingAssistantMessageIdRef.current = null;
+      toolCallsBuffer.length = 0;
+      citationsBuffer.length = 0;
+      planningArtifactsBuffer.length = 0;
+      break;
+    }
+    case "citations": {
+      const citations = (event.data as { citations?: unknown[] })?.citations;
+      if (Array.isArray(citations)) {
+        for (const c of citations) {
+          if (c && typeof c === "object") {
+            citationsBuffer.push(c as Citation);
+          }
+        }
+      }
+      break;
+    }
+    case "planning_artifact": {
+      const artifact = (event.data as { planningArtifact?: unknown })?.planningArtifact;
+      if (artifact && typeof artifact === "object") {
+        planningArtifactsBuffer.push(artifact as PlanningArtifact);
+      }
+      break;
+    }
+    case "reasoning": {
+      const reasoning = (event.data as { reasoning?: string })?.reasoning;
+      if (typeof reasoning === "string") {
+        thinking.updateReasoning(reasoning);
       }
       break;
     }

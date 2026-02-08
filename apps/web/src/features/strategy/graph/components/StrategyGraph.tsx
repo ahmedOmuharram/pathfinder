@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CombineOperator } from "@pathfinder/shared";
-import { Node, useNodesState, useEdgesState, type ReactFlowInstance } from "reactflow";
+import { type Edge, Node, useNodesState, useEdgesState, type ReactFlowInstance } from "reactflow";
 import "reactflow/dist/style.css";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
@@ -18,7 +18,7 @@ import { useAutoFitView } from "@/features/strategy/graph/hooks/useAutoFitView";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
 import { useUndoRedoHotkeys } from "@/features/strategy/graph/hooks/useUndoRedoHotkeys";
 import { useWarningGroupNodes } from "@/features/strategy/graph/hooks/useWarningGroupNodes";
-import { useGraphCombine } from "@/features/strategy/graph/hooks/useGraphCombine";
+import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
 import { useGraphSelection } from "@/features/strategy/graph/hooks/useGraphSelection";
 import { useGraphSave } from "@/features/strategy/graph/hooks/useGraphSave";
 import {
@@ -28,6 +28,7 @@ import {
 import { EmptyGraphState } from "@/features/strategy/graph/components/EmptyGraphState";
 import { CombineStepModal } from "@/features/strategy/graph/components/CombineStepModal";
 import { StrategyGraphLayout } from "@/features/strategy/graph/components/StrategyGraphLayout";
+import { OrthologTransformModal } from "@/features/strategy/graph/components/OrthologTransformModal";
 import { useBeforeUnloadUnsaved } from "@/features/strategy/graph/hooks/useBeforeUnloadUnsaved";
 import { useResetGraphUiOnStrategyChange } from "@/features/strategy/graph/hooks/useResetGraphUiOnStrategyChange";
 import { useDraftDetailsInputs } from "@/features/strategy/graph/hooks/useDraftDetailsInputs";
@@ -38,6 +39,7 @@ import {
   deserializeStrategyToGraph,
   getCombineMismatchGroups,
   inferStepKind,
+  resolveRecordType,
 } from "@/features/strategy/domain/graph";
 
 interface StrategyGraphProps {
@@ -79,6 +81,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     variant = "full",
   } = props;
   const isCompact = variant === "compact";
+  const chatIsStreaming = useSessionStore((state) => state.chatIsStreaming);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [, setSaveError] = useState<string | null>(null);
@@ -88,11 +91,20 @@ export function StrategyGraph(props: StrategyGraphProps) {
   const [descriptionValue, setDescriptionValue] = useState("");
   const [selectedStep, setSelectedStep] = useState<StrategyStep | null>(null);
   const [userHasMoved, setUserHasMoved] = useState(false);
+  const [edgeMenu, setEdgeMenu] = useState<{
+    edge: Edge;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [orthologModalOpen, setOrthologModalOpen] = useState(false);
   const lastSnapshotIdRef = useRef<string | null>(null);
   const lastSavedStepsRef = useRef<Map<string, string>>(new Map());
   const nodeTypes = useRef(NODE_TYPES).current;
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const lastLayoutSeedRef = useRef<number>(layoutSeed);
+  const lastStrategyIdRef = useRef<string | null>(null);
   const updateStep = useStrategyStore((state) => state.updateStep);
   const addStep = useStrategyStore((state) => state.addStep);
   const removeStep = useStrategyStore((state) => state.removeStep);
@@ -161,15 +173,24 @@ export function StrategyGraph(props: StrategyGraphProps) {
     handleSelectionChange,
   } = useGraphSelection({ strategy, isCompact });
 
-  const { pendingCombine, handleConnect, handleCombineCreate, handleCombineCancel } =
-    useGraphCombine({
-      steps: strategy?.steps || [],
-      addStep,
-      failCombineMismatch: () => {
-        setSaveError(COMBINE_MISMATCH_ERROR);
-        onToast?.({ type: "error", message: COMBINE_MISMATCH_ERROR });
-      },
-    });
+  const editableSteps = draftStrategy?.steps || strategy?.steps || [];
+  const {
+    pendingCombine,
+    isValidConnection,
+    handleConnect,
+    handleDeleteEdge,
+    handleCombineCreate,
+    handleCombineCancel,
+    startCombine,
+  } = useGraphConnections({
+    steps: editableSteps,
+    addStep,
+    updateStep,
+    failCombineMismatch: () => {
+      setSaveError(COMBINE_MISMATCH_ERROR);
+      onToast?.({ type: "error", message: COMBINE_MISMATCH_ERROR });
+    },
+  });
 
   const handleNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
@@ -177,35 +198,27 @@ export function StrategyGraph(props: StrategyGraphProps) {
       const stepsList = draftStrategy?.steps || [];
       if (stepsList.length === 0) return;
       const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
-      const toRemove = new Set(
+      const toRemove = new Set<string>(
         deletedNodes.map((node) => node.id).filter((id) => stepsMap.has(id))
       );
       if (toRemove.size === 0) return;
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const step of stepsList) {
-          if (toRemove.has(step.id)) continue;
-          const kind = inferStepKind(step);
-          if (
-            kind === "transform" &&
-            step.primaryInputStepId &&
-            toRemove.has(step.primaryInputStepId)
-          ) {
-            toRemove.add(step.id);
-            changed = true;
-          }
-          if (
-            kind === "combine" &&
-            ((step.primaryInputStepId && toRemove.has(step.primaryInputStepId)) ||
-              (step.secondaryInputStepId &&
-                toRemove.has(step.secondaryInputStepId)))
-          ) {
-            toRemove.add(step.id);
-            changed = true;
-          }
+
+      // Only delete the selected nodes. Do NOT cascade-delete downstream steps.
+      // Instead, detach any remaining step inputs that referenced the deleted step(s).
+      for (const step of stepsList) {
+        if (toRemove.has(step.id)) continue;
+        const updates: Partial<StrategyStep> = {};
+        if (step.primaryInputStepId && toRemove.has(step.primaryInputStepId)) {
+          updates.primaryInputStepId = undefined;
+        }
+        if (step.secondaryInputStepId && toRemove.has(step.secondaryInputStepId)) {
+          updates.secondaryInputStepId = undefined;
+        }
+        if (Object.keys(updates).length > 0) {
+          updateStep(step.id, updates);
         }
       }
+
       for (const stepId of toRemove) {
         removeStep(stepId);
       }
@@ -213,8 +226,20 @@ export function StrategyGraph(props: StrategyGraphProps) {
         setSelectedStep(null);
       }
     },
-    [draftStrategy?.steps, isCompact, removeStep, selectedStep]
+    [draftStrategy?.steps, isCompact, removeStep, selectedStep, updateStep]
   );
+
+  const handleStartCombineFromSelection = useCallback(() => {
+    if (isCompact) return;
+    if (selectedNodeIds.length !== 2) return;
+    startCombine(selectedNodeIds[0]!, selectedNodeIds[1]!);
+  }, [isCompact, selectedNodeIds, startCombine]);
+
+  const handleStartOrthologTransformFromSelection = useCallback(() => {
+    if (isCompact) return;
+    if (selectedNodeIds.length !== 1) return;
+    setOrthologModalOpen(true);
+  }, [isCompact, selectedNodeIds.length]);
 
   const autoFit = useAutoFitView({
     enabled: !isCompact,
@@ -225,6 +250,26 @@ export function StrategyGraph(props: StrategyGraphProps) {
 
   const { pushSnapshot, reset: resetNodeHistory, tryUndo, tryRedo } =
     useNodePositionHistory({ setNodes });
+
+  // Model-driven graph updates arrive during chat streaming. Those updates are persisted by the API
+  // when emitted, so we should not show them as "unsaved" in the UI.
+  useEffect(() => {
+    if (variant !== "full") return;
+    if (!chatIsStreaming) return;
+    if (selectedStep) return;
+    if (!strategy?.steps || strategy.steps.length === 0) return;
+    lastSavedStepsRef.current = new Map(
+      strategy.steps.map((step) => [step.id, buildStepSignature(step)])
+    );
+    setLastSavedStepsVersion((v) => v + 1);
+  }, [
+    variant,
+    chatIsStreaming,
+    selectedStep,
+    strategy?.steps,
+    buildStepSignature,
+    setLastSavedStepsVersion,
+  ]);
 
   useResetGraphUiOnStrategyChange({
     strategyId: strategy?.id,
@@ -237,6 +282,10 @@ export function StrategyGraph(props: StrategyGraphProps) {
   const isDraftView = !!draftStrategy && strategy?.id === draftStrategy.id;
   const planResult = buildPlan();
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
+  const graphIdForValidation = draftStrategy?.id || strategy?.id || null;
+  const graphHasValidationIssues = useStrategyListStore(
+    (state) => (graphIdForValidation ? !!state.graphValidationStatus[graphIdForValidation] : false)
+  );
   const dirtyStepIds = useMemo(() => {
     // This is a bump counter used to invalidate the memo when a saved snapshot is observed.
     void lastSavedStepsVersion;
@@ -285,8 +334,11 @@ export function StrategyGraph(props: StrategyGraphProps) {
 
   useStepCounts({
     siteId,
-    plan: planResult?.plan ?? null,
-    planHash,
+    // Counts should only compute/show when the graph is structurally valid AND all
+    // step validations pass. Otherwise, nodes should surface validation errors and
+    // counts should remain unknown ("?").
+    plan: graphHasValidationIssues ? null : (planResult?.plan ?? null),
+    planHash: graphHasValidationIssues ? null : planHash,
     stepIds: (draftStrategy?.steps || strategy?.steps || []).map((step) => step.id),
     setStepCounts,
     fetchCounts: computeStepCounts,
@@ -299,7 +351,12 @@ export function StrategyGraph(props: StrategyGraphProps) {
     strategy,
   });
 
-  const { isSaving, canSave, handleSave, handlePush } = useGraphSave({
+  const {
+    isSaving,
+    canSave,
+    handleSave,
+    handlePush,
+  } = useGraphSave({
     strategy,
     draftStrategy,
     buildPlan,
@@ -316,6 +373,29 @@ export function StrategyGraph(props: StrategyGraphProps) {
     setNameValue,
     descriptionValue,
   });
+
+  const saveDisabledReason = useMemo(() => {
+    if (canSave && !isSaving) return undefined;
+    if (isSaving) return "Saving...";
+    if (!draftStrategy) return "No draft strategy loaded.";
+    if (!strategy || strategy.id !== draftStrategy.id) {
+      return "Open the active draft to save.";
+    }
+    if (!buildPlan()) {
+      return "Cannot save a canonical plan yet: strategy must have a single final output step.";
+    }
+    return "Save is currently unavailable.";
+  }, [canSave, isSaving, draftStrategy, strategy, buildPlan]);
+
+  const resolvedPushDisabledReason = useMemo(() => {
+    if (canPush && !isPushing) return undefined;
+    if (isPushing) return "Pushing...";
+    if (pushDisabledReason) return pushDisabledReason;
+    if (!planResult) {
+      return "Cannot push: strategy must have a single final output step.";
+    }
+    return "Push is currently unavailable.";
+  }, [canPush, isPushing, pushDisabledReason, planResult]);
 
   const handleNodeDragStop = useCallback(() => {
     pushSnapshot(nodes);
@@ -342,6 +422,18 @@ export function StrategyGraph(props: StrategyGraphProps) {
   );
 
   useEffect(() => {
+    nodePositionsRef.current = new Map(
+      nodes.map((n) => [n.id, { x: n.position.x, y: n.position.y }])
+    );
+  }, [nodes]);
+
+  useEffect(() => {
+    const forceRelayout =
+      lastLayoutSeedRef.current !== layoutSeed ||
+      lastStrategyIdRef.current !== (strategy?.id || null);
+    lastLayoutSeedRef.current = layoutSeed;
+    lastStrategyIdRef.current = strategy?.id || null;
+
     const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
       strategy,
       (stepId, operator) => {
@@ -349,11 +441,17 @@ export function StrategyGraph(props: StrategyGraphProps) {
       },
       handleAddToChat,
       handleOpenDetails,
-      isUnsaved ? dirtyStepIds : undefined
+      isUnsaved ? dirtyStepIds : undefined,
+      {
+        existingPositions: nodePositionsRef.current,
+        forceRelayout,
+      }
     );
     setNodes(newNodes);
     setEdges(newEdges);
-    resetNodeHistory(newNodes);
+    if (forceRelayout) {
+      resetNodeHistory(newNodes);
+    }
   }, [
     strategy,
     setNodes,
@@ -432,14 +530,30 @@ export function StrategyGraph(props: StrategyGraphProps) {
         onRelayout={() => setLayoutSeed((prev) => prev + 1)}
         onAddSelectionToChat={handleAddSelectionToChat}
         canAddSelectionToChat={selectedNodeIds.length > 0}
+        selectedCount={selectedNodeIds.length}
+        onStartCombine={handleStartCombineFromSelection}
+        onStartOrthologTransform={handleStartOrthologTransformFromSelection}
         showPush={!!onPush}
         onPush={() => void handlePush()}
         canPush={canPush}
         isPushing={isPushing}
         pushLabel={pushLabel}
-        pushDisabledReason={pushDisabledReason}
-        canSave={canSave && !isSaving}
+        pushDisabledReason={resolvedPushDisabledReason}
+        onPushDisabled={() => {
+          onToast?.({
+            type: "warning",
+            message: resolvedPushDisabledReason || "Cannot push.",
+          });
+        }}
+        canSave={canSave}
         onSave={() => void handleSave()}
+        onSaveDisabled={() => {
+          onToast?.({
+            type: "warning",
+            message: saveDisabledReason || "Cannot save.",
+          });
+        }}
+        saveDisabledReason={saveDisabledReason}
         isSaving={isSaving}
         isUnsaved={isUnsaved}
         nodes={renderNodes}
@@ -449,11 +563,21 @@ export function StrategyGraph(props: StrategyGraphProps) {
         onNodesDelete={handleNodesDelete}
         onNodeDragStop={handleNodeDragStop}
         onConnect={handleConnect}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         onInit={(instance) => {
           reactFlowInstanceRef.current = instance;
         }}
         onMoveStart={() => setUserHasMoved(true)}
+        onPaneClick={() => setEdgeMenu(null)}
+        onEdgeClick={
+          isCompact
+            ? undefined
+            : (event, edge) => {
+                event.stopPropagation();
+                setEdgeMenu({ edge, x: event.clientX, y: event.clientY });
+              }
+        }
         selectionOnDrag={!isCompact && interactionMode === "select"}
         onSelectionChange={handleSelectionChange}
         panOnDrag={interactionMode === "pan"}
@@ -461,12 +585,81 @@ export function StrategyGraph(props: StrategyGraphProps) {
         fitViewOptions={FIT_VIEW_OPTIONS}
         snapGrid={SNAP_GRID}
       />
+      {!isCompact && edgeMenu && (
+        <div
+          className="fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1 py-1 shadow-md"
+          style={{ left: edgeMenu.x, top: edgeMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label="Edge actions"
+        >
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+            onClick={() => {
+              handleDeleteEdge(edgeMenu.edge);
+              setEdgeMenu(null);
+            }}
+          >
+            Delete edge
+          </button>
+        </div>
+      )}
       {!isCompact && (
         <CombineStepModal
           pendingCombine={pendingCombine}
           operators={COMBINE_OPERATORS}
           onChoose={(operator) => void handleCombineCreate(operator as CombineOperator)}
           onCancel={handleCombineCancel}
+        />
+      )}
+      {!isCompact && orthologModalOpen && selectedNodeIds.length === 1 && (
+        <OrthologTransformModal
+          open={orthologModalOpen}
+          siteId={siteId}
+          recordType={(strategy?.recordType || "gene") as string}
+          onCancel={() => setOrthologModalOpen(false)}
+          onChoose={(search, options) => {
+            const selectedId = selectedNodeIds[0]!;
+            const stepsList = draftStrategy?.steps || strategy?.steps || [];
+            const stepsById = new Map(stepsList.map((s) => [s.id, s]));
+            const inferredRecordType =
+              resolveRecordType(selectedId, stepsById) ||
+              strategy?.recordType ||
+              stepsById.get(selectedId)?.recordType ||
+              null;
+
+            const downstream = stepsList.find(
+              (s) =>
+                s.primaryInputStepId === selectedId || s.secondaryInputStepId === selectedId
+            );
+            const downstreamUsesPrimary = downstream?.primaryInputStepId === selectedId;
+            const downstreamUsesSecondary = downstream?.secondaryInputStepId === selectedId;
+
+            const newId = `step_${Math.random().toString(16).slice(2, 10)}`;
+            const newStep: StrategyStep = {
+              id: newId,
+              kind: "transform",
+              displayName: search.displayName || "Find orthologs",
+              searchName: search.name,
+              recordType: inferredRecordType ?? undefined,
+              parameters: {},
+              primaryInputStepId: selectedId,
+            };
+
+            addStep(newStep);
+
+            if (options.insertBetween && downstream) {
+              if (downstreamUsesPrimary) {
+                updateStep(downstream.id, { primaryInputStepId: newId });
+              } else if (downstreamUsesSecondary) {
+                updateStep(downstream.id, { secondaryInputStepId: newId });
+              }
+            }
+
+            setOrthologModalOpen(false);
+            setSelectedStep(newStep);
+          }}
         />
       )}
       {!isCompact && selectedStep && (

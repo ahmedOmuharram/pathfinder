@@ -14,6 +14,9 @@ interface StepNodeProps {
     onAddToChat?: (stepId: string) => void;
     isUnsaved?: boolean;
     onOpenDetails?: (stepId: string) => void;
+    showOutputHandle?: boolean;
+    showPrimaryInputHandle?: boolean;
+    showSecondaryInputHandle?: boolean;
   };
   selected?: boolean;
 }
@@ -40,7 +43,16 @@ const TYPE_STYLES: Record<
 };
 
 export function StepNode({ data, selected }: StepNodeProps) {
-  const { step, onOperatorChange, onAddToChat, isUnsaved, onOpenDetails } = data;
+  const {
+    step,
+    onOperatorChange,
+    onAddToChat,
+    isUnsaved,
+    onOpenDetails,
+    showOutputHandle,
+    showPrimaryInputHandle,
+    showSecondaryInputHandle,
+  } = data;
 
   const handleAddToChat = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -100,15 +112,25 @@ export function StepNode({ data, selected }: StepNodeProps) {
             type="target"
             position={Position.Left}
             id="left"
-            className="h-3 w-3 border-2 border-white bg-slate-700 z-10"
+            isConnectable={!!showPrimaryInputHandle}
+            className={`h-3 w-3 border-2 border-white z-10 ${
+              showPrimaryInputHandle
+                ? "bg-slate-700"
+                : "bg-slate-700 opacity-0 pointer-events-none"
+            }`}
           />
           {kind === "combine" && (
             <Handle
               type="target"
               position={Position.Left}
               id="left-secondary"
+              isConnectable={!!showSecondaryInputHandle}
               style={{ top: "70%" }}
-              className="h-3 w-3 border-2 border-white bg-slate-500 z-10"
+              className={`h-3 w-3 border-2 border-white z-10 ${
+                showSecondaryInputHandle
+                  ? "bg-slate-500"
+                  : "bg-slate-500 opacity-0 pointer-events-none"
+              }`}
             />
           )}
         </>
@@ -119,8 +141,11 @@ export function StepNode({ data, selected }: StepNodeProps) {
         type="source"
         position={Position.Right}
         id="right"
+        isConnectable={!!showOutputHandle}
         style={{ top: "50%" }}
-        className="h-3 w-3 border-2 border-slate-400 bg-white z-10"
+        className={`h-3 w-3 border-2 border-slate-400 z-10 ${
+          showOutputHandle ? "bg-white" : "bg-white opacity-0 pointer-events-none"
+        }`}
       />
 
       {/* Content */}
@@ -191,13 +216,15 @@ export function StepNode({ data, selected }: StepNodeProps) {
             <OpBadge operator={step.operator} size="sm" />
           </div>
         )}
-        <div className="mt-1 text-[11px] font-mono text-slate-600">
-          {typeof step.resultCount === "number"
-            ? `${step.resultCount.toLocaleString()} ${resultLabel}`
-            : step.resultCount === null
-              ? `? ${resultLabel}`
-              : "Loading..."}
-        </div>
+        {!validationError && (
+          <div className="mt-1 text-[11px] font-mono text-slate-600">
+            {typeof step.resultCount === "number"
+              ? `${step.resultCount.toLocaleString()} ${resultLabel}`
+              : step.resultCount === null
+                ? `? ${resultLabel}`
+                : "Loading..."}
+          </div>
+        )}
         {isZeroResults && !validationError && (
           <div className="group relative -mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
-"""Normalize and validate delegation inputs (subtasks + optional combines).
+"""Normalize and validate delegation inputs (nested plan structure).
 
-This is AI-orchestration logic: it validates a model-produced plan into a strict,
-executable shape.
+This is AI-orchestration logic: it validates a model-produced *nested* plan
+into a strict, executable shape.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from veupath_chatbot.domain.strategy.ops import parse_op
 @dataclass(frozen=True)
 class DelegationPlan:
     goal: str
-    post_plan: str | None
     tasks: list[dict[str, Any]]
     combines: list[dict[str, Any]]
     nodes_by_id: dict[str, dict[str, Any]]
@@ -35,229 +34,220 @@ def _op_value(value: Any) -> str | None:
 def build_delegation_plan(
     *,
     goal: str,
-    subtasks: list[dict[str, Any] | str] | None,
-    post_plan: str | None,
-    combines: list[dict[str, Any]] | None,
+    plan: dict[str, Any] | None,
 ) -> DelegationPlan | dict[str, Any]:
     def plan_error(message: str, detail: str, **extra: Any) -> dict[str, Any]:
         return tool_error(
             "DELEGATION_PLAN_INVALID",
             message,
             goal=goal,
-            postPlan=post_plan,
             detail=detail,
             **extra,
         )
 
-    if not subtasks:
+    if not isinstance(plan, dict):
         return plan_error(
-            "Subtasks are required when delegating.",
-            "Provide a non-empty 'subtasks' list instead of only 'goal'.",
+            "plan is required when delegating.",
+            "Provide a nested plan object as 'plan'.",
         )
 
-    if not (post_plan and post_plan.strip()):
-        return plan_error(
-            "post_plan is required when delegating.",
-            "Provide a non-empty 'post_plan' describing what to do after subtasks finish.",
-        )
+    # Compile nested plan -> DAG nodes.
+    node_counter = 0
+    tasks: list[dict[str, Any]] = []
+    combines: list[dict[str, Any]] = []
+    # Structural dedupe: canonical node signature -> generated id
+    seen_signatures: dict[str, str] = {}
 
-    if combines is None:
-        return plan_error(
-            "combines is required when delegating.",
-            "Provide a 'combines' list (use an empty list [] if no set operations are needed).",
-        )
+    def new_id() -> str:
+        nonlocal node_counter
+        node_counter += 1
+        return f"node_{node_counter}"
 
-    raw_tasks = [task for task in subtasks if task]
-    if not raw_tasks:
-        return plan_error(
-            "Subtasks are required when delegating.",
-            "Subtasks list must include at least one non-empty string.",
-        )
+    def _canon(value: Any) -> Any:
+        """Best-effort canonicalization for hashing."""
+        if isinstance(value, dict):
+            return {str(k): _canon(v) for k, v in sorted(value.items(), key=lambda kv: str(kv[0]))}
+        if isinstance(value, list):
+            return [_canon(v) for v in value]
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
-    normalized: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
-
-    for index, item in enumerate(raw_tasks, start=1):
-        if isinstance(item, str):
+    def compile_node(node: Any) -> str | dict[str, Any]:
+        if not isinstance(node, dict):
             return plan_error(
-                "Invalid subtask entry.",
-                "Each subtask must be an object with explicit depends_on (use [] when none).",
-                subtaskIndex=index,
+                "Invalid plan node.",
+                "Each node must be an object.",
             )
-        elif isinstance(item, dict):
-            task_id = str(item.get("id") or f"task_{index}").strip()
-            task_text = str(item.get("task") or item.get("text") or "").strip()
-            has_depends_key = ("depends_on" in item) or ("dependsOn" in item)
-            if not has_depends_key:
+        node_type = str(node.get("type") or node.get("kind") or "").strip().lower()
+        # Be forgiving: infer node type when omitted but structure is unambiguous.
+        if not node_type:
+            if (node.get("operator") is not None or node.get("op") is not None) and (
+                node.get("left") is not None
+                or node.get("right") is not None
+                or node.get("inputs") is not None
+            ):
+                node_type = "combine"
+            elif node.get("task") is not None or node.get("text") is not None:
+                node_type = "task"
+        if not node_type and node.get("id") is not None:
+            # Model attempted an id-only reference. Since we ignore ids, this is invalid.
+            return plan_error(
+                "Invalid plan node.",
+                "Do not use id-only references. Provide a full node object with 'type'.",
+            )
+
+        if node_type in ("combine", "op", "operator"):
+            op_raw = node.get("operator") or node.get("op")
+            operator = _op_value(op_raw)
+            if not operator:
                 return plan_error(
-                    "depends_on is required for each subtask.",
-                    "Include depends_on: [] when the task has no dependencies.",
-                    subtaskId=task_id,
-                    subtaskIndex=index,
+                    "Invalid combine operator.",
+                    "Combine node requires a valid operator.",
+                    nodeId=node.get("id"),
+                    operator=op_raw,
                 )
-            depends_raw = item.get("depends_on") or item.get("dependsOn") or []
-            if isinstance(depends_raw, str):
-                depends_on = [depends_raw.strip()] if depends_raw.strip() else []
-            elif isinstance(depends_raw, list):
-                depends_on = [str(dep).strip() for dep in depends_raw if str(dep).strip()]
+            inputs_raw = node.get("inputs")
+            left = node.get("left")
+            right = node.get("right")
+            if inputs_raw is not None:
+                if not isinstance(inputs_raw, list) or len(inputs_raw) != 2:
+                    return plan_error(
+                        "Invalid combine inputs.",
+                        "Combine node inputs must be a list of exactly 2 child nodes.",
+                        nodeId=node.get("id"),
+                    )
+                left_node, right_node = inputs_raw[0], inputs_raw[1]
             else:
-                depends_on = []
-            # 'how' used to exist but is not consumed by execution; reject it to avoid ambiguity.
-            if "how" in item:
-                return plan_error(
-                    "Unsupported subtask field: how.",
-                    "Remove 'how'. Dependencies must be expressed via depends_on and explicit combine nodes in 'combines'.",
-                    subtaskId=task_id,
-                    subtaskIndex=index,
-                )
-        else:
-            continue
+                left_node, right_node = left, right
+                if left_node is None or right_node is None:
+                    return plan_error(
+                        "Invalid combine inputs.",
+                        "Combine node requires left and right child nodes.",
+                        nodeId=node.get("id"),
+                    )
 
-        if not task_text:
-            continue
+            left_id = compile_node(left_node)
+            if isinstance(left_id, dict):
+                return left_id
+            right_id = compile_node(right_node)
+            if isinstance(right_id, dict):
+                return right_id
 
-        if task_id in seen_ids:
-            return plan_error(
-                "Duplicate subtask id.",
-                f"Subtask id '{task_id}' appears more than once.",
-            )
-        seen_ids.add(task_id)
-        normalized.append(
-            {"id": task_id, "task": task_text, "depends_on": depends_on}
-        )
-
-    if not normalized:
-        return plan_error(
-            "Subtasks are required when delegating.",
-            "Subtasks list must include at least one non-empty string.",
-        )
-
-    task_ids = {task["id"] for task in normalized}
-
-    # Combines
-    raw_combines = [combine for combine in (combines or []) if combine]
-    normalized_combines: list[dict[str, Any]] = []
-    combine_ids: set[str] = set()
-
-    for index, combine in enumerate(raw_combines, start=1):
-        if not isinstance(combine, dict):
-            return plan_error(
-                "Invalid combine entry.",
-                f"Combine entry #{index} must be an object.",
-            )
-        combine_id = str(combine.get("id") or f"combine_{index}").strip()
-        if not combine_id:
-            return plan_error(
-                "Invalid combine id.",
-                f"Combine entry #{index} requires an id.",
-            )
-        if combine_id in task_ids or combine_id in combine_ids:
-            return plan_error(
-                "Duplicate combine id.",
-                f"Combine id '{combine_id}' appears more than once.",
-            )
-
-        operator_raw = combine.get("op") or combine.get("operator") or combine.get("combine")
-        operator = _op_value(operator_raw)
-        if not operator:
-            return plan_error(
-                "Invalid combine operator.",
-                f"Combine '{combine_id}' requires a valid operator.",
-            )
-
-        inputs = combine.get("inputs")
-        left = combine.get("left")
-        right = combine.get("right")
-
-        if inputs is not None:
-            if not isinstance(inputs, list):
-                return plan_error(
-                    "Invalid combine inputs.",
-                    f"Combine '{combine_id}' inputs must be a list.",
-                )
-            input_refs = [str(item).strip() for item in inputs if str(item).strip()]
-            if len(input_refs) < 2:
-                return plan_error(
-                    "Invalid combine inputs.",
-                    f"Combine '{combine_id}' inputs must include 2+ ids.",
-                )
-        else:
-            input_refs = []
-            if left:
-                input_refs.append(str(left).strip())
-            if right:
-                input_refs.append(str(right).strip())
-            if len(input_refs) != 2:
-                return plan_error(
-                    "Invalid combine inputs.",
-                    f"Combine '{combine_id}' requires left/right or inputs list.",
-                )
-
-        depends_raw = combine.get("depends_on") or combine.get("dependsOn")
-        if depends_raw is None:
-            depends_on = input_refs
-        elif isinstance(depends_raw, str):
-            depends_on = [depends_raw.strip()] if depends_raw.strip() else []
-        elif isinstance(depends_raw, list):
-            depends_on = [str(dep).strip() for dep in depends_raw if str(dep).strip()]
-        else:
-            depends_on = []
-        # Ensure inputs are dependencies so combines only run after inputs are ready.
-        depends_on = list(dict.fromkeys([*depends_on, *input_refs]))
-
-        normalized_combines.append(
-            {
-                "id": combine_id,
+            display_name = node.get("display_name") or node.get("displayName")
+            hint = node.get("hint")
+            signature_obj = {
+                "kind": "combine",
                 "operator": operator,
-                "inputs": input_refs,
-                "depends_on": depends_on,
-                "display_name": combine.get("display_name") or combine.get("displayName"),
-                "upstream": combine.get("upstream"),
-                "downstream": combine.get("downstream"),
+                "inputs": [left_id, right_id],
+                "display_name": display_name,
+                "hint": hint,
             }
+            signature = str(_canon(signature_obj))
+            existing = seen_signatures.get(signature)
+            if existing:
+                return existing
+            node_id = new_id()
+            seen_signatures[signature] = node_id
+
+            combines.append(
+                {
+                    "id": node_id,
+                    "kind": "combine",
+                    "operator": operator,
+                    "inputs": [left_id, right_id],
+                    "depends_on": [left_id, right_id],
+                    "display_name": display_name,
+                    "hint": hint,
+                    "task": display_name
+                    or f"Combine {node_id} ({operator})",
+                }
+            )
+            return node_id
+
+        if node_type in ("task", "step", "subtask"):
+            task_text = str(node.get("task") or node.get("text") or "").strip()
+            if not task_text:
+                return plan_error(
+                    "Invalid task node.",
+                    "Task node requires a non-empty 'task' string.",
+                    nodeId=node.get("id"),
+                )
+            hint = str(node.get("hint") or "").strip()
+            # Optional per-task context that will be passed to the sub-kani as additional
+            # structured context (e.g. organism, recordType, dataset ids, constraints).
+            # Allow common aliases since models vary: context / parameters / params.
+            context = node.get("context")
+            if context is None:
+                context = node.get("parameters")
+            if context is None:
+                context = node.get("params")
+            if context is not None and not isinstance(context, (dict, list, str, int, float, bool)):
+                return plan_error(
+                    "Invalid task context.",
+                    "Task node 'context' must be a JSON-serializable object/array/string/primitive.",
+                    nodeId=node.get("id"),
+                    contextType=type(context).__name__,
+                )
+            input_node = node.get("input")
+            depends: list[str] = []
+            if input_node is not None:
+                child_id = compile_node(input_node)
+                if isinstance(child_id, dict):
+                    return child_id
+                depends = [child_id]
+
+            signature_obj = {
+                "kind": "task",
+                "task": task_text,
+                "hint": hint,
+                "context": context,
+                "depends_on": depends,
+            }
+            signature = str(_canon(signature_obj))
+            existing = seen_signatures.get(signature)
+            if existing:
+                return existing
+            node_id = new_id()
+            seen_signatures[signature] = node_id
+
+            tasks.append(
+                {
+                    "id": node_id,
+                    "kind": "task",
+                    "task": task_text,
+                    "hint": hint,
+                    "context": context,
+                    "depends_on": depends,
+                }
+            )
+            return node_id
+
+        return plan_error(
+            "Invalid node type.",
+            "Node 'type' must be either 'task' or 'combine'.",
+            nodeId=node.get("id"),
+            nodeType=node_type,
         )
-        combine_ids.add(combine_id)
 
-    valid_ref_ids = task_ids | combine_ids
-    for combine in normalized_combines:
-        missing = [ref for ref in combine["inputs"] if ref and ref not in valid_ref_ids]
-        if missing:
-            return plan_error(
-                "Unknown combine input ids.",
-                f"{combine['id']} references {missing} which are not in subtasks/combines.",
-            )
-        missing_deps = [dep for dep in combine["depends_on"] if dep not in valid_ref_ids]
-        if missing_deps:
-            return plan_error(
-                "Unknown combine dependency ids.",
-                f"{combine['id']} depends on {missing_deps} which are not in subtasks/combines.",
-            )
+    root_id = compile_node(plan)
+    if isinstance(root_id, dict):
+        return root_id
 
-    # Now validate and build a unified DAG over (tasks ∪ combines).
+    # Build nodes_by_id with explicit kinds; validate DAG.
     nodes_by_id: dict[str, dict[str, Any]] = {}
-    for task in normalized:
-        nodes_by_id[task["id"]] = {
-            **task,
-            "kind": "task",
-        }
-    for combine in normalized_combines:
-        nodes_by_id[combine["id"]] = {
-            **combine,
-            "kind": "combine",
-            # Make `format_dependency_context` happy (it looks for "task" text)
-            "task": combine.get("display_name")
-            or f"Combine {combine['id']} ({combine.get('operator')})",
-        }
+    for task in tasks:
+        nodes_by_id[task["id"]] = {**task}
+    for combine in combines:
+        nodes_by_id[combine["id"]] = {**combine}
 
     all_ids = set(nodes_by_id.keys())
-
-    for task in normalized:
-        missing = [dep for dep in (task.get("depends_on") or []) if dep not in all_ids]
-        if missing:
-            return plan_error(
-                "Unknown dependency ids.",
-                f"{task['id']} depends on {missing} which are not in subtasks/combines.",
-            )
+    if root_id not in all_ids:
+        return plan_error(
+            "Invalid root node.",
+            "Root id missing after compilation.",
+            rootId=root_id,
+        )
 
     indegree: dict[str, int] = {node_id: 0 for node_id in all_ids}
     dependents: dict[str, list[str]] = {node_id: [] for node_id in all_ids}
@@ -286,9 +276,8 @@ def build_delegation_plan(
 
     return DelegationPlan(
         goal=goal,
-        post_plan=post_plan,
-        tasks=normalized,
-        combines=normalized_combines,
+        tasks=tasks,
+        combines=combines,
         nodes_by_id=nodes_by_id,
         dependents=dependents,
     )

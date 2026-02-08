@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageComposer } from "@/features/chat/components/MessageComposer";
-import { getStrategy } from "@/lib/api/client";
+import { getStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/client";
 import type { Message, ToolCall } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -55,6 +55,9 @@ export function ChatPanel({
   const strategyId = useSessionStore((state) => state.strategyId);
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
   const setAuthToken = useSessionStore((state) => state.setAuthToken);
+  const setChatIsStreaming = useSessionStore((state) => state.setChatIsStreaming);
+  const pendingExecutorSend = useSessionStore((state) => state.pendingExecutorSend);
+  const setPendingExecutorSend = useSessionStore((state) => state.setPendingExecutorSend);
   const selectedSiteDisplayName = useSessionStore(
     (state) => state.selectedSiteDisplayName
   );
@@ -140,6 +143,7 @@ export function ChatPanel({
 
   const {
     handleSendMessage,
+    stopStreaming,
     isStreaming,
     apiError,
     setIsStreaming,
@@ -170,11 +174,38 @@ export function ChatPanel({
     strategyRef,
     currentStrategy,
     attachThinkingToLastAssistant,
+    mode: "execute",
   });
+
+  // Send any queued executor message once we're ready (avoids races while switching tabs/strategy).
+  useEffect(() => {
+    if (!pendingExecutorSend) return;
+    if (!strategyId) return;
+    if (pendingExecutorSend.strategyId !== strategyId) return;
+    if (isStreamingRef.current) return;
+    const msg = (pendingExecutorSend.message || "").trim();
+    if (!msg) {
+      setPendingExecutorSend(null);
+      return;
+    }
+    // Programmatic send: also clear the composer input (since MessageComposer manages
+    // its own local state and won't auto-clear when we send outside of it).
+    handleSendMessage(msg);
+    window.dispatchEvent(
+      new CustomEvent("pathfinder:prefill-composer", {
+        detail: { mode: "execute", message: "" },
+      })
+    );
+    setPendingExecutorSend(null);
+  }, [pendingExecutorSend, strategyId, handleSendMessage, setPendingExecutorSend]);
 
   useEffect(() => {
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
+
+  useEffect(() => {
+    setChatIsStreaming(isStreaming);
+  }, [isStreaming, setChatIsStreaming]);
 
   useChatPreviewUpdate(strategyId, `${messages.length}`);
 
@@ -237,6 +268,7 @@ export function ChatPanel({
         displayName={displayName}
         firstName={firstName}
         signedIn={veupathdbSignedIn}
+        mode="execute"
         isStreaming={isStreaming}
         messages={messages}
         undoSnapshots={undoSnapshots}
@@ -248,6 +280,24 @@ export function ChatPanel({
             description: snapshot.description ?? undefined,
             recordType: snapshot.recordType ?? undefined,
           });
+        }}
+        onApplyPlanningArtifact={async (artifact) => {
+          if (!strategyId) return;
+          const proposed = artifact.proposedStrategyPlan;
+          if (!proposed || typeof proposed !== "object") return;
+          try {
+            await updateStrategyApi(strategyId, { plan: proposed as any });
+            const full = await getStrategy(strategyId);
+            setStrategy(full);
+            setStrategyMeta({
+              name: full.name,
+              description: full.description ?? undefined,
+              recordType: full.recordType ?? undefined,
+              siteId: full.siteId,
+            });
+          } catch {
+            // Best-effort; if apply fails we keep existing strategy state.
+          }
         }}
         thinking={thinking}
         messagesEndRef={messagesEndRef}
@@ -269,7 +319,13 @@ export function ChatPanel({
           )}
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <MessageComposer onSend={handleSendMessage} disabled={isStreaming} />
+              <MessageComposer
+                onSend={handleSendMessage}
+                disabled={isStreaming}
+                isStreaming={isStreaming}
+                onStop={stopStreaming}
+                mode="execute"
+              />
             </div>
           </div>
         </div>

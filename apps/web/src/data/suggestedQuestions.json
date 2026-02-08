@@ -1,7 +1,7 @@
 {
   "plasmodb": [
     "Find genes from either Plasmodium falciparum 3D7 or Plasmodium falciparum Dd2.",
-    "Find genes upregulated in P. berghei gametocytes using Otto 2014 and Yeoh 2017 (male and female). Map this combination to P. falciparum orthologs, and keep only orthologs that are also upregulated in Lasonder 2016 male and female gametocytes."
+    "Find orthologous genes upregulated in P. berghei gametocytes in either Otto et al 2014 or Yeoh et al 2017 (male + female samples). Map this combination to P. falciparum 3D7 orthologs, and keep only orthologs that are also upregulated in Lasonder et al 2016 male gametocytes."
   ],
   "toxodb": [
     "Find Toxoplasma gondii genes that are upregulated in bradyzoites and have signal peptides.",

@@ -49,10 +49,15 @@ class VEuPathDBClient:
         base_url: str,
         timeout: float = 30.0,
         auth_token: str | None = None,
+        *,
+        max_connections: int = 1000,
+        max_keepalive_connections: int = 200,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.auth_token = auth_token
+        self.max_connections = int(max_connections)
+        self.max_keepalive_connections = int(max_keepalive_connections)
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -62,6 +67,10 @@ class VEuPathDBClient:
                 base_url=self.base_url,
                 timeout=httpx.Timeout(self.timeout),
                 follow_redirects=True,
+                limits=httpx.Limits(
+                    max_connections=max(1, self.max_connections),
+                    max_keepalive_connections=max(0, self.max_keepalive_connections),
+                ),
                 headers={
                     "Accept": "application/json",
                     "Content-Type": "application/json",

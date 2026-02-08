@@ -47,13 +47,18 @@ def build_thinking_payload(
     tool_calls_by_id: dict[str, dict[str, Any]],
     subkani_calls: dict[str, list[dict[str, Any]]],
     subkani_status: dict[str, str],
+    *,
+    reasoning: str | None = None,
 ) -> dict[str, Any]:
     normalized_tool_calls = normalize_tool_calls(list(tool_calls_by_id.values()))
     normalized_subkani = normalize_subkani_activity(subkani_calls, subkani_status)
-    return {
+    payload: dict[str, Any] = {
         "toolCalls": normalized_tool_calls,
         "subKaniCalls": (normalized_subkani or {}).get("calls", {}),
         "subKaniStatus": (normalized_subkani or {}).get("status", {}),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
+    if reasoning is not None:
+        payload["reasoning"] = reasoning
+    return payload
 

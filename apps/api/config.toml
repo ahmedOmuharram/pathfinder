@@ -15,6 +15,15 @@ openai_model = "gpt-4o"
 openai_temperature = 0.0
 openai_top_p = 1.0
 
+# Retrieval / vector store (Qdrant)
+rag_enabled = true
+qdrant_url = "http://localhost:6333"
+qdrant_api_key = ""
+qdrant_timeout_seconds = 10.0
+
+# Embeddings
+embeddings_model = "text-embedding-3-small"
+
 # Sub-kani orchestration
 subkani_model = "gpt-4o"
 subkani_temperature = 0.0

@@ -23,6 +23,10 @@ from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.site_search import (
+    query_site_search,
+    strip_html_tags,
+)
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_wdk_client,
     list_sites as list_wdk_sites,
@@ -228,6 +232,73 @@ async def get_search_parameters_tool(
         )
 
 
+async def _search_for_searches_via_site_search(
+    site_id: str,
+    query: str,
+    *,
+    limit: int = 20,
+) -> list[dict[str, str]]:
+    """Search WDK searches via the site's /site-search service.
+
+    This mirrors the webapp search UI (`/app/search`) when filtering to
+    documentType=search.
+    """
+    try:
+        data = await query_site_search(
+            site_id,
+            search_text=query,
+            document_type="search",
+            limit=limit,
+            offset=0,
+        )
+    except Exception as exc:
+        logger.info(
+            "Site-search lookup failed; falling back to discovery search",
+            site_id=site_id,
+            error=str(exc),
+        )
+        return []
+
+    docs = ((data or {}).get("searchResults") or {}).get("documents") or []
+    results: list[dict[str, str]] = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        primary_key = doc.get("primaryKey")
+        if not isinstance(primary_key, list) or len(primary_key) < 2:
+            continue
+        search_name = str(primary_key[0] or "").strip()
+        record_type = str(primary_key[1] or "").strip()
+        if not search_name or not record_type:
+            continue
+
+        found = doc.get("foundInFields") or {}
+        display = doc.get("hyperlinkName") or ""
+        if not display and isinstance(found, dict):
+            candidates = found.get("TEXT__search_displayName") or found.get("autocomplete") or []
+            if isinstance(candidates, list) and candidates:
+                display = candidates[0]
+        display_name = strip_html_tags(str(display or "")) or search_name
+
+        desc_val = ""
+        if isinstance(found, dict):
+            descs = found.get("TEXT__search_description") or found.get("TEXT__search_summary") or []
+            if isinstance(descs, list) and descs:
+                desc_val = str(descs[0] or "")
+        description = strip_html_tags(desc_val)
+
+        results.append(
+            {
+                "name": search_name,
+                "displayName": display_name,
+                "description": description,
+                "recordType": record_type,
+            }
+        )
+
+    return results[:limit]
+
+
 async def search_for_searches(
     site_id: str,
     record_type: str | list[str] | None,
@@ -235,36 +306,69 @@ async def search_for_searches(
 ) -> list[dict[str, str]]:
     """Find searches matching a query term (name/description and sometimes detail text)."""
     discovery = get_discovery_service()
+    # Prefer the same mechanism the web UI uses when no record type filter is provided.
+    # This is higher-recall and returns canonical (searchName, recordType) pairs.
+    if record_type is None:
+        site_search_results = await _search_for_searches_via_site_search(site_id, query)
+        if site_search_results:
+            return site_search_results
     record_types: list[str] = []
     if isinstance(record_type, list):
         record_types = [str(rt) for rt in record_type if rt]
     elif isinstance(record_type, str) and record_type:
         record_types = [record_type]
     record_types = list(dict.fromkeys(record_types))
+    if not record_types:
+        record_types = [
+            (rt.get("urlSegment") or rt.get("name") or "")
+            for rt in await discovery.get_record_types(site_id)
+            if isinstance(rt, dict)
+        ]
+        record_types = [rt for rt in record_types if rt]
 
     raw_terms = re.findall(r"[A-Za-z0-9]+", query or "")
     terms = [t.lower() for t in raw_terms if t]
     query_lower = query.lower() if query else ""
     matches: list[dict[str, Any]] = []
 
+    def term_variants(term: str) -> list[str]:
+        # Very small, cheap normalization for common user phrasing.
+        # This is intentionally conservative (no heavy NLP deps).
+        variants = {term}
+        if len(term) > 3 and term.endswith("s"):
+            variants.add(term[:-1])
+        if len(term) > 4 and term.endswith("ed"):
+            variants.add(term[:-2])
+        if len(term) > 5 and term.endswith("ing"):
+            variants.add(term[:-3])
+        return list(variants)
+
     def add_matches(searches: list[dict[str, Any]], rt_name: str) -> None:
         for search in searches:
             if search.get("isInternal", False):
                 continue
-            name = search.get("displayName", "") or search.get("urlSegment", "")
+            display_name = search.get("displayName", "") or search.get("urlSegment", "")
             desc = search.get("description", "")
-            haystack = f"{name} {desc}".lower()
+            url_segment = search.get("urlSegment", search.get("name", "")) or ""
+            internal_name = search.get("name", "") or ""
+            haystack = f"{display_name} {desc} {url_segment} {internal_name}".lower()
             score = 0
             if terms:
-                score = sum(1 for term in terms if term in haystack)
+                score = sum(
+                    1 for term in terms if any(v in haystack for v in term_variants(term))
+                )
             else:
-                if query_lower and (query_lower in name.lower() or query_lower in desc.lower()):
+                if query_lower and (
+                    query_lower in display_name.lower()
+                    or query_lower in desc.lower()
+                    or query_lower in url_segment.lower()
+                ):
                     score = 1
             if score > 0:
                 matches.append(
                     {
                         "name": search.get("urlSegment", search.get("name", "")),
-                        "displayName": name,
+                        "displayName": display_name,
                         "description": desc,
                         "recordType": rt_name,
                         "score": str(score),

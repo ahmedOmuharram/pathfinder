@@ -19,6 +19,7 @@ from veupath_chatbot.ai.subkani_utils import (
     consume_subkani_round,
     extract_primary_step_id,
     format_dependency_context,
+    format_task_context,
 )
 from veupath_chatbot.ai.subkani.prompts import build_subkani_round_prompt
 from veupath_chatbot.ai.subtask_agent import SubtaskAgent
@@ -164,7 +165,7 @@ async def run_subkani_task(
                 "Retry the task and you MUST create at least one valid step.\n"
                 "Before creating anything:\n"
                 "- Use get_record_types() if record type is unclear.\n"
-                "- Use search_for_searches(record_type, query) to find relevant searches.\n"
+                "- Use search_for_searches(query) to find relevant searches.\n"
                 "- Use get_search_parameters(record_type, search_name) to learn required params.\n"
                 "Execution rules:\n"
                 "- All parameter values must be strings.\n"
@@ -190,24 +191,29 @@ async def delegate_strategy_subtasks(
     strategy_tools,
     emit_event: EmitEvent,
     chat_history,
-    subtasks: list[dict[str, Any] | str] | None = None,
-    post_plan: str | None = None,
-    combines: list[dict[str, Any]] | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     settings = get_settings()
-    plan = build_delegation_plan(
+    compiled = build_delegation_plan(
         goal=goal,
-        subtasks=subtasks,
-        post_plan=post_plan,
-        combines=combines,
+        plan=plan,
     )
-    if isinstance(plan, dict):
-        return plan
-    assert isinstance(plan, DelegationPlan)
-    normalized = plan.tasks
-    normalized_combines = plan.combines
-    nodes_by_id = plan.nodes_by_id
-    dependents = plan.dependents
+    if isinstance(compiled, dict):
+        # Plan validation error payload; return immediately.
+        return compiled
+    if not isinstance(compiled, DelegationPlan):
+        # Defensive: should never happen, but prevents confusing attribute errors.
+        return tool_error(
+            "DELEGATION_PLAN_INVALID",
+            "Delegation plan normalization returned an unexpected type.",
+            goal=goal,
+            receivedType=type(compiled).__name__,
+        )
+
+    normalized = compiled.tasks
+    normalized_combines = compiled.combines
+    nodes_by_id = compiled.nodes_by_id
+    dependents = compiled.dependents
 
     graph_name, graph_description = derive_graph_metadata(goal)
     graph = strategy_session.get_graph(None)
@@ -308,6 +314,14 @@ async def delegate_strategy_subtasks(
             }
 
         task_text = str(node.get("task") or "").strip()
+        hint = str(node.get("hint") or "").strip()
+        if hint:
+            task_text = f"{task_text}\n\nHint: {hint}"
+        extra_context = format_task_context(node.get("context"))
+        if extra_context:
+            dependency_context = (
+                (dependency_context + "\n\n") if dependency_context else ""
+            ) + "Planner-provided context (JSON/text):\n" + extra_context
         try:
             result = await run_subkani_task(
                 task=task_text,
@@ -367,7 +381,6 @@ async def delegate_strategy_subtasks(
     return {
         "goal": goal,
         "tasks": normalized,
-        "postPlan": post_plan,
         "graphId": graph_id,
         "graphName": graph_name,
         "graphDescription": graph_description,

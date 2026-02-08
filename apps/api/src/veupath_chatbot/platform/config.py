@@ -87,6 +87,33 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_temperature: float = 0.0
     openai_top_p: float = 1.0
+    openai_hyperparams: dict[str, object] = Field(
+        default_factory=dict,
+        description="Extra OpenAI chat-completions params passed through to the engine.",
+    )
+
+    # Anthropic (Claude)
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-0"
+    anthropic_temperature: float = 0.0
+    anthropic_top_p: float = 1.0
+    anthropic_hyperparams: dict[str, object] = Field(default_factory=dict)
+
+    # Google (Gemini)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-pro"
+    gemini_temperature: float = 0.0
+    gemini_top_p: float = 1.0
+    gemini_hyperparams: dict[str, object] = Field(default_factory=dict)
+
+    # Retrieval / vector store (Qdrant)
+    rag_enabled: bool = True
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None
+    qdrant_timeout_seconds: float = 10.0
+
+    # Embeddings
+    embeddings_model: str = "text-embedding-3-small"
 
     # Sub-kani orchestration
     subkani_model: str = "gpt-4o"
@@ -94,6 +121,14 @@ class Settings(BaseSettings):
     subkani_top_p: float = 1.0
     subkani_max_concurrency: int = 6
     subkani_timeout_seconds: int = 120
+
+    # Planning mode (planner agents)
+    planning_provider: Literal["openai", "anthropic", "google"] = "openai"
+    planning_model: str = "gpt-5"
+    # Note: some planning-capable OpenAI models only allow the default temperature=1.
+    planning_temperature: float = 1.0
+    planning_top_p: float = 1.0
+    planning_hyperparams: dict[str, object] = Field(default_factory=dict)
 
     # VEuPathDB
     veupathdb_default_site: str = "plasmodb"

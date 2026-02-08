@@ -383,7 +383,11 @@ class StrategyToolsHelpers(StrategyToolsBase):
         }
         kind = step.infer_kind()
         info["kind"] = kind
-        info["searchName"] = step.search_name
+        # `searchName` is only meaningful for WDK-backed question steps (leaf / transform).
+        # Combine steps are represented structurally (primary/secondary/operator) and do not
+        # correspond to a WDK "searchName" that the UI can load param metadata for.
+        if kind != "combine":
+            info["searchName"] = step.search_name
         info["parameters"] = step.parameters
         if kind == "combine":
             info["operator"] = step.operator.value if step.operator else None
@@ -407,7 +411,9 @@ class StrategyToolsHelpers(StrategyToolsBase):
             "displayName": step.display_name or default_name,
             "recordType": graph.record_type if (graph := self._get_graph(None)) else None,
         }
-        base["searchName"] = step.search_name
+        # Same rule as `_serialize_step`: only emit `searchName` for non-combine nodes.
+        if kind != "combine":
+            base["searchName"] = step.search_name
         base["parameters"] = step.parameters
         base["primaryInputStepId"] = step.primary_input.id if step.primary_input else None
         base["secondaryInputStepId"] = (

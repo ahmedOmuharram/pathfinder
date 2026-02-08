@@ -9,9 +9,12 @@ interface StrategyGraphActionButtonsProps {
   isPushing: boolean;
   pushLabel: string;
   pushDisabledReason?: string;
+  onPushDisabled?: () => void;
 
   canSave: boolean;
   onSave: () => void;
+  onSaveDisabled?: () => void;
+  saveDisabledReason?: string;
   isSaving: boolean;
   isUnsaved: boolean;
 }
@@ -23,20 +26,33 @@ export function StrategyGraphActionButtons({
   isPushing,
   pushLabel,
   pushDisabledReason,
+  onPushDisabled,
   canSave,
   onSave,
+  onSaveDisabled,
+  saveDisabledReason,
   isSaving,
   isUnsaved,
 }: StrategyGraphActionButtonsProps) {
+  const pushIsDisabled = !canPush || isPushing;
+  const saveIsDisabled = !canSave || isSaving;
   return (
     <div className="pointer-events-auto absolute bottom-4 right-4 z-10 flex flex-col gap-2">
       <div className="flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur">
         {showPush && onPush && (
           <button
             type="button"
-            onClick={onPush}
-            disabled={!canPush || isPushing}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => {
+              if (pushIsDisabled) {
+                onPushDisabled?.();
+                return;
+              }
+              onPush();
+            }}
+            aria-disabled={pushIsDisabled}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 ${
+              pushIsDisabled ? "cursor-not-allowed opacity-60" : ""
+            }`}
             title={
               isPushing
                 ? "Pushing..."
@@ -51,12 +67,22 @@ export function StrategyGraphActionButtons({
 
         <button
           type="button"
-          onClick={onSave}
-          disabled={!canSave}
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 ${
+          onClick={() => {
+            if (saveIsDisabled) {
+              onSaveDisabled?.();
+              return;
+            }
+            onSave();
+          }}
+          aria-disabled={saveIsDisabled}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 ${
+            saveIsDisabled ? "cursor-not-allowed opacity-60" : ""
+          } ${
             isUnsaved ? "save-attention" : ""
           }`}
-          title={isSaving ? "Saving..." : "Save"}
+          title={
+            isSaving ? "Saving..." : !canSave && saveDisabledReason ? saveDisabledReason : "Save"
+          }
         >
           <Save className="h-4 w-4" />
         </button>

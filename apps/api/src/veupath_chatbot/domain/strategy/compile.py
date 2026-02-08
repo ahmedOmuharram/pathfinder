@@ -296,10 +296,18 @@ class StrategyCompiler:
         normalizer = ParameterNormalizer(specs)
         try:
             normalized = normalizer.normalize(parameters or {})
-        except ValidationError:
-            details = await self.api.client.get_search_details_with_params(
-                record_type, search_name, context=parameters or {}, expand_params=True
-            )
+        except ValidationError as validation_exc:
+            # WDK question param metadata can be context-dependent. When validation fails, retry
+            # with contextParamValues so dependent vocabularies/constraints can refresh.
+            #
+            # Some WDK deployments/questions error on this POST (500 Internal Error). If that
+            # happens, keep the original specs and re-raise the validation error.
+            try:
+                details = await self.api.client.get_search_details_with_params(
+                    record_type, search_name, context=parameters or {}, expand_params=True
+                )
+            except Exception:
+                raise validation_exc
             if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
                 details = details["searchData"]
             specs = adapt_param_specs(details if isinstance(details, dict) else {})

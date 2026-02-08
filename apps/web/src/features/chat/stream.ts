@@ -13,7 +13,9 @@ export async function streamChat(
     maxRetries?: number;
     retryDelay?: number;
   },
-  strategyId?: string
+  context?: { strategyId?: string; planSessionId?: string },
+  mode: "execute" | "plan" = "execute",
+  signal?: AbortSignal
 ) {
   // Fail fast if the API isn't ready (keeps retry loops clearer).
   const healthUrl = buildUrl("/health/ready");
@@ -29,7 +31,14 @@ export async function streamChat(
     "/api/v1/chat",
     {
       method: "POST",
-      body: { message, siteId, strategyId },
+      body: {
+        message,
+        siteId,
+        strategyId: context?.strategyId,
+        planSessionId: context?.planSessionId,
+        mode,
+      },
+      signal,
     },
     {
       ...rest,

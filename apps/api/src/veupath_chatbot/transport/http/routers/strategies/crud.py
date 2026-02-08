@@ -49,7 +49,7 @@ async def list_strategies(
             title=s.title,
             siteId=s.site_id,
             recordType=s.record_type,
-            stepCount=count_steps_in_plan(s.plan or {}),
+            stepCount=(count_steps_in_plan(s.plan or {}) or (len(s.steps or []) if s.steps else 0)),
             resultCount=s.result_count,
             wdkStrategyId=s.wdk_strategy_id,
             createdAt=s.created_at or datetime.now(timezone.utc),
@@ -122,11 +122,15 @@ async def get_strategy(
         else None
     )
     steps = build_steps_data_from_plan(strategy.plan or {})
+    if not steps and strategy.steps:
+        steps = strategy.steps
     root_step_id = (
         (strategy.plan or {}).get("root", {}).get("id")
         if isinstance(strategy.plan, dict)
         else None
     )
+    if not root_step_id and strategy.root_step_id:
+        root_step_id = strategy.root_step_id
     if strategy.wdk_strategy_id and steps:
         try:
             api = get_strategy_api(strategy.site_id)

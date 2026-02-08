@@ -11,6 +11,11 @@ GRAPH_DELETED = "graph_deleted"
 STRATEGY_LINK = "strategy_link"
 STRATEGY_META = "strategy_meta"
 STRATEGY_UPDATE = "strategy_update"
+PLANNING_ARTIFACT = "planning_artifact"
+CITATIONS = "citations"
+REASONING = "reasoning"
+PLAN_UPDATE = "plan_update"
+EXECUTOR_BUILD_REQUEST = "executor_build_request"
 
 
 def tool_result_to_events(
@@ -21,6 +26,32 @@ def tool_result_to_events(
     events: list[dict[str, Any]] = []
     if not isinstance(result, dict):
         return events
+
+    citations = result.get("citations")
+    if isinstance(citations, list) and citations:
+        events.append({"type": CITATIONS, "data": {"citations": citations}})
+
+    if result.get("planningArtifact"):
+        events.append(
+            {
+                "type": PLANNING_ARTIFACT,
+                "data": {"planningArtifact": result.get("planningArtifact")},
+            }
+        )
+
+    if isinstance(result.get("reasoning"), str) and result.get("reasoning").strip():
+        events.append({"type": REASONING, "data": {"reasoning": result.get("reasoning")}})
+
+    if isinstance(result.get("planTitle"), str) and result.get("planTitle").strip():
+        events.append({"type": PLAN_UPDATE, "data": {"title": result.get("planTitle")}})
+
+    if isinstance(result.get("executorBuildRequest"), dict):
+        events.append(
+            {
+                "type": EXECUTOR_BUILD_REQUEST,
+                "data": {"executorBuildRequest": result.get("executorBuildRequest")},
+            }
+        )
 
     if "stepId" in result:
         graph_id = result.get("graphId")

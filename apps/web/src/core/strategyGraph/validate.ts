@@ -131,7 +131,10 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
   const referenced = new Set<string>();
 
   for (const step of steps) {
-    if (!step.searchName) {
+    const kind = inferKind(step);
+    // Combine steps use a canonical searchName ("boolean_question") during serialization;
+    // the UI doesn't store this on the step, so don't block on it here.
+    if (!step.searchName && kind !== "combine") {
       errors.push({
         code: "MISSING_SEARCH_NAME",
         message: "searchName is required.",
@@ -139,7 +142,6 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       });
     }
 
-    const kind = inferKind(step);
     if (kind === "invalid") {
       errors.push({
         code: "MISSING_INPUT",

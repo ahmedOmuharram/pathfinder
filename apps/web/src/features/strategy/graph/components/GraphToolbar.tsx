@@ -1,4 +1,11 @@
-import { Hand, LayoutGrid, MessageSquarePlus, MousePointer2 } from "lucide-react";
+import {
+  GitFork,
+  GitMerge,
+  Hand,
+  LayoutGrid,
+  MessageSquarePlus,
+  MousePointer2,
+} from "lucide-react";
 
 export function GraphToolbar(props: {
   isCompact: boolean;
@@ -7,6 +14,9 @@ export function GraphToolbar(props: {
   onSetInteractionMode: (mode: "select" | "pan") => void;
   onAddSelectionToChat: () => void;
   canAddSelectionToChat: boolean;
+  selectedCount: number;
+  onStartCombine?: () => void;
+  onStartOrthologTransform?: () => void;
 }) {
   const {
     isCompact,
@@ -15,6 +25,9 @@ export function GraphToolbar(props: {
     onSetInteractionMode,
     onAddSelectionToChat,
     canAddSelectionToChat,
+    selectedCount,
+    onStartCombine,
+    onStartOrthologTransform,
   } = props;
 
   if (isCompact) return null;
@@ -63,6 +76,28 @@ export function GraphToolbar(props: {
         >
           <MessageSquarePlus className="h-4 w-4" />
         </button>
+
+        {selectedCount === 1 && onStartOrthologTransform ? (
+          <button
+            type="button"
+            onClick={onStartOrthologTransform}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            title="Insert ortholog transform"
+          >
+            <GitFork className="h-4 w-4" />
+          </button>
+        ) : null}
+
+        {selectedCount === 2 && onStartCombine ? (
+          <button
+            type="button"
+            onClick={onStartCombine}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            title="Combine selected steps"
+          >
+            <GitMerge className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import type { Message, ToolCall } from "@pathfinder/shared";
+import { useCallback, useRef, useState } from "react";
+import type { Message, ToolCall, ChatMode, Citation, PlanningArtifact } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { streamChat } from "@/features/chat/stream";
 import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
@@ -45,6 +45,7 @@ interface UseChatStreamingArgs {
     calls: ToolCall[],
     activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> }
   ) => void;
+  mode?: ChatMode;
 }
 
 export function useChatStreaming({
@@ -74,9 +75,18 @@ export function useChatStreaming({
   strategyRef,
   currentStrategy,
   attachThinkingToLastAssistant,
+  mode = "execute",
 }: UseChatStreamingArgs) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamingAssistantIndexRef = useRef<number | null>(null);
+  const streamingAssistantMessageIdRef = useRef<string | null>(null);
+
+  const stopStreaming = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -95,8 +105,15 @@ export function useChatStreaming({
       thinking.reset();
       pendingUndoSnapshotRef.current = null;
       appliedSnapshotRef.current = false;
+      streamingAssistantIndexRef.current = null;
+      streamingAssistantMessageIdRef.current = null;
 
       const toolCalls: ToolCall[] = [];
+      const citationsBuffer: Citation[] = [];
+      const planningArtifactsBuffer: PlanningArtifact[] = [];
+
+      const controller = new AbortController();
+      abortRef.current = controller;
 
       await streamChat(
         finalContent,
@@ -108,6 +125,8 @@ export function useChatStreaming({
                 siteId,
                 strategyIdAtStart: strategyId,
                 toolCallsBuffer: toolCalls,
+                citationsBuffer,
+                planningArtifactsBuffer,
                 thinking,
                 setStrategyId,
                 setAuthToken,
@@ -129,6 +148,8 @@ export function useChatStreaming({
                 parseToolResult,
                 applyGraphSnapshot,
                 getStrategy,
+                streamingAssistantIndexRef,
+                streamingAssistantMessageIdRef,
               },
               event
             );
@@ -136,6 +157,7 @@ export function useChatStreaming({
 
           onComplete: () => {
             setIsStreaming(false);
+            abortRef.current = null;
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             const subKaniActivity = thinking.snapshotSubKaniActivity();
             attachThinkingToLastAssistant(
@@ -159,11 +181,14 @@ export function useChatStreaming({
           onError: (error) => {
             console.error("Chat error:", error);
             setIsStreaming(false);
+            abortRef.current = null;
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             setApiError(error.message || "Unable to reach the API.");
           },
         },
-        strategyId ?? undefined
+        { strategyId: strategyId ?? undefined },
+        mode,
+        controller.signal
       );
     },
     [
@@ -193,8 +218,9 @@ export function useChatStreaming({
       applyGraphSnapshot,
       getStrategy,
       attachThinkingToLastAssistant,
+      mode,
     ]
   );
 
-  return { handleSendMessage, isStreaming, apiError, setIsStreaming };
+  return { handleSendMessage, stopStreaming, isStreaming, apiError, setIsStreaming };
 }

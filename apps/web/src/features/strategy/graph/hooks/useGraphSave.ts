@@ -32,6 +32,13 @@ interface UseGraphSaveArgs {
   descriptionValue: string;
 }
 
+type PersistPlanArgs = {
+  overrideName?: string;
+  overrideDescription?: string;
+  toastOnSuccess?: boolean;
+  toastOnWarnings?: boolean;
+};
+
 export function useGraphSave({
   strategy,
   draftStrategy,
@@ -59,8 +66,14 @@ export function useGraphSave({
   }, [onToast]);
 
   const persistPlan = useCallback(
-    async (overrideName?: string, overrideDescription?: string) => {
+    async (args: PersistPlanArgs = {}) => {
       if (!draftStrategy?.id) return;
+      const {
+        overrideName,
+        overrideDescription,
+        toastOnSuccess = true,
+        toastOnWarnings = true,
+      } = args;
       setSaveError(null);
       if (!isUuid(draftStrategy.id)) {
         const message =
@@ -73,8 +86,14 @@ export function useGraphSave({
         return;
       }
       if (combineMismatchGroups.length > 0) {
-        failCombineMismatch();
-        return;
+        // Allow saving even when the graph is invalid; surface as a warning.
+        if (toastOnWarnings) {
+          onToast?.({
+            type: "warning",
+            message:
+              "Saved, but the graph has validation issues (cannot combine steps with different record types).",
+          });
+        }
       }
       if (overrideName || overrideDescription !== undefined) {
         setStrategyMeta({
@@ -125,7 +144,9 @@ export function useGraphSave({
           lastSavedStepsRef.current = nextSavedSteps;
           setLastSavedStepsVersion((version) => version + 1);
         }
-        onToast?.({ type: "success", message: "Strategy saved." });
+        if (toastOnSuccess) {
+          onToast?.({ type: "success", message: "Strategy saved." });
+        }
       } catch (error) {
         if (error instanceof APIError) {
           console.error("Failed to save strategy (API error)", {
@@ -146,7 +167,6 @@ export function useGraphSave({
     [
       draftStrategy,
       combineMismatchGroups.length,
-      failCombineMismatch,
       setStrategyMeta,
       buildPlan,
       setLastSavedPlanHash,
@@ -167,7 +187,7 @@ export function useGraphSave({
         onToast?.({ type: "error", message });
         return;
       }
-      await persistPlan(name, description);
+      await persistPlan({ overrideName: name, overrideDescription: description });
     },
     [buildPlan, draftStrategy?.id, persistPlan]
   );
@@ -181,9 +201,10 @@ export function useGraphSave({
     }
     const isValid = await validateSearchSteps();
     if (!isValid) {
-      setSaveError("Fix validation errors before saving.");
-      onToast?.({ type: "error", message: "Fix validation errors before saving." });
-      return;
+      onToast?.({
+        type: "warning",
+        message: "Saving despite validation errors. You can fix them later.",
+      });
     }
     await persistStrategyDetails(name, descriptionValue.trim());
   }, [
@@ -195,6 +216,13 @@ export function useGraphSave({
     descriptionValue,
     onToast,
   ]);
+
+  const handleAutoSaveAfterModelResponse = useCallback(async () => {
+    if (!draftStrategy?.id) return;
+    // Always run validation to surface errors in the UI, but never block saving.
+    await validateSearchSteps();
+    await persistPlan({ toastOnSuccess: false, toastOnWarnings: false });
+  }, [draftStrategy?.id, validateSearchSteps, persistPlan]);
 
   const handlePush = useCallback(async () => {
     if (!onPush) return;
@@ -212,6 +240,7 @@ export function useGraphSave({
     isSaving,
     canSave,
     handleSave,
+    handleAutoSaveAfterModelResponse,
     handlePush,
     persistPlan,
   };

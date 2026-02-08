@@ -5,9 +5,24 @@ import type { RawSSEEvent } from "@/lib/sse";
 export type ChatSSEEvent =
   | {
       type: "message_start";
-      data: { strategyId?: string; strategy?: StrategyWithMeta; authToken?: string };
+      data: {
+        strategyId?: string;
+        strategy?: StrategyWithMeta;
+        planSessionId?: string;
+        planSession?: Record<string, unknown>;
+        authToken?: string;
+      };
     }
-  | { type: "assistant_message"; data: { content?: string } }
+  | { type: "assistant_delta"; data: { messageId?: string; delta?: string } }
+  | { type: "assistant_message"; data: { messageId?: string; content?: string } }
+  | { type: "citations"; data: { citations?: unknown[] } }
+  | { type: "planning_artifact"; data: { planningArtifact?: Record<string, unknown> } }
+  | {
+      type: "executor_build_request";
+      data: { executorBuildRequest?: Record<string, unknown> };
+    }
+  | { type: "reasoning"; data: { reasoning?: string } }
+  | { type: "plan_update"; data: { title?: string } }
   | { type: "tool_call_start"; data: { id: string; name: string; arguments?: string } }
   | { type: "tool_call_end"; data: { id: string; result: string } }
   | { type: "subkani_task_start"; data: { task?: string } }
@@ -49,7 +64,13 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
 
   switch (type) {
     case "message_start":
+    case "assistant_delta":
     case "assistant_message":
+    case "citations":
+    case "planning_artifact":
+    case "executor_build_request":
+    case "reasoning":
+    case "plan_update":
     case "tool_call_start":
     case "tool_call_end":
     case "subkani_task_start":

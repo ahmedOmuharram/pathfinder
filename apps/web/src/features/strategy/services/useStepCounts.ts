@@ -21,16 +21,30 @@ export function useStepCounts(args: {
     debounceMs = 650,
   } = args;
 
-  const lastPlanHashRef = useRef<string | null>(null);
+  const lastRequestKeyRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
-    if (!plan || !planHash) return;
     if (stepIds.length === 0) return;
-    if (lastPlanHashRef.current === planHash) return;
+
+    // If the graph/plan is currently invalid (e.g. multiple outputs), don't wait on
+    // step counts at all. Immediately show unknown counts ("?") and invalidate any
+    // in-flight request so it can't overwrite the UI later.
+    if (!plan || !planHash) {
+      requestIdRef.current += 1;
+      lastRequestKeyRef.current = null;
+      const next: Record<string, number | null> = {};
+      for (const stepId of stepIds) next[stepId] = null;
+      setStepCounts(next);
+      return;
+    }
+
+    const stepIdsKey = stepIds.slice().sort().join("|");
+    const requestKey = `${planHash}:${stepIdsKey}`;
+    if (lastRequestKeyRef.current === requestKey) return;
 
     const timeout = window.setTimeout(() => {
-      lastPlanHashRef.current = planHash;
+      lastRequestKeyRef.current = requestKey;
       const requestId = (requestIdRef.current += 1);
 
       const loading: Record<string, number | null | undefined> = {};

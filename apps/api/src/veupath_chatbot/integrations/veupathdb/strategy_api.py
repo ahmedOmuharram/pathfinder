@@ -12,6 +12,30 @@ from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 
 logger = get_logger(__name__)
 
+# Internal (Pathfinder-created) WDK strategies.
+#
+# WDK doesn't support arbitrary metadata on a strategy. To reliably identify
+# "internal helper" strategies (step counts, etc.) later, we tag the WDK name
+# with a reserved prefix. This avoids incorrectly treating *all* unsaved
+# strategies (`isSaved=false`) as internal.
+PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX = "__pathfinder_internal__:"
+
+
+def is_internal_wdk_strategy_name(name: str | None) -> bool:
+    return bool(name) and str(name).startswith(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX)
+
+
+def _tag_internal_wdk_strategy_name(name: str) -> str:
+    if name.startswith(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX):
+        return name
+    return f"{PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX}{name}"
+
+
+def strip_internal_wdk_strategy_name(name: str) -> str:
+    if name.startswith(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX):
+        return name[len(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX) :]
+    return name
+
 
 # Use current user session (guest or authenticated)
 CURRENT_USER = "current"
@@ -347,6 +371,7 @@ class StrategyAPI:
         description: str | None = None,
         is_public: bool = False,
         is_saved: bool = True,
+        is_internal: bool = False,
     ) -> dict[str, Any]:
         """Create a strategy from a step tree.
 
@@ -358,6 +383,11 @@ class StrategyAPI:
         Returns:
             Created strategy data
         """
+        if is_internal:
+            name = _tag_internal_wdk_strategy_name(name)
+            is_public = False
+            is_saved = False
+
         payload: dict[str, Any] = {
             "name": name,
             "isPublic": is_public,

@@ -324,6 +324,48 @@ export interface StrategySummary {
 
 export type MessageRole = "user" | "assistant" | "system";
 
+export type ChatMode = "execute" | "plan";
+
+export type CitationSource =
+  | "web"
+  | "europepmc"
+  | "crossref"
+  | "openalex"
+  | "semanticscholar"
+  | "pubmed"
+  | "arxiv"
+  | "biorxiv"
+  | "medrxiv"
+  | "veupathdb";
+
+export interface Citation {
+  id: string;
+  source: CitationSource;
+  /**
+   * Stable, model-friendly reference tag (BibTeX-ish).
+   * The model can cite inline using \\cite{tag} or [@tag].
+   */
+  tag?: string | null;
+  title: string;
+  url?: string | null;
+  authors?: string[] | null;
+  year?: number | null;
+  doi?: string | null;
+  pmid?: string | null;
+  snippet?: string | null;
+  accessedAt?: string | null;
+}
+
+export interface PlanningArtifact {
+  id: string;
+  title: string;
+  summaryMarkdown: string;
+  assumptions: string[];
+  parameters: Record<string, unknown>;
+  proposedStrategyPlan?: StrategyPlan | Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -338,8 +380,14 @@ export interface SubKaniActivity {
 
 export interface Thinking {
   toolCalls?: ToolCall[];
+  /**
+   * Completed tool calls from the last finalized turn.
+   * (Used so Thinking/Reasoning survives refresh without implying streaming.)
+   */
+  lastToolCalls?: ToolCall[];
   subKaniCalls?: Record<string, ToolCall[]>;
   subKaniStatus?: Record<string, string>;
+  reasoning?: string;
   updatedAt?: string;
 }
 
@@ -348,6 +396,9 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   subKaniActivity?: SubKaniActivity;
+  mode?: ChatMode;
+  citations?: Citation[];
+  planningArtifacts?: PlanningArtifact[];
   timestamp: string;
 }
 
@@ -363,8 +414,43 @@ export interface Conversation {
 
 export interface ChatRequest {
   strategyId?: string;
+  planSessionId?: string;
   siteId: string;
   message: string;
+  mode?: ChatMode;
+}
+
+// ============================================================================
+// Planning (plan sessions)
+// ============================================================================
+
+export interface PlanSessionSummary {
+  id: string;
+  siteId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanSession {
+  id: string;
+  siteId: string;
+  title: string;
+  messages?: Message[];
+  thinking?: Thinking;
+  planningArtifacts?: PlanningArtifact[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpenPlanSessionRequest {
+  planSessionId?: string;
+  siteId: string;
+  title?: string;
+}
+
+export interface OpenPlanSessionResponse {
+  planSessionId: string;
 }
 
 // ============================================================================

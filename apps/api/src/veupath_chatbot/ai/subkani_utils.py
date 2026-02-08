@@ -82,7 +82,9 @@ def format_dependency_context(
     structured_steps: list[dict[str, Any]] = []
 
     for dep_id in deps:
-        dep_task = (tasks_by_id.get(dep_id) or {}).get("task", dep_id)
+        dep_node = tasks_by_id.get(dep_id) or {}
+        dep_task = dep_node.get("task", dep_id)
+        dep_hint = dep_node.get("hint")
         dep_result = results_by_id.get(dep_id)
         dep_steps: list[str] = []
 
@@ -104,16 +106,31 @@ def format_dependency_context(
                 if step_id:
                     structured_steps.append(step)
 
+        hint_suffix = f" (hint: {dep_hint})" if dep_hint else ""
         if dep_steps:
-            lines.append(f"- {dep_id}: {dep_task} → {', '.join(dep_steps)}")
+            lines.append(f"- {dep_id}: {dep_task}{hint_suffix} → {', '.join(dep_steps)}")
         else:
-            lines.append(f"- {dep_id}: {dep_task} → no steps created")
+            lines.append(f"- {dep_id}: {dep_task}{hint_suffix} → no steps created")
 
     if structured_steps:
         lines.append("Dependency steps (JSON):")
         lines.append(json.dumps(structured_steps, ensure_ascii=True, indent=2))
 
     return "\n".join(lines) if lines else None
+
+
+def format_task_context(context: Any) -> str | None:
+    """Format optional per-task context for a subtask prompt."""
+    if context is None:
+        return None
+    if isinstance(context, str):
+        txt = context.strip()
+        return txt if txt else None
+    try:
+        # Render JSON deterministically for model consumption.
+        return json.dumps(context, ensure_ascii=True, indent=2, sort_keys=True)
+    except Exception:
+        return str(context).strip() or None
 
 
 def extract_primary_step_id(result: dict[str, Any] | None) -> str | None:

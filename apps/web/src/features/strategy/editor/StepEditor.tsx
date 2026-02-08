@@ -155,6 +155,7 @@ export function StepEditor({
     apiRecordTypeValue,
     resolveRecordTypeForSearch,
     contextValues: parameters,
+    enabled: kind !== "combine",
   });
 
   const validationErrorKeys = useMemo(() => {
@@ -366,6 +367,7 @@ export function StepEditor({
           {(kind === "search" || kind === "transform") && (
             <>
               <StepSearchSelector
+                siteId={siteId}
                 stepType={kind}
                 recordTypeFilter={recordTypeFilter}
                 onRecordTypeFilterChange={setRecordTypeFilter}

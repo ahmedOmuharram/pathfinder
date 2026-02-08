@@ -126,3 +126,33 @@ class StrategyHistory(Base):
     )
 
     __table_args__ = (Index("ix_strategy_history_strategy_version", "strategy_id", "version"),)
+
+
+class PlanSession(Base):
+    """Planning workspace session (not tied to a strategy graph)."""
+
+    __tablename__ = "plan_sessions"
+
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    site_id: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(255), default="Plan")
+
+    # Conversation + planner outputs
+    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    thinking: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    planning_artifacts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_plan_sessions_user_id", "user_id"),
+        Index("ix_plan_sessions_site_id", "site_id"),
+    )
