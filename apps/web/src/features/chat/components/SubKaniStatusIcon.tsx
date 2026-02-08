@@ -28,7 +28,11 @@ export function SubKaniStatusIcon(props: { status?: string; className?: string }
     );
   }
 
-  if (status.includes("done") || status.includes("success") || status.includes("complete")) {
+  if (
+    status.includes("done") ||
+    status.includes("success") ||
+    status.includes("complete")
+  ) {
     return (
       <span title={raw}>
         <CheckCircle2
@@ -59,4 +63,3 @@ export function SubKaniStatusIcon(props: { status?: string; className?: string }
     </span>
   );
 }
-

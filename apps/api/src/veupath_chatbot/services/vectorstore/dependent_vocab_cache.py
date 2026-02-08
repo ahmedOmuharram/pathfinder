@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
-from veupath_chatbot.integrations.veupathdb.client import encode_context_param_values_for_wdk
+from veupath_chatbot.integrations.veupathdb.client import (
+    encode_context_param_values_for_wdk,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.embeddings.openai_embeddings import embed_one
-from veupath_chatbot.services.vectorstore.collections import WDK_DEPENDENT_VOCAB_CACHE_V1
-from veupath_chatbot.services.vectorstore.qdrant_store import QdrantStore, context_hash, point_uuid
+from veupath_chatbot.services.vectorstore.collections import (
+    WDK_DEPENDENT_VOCAB_CACHE_V1,
+)
+from veupath_chatbot.services.vectorstore.qdrant_store import (
+    QdrantStore,
+    context_hash,
+    point_uuid,
+)
 
 
 async def ensure_dependent_vocab_collection(store: QdrantStore) -> None:
@@ -29,9 +37,9 @@ async def get_dependent_vocab_authoritative_cached(
     record_type: str,
     search_name: str,
     param_name: str,
-    context_values: dict[str, Any],
+    context_values: JSONObject,
     store: QdrantStore | None = None,
-) -> dict[str, Any]:
+) -> JSONObject:
     """Return authoritative dependent vocab, cached in Qdrant.
 
     - Cache key is the *WDK-wire* encoded context values (json-string encoding for lists/dicts).
@@ -46,8 +54,11 @@ async def get_dependent_vocab_authoritative_cached(
     pid = point_uuid(key)
 
     cached = await store.get(collection=WDK_DEPENDENT_VOCAB_CACHE_V1, point_id=pid)
-    if cached and isinstance(cached.get("payload"), dict):
-        return {"cache": "hit", **cached["payload"]}
+    if cached:
+        payload_value = cached.get("payload")
+        if isinstance(payload_value, dict):
+            payload_dict: JSONObject = {str(k): v for k, v in payload_value.items()}
+            return {"cache": "hit", **payload_dict}
 
     client = get_wdk_client(site_id)
     try:
@@ -63,7 +74,7 @@ async def get_dependent_vocab_authoritative_cached(
         else:
             raise exc
 
-    payload: dict[str, Any] = {
+    payload: JSONObject = {
         "siteId": site_id,
         "recordType": record_type,
         "searchName": search_name,
@@ -80,9 +91,10 @@ async def get_dependent_vocab_authoritative_cached(
         text=f"{site_id} {record_type} {search_name} {param_name}",
         model=get_settings().embeddings_model,
     )
+    # Convert list[float] to list[JSONValue] for type compatibility
+    vec_json: list[JSONValue] = [float(x) for x in vec]
     await store.upsert(
         collection=WDK_DEPENDENT_VOCAB_CACHE_V1,
-        points=[{"id": pid, "vector": vec, "payload": payload}],
+        points=[{"id": pid, "vector": vec_json, "payload": payload}],
     )
     return {"cache": "miss", **payload}
-

@@ -2,16 +2,16 @@
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
-    StrategyAST,
     StepAnalysis,
     StepFilter,
     StepReport,
+    StrategyAST,
     from_dict,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp
 
 
-def test_step_attachments_round_trip():
+def test_step_attachments_round_trip() -> None:
     """Ensure filters, analyses, and reports serialize in plans."""
     search = PlanStepNode(
         search_name="GenesByTextSearch",
@@ -24,7 +24,9 @@ def test_step_attachments_round_trip():
                 custom_name="GO enrichment",
             )
         ],
-        reports=[StepReport(report_name="standard", config={"attributes": ["gene_id"]})],
+        reports=[
+            StepReport(report_name="standard", config={"attributes": ["gene_id"]})
+        ],
     )
     transform = PlanStepNode(
         search_name="GenesByOrthology",

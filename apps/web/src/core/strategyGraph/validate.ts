@@ -34,7 +34,7 @@ function inferKind(step: Step): "search" | "transform" | "combine" | "invalid" {
 
 export function resolveRecordType(
   stepId: string | undefined,
-  stepsMap: Map<string, Step>
+  stepsMap: Map<string, Step>,
 ): string | null {
   if (!stepId) return null;
   const step = stepsMap.get(stepId);
@@ -54,7 +54,7 @@ export function resolveRecordType(
 }
 
 export function findCombineRecordTypeMismatch(
-  stepsList: Step[]
+  stepsList: Step[],
 ): CombineRecordTypeMismatch | null {
   const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
   for (const step of stepsList) {

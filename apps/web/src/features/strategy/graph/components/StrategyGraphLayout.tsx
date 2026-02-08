@@ -59,7 +59,7 @@ interface StrategyGraphLayoutProps {
   onNodeDragStop: () => void;
   onConnect: (connection: Connection) => void;
   isValidConnection: (connection: Connection) => boolean;
-  nodeTypes: Record<string, React.ComponentType<any>>;
+  nodeTypes: Record<string, React.ComponentType<{ data: Record<string, unknown> }>>;
   onInit: (instance: ReactFlowInstance) => void;
   onMoveStart: () => void;
   onPaneClick?: (event: React.MouseEvent) => void;
@@ -194,7 +194,9 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
           onEdgeClick={onEdgeClick}
           selectionOnDrag={selectionOnDrag}
           selectionMode={SelectionMode.Partial}
-          onSelectionChange={({ nodes: selectedNodes }) => onSelectionChange(selectedNodes)}
+          onSelectionChange={({ nodes: selectedNodes }) =>
+            onSelectionChange(selectedNodes)
+          }
           panOnDrag={panOnDrag}
           connectionMode={ConnectionMode.Loose}
           onNodeClick={

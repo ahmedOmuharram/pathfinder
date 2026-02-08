@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.embeddings.openai_embeddings import embed_one
+from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.services.vectorstore.collections import EXAMPLE_PLANS_V1
 from veupath_chatbot.services.vectorstore.qdrant_store import QdrantStore
 
@@ -19,10 +19,11 @@ class ExamplePlansRagTools:
         self,
         query: str,
         limit: int = 5,
-    ) -> list[dict[str, Any]]:
+    ) -> JSONArray:
         settings = get_settings()
         if not settings.rag_enabled:
             return []
+        await ensure_rag_collections()
         q = (query or "").strip()
         if not q:
             return []
@@ -35,10 +36,22 @@ class ExamplePlansRagTools:
         )
         # Return full payloads so the model can directly inspect the original name/description
         # and the full stepTree/steps for each example.
-        out: list[dict[str, Any]] = []
-        for h in hits:
-            p = h.get("payload") or {}
-            strategy_full = p.get("strategyFull") if isinstance(p, dict) else None
+        from veupath_chatbot.platform.types import as_json_object
+
+        out: JSONArray = []
+        for h_value in hits:
+            if not isinstance(h_value, dict):
+                continue
+            h = as_json_object(h_value)
+            payload_value = h.get("payload")
+            if not isinstance(payload_value, dict):
+                payload_value = {}
+            p = as_json_object(payload_value)
+            strategy_full = p.get("strategyFull")
+            strategy_compact_value = p.get("strategyCompact")
+            strategy_compact: JSONObject = {}
+            if isinstance(strategy_compact_value, dict):
+                strategy_compact = strategy_compact_value
             # Keep the most relevant fields at the top-level to reduce nesting.
             out.append(
                 {
@@ -51,9 +64,8 @@ class ExamplePlansRagTools:
                     "generatedDescription": p.get("generatedDescription"),
                     "recordClassName": p.get("recordClassName"),
                     "rootStepId": p.get("rootStepId"),
-                    "strategyCompact": (p.get("strategyCompact") or {}),
+                    "strategyCompact": strategy_compact,
                     "strategyFull": strategy_full,
                 }
             )
         return out
-

@@ -10,9 +10,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "sqlalchemy[asyncio]>=2.0.35",
     "asyncpg>=0.30.0",
-    "aiosqlite>=0.20.0",
     "alembic>=1.14.0",
-    "redis>=5.2.0",
     "httpx>=0.28.0",
     "kani[openai,anthropic,google]>=1.2.0",
     "qdrant-client>=1.12.0",
@@ -31,10 +29,11 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "respx>=0.21.0",
+    "pre-commit>=3.7.0",
     "ruff>=0.7.0",
     "mypy>=1.13.0",
     "types-pyyaml>=6.0.0",
-    "types-redis>=4.6.0",
+    "vulture>=2.10",
 ]
 
 [build-system]
@@ -58,11 +57,24 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+ignore = [
+    # FastAPI path params and Pydantic field names intentionally use mixedCase
+    # to match the public HTTP contract (e.g. `siteId`, `planSessionId`).
+    # Long prompt/template strings intentionally exceed line-length.
+    "E501",
+    "N803",
+    "N815",
+]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
+disable_error_code = ["import-untyped", "untyped-decorator"]
+
+[dependency-groups]
+dev = [
+    "testcontainers",
+]
 

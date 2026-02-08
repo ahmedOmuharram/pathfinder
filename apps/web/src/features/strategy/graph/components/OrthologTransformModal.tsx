@@ -5,8 +5,11 @@ import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/client";
 
 function looksLikeOrthologSearch(s: Search) {
-  const hay = `${s.displayName || ""} ${s.description || ""} ${s.name || ""}`.toLowerCase();
-  return hay.includes("ortholog") || hay.includes("orthology") || hay.includes("orthomcl");
+  const hay =
+    `${s.displayName || ""} ${s.description || ""} ${s.name || ""}`.toLowerCase();
+  return (
+    hay.includes("ortholog") || hay.includes("orthology") || hay.includes("orthomcl")
+  );
 }
 
 export function OrthologTransformModal(props: {
@@ -52,7 +55,7 @@ export function OrthologTransformModal(props: {
 
   const selected = useMemo(
     () => searches.find((s) => s.name === selectedName) || null,
-    [searches, selectedName]
+    [searches, selectedName],
   );
 
   if (!open) return null;
@@ -60,9 +63,12 @@ export function OrthologTransformModal(props: {
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl">
-        <div className="text-sm font-semibold text-slate-900">Insert ortholog transform</div>
+        <div className="text-sm font-semibold text-slate-900">
+          Insert ortholog transform
+        </div>
         <div className="mt-1 text-[12px] text-slate-500">
-          Pick the site’s ortholog/orthology transform question. You can edit parameters after insertion.
+          Pick the site’s ortholog/orthology transform question. You can edit parameters
+          after insertion.
         </div>
 
         <div className="mt-4 space-y-3">
@@ -90,7 +96,9 @@ export function OrthologTransformModal(props: {
               </select>
             )}
             {selected?.description ? (
-              <div className="mt-2 text-[12px] text-slate-500">{selected.description}</div>
+              <div className="mt-2 text-[12px] text-slate-500">
+                {selected.description}
+              </div>
             ) : null}
           </div>
 
@@ -128,4 +136,3 @@ export function OrthologTransformModal(props: {
     </div>
   );
 }
-

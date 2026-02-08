@@ -1,9 +1,10 @@
 """VEuPathDB /temporary-results helpers for downloads."""
 
-from typing import Any
+from typing import cast
 
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
@@ -26,8 +27,8 @@ class TemporaryResultsAPI:
         self,
         step_id: int,
         reporter: str = "tabular",
-        format_config: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        format_config: JSONObject | None = None,
+    ) -> JSONObject:
         """Create a temporary result for download.
 
         Args:
@@ -38,7 +39,7 @@ class TemporaryResultsAPI:
         Returns:
             Temporary result info with ID and download URL
         """
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "stepId": step_id,
             "reporterName": reporter,
         }
@@ -52,12 +53,16 @@ class TemporaryResultsAPI:
         )
 
         await self._ensure_session()
-        return await self.client.post("/temporary-results", json=payload)
+        return cast(
+            JSONObject, await self.client.post("/temporary-results", json=payload)
+        )
 
-    async def get_temporary_result(self, result_id: str) -> dict[str, Any]:
+    async def get_temporary_result(self, result_id: str) -> JSONObject:
         """Get status of a temporary result."""
         await self._ensure_session()
-        return await self.client.get(f"/temporary-results/{result_id}")
+        return cast(
+            JSONObject, await self.client.get(f"/temporary-results/{result_id}")
+        )
 
     async def get_download_url(
         self,
@@ -75,13 +80,9 @@ class TemporaryResultsAPI:
         Returns:
             Download URL
         """
-        format_config: dict[str, Any] = {}
+        format_config: JSONObject = {}
 
-        if format == "csv":
-            format_config["type"] = "standard"
-            format_config["includeHeader"] = True
-            format_config["attachmentType"] = "text"
-        elif format == "tab":
+        if format == "csv" or format == "tab":
             format_config["type"] = "standard"
             format_config["includeHeader"] = True
             format_config["attachmentType"] = "text"
@@ -89,7 +90,8 @@ class TemporaryResultsAPI:
             format_config["type"] = "json"
 
         if attributes:
-            format_config["attributes"] = attributes
+            # list[str] is compatible with JSONValue (JSONArray)
+            format_config["attributes"] = cast(JSONArray, attributes)
 
         result = await self.create_temporary_result(
             step_id=step_id,
@@ -97,14 +99,14 @@ class TemporaryResultsAPI:
             format_config=format_config,
         )
 
-        return result.get("url", "")
+        return cast(str, result.get("url", ""))
 
     async def get_step_preview(
         self,
         step_id: int,
         limit: int = 100,
         attributes: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get preview of step results.
 
         Args:
@@ -115,7 +117,7 @@ class TemporaryResultsAPI:
         Returns:
             Preview data with records
         """
-        params: dict[str, Any] = {
+        params: JSONObject = {
             "numRecords": limit,
             "offset": 0,
         }
@@ -124,8 +126,10 @@ class TemporaryResultsAPI:
 
         # Use the step answer endpoint for preview
         await self._ensure_session()
-        return await self.client.get(
-            f"/users/current/steps/{step_id}/answer",
-            params=params,
+        return cast(
+            JSONObject,
+            await self.client.get(
+                f"/users/current/steps/{step_id}/answer",
+                params=params,
+            ),
         )
-

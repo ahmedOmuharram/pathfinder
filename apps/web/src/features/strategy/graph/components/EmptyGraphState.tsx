@@ -20,4 +20,3 @@ export function EmptyGraphState(props: { isCompact: boolean }) {
     </div>
   );
 }
-

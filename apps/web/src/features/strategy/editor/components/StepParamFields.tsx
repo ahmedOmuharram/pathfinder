@@ -57,7 +57,7 @@ export function StepParamFields({
         const vocabTree = multi ? extractVocabTree(vocabulary) : null;
         const valueSet = new Set(options.map((opt) => opt.value));
         const labelToValue = new Map(
-          options.map((opt) => [opt.rawLabel ?? opt.label, opt.value])
+          options.map((opt) => [opt.rawLabel ?? opt.label, opt.value]),
         );
         const normalizeValue = (raw: unknown): string[] => {
           if (raw === null || raw === undefined) return [];
@@ -104,7 +104,7 @@ export function StepParamFields({
                       const selectedValues = new Set(
                         normalizedValues.includes("@@fake@@")
                           ? allValues
-                          : normalizedValues
+                          : normalizedValues,
                       );
                       const allSelected =
                         allValues.length > 0 &&
@@ -121,10 +121,10 @@ export function StepParamFields({
                           return;
                         }
                         const nodeValues = collectNodeValues(node).filter(
-                          (val) => val !== "@@fake@@"
+                          (val) => val !== "@@fake@@",
                         );
                         const isChecked = nodeValues.every((val) =>
-                          selectedValues.has(val)
+                          selectedValues.has(val),
                         );
                         const next = new Set(selectedValues);
                         if (isChecked) {
@@ -140,7 +140,7 @@ export function StepParamFields({
                       const renderNode = (node: VocabNode, depth = 0) => {
                         const nodeValues = collectNodeValues(node);
                         const isChecked = nodeValues.every((val) =>
-                          selectedValues.has(val)
+                          selectedValues.has(val),
                         );
                         const isPartial =
                           !isChecked &&
@@ -162,7 +162,9 @@ export function StepParamFields({
                               />
                               <span>{node.label}</span>
                             </label>
-                            {node.children?.map((child) => renderNode(child, depth + 1))}
+                            {node.children?.map((child) =>
+                              renderNode(child, depth + 1),
+                            )}
                           </div>
                         );
                       };
@@ -173,8 +175,8 @@ export function StepParamFields({
                             {allSelected
                               ? "All selected (WDK default)."
                               : noneSelected
-                              ? "None selected."
-                              : `${selectedValues.size} selected.`}
+                                ? "None selected."
+                                : `${selectedValues.size} selected.`}
                           </div>
                         </>
                       );
@@ -192,7 +194,7 @@ export function StepParamFields({
                       const selectedValues = new Set(
                         normalizedValues.includes("@@fake@@")
                           ? allValues
-                          : normalizedValues
+                          : normalizedValues,
                       );
                       const toggleValue = (nextValue: string) => {
                         if (nextValue === "@@fake@@") {
@@ -234,24 +236,21 @@ export function StepParamFields({
                   <input
                     type={
                       ["number", "integer", "float"].includes(
-                        (spec.type || "").toLowerCase()
+                        (spec.type || "").toLowerCase(),
                       )
                         ? "number"
                         : "text"
                     }
-                    value={
-                      value === undefined || value === null ? "" : String(value)
-                    }
+                    value={value === undefined || value === null ? "" : String(value)}
                     onChange={(event) => {
                       const raw = event.currentTarget.value;
                       setParameters((prev) => ({
                         ...prev,
-                        [paramName]:
-                          ["number", "integer", "float"].includes(
-                            (spec.type || "").toLowerCase()
-                          )
-                            ? Number(raw)
-                            : raw,
+                        [paramName]: ["number", "integer", "float"].includes(
+                          (spec.type || "").toLowerCase(),
+                        )
+                          ? Number(raw)
+                          : raw,
                       }));
                     }}
                     className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800"
@@ -315,7 +314,7 @@ export function StepParamFields({
                 <input
                   type={
                     ["number", "integer", "float"].includes(
-                      (spec.type || "").toLowerCase()
+                      (spec.type || "").toLowerCase(),
                     )
                       ? "number"
                       : "text"
@@ -325,12 +324,11 @@ export function StepParamFields({
                     const raw = event.currentTarget.value;
                     setParameters((prev) => ({
                       ...prev,
-                      [paramName]:
-                        ["number", "integer", "float"].includes(
-                          (spec.type || "").toLowerCase()
-                        )
-                          ? Number(raw)
-                          : raw,
+                      [paramName]: ["number", "integer", "float"].includes(
+                        (spec.type || "").toLowerCase(),
+                      )
+                        ? Number(raw)
+                        : raw,
                     }));
                   }}
                   className={`w-full rounded-md border px-3 py-2 text-[13px] text-slate-800 ${fieldBorderClass}`}
@@ -342,7 +340,9 @@ export function StepParamFields({
                   <span className="text-red-500">{dependentErrors[paramName]}</span>
                 )}
                 {options.length === 0 && (
-                  <span className="text-slate-400">Use advanced editing if needed.</span>
+                  <span className="text-slate-400">
+                    Use advanced editing if needed.
+                  </span>
                 )}
               </div>
             </>

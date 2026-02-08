@@ -1,7 +1,8 @@
 """Adapters for WDK parameter specifications."""
 
 from dataclasses import dataclass
-from typing import Any
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 
 @dataclass(frozen=True)
@@ -13,22 +14,27 @@ class ParamSpecNormalized:
     allow_empty_value: bool = False
     min_selected_count: int | None = None
     max_selected_count: int | None = None
-    vocabulary: dict[str, Any] | list[Any] | None = None
+    vocabulary: JSONObject | JSONArray | None = None
     count_only_leaves: bool = False
 
 
-def extract_param_specs(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    candidates = [
+def extract_param_specs(payload: JSONObject) -> JSONArray:
+    search_config_raw = payload.get("searchConfig")
+    search_config = search_config_raw if isinstance(search_config_raw, dict) else {}
+    question_raw = payload.get("question")
+    question = question_raw if isinstance(question_raw, dict) else {}
+
+    candidates: list[JSONValue] = [
         payload.get("parameters"),
         payload.get("paramMap"),
         payload.get("parameterDetails"),
         payload.get("paramDetails"),
-        (payload.get("searchConfig") or {}).get("parameters"),
-        (payload.get("searchConfig") or {}).get("paramMap"),
-        (payload.get("question") or {}).get("parameters"),
+        search_config.get("parameters"),
+        search_config.get("paramMap"),
+        question.get("parameters"),
     ]
-    params = next((c for c in candidates if c), [])
-    specs: list[dict[str, Any]] = []
+    params: JSONValue = next((c for c in candidates if c), [])
+    specs: JSONArray = []
     if isinstance(params, dict):
         for name, param in params.items():
             if isinstance(param, dict):
@@ -40,26 +46,35 @@ def extract_param_specs(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return specs
 
 
-def adapt_param_specs(payload: dict[str, Any]) -> dict[str, ParamSpecNormalized]:
+def adapt_param_specs(payload: JSONObject) -> dict[str, ParamSpecNormalized]:
     specs = extract_param_specs(payload or {})
     normalized: dict[str, ParamSpecNormalized] = {}
     for spec in specs:
-        name = spec.get("name")
-        if not name:
+        if not isinstance(spec, dict):
             continue
-        param_type = spec.get("type") or spec.get("paramType") or ""
-        allow_empty_value = bool(spec.get("allowEmptyValue") or spec.get("allowEmpty"))
+        name_raw = spec.get("name")
+        if not isinstance(name_raw, str):
+            continue
+        name = name_raw
+        type_raw = spec.get("type") or spec.get("paramType")
+        param_type = str(type_raw) if isinstance(type_raw, str) else ""
+        allow_empty_raw = spec.get("allowEmptyValue") or spec.get("allowEmpty")
+        allow_empty_value = bool(allow_empty_raw)
         min_selected = spec.get("minSelectedCount")
         max_selected = spec.get("maxSelectedCount")
         if isinstance(max_selected, int) and max_selected < 0:
             max_selected = None
-        normalized[str(name)] = ParamSpecNormalized(
-            name=str(name),
-            param_type=str(param_type),
+        vocabulary_raw = spec.get("vocabulary")
+        vocabulary: JSONObject | JSONArray | None = None
+        if isinstance(vocabulary_raw, (dict, list)):
+            vocabulary = vocabulary_raw
+        normalized[name] = ParamSpecNormalized(
+            name=name,
+            param_type=param_type,
             allow_empty_value=allow_empty_value,
             min_selected_count=min_selected if isinstance(min_selected, int) else None,
             max_selected_count=max_selected if isinstance(max_selected, int) else None,
-            vocabulary=spec.get("vocabulary"),
+            vocabulary=vocabulary,
             count_only_leaves=bool(spec.get("countOnlyLeaves")),
         )
     return normalized
@@ -70,4 +85,3 @@ def find_input_step_param(specs: dict[str, ParamSpecNormalized]) -> str | None:
         if spec.param_type == "input-step":
             return spec.name
     return None
-

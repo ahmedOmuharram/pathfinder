@@ -6,7 +6,10 @@ mixins to keep tool implementations easier to navigate.
 
 from __future__ import annotations
 
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from typing import cast
+
+from veupath_chatbot.services.strategy_session import StrategySession
+from veupath_chatbot.services.strategy_tools.base import StrategyToolsBase
 
 from .attachment_ops import StrategyAttachmentOps
 from .discovery_ops import StrategyDiscoveryOps
@@ -16,13 +19,18 @@ from .step_ops import StrategyStepOps
 
 
 class StrategyTools(
-    StrategyToolsHelpers,
     StrategyGraphOps,
     StrategyDiscoveryOps,
-    StrategyStepOps,
+    StrategyStepOps,  # Provides create_step method
     StrategyEditOps,
     StrategyAttachmentOps,
 ):
-    """Tools for building search strategies."""
+    """Tools for building search strategies.
 
-    pass
+    This class uses multiple inheritance to compose tool methods from mixins.
+    StrategyStepOps provides create_step, which StrategyGraphOps.ensure_single_output uses.
+    """
+
+    def __init__(self, session: StrategySession) -> None:
+        """Initialize StrategyTools with a session."""
+        StrategyToolsBase.__init__(cast(StrategyToolsBase, self), session)

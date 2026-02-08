@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any
 from uuid import UUID
 
 from kani import ChatMessage, Kani
@@ -12,14 +11,18 @@ from kani.engines.base import BaseEngine
 
 from veupath_chatbot.ai.planner_prompt import build_planner_system_prompt
 from veupath_chatbot.ai.strategy_session_factory import build_strategy_session
-from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
+from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.example_plans_rag_tools import ExamplePlansRagTools
 from veupath_chatbot.ai.tools.planner_registry import PlannerToolRegistryMixin
-from veupath_chatbot.ai.tools.research_tools import ResearchTools
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.research import (
+    LiteratureSearchService,
+    WebSearchService,
+)
 
 
-class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
+class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):  # type: ignore[misc]
     """Planner agent: cooperative strategy planning (no graph mutation by default)."""
 
     def __init__(
@@ -28,11 +31,11 @@ class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
         site_id: str,
         user_id: UUID | None = None,
         chat_history: list[ChatMessage] | None = None,
-        strategy_graph: dict | None = None,
-        selected_nodes: dict | None = None,
-        delegation_draft_artifact: dict | None = None,
+        strategy_graph: JSONObject | None = None,
+        selected_nodes: JSONObject | None = None,
+        delegation_draft_artifact: JSONObject | None = None,
         plan_session_id: UUID | None = None,
-        get_plan_session_artifacts: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
+        get_plan_session_artifacts: Callable[[], Awaitable[JSONArray]] | None = None,
     ) -> None:
         self.site_id = site_id
         self.user_id = user_id
@@ -47,7 +50,8 @@ class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
         self.catalog_tools = CatalogTools()
         self.catalog_rag_tools = CatalogRagTools(site_id=site_id)
         self.example_plans_rag_tools = ExamplePlansRagTools(site_id=site_id)
-        self.research_tools = ResearchTools()
+        self.web_search_service = WebSearchService()
+        self.literature_search_service = LiteratureSearchService()
 
         system_prompt = build_planner_system_prompt(
             site_id=site_id,
@@ -62,5 +66,4 @@ class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
         )
 
         # For consistency with executor streaming (sub-kani uses this too).
-        self.event_queue: asyncio.Queue | None = None
-
+        self.event_queue: asyncio.Queue[JSONObject] | None = None

@@ -5,10 +5,11 @@ This implements the WDK REST pattern:
 2. Compose a tree via POST /users/current/strategies with stepTree
 """
 
-from typing import Any
+from typing import cast
 
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
@@ -54,9 +55,9 @@ class StepTreeNode:
         self.primary_input = primary_input
         self.secondary_input = secondary_input
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONObject:
         """Convert to WDK stepTree format."""
-        result: dict[str, Any] = {"stepId": self.step_id}
+        result: JSONObject = {"stepId": self.step_id}
         if self.primary_input:
             result["primaryInput"] = self.primary_input.to_dict()
         if self.secondary_input:
@@ -73,7 +74,7 @@ class StrategyAPI:
         self._session_initialized = False
         self._boolean_search_cache: dict[str, str] = {}
 
-    def _normalize_param_value(self, value: Any) -> str:
+    def _normalize_param_value(self, value: JSONValue) -> str:
         """Normalize parameters to WDK-accepted string values."""
         if value is None:
             return ""
@@ -87,7 +88,7 @@ class StrategyAPI:
             return json.dumps(value)
         return str(value)
 
-    def _normalize_parameters(self, parameters: dict[str, Any]) -> dict[str, str]:
+    def _normalize_parameters(self, parameters: JSONObject) -> dict[str, str]:
         return {
             key: self._normalize_param_value(value)
             for key, value in (parameters or {}).items()
@@ -130,8 +131,12 @@ class StrategyAPI:
             return self._boolean_search_cache[record_type]
 
         searches = await self.client.get_searches(record_type)
-        for search in searches:
-            name = search.get("urlSegment") or search.get("name") or ""
+        for search_raw in searches:
+            if not isinstance(search_raw, dict):
+                continue
+            search: JSONObject = search_raw
+            name_raw = search.get("urlSegment") or search.get("name") or ""
+            name = str(name_raw) if name_raw is not None else ""
             if name.startswith("boolean_question"):
                 self._boolean_search_cache[record_type] = name
                 return name
@@ -140,21 +145,34 @@ class StrategyAPI:
             f"No boolean combine search found for record type '{record_type}'"
         )
 
-    async def _get_boolean_param_names(
-        self, record_type: str
-    ) -> tuple[str, str, str]:
+    async def _get_boolean_param_names(self, record_type: str) -> tuple[str, str, str]:
         """Resolve parameter names for boolean combine search."""
         boolean_search = await self._get_boolean_search_name(record_type)
         details = await self.client.get_search_details(record_type, boolean_search)
-        search_data = details.get("searchData", details)
-        param_names = search_data.get("paramNames") or [
-            p.get("name") for p in search_data.get("parameters", [])
-        ]
-        param_names = [p for p in param_names if p]
+        search_data_raw = details.get("searchData", details)
+        if not isinstance(search_data_raw, dict):
+            search_data: JSONObject = details
+        else:
+            search_data = search_data_raw
+
+        param_names_raw = search_data.get("paramNames")
+        if isinstance(param_names_raw, list):
+            param_names = [str(p) for p in param_names_raw if p is not None]
+        else:
+            parameters_raw = search_data.get("parameters")
+            param_names = []
+            if isinstance(parameters_raw, list):
+                for p in parameters_raw:
+                    if isinstance(p, dict):
+                        name_raw = p.get("name")
+                        if name_raw is not None:
+                            param_names.append(str(name_raw))
 
         left = next((p for p in param_names if p.startswith("bq_left_op")), None)
         right = next((p for p in param_names if p.startswith("bq_right_op")), None)
-        op = next((p for p in param_names if p.startswith("bq_operator")), "bq_operator")
+        op = next(
+            (p for p in param_names if p.startswith("bq_operator")), "bq_operator"
+        )
 
         if not left or not right:
             raise ValueError(
@@ -167,9 +185,9 @@ class StrategyAPI:
         self,
         record_type: str,
         search_name: str,
-        parameters: dict[str, Any],
+        parameters: JSONObject,
         custom_name: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create an unattached step.
 
         Args:
@@ -182,10 +200,10 @@ class StrategyAPI:
             Created step data with stepId
         """
         normalized_params = self._normalize_parameters(parameters)
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "searchName": search_name,
             "searchConfig": {
-                "parameters": normalized_params,
+                "parameters": cast(JSONObject, normalized_params),
             },
         }
         if custom_name:
@@ -198,9 +216,12 @@ class StrategyAPI:
         )
 
         await self._ensure_session()
-        return await self.client.post(
-            f"/users/{self.user_id}/steps",
-            json=payload,
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/steps",
+                json=payload,
+            ),
         )
 
     async def create_combined_step(
@@ -210,7 +231,7 @@ class StrategyAPI:
         boolean_operator: str,
         record_type: str,
         custom_name: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create a combined step (boolean operation).
 
         Args:
@@ -228,7 +249,7 @@ class StrategyAPI:
             record_type
         )
 
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "searchName": boolean_search,
             "searchConfig": {
                 "parameters": {
@@ -250,18 +271,21 @@ class StrategyAPI:
         )
 
         await self._ensure_session()
-        return await self.client.post(
-            f"/users/{self.user_id}/steps",
-            json=payload,
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/steps",
+                json=payload,
+            ),
         )
 
     async def create_transform_step(
         self,
         input_step_id: int,
         transform_name: str,
-        parameters: dict[str, Any],
+        parameters: JSONObject,
         custom_name: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create a transform step.
 
         Args:
@@ -274,10 +298,10 @@ class StrategyAPI:
             Created step data
         """
         normalized_params = self._normalize_parameters(parameters)
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "searchName": transform_name,
             "searchConfig": {
-                "parameters": normalized_params,
+                "parameters": cast(JSONObject, normalized_params),
             },
         }
         if custom_name:
@@ -295,14 +319,17 @@ class StrategyAPI:
         )
 
         await self._ensure_session()
-        return await self.client.post(
-            f"/users/{self.user_id}/steps",
-            json=payload,
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/steps",
+                json=payload,
+            ),
         )
 
     async def set_step_filter(
-        self, step_id: int, filter_name: str, value: Any, disabled: bool = False
-    ) -> Any:
+        self, step_id: int, filter_name: str, value: JSONValue, disabled: bool = False
+    ) -> JSONValue:
         """Create or update a filter on a step."""
         await self._ensure_session()
         payload = {"name": filter_name, "value": value, "disabled": disabled}
@@ -310,29 +337,27 @@ class StrategyAPI:
             self.user_id, step_id, filter_name, payload
         )
 
-    async def delete_step_filter(self, step_id: int, filter_name: str) -> Any:
+    async def delete_step_filter(self, step_id: int, filter_name: str) -> JSONValue:
         """Remove a filter from a step."""
         await self._ensure_session()
         return await self.client.delete_step_filter(self.user_id, step_id, filter_name)
 
-    async def list_analysis_types(self, step_id: int) -> list[dict[str, Any]]:
+    async def list_analysis_types(self, step_id: int) -> JSONArray:
         """List available analysis types for a step."""
         await self._ensure_session()
         return await self.client.list_analysis_types(self.user_id, step_id)
 
-    async def get_analysis_type(
-        self, step_id: int, analysis_type: str
-    ) -> dict[str, Any]:
+    async def get_analysis_type(self, step_id: int, analysis_type: str) -> JSONObject:
         """Get analysis form metadata for a step."""
         await self._ensure_session()
         return await self.client.get_analysis_type(self.user_id, step_id, analysis_type)
 
-    async def list_step_analyses(self, step_id: int) -> list[dict[str, Any]]:
+    async def list_step_analyses(self, step_id: int) -> JSONArray:
         """List analyses that have been run on a step."""
         await self._ensure_session()
         return await self.client.list_step_analyses(self.user_id, step_id)
 
-    async def list_step_filters(self, step_id: int) -> list[dict[str, Any]]:
+    async def list_step_filters(self, step_id: int) -> JSONArray:
         """List available filters for a step."""
         await self._ensure_session()
         return await self.client.list_step_filters(self.user_id, step_id)
@@ -341,12 +366,12 @@ class StrategyAPI:
         self,
         step_id: int,
         analysis_type: str,
-        parameters: dict[str, Any] | None = None,
+        parameters: JSONObject | None = None,
         custom_name: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create a new analysis instance for a step."""
         await self._ensure_session()
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "analysisType": analysis_type,
             "parameters": parameters or {},
         }
@@ -355,11 +380,13 @@ class StrategyAPI:
         return await self.client.create_step_analysis(self.user_id, step_id, payload)
 
     async def run_step_report(
-        self, step_id: int, report_name: str, config: dict[str, Any] | None = None
-    ) -> Any:
+        self, step_id: int, report_name: str, config: JSONObject | None = None
+    ) -> JSONValue:
         """Run a report on a step."""
         await self._ensure_session()
-        payload = {"reportConfig": config or {}}
+        # reportConfig is a nested JSONObject, which is valid JSONValue
+        report_config: JSONValue = config or {}
+        payload: JSONObject = {"reportConfig": report_config}
         return await self.client.run_step_report(
             self.user_id, step_id, report_name, payload
         )
@@ -372,7 +399,7 @@ class StrategyAPI:
         is_public: bool = False,
         is_saved: bool = True,
         is_internal: bool = False,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create a strategy from a step tree.
 
         Args:
@@ -388,7 +415,7 @@ class StrategyAPI:
             is_public = False
             is_saved = False
 
-        payload: dict[str, Any] = {
+        payload: JSONObject = {
             "name": name,
             "isPublic": is_public,
             "isSaved": is_saved,
@@ -400,23 +427,28 @@ class StrategyAPI:
         logger.info("Creating WDK strategy", name=name)
 
         await self._ensure_session()
-        return await self.client.post(
-            f"/users/{self.user_id}/strategies",
-            json=payload,
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/strategies",
+                json=payload,
+            ),
         )
 
-    async def get_strategy(self, strategy_id: int) -> dict[str, Any]:
+    async def get_strategy(self, strategy_id: int) -> JSONObject:
         """Get a strategy by ID."""
         await self._ensure_session()
-        return await self.client.get(
-            f"/users/{self.user_id}/strategies/{strategy_id}"
+        return cast(
+            JSONObject,
+            await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}"),
         )
 
-    async def list_strategies(self) -> list[dict[str, Any]]:
+    async def list_strategies(self) -> JSONArray:
         """List strategies for the current user."""
         await self._ensure_session()
-        return await self.client.get(
-            f"/users/{self.user_id}/strategies"
+        return cast(
+            JSONArray,
+            await self.client.get(f"/users/{self.user_id}/strategies"),
         )
 
     async def update_strategy(
@@ -424,7 +456,7 @@ class StrategyAPI:
         strategy_id: int,
         step_tree: StepTreeNode | None = None,
         name: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Update a strategy."""
         await self._ensure_session()
 
@@ -446,16 +478,14 @@ class StrategyAPI:
     async def delete_strategy(self, strategy_id: int) -> None:
         """Delete a strategy."""
         await self._ensure_session()
-        await self.client.delete(
-            f"/users/{self.user_id}/strategies/{strategy_id}"
-        )
+        await self.client.delete(f"/users/{self.user_id}/strategies/{strategy_id}")
 
     async def get_step_answer(
         self,
         step_id: int,
         attributes: list[str] | None = None,
         pagination: dict[str, int] | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get answer records for a step.
 
         Args:
@@ -466,16 +496,19 @@ class StrategyAPI:
         Returns:
             Answer data with records
         """
-        params: dict[str, Any] = {}
+        params: JSONObject = {}
         if attributes:
             params["attributes"] = ",".join(attributes)
         if pagination:
             params.update(pagination)
 
         await self._ensure_session()
-        return await self.client.get(
-            f"/users/{self.user_id}/steps/{step_id}/answer",
-            params=params,
+        return cast(
+            JSONObject,
+            await self.client.get(
+                f"/users/{self.user_id}/steps/{step_id}/answer",
+                params=params,
+            ),
         )
 
     async def get_step_count(self, step_id: int) -> int:
@@ -487,5 +520,14 @@ class StrategyAPI:
                 "reportConfig": {"pagination": {"offset": 0, "numRecords": 0}},
             },
         )
-        return (answer or {}).get("meta", {}).get("totalCount", 0)
-
+        if not isinstance(answer, dict):
+            return 0
+        answer_dict: JSONObject = answer
+        meta_raw = answer_dict.get("meta")
+        if not isinstance(meta_raw, dict):
+            return 0
+        meta: JSONObject = meta_raw
+        total_count_raw = meta.get("totalCount")
+        if isinstance(total_count_raw, int):
+            return total_count_raw
+        return 0

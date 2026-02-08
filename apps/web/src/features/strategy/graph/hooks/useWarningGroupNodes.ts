@@ -25,10 +25,14 @@ export function useWarningGroupNodes(args: {
       const minX = Math.min(...targetNodes.map((node) => node.position.x));
       const minY = Math.min(...targetNodes.map((node) => node.position.y));
       const maxX = Math.max(
-        ...targetNodes.map((node) => node.position.x + (node.width ?? defaultNodeWidth))
+        ...targetNodes.map(
+          (node) => node.position.x + (node.width ?? defaultNodeWidth),
+        ),
       );
       const maxY = Math.max(
-        ...targetNodes.map((node) => node.position.y + (node.height ?? defaultNodeHeight))
+        ...targetNodes.map(
+          (node) => node.position.y + (node.height ?? defaultNodeHeight),
+        ),
       );
       const groupWidth = maxX - minX + padding * 2;
       const groupHeight = maxY - minY + padding * 2;
@@ -83,4 +87,3 @@ export function useWarningGroupNodes(args: {
     });
   }, [groups, nodes, defaultNodeWidth, defaultNodeHeight, padding]);
 }
-

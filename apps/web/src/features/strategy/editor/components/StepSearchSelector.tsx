@@ -12,7 +12,7 @@ function rewriteRelativeAssetUrls(html: string, origin: string): string {
   // Rewrite WDK-relative assets like /a/images/yes.gif to absolute site URLs.
   return html.replace(
     /(src|href)=(['"])(\/a\/[^'"]+)\2/gi,
-    (_match, attr, quote, path) => `${attr}=${quote}${base}${path}${quote}`
+    (_match, attr, quote, path) => `${attr}=${quote}${base}${path}${quote}`,
   );
 }
 
@@ -60,8 +60,7 @@ export function StepSearchSelector({
   recordTypeOptions,
 }: StepSearchSelectorProps) {
   const siteOrigin =
-    VEUPATHDB_SITES.find((s) => s.id === siteId)?.baseUrl ||
-    `https://${siteId}.org`;
+    VEUPATHDB_SITES.find((s) => s.id === siteId)?.baseUrl || `https://${siteId}.org`;
   return (
     <>
       <div>
@@ -133,7 +132,7 @@ export function StepSearchSelector({
                       nextRecordType &&
                       nextRecordType !== current &&
                       recordTypeOptions.some(
-                        (recordOption) => recordOption.name === nextRecordType
+                        (recordOption) => recordOption.name === nextRecordType,
                       )
                     ) {
                       onRecordTypeValueChange(nextRecordType);
@@ -158,7 +157,7 @@ export function StepSearchSelector({
               dangerouslySetInnerHTML={{
                 __html: rewriteRelativeAssetUrls(
                   selectedSearch.description || "No description available.",
-                  siteOrigin
+                  siteOrigin,
                 ),
               }}
             />
@@ -179,9 +178,7 @@ export function StepSearchSelector({
           <p className="mt-1 text-[11px] text-red-500">{searchListError}</p>
         )}
         {!searchListError && isLoadingSearches && (
-          <p className="mt-1 text-[11px] text-slate-500">
-            Loading search list...
-          </p>
+          <p className="mt-1 text-[11px] text-slate-500">Loading search list...</p>
         )}
       </div>
     </>

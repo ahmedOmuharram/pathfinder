@@ -23,7 +23,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   save_strategy: "Saving strategy...",
 };
 
-export function ToolCallInspector({ toolCalls, isActive = false }: ToolCallInspectorProps) {
+export function ToolCallInspector({
+  toolCalls,
+  isActive = false,
+}: ToolCallInspectorProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (toolCalls.length === 0) return null;
@@ -47,13 +50,15 @@ export function ToolCallInspector({ toolCalls, isActive = false }: ToolCallInspe
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-        {isActive && <LoaderCircle className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+        {isActive && (
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-slate-400" />
+        )}
         Tool Calls ({toolCalls.length})
       </div>
       {toolCalls.map((tc) => {
         const hasResult = tc.result !== undefined;
         const isRunning = isActive && !hasResult;
-        
+
         return (
           <div
             key={tc.id}

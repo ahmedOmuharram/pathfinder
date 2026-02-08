@@ -1,9 +1,9 @@
 """Application configuration using pydantic-settings."""
 
+import tomllib
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal, get_origin
-import tomllib
 
 from pydantic import Field, computed_field
 from pydantic_settings import (
@@ -11,6 +11,7 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
     """Load settings from a TOML config file."""
@@ -30,7 +31,9 @@ class TomlConfigSettingsSource(PydanticBaseSettingsSource):
         origin = get_origin(annotation) or annotation
         return origin in (list, dict, set, tuple)
 
-    def get_field_value(self, field: object, field_name: str) -> tuple[object, str, bool]:
+    def get_field_value(
+        self, field: object, field_name: str
+    ) -> tuple[object, str, bool]:
         value = self._data.get(field_name)
         if value is None:
             return None, field_name, False
@@ -76,11 +79,13 @@ class Settings(BaseSettings):
     )
     api_docs_enabled: bool = True
 
-    # Database (SQLite for dev, PostgreSQL for prod)
-    database_url: str = "sqlite+aiosqlite:///./pathfinder.db"
-
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    # Database
+    #
+    # PathFinder uses SQL persistence for users/strategies/plan sessions. We default to
+    # PostgreSQL even for local development so behavior matches Docker/production.
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder"
+    )
 
     # OpenAI
     openai_api_key: str = ""
@@ -111,6 +116,14 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_timeout_seconds: float = 10.0
+
+    # RAG ingestion (startup background job)
+    rag_startup_max_strategies_per_site: int | None = None
+    rag_startup_public_strategies_concurrency: int | None = None
+    rag_startup_public_strategies_llm_model: str = "gpt-4o-mini"
+    rag_startup_public_strategies_report_path: str = (
+        "/tmp/ingest_public_strategies_report.jsonl"
+    )
 
     # Embeddings
     embeddings_model: str = "text-embedding-3-small"
@@ -144,14 +157,12 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @computed_field
     def is_development(self) -> bool:
         """Check if running in development mode."""
         return self.api_env == "development"
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @computed_field
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.api_env == "production"
@@ -178,4 +189,3 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
-

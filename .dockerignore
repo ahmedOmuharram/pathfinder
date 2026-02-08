@@ -1,0 +1,28 @@
+.git
+.gitignore
+.DS_Store
+
+# Cursor / editor
+.cursor/
+.vscode/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+.coverage
+htmlcov/
+
+# Node / Next
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/.turbo/
+**/.cache/
+
+# Local outputs
+apps/api/ingest_reports/

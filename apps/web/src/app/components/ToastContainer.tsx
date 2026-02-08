@@ -37,7 +37,9 @@ export function ToastContainer({ toasts, durationMs, onDismiss }: ToastContainer
             <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
           )}
           {toast.type === "info" && <Info className="mt-0.5 h-4 w-4 text-slate-600" />}
-          {toast.type === "error" && <XCircle className="mt-0.5 h-4 w-4 text-red-600" />}
+          {toast.type === "error" && (
+            <XCircle className="mt-0.5 h-4 w-4 text-red-600" />
+          )}
           <div className="flex-1">{toast.message}</div>
           <button
             type="button"

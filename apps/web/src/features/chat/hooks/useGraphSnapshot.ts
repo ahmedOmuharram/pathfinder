@@ -38,11 +38,7 @@ export function useGraphSnapshot({
         return;
       }
       const snapshot = strategyRef.current;
-      if (
-        !pendingUndoSnapshotRef.current &&
-        snapshot &&
-        snapshot.id === snapshotId
-      ) {
+      if (!pendingUndoSnapshotRef.current && snapshot && snapshot.id === snapshotId) {
         pendingUndoSnapshotRef.current = snapshot;
       }
       const nextStrategy = buildStrategyFromGraphSnapshot({
@@ -69,7 +65,7 @@ export function useGraphSnapshot({
       setStrategy,
       setStrategyMeta,
       appliedSnapshotRef,
-    ]
+    ],
   );
 
   return { applyGraphSnapshot };

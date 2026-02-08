@@ -7,7 +7,13 @@ export function useDraftDetailsInputs(args: {
   setNameValue: (value: string) => void;
   setDescriptionValue: (value: string) => void;
 }) {
-  const { isDraftView, draftName, draftDescription, setNameValue, setDescriptionValue } = args;
+  const {
+    isDraftView,
+    draftName,
+    draftDescription,
+    setNameValue,
+    setDescriptionValue,
+  } = args;
 
   useEffect(() => {
     if (!isDraftView) return;
@@ -15,4 +21,3 @@ export function useDraftDetailsInputs(args: {
     setDescriptionValue(draftDescription || "");
   }, [isDraftView, draftName, draftDescription, setNameValue, setDescriptionValue]);
 }
-

@@ -22,9 +22,12 @@ interface UseBuildStrategyArgs {
     wdkStrategyId: number,
     wdkUrl?: string | null,
     name?: string | null,
-    description?: string | null
+    description?: string | null,
   ) => void;
-  addToast: (toast: { type: "success" | "error" | "warning" | "info"; message: string }) => void;
+  addToast: (toast: {
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }) => void;
 }
 
 export function useBuildStrategy({
@@ -76,7 +79,12 @@ export function useBuildStrategy({
       siteId: refreshed.siteId,
       createdAt: refreshed.createdAt,
     });
-    setWdkInfo(pushed.wdkStrategyId, pushed.wdkUrl, refreshed.name, refreshed.description);
+    setWdkInfo(
+      pushed.wdkStrategyId,
+      pushed.wdkUrl,
+      refreshed.name,
+      refreshed.description,
+    );
   }, [
     addExecutedStrategy,
     planResult,
@@ -110,13 +118,7 @@ export function useBuildStrategy({
     } finally {
       setIsBuilding(false);
     }
-  }, [
-    addToast,
-    buildAndPush,
-    planResult,
-    selectedSiteDisplayName,
-    veupathdbSignedIn,
-  ]);
+  }, [addToast, buildAndPush, planResult, selectedSiteDisplayName, veupathdbSignedIn]);
 
   return {
     isBuilding,

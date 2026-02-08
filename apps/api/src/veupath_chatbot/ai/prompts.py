@@ -29,4 +29,3 @@ def load_planner_prompt() -> str:
             parts.append(prompt_file.read_text())
 
     return "\n\n---\n\n".join(parts)
-

@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
+import type { StrategyPlan } from "@pathfinder/shared";
 
 export type StepCountsResponse = { counts?: Record<string, number | null> };
 
 export function useStepCounts(args: {
   siteId: string;
-  plan: unknown | null;
+  plan: StrategyPlan | null;
   planHash: string | null;
   stepIds: string[];
   setStepCounts: (counts: Record<string, number | null | undefined>) => void;
-  fetchCounts: (siteId: string, plan: any) => Promise<StepCountsResponse>;
+  fetchCounts: (siteId: string, plan: StrategyPlan) => Promise<StepCountsResponse>;
   debounceMs?: number;
 }) {
   const {
@@ -72,4 +73,3 @@ export function useStepCounts(args: {
     return () => window.clearTimeout(timeout);
   }, [siteId, plan, planHash, stepIds, setStepCounts, fetchCounts, debounceMs]);
 }
-

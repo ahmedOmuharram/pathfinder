@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.strategy_session import StrategyGraph
 
 GRAPH_SNAPSHOT = "graph_snapshot"
 GRAPH_PLAN = "graph_plan"
@@ -19,11 +22,11 @@ EXECUTOR_BUILD_REQUEST = "executor_build_request"
 
 
 def tool_result_to_events(
-    result: Any,
+    result: JSONObject,
     *,
-    get_graph: Callable[[str | None], Any] | None = None,
-) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
+    get_graph: Callable[[str | None], StrategyGraph | None] | None = None,
+) -> list[JSONObject]:
+    events: list[JSONObject] = []
     if not isinstance(result, dict):
         return events
 
@@ -39,11 +42,13 @@ def tool_result_to_events(
             }
         )
 
-    if isinstance(result.get("reasoning"), str) and result.get("reasoning").strip():
-        events.append({"type": REASONING, "data": {"reasoning": result.get("reasoning")}})
+    reasoning = result.get("reasoning")
+    if isinstance(reasoning, str) and reasoning.strip():
+        events.append({"type": REASONING, "data": {"reasoning": reasoning}})
 
-    if isinstance(result.get("planTitle"), str) and result.get("planTitle").strip():
-        events.append({"type": PLAN_UPDATE, "data": {"title": result.get("planTitle")}})
+    plan_title = result.get("planTitle")
+    if isinstance(plan_title, str) and plan_title.strip():
+        events.append({"type": PLAN_UPDATE, "data": {"title": plan_title}})
 
     if isinstance(result.get("executorBuildRequest"), dict):
         events.append(
@@ -54,36 +59,44 @@ def tool_result_to_events(
         )
 
     if "stepId" in result:
-        graph_id = result.get("graphId")
+        graph_id_raw = result.get("graphId")
+        graph_id = graph_id_raw if isinstance(graph_id_raw, str) else None
         graph = get_graph(graph_id) if get_graph else None
+        all_steps: JSONArray = []
+        if graph is not None:
+            all_steps = [
+                {
+                    "stepId": sid,
+                    # legacy compatibility: include both kind and type
+                    "kind": getattr(s, "infer_kind", lambda: None)(),
+                    "displayName": s.display_name,
+                }
+                for sid, s in graph.steps.items()
+            ]
         events.append(
             {
                 "type": STRATEGY_UPDATE,
                 "data": {
                     "graphId": graph_id,
                     "step": result,
-                    "allSteps": [
-                        {
-                            "stepId": sid,
-                            # legacy compatibility: include both kind and type
-                            "kind": getattr(s, "infer_kind", lambda: None)(),
-                            "displayName": s.display_name,
-                        }
-                        for sid, s in (graph.steps.items() if graph else [])
-                    ],
+                    "allSteps": all_steps,
                 },
             }
         )
 
     if result.get("graphSnapshot"):
         snapshot = result.get("graphSnapshot")
-        graph_id = snapshot.get("graphId") if isinstance(snapshot, dict) else None
-        if graph_id is None:
-            graph_id = result.get("graphId")
+        snapshot_graph_id: str | None = None
+        if isinstance(snapshot, dict):
+            graph_id_raw = snapshot.get("graphId")
+            snapshot_graph_id = graph_id_raw if isinstance(graph_id_raw, str) else None
+        if snapshot_graph_id is None:
+            graph_id_raw = result.get("graphId")
+            snapshot_graph_id = graph_id_raw if isinstance(graph_id_raw, str) else None
         events.append(
             {
                 "type": GRAPH_SNAPSHOT,
-                "data": {"graphId": graph_id, "graphSnapshot": snapshot},
+                "data": {"graphId": snapshot_graph_id, "graphSnapshot": snapshot},
             }
         )
 

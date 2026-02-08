@@ -15,7 +15,7 @@ export async function streamChat(
   },
   context?: { strategyId?: string; planSessionId?: string },
   mode: "execute" | "plan" = "execute",
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ) {
   // Fail fast if the API isn't ready (keeps retry loops clearer).
   const healthUrl = buildUrl("/health/ready");
@@ -43,7 +43,6 @@ export async function streamChat(
     {
       ...rest,
       onEvent: (raw) => onMessage(parseChatSSEEvent(raw)),
-    }
+    },
   );
 }
-

@@ -6,9 +6,9 @@ These models make the plan contract explicit in OpenAPI instead of using
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field, model_validator
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 
 class PlanMetadata(BaseModel):
@@ -20,19 +20,19 @@ class PlanMetadata(BaseModel):
 
 class StepFilterSpec(BaseModel):
     name: str
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
 
 class StepAnalysisSpec(BaseModel):
     analysisType: str
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     customName: str | None = None
 
 
 class StepReportSpec(BaseModel):
     reportName: str = "standard"
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: JSONObject = Field(default_factory=dict)
 
 
 class BasePlanNode(BaseModel):
@@ -63,10 +63,10 @@ class PlanNode(BasePlanNode):
     """
 
     searchName: str
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
 
-    primaryInput: "PlanNode | None" = Field(default=None)
-    secondaryInput: "PlanNode | None" = Field(default=None)
+    primaryInput: PlanNode | None = Field(default=None)
+    secondaryInput: PlanNode | None = Field(default=None)
 
     # Required iff secondaryInput present
     operator: str | None = None
@@ -75,7 +75,7 @@ class PlanNode(BasePlanNode):
     model_config = {"extra": "allow"}
 
     @model_validator(mode="after")
-    def _validate_structure(self) -> "PlanNode":
+    def _validate_structure(self) -> PlanNode:
         # secondary requires primary
         if self.secondaryInput is not None and self.primaryInput is None:
             raise ValueError("secondaryInput requires primaryInput")
@@ -88,7 +88,9 @@ class PlanNode(BasePlanNode):
         if self.operator == "COLOCATE" and self.colocationParams is None:
             raise ValueError("colocationParams is required when operator is COLOCATE")
         if self.operator != "COLOCATE" and self.colocationParams is not None:
-            raise ValueError("colocationParams is only allowed when operator is COLOCATE")
+            raise ValueError(
+                "colocationParams is only allowed when operator is COLOCATE"
+            )
 
         return self
 
@@ -108,10 +110,9 @@ class PlanNormalizeRequest(BaseModel):
 
 class PlanNormalizeResponse(BaseModel):
     plan: StrategyPlan
-    warnings: list[dict[str, Any]] | None = None
+    warnings: JSONArray | None = None
 
 
 # Resolve forward references for recursive node types.
 PlanNode.model_rebuild()
 StrategyPlan.model_rebuild()
-

@@ -27,7 +27,7 @@ function normalizeStrategyId(strategy: StrategyWithMeta): string {
   return `executed-${Date.now()}`;
 }
 
-export const useStrategyListStore = create<StrategyListState>()((set, get) => ({
+export const useStrategyListStore = create<StrategyListState>()((set) => ({
   strategies: [],
   executedStrategies: [],
   graphValidationStatus: {},
@@ -40,7 +40,7 @@ export const useStrategyListStore = create<StrategyListState>()((set, get) => ({
       if (existing) {
         return {
           strategies: state.strategies.map((c) =>
-            c.id === item.id ? { ...c, ...item } : c
+            c.id === item.id ? { ...c, ...item } : c,
           ),
         };
       }

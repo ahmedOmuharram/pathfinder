@@ -1,0 +1,290 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-api:
+    name: Lint API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: uv sync
+
+      - name: Run ruff
+        working-directory: apps/api
+        run: uv run ruff check .
+
+      - name: Check formatting
+        working-directory: apps/api
+        run: uv run ruff format --check .
+
+      - name: Run mypy
+        working-directory: apps/api
+        run: uv run mypy .
+
+      - name: Check OpenAPI spec is up to date
+        working-directory: apps/api
+        run: uv run python -m veupath_chatbot.devtools.openapi check
+
+  test-api:
+    name: Test API
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pathfinder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: uv sync
+
+      - name: Run tests
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
+          API_SECRET_KEY: test-secret-key
+          QDRANT_URL: http://localhost:6333
+        run: uv run pytest --cov=src --cov-report=xml
+
+  lint-web:
+    name: Lint Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: apps/web
+        run: npm run format:check
+
+      - name: Type check
+        working-directory: apps/web
+        run: npm run typecheck
+
+  check-shared-ts:
+    name: Check shared TS types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/shared-ts/package-lock.json
+
+      - name: Install dependencies
+        working-directory: packages/shared-ts
+        run: npm ci
+
+      - name: Check OpenAPI-generated types are up to date
+        working-directory: packages/shared-ts
+        run: npm run check:openapi
+
+  test-web:
+    name: Test Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: apps/web
+        run: npm run test
+
+  test-e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pathfinder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: uv sync
+
+      - name: Start API server
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
+          API_SECRET_KEY: test-secret-key
+          QDRANT_URL: http://localhost:6333
+          RAG_ENABLED: "false"
+          PATHFINDER_CHAT_PROVIDER: mock
+        run: uv run uvicorn veupath_chatbot.main:app --host 0.0.0.0 --port 8000 &
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            curl -fsS http://localhost:8000/health/ready && exit 0
+            sleep 1
+          done
+          echo "API did not become ready in time" >&2
+          exit 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps
+
+      - name: Build web
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: npm run build
+
+      - name: Start web
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          PORT: "3000"
+        run: npm run start -- -p 3000 &
+
+      - name: Wait for web
+        run: |
+          for i in {1..30}; do
+            curl -fsS http://localhost:3000/ && exit 0
+            sleep 1
+          done
+          echo "Web did not become ready in time" >&2
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: npm run test:e2e
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint-api, test-api, lint-web, check-shared-ts, test-web, test-e2e]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: pathfinder-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          tags: pathfinder-web:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+

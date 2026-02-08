@@ -1,11 +1,11 @@
 """Request/response DTOs for HTTP routes."""
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, RootModel
 
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 # ============================================================================
 # Health
@@ -63,7 +63,7 @@ class DependentParamsRequest(BaseModel):
     """Dependent parameter values request."""
 
     parameter_name: str = Field(alias="parameterName")
-    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+    context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
 
@@ -71,24 +71,24 @@ class DependentParamsRequest(BaseModel):
 class SearchDetailsResponse(BaseModel):
     """Search details payload (UI-facing)."""
 
-    search_data: dict[str, Any] | None = Field(default=None, alias="searchData")
-    validation: dict[str, Any] | None = None
-    search_config: dict[str, Any] | None = Field(default=None, alias="searchConfig")
-    parameters: list[dict[str, Any]] | None = None
-    param_map: dict[str, Any] | None = Field(default=None, alias="paramMap")
-    question: dict[str, Any] | None = None
+    search_data: JSONObject | None = Field(default=None, alias="searchData")
+    validation: JSONObject | None = None
+    search_config: JSONObject | None = Field(default=None, alias="searchConfig")
+    parameters: JSONArray | None = None
+    param_map: JSONObject | None = Field(default=None, alias="paramMap")
+    question: JSONObject | None = None
 
     model_config = {"populate_by_name": True, "extra": "allow"}
 
 
-class DependentParamsResponse(RootModel[list[dict[str, Any]]]):
+class DependentParamsResponse(RootModel[JSONArray]):
     """Dependent parameter values response."""
 
 
 class SearchValidationRequest(BaseModel):
     """Search parameter validation request."""
 
-    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+    context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
 
@@ -113,7 +113,7 @@ class ToolCallResponse(BaseModel):
 
     id: str
     name: str
-    arguments: dict[str, Any]
+    arguments: JSONObject
     result: str | None = None
 
 
@@ -131,9 +131,7 @@ class ThinkingResponse(BaseModel):
     sub_kani_calls: dict[str, list[ToolCallResponse]] | None = Field(
         default=None, alias="subKaniCalls"
     )
-    sub_kani_status: dict[str, str] | None = Field(
-        default=None, alias="subKaniStatus"
-    )
+    sub_kani_status: dict[str, str] | None = Field(default=None, alias="subKaniStatus")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
 
     model_config = {"populate_by_name": True}
@@ -167,7 +165,7 @@ class StepResponse(BaseModel):
     search_name: str | None = Field(default=None, alias="searchName")
     transform_name: str | None = Field(default=None, alias="transformName")
     record_type: str | None = Field(default=None, alias="recordType")
-    parameters: dict[str, Any] | None = None
+    parameters: JSONObject | None = None
     operator: str | None = None
     primary_input_step_id: str | None = Field(default=None, alias="primaryInputStepId")
     secondary_input_step_id: str | None = Field(
@@ -186,7 +184,7 @@ class StepFilterResponse(BaseModel):
     """Filter attached to a step."""
 
     name: str
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
 
@@ -194,7 +192,7 @@ class StepAnalysisResponse(BaseModel):
     """Analysis configuration attached to a step."""
 
     analysis_type: str = Field(alias="analysisType")
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = Field(default=None, alias="customName")
 
     model_config = {"populate_by_name": True}
@@ -204,7 +202,7 @@ class StepReportResponse(BaseModel):
     """Report configuration attached to a step."""
 
     report_name: str = Field(default="standard", alias="reportName")
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: JSONObject = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 
@@ -212,7 +210,7 @@ class StepReportResponse(BaseModel):
 class StepFilterRequest(BaseModel):
     """Request to set or update a step filter."""
 
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
 
@@ -220,7 +218,7 @@ class StepAnalysisRequest(BaseModel):
     """Request to run a step analysis."""
 
     analysis_type: str = Field(alias="analysisType")
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = Field(default=None, alias="customName")
 
     model_config = {"populate_by_name": True}
@@ -230,7 +228,7 @@ class StepReportRequest(BaseModel):
     """Request to run a step report."""
 
     report_name: str = Field(default="standard", alias="reportName")
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: JSONObject = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 
@@ -239,7 +237,7 @@ class StepCountsRequest(BaseModel):
     """Request to compute step counts from a plan."""
 
     site_id: str = Field(alias="siteId")
-    plan: dict[str, Any]
+    plan: JSONObject
 
     model_config = {"populate_by_name": True}
 
@@ -310,7 +308,7 @@ class CreateStrategyRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=255)
     site_id: str = Field(alias="siteId")
-    plan: dict[str, Any]
+    plan: JSONObject
 
     model_config = {"populate_by_name": True}
 
@@ -319,7 +317,7 @@ class UpdateStrategyRequest(BaseModel):
     """Request to update a strategy."""
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    plan: dict[str, Any] | None = None
+    plan: JSONObject | None = None
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
 
     model_config = {"populate_by_name": True}
@@ -353,7 +351,7 @@ class PreviewResponse(BaseModel):
     """Preview results response."""
 
     total_count: int = Field(alias="totalCount")
-    records: list[dict[str, Any]]
+    records: JSONArray
     columns: list[str]
 
     model_config = {"populate_by_name": True}
@@ -377,4 +375,3 @@ class DownloadResponse(BaseModel):
     expires_at: datetime = Field(alias="expiresAt")
 
     model_config = {"populate_by_name": True}
-

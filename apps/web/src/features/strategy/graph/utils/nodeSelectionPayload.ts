@@ -4,7 +4,7 @@ import { inferStepKind } from "@/core/strategyGraph";
 
 export function buildNodeSelectionPayload(
   strategy: StrategyWithMeta | null,
-  nodeIds: string[]
+  nodeIds: string[],
 ): NodeSelection {
   const snapshotId = strategy?.id;
   const selectedSet = new Set(nodeIds);
@@ -73,4 +73,3 @@ export function buildNodeSelectionPayload(
     edges,
   };
 }
-

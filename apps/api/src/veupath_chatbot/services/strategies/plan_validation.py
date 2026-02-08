@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from veupath_chatbot.domain.strategy.ast import StrategyAST, from_dict
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.types import JSONObject
 
 
-def validate_plan_or_raise(plan: dict[str, Any]) -> StrategyAST:
+def validate_plan_or_raise(plan: JSONObject) -> StrategyAST:
     """Parse and validate a strategy plan, raising typed ValidationError."""
     try:
         strategy_ast = from_dict(plan)
@@ -19,7 +18,7 @@ def validate_plan_or_raise(plan: dict[str, Any]) -> StrategyAST:
             errors=[
                 {"path": "", "message": str(exc), "code": "INVALID_STRATEGY"},
             ],
-        )
+        ) from exc
 
     validation = validate_strategy(strategy_ast)
     if not validation.valid:

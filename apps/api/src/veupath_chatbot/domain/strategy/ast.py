@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import cast
 from uuid import uuid4
 
-from veupath_chatbot.domain.strategy.ops import CombineOp, ColocationParams
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 def generate_step_id() -> str:
@@ -19,10 +20,10 @@ class StepFilter:
     """Filter applied to a step's result."""
 
     name: str
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONObject:
         return {
             "name": self.name,
             "value": self.value,
@@ -35,11 +36,11 @@ class StepAnalysis:
     """Analysis configuration for a step."""
 
     analysis_type: str
-    parameters: dict[str, Any] = field(default_factory=dict)
+    parameters: JSONObject = field(default_factory=dict)
     custom_name: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        result = {
+    def to_dict(self) -> JSONObject:
+        result: JSONObject = {
             "analysisType": self.analysis_type,
             "parameters": self.parameters,
         }
@@ -53,9 +54,9 @@ class StepReport:
     """Report request attached to a step."""
 
     report_name: str = "standard"
-    config: dict[str, Any] = field(default_factory=dict)
+    config: JSONObject = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONObject:
         return {
             "reportName": self.report_name,
             "config": self.config,
@@ -74,9 +75,9 @@ class PlanStepNode:
     """
 
     search_name: str
-    parameters: dict[str, Any] = field(default_factory=dict)
-    primary_input: "PlanStepNode | None" = None
-    secondary_input: "PlanStepNode | None" = None
+    parameters: JSONObject = field(default_factory=dict)
+    primary_input: PlanStepNode | None = None
+    secondary_input: PlanStepNode | None = None
     operator: CombineOp | None = None
     colocation_params: ColocationParams | None = None
     display_name: str | None = None
@@ -92,8 +93,8 @@ class PlanStepNode:
             return "transform"
         return "search"
 
-    def to_dict(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
+    def to_dict(self) -> JSONObject:
+        result: JSONObject = {
             "id": self.id,
             "searchName": self.search_name,
             "displayName": self.display_name or self.search_name,
@@ -129,11 +130,11 @@ class StrategyAST:
     root: PlanStepNode
     name: str | None = None
     description: str | None = None
-    metadata: dict[str, Any] | None = None
+    metadata: JSONObject | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONObject:
         """Convert to dictionary representation."""
-        metadata: dict[str, Any] = dict(self.metadata or {})
+        metadata: JSONObject = dict(self.metadata or {})
         # Ensure name/description are always reflected in metadata.
         if self.name is not None:
             metadata["name"] = self.name
@@ -167,58 +168,76 @@ class StrategyAST:
         return None
 
 
-def from_dict(data: dict[str, Any]) -> StrategyAST:
+def from_dict(data: JSONObject) -> StrategyAST:
     """Parse strategy from dictionary representation."""
 
-    def parse_filters(node_data: dict[str, Any]) -> list[StepFilter]:
-        filters = []
-        for item in node_data.get("filters", []) or []:
+    def parse_filters(node_data: JSONObject) -> list[StepFilter]:
+        filters: list[StepFilter] = []
+        filters_raw = node_data.get("filters", [])
+        if not isinstance(filters_raw, list):
+            return filters
+        for item in filters_raw:
             if not isinstance(item, dict):
                 continue
             name = item.get("name")
-            if not name:
+            if not isinstance(name, str):
                 continue
             filters.append(
                 StepFilter(
-                    name=str(name),
+                    name=name,
                     value=item.get("value"),
                     disabled=bool(item.get("disabled", False)),
                 )
             )
         return filters
 
-    def parse_analyses(node_data: dict[str, Any]) -> list[StepAnalysis]:
-        analyses = []
-        for item in node_data.get("analyses", []) or []:
+    def parse_analyses(node_data: JSONObject) -> list[StepAnalysis]:
+        analyses: list[StepAnalysis] = []
+        analyses_raw = node_data.get("analyses", [])
+        if not isinstance(analyses_raw, list):
+            return analyses
+        for item in analyses_raw:
             if not isinstance(item, dict):
                 continue
             analysis_type = item.get("analysisType") or item.get("analysis_type")
-            if not analysis_type:
+            if not isinstance(analysis_type, str):
                 continue
+            params_raw = item.get("parameters")
+            params = params_raw if isinstance(params_raw, dict) else {}
+            custom_name_raw = item.get("customName") or item.get("custom_name")
+            custom_name = custom_name_raw if isinstance(custom_name_raw, str) else None
             analyses.append(
                 StepAnalysis(
-                    analysis_type=str(analysis_type),
-                    parameters=item.get("parameters") or {},
-                    custom_name=item.get("customName") or item.get("custom_name"),
+                    analysis_type=analysis_type,
+                    parameters=params,
+                    custom_name=custom_name,
                 )
             )
         return analyses
 
-    def parse_reports(node_data: dict[str, Any]) -> list[StepReport]:
-        reports = []
-        for item in node_data.get("reports", []) or []:
+    def parse_reports(node_data: JSONObject) -> list[StepReport]:
+        reports: list[StepReport] = []
+        reports_raw = node_data.get("reports", [])
+        if not isinstance(reports_raw, list):
+            return reports
+        for item in reports_raw:
             if not isinstance(item, dict):
                 continue
-            report_name = item.get("reportName") or item.get("report_name") or "standard"
+            report_name_raw = item.get("reportName") or item.get("report_name")
+            report_name = (
+                report_name_raw if isinstance(report_name_raw, str) else "standard"
+            )
+            config_raw = item.get("config")
+            config = config_raw if isinstance(config_raw, dict) else {}
             reports.append(
                 StepReport(
-                    report_name=str(report_name),
-                    config=item.get("config") or {},
+                    report_name=report_name,
+                    config=config,
                 )
             )
         return reports
 
-    def parse_node(node_data: dict[str, Any]) -> PlanStepNode:
+    def parse_node(node_data: JSONObject) -> PlanStepNode:
         search_name = node_data.get("searchName")
         if not isinstance(search_name, str) or not search_name:
             raise ValueError("Missing searchName")
@@ -230,18 +249,37 @@ def from_dict(data: dict[str, Any]) -> StrategyAST:
         primary_raw = node_data.get("primaryInput")
         secondary_raw = node_data.get("secondaryInput")
         primary = parse_node(primary_raw) if isinstance(primary_raw, dict) else None
-        secondary = parse_node(secondary_raw) if isinstance(secondary_raw, dict) else None
+        secondary = (
+            parse_node(secondary_raw) if isinstance(secondary_raw, dict) else None
+        )
 
         op_raw = node_data.get("operator")
         operator = CombineOp(op_raw) if isinstance(op_raw, str) and op_raw else None
 
         colocation = None
-        if isinstance(node_data.get("colocationParams"), dict):
-            cp = node_data["colocationParams"]
+        colocation_params_raw = node_data.get("colocationParams")
+        if isinstance(colocation_params_raw, dict):
+            cp = colocation_params_raw
+            upstream_raw = cp.get("upstream", 0)
+            downstream_raw = cp.get("downstream", 0)
+            strand_raw = cp.get("strand", "both")
+            upstream = upstream_raw if isinstance(upstream_raw, int) else 0
+            downstream = downstream_raw if isinstance(downstream_raw, int) else 0
+            from typing import Literal
+
+            strand: Literal["same", "opposite", "both"]
+            if isinstance(strand_raw, str) and strand_raw in (
+                "same",
+                "opposite",
+                "both",
+            ):
+                strand = cast(Literal["same", "opposite", "both"], strand_raw)
+            else:
+                strand = "both"
             colocation = ColocationParams(
-                upstream=cp.get("upstream", 0),
-                downstream=cp.get("downstream", 0),
-                strand=cp.get("strand", "both"),
+                upstream=upstream,
+                downstream=downstream,
+                strand=strand,
             )
 
         # basic structural constraints
@@ -252,8 +290,14 @@ def from_dict(data: dict[str, Any]) -> StrategyAST:
         if operator == CombineOp.COLOCATE and colocation is None:
             raise ValueError("colocationParams is required when operator is COLOCATE")
         if operator != CombineOp.COLOCATE and colocation is not None:
-            raise ValueError("colocationParams is only allowed when operator is COLOCATE")
+            raise ValueError(
+                "colocationParams is only allowed when operator is COLOCATE"
+            )
 
+        display_name_raw = node_data.get("displayName")
+        display_name = display_name_raw if isinstance(display_name_raw, str) else None
+        id_raw = node_data.get("id")
+        step_id = id_raw if isinstance(id_raw, str) else generate_step_id()
         return PlanStepNode(
             search_name=search_name,
             parameters=params,
@@ -261,19 +305,34 @@ def from_dict(data: dict[str, Any]) -> StrategyAST:
             secondary_input=secondary,
             operator=operator,
             colocation_params=colocation,
-            display_name=node_data.get("displayName"),
+            display_name=display_name,
             filters=parse_filters(node_data),
             analyses=parse_analyses(node_data),
             reports=parse_reports(node_data),
-            id=node_data.get("id", generate_step_id()),
+            id=step_id,
         )
 
-    metadata = data.get("metadata", {})
-    return StrategyAST(
-        record_type=data["recordType"],
-        root=parse_node(data["root"]),
-        name=metadata.get("name") if isinstance(metadata, dict) else None,
-        description=metadata.get("description") if isinstance(metadata, dict) else None,
-        metadata=metadata if isinstance(metadata, dict) else None,
-    )
+    record_type_raw = data.get("recordType")
+    if not isinstance(record_type_raw, str):
+        raise ValueError("Missing or invalid recordType")
 
+    root_raw = data.get("root")
+    if not isinstance(root_raw, dict):
+        raise ValueError("Missing or invalid root")
+
+    metadata_raw = data.get("metadata", {})
+    metadata_obj = metadata_raw if isinstance(metadata_raw, dict) else {}
+
+    name_raw = metadata_obj.get("name")
+    name = name_raw if isinstance(name_raw, str) else None
+
+    description_raw = metadata_obj.get("description")
+    description = description_raw if isinstance(description_raw, str) else None
+
+    return StrategyAST(
+        record_type=record_type_raw,
+        root=parse_node(root_raw),
+        name=name,
+        description=description,
+        metadata=metadata_obj if metadata_obj else None,
+    )

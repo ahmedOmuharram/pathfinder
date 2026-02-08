@@ -7,4 +7,3 @@ def test_point_uuid_is_deterministic() -> None:
     c = point_uuid("plasmodb:transcript:GenesByPhenotypeText")
     assert a == b
     assert a != c
-

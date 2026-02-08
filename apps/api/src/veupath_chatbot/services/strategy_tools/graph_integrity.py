@@ -11,8 +11,10 @@ Design goals:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategy_session import StrategyGraph
 
 
@@ -24,15 +26,15 @@ class GraphIntegrityError:
     input_step_id: str | None = None
     kind: str | None = None
 
-    def to_dict(self) -> dict:
-        payload: dict[str, object] = {"code": self.code, "message": self.message}
+    def to_dict(self) -> JSONObject:
+        payload: dict[str, str | None] = {"code": self.code, "message": self.message}
         if self.step_id:
             payload["stepId"] = self.step_id
         if self.input_step_id:
             payload["inputStepId"] = self.input_step_id
         if self.kind:
             payload["kind"] = self.kind
-        return payload
+        return cast(JSONObject, payload)
 
 
 def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
@@ -52,7 +54,7 @@ def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
 def find_root_step_ids(graph: StrategyGraph) -> list[str]:
     """Return ids of steps that are not referenced as inputs by other steps."""
     referenced = find_referenced_step_ids(graph)
-    return [step_id for step_id in graph.steps.keys() if step_id not in referenced]
+    return [step_id for step_id in graph.steps if step_id not in referenced]
 
 
 def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
@@ -89,9 +91,11 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
             if secondary not in all_ids:
                 add_missing(secondary, step_id, "secondary_input")
 
-    root_ids = [sid for sid in graph.steps.keys() if sid not in referenced]
+    root_ids = [sid for sid in graph.steps if sid not in referenced]
     if len(root_ids) == 0:
-        errors.append(GraphIntegrityError("NO_ROOTS", "Strategy graph has no root/output steps."))
+        errors.append(
+            GraphIntegrityError("NO_ROOTS", "Strategy graph has no root/output steps.")
+        )
     elif len(root_ids) > 1:
         errors.append(
             GraphIntegrityError(
@@ -100,4 +104,3 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
         )
 
     return errors
-

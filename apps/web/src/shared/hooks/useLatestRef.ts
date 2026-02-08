@@ -7,4 +7,3 @@ export function useLatestRef<T>(value: T) {
   }, [value]);
   return ref;
 }
-

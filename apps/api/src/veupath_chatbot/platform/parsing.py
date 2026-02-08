@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
-def parse_jsonish(value: str | dict | list | None) -> dict | list | None:
+
+def parse_jsonish(
+    value: str | JSONObject | JSONArray | None,
+) -> JSONObject | JSONArray | None:
     """Parse tool results that may be JSON or a Python literal.
 
     Some tool frameworks return `dict`/`list`, others return a string (often JSON),
@@ -17,7 +21,10 @@ def parse_jsonish(value: str | dict | list | None) -> dict | list | None:
     if isinstance(value, (dict, list)):
         return value
     try:
-        return json.loads(value)
+        parsed_json = json.loads(value)
+        if isinstance(parsed_json, (dict, list)):
+            return parsed_json
+        return None
     except json.JSONDecodeError:
         try:
             import ast
@@ -26,4 +33,3 @@ def parse_jsonish(value: str | dict | list | None) -> dict | list | None:
         except Exception:
             return None
         return parsed if isinstance(parsed, (dict, list)) else None
-

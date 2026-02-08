@@ -35,7 +35,7 @@ export type ChatEventContext = {
     wdkStrategyId: number,
     wdkUrl?: string | null,
     name?: string | null,
-    description?: string | null
+    description?: string | null,
   ) => void;
   setStrategy: (s: StrategyWithMeta | null) => void;
   setStrategyMeta: (u: Partial<StrategyWithMeta>) => void;
@@ -55,8 +55,10 @@ export type ChatEventContext = {
 
   // Helpers
   parseToolArguments: (args: unknown) => Record<string, unknown>;
-  parseToolResult: (result?: string | null) => { graphSnapshot?: unknown } | null;
-  applyGraphSnapshot: (graphSnapshot: any) => void;
+  parseToolResult: (
+    result?: string | null,
+  ) => { graphSnapshot?: Record<string, unknown> } | null;
+  applyGraphSnapshot: (graphSnapshot: Record<string, unknown>) => void;
   getStrategy: (id: string) => Promise<StrategyWithMeta>;
   streamingAssistantIndexRef: MutableRef<number | null>;
   streamingAssistantMessageIdRef: MutableRef<string | null>;
@@ -163,7 +165,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "assistant_message": {
-      const { messageId, content } = event.data as { messageId?: string; content?: string };
+      const { messageId, content } = event.data as {
+        messageId?: string;
+        content?: string;
+      };
       const finalContent = content || "";
       const subKaniActivity = thinking.snapshotSubKaniActivity();
 
@@ -183,9 +188,11 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
           next[idx] = {
             ...existing,
             content: finalContent || existing.content,
-            toolCalls: toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : existing.toolCalls,
+            toolCalls:
+              toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : existing.toolCalls,
             subKaniActivity,
-            citations: citationsBuffer.length > 0 ? [...citationsBuffer] : existing.citations,
+            citations:
+              citationsBuffer.length > 0 ? [...citationsBuffer] : existing.citations,
             planningArtifacts:
               planningArtifactsBuffer.length > 0
                 ? [...planningArtifactsBuffer]
@@ -202,7 +209,9 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
           subKaniActivity,
           citations: citationsBuffer.length > 0 ? [...citationsBuffer] : undefined,
           planningArtifacts:
-            planningArtifactsBuffer.length > 0 ? [...planningArtifactsBuffer] : undefined,
+            planningArtifactsBuffer.length > 0
+              ? [...planningArtifactsBuffer]
+              : undefined,
           timestamp: new Date().toISOString(),
         };
         const snapshot = pendingUndoSnapshotRef.current;
@@ -228,10 +237,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "citations": {
-      const citations = (event.data as { citations?: unknown[] })?.citations;
+      const citations = event.data.citations;
       if (Array.isArray(citations)) {
         for (const c of citations) {
-          if (c && typeof c === "object") {
+          if (c && typeof c === "object" && !Array.isArray(c)) {
             citationsBuffer.push(c as Citation);
           }
         }
@@ -239,8 +248,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "planning_artifact": {
-      const artifact = (event.data as { planningArtifact?: unknown })?.planningArtifact;
-      if (artifact && typeof artifact === "object") {
+      const artifact = event.data.planningArtifact;
+      if (artifact && typeof artifact === "object" && !Array.isArray(artifact)) {
         planningArtifactsBuffer.push(artifact as PlanningArtifact);
       }
       break;
@@ -253,7 +262,11 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "tool_call_start": {
-      const { id, name, arguments: args } = event.data as {
+      const {
+        id,
+        name,
+        arguments: args,
+      } = event.data as {
         id: string;
         name: string;
         arguments?: string;
@@ -272,8 +285,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       }
       const parsed = parseToolResult(result);
       const snapshot = parsed?.graphSnapshot;
-      if (snapshot && typeof snapshot === "object") {
-        applyGraphSnapshot(snapshot as any);
+      if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
+        applyGraphSnapshot(snapshot);
       }
       break;
     }
@@ -283,7 +296,12 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "subkani_tool_call_start": {
-      const { task, id, name, arguments: args } = event.data as {
+      const {
+        task,
+        id,
+        name,
+        arguments: args,
+      } = event.data as {
         task?: string;
         id: string;
         name: string;
@@ -295,7 +313,11 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "subkani_tool_call_end": {
-      const { task, id, result } = event.data as { task?: string; id: string; result: string };
+      const { task, id, result } = event.data as {
+        task?: string;
+        id: string;
+        result: string;
+      };
       if (!task) break;
       thinking.subKaniToolCallEnd(task, id, result);
       break;
@@ -335,7 +357,11 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       if (strategyIdAtStart && targetGraphId !== strategyIdAtStart) break;
 
       const snapshot = strategyRef.current;
-      if (!pendingUndoSnapshotRef.current && snapshot && snapshot.id === targetGraphId) {
+      if (
+        !pendingUndoSnapshotRef.current &&
+        snapshot &&
+        snapshot.id === targetGraphId
+      ) {
         pendingUndoSnapshotRef.current = snapshot;
       }
       if (step?.name || step?.description || step?.recordType) {
@@ -363,8 +389,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "graph_snapshot": {
-      const { graphSnapshot } = event.data as { graphSnapshot?: Record<string, unknown> };
-      if (graphSnapshot) applyGraphSnapshot(graphSnapshot as any);
+      const { graphSnapshot } = event.data as {
+        graphSnapshot?: Record<string, unknown>;
+      };
+      if (graphSnapshot) applyGraphSnapshot(graphSnapshot);
       break;
     }
     case "strategy_link": {
@@ -380,9 +408,13 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       const targetGraphId = graphId || strategySnapshotId || strategyIdAtStart;
       if (strategyIdAtStart && targetGraphId !== strategyIdAtStart) break;
       const isActive = !!targetGraphId;
-      if (isActive && wdkStrategyId) setWdkInfo(wdkStrategyId, wdkUrl, name, description);
+      if (isActive && wdkStrategyId)
+        setWdkInfo(wdkStrategyId, wdkUrl, name, description);
       if (isActive && targetGraphId) {
-        setStrategyMeta({ name: name ?? undefined, description: description ?? undefined });
+        setStrategyMeta({
+          name: name ?? undefined,
+          description: description ?? undefined,
+        });
       }
       if (isActive && currentStrategy) {
         addExecutedStrategy({
@@ -421,7 +453,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     case "strategy_cleared": {
       const { graphId } = event.data as { graphId?: string };
       const targetGraphId = graphId || strategyIdAtStart;
-      if (!targetGraphId || (strategyIdAtStart && targetGraphId !== strategyIdAtStart)) break;
+      if (!targetGraphId || (strategyIdAtStart && targetGraphId !== strategyIdAtStart))
+        break;
       if (!strategyIdAtStart || targetGraphId === strategyIdAtStart) clearStrategy();
       break;
     }
@@ -440,4 +473,3 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
   }
 }
-

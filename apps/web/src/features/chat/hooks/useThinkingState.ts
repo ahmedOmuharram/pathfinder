@@ -36,26 +36,29 @@ export function useThinkingState() {
     setReasoning(null);
   }, []);
 
-  const applyThinkingPayload = useCallback((payload: ThinkingPayload | null): boolean => {
-    if (!payload) return false;
-    const updatedAt = payload.updatedAt ? new Date(payload.updatedAt).getTime() : 0;
-    const isStale = !updatedAt || Date.now() - updatedAt > 10 * 60 * 1000;
-    if (isStale) return false;
-    const toolCalls = payload.toolCalls || [];
-    setActiveToolCalls(toolCalls);
-    setLastToolCalls(payload.lastToolCalls || []);
-    setSubKaniCalls(payload.subKaniCalls || {});
-    setSubKaniStatus(payload.subKaniStatus || {});
-    setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
+  const applyThinkingPayload = useCallback(
+    (payload: ThinkingPayload | null): boolean => {
+      if (!payload) return false;
+      const updatedAt = payload.updatedAt ? new Date(payload.updatedAt).getTime() : 0;
+      const isStale = !updatedAt || Date.now() - updatedAt > 10 * 60 * 1000;
+      if (isStale) return false;
+      const toolCalls = payload.toolCalls || [];
+      setActiveToolCalls(toolCalls);
+      setLastToolCalls(payload.lastToolCalls || []);
+      setSubKaniCalls(payload.subKaniCalls || {});
+      setSubKaniStatus(payload.subKaniStatus || {});
+      setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
 
-    const anyActiveTool = toolCalls.some(
-      (c) => c && (c.result === undefined || c.result === null),
-    );
-    const anySubKaniRunning = Object.values(payload.subKaniStatus || {}).some(
-      (s) => s === "running",
-    );
-    return anyActiveTool || anySubKaniRunning;
-  }, []);
+      const anyActiveTool = toolCalls.some(
+        (c) => c && (c.result === undefined || c.result === null),
+      );
+      const anySubKaniRunning = Object.values(payload.subKaniStatus || {}).some(
+        (s) => s === "running",
+      );
+      return anyActiveTool || anySubKaniRunning;
+    },
+    [],
+  );
 
   const updateReasoning = useCallback((text: string | null) => {
     setReasoning(text);
@@ -85,7 +88,9 @@ export function useThinkingState() {
   const subKaniToolCallEnd = useCallback((task: string, id: string, result: string) => {
     setSubKaniCalls((prev) => {
       const calls = prev[task] || [];
-      const updated = calls.map((call) => (call.id === id ? { ...call, result } : call));
+      const updated = calls.map((call) =>
+        call.id === id ? { ...call, result } : call,
+      );
       return { ...prev, [task]: updated };
     });
   }, []);
@@ -128,4 +133,3 @@ export function useThinkingState() {
     snapshotSubKaniActivity,
   };
 }
-

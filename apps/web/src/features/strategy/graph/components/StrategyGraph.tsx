@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CombineOperator } from "@pathfinder/shared";
-import { type Edge, Node, useNodesState, useEdgesState, type ReactFlowInstance } from "reactflow";
+import {
+  type Edge,
+  Node,
+  useNodesState,
+  useEdgesState,
+  type ReactFlowInstance,
+} from "reactflow";
 import "reactflow/dist/style.css";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
@@ -51,7 +57,10 @@ interface StrategyGraphProps {
   isPushing?: boolean;
   pushLabel?: string;
   pushDisabledReason?: string;
-  onToast?: (toast: { type: "success" | "error" | "warning" | "info"; message: string }) => void;
+  onToast?: (toast: {
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }) => void;
   variant?: "full" | "compact";
 }
 
@@ -109,7 +118,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
   const addStep = useStrategyStore((state) => state.addStep);
   const removeStep = useStrategyStore((state) => state.removeStep);
   const setStepValidationErrors = useStrategyStore(
-    (state) => state.setStepValidationErrors
+    (state) => state.setStepValidationErrors,
   );
   const selectedSite = useSessionStore((state) => state.selectedSite);
   const wdkUrlFallback = useWdkUrlFallback({
@@ -118,7 +127,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     listSites,
   });
   const setGraphValidationStatus = useStrategyListStore(
-    (state) => state.setGraphValidationStatus
+    (state) => state.setGraphValidationStatus,
   );
   const undo = useStrategyStore((state) => state.undo);
   const redo = useStrategyStore((state) => state.redo);
@@ -141,7 +150,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
   });
   const renderNodes = useMemo(
     () => (warningGroupNodes.length > 0 ? [...warningGroupNodes, ...nodes] : nodes),
-    [warningGroupNodes, nodes]
+    [warningGroupNodes, nodes],
   );
   // Update nodes and edges when strategy changes
   const buildStepSignature = useCallback((step: StrategyStep) => {
@@ -199,7 +208,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
       if (stepsList.length === 0) return;
       const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
       const toRemove = new Set<string>(
-        deletedNodes.map((node) => node.id).filter((id) => stepsMap.has(id))
+        deletedNodes.map((node) => node.id).filter((id) => stepsMap.has(id)),
       );
       if (toRemove.size === 0) return;
 
@@ -226,7 +235,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
         setSelectedStep(null);
       }
     },
-    [draftStrategy?.steps, isCompact, removeStep, selectedStep, updateStep]
+    [draftStrategy?.steps, isCompact, removeStep, selectedStep, updateStep],
   );
 
   const handleStartCombineFromSelection = useCallback(() => {
@@ -245,11 +254,16 @@ export function StrategyGraph(props: StrategyGraphProps) {
     enabled: !isCompact,
     nodeCount: nodes.length,
     userHasMoved,
-    fitView: () => reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 }),
+    fitView: () =>
+      reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 }),
   });
 
-  const { pushSnapshot, reset: resetNodeHistory, tryUndo, tryRedo } =
-    useNodePositionHistory({ setNodes });
+  const {
+    pushSnapshot,
+    reset: resetNodeHistory,
+    tryUndo,
+    tryRedo,
+  } = useNodePositionHistory({ setNodes });
 
   // Model-driven graph updates arrive during chat streaming. Those updates are persisted by the API
   // when emitted, so we should not show them as "unsaved" in the UI.
@@ -259,7 +273,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     if (selectedStep) return;
     if (!strategy?.steps || strategy.steps.length === 0) return;
     lastSavedStepsRef.current = new Map(
-      strategy.steps.map((step) => [step.id, buildStepSignature(step)])
+      strategy.steps.map((step) => [step.id, buildStepSignature(step)]),
     );
     setLastSavedStepsVersion((v) => v + 1);
   }, [
@@ -283,8 +297,8 @@ export function StrategyGraph(props: StrategyGraphProps) {
   const planResult = buildPlan();
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
   const graphIdForValidation = draftStrategy?.id || strategy?.id || null;
-  const graphHasValidationIssues = useStrategyListStore(
-    (state) => (graphIdForValidation ? !!state.graphValidationStatus[graphIdForValidation] : false)
+  const graphHasValidationIssues = useStrategyListStore((state) =>
+    graphIdForValidation ? !!state.graphValidationStatus[graphIdForValidation] : false,
   );
   const dirtyStepIds = useMemo(() => {
     // This is a bump counter used to invalidate the memo when a saved snapshot is observed.
@@ -303,7 +317,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
   }, [strategy?.steps, lastSavedStepsVersion, buildStepSignature]);
   const dirtyStepIdsKey = useMemo(
     () => Array.from(dirtyStepIds).sort().join("|"),
-    [dirtyStepIds]
+    [dirtyStepIds],
   );
   const isUnsaved = dirtyStepIds.size > 0;
 
@@ -351,12 +365,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     strategy,
   });
 
-  const {
-    isSaving,
-    canSave,
-    handleSave,
-    handlePush,
-  } = useGraphSave({
+  const { isSaving, canSave, handleSave, handlePush } = useGraphSave({
     strategy,
     draftStrategy,
     buildPlan,
@@ -418,12 +427,12 @@ export function StrategyGraph(props: StrategyGraphProps) {
         setSelectedStep(step);
       }
     },
-    [strategy?.steps]
+    [strategy?.steps],
   );
 
   useEffect(() => {
     nodePositionsRef.current = new Map(
-      nodes.map((n) => [n.id, { x: n.position.x, y: n.position.y }])
+      nodes.map((n) => [n.id, { x: n.position.x, y: n.position.y }]),
     );
   }, [nodes]);
 
@@ -445,7 +454,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
       {
         existingPositions: nodePositionsRef.current,
         forceRelayout,
-      }
+      },
     );
     setNodes(newNodes);
     setEdges(newEdges);
@@ -631,10 +640,12 @@ export function StrategyGraph(props: StrategyGraphProps) {
 
             const downstream = stepsList.find(
               (s) =>
-                s.primaryInputStepId === selectedId || s.secondaryInputStepId === selectedId
+                s.primaryInputStepId === selectedId ||
+                s.secondaryInputStepId === selectedId,
             );
             const downstreamUsesPrimary = downstream?.primaryInputStepId === selectedId;
-            const downstreamUsesSecondary = downstream?.secondaryInputStepId === selectedId;
+            const downstreamUsesSecondary =
+              downstream?.secondaryInputStepId === selectedId;
 
             const newId = `step_${Math.random().toString(16).slice(2, 10)}`;
             const newStep: StrategyStep = {

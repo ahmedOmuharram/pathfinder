@@ -77,11 +77,13 @@ export function StrategyGraphActionButtons({
           aria-disabled={saveIsDisabled}
           className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 ${
             saveIsDisabled ? "cursor-not-allowed opacity-60" : ""
-          } ${
-            isUnsaved ? "save-attention" : ""
-          }`}
+          } ${isUnsaved ? "save-attention" : ""}`}
           title={
-            isSaving ? "Saving..." : !canSave && saveDisabledReason ? saveDisabledReason : "Save"
+            isSaving
+              ? "Saving..."
+              : !canSave && saveDisabledReason
+                ? saveDisabledReason
+                : "Save"
           }
         >
           <Save className="h-4 w-4" />
@@ -90,4 +92,3 @@ export function StrategyGraphActionButtons({
     </div>
   );
 }
-

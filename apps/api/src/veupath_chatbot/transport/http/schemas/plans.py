@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from veupath_chatbot.platform.types import JSONArray
 
 from .chat import MessageResponse, ThinkingResponse
 
@@ -27,7 +28,7 @@ class PlanSessionResponse(BaseModel):
     title: str
     messages: list[MessageResponse] | None = None
     thinking: ThinkingResponse | None = None
-    planning_artifacts: list[dict[str, Any]] | None = Field(
+    planning_artifacts: JSONArray | None = Field(
         default=None, alias="planningArtifacts"
     )
     updated_at: datetime = Field(alias="updatedAt")
@@ -52,5 +53,3 @@ class OpenPlanSessionResponse(BaseModel):
 
 class UpdatePlanSessionRequest(BaseModel):
     title: str | None = None
-
-

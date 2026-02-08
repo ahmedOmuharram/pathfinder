@@ -1,20 +1,28 @@
 """FastAPI application entrypoint."""
 
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import cast
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response
 
 from veupath_chatbot import __version__
+from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
+from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
+from veupath_chatbot.persistence.session import close_db, init_db
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import request_id_ctx, veupathdb_auth_token_ctx
-from veupath_chatbot.platform.errors import AppError, app_error_handler, http_exception_handler
+from veupath_chatbot.platform.errors import (
+    AppError,
+    app_error_handler,
+    http_exception_handler,
+)
 from veupath_chatbot.platform.logging import get_logger, setup_logging
-from veupath_chatbot.persistence.session import close_db, init_db
-from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
-
+from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.transport.http.routers import (
     chat,
     health,
@@ -43,8 +51,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     # Initialize database
-    if settings.database_url.startswith("sqlite"):
-        await init_db()
+    # For local Docker and first-run developer setups, we create tables automatically.
+    # (Alembic migrations are not supported.)
+    await init_db()
+    try:
+        await ensure_rag_collections()
+    except Exception as exc:  # pragma: no cover
+        # Do not fail API startup if Qdrant is unavailable or misconfigured.
+        logger.warning("Failed to ensure RAG collections", error=str(exc))
+    try:
+        await start_rag_startup_ingestion_background()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Failed to start RAG startup ingestion", error=str(exc))
 
     yield
 
@@ -78,7 +96,10 @@ def create_app() -> FastAPI:
 
     # Request ID middleware
     @app.middleware("http")
-    async def add_request_id(request: Request, call_next):
+    async def add_request_id(
+        request: StarletteRequest,
+        call_next: Callable[[StarletteRequest], Awaitable[Response]],
+    ) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         request_id_ctx.set(request_id)
         veupathdb_auth_token_ctx.set(
@@ -91,8 +112,20 @@ def create_app() -> FastAPI:
         return response
 
     # Exception handlers
-    app.add_exception_handler(AppError, app_error_handler)
-    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(
+        AppError,
+        cast(
+            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            app_error_handler,
+        ),
+    )
+    app.add_exception_handler(
+        HTTPException,
+        cast(
+            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            http_exception_handler,
+        ),
+    )
 
     # Routers
     app.include_router(health.router)
@@ -118,6 +151,5 @@ if __name__ == "__main__":
         "veupath_chatbot.main:app",
         host=settings.api_host,
         port=settings.api_port,
-        reload=settings.is_development,
+        reload=bool(settings.is_development),
     )
-

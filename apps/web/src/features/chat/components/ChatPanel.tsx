@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageComposer } from "@/features/chat/components/MessageComposer";
 import { getStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/client";
-import type { Message, ToolCall } from "@pathfinder/shared";
+import type { Message, StrategyPlan, ToolCall } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
@@ -38,10 +38,10 @@ export function ChatPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const thinking = useThinkingState();
   const [draftSelection, setDraftSelection] = useState<Record<string, unknown> | null>(
-    null
+    null,
   );
   const [undoSnapshots, setUndoSnapshots] = useState<Record<number, StrategyWithMeta>>(
-    {}
+    {},
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pendingUndoSnapshotRef = useRef<StrategyWithMeta | null>(null);
@@ -57,9 +57,11 @@ export function ChatPanel({
   const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const setChatIsStreaming = useSessionStore((state) => state.setChatIsStreaming);
   const pendingExecutorSend = useSessionStore((state) => state.pendingExecutorSend);
-  const setPendingExecutorSend = useSessionStore((state) => state.setPendingExecutorSend);
+  const setPendingExecutorSend = useSessionStore(
+    (state) => state.setPendingExecutorSend,
+  );
   const selectedSiteDisplayName = useSessionStore(
-    (state) => state.selectedSiteDisplayName
+    (state) => state.selectedSiteDisplayName,
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const veupathdbName = useSessionStore((state) => state.veupathdbName);
@@ -67,7 +69,7 @@ export function ChatPanel({
   const displayName = selectedSiteDisplayName || siteId;
   const addStrategy = useStrategyListStore((state) => state.addStrategy);
   const addExecutedStrategy = useStrategyListStore(
-    (state) => state.addExecutedStrategy
+    (state) => state.addExecutedStrategy,
   );
 
   // Strategy store for updating the graph
@@ -81,7 +83,19 @@ export function ChatPanel({
   const parseToolResult = (result?: string | null) => {
     if (!result) return null;
     try {
-      return JSON.parse(result) as { graphSnapshot?: unknown };
+      const parsed = JSON.parse(result);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        const graphSnapshot = parsed.graphSnapshot;
+        if (
+          graphSnapshot &&
+          typeof graphSnapshot === "object" &&
+          !Array.isArray(graphSnapshot)
+        ) {
+          return { graphSnapshot: graphSnapshot as Record<string, unknown> };
+        }
+        return { graphSnapshot: undefined };
+      }
+      return null;
     } catch {
       return null;
     }
@@ -103,12 +117,12 @@ export function ChatPanel({
           // Best-effort; keep existing graph if fetch fails.
         });
     },
-    [setStrategy, setStrategyMeta]
+    [setStrategy, setStrategyMeta],
   );
 
   const attachThinkingToLastAssistant = (
     calls: ToolCall[],
-    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> }
+    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
   ) => {
     if (calls.length === 0 && !activity) return;
     setMessages((prev) => {
@@ -122,7 +136,8 @@ export function ChatPanel({
         next[i] = {
           ...prev[i],
           toolCalls: hasTools || calls.length === 0 ? prev[i].toolCalls : calls,
-          subKaniActivity: hasActivity || !activity ? prev[i].subKaniActivity : activity,
+          subKaniActivity:
+            hasActivity || !activity ? prev[i].subKaniActivity : activity,
         };
         return next;
       }
@@ -141,41 +156,36 @@ export function ChatPanel({
     setStrategyMeta,
   });
 
-  const {
-    handleSendMessage,
-    stopStreaming,
-    isStreaming,
-    apiError,
-    setIsStreaming,
-  } = useChatStreaming({
-    siteId,
-    strategyId,
-    draftSelection,
-    setDraftSelection,
-    thinking,
-    setMessages,
-    setUndoSnapshots,
-    pendingUndoSnapshotRef,
-    appliedSnapshotRef,
-    loadGraph,
-    addStrategy,
-    addExecutedStrategy,
-    setStrategyId,
-    setAuthToken,
-    setWdkInfo,
-    setStrategy,
-    setStrategyMeta,
-    clearStrategy,
-    addStep,
-    parseToolArguments,
-    parseToolResult,
-    applyGraphSnapshot,
-    getStrategy,
-    strategyRef,
-    currentStrategy,
-    attachThinkingToLastAssistant,
-    mode: "execute",
-  });
+  const { handleSendMessage, stopStreaming, isStreaming, apiError, setIsStreaming } =
+    useChatStreaming({
+      siteId,
+      strategyId,
+      draftSelection,
+      setDraftSelection,
+      thinking,
+      setMessages,
+      setUndoSnapshots,
+      pendingUndoSnapshotRef,
+      appliedSnapshotRef,
+      loadGraph,
+      addStrategy,
+      addExecutedStrategy,
+      setStrategyId,
+      setAuthToken,
+      setWdkInfo,
+      setStrategy,
+      setStrategyMeta,
+      clearStrategy,
+      addStep,
+      parseToolArguments,
+      parseToolResult,
+      applyGraphSnapshot,
+      getStrategy,
+      strategyRef,
+      currentStrategy,
+      attachThinkingToLastAssistant,
+      mode: "execute",
+    });
 
   // Send any queued executor message once we're ready (avoids races while switching tabs/strategy).
   useEffect(() => {
@@ -194,7 +204,7 @@ export function ChatPanel({
     window.dispatchEvent(
       new CustomEvent("pathfinder:prefill-composer", {
         detail: { mode: "execute", message: "" },
-      })
+      }),
     );
     setPendingExecutorSend(null);
   }, [pendingExecutorSend, strategyId, handleSendMessage, setPendingExecutorSend]);
@@ -284,9 +294,10 @@ export function ChatPanel({
         onApplyPlanningArtifact={async (artifact) => {
           if (!strategyId) return;
           const proposed = artifact.proposedStrategyPlan;
-          if (!proposed || typeof proposed !== "object") return;
+          if (!proposed || typeof proposed !== "object" || Array.isArray(proposed))
+            return;
           try {
-            await updateStrategyApi(strategyId, { plan: proposed as any });
+            await updateStrategyApi(strategyId, { plan: proposed as StrategyPlan });
             const full = await getStrategy(strategyId);
             setStrategy(full);
             setStrategyMeta({

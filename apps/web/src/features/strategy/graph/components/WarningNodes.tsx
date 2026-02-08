@@ -27,4 +27,3 @@ export function WarningIconNode({ data }: { data: { message: string } }) {
     </div>
   );
 }
-

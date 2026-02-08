@@ -45,8 +45,10 @@ const config: Config = {
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
-        "ocean-gradient": "linear-gradient(135deg, #0a4d58 0%, #052f36 50%, #0a0f1a 100%)",
+        "gradient-conic":
+          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+        "ocean-gradient":
+          "linear-gradient(135deg, #0a4d58 0%, #052f36 50%, #0a0f1a 100%)",
       },
       animation: {
         "fade-in": "fadeIn 0.3s ease-out",
@@ -69,4 +71,3 @@ const config: Config = {
 };
 
 export default config;
-

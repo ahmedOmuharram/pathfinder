@@ -9,17 +9,22 @@ import type { MutableRef } from "@/shared/types/refs";
 
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
+    value,
   );
 
 interface UseGraphSaveArgs {
   strategy: StrategyWithMeta | null;
   draftStrategy: StrategyWithMeta | null;
-  buildPlan: () =>
-    | { plan: StrategyPlan; name: string; recordType: string | null }
-    | null;
+  buildPlan: () => {
+    plan: StrategyPlan;
+    name: string;
+    recordType: string | null;
+  } | null;
   combineMismatchGroups: CombineMismatchGroup[];
-  onToast?: (toast: { type: "success" | "error" | "warning" | "info"; message: string }) => void;
+  onToast?: (toast: {
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }) => void;
   onPush?: () => void;
   setStrategyMeta: (meta: Partial<StrategyWithMeta>) => void;
   buildStepSignature: (step: StrategyStep) => string;
@@ -139,7 +144,7 @@ export function useGraphSave({
         setLastSavedPlanHash(JSON.stringify(nextPlan));
         if (draftStrategy?.steps) {
           const nextSavedSteps = new Map(
-            draftStrategy.steps.map((step) => [step.id, buildStepSignature(step)])
+            draftStrategy.steps.map((step) => [step.id, buildStepSignature(step)]),
           );
           lastSavedStepsRef.current = nextSavedSteps;
           setLastSavedStepsVersion((version) => version + 1);
@@ -174,7 +179,7 @@ export function useGraphSave({
       setLastSavedStepsVersion,
       buildStepSignature,
       onToast,
-    ]
+    ],
   );
 
   const persistStrategyDetails = useCallback(
@@ -189,7 +194,7 @@ export function useGraphSave({
       }
       await persistPlan({ overrideName: name, overrideDescription: description });
     },
-    [buildPlan, draftStrategy?.id, persistPlan]
+    [buildPlan, draftStrategy?.id, onToast, persistPlan, setSaveError],
   );
 
   const handleSave = useCallback(async () => {

@@ -10,4 +10,3 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
   if (incoming.length >= current.length) return incoming;
   return current;
 }
-

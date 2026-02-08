@@ -1,0 +1,34 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format-api
+        name: ruff format (api)
+        entry: uv run --project apps/api ruff format apps/api/src
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: ruff-check-api
+        name: ruff check (api)
+        entry: uv run --project apps/api ruff check apps/api/src
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: mypy-api
+        name: mypy (api)
+        entry: uv run --project apps/api mypy apps/api/src
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-push]
+      - id: prettier-web
+        name: prettier (web)
+        entry: bash -c "cd apps/web && npm run format"
+        language: system
+        pass_filenames: false
+        types: [javascript, jsx, ts, tsx]
+      - id: eslint-web
+        name: eslint (web)
+        entry: bash -c "cd apps/web && npm run lint"
+        language: system
+        pass_filenames: false
+        types: [javascript, jsx, ts, tsx]

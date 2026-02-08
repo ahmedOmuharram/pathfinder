@@ -29,7 +29,7 @@ export function useSavedSnapshotSync(args: {
     setLastSavedPlanHash(planHash);
     if (strategy?.steps) {
       lastSavedStepsRef.current = new Map(
-        strategy.steps.map((step) => [step.id, buildStepSignature(step)])
+        strategy.steps.map((step) => [step.id, buildStepSignature(step)]),
       );
       bumpLastSavedStepsVersion();
     }
@@ -44,4 +44,3 @@ export function useSavedSnapshotSync(args: {
     bumpLastSavedStepsVersion,
   ]);
 }
-

@@ -1,5 +1,7 @@
 """Authentication, authorization, and rate limiting."""
 
+from __future__ import annotations
+
 import hashlib
 import hmac
 import secrets
@@ -9,7 +11,6 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyCookie
-from fastapi.security.api_key import APIKey
 from pydantic import BaseModel
 
 from veupath_chatbot.platform.config import get_settings
@@ -46,7 +47,7 @@ def verify_csrf_token(token: str, session_token: str) -> bool:
 
 async def get_optional_user(
     request: Request,
-    cookie_token: Annotated[APIKey | None, Depends(auth_cookie)] = None,
+    cookie_token: Annotated[str | None, Depends(auth_cookie)] = None,
 ) -> UUID | None:
     """Get current user ID if authenticated (optional)."""
     token_header: str | None = str(cookie_token) if cookie_token else None
@@ -154,4 +155,3 @@ async def check_rate_limit(request: Request) -> None:
     client_ip = request.client.host if request.client else "unknown"
     if not rate_limiter.is_allowed(client_ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
-

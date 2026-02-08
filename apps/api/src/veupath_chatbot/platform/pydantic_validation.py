@@ -9,13 +9,16 @@ error payloads to the client.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import cast
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+
+_HEADER_RE = re.compile(
+    r"^\s*(?P<count>\d+)\s+validation error for\s+(?P<model>.+?)\s*$"
+)
 
 
-_HEADER_RE = re.compile(r"^\s*(?P<count>\d+)\s+validation error for\s+(?P<model>.+?)\s*$")
-
-
-def parse_pydantic_validation_error_text(text: str | None) -> dict[str, Any] | None:
+def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     """Parse Pydantic v2 ValidationError string into a structured payload.
 
     Returns a dict with keys:
@@ -41,7 +44,7 @@ def parse_pydantic_validation_error_text(text: str | None) -> dict[str, Any] | N
     except Exception:
         error_count = None
 
-    errors: list[dict[str, Any]] = []
+    errors: JSONArray = []
     current_loc: str | None = None
 
     def _parse_meta(meta_str: str) -> dict[str, str]:
@@ -68,14 +71,17 @@ def parse_pydantic_validation_error_text(text: str | None) -> dict[str, Any] | N
                 msg = msg_part.strip() or detail
                 meta = _parse_meta(meta_part[:-1])
 
-            err: dict[str, Any] = {
+            err: JSONObject = {
                 "loc": [current_loc],
                 "msg": msg,
             }
             if meta.get("type"):
-                err["type"] = meta.get("type")
+                type_val = meta.get("type")
+                if isinstance(type_val, str):
+                    err["type"] = type_val
             if meta:
-                err["meta"] = meta
+                # dict[str, str] is a valid JSONValue (it's a dict[str, JSONValue])
+                err["meta"] = cast(JSONValue, meta)
             errors.append(err)
         else:
             current_loc = ln.strip()
@@ -86,4 +92,3 @@ def parse_pydantic_validation_error_text(text: str | None) -> dict[str, Any] | N
         "errors": errors,
         "raw": text,
     }
-

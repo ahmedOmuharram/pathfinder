@@ -1,4 +1,4 @@
-import type { Message, ToolCall } from "@pathfinder/shared";
+import type { Message, ToolCall, Citation, PlanningArtifact } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { RawSSEEvent } from "@/lib/sse";
 
@@ -15,8 +15,8 @@ export type ChatSSEEvent =
     }
   | { type: "assistant_delta"; data: { messageId?: string; delta?: string } }
   | { type: "assistant_message"; data: { messageId?: string; content?: string } }
-  | { type: "citations"; data: { citations?: unknown[] } }
-  | { type: "planning_artifact"; data: { planningArtifact?: Record<string, unknown> } }
+  | { type: "citations"; data: { citations?: Citation[] } }
+  | { type: "planning_artifact"; data: { planningArtifact?: PlanningArtifact } }
   | {
       type: "executor_build_request";
       data: { executorBuildRequest?: Record<string, unknown> };
@@ -26,8 +26,14 @@ export type ChatSSEEvent =
   | { type: "tool_call_start"; data: { id: string; name: string; arguments?: string } }
   | { type: "tool_call_end"; data: { id: string; result: string } }
   | { type: "subkani_task_start"; data: { task?: string } }
-  | { type: "subkani_tool_call_start"; data: { task?: string; id: string; name: string; arguments?: string } }
-  | { type: "subkani_tool_call_end"; data: { task?: string; id: string; result: string } }
+  | {
+      type: "subkani_tool_call_start";
+      data: { task?: string; id: string; name: string; arguments?: string };
+    }
+  | {
+      type: "subkani_tool_call_end";
+      data: { task?: string; id: string; result: string };
+    }
   | { type: "subkani_task_end"; data: { task?: string; status?: string } }
   | { type: "strategy_update"; data: Record<string, unknown> }
   | { type: "graph_snapshot"; data: { graphSnapshot?: Record<string, unknown> } }
@@ -44,15 +50,24 @@ export type ChatSSEEvent =
     }
   | {
       type: "strategy_meta";
-      data: { graphId?: string; graphName?: string; name?: string; description?: string; recordType?: string | null };
+      data: {
+        graphId?: string;
+        graphName?: string;
+        name?: string;
+        description?: string;
+        recordType?: string | null;
+      };
     }
   | { type: "strategy_cleared"; data: { graphId?: string } }
   | { type: "error"; data: { error: string } }
-  | { type: "unknown"; data: unknown; rawType: string };
+  | { type: "unknown"; data: Record<string, unknown>; rawType: string };
 
-function safeJsonParse(text: string): unknown {
+function safeJsonParse(text: string): Record<string, unknown> | string {
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : text;
   } catch {
     return text;
   }
@@ -83,7 +98,7 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
     case "strategy_meta":
     case "strategy_cleared":
     case "error":
-      return { type, data: data as any };
+      return { type, data } as ChatSSEEvent;
     default:
       return { type: "unknown", rawType: type, data };
   }
@@ -92,4 +107,3 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
 // Convenience: these are only used for typing in UI code.
 export type ChatMessage = Message;
 export type ChatToolCall = ToolCall;
-

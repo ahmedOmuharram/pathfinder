@@ -1,49 +1,69 @@
 """VEuPathDB sites and discovery endpoints."""
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Query
 
+from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError, WDKError
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services import catalog
 from veupath_chatbot.transport.http.schemas import (
-    DependentParamsResponse,
     DependentParamsRequest,
-    ParamSpecsRequest,
+    DependentParamsResponse,
     ParamSpecResponse,
+    ParamSpecsRequest,
     RecordTypeResponse,
-    SearchResponse,
     SearchDetailsResponse,
+    SearchResponse,
     SearchValidationRequest,
     SearchValidationResponse,
     SiteResponse,
 )
-from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
-def _build_param_specs(payload: dict) -> list[ParamSpecResponse]:
-    from veupath_chatbot.domain.parameters.specs import adapt_param_specs, extract_param_specs
+
+def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
+    from veupath_chatbot.domain.parameters.specs import (
+        adapt_param_specs,
+        extract_param_specs,
+    )
 
     spec_map = adapt_param_specs(payload)
     raw_specs = extract_param_specs(payload)
-    by_name = {s.get("name"): s for s in raw_specs if isinstance(s, dict) and s.get("name")}
+    by_name = {
+        s.get("name"): s for s in raw_specs if isinstance(s, dict) and s.get("name")
+    }
     results: list[ParamSpecResponse] = []
     for name, normalized in spec_map.items():
         raw = by_name.get(name, {})
+        if not isinstance(raw, dict):
+            raw = {}
+        display_name_raw = (
+            raw.get("displayName") or raw.get("display") or raw.get("label")
+        )
+        display_name = display_name_raw if isinstance(display_name_raw, str) else None
+        allow_multiple_raw = raw.get("allowMultipleValues")
+        allow_multiple = (
+            bool(allow_multiple_raw) if isinstance(allow_multiple_raw, bool) else None
+        )
+        multi_pick_raw = raw.get("multiPick")
+        multi_pick = bool(multi_pick_raw) if isinstance(multi_pick_raw, bool) else None
+        vocabulary_raw = raw.get("vocabulary")
         results.append(
             ParamSpecResponse(
                 name=name,
-                displayName=raw.get("displayName") or raw.get("display") or raw.get("label"),
+                displayName=display_name,
                 type=normalized.param_type,
                 allowEmptyValue=normalized.allow_empty_value,
-                allowMultipleValues=raw.get("allowMultipleValues"),
-                multiPick=raw.get("multiPick"),
+                allowMultipleValues=allow_multiple,
+                multiPick=multi_pick,
                 minSelectedCount=normalized.min_selected_count,
                 maxSelectedCount=normalized.max_selected_count,
                 countOnlyLeaves=normalized.count_only_leaves,
-                vocabulary=raw.get("vocabulary"),
+                vocabulary=vocabulary_raw,
             )
         )
     results.sort(key=lambda s: s.name)
@@ -54,37 +74,64 @@ def _build_param_specs(payload: dict) -> list[ParamSpecResponse]:
 async def list_sites() -> list[SiteResponse]:
     """List all available VEuPathDB sites."""
     sites = await catalog.list_sites()
-    return [
-        SiteResponse(
-            id=s.get("id", ""),
-            name=s.get("name", ""),
-            displayName=s.get("displayName", ""),
-            baseUrl=s.get("baseUrl", ""),
-            projectId=s.get("projectId", ""),
-            isPortal=bool(s.get("isPortal", False)),
+    result: list[SiteResponse] = []
+    for s in sites:
+        if not isinstance(s, dict):
+            continue
+        id_raw = s.get("id")
+        name_raw = s.get("name")
+        display_name_raw = s.get("displayName")
+        base_url_raw = s.get("baseUrl")
+        project_id_raw = s.get("projectId")
+        is_portal_raw = s.get("isPortal")
+        result.append(
+            SiteResponse(
+                id=id_raw if isinstance(id_raw, str) else "",
+                name=name_raw if isinstance(name_raw, str) else "",
+                displayName=display_name_raw
+                if isinstance(display_name_raw, str)
+                else "",
+                baseUrl=base_url_raw if isinstance(base_url_raw, str) else "",
+                projectId=project_id_raw if isinstance(project_id_raw, str) else "",
+                isPortal=bool(is_portal_raw)
+                if isinstance(is_portal_raw, bool)
+                else False,
+            )
         )
-        for s in sites
-    ]
+    return result
 
 
 @router.get("/{siteId}", response_model=SiteResponse)
 async def get_site(siteId: str) -> SiteResponse:
     """Get a single site by ID."""
     sites = await catalog.list_sites()
-    match = next((s for s in sites if s.get("id") == siteId), None)
+    match: JSONObject | None = None
+    for s in sites:
+        if not isinstance(s, dict):
+            continue
+        id_raw = s.get("id")
+        if isinstance(id_raw, str) and id_raw == siteId:
+            match = s
+            break
     if not match:
         raise NotFoundError(
             code=ErrorCode.SITE_NOT_FOUND,
             title="Site not found",
             detail=f"Unknown siteId '{siteId}'.",
         )
+    id_raw = match.get("id")
+    name_raw = match.get("name")
+    display_name_raw = match.get("displayName")
+    base_url_raw = match.get("baseUrl")
+    project_id_raw = match.get("projectId")
+    is_portal_raw = match.get("isPortal")
     return SiteResponse(
-        id=match.get("id", ""),
-        name=match.get("name", ""),
-        displayName=match.get("displayName", ""),
-        baseUrl=match.get("baseUrl", ""),
-        projectId=match.get("projectId", ""),
-        isPortal=bool(match.get("isPortal", False)),
+        id=id_raw if isinstance(id_raw, str) else "",
+        name=name_raw if isinstance(name_raw, str) else "",
+        displayName=display_name_raw if isinstance(display_name_raw, str) else "",
+        baseUrl=base_url_raw if isinstance(base_url_raw, str) else "",
+        projectId=project_id_raw if isinstance(project_id_raw, str) else "",
+        isPortal=bool(is_portal_raw) if isinstance(is_portal_raw, bool) else False,
     )
 
 
@@ -92,14 +139,25 @@ async def get_site(siteId: str) -> SiteResponse:
 async def get_record_types(siteId: str) -> list[RecordTypeResponse]:
     """Get record types available on a site."""
     record_types = await catalog.get_record_types(siteId)
-    return [
-        RecordTypeResponse(
-            name=rt.get("name", ""),
-            displayName=rt.get("displayName", ""),
-            description=rt.get("description"),
+    result: list[RecordTypeResponse] = []
+    for rt in record_types:
+        if not isinstance(rt, dict):
+            continue
+        name_raw = rt.get("name")
+        display_name_raw = rt.get("displayName")
+        description_raw = rt.get("description")
+        result.append(
+            RecordTypeResponse(
+                name=name_raw if isinstance(name_raw, str) else "",
+                displayName=display_name_raw
+                if isinstance(display_name_raw, str)
+                else "",
+                description=description_raw
+                if isinstance(description_raw, str)
+                else None,
+            )
         )
-        for rt in record_types
-    ]
+    return result
 
 
 @router.get("/{siteId}/searches", response_model=list[SearchResponse])
@@ -113,15 +171,26 @@ async def get_searches(
     """
     if record_type:
         searches = await catalog.list_searches(siteId, record_type)
-        return [
-            SearchResponse(
-                name=s.get("name", ""),
-                displayName=s.get("displayName", ""),
-                description=s.get("description", ""),
-                recordType=record_type,
+        result: list[SearchResponse] = []
+        for s in searches:
+            if not isinstance(s, dict):
+                continue
+            name_raw = s.get("name")
+            display_name_raw = s.get("displayName")
+            description_raw = s.get("description")
+            result.append(
+                SearchResponse(
+                    name=name_raw if isinstance(name_raw, str) else "",
+                    displayName=display_name_raw
+                    if isinstance(display_name_raw, str)
+                    else "",
+                    description=description_raw
+                    if isinstance(description_raw, str)
+                    else "",
+                    recordType=record_type,
+                )
             )
-            for s in searches
-        ]
+        return result
 
     # Get all searches across all record types
     discovery = get_discovery_service()
@@ -129,15 +198,30 @@ async def get_searches(
     all_searches: list[SearchResponse] = []
 
     for rt in record_types:
-        rt_name = rt.get("urlSegment", rt.get("name", ""))
+        if not isinstance(rt, dict):
+            continue
+        rt_url_seg_raw: JSONValue | None = rt.get("urlSegment")
+        rt_name_raw: JSONValue | None = rt.get("name")
+        url_seg = rt_url_seg_raw if isinstance(rt_url_seg_raw, str) else None
+        name = rt_name_raw if isinstance(rt_name_raw, str) else None
+        rt_name = url_seg or name or ""
         if rt_name:
             searches = await catalog.list_searches(siteId, rt_name)
             for s in searches:
+                if not isinstance(s, dict):
+                    continue
+                name_raw = s.get("name")
+                display_name_raw = s.get("displayName")
+                description_raw = s.get("description")
                 all_searches.append(
                     SearchResponse(
-                        name=s.get("name", ""),
-                        displayName=s.get("displayName", ""),
-                        description=s.get("description", ""),
+                        name=name_raw if isinstance(name_raw, str) else "",
+                        displayName=display_name_raw
+                        if isinstance(display_name_raw, str)
+                        else "",
+                        description=description_raw
+                        if isinstance(description_raw, str)
+                        else "",
                         recordType=rt_name,
                     )
                 )
@@ -145,15 +229,18 @@ async def get_searches(
     return all_searches
 
 
-@router.get("/{siteId}/searches/{recordType}/{searchName}", response_model=SearchDetailsResponse)
+@router.get(
+    "/{siteId}/searches/{recordType}/{searchName}", response_model=SearchDetailsResponse
+)
 async def get_search_details(
     siteId: str,
     recordType: str,
     searchName: str,
-):
+) -> SearchDetailsResponse:
     """Get detailed search configuration with parameters."""
     discovery = get_discovery_service()
-    return await discovery.get_search_details(siteId, recordType, searchName)
+    result = await discovery.get_search_details(siteId, recordType, searchName)
+    return cast(SearchDetailsResponse, result)
 
 
 @router.post(
@@ -165,25 +252,27 @@ async def get_dependent_params(
     recordType: str,
     searchName: str,
     payload: DependentParamsRequest,
-):
+) -> DependentParamsResponse:
     """Get dependent parameter vocabulary values."""
     client = get_wdk_client(siteId)
     try:
-        return await client.get_refreshed_dependent_params(
+        result = await client.get_refreshed_dependent_params(
             recordType,
             searchName,
             payload.parameter_name,
             payload.context_values,
         )
+        return cast(DependentParamsResponse, result)
     except WDKError as exc:
         if siteId != "veupathdb":
             portal_client = get_wdk_client("veupathdb")
-            return await portal_client.get_refreshed_dependent_params(
+            result = await portal_client.get_refreshed_dependent_params(
                 recordType,
                 searchName,
                 payload.parameter_name,
                 payload.context_values,
             )
+            return cast(DependentParamsResponse, result)
         raise exc
 
 
@@ -196,14 +285,15 @@ async def validate_search_params(
     recordType: str,
     searchName: str,
     payload: SearchValidationRequest,
-):
+) -> SearchValidationResponse:
     """Validate search parameters (UI-friendly)."""
-    return await catalog.validate_search_params(
+    result = await catalog.validate_search_params(
         site_id=siteId,
         record_type=recordType,
         search_name=searchName,
         context_values=payload.context_values or {},
     )
+    return cast(SearchValidationResponse, result)
 
 
 @router.get(
@@ -217,11 +307,16 @@ async def get_param_specs(
 ) -> list[ParamSpecResponse]:
     """Return normalized parameter specs for UI consumption."""
     discovery = get_discovery_service()
-    details = await discovery.get_search_details(siteId, recordType, searchName, expand_params=True)
-    if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-        details = details["searchData"]
-    payload = details if isinstance(details, dict) else {}
-    return _build_param_specs(payload)
+    details_raw = await discovery.get_search_details(
+        siteId, recordType, searchName, expand_params=True
+    )
+    details: JSONObject
+    if isinstance(details_raw, dict):
+        search_data_raw = details_raw.get("searchData")
+        details = search_data_raw if isinstance(search_data_raw, dict) else details_raw
+    else:
+        details = {}
+    return _build_param_specs(details)
 
 
 @router.post(
@@ -235,14 +330,16 @@ async def get_param_specs_with_context(
     payload: ParamSpecsRequest,
 ) -> list[ParamSpecResponse]:
     """Return normalized parameter specs, using contextual WDK vocab when provided."""
-    details = await catalog.expand_search_details_with_params(
+    details_raw = await catalog.expand_search_details_with_params(
         site_id=siteId,
         record_type=recordType,
         search_name=searchName,
         context_values=payload.context_values or {},
     )
-    if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-        details = details["searchData"]
-    spec_payload = details if isinstance(details, dict) else {}
-    return _build_param_specs(spec_payload)
-
+    details: JSONObject
+    if isinstance(details_raw, dict):
+        search_data_raw = details_raw.get("searchData")
+        details = search_data_raw if isinstance(search_data_raw, dict) else details_raw
+    else:
+        details = {}
+    return _build_param_specs(details)

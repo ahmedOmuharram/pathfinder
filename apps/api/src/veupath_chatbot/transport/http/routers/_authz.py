@@ -2,9 +2,9 @@
 
 from uuid import UUID
 
-from veupath_chatbot.platform.errors import ErrorCode, ForbiddenError, NotFoundError
 from veupath_chatbot.persistence.models import Strategy
 from veupath_chatbot.persistence.repo import StrategyRepository
+from veupath_chatbot.platform.errors import ErrorCode, ForbiddenError, NotFoundError
 
 
 async def get_strategy_or_404(
@@ -12,7 +12,9 @@ async def get_strategy_or_404(
 ) -> Strategy:
     strategy = await strategy_repo.get_by_id(strategy_id)
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     return strategy
 
 
@@ -27,4 +29,3 @@ async def get_owned_strategy_or_404(
     strategy = await get_strategy_or_404(strategy_repo, strategy_id)
     require_strategy_owner(strategy, user_id)
     return strategy
-

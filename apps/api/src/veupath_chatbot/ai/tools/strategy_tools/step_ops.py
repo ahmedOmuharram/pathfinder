@@ -2,22 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Literal, cast
 
 from kani import AIParam, ai_function
 
+from veupath_chatbot.domain.parameters.specs import (
+    adapt_param_specs,
+    find_input_step_param,
+)
+from veupath_chatbot.domain.parameters.validation import validate_parameters
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
+from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.domain.parameters.validation import validate_parameters
-from veupath_chatbot.domain.parameters.specs import adapt_param_specs, find_input_step_param
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.ops import CombineOp, ColocationParams, parse_op
-from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
+from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
 
 logger = get_logger(__name__)
 
 
-class StrategyStepOps:
+class StrategyStepOps(StrategyToolsHelpers):
     """Tools that add new steps to a graph."""
 
     _COMBINE_PLACEHOLDER_SEARCH_NAME = "__combine__"
@@ -25,7 +30,7 @@ class StrategyStepOps:
     def _coerce_wdk_boolean_question_params(
         self,
         *,
-        parameters: dict[str, Any],
+        parameters: JSONObject,
     ) -> tuple[str | None, str | None, str | None]:
         """Extract left/right/operator from WDK boolean-question parameter conventions.
 
@@ -79,7 +84,7 @@ class StrategyStepOps:
             ),
         ] = None,
         parameters: Annotated[
-            dict[str, Any] | None,
+            JSONObject | None,
             AIParam(desc="WDK parameters as key-value pairs (optional)"),
         ] = None,
         record_type: Annotated[
@@ -96,19 +101,25 @@ class StrategyStepOps:
         ] = None,
         operator: Annotated[
             str | None,
-            AIParam(desc="Set operator for binary steps (required if secondary_input_step_id is set)"),
+            AIParam(
+                desc="Set operator for binary steps (required if secondary_input_step_id is set)"
+            ),
         ] = None,
         display_name: Annotated[
             str | None,
             AIParam(desc="Optional friendly name for this step"),
         ] = None,
-        upstream: Annotated[int | None, AIParam(desc="Upstream bp for COLOCATE")] = None,
-        downstream: Annotated[int | None, AIParam(desc="Downstream bp for COLOCATE")] = None,
+        upstream: Annotated[
+            int | None, AIParam(desc="Upstream bp for COLOCATE")
+        ] = None,
+        downstream: Annotated[
+            int | None, AIParam(desc="Downstream bp for COLOCATE")
+        ] = None,
         strand: Annotated[
             str | None, AIParam(desc="Strand for COLOCATE: same|opposite|both")
         ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Create a new strategy step.
 
         This is the single step-construction API. Step kind is inferred from structure:
@@ -125,7 +136,9 @@ class StrategyStepOps:
         # WDK compatibility: if caller encoded a boolean combine as WDK boolean-question parameters,
         # translate it into structural inputs so the UI renders it as a UNION/INTERSECT/MINUS step.
         if not primary_input_step_id and not secondary_input_step_id and not operator:
-            left, right, op = self._coerce_wdk_boolean_question_params(parameters=parameters)
+            left, right, op = self._coerce_wdk_boolean_question_params(
+                parameters=parameters
+            )
             if left and right and op:
                 primary_input_step_id = left
                 secondary_input_step_id = right
@@ -191,7 +204,10 @@ class StrategyStepOps:
         if primary_input is None and secondary_input is None:
             # Resolve record type to the record type that actually owns this WDK search.
             rt = await self._resolve_record_type_for_search(
-                resolved_record_type, search_name, require_match=True, allow_fallback=True
+                resolved_record_type,
+                search_name,
+                require_match=True,
+                allow_fallback=True,
             )
             if rt is None:
                 record_type_hint = await self._find_record_type_hint(
@@ -228,7 +244,10 @@ class StrategyStepOps:
         # We detect and reject these at creation time so invalid plans cannot be persisted.
         if primary_input is not None and secondary_input is None:
             rt = await self._resolve_record_type_for_search(
-                resolved_record_type, search_name, require_match=True, allow_fallback=True
+                resolved_record_type,
+                search_name,
+                require_match=True,
+                allow_fallback=True,
             )
             if rt is None:
                 record_type_hint = await self._find_record_type_hint(
@@ -261,7 +280,9 @@ class StrategyStepOps:
             # Confirm the question supports an input step.
             try:
                 wdk = get_wdk_client(self.session.site_id)
-                details = await wdk.get_search_details(rt, search_name, expand_params=True)
+                details = await wdk.get_search_details(
+                    rt, search_name, expand_params=True
+                )
             except Exception as exc:
                 return self._tool_error(
                     ErrorCode.VALIDATION_ERROR,
@@ -270,9 +291,14 @@ class StrategyStepOps:
                     searchName=search_name,
                     detail=str(exc),
                 )
-            if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-                details = details["searchData"]
-            specs = adapt_param_specs(details if isinstance(details, dict) else {})
+            search_data: JSONValue | None = None
+            if isinstance(details, dict):
+                search_data_raw = details.get("searchData")
+                if isinstance(search_data_raw, dict):
+                    search_data = search_data_raw
+            specs = adapt_param_specs(
+                search_data if isinstance(search_data, dict) else {}
+            )
             input_param = find_input_step_param(specs)
             if not input_param:
                 return self._tool_error(
@@ -289,10 +315,15 @@ class StrategyStepOps:
         op = parse_op(operator) if secondary_input is not None and operator else None
         colocation = None
         if op == CombineOp.COLOCATE:
+            strand_value: Literal["same", "opposite", "both"]
+            if strand in ("same", "opposite", "both"):
+                strand_value = cast(Literal["same", "opposite", "both"], strand)
+            else:
+                strand_value = "both"
             colocation = ColocationParams(
                 upstream=upstream or 0,
                 downstream=downstream or 0,
-                strand=(strand or "both"),  # type: ignore[arg-type]
+                strand=strand_value,
             )
 
         step = PlanStepNode(

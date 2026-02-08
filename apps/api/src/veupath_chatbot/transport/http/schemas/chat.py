@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 ChatMode = Literal["execute", "plan"]
 
@@ -29,7 +30,7 @@ class ToolCallResponse(BaseModel):
 
     id: str
     name: str
-    arguments: dict[str, Any]
+    arguments: JSONObject
     result: str | None = None
 
 
@@ -50,9 +51,7 @@ class ThinkingResponse(BaseModel):
     sub_kani_calls: dict[str, list[ToolCallResponse]] | None = Field(
         default=None, alias="subKaniCalls"
     )
-    sub_kani_status: dict[str, str] | None = Field(
-        default=None, alias="subKaniStatus"
-    )
+    sub_kani_status: dict[str, str] | None = Field(default=None, alias="subKaniStatus")
     reasoning: str | None = None
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
 
@@ -69,8 +68,8 @@ class MessageResponse(BaseModel):
         default=None, alias="subKaniActivity"
     )
     mode: ChatMode | None = Field(default=None)
-    citations: list[dict[str, Any]] | None = None
-    planning_artifacts: list[dict[str, Any]] | None = Field(
+    citations: JSONArray | None = None
+    planning_artifacts: JSONArray | None = Field(
         default=None, alias="planningArtifacts"
     )
     timestamp: datetime

@@ -6,24 +6,23 @@ list (StepData dicts) from various inputs (AST, graph snapshots, etc.).
 
 from __future__ import annotations
 
-from typing import Any
-
 from veupath_chatbot.domain.strategy.ast import from_dict
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 from .step_builders import build_steps_data_from_ast
 
 
-def build_steps_data_from_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
+def build_steps_data_from_plan(plan: JSONObject) -> JSONArray:
     """Build persisted steps list from a plan dict (AST payload)."""
     try:
         ast = from_dict(plan)
     except Exception:
         # Treat empty/invalid plans as “no steps” for read paths.
         return []
-    return build_steps_data_from_ast(ast, search_name_fallback_to_transform=True)
+    return build_steps_data_from_ast(ast)
 
 
-def count_steps_in_plan(plan: dict[str, Any]) -> int:
+def count_steps_in_plan(plan: JSONObject) -> int:
     """Count steps in a plan without relying on persisted step lists."""
     try:
         ast = from_dict(plan)
@@ -32,12 +31,14 @@ def count_steps_in_plan(plan: dict[str, Any]) -> int:
     return len(ast.get_all_steps())
 
 
-def build_steps_data_from_graph_snapshot(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+def build_steps_data_from_graph_snapshot(
+    snapshot: JSONObject,
+) -> JSONArray:
     """Build persisted steps list from a `graphSnapshot` payload.
 
     Normalizes whatever the UI sends into our canonical derived step shape.
     """
-    steps_data: list[dict[str, Any]] = []
+    steps_data: JSONArray = []
     snapshot_steps = snapshot.get("steps") or []
     if not isinstance(snapshot_steps, list):
         return steps_data
@@ -65,4 +66,3 @@ def build_steps_data_from_graph_snapshot(snapshot: dict[str, Any]) -> list[dict[
         )
 
     return steps_data
-

@@ -7,7 +7,8 @@ any interface layer (HTTP, AI tools, CLI).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+
+from veupath_chatbot.platform.types import JSONObject
 
 
 @dataclass
@@ -46,7 +47,7 @@ class ToolPolicy:
         self,
         record_type: str,
         search_name: str,
-        parameters: dict[str, Any],
+        parameters: JSONObject,
         current_step_count: int,
     ) -> PolicyResult:
         violations: list[PolicyViolation] = []
@@ -85,7 +86,9 @@ class ToolPolicy:
 
         return PolicyResult(allowed=len(violations) == 0, violations=violations)
 
-    def check_combine_steps(self, operator: str, current_step_count: int) -> PolicyResult:
+    def check_combine_steps(
+        self, operator: str, current_step_count: int
+    ) -> PolicyResult:
         del operator  # reserved for future operator-specific constraints
         violations: list[PolicyViolation] = []
 
@@ -118,4 +121,3 @@ default_policy = ToolPolicy()
 
 def get_policy() -> ToolPolicy:
     return default_policy
-

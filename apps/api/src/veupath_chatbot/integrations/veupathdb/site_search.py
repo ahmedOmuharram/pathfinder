@@ -9,11 +9,11 @@ not under the WDK service prefix (e.g. https://plasmodb.org/plasmo/service).
 from __future__ import annotations
 
 import re
-from typing import Any
 from urllib.parse import urlparse
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ async def query_site_search(
     document_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
-) -> dict[str, Any]:
+) -> JSONObject:
     """Query the site's /site-search endpoint and return parsed JSON."""
     router = get_site_router()
     site = router.get_site(site_id)
@@ -39,7 +39,7 @@ async def query_site_search(
     origin = f"{parsed.scheme}://{parsed.netloc}"
     url = f"{origin}/site-search"
 
-    payload: dict[str, Any] = {
+    payload: JSONObject = {
         "searchText": search_text or "",
         "pagination": {"offset": int(offset), "numRecords": int(limit)},
         "restrictToProject": site.project_id,
@@ -49,7 +49,9 @@ async def query_site_search(
 
     import httpx
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0), follow_redirects=True
+    ) as client:
         resp = await client.post(
             url,
             json=payload,
@@ -57,4 +59,3 @@ async def query_site_search(
         )
         resp.raise_for_status()
         return resp.json() if resp.content else {}
-

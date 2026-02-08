@@ -15,4 +15,3 @@ export function useConsumePendingAskNode(args: {
     onConsumeAskNode?.();
   }, [enabled, pendingAskNode, setDraftSelection, onConsumeAskNode]);
 }
-

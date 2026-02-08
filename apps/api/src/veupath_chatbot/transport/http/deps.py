@@ -6,17 +6,16 @@ from uuid import UUID
 from fastapi import Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.context import site_id_ctx
-from veupath_chatbot.platform.security import get_current_user, get_optional_user
-from veupath_chatbot.persistence.session import get_db_session
+from veupath_chatbot.integrations.veupathdb.factory import SiteInfo, get_site
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
     StrategyRepository,
     UserRepository,
 )
-from veupath_chatbot.integrations.veupathdb.factory import SiteInfo, get_site
-
+from veupath_chatbot.persistence.session import get_db_session
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.context import site_id_ctx
+from veupath_chatbot.platform.security import get_current_user, get_optional_user
 
 # Type aliases for dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -32,6 +31,7 @@ async def get_user_repo(session: DBSession) -> UserRepository:
 async def get_strategy_repo(session: DBSession) -> StrategyRepository:
     """Get strategy repository."""
     return StrategyRepository(session)
+
 
 async def get_plan_session_repo(session: DBSession) -> PlanSessionRepository:
     """Get plan session repository."""
@@ -69,4 +69,3 @@ async def get_site_context(
 
 
 SiteContext = Annotated[SiteInfo, Depends(get_site_context)]
-

@@ -38,7 +38,7 @@ const isFallbackDisplayName = (
     kind?: string;
     searchName?: string;
     operator?: string;
-  }
+  },
 ) => {
   if (!name) return true;
   if (isUrlLike(name)) return true;
@@ -68,13 +68,22 @@ export function buildStrategyFromGraphSnapshot(args: {
   stepsById: Record<string, StrategyStep | undefined>;
   existingStrategy?: StrategyWithMeta | null;
 }): StrategyWithMeta {
-  const { snapshotId, siteId, graphSnapshot, stepsById, existingStrategy = null } = args;
+  const {
+    snapshotId,
+    siteId,
+    graphSnapshot,
+    stepsById,
+    existingStrategy = null,
+  } = args;
   const hasStepsField = "steps" in (graphSnapshot as Record<string, unknown>);
   const snapshotSteps = Array.isArray(graphSnapshot.steps) ? graphSnapshot.steps : null;
 
   const steps: StrategyStep[] = snapshotSteps
     ? snapshotSteps
-        .filter((step): step is GraphSnapshotStepInput => !!step && typeof step.id === "string")
+        .filter(
+          (step): step is GraphSnapshotStepInput =>
+            !!step && typeof step.id === "string",
+        )
         .map((step) => {
           const existing = stepsById[step.id];
           const incomingName = step.displayName || step.kind || step.type;
@@ -93,7 +102,8 @@ export function buildStrategyFromGraphSnapshot(args: {
           const resolvedRecordType = step.recordType ?? existing?.recordType;
           const inputs = toStringArray(step.inputStepIds);
           const primaryInputStepId = step.primaryInputStepId ?? inputs[0] ?? undefined;
-          const secondaryInputStepId = step.secondaryInputStepId ?? inputs[1] ?? undefined;
+          const secondaryInputStepId =
+            step.secondaryInputStepId ?? inputs[1] ?? undefined;
 
           return {
             id: step.id,
@@ -124,19 +134,18 @@ export function buildStrategyFromGraphSnapshot(args: {
     siteId,
     recordType:
       graphSnapshot.recordType !== undefined
-        ? graphSnapshot.recordType ?? null
+        ? (graphSnapshot.recordType ?? null)
         : (existingStrategy?.recordType ?? null),
     steps,
     rootStepId:
       graphSnapshot.rootStepId !== undefined
-        ? graphSnapshot.rootStepId ?? null
+        ? (graphSnapshot.rootStepId ?? null)
         : (existingStrategy?.rootStepId ?? null),
     description:
       graphSnapshot.description !== undefined
-        ? graphSnapshot.description ?? undefined
+        ? (graphSnapshot.description ?? undefined)
         : existingStrategy?.description,
     createdAt: existingStrategy?.createdAt || now,
     updatedAt: now,
   };
 }
-

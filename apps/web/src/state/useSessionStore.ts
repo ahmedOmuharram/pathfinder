@@ -59,4 +59,3 @@ export const useSessionStore = create<SessionState>()((set) => ({
 
 // Inject token getter for transport-layer helpers (keeps `lib/api/*` independent of `state/*`).
 setAuthTokenGetter(() => useSessionStore.getState().authToken);
-

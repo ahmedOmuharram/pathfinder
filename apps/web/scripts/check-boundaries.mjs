@@ -19,7 +19,9 @@ function read(filePath) {
 }
 
 function isTsLike(p) {
-  return p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".mts") || p.endsWith(".cts");
+  return (
+    p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".mts") || p.endsWith(".cts")
+  );
 }
 
 function fail(messages) {
@@ -52,7 +54,10 @@ const errors = [];
   for (const f of files) {
     const text = read(f);
     const rel = path.relative(ROOT, f);
-    if (text.match(/from\s+["']@\/lib\/api\//) || text.match(/from\s+["']@\/lib\/sse/)) {
+    if (
+      text.match(/from\s+["']@\/lib\/api\//) ||
+      text.match(/from\s+["']@\/lib\/sse/)
+    ) {
       errors.push(`[boundary] core/strategyGraph must not import transport: ${rel}`);
     }
   }
@@ -63,12 +68,15 @@ const errors = [];
   const f = path.join(ROOT, "src", "lib", "api", "client.ts");
   const text = read(f);
   const rel = path.relative(ROOT, f);
-  const hasTypeDecl = /(^|\n)\s*(export\s+)?(interface|type)\s+[A-Za-z0-9_]+/m.test(text);
+  const hasTypeDecl = /(^|\n)\s*(export\s+)?(interface|type)\s+[A-Za-z0-9_]+/m.test(
+    text,
+  );
   if (hasTypeDecl) {
-    errors.push(`[contract] no local type/interface declarations in ${rel}; import DTOs from @pathfinder/shared`);
+    errors.push(
+      `[contract] no local type/interface declarations in ${rel}; import DTOs from @pathfinder/shared`,
+    );
   }
 }
 
 if (errors.length) fail(errors);
 console.log("check-boundaries: ok");
-

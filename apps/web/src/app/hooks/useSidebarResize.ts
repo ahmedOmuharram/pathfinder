@@ -27,7 +27,7 @@ export function useSidebarResize({
       const maxAllowed = rect.width - minMain;
       const next = Math.min(
         Math.max(x, minSidebar),
-        Math.max(minSidebar, Math.min(maxSidebar, maxAllowed))
+        Math.max(minSidebar, Math.min(maxSidebar, maxAllowed)),
       );
       setSidebarWidth(next);
     };

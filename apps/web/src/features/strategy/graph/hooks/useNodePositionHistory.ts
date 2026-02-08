@@ -1,5 +1,12 @@
 import { useCallback, useRef } from "react";
 import type { Node } from "reactflow";
+import type { StrategyStep } from "@/types/strategy";
+
+type NodeData = Record<string, unknown> & {
+  isUnsaved?: boolean;
+  step?: StrategyStep;
+  message?: string;
+};
 
 function buildNodePositionKey(list: Node[]): string {
   return list
@@ -7,7 +14,7 @@ function buildNodePositionKey(list: Node[]): string {
       (node) =>
         `${node.id}:${Math.round(node.position.x * 100) / 100}:${
           Math.round(node.position.y * 100) / 100
-        }`
+        }`,
     )
     .sort()
     .join("|");
@@ -20,7 +27,10 @@ function cloneNodes(list: Node[]): Node[] {
     positionAbsolute: node.positionAbsolute
       ? { ...node.positionAbsolute }
       : node.positionAbsolute,
-    data: node.data ? { ...(node.data as any) } : node.data,
+    data:
+      node.data && typeof node.data === "object" && !Array.isArray(node.data)
+        ? { ...(node.data as NodeData) }
+        : node.data,
   }));
 }
 
@@ -49,7 +59,7 @@ export function useNodePositionHistory(args: {
       historyIndexRef.current = history.length - 1;
       historyKeyRef.current = nextKey;
     },
-    [maxSnapshots]
+    [maxSnapshots],
   );
 
   const reset = useCallback(
@@ -59,7 +69,7 @@ export function useNodePositionHistory(args: {
       historyKeyRef.current = null;
       pushSnapshot(nodes);
     },
-    [pushSnapshot]
+    [pushSnapshot],
   );
 
   const tryUndo = useCallback((): boolean => {
@@ -90,4 +100,3 @@ export function useNodePositionHistory(args: {
     tryRedo,
   };
 }
-

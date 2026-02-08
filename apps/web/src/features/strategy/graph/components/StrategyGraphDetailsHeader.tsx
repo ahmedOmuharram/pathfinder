@@ -73,7 +73,11 @@ export function StrategyGraphDetailsHeader({
         className="mt-1.5 flex w-full items-center justify-center gap-2 text-slate-400 transition hover:text-slate-600"
         aria-label={detailsCollapsed ? "Expand details" : "Collapse details"}
       >
-        {detailsCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+        {detailsCollapsed ? (
+          <ChevronDown className="h-4 w-4" />
+        ) : (
+          <ChevronUp className="h-4 w-4" />
+        )}
         <span className="text-[11px] font-semibold uppercase tracking-wide">
           {detailsCollapsed ? "Expand" : "Collapse"}
         </span>
@@ -81,4 +85,3 @@ export function StrategyGraphDetailsHeader({
     </div>
   );
 }
-

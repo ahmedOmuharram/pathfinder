@@ -1,13 +1,13 @@
+import httpx
 import pytest
 import respx
-import httpx
 
-from veupath_chatbot.ai.tools.research_tools import ResearchTools
+from veupath_chatbot.services.research import LiteratureSearchService
 
 
 @pytest.mark.asyncio
-async def test_literature_search_all_sources_with_filters_year_and_author():
-    tools = ResearchTools(timeout_seconds=5.0)
+async def test_literature_search_all_sources_with_filters_year_and_author() -> None:
+    service = LiteratureSearchService(timeout_seconds=5.0)
 
     with respx.mock(assert_all_called=False) as router:
         router.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
@@ -71,12 +71,8 @@ async def test_literature_search_all_sources_with_filters_year_and_author():
         router.get("https://api.semanticscholar.org/graph/v1/paper/search").mock(
             return_value=httpx.Response(200, json={"data": []})
         )
-        router.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"esearchresult": {"idlist": []}}
-            )
+        router.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi").mock(
+            return_value=httpx.Response(200, json={"esearchresult": {"idlist": []}})
         )
         router.get("http://export.arxiv.org/api/query").mock(
             return_value=httpx.Response(
@@ -92,7 +88,7 @@ async def test_literature_search_all_sources_with_filters_year_and_author():
             return_value=httpx.Response(200, text="<html></html>")
         )
 
-        out = await tools.literature_search(
+        out = await service.search(
             "gametocyte upregulated",
             source="all",
             limit=10,
@@ -100,26 +96,61 @@ async def test_literature_search_all_sources_with_filters_year_and_author():
             author_includes="lasonder",
         )
 
-    assert out["source"] == "all"
-    assert out["sort"] == "relevance"
+    source_value = out.get("source")
+    assert isinstance(source_value, str)
+    assert source_value == "all"
+    sort_value = out.get("sort")
+    assert isinstance(sort_value, str)
+    assert sort_value == "relevance"
     assert "bySource" in out
-    assert out["filters"]["yearFrom"] == 2015
-    assert out["filters"]["authorIncludes"] == "lasonder"
+    filters_value = out.get("filters")
+    assert isinstance(filters_value, dict)
+    year_from_value = filters_value.get("yearFrom")
+    assert isinstance(year_from_value, int)
+    assert year_from_value == 2015
+    author_includes_value = filters_value.get("authorIncludes")
+    assert isinstance(author_includes_value, str)
+    assert author_includes_value == "lasonder"
     # Should keep the 2016 EuropePMC item and the 2017 Crossref item.
-    titles = [r["title"] for r in out["results"]]
+    results_value = out.get("results")
+    assert isinstance(results_value, list)
+    titles: list[str] = []
+    for r in results_value:
+        assert isinstance(r, dict)
+        title_value = r.get("title")
+        if isinstance(title_value, str):
+            titles.append(title_value)
     assert any("proteome" in t.lower() for t in titles)
     assert any("another paper" in t.lower() for t in titles)
     # When source=all and sort=relevance, reranker adds a score.
-    assert all(isinstance(r.get("score"), (int, float)) for r in out["results"])
+    assert all(
+        isinstance(r.get("score"), (int, float))
+        for r in results_value
+        if isinstance(r, dict)
+    )
     # Should filter out old items.
-    assert all((r.get("year") or 0) >= 2015 for r in out["results"])
+    results_list = out.get("results")
+    if isinstance(results_list, list):
+        for r_value in results_list:
+            if isinstance(r_value, dict):
+                year_value = r_value.get("year")
+                year = 0
+                if isinstance(year_value, (int, float)):
+                    year = int(year_value)
+                assert year >= 2015
     # Citations are not limited to just the top-N displayed results.
-    assert len(out["citations"]) >= len(out["results"])
+    citations_value = out.get("citations")
+    results_value_check = out.get("results")
+    assert isinstance(citations_value, list)
+    assert isinstance(results_value_check, list)
+    assert len(citations_value) >= len(results_value_check)
 
 
 @pytest.mark.asyncio
-async def test_literature_search_all_sources_includes_citations_beyond_results_limit():
-    tools = ResearchTools(timeout_seconds=5.0)
+async def test_literature_search_all_sources_includes_citations_beyond_results_limit() -> (
+    None
+):
+    service = LiteratureSearchService(timeout_seconds=5.0)
 
     with respx.mock(assert_all_called=False) as router:
         router.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
@@ -179,16 +210,20 @@ async def test_literature_search_all_sources_includes_citations_beyond_results_l
             return_value=httpx.Response(200, text="<html></html>")
         )
 
-        out = await tools.literature_search("paper", source="all", limit=1)
+        out = await service.search("paper", source="all", limit=1)
 
-    assert len(out["results"]) == 1
+    results_check = out.get("results")
+    citations_check = out.get("citations")
+    assert isinstance(results_check, list)
+    assert isinstance(citations_check, list)
+    assert len(results_check) == 1
     # But citations should include the other crossref items too.
-    assert len(out["citations"]) >= 3
+    assert len(citations_check) >= 3
 
 
 @pytest.mark.asyncio
-async def test_literature_search_newest_sort_and_require_doi():
-    tools = ResearchTools(timeout_seconds=5.0)
+async def test_literature_search_newest_sort_and_require_doi() -> None:
+    service = LiteratureSearchService(timeout_seconds=5.0)
 
     with respx.mock(assert_all_called=False) as router:
         router.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
@@ -218,7 +253,7 @@ async def test_literature_search_newest_sort_and_require_doi():
             )
         )
 
-        out = await tools.literature_search(
+        out = await service.search(
             "x",
             source="europepmc",
             limit=10,
@@ -226,27 +261,31 @@ async def test_literature_search_newest_sort_and_require_doi():
             require_doi=True,
         )
 
-    assert out["sort"] == "newest"
+    sort_value = out.get("sort")
+    assert isinstance(sort_value, str)
+    assert sort_value == "newest"
     # require_doi should drop the 2020 result without DOI.
-    assert len(out["results"]) == 1
-    assert out["results"][0]["doi"] == "10.5555/keep"
+    results_value = out.get("results")
+    assert isinstance(results_value, list)
+    assert len(results_value) == 1
+    first_result = results_value[0]
+    assert isinstance(first_result, dict)
+    doi_value = first_result.get("doi")
+    assert isinstance(doi_value, str)
+    assert doi_value == "10.5555/keep"
 
 
 @pytest.mark.asyncio
-async def test_literature_search_include_abstract_pubmed_efetch():
-    tools = ResearchTools(timeout_seconds=5.0)
+async def test_literature_search_include_abstract_pubmed_efetch() -> None:
+    service = LiteratureSearchService(timeout_seconds=5.0)
 
     with respx.mock(assert_all_called=False) as router:
-        router.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-        ).mock(
+        router.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi").mock(
             return_value=httpx.Response(
                 200, json={"esearchresult": {"idlist": ["12345"]}}
             )
         )
-        router.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-        ).mock(
+        router.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -261,9 +300,7 @@ async def test_literature_search_include_abstract_pubmed_efetch():
                 },
             )
         )
-        router.get(
-            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-        ).mock(
+        router.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi").mock(
             return_value=httpx.Response(
                 200,
                 text=(
@@ -283,14 +320,21 @@ async def test_literature_search_include_abstract_pubmed_efetch():
             )
         )
 
-        out = await tools.literature_search(
+        out = await service.search(
             "x",
             source="pubmed",
             limit=1,
             include_abstract=True,
         )
 
-    assert out["source"] == "pubmed"
-    assert len(out["results"]) == 1
-    assert out["results"][0].get("abstract") == "This is the abstract."
-
+    source_value = out.get("source")
+    assert isinstance(source_value, str)
+    assert source_value == "pubmed"
+    results_value = out.get("results")
+    assert isinstance(results_value, list)
+    assert len(results_value) == 1
+    first_result = results_value[0]
+    assert isinstance(first_result, dict)
+    abstract_value = first_result.get("abstract")
+    assert isinstance(abstract_value, str)
+    assert abstract_value == "This is the abstract."

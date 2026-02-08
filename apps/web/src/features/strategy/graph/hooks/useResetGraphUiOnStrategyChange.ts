@@ -8,14 +8,24 @@ export function useResetGraphUiOnStrategyChange(args: {
   setSelectedNodeIds: (value: string[]) => void;
   selectedNodeIdsRef: MutableRef<string[]>;
 }) {
-  const { strategyId, setUserHasMoved, autoFitReset, setSelectedNodeIds, selectedNodeIdsRef } =
-    args;
+  const {
+    strategyId,
+    setUserHasMoved,
+    autoFitReset,
+    setSelectedNodeIds,
+    selectedNodeIdsRef,
+  } = args;
 
   useEffect(() => {
     setUserHasMoved(false);
     autoFitReset();
     setSelectedNodeIds([]);
     selectedNodeIdsRef.current = [];
-  }, [strategyId]);
+  }, [
+    strategyId,
+    autoFitReset,
+    selectedNodeIdsRef,
+    setSelectedNodeIds,
+    setUserHasMoved,
+  ]);
 }
-

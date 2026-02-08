@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
+
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 class StepFilterResponse(BaseModel):
     """Filter attached to a step."""
 
     name: str
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
 
@@ -25,7 +25,7 @@ class StepAnalysisResponse(BaseModel):
     """Analysis configuration attached to a step."""
 
     analysis_type: str = Field(alias="analysisType")
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = Field(default=None, alias="customName")
 
     model_config = {"populate_by_name": True}
@@ -35,7 +35,7 @@ class StepReportResponse(BaseModel):
     """Report configuration attached to a step."""
 
     report_name: str = Field(default="standard", alias="reportName")
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: JSONObject = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 
@@ -44,14 +44,14 @@ class StepAnalysisRunResponse(BaseModel):
     """Result of running a step analysis."""
 
     analysis: StepAnalysisResponse
-    wdk: dict[str, Any] | None = None
+    wdk: JSONObject | None = None
 
 
 class StepReportRunResponse(BaseModel):
     """Result of running a step report."""
 
     report: StepReportResponse
-    wdk: dict[str, Any] | None = None
+    wdk: JSONObject | None = None
 
 
 class StepResponse(BaseModel):
@@ -62,9 +62,9 @@ class StepResponse(BaseModel):
     display_name: str = Field(alias="displayName")
     search_name: str | None = Field(default=None, alias="searchName")
     record_type: str | None = Field(default=None, alias="recordType")
-    parameters: dict[str, Any] | None = None
+    parameters: JSONObject | None = None
     operator: str | None = None
-    colocation_params: dict[str, Any] | None = Field(default=None, alias="colocationParams")
+    colocation_params: JSONObject | None = Field(default=None, alias="colocationParams")
     primary_input_step_id: str | None = Field(default=None, alias="primaryInputStepId")
     secondary_input_step_id: str | None = Field(
         default=None, alias="secondaryInputStepId"
@@ -81,7 +81,7 @@ class StepResponse(BaseModel):
 class StepFilterRequest(BaseModel):
     """Request to set or update a step filter."""
 
-    value: Any
+    value: JSONValue
     disabled: bool = False
 
 
@@ -89,7 +89,7 @@ class StepAnalysisRequest(BaseModel):
     """Request to run a step analysis."""
 
     analysis_type: str = Field(alias="analysisType")
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = Field(default=None, alias="customName")
 
     model_config = {"populate_by_name": True}
@@ -99,6 +99,6 @@ class StepReportRequest(BaseModel):
     """Request to run a step report."""
 
     report_name: str = Field(default="standard", alias="reportName")
-    config: dict[str, Any] = Field(default_factory=dict)
+    config: JSONObject = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}

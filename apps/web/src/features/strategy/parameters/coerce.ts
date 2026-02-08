@@ -13,7 +13,7 @@ const coerceArray = (value: unknown): string[] => {
 
 export function coerceMultiValue(
   value: unknown,
-  options: CoerceOptions = {}
+  options: CoerceOptions = {},
 ): string[] {
   const { allowStringParsing = false, allowCsv = false } = options;
   if (value === null || value === undefined) return [];
@@ -61,7 +61,7 @@ export function coerceScalarValue(value: unknown): unknown {
 export function coerceParametersForSpecs(
   params: Record<string, unknown>,
   specs: ParamSpec[],
-  options: CoerceOptions = {}
+  options: CoerceOptions = {},
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...params };
   for (const spec of specs) {
@@ -77,7 +77,7 @@ export function coerceParametersForSpecs(
 }
 
 export function coerceParametersForPlan(
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): Record<string, unknown> {
   // Plan payload should already be in canonical JSON shapes.
   // We intentionally do NOT parse/accept CSV or JSON-string arrays here.

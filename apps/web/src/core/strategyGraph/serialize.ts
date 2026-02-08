@@ -8,7 +8,7 @@ export type SerializedStrategyPlan = {
 };
 
 function sanitizeParametersForPlan(
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): Record<string, unknown> {
   // UI-only sentinel must never be persisted/sent.
   const next: Record<string, unknown> = {};
@@ -22,7 +22,7 @@ function sanitizeParametersForPlan(
 
 export function serializeStrategyPlan(
   stepsById: Record<string, Step>,
-  strategy: Strategy | null
+  strategy: Strategy | null,
 ): SerializedStrategyPlan | null {
   const steps = Object.values(stepsById);
   if (steps.length === 0) return null;
@@ -48,8 +48,7 @@ export function serializeStrategyPlan(
     // Combine nodes don't have a user-selected searchName in the UI; use the backend's
     // placeholder. Combine steps are structural (primary+secondary+operator) and do not
     // require a real WDK question name.
-    const resolvedSearchName =
-      step.searchName || (isCombine ? "__combine__" : null);
+    const resolvedSearchName = step.searchName || (isCombine ? "__combine__" : null);
     if (!resolvedSearchName) return null;
 
     const node: PlanStepNode = {

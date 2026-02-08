@@ -13,24 +13,28 @@ This module provides two distinct concepts:
 
 from __future__ import annotations
 
+import collections.abc
 import hashlib
 import json
-from typing import Any
+from collections.abc import Callable, Mapping
 
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 async def canonicalize_plan_parameters(
     *,
-    plan: dict[str, Any],
+    plan: JSONObject,
     site_id: str,
-    load_search_details: Any,
-) -> dict[str, Any]:
+    load_search_details: Callable[
+        [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
+    ],
+) -> JSONObject:
     """Canonicalize all search/transform node parameters using WDK specs.
 
-    `load_search_details(record_type, search_or_transform_name) -> dict` must return a WDK
+    `load_search_details(record_type, search_or_transform_name, params) -> dict` must return a WDK
     payload with expanded params (or raise).
     """
     root = plan.get("root")
@@ -41,14 +45,20 @@ async def canonicalize_plan_parameters(
         raise ValidationError(
             title="Invalid plan",
             detail="Plan is missing 'recordType'.",
-            errors=[{"path": "recordType", "message": "Required", "code": "INVALID_STRATEGY"}],
+            errors=[
+                {
+                    "path": "recordType",
+                    "message": "Required",
+                    "code": "INVALID_STRATEGY",
+                }
+            ],
         )
 
     # NOTE: search details can be context-dependent (dependent vocabularies).
     # Cache by (record_type, search_name, context_hash) to avoid incorrect reuse.
-    specs_cache: dict[tuple[str, str, str], dict[str, Any]] = {}
+    specs_cache: dict[tuple[str, str, str], JSONObject] = {}
 
-    async def canonicalize_node(node: dict[str, Any]) -> dict[str, Any]:
+    async def canonicalize_node(node: JSONObject) -> JSONObject:
         name = node.get("searchName")
         if not isinstance(name, str) or not name:
             raise ValidationError(
@@ -86,14 +96,18 @@ async def canonicalize_plan_parameters(
             # parameter conventions, strip those keys from persisted plans.
             for k in list(params.keys()):
                 key = str(k)
-                if key == "bq_operator" or key.startswith("bq_left_op") or key.startswith(
-                    "bq_right_op"
+                if (
+                    key == "bq_operator"
+                    or key.startswith("bq_left_op")
+                    or key.startswith("bq_right_op")
                 ):
                     params.pop(k, None)
             node["parameters"] = params
 
-            await canonicalize_node(primary)
-            await canonicalize_node(secondary)
+            if isinstance(primary, dict):
+                await canonicalize_node(primary)
+            if isinstance(secondary, dict):
+                await canonicalize_node(secondary)
             return node
 
         ctx_raw = json.dumps(params, sort_keys=True, default=str)
@@ -108,10 +122,18 @@ async def canonicalize_plan_parameters(
                 raise ValidationError(
                     title="Failed to load search metadata",
                     detail=f"Unable to load parameter metadata for '{name}' ({record_type}).",
-                    errors=[{"searchName": name, "recordType": record_type, "siteId": site_id}],
+                    errors=[
+                        {
+                            "searchName": name,
+                            "recordType": record_type,
+                            "siteId": site_id,
+                        }
+                    ],
                 ) from exc
-            if isinstance(details, dict) and isinstance(details.get("searchData"), dict):
-                details = details["searchData"]
+            if isinstance(details, dict):
+                search_data = details.get("searchData")
+                if isinstance(search_data, dict):
+                    details = search_data
             specs_cache[cache_key] = details if isinstance(details, dict) else {}
         spec_map = adapt_param_specs(details if isinstance(details, dict) else {})
         canonicalizer = ParameterCanonicalizer(spec_map)
@@ -128,7 +150,7 @@ async def canonicalize_plan_parameters(
     return plan
 
 
-def _normalize_param_value_to_wdk_string(value: Any) -> str:
+def _normalize_param_value_to_wdk_string(value: JSONValue) -> str:
     """Deprecated: lossy WDK coercion (kept temporarily)."""
     if value is None:
         return ""
@@ -143,13 +165,13 @@ def _normalize_param_value_to_wdk_string(value: Any) -> str:
     return str(value)
 
 
-def _normalize_plan_parameters_to_wdk_strings(plan: dict[str, Any]) -> dict[str, Any]:
+def _normalize_plan_parameters_to_wdk_strings(plan: JSONObject) -> JSONObject:
     """Deprecated: ensure all search/transform parameters are WDK-safe strings."""
     root = plan.get("root")
     if not isinstance(root, dict):
         return plan
 
-    def normalize_node(node: dict[str, Any]) -> dict[str, Any]:
+    def normalize_node(node: JSONObject) -> JSONObject:
         params = node.get("parameters")
         if isinstance(params, dict):
             node["parameters"] = {
@@ -168,4 +190,3 @@ def _normalize_plan_parameters_to_wdk_strings(plan: dict[str, Any]) -> dict[str,
     normalize_node(root)
     plan["root"] = root
     return plan
-

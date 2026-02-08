@@ -4,11 +4,10 @@ api_port = 8000
 api_debug = false
 api_docs_enabled = true
 
-# Database (SQLite for dev, PostgreSQL for prod)
-database_url = "sqlite+aiosqlite:///./pathfinder.db"
-
-# Redis
-redis_url = "redis://localhost:6379/0"
+# Database
+#
+# Default to PostgreSQL for local dev to match Docker/production behavior.
+database_url = "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder"
 
 # OpenAI
 openai_model = "gpt-4o"
@@ -20,6 +19,18 @@ rag_enabled = true
 qdrant_url = "http://localhost:6333"
 qdrant_api_key = ""
 qdrant_timeout_seconds = 10.0
+
+# RAG ingestion (startup background job)
+# These tune the incremental ingestion that runs in the API at startup.
+#
+# - Set `rag_startup_max_strategies_per_site` to cap public-strategy examples per site.
+# - Set `rag_startup_public_strategies_concurrency` to limit parallelism.
+rag_startup_public_strategies_llm_model = "gpt-4o-mini"
+rag_startup_public_strategies_report_path = "/tmp/ingest_public_strategies_report.jsonl"
+
+# Optional (uncomment to override)
+# rag_startup_max_strategies_per_site = 25
+# rag_startup_public_strategies_concurrency = 4
 
 # Embeddings
 embeddings_model = "text-embedding-3-small"

@@ -1,38 +1,42 @@
 """SQLAlchemy ORM models."""
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, Text, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator, CHAR
+from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 
-class GUID(TypeDecorator):
+class GUID(TypeDecorator[str]):
     """Platform-independent GUID type.
-    
-    Uses CHAR(36) for SQLite compatibility, stores as string.
+
+    Uses CHAR(36) and stores UUIDs as strings.
     """
 
     impl = CHAR
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[str]:
         return dialect.type_descriptor(CHAR(36))
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(
+        self, value: UUID | str | None, dialect: Dialect
+    ) -> str | None:
         if value is None:
             return value
         if isinstance(value, UUID):
             return str(value)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: str | None, dialect: Dialect) -> str | None:
         if value is None:
             return value
-        if not isinstance(value, UUID):
-            return UUID(value)
+        if isinstance(value, UUID):
+            return str(value)
         return value
 
 
@@ -40,8 +44,8 @@ class Base(DeclarativeBase):
     """Base class for all models."""
 
     type_annotation_map = {
-        dict[str, Any]: JSON,
-        list[dict[str, Any]]: JSON,
+        JSONObject: JSON,
+        JSONArray: JSON,
         UUID: GUID,
     }
 
@@ -78,10 +82,10 @@ class Strategy(Base):
     title: Mapped[str | None] = mapped_column(String(255))
 
     # Strategy plan as JSON (DSL AST)
-    plan: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)
 
     # Compiled steps
-    steps: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    steps: Mapped[JSONArray] = mapped_column(JSON, default=list)
     root_step_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # WDK strategy ID (if pushed to VEuPathDB)
@@ -89,8 +93,8 @@ class Strategy(Base):
 
     # Result counts
     result_count: Mapped[int | None] = mapped_column()
-    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    thinking: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    messages: Mapped[JSONArray] = mapped_column(JSON, default=list)
+    thinking: Mapped[JSONObject | None] = mapped_column(JSON, default=None)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -119,13 +123,15 @@ class StrategyHistory(Base):
         ForeignKey("strategies.id", ondelete="CASCADE"),
     )
     version: Mapped[int] = mapped_column()
-    plan: Mapped[dict[str, Any]] = mapped_column(JSON)
+    plan: Mapped[JSONObject] = mapped_column(JSON)
     description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
-    __table_args__ = (Index("ix_strategy_history_strategy_version", "strategy_id", "version"),)
+    __table_args__ = (
+        Index("ix_strategy_history_strategy_version", "strategy_id", "version"),
+    )
 
 
 class PlanSession(Base):
@@ -141,9 +147,9 @@ class PlanSession(Base):
     title: Mapped[str] = mapped_column(String(255), default="Plan")
 
     # Conversation + planner outputs
-    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    thinking: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
-    planning_artifacts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    messages: Mapped[JSONArray] = mapped_column(JSON, default=list)
+    thinking: Mapped[JSONObject | None] = mapped_column(JSON, default=None)
+    planning_artifacts: Mapped[JSONArray] = mapped_column(JSON, default=list)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

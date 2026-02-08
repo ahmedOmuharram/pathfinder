@@ -1,3 +1,4 @@
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.events import (
     CITATIONS,
     EXECUTOR_BUILD_REQUEST,
@@ -6,9 +7,11 @@ from veupath_chatbot.services.chat.events import (
 )
 
 
-def test_tool_result_to_events_emits_citations_and_planning_artifact():
-    result = {
-        "citations": [{"id": "c1", "source": "web", "title": "Example", "url": "https://x"}],
+def test_tool_result_to_events_emits_citations_and_planning_artifact() -> None:
+    result: JSONObject = {
+        "citations": [
+            {"id": "c1", "source": "web", "title": "Example", "url": "https://x"}
+        ],
         "planningArtifact": {"id": "p1", "title": "Plan", "summaryMarkdown": "x"},
     }
     events = tool_result_to_events(result)
@@ -17,8 +20,8 @@ def test_tool_result_to_events_emits_citations_and_planning_artifact():
     assert PLANNING_ARTIFACT in types
 
 
-def test_tool_result_to_events_emits_executor_build_request():
-    result = {
+def test_tool_result_to_events_emits_executor_build_request() -> None:
+    result: JSONObject = {
         "executorBuildRequest": {
             "siteId": "plasmodb",
             "message": "Build it",
@@ -28,4 +31,3 @@ def test_tool_result_to_events_emits_executor_build_request():
     }
     events = tool_result_to_events(result)
     assert any(e.get("type") == EXECUTOR_BUILD_REQUEST for e in events)
-

@@ -41,9 +41,7 @@ export function StepRawParamsEditor({
           />
         </div>
       )}
-      {isLoading && (
-        <p className="text-[11px] text-slate-500">Loading parameters...</p>
-      )}
+      {isLoading && <p className="text-[11px] text-slate-500">Loading parameters...</p>}
       {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
     </>
   );

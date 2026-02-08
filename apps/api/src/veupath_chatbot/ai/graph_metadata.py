@@ -12,4 +12,3 @@ def derive_graph_metadata(raw_goal: str) -> tuple[str, str]:
     if not name:
         name = "Strategy Draft"
     return name, description
-

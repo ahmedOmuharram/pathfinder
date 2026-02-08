@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+)
+from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
 
 
-class StrategyDiscoveryOps:
+class StrategyDiscoveryOps(StrategyToolsHelpers):
     """Discovery/search tools."""
 
     @ai_function()
@@ -21,22 +27,21 @@ class StrategyDiscoveryOps:
         self,
         keywords: Annotated[
             list[str] | str,
-            AIParam(
-                desc="Keywords to match (e.g., ['otto', '2014', 'gametocyte'])"
-            ),
+            AIParam(desc="Keywords to match (e.g., ['otto', '2014', 'gametocyte'])"),
         ],
         record_type: Annotated[
             str | None, AIParam(desc="Optional record type to restrict the search")
         ] = None,
         limit: Annotated[int, AIParam(desc="Max number of results")] = 20,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Search available questions by keywords across name/display/description."""
         if isinstance(keywords, str):
             raw_terms = re.findall(r"[A-Za-z0-9]+", keywords)
         else:
-            raw_terms: list[str] = []
+            raw_terms_list: list[str] = []
             for item in keywords:
-                raw_terms.extend(re.findall(r"[A-Za-z0-9]+", str(item)))
+                raw_terms_list.extend(re.findall(r"[A-Za-z0-9]+", str(item)))
+            raw_terms = raw_terms_list
         terms = [t.lower() for t in raw_terms if t]
         if not terms:
             return self._tool_error(
@@ -44,7 +49,7 @@ class StrategyDiscoveryOps:
             )
 
         discovery = get_discovery_service()
-        matches: list[dict[str, Any]] = []
+        matches: JSONArray = []
 
         record_types: list[str] = []
         resolved_record_type = (
@@ -53,22 +58,51 @@ class StrategyDiscoveryOps:
         if resolved_record_type:
             record_types = [resolved_record_type]
         else:
-            record_types = [
-                rt.get("urlSegment", rt.get("name", ""))
-                for rt in await discovery.get_record_types(self.session.site_id)
-                if rt.get("urlSegment") or rt.get("name")
-            ]
+            from veupath_chatbot.platform.types import as_json_object
+
+            record_types_list: list[str] = []
+            record_types_raw = await discovery.get_record_types(self.session.site_id)
+            for rt_value in record_types_raw:
+                if not isinstance(rt_value, dict):
+                    continue
+                rt = as_json_object(rt_value)
+                url_segment = rt.get("urlSegment")
+                name_value = rt.get("name")
+                rt_name: str | None = None
+                if isinstance(url_segment, str):
+                    rt_name = url_segment
+                elif isinstance(name_value, str):
+                    rt_name = name_value
+                if rt_name:
+                    record_types_list.append(rt_name)
+            record_types = record_types_list
 
         for rt_name in record_types:
             try:
                 searches = await discovery.get_searches(self.session.site_id, rt_name)
             except Exception:
                 continue
-            for search in searches:
-                name = search.get("urlSegment") or search.get("name") or ""
-                display = search.get("displayName") or ""
-                short = search.get("shortDisplayName") or ""
-                description = search.get("description") or ""
+            from veupath_chatbot.platform.types import as_json_object
+
+            for search_value in searches:
+                if not isinstance(search_value, dict):
+                    continue
+                search = as_json_object(search_value)
+                url_segment_value = search.get("urlSegment")
+                name_value = search.get("name")
+                display_value = search.get("displayName")
+                short_value = search.get("shortDisplayName")
+                description_value = search.get("description")
+                name = (
+                    str(url_segment_value)
+                    if isinstance(url_segment_value, str)
+                    else (str(name_value) if isinstance(name_value, str) else "")
+                )
+                display = str(display_value) if isinstance(display_value, str) else ""
+                short = str(short_value) if isinstance(short_value, str) else ""
+                description = (
+                    str(description_value) if isinstance(description_value, str) else ""
+                )
                 haystack = " ".join([name, display, short, description]).lower()
                 score = sum(1 for term in terms if term in haystack)
                 if score == 0:
@@ -84,7 +118,19 @@ class StrategyDiscoveryOps:
                     }
                 )
 
-        matches.sort(key=lambda item: (-item["score"], item["displayName"]))
+        def sort_key(item_value: JSONValue) -> tuple[int, str]:
+            if not isinstance(item_value, dict):
+                return (0, "")
+            item = as_json_object(item_value)
+            score_value = item.get("score")
+            display_name_value = item.get("displayName")
+            score = int(score_value) if isinstance(score_value, (int, float)) else 0
+            display_name = (
+                str(display_name_value) if isinstance(display_name_value, str) else ""
+            )
+            return (-score, display_name)
+
+        matches.sort(key=sort_key)
         return {"keywords": terms, "results": matches[: max(limit, 1)]}
 
     @ai_function()
@@ -98,4 +144,3 @@ class StrategyDiscoveryOps:
         """Explain what a combine operator does."""
         op = parse_op(operator)
         return explain_operation(op)
-

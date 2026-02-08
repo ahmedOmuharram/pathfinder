@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from veupath_chatbot.platform.types import JSONArray
 
 
 class PreviewRequest(BaseModel):
@@ -23,7 +24,7 @@ class PreviewResponse(BaseModel):
     """Preview results response."""
 
     total_count: int = Field(alias="totalCount")
-    records: list[dict[str, Any]]
+    records: JSONArray
     columns: list[str]
 
     model_config = {"populate_by_name": True}

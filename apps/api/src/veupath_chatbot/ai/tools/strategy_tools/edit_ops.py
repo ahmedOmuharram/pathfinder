@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.domain.parameters.validation import validate_parameters
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import parse_op
+from veupath_chatbot.platform.errors import ErrorCode, ValidationError
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
 
 
-class StrategyEditOps:
+class StrategyEditOps(StrategyToolsHelpers):
     """Tools that mutate existing steps/graph state."""
 
     @ai_function()
@@ -20,7 +22,7 @@ class StrategyEditOps:
         self,
         step_id: Annotated[str, AIParam(desc="ID of the step to delete")],
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Delete a step from the graph (and dependent steps)."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -41,7 +43,9 @@ class StrategyEditOps:
                 if sid in to_remove:
                     continue
                 primary_id = getattr(getattr(step, "primary_input", None), "id", None)
-                secondary_id = getattr(getattr(step, "secondary_input", None), "id", None)
+                secondary_id = getattr(
+                    getattr(step, "secondary_input", None), "id", None
+                )
                 if isinstance(primary_id, str) and primary_id in to_remove:
                     to_remove.add(sid)
                     changed = True
@@ -49,7 +53,7 @@ class StrategyEditOps:
                     to_remove.add(sid)
                     changed = True
 
-        remaining = {sid for sid in graph.steps.keys() if sid not in to_remove}
+        remaining = {sid for sid in graph.steps if sid not in to_remove}
         if not remaining:
             return self._tool_error(
                 ErrorCode.VALIDATION_ERROR,
@@ -63,14 +67,17 @@ class StrategyEditOps:
 
         graph.current_strategy = None
         graph.last_step_id = next(iter(remaining), None)
-        response = {"deleted": list(to_remove), "graphId": graph.id}
+        response: JSONObject = {
+            "deleted": cast(JSONArray, list(to_remove)),
+            "graphId": graph.id,
+        }
         return self._with_full_graph(graph, response)
 
     @ai_function()
     async def undo_last_change(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to undo")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Undo the last change to the strategy."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -78,7 +85,11 @@ class StrategyEditOps:
         if graph.undo():
             return self._with_full_graph(
                 graph,
-                {"ok": True, "graphId": graph.id, "message": "Undone to previous state"},
+                {
+                    "ok": True,
+                    "graphId": graph.id,
+                    "message": "Undone to previous state",
+                },
             )
         return self._with_full_graph(
             graph,
@@ -91,7 +102,7 @@ class StrategyEditOps:
         step_id: Annotated[str, AIParam(desc="Step ID to rename")],
         new_name: Annotated[str, AIParam(desc="New display name")],
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Rename a step with a new display name."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -117,15 +128,17 @@ class StrategyEditOps:
             str | None, AIParam(desc="Optional new WDK search/question name")
         ] = None,
         parameters: Annotated[
-            dict[str, Any] | None, AIParam(desc="Optional new parameters object")
+            JSONObject | None, AIParam(desc="Optional new parameters object")
         ] = None,
         operator: Annotated[
             str | None,
             AIParam(desc="Optional new operator (only applies to binary steps)"),
         ] = None,
-        display_name: Annotated[str | None, AIParam(desc="Optional new display name")] = None,
+        display_name: Annotated[
+            str | None, AIParam(desc="Optional new display name")
+        ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         graph = self._get_graph(graph_id)
         if not graph:
             return self._graph_not_found(graph_id)
@@ -182,4 +195,3 @@ class StrategyEditOps:
         response = self._serialize_step(graph, step)
         response["ok"] = True
         return self._with_full_graph(graph, response)
-

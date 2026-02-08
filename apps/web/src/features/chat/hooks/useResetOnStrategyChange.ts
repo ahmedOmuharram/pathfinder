@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import type { Message } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { MutableRef } from "@/shared/types/refs";
 
@@ -8,8 +10,8 @@ export function useResetOnStrategyChange(args: {
   previousStrategyIdRef: MutableRef<string | null>;
   resetThinking: () => void;
   setIsStreaming: (value: boolean) => void;
-  setMessages: (value: any) => void;
-  setUndoSnapshots: (value: any) => void;
+  setMessages: Dispatch<SetStateAction<Message[]>>;
+  setUndoSnapshots: Dispatch<SetStateAction<Record<number, StrategyWithMeta>>>;
   pendingUndoSnapshotRef: MutableRef<StrategyWithMeta | null>;
 }) {
   const {
@@ -52,4 +54,3 @@ export function useResetOnStrategyChange(args: {
     pendingUndoSnapshotRef,
   ]);
 }
-

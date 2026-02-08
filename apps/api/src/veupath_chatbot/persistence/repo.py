@@ -1,12 +1,17 @@
 """Repository layer for database operations."""
 
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.persistence.models import PlanSession, Strategy, StrategyHistory, User
+from veupath_chatbot.persistence.models import (
+    PlanSession,
+    Strategy,
+    StrategyHistory,
+    User,
+)
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 
 class UserRepository:
@@ -78,8 +83,8 @@ class StrategyRepository:
         name: str,
         site_id: str,
         record_type: str | None,
-        plan: dict[str, Any],
-        steps: list[dict[str, Any]] | None = None,
+        plan: JSONObject,
+        steps: JSONArray | None = None,
         root_step_id: str | None = None,
         wdk_strategy_id: int | None = None,
         strategy_id: UUID | None = None,
@@ -120,16 +125,16 @@ class StrategyRepository:
         strategy_id: UUID,
         name: str | None = None,
         title: str | None = None,
-        plan: dict[str, Any] | None = None,
-        steps: list[dict[str, Any]] | None = None,
+        plan: JSONObject | None = None,
+        steps: JSONArray | None = None,
         root_step_id: str | None = None,
         root_step_id_set: bool = False,
         wdk_strategy_id: int | None = None,
         wdk_strategy_id_set: bool = False,
         result_count: int | None = None,
         record_type: str | None = None,
-        messages: list[dict[str, Any]] | None = None,
-        thinking: dict[str, Any] | None = None,
+        messages: JSONArray | None = None,
+        thinking: JSONObject | None = None,
     ) -> Strategy | None:
         """Update a strategy."""
         strategy = await self.get_by_id(strategy_id)
@@ -195,7 +200,7 @@ class StrategyRepository:
         return True
 
     async def add_message(
-        self, strategy_id: UUID, message: dict[str, Any]
+        self, strategy_id: UUID, message: JSONObject
     ) -> Strategy | None:
         """Add a message to the strategy chat."""
         strategy = await self.get_by_id(strategy_id)
@@ -206,7 +211,7 @@ class StrategyRepository:
         return strategy
 
     async def update_thinking(
-        self, strategy_id: UUID, thinking: dict[str, Any] | None
+        self, strategy_id: UUID, thinking: JSONObject | None
     ) -> Strategy | None:
         """Update in-progress thinking payload."""
         strategy = await self.get_by_id(strategy_id)
@@ -223,19 +228,6 @@ class StrategyRepository:
     async def refresh(self, strategy: Strategy) -> None:
         """Refresh a strategy instance from the database."""
         await self.session.refresh(strategy)
-
-    async def get_history(
-        self, strategy_id: UUID, limit: int = 20
-    ) -> list[StrategyHistory]:
-        """Get version history for a strategy."""
-        stmt = (
-            select(StrategyHistory)
-            .where(StrategyHistory.strategy_id == strategy_id)
-            .order_by(StrategyHistory.version.desc())
-            .limit(limit)
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
 
 
 class PlanSessionRepository:
@@ -291,7 +283,9 @@ class PlanSessionRepository:
         await self.session.flush()
         return ps
 
-    async def add_message(self, plan_session_id: UUID, message: dict[str, Any]) -> PlanSession | None:
+    async def add_message(
+        self, plan_session_id: UUID, message: JSONObject
+    ) -> PlanSession | None:
         ps = await self.get_by_id(plan_session_id)
         if ps is None:
             return None
@@ -300,7 +294,7 @@ class PlanSessionRepository:
         return ps
 
     async def update_thinking(
-        self, plan_session_id: UUID, thinking: dict[str, Any] | None
+        self, plan_session_id: UUID, thinking: JSONObject | None
     ) -> PlanSession | None:
         ps = await self.get_by_id(plan_session_id)
         if ps is None:
@@ -313,7 +307,7 @@ class PlanSessionRepository:
         return await self.update_thinking(plan_session_id, None)
 
     async def append_planning_artifacts(
-        self, plan_session_id: UUID, artifacts: list[dict[str, Any]]
+        self, plan_session_id: UUID, artifacts: JSONArray
     ) -> PlanSession | None:
         ps = await self.get_by_id(plan_session_id)
         if ps is None:
@@ -324,8 +318,8 @@ class PlanSessionRepository:
             return ps
 
         # Upsert by artifact id (so "draft" artifacts can be updated without duplication).
-        by_id: dict[str, dict[str, Any]] = {}
-        ordered: list[dict[str, Any]] = []
+        by_id: dict[str, JSONObject] = {}
+        ordered: JSONArray = []
         for a in existing:
             if not isinstance(a, dict):
                 continue
@@ -356,7 +350,9 @@ class PlanSessionRepository:
         await self.session.refresh(plan_session)
 
     async def delete(self, *, plan_session_id: UUID, user_id: UUID) -> bool:
-        ps = await self.get_by_id_for_user(plan_session_id=plan_session_id, user_id=user_id)
+        ps = await self.get_by_id_for_user(
+            plan_session_id=plan_session_id, user_id=user_id
+        )
         if ps is None:
             return False
         await self.session.delete(ps)
@@ -365,11 +361,13 @@ class PlanSessionRepository:
     async def update_title(
         self, *, plan_session_id: UUID, user_id: UUID, title: str
     ) -> PlanSession | None:
-        ps = await self.get_by_id_for_user(plan_session_id=plan_session_id, user_id=user_id)
+        ps = await self.get_by_id_for_user(
+            plan_session_id=plan_session_id, user_id=user_id
+        )
         if ps is None:
             return None
         ps.title = title
         await self.session.flush()
+        # Ensure server-side fields (e.g. updated_at) are populated and not expired.
+        await self.session.refresh(ps)
         return ps
-
-

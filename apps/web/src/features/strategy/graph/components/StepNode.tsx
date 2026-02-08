@@ -21,21 +21,15 @@ interface StepNodeProps {
   selected?: boolean;
 }
 
-const TYPE_STYLES: Record<
-  string,
-  { container: string }
-> = {
+const TYPE_STYLES: Record<string, { container: string }> = {
   search: {
-    container:
-      "rounded-xl border-2 border-emerald-200 bg-emerald-50/70 shadow-sm",
+    container: "rounded-xl border-2 border-emerald-200 bg-emerald-50/70 shadow-sm",
   },
   combine: {
-    container:
-      "rounded-[16px] border-2 border-sky-200 bg-sky-50/80 shadow-sm",
+    container: "rounded-[16px] border-2 border-sky-200 bg-sky-50/80 shadow-sm",
   },
   transform: {
-    container:
-      "rounded-lg border-2 border-violet-300 bg-violet-50/80 shadow-sm",
+    container: "rounded-lg border-2 border-violet-300 bg-violet-50/80 shadow-sm",
   },
   default: {
     container: "rounded-lg border-2 border-slate-200 bg-white shadow-sm",
@@ -45,7 +39,6 @@ const TYPE_STYLES: Record<
 export function StepNode({ data, selected }: StepNodeProps) {
   const {
     step,
-    onOperatorChange,
     onAddToChat,
     isUnsaved,
     onOpenDetails,
@@ -258,4 +251,3 @@ export function StepNode({ data, selected }: StepNodeProps) {
     </div>
   );
 }
-

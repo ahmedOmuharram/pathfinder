@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Citation, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { Pencil, Save, X } from "lucide-react";
-import { getPlanSession, openStrategy, getStrategy, updatePlanSession } from "@/lib/api/client";
+import {
+  getPlanSession,
+  openStrategy,
+  getStrategy,
+  updatePlanSession,
+} from "@/lib/api/client";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
@@ -80,7 +85,7 @@ export function PlanPanel(props: { siteId: string }) {
         setPlanTitle(ps.title || "Plan");
         setDraftTitle(ps.title || "Plan");
         setMessages(ps.messages || []);
-        setSessionArtifacts((ps.planningArtifacts as any) || []);
+        setSessionArtifacts(ps.planningArtifacts || []);
         if (ps.thinking) {
           if (applyThinkingPayload(ps.thinking)) {
             setIsStreaming(true);
@@ -96,17 +101,19 @@ export function PlanPanel(props: { siteId: string }) {
       event: ChatSSEEvent,
       toolCallsBuffer: ToolCall[],
       citationsBuffer: Citation[],
-      artifactsBuffer: PlanningArtifact[]
+      artifactsBuffer: PlanningArtifact[],
     ) => {
       switch (event.type) {
         case "message_start": {
-          const data = event.data as any;
-          if (data?.planSessionId) setPlanSessionId(data.planSessionId);
-          if (data?.authToken) setAuthToken(data.authToken);
+          if (event.data.planSessionId) setPlanSessionId(event.data.planSessionId);
+          if (event.data.authToken) setAuthToken(event.data.authToken);
           break;
         }
         case "assistant_message": {
-          const { messageId, content } = event.data as { messageId?: string; content?: string };
+          const { messageId, content } = event.data as {
+            messageId?: string;
+            content?: string;
+          };
           const finalContent = content || "";
 
           const idx = streamingAssistantIndexRef.current;
@@ -124,9 +131,13 @@ export function PlanPanel(props: { siteId: string }) {
                 ...existing,
                 content: finalContent || existing.content,
                 toolCalls:
-                  toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : existing.toolCalls,
+                  toolCallsBuffer.length > 0
+                    ? [...toolCallsBuffer]
+                    : existing.toolCalls,
                 citations:
-                  citationsBuffer.length > 0 ? [...citationsBuffer] : existing.citations,
+                  citationsBuffer.length > 0
+                    ? [...citationsBuffer]
+                    : existing.citations,
                 planningArtifacts:
                   artifactsBuffer.length > 0
                     ? [...artifactsBuffer]
@@ -155,7 +166,10 @@ export function PlanPanel(props: { siteId: string }) {
           break;
         }
         case "assistant_delta": {
-          const { messageId, delta } = event.data as { messageId?: string; delta?: string };
+          const { messageId, delta } = event.data as {
+            messageId?: string;
+            delta?: string;
+          };
           if (!delta) break;
           if (
             streamingAssistantIndexRef.current === null ||
@@ -187,50 +201,57 @@ export function PlanPanel(props: { siteId: string }) {
           break;
         }
         case "tool_call_start": {
-          const { id, name, arguments: args } = event.data as any;
+          const { id, name, arguments: args } = event.data;
           toolCallsBuffer.push({ id, name, arguments: parseToolArguments(args) });
           updateActiveFromBuffer([...toolCallsBuffer]);
           break;
         }
         case "tool_call_end": {
-          const { id, result } = event.data as any;
+          const { id, result } = event.data;
           const tc = toolCallsBuffer.find((t) => t.id === id);
           if (tc) tc.result = result;
           updateActiveFromBuffer([...toolCallsBuffer]);
           break;
         }
         case "citations": {
-          const citations = (event.data as { citations?: unknown[] })?.citations;
+          const citations = event.data.citations;
           if (Array.isArray(citations)) {
             for (const c of citations) {
-              if (c && typeof c === "object") citationsBuffer.push(c as Citation);
+              if (c && typeof c === "object" && !Array.isArray(c)) {
+                citationsBuffer.push(c as Citation);
+              }
             }
           }
           break;
         }
         case "planning_artifact": {
-          const artifact = (event.data as { planningArtifact?: unknown })?.planningArtifact;
-          if (artifact && typeof artifact === "object") {
-            artifactsBuffer.push(artifact as PlanningArtifact);
+          const artifact = event.data.planningArtifact;
+          if (artifact && typeof artifact === "object" && !Array.isArray(artifact)) {
+            const planningArtifact = artifact as PlanningArtifact;
+            artifactsBuffer.push(planningArtifact);
             setSessionArtifacts((prev) => {
               const next = [...prev];
-              const id = (artifact as any)?.id;
+              const id = planningArtifact?.id;
               if (typeof id === "string" && id) {
                 const idx = next.findIndex((a) => a.id === id);
-                if (idx >= 0) next[idx] = artifact as PlanningArtifact;
-                else next.push(artifact as PlanningArtifact);
+                if (idx >= 0) next[idx] = planningArtifact;
+                else next.push(planningArtifact);
                 return next;
               }
-              next.push(artifact as PlanningArtifact);
+              next.push(planningArtifact);
               return next;
             });
           }
           break;
         }
         case "executor_build_request": {
-          const payload = (event.data as any)?.executorBuildRequest;
-          const message = typeof payload?.message === "string" ? payload.message : null;
-          if (message) {
+          const payload = event.data.executorBuildRequest;
+          const message =
+            payload && typeof payload === "object" && !Array.isArray(payload)
+              ? (payload as Record<string, unknown>).message
+              : null;
+          const messageText = typeof message === "string" ? message : null;
+          if (messageText) {
             // Switch to executor mode and create a new strategy. The executor chat will auto-send
             // the message once it mounts; do not prefill the composer (leave input empty).
             setChatMode("execute");
@@ -260,23 +281,38 @@ export function PlanPanel(props: { siteId: string }) {
                 });
                 window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
                 // Persist a pending send so executor chat can send after it mounts.
-                setPendingExecutorSend({ strategyId: nextId, message });
+                setPendingExecutorSend({ strategyId: nextId, message: messageText });
               })
               .catch(() => {});
           }
           break;
         }
         case "reasoning": {
-          const reasoning = (event.data as any)?.reasoning;
-          if (typeof reasoning === "string") updateReasoning(reasoning);
+          if (typeof event.data.reasoning === "string")
+            updateReasoning(event.data.reasoning);
           break;
         }
         case "plan_update": {
-          const title = (event.data as any)?.title;
-          if (typeof title === "string" && title.trim()) {
-            setPlanTitle(title.trim());
-            setDraftTitle(title.trim());
+          if (typeof event.data.title === "string" && event.data.title.trim()) {
+            setPlanTitle(event.data.title.trim());
+            setDraftTitle(event.data.title.trim());
             window.dispatchEvent(new Event("plans:update"));
+          }
+          break;
+        }
+        case "error": {
+          if (typeof event.data.error === "string" && event.data.error.trim()) {
+            setApiError(event.data.error.trim());
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content: `Error: ${event.data.error.trim()}`,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
+          } else {
+            setApiError("An unknown error occurred while streaming.");
           }
           break;
         }
@@ -284,7 +320,21 @@ export function PlanPanel(props: { siteId: string }) {
           break;
       }
     },
-    [setPlanSessionId, setAuthToken, updateActiveFromBuffer, updateReasoning]
+    [
+      addStrategy,
+      clearStrategy,
+      setAuthToken,
+      setChatMode,
+      setMessages,
+      setPendingExecutorSend,
+      setPlanSessionId,
+      setStrategy,
+      setStrategyId,
+      setStrategyMeta,
+      siteId,
+      updateActiveFromBuffer,
+      updateReasoning,
+    ],
   );
 
   const onSend = useCallback(
@@ -332,7 +382,7 @@ export function PlanPanel(props: { siteId: string }) {
         },
         { planSessionId: planSessionId ?? undefined },
         "plan",
-        controller.signal
+        controller.signal,
       );
     },
     [
@@ -342,7 +392,7 @@ export function PlanPanel(props: { siteId: string }) {
       reset,
       finalizeToolCalls,
       setChatIsStreaming,
-    ]
+    ],
   );
 
   return (
@@ -363,7 +413,9 @@ export function PlanPanel(props: { siteId: string }) {
                 onClick={async () => {
                   if (!planSessionId) return;
                   const next = draftTitle.trim() || "Plan";
-                  await updatePlanSession(planSessionId, { title: next }).catch(() => {});
+                  await updatePlanSession(planSessionId, { title: next }).catch(
+                    () => {},
+                  );
                   setPlanTitle(next);
                   setDraftTitle(next);
                   setIsEditingTitle(false);
@@ -418,8 +470,14 @@ export function PlanPanel(props: { siteId: string }) {
         <div className="border-b border-slate-200 bg-white px-4 py-3">
           {(() => {
             const draft = sessionArtifacts.find((a) => a.id === "delegation_draft");
-            const goal = (draft?.parameters as any)?.delegationGoal;
-            const plan = (draft?.parameters as any)?.delegationPlan;
+            const params =
+              draft?.parameters &&
+              typeof draft.parameters === "object" &&
+              !Array.isArray(draft.parameters)
+                ? (draft.parameters as Record<string, unknown>)
+                : {};
+            const goal = params.delegationGoal;
+            const plan = params.delegationPlan;
             return (
               <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -490,7 +548,9 @@ export function PlanPanel(props: { siteId: string }) {
                               recordType: full.recordType ?? undefined,
                               siteId: full.siteId,
                             });
-                            window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
+                            window.dispatchEvent(
+                              new Event("pathfinder:open-executor-chat"),
+                            );
                             setPendingExecutorSend({ strategyId: nextId, message });
                           })
                           .catch(() => {});
@@ -543,4 +603,3 @@ export function PlanPanel(props: { siteId: string }) {
     </div>
   );
 }
-

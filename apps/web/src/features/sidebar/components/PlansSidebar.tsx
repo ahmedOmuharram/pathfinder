@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import {
   deletePlanSession,
@@ -20,18 +20,18 @@ export function PlansSidebar(props: { siteId: string }) {
   const [items, setItems] = useState<PlanSessionSummary[]>([]);
   const [query, setQuery] = useState("");
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const sessions = await listPlans(siteId);
       setItems(sessions);
     } catch {
       setItems([]);
     }
-  };
+  }, [siteId]);
 
   useEffect(() => {
     void refresh();
-  }, [siteId]);
+  }, [refresh]);
 
   const visibleItems = useMemo(() => {
     // Backend hides empty plans. If the user just created a new empty plan,
@@ -56,7 +56,7 @@ export function PlansSidebar(props: { siteId: string }) {
     return visibleItems.filter((p) => p.title.toLowerCase().includes(q));
   }, [visibleItems, query]);
 
-  const ensureActivePlan = async () => {
+  const ensureActivePlan = useCallback(async () => {
     if (planSessionId) return;
     // On refresh, don't create a new plan session; reuse the most recent if it exists.
     const existing = await listPlans(siteId).catch(() => []);
@@ -68,18 +68,17 @@ export function PlansSidebar(props: { siteId: string }) {
     const res = await openPlanSession({ siteId, title: "Plan" });
     setPlanSessionId(res.planSessionId);
     await refresh();
-  };
+  }, [planSessionId, refresh, setPlanSessionId, siteId]);
 
   useEffect(() => {
     void ensureActivePlan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId]);
+  }, [ensureActivePlan]);
 
   useEffect(() => {
     const handler = () => void refresh();
     window.addEventListener("plans:update", handler);
     return () => window.removeEventListener("plans:update", handler);
-  }, [siteId]);
+  }, [refresh]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 border-r border-slate-200 bg-white px-3 py-4">
@@ -96,7 +95,13 @@ export function PlansSidebar(props: { siteId: string }) {
             // Optimistically show the new plan immediately even if it's empty.
             const now = new Date().toISOString();
             setItems((prev) => [
-              { id: res.planSessionId, siteId, title: "Plan", createdAt: now, updatedAt: now },
+              {
+                id: res.planSessionId,
+                siteId,
+                title: "Plan",
+                createdAt: now,
+                updatedAt: now,
+              },
               ...prev.filter((p) => p.id !== res.planSessionId),
             ]);
             // Refresh from server (will hide empty plans, but active plan stays visible via visibleItems).
@@ -149,7 +154,7 @@ export function PlansSidebar(props: { siteId: string }) {
                   type="button"
                   onClick={async () => {
                     const ok = window.confirm(
-                      `Delete plan “${p.title}”? This cannot be undone.`
+                      `Delete plan “${p.title}”? This cannot be undone.`,
                     );
                     if (!ok) return;
                     await deletePlanSession(p.id).catch(() => {});
@@ -177,4 +182,3 @@ export function PlansSidebar(props: { siteId: string }) {
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ChatPanel } from "@/features/chat/components/ChatPanel";
 import { PlanPanel } from "@/features/chat/components/PlanPanel";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
@@ -25,7 +26,7 @@ export default function HomePage() {
   const chatIsStreaming = useSessionStore((state) => state.chatIsStreaming);
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
   const selectedSiteDisplayName = useSessionStore(
-    (state) => state.selectedSiteDisplayName
+    (state) => state.selectedSiteDisplayName,
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const strategyId = useSessionStore((state) => state.strategyId);
@@ -35,7 +36,7 @@ export default function HomePage() {
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
   const setWdkInfo = useStrategyStore((state) => state.setWdkInfo);
   const addExecutedStrategy = useStrategyListStore(
-    (state) => state.addExecutedStrategy
+    (state) => state.addExecutedStrategy,
   );
   const strategies = useStrategyListStore((state) => state.strategies);
 
@@ -44,7 +45,7 @@ export default function HomePage() {
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
   const [previewMessages, setPreviewMessages] = useState<Message[]>([]);
   const [pendingAskNode, setPendingAskNode] = useState<Record<string, unknown> | null>(
-    null
+    null,
   );
 
   const [isHydrated, setIsHydrated] = useState(false);
@@ -62,12 +63,7 @@ export default function HomePage() {
       setActiveView("chat");
     }
     lastSiteRef.current = selectedSite;
-  }, [
-    selectedSite,
-    isHydrated,
-    setStrategyId,
-    clearStrategy,
-  ]);
+  }, [selectedSite, isHydrated, setStrategyId, clearStrategy, setActiveView]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -81,7 +77,9 @@ export default function HomePage() {
 
   useEffect(() => {
     const handleAskNode = (event: Event) => {
-      const detail = (event as CustomEvent).detail as Record<string, unknown> | undefined;
+      const detail = (event as CustomEvent).detail as
+        | Record<string, unknown>
+        | undefined;
       if (detail) {
         setPendingAskNode(detail);
         setActiveView("chat");
@@ -89,7 +87,7 @@ export default function HomePage() {
     };
     window.addEventListener("pathfinder:ask-node", handleAskNode);
     return () => window.removeEventListener("pathfinder:ask-node", handleAskNode);
-  }, []);
+  }, [setActiveView]);
 
   useEffect(() => {
     const handler = () => {
@@ -136,10 +134,7 @@ export default function HomePage() {
 
   const planResult = buildPlan();
   const canBuild = !!planResult;
-  const {
-    isBuilding,
-    handleBuild,
-  } = useBuildStrategy({
+  const { isBuilding, handleBuild } = useBuildStrategy({
     selectedSite,
     selectedSiteDisplayName,
     strategy,
@@ -165,11 +160,7 @@ export default function HomePage() {
       <div className="border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img
-              src="/pathfinder.svg"
-              alt="PathFinder"
-              className="h-8 w-8"
-            />
+            <Image src="/pathfinder.svg" alt="PathFinder" width={32} height={32} />
             <div>
               <div className="text-base font-semibold tracking-tight text-slate-900">
                 PathFinder
@@ -226,7 +217,9 @@ export default function HomePage() {
                   className="group rounded-lg border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur transition hover:border-slate-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                 >
                   <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    <span>{activeView === "chat" ? "Graph preview" : "Chat preview"}</span>
+                    <span>
+                      {activeView === "chat" ? "Graph preview" : "Chat preview"}
+                    </span>
                     <span className="text-slate-400 group-hover:text-slate-600">
                       Click to switch
                     </span>
@@ -293,6 +286,7 @@ export default function HomePage() {
                 type="button"
                 onClick={() => setChatMode("plan")}
                 disabled={chatIsStreaming}
+                data-testid="mode-toggle-plan"
                 className={`px-3 py-2 text-[12px] font-semibold transition-colors ${
                   chatMode === "plan"
                     ? "bg-slate-900 text-white"
@@ -306,6 +300,7 @@ export default function HomePage() {
                 type="button"
                 onClick={() => setChatMode("execute")}
                 disabled={chatIsStreaming}
+                data-testid="mode-toggle-execute"
                 className={`px-3 py-2 text-[12px] font-semibold transition-colors ${
                   chatMode === "execute"
                     ? "bg-slate-900 text-white"
@@ -354,4 +349,3 @@ export default function HomePage() {
     </div>
   );
 }
-

@@ -59,7 +59,7 @@ export function useParamSpecs({
           siteId,
           recordTypeToUse,
           searchName,
-          buildContextValues(contextValues || {})
+          buildContextValues(contextValues || {}),
         );
 
       trySpecs(resolvedRecordType)

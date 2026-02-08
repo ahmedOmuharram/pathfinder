@@ -21,8 +21,7 @@ function VennIcon({ operator }: { operator: string }) {
   // Standard venn: centers (14,12) and (22,12), r=8.
   // Intersection points are (18, 12 ± sqrt(64-16)) = (18, 12 ± 6.9282)
   // Lens boundary is one arc from each circle.
-  const overlapPath =
-    "M18 5.0718 A8 8 0 0 1 18 18.9282 A8 8 0 0 1 18 5.0718 Z";
+  const overlapPath = "M18 5.0718 A8 8 0 0 1 18 18.9282 A8 8 0 0 1 18 5.0718 Z";
 
   return (
     <svg
@@ -84,41 +83,13 @@ function VennIcon({ operator }: { operator: string }) {
       {/* outlines */}
       {operator === "COLOCATE" ? (
         <>
-          <circle
-            cx="12"
-            cy="12"
-            r="7"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="1.5"
-          />
-          <circle
-            cx="24"
-            cy="12"
-            r="7"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="1.5"
-          />
+          <circle cx="12" cy="12" r="7" fill="none" stroke={stroke} strokeWidth="1.5" />
+          <circle cx="24" cy="12" r="7" fill="none" stroke={stroke} strokeWidth="1.5" />
         </>
       ) : (
         <>
-          <circle
-            cx="14"
-            cy="12"
-            r="8"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="1.5"
-          />
-          <circle
-            cx="22"
-            cy="12"
-            r="8"
-            fill="none"
-            stroke={stroke}
-            strokeWidth="1.5"
-          />
+          <circle cx="14" cy="12" r="8" fill="none" stroke={stroke} strokeWidth="1.5" />
+          <circle cx="22" cy="12" r="8" fill="none" stroke={stroke} strokeWidth="1.5" />
         </>
       )}
     </svg>
@@ -130,8 +101,7 @@ export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
     label: operator,
   };
 
-  const sizeClasses =
-    size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-1 text-xs";
+  const sizeClasses = size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-1 text-xs";
 
   return (
     <span
@@ -142,4 +112,3 @@ export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
     </span>
   );
 }
-

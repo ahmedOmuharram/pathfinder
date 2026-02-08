@@ -48,11 +48,8 @@ export function NodeCard({ node }: { node: ChatNodeCardData }) {
         {node.displayName || "Untitled step"}
       </div>
       {node.searchName && (
-        <div className="mt-0.5 text-[11px] text-slate-500">
-          {node.searchName}
-        </div>
+        <div className="mt-0.5 text-[11px] text-slate-500">{node.searchName}</div>
       )}
     </div>
   );
 }
-

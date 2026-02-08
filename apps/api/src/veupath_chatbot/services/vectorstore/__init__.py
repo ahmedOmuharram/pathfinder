@@ -1,2 +1,1 @@
 """Vector store helpers (Qdrant)."""
-

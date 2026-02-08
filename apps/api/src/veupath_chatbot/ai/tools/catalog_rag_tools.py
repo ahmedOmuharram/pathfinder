@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.embeddings.openai_embeddings import embed_one
+from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.services.vectorstore.collections import (
     WDK_RECORD_TYPES_V1,
     WDK_SEARCHES_V1,
@@ -32,10 +34,11 @@ class CatalogRagTools:
         query: str | None = None,
         limit: int = 20,
         min_score: float = 0.40,
-    ) -> list[dict[str, Any]]:
+    ) -> JSONArray:
         settings = get_settings()
         if not settings.rag_enabled:
             return []
+        await ensure_rag_collections()
         q = (query or "").strip()
         if not q:
             # No query: return empty and let caller use live get_record_types if desired.
@@ -46,15 +49,22 @@ class CatalogRagTools:
             query_vector=vec,
             # Over-fetch a bit so the score threshold doesn't return an empty list too often.
             limit=max(int(limit) * 3, int(limit), 1),
-            must=[{"key": "siteId", "value": self.site_id}],
+            must=cast(JSONArray, [{"key": "siteId", "value": self.site_id}]),
         )
-        out: list[dict[str, Any]] = []
+        out: JSONArray = []
         threshold = float(min_score)
-        for h in hits:
-            score = float(h.get("score") or 0.0)
+        for h_value in hits:
+            if not isinstance(h_value, dict):
+                continue
+            h = h_value
+            score_raw = h.get("score")
+            score = float(
+                score_raw if isinstance(score_raw, (int, float, str)) else 0.0
+            )
             if score < threshold:
                 continue
-            payload = h.get("payload") if isinstance(h, dict) else None
+            payload_raw = h.get("payload")
+            payload = payload_raw if isinstance(payload_raw, dict) else None
             if not isinstance(payload, dict):
                 continue
             # Keep record-type discovery payloads small for the UI:
@@ -71,7 +81,7 @@ class CatalogRagTools:
     async def rag_get_record_type_details(
         self,
         record_type_id: str,
-    ) -> dict[str, Any] | None:
+    ) -> JSONObject | None:
         """Retrieve one record type payload from Qdrant by id."""
         settings = get_settings()
         if not settings.rag_enabled:
@@ -81,7 +91,10 @@ class CatalogRagTools:
             return None
         pid = point_uuid(f"{self.site_id}:{rt}")
         hit = await self._store.get(collection=WDK_RECORD_TYPES_V1, point_id=pid)
-        return hit["payload"] if hit else None
+        if not hit:
+            return None
+        payload_raw = hit.get("payload")
+        return payload_raw if isinstance(payload_raw, dict) else None
 
     async def rag_search_for_searches(
         self,
@@ -89,17 +102,18 @@ class CatalogRagTools:
         record_type: str | None = None,
         limit: int = 20,
         min_score: float = 0.40,
-    ) -> list[dict[str, Any]]:
+    ) -> JSONArray:
         settings = get_settings()
         if not settings.rag_enabled:
             return []
+        await ensure_rag_collections()
         q = (query or "").strip()
         if not q:
             return []
         vec = await embed_one(text=q, model=settings.embeddings_model)
-        must = [{"key": "siteId", "value": self.site_id}]
+        must: JSONArray = [cast(JSONValue, {"key": "siteId", "value": self.site_id})]
         if record_type:
-            must.append({"key": "recordType", "value": record_type})
+            must.append(cast(JSONValue, {"key": "recordType", "value": record_type}))
         hits = await self._store.search(
             collection=WDK_SEARCHES_V1,
             query_vector=vec,
@@ -107,13 +121,20 @@ class CatalogRagTools:
             limit=max(int(limit) * 3, int(limit), 1),
             must=must,
         )
-        out: list[dict[str, Any]] = []
+        out: JSONArray = []
         threshold = float(min_score)
-        for h in hits:
-            score = float(h.get("score") or 0.0)
+        for h_value in hits:
+            if not isinstance(h_value, dict):
+                continue
+            h = h_value
+            score_raw = h.get("score")
+            score = float(
+                score_raw if isinstance(score_raw, (int, float, str)) else 0.0
+            )
             if score < threshold:
                 continue
-            payload = h.get("payload") if isinstance(h, dict) else None
+            payload_raw = h.get("payload")
+            payload = payload_raw if isinstance(payload_raw, dict) else None
             if not isinstance(payload, dict):
                 continue
             # Keep search discovery payloads small for the UI:
@@ -132,21 +153,24 @@ class CatalogRagTools:
         self,
         record_type: str,
         search_name: str,
-    ) -> dict[str, Any] | None:
+    ) -> JSONObject | None:
         settings = get_settings()
         if not settings.rag_enabled:
             return None
         pid = point_uuid(f"{self.site_id}:{record_type}:{search_name}")
         hit = await self._store.get(collection=WDK_SEARCHES_V1, point_id=pid)
-        return hit["payload"] if hit else None
+        if not hit:
+            return None
+        payload_raw = hit.get("payload")
+        return payload_raw if isinstance(payload_raw, dict) else None
 
     async def rag_get_dependent_vocab(
         self,
         record_type: str,
         search_name: str,
         param_name: str,
-        context_values: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        context_values: JSONObject | None = None,
+    ) -> JSONObject:
         settings = get_settings()
         if not settings.rag_enabled:
             return {"error": "rag_disabled"}
@@ -158,4 +182,3 @@ class CatalogRagTools:
             context_values=context_values or {},
             store=self._store,
         )
-

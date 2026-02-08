@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from uuid import UUID
 
-from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.domain.strategy.ast import from_dict
 from veupath_chatbot.persistence.models import Strategy
 from veupath_chatbot.persistence.repo import StrategyRepository
-from veupath_chatbot.domain.strategy.ast import from_dict
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_object,
+)
 from veupath_chatbot.services.strategies.serialization import (
     build_steps_data_from_graph_snapshot,
     build_steps_data_from_plan,
@@ -23,8 +28,12 @@ from .events import (
     STRATEGY_LINK,
     STRATEGY_META,
 )
-from .sse import sse_event, sse_error, sse_message_start
-from .thinking import build_thinking_payload, normalize_subkani_activity, normalize_tool_calls
+from .sse import sse_error, sse_event, sse_message_start
+from .thinking import (
+    build_thinking_payload,
+    normalize_subkani_activity,
+    normalize_tool_calls,
+)
 from .utils import parse_uuid, sanitize_markdown
 
 logger = get_logger(__name__)
@@ -41,7 +50,7 @@ class ChatStreamProcessor:
         user_id: UUID,
         strategy: Strategy,
         auth_token: str,
-        strategy_payload: dict[str, Any],
+        strategy_payload: JSONObject,
         mode: str = "execute",
     ) -> None:
         self.strategy_repo = strategy_repo
@@ -53,30 +62,33 @@ class ChatStreamProcessor:
         self.mode = mode
 
         self.assistant_messages: list[str] = []
-        self.citations: list[dict[str, Any]] = []
-        self.planning_artifacts: list[dict[str, Any]] = []
-        self.tool_calls: list[dict[str, Any]] = []
-        self.tool_calls_by_id: dict[str, dict[str, Any]] = {}
-        self.subkani_calls: dict[str, list[dict[str, Any]]] = {}
-        self.subkani_calls_by_id: dict[str, tuple[str, dict[str, Any]]] = {}
+        self.citations: JSONArray = []
+        self.planning_artifacts: JSONArray = []
+        self.tool_calls: JSONArray = []
+        self.tool_calls_by_id: dict[str, JSONObject] = {}
+        self.subkani_calls: dict[str, JSONArray] = {}
+        self.subkani_calls_by_id: dict[str, tuple[str, JSONObject]] = {}
         self.subkani_status: dict[str, str] = {}
-        self.latest_plans: dict[str, dict[str, Any]] = {}
-        self.latest_graph_snapshots: dict[str, dict[str, Any]] = {}
-        self.pending_strategy_link: dict[str, dict[str, Any]] = {}
+        self.latest_plans: dict[str, JSONObject] = {}
+        self.latest_graph_snapshots: dict[str, JSONObject] = {}
+        self.pending_strategy_link: dict[str, JSONObject] = {}
 
-        self.last_thinking_flush = datetime.now(timezone.utc)
+        self.last_thinking_flush = datetime.now(UTC)
         self.thinking_dirty = False
         self.thinking_flush_interval = 2.0
 
-    def resolve_graph_id(self, raw_id: str | None) -> str | None:
-        # Current implementation is single-graph; preserve behavior.
-        del raw_id
-        return str(self.strategy.id)
+    def resolve_graph_id(self, raw_id: str | None | JSONValue) -> str | None:
+        """Resolve graph ID, converting JSONValue to str if needed."""
+        if raw_id is None:
+            return None
+        if isinstance(raw_id, str):
+            return raw_id
+        return str(raw_id)
 
     async def maybe_flush_thinking(self, *, force: bool = False) -> None:
         if not self.thinking_dirty:
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if not force:
             elapsed = (now - self.last_thinking_flush).total_seconds()
             if elapsed < self.thinking_flush_interval:
@@ -95,13 +107,15 @@ class ChatStreamProcessor:
             strategy=self.strategy_payload,
         )
 
-    async def on_event(self, event_type: str, event_data: dict[str, Any]) -> str | None:
+    async def on_event(self, event_type: str, event_data: JSONObject) -> str | None:
         """Process one semantic event; returns SSE line (or None if skipped)."""
         if event_type == "message_start":
             return None
 
         if event_type == "assistant_message":
-            content = sanitize_markdown(event_data.get("content", "") or "")
+            content_value = event_data.get("content", "") or ""
+            content = str(content_value) if content_value is not None else ""
+            content = sanitize_markdown(content)
             event_data["content"] = content
             if content:
                 self.assistant_messages.append(content)
@@ -119,9 +133,11 @@ class ChatStreamProcessor:
                 self.planning_artifacts.append(artifact)
 
         elif event_type == GRAPH_SNAPSHOT:
-            snapshot = event_data.get("graphSnapshot")
-            if isinstance(snapshot, dict):
-                graph_id = self.resolve_graph_id(snapshot.get("graphId"))
+            snapshot_value = event_data.get("graphSnapshot")
+            if isinstance(snapshot_value, dict):
+                snapshot = as_json_object(snapshot_value)
+                graph_id_value = snapshot.get("graphId")
+                graph_id = self.resolve_graph_id(graph_id_value)
                 if graph_id:
                     snapshot["graphId"] = graph_id
                     event_data["graphSnapshot"] = snapshot
@@ -130,9 +146,25 @@ class ChatStreamProcessor:
                     graph_uuid = parse_uuid(graph_id)
                     if graph_uuid:
                         steps_data = build_steps_data_from_graph_snapshot(snapshot)
-                        root_step_id = snapshot.get("rootStepId") or None
-                        name = snapshot.get("name") or snapshot.get("graphName")
-                        record_type = snapshot.get("recordType")
+                        root_step_id_value = snapshot.get("rootStepId")
+                        root_step_id = (
+                            str(root_step_id_value)
+                            if isinstance(root_step_id_value, str)
+                            else None
+                        )
+                        name_value = snapshot.get("name")
+                        graph_name_value = snapshot.get("graphName")
+                        name: str | None = None
+                        if isinstance(name_value, str):
+                            name = name_value
+                        elif isinstance(graph_name_value, str):
+                            name = graph_name_value
+                        record_type_value = snapshot.get("recordType")
+                        record_type = (
+                            str(record_type_value)
+                            if isinstance(record_type_value, str)
+                            else None
+                        )
                         updated = await self.strategy_repo.update(
                             strategy_id=graph_uuid,
                             name=name,
@@ -143,10 +175,11 @@ class ChatStreamProcessor:
                             root_step_id_set=True,
                         )
                         if not updated:
+                            name_str = name or "Draft Strategy"
                             await self.strategy_repo.create(
                                 user_id=self.user_id,
-                                name=name or "Draft Strategy",
-                                title=name or "Draft Strategy",
+                                name=name_str,
+                                title=name_str,
                                 site_id=self.site_id,
                                 record_type=record_type,
                                 plan={},
@@ -156,24 +189,43 @@ class ChatStreamProcessor:
                             )
 
         elif event_type == GRAPH_PLAN:
-            graph_id = self.resolve_graph_id(event_data.get("graphId"))
+            graph_id_value = event_data.get("graphId")
+            graph_id = self.resolve_graph_id(graph_id_value)
             if graph_id:
+                plan_value = event_data.get("plan")
+                name_value = event_data.get("name")
+                record_type_value = event_data.get("recordType")
+                description_value = event_data.get("description")
                 self.latest_plans[str(graph_id)] = {
-                    "plan": event_data.get("plan"),
-                    "name": event_data.get("name"),
-                    "recordType": event_data.get("recordType"),
-                    "description": event_data.get("description"),
+                    "plan": plan_value,
+                    "name": name_value,
+                    "recordType": record_type_value,
+                    "description": description_value,
                 }
 
         elif event_type == STRATEGY_META:
-            graph_id = self.resolve_graph_id(event_data.get("graphId"))
-            graph_uuid = parse_uuid(graph_id)
+            graph_id_value = event_data.get("graphId")
+            graph_id = self.resolve_graph_id(graph_id_value)
+            graph_uuid = parse_uuid(graph_id) if graph_id else None
             if graph_uuid:
+                meta_name_value = event_data.get("name")
+                meta_graph_name_value = event_data.get("graphName")
+                meta_name: str | None = None
+                if isinstance(meta_name_value, str):
+                    meta_name = meta_name_value
+                elif isinstance(meta_graph_name_value, str):
+                    meta_name = meta_graph_name_value
+                record_type_value = event_data.get("recordType")
+                record_type = (
+                    str(record_type_value)
+                    if isinstance(record_type_value, str)
+                    else None
+                )
                 await self.strategy_repo.update(
                     strategy_id=graph_uuid,
-                    name=event_data.get("name") or event_data.get("graphName"),
-                    title=event_data.get("name") or event_data.get("graphName"),
-                    record_type=event_data.get("recordType"),
+                    name=meta_name,
+                    title=meta_name,
+                    record_type=record_type,
                 )
 
         elif event_type == GRAPH_CLEARED:
@@ -202,7 +254,8 @@ class ChatStreamProcessor:
                 )
 
         elif event_type == "subkani_task_start":
-            task = event_data.get("task")
+            task_value = event_data.get("task")
+            task = str(task_value) if isinstance(task_value, str) else None
             if task:
                 self.subkani_status[task] = "running"
                 self.subkani_calls.setdefault(task, [])
@@ -210,8 +263,10 @@ class ChatStreamProcessor:
                 await self.maybe_flush_thinking()
 
         elif event_type == "subkani_tool_call_start":
-            task = event_data.get("task")
-            call_id = event_data.get("id")
+            task_value = event_data.get("task")
+            call_id_value = event_data.get("id")
+            task = str(task_value) if isinstance(task_value, str) else None
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if task and call_id:
                 call = {
                     "id": call_id,
@@ -224,7 +279,8 @@ class ChatStreamProcessor:
                 await self.maybe_flush_thinking()
 
         elif event_type == "subkani_tool_call_end":
-            call_id = event_data.get("id")
+            call_id_value = event_data.get("id")
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if call_id and call_id in self.subkani_calls_by_id:
                 _, call = self.subkani_calls_by_id[call_id]
                 call["result"] = event_data.get("result")
@@ -232,14 +288,18 @@ class ChatStreamProcessor:
                 await self.maybe_flush_thinking()
 
         elif event_type == "subkani_task_end":
-            task = event_data.get("task")
+            task_value = event_data.get("task")
+            task = str(task_value) if isinstance(task_value, str) else None
             if task:
-                self.subkani_status[task] = event_data.get("status") or "done"
+                status_value = event_data.get("status")
+                status = str(status_value) if isinstance(status_value, str) else "done"
+                self.subkani_status[task] = status
                 self.thinking_dirty = True
                 await self.maybe_flush_thinking()
 
         elif event_type == "tool_call_start":
-            call_id = event_data.get("id")
+            call_id_value = event_data.get("id")
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if call_id:
                 self.tool_calls_by_id[call_id] = {
                     "id": call_id,
@@ -250,7 +310,8 @@ class ChatStreamProcessor:
                 await self.maybe_flush_thinking()
 
         elif event_type == "tool_call_end":
-            call_id = event_data.get("id")
+            call_id_value = event_data.get("id")
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if call_id and call_id in self.tool_calls_by_id:
                 self.tool_calls_by_id[call_id]["result"] = event_data.get("result")
                 self.tool_calls.append(self.tool_calls_by_id[call_id])
@@ -263,18 +324,39 @@ class ChatStreamProcessor:
                 event_data["graphId"] = graph_id
                 self.pending_strategy_link[str(graph_id)] = event_data
 
-            graph_uuid = parse_uuid(event_data.get("graphId"))
+            graph_id_for_uuid_value = event_data.get("graphId")
+            graph_id_for_uuid = (
+                str(graph_id_for_uuid_value)
+                if isinstance(graph_id_for_uuid_value, str)
+                else None
+            )
+            graph_uuid = parse_uuid(graph_id_for_uuid)
             if graph_uuid:
-                wdk_strategy_id = event_data.get("wdkStrategyId")
-                if wdk_strategy_id:
+                wdk_strategy_id_value = event_data.get("wdkStrategyId")
+                wdk_strategy_id: int | None = None
+                if wdk_strategy_id_value is not None:
+                    if isinstance(wdk_strategy_id_value, int):
+                        wdk_strategy_id = wdk_strategy_id_value
+                    elif isinstance(wdk_strategy_id_value, (str, float)):
+                        try:
+                            wdk_strategy_id = int(wdk_strategy_id_value)
+                        except (ValueError, TypeError):
+                            wdk_strategy_id = None
+                if wdk_strategy_id is not None:
                     updated = await self.strategy_repo.update(
                         strategy_id=graph_uuid,
                         wdk_strategy_id=wdk_strategy_id,
                     )
                     if not updated:
+                        name_value = event_data.get("name")
+                        name = (
+                            str(name_value)
+                            if isinstance(name_value, str)
+                            else "Draft Strategy"
+                        )
                         await self.strategy_repo.create(
                             user_id=self.user_id,
-                            name=event_data.get("name") or "Draft Strategy",
+                            name=name,
                             site_id=self.site_id,
                             record_type=None,
                             plan={},
@@ -297,7 +379,9 @@ class ChatStreamProcessor:
             self.subkani_calls, self.subkani_status
         )
 
-        if not self.assistant_messages and (normalized_tool_calls or normalized_subkani):
+        if not self.assistant_messages and (
+            normalized_tool_calls or normalized_subkani
+        ):
             self.assistant_messages = ["Done."]
 
         for index, content in enumerate(self.assistant_messages):
@@ -311,13 +395,13 @@ class ChatStreamProcessor:
                 if normalized_subkani and index == len(self.assistant_messages) - 1
                 else None
             )
-            assistant_message = {
+            assistant_message: JSONObject = {
                 "role": "assistant",
                 "content": content,
                 "toolCalls": tool_calls_payload,
                 "subKaniActivity": subkani_payload,
                 "mode": self.mode,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             if index == len(self.assistant_messages) - 1:
                 if self.citations:
@@ -330,9 +414,22 @@ class ChatStreamProcessor:
             for graph_id, payload in self.latest_plans.items():
                 graph_uuid = self.strategy.id
                 latest_plan = payload.get("plan")
-                latest_name = payload.get("name") or "Draft Strategy"
-                latest_record_type = payload.get("recordType")
-                latest_description = payload.get("description")
+                name_value = payload.get("name")
+                latest_name = (
+                    str(name_value) if isinstance(name_value, str) else "Draft Strategy"
+                )
+                record_type_value = payload.get("recordType")
+                latest_record_type = (
+                    str(record_type_value)
+                    if isinstance(record_type_value, str)
+                    else None
+                )
+                description_value = payload.get("description")
+                latest_description = (
+                    str(description_value)
+                    if isinstance(description_value, str)
+                    else None
+                )
                 snapshot = self.latest_graph_snapshots.get(graph_id)
                 if not latest_plan:
                     continue
@@ -356,18 +453,35 @@ class ChatStreamProcessor:
                         )
 
                     if isinstance(snapshot, dict):
-                        latest_name = snapshot.get("name") or snapshot.get("graphName") or latest_name
-                        latest_record_type = snapshot.get("recordType") or latest_record_type
-                        latest_description = snapshot.get("description") or latest_description
-                        root_step_id = snapshot.get("rootStepId") or None
+                        name_snapshot = snapshot.get("name")
+                        graph_name_snapshot = snapshot.get("graphName")
+                        if isinstance(name_snapshot, str):
+                            latest_name = name_snapshot
+                        elif isinstance(graph_name_snapshot, str):
+                            latest_name = graph_name_snapshot
+                        record_type_snapshot = snapshot.get("recordType")
+                        if isinstance(record_type_snapshot, str):
+                            latest_record_type = record_type_snapshot
+                        description_snapshot = snapshot.get("description")
+                        if isinstance(description_snapshot, str):
+                            latest_description = description_snapshot
+                        root_step_id_value = snapshot.get("rootStepId")
+                        root_step_id = (
+                            str(root_step_id_value)
+                            if isinstance(root_step_id_value, str)
+                            else None
+                        )
                     else:
                         root_step_id = None
 
                     # Try plan persistence first; if the plan can't be parsed/validated yet,
                     # fall back to snapshot-derived steps persistence so refresh won't lose the graph.
                     try:
-                        strategy_ast = from_dict(latest_plan)
-                        canonical_plan = strategy_ast.to_dict()
+                        if isinstance(latest_plan, dict):
+                            strategy_ast = from_dict(latest_plan)
+                            canonical_plan = strategy_ast.to_dict()
+                        else:
+                            canonical_plan = None
                     except Exception:
                         canonical_plan = None
 
@@ -419,8 +533,17 @@ class ChatStreamProcessor:
 
                     pending = self.pending_strategy_link.get(graph_id)
                     if pending:
-                        wdk_strategy_id = pending.get("wdkStrategyId")
-                        if wdk_strategy_id:
+                        wdk_strategy_id_value = pending.get("wdkStrategyId")
+                        wdk_strategy_id: int | None = None
+                        if wdk_strategy_id_value is not None:
+                            if isinstance(wdk_strategy_id_value, int):
+                                wdk_strategy_id = wdk_strategy_id_value
+                            elif isinstance(wdk_strategy_id_value, (str, float)):
+                                try:
+                                    wdk_strategy_id = int(wdk_strategy_id_value)
+                                except (ValueError, TypeError):
+                                    wdk_strategy_id = None
+                        if wdk_strategy_id is not None:
                             await self.strategy_repo.update(
                                 strategy_id=graph_uuid,
                                 wdk_strategy_id=wdk_strategy_id,
@@ -442,9 +565,25 @@ class ChatStreamProcessor:
                 steps_data = build_steps_data_from_graph_snapshot(snapshot)
                 if not steps_data:
                     continue
-                root_step_id = snapshot.get("rootStepId") or None
-                record_type = snapshot.get("recordType")
-                name = snapshot.get("graphName") or snapshot.get("name")
+                root_step_id_value = snapshot.get("rootStepId")
+                root_step_id = (
+                    str(root_step_id_value)
+                    if isinstance(root_step_id_value, str)
+                    else None
+                )
+                record_type_value = snapshot.get("recordType")
+                record_type = (
+                    str(record_type_value)
+                    if isinstance(record_type_value, str)
+                    else None
+                )
+                graph_name_value = snapshot.get("graphName")
+                name_value = snapshot.get("name")
+                name = (
+                    str(graph_name_value)
+                    if isinstance(graph_name_value, str)
+                    else (str(name_value) if isinstance(name_value, str) else None)
+                )
                 updated = await self.strategy_repo.update(
                     strategy_id=graph_uuid,
                     name=name,
@@ -455,10 +594,11 @@ class ChatStreamProcessor:
                     root_step_id_set=True,
                 )
                 if not updated:
+                    name_str = name or "Draft Strategy"
                     await self.strategy_repo.create(
                         user_id=self.user_id,
-                        name=name or "Draft Strategy",
-                        title=name or "Draft Strategy",
+                        name=name_str,
+                        title=name_str,
                         site_id=self.site_id,
                         record_type=record_type,
                         plan={},
@@ -467,9 +607,10 @@ class ChatStreamProcessor:
                         strategy_id=graph_uuid,
                     )
                 if graph_uuid == self.strategy.id:
+                    name_str = name or "Draft Strategy"
                     await self.strategy_repo.update(
                         strategy_id=self.strategy.id,
-                        title=name or "Draft Strategy",
+                        title=name_str,
                     )
 
         return extra_events
@@ -478,4 +619,3 @@ class ChatStreamProcessor:
         logger.error("Chat error", error=str(e))
         await self.strategy_repo.clear_thinking(self.strategy.id)
         return sse_error(str(e))
-

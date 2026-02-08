@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from kani import ChatMessage, Kani
 from kani.engines.openai import OpenAIEngine
 
-from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
+from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
 from veupath_chatbot.ai.tools.example_plans_rag_tools import ExamplePlansRagTools
 from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
 from veupath_chatbot.ai.tools.registry import AgentToolRegistryMixin
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.strategy_session import StrategySession
 
 
@@ -23,17 +23,17 @@ def _load_subtask_system_prompt() -> str:
     return prompt_path.read_text()
 
 
-class SubtaskAgent(AgentToolRegistryMixin, Kani):
+class SubtaskAgent(AgentToolRegistryMixin, Kani):  # type: ignore[misc]
     """Sub-kani agent for search discovery and parameter lookup."""
 
     def _combined_result(
         self,
         *,
-        rag: object,
-        wdk: object,
+        rag: JSONValue,
+        wdk: JSONValue,
         rag_note: str | None = None,
         wdk_note: str | None = None,
-    ) -> dict:
+    ) -> JSONObject:
         return {
             "rag": {"data": rag, "note": rag_note or ""},
             "wdk": {"data": wdk, "note": wdk_note or ""},
@@ -63,4 +63,3 @@ class SubtaskAgent(AgentToolRegistryMixin, Kani):
             system_prompt=_load_subtask_system_prompt(),
             chat_history=chat_history,
         )
-

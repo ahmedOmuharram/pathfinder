@@ -2,27 +2,31 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import yaml
 
-from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.errors import NotFoundError, ErrorCode
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 
 @lru_cache
-def load_sites_config() -> dict[str, Any]:
+def load_sites_config() -> JSONObject:
     """Load sites configuration from YAML."""
     config_path = Path(__file__).parent / "sites.yaml"
     logger.info("Loading sites config", path=str(config_path))
     with open(config_path) as f:
         config = yaml.safe_load(f)
-    logger.info("Sites config loaded", num_sites=len(config.get("sites", {})))
-    return config
+    logger.info(
+        "Sites config loaded",
+        num_sites=len(config.get("sites", {}) if isinstance(config, dict) else {}),
+    )
+    return cast(JSONObject, config)
 
 
 class SiteInfo:
@@ -63,16 +67,19 @@ class SiteInfo:
             return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}/{root_step_id}"
         return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONObject:
         """Convert to dictionary."""
-        return {
-            "id": self.id,
-            "name": self.name,
-            "displayName": self.display_name,
-            "baseUrl": self.base_url,
-            "projectId": self.project_id,
-            "isPortal": self.is_portal,
-        }
+        return cast(
+            JSONObject,
+            {
+                "id": self.id,
+                "name": self.name,
+                "displayName": self.display_name,
+                "baseUrl": self.base_url,
+                "projectId": self.project_id,
+                "isPortal": self.is_portal,
+            },
+        )
 
 
 class SiteRouter:
@@ -86,17 +93,47 @@ class SiteRouter:
 
     def _load_sites(self) -> None:
         """Load site configurations."""
-        sites_config = self._config.get("sites", {})
+        sites_config_raw = self._config.get("sites", {})
+        if not isinstance(sites_config_raw, dict):
+            logger.warning(
+                "sites config is not a dict", type=type(sites_config_raw).__name__
+            )
+            return
+        sites_config: JSONObject = sites_config_raw
         logger.info("Loading sites", count=len(sites_config))
-        for site_id, site_config in sites_config.items():
+        for site_id, site_config_raw in sites_config.items():
+            if not isinstance(site_config_raw, dict):
+                logger.warning(
+                    "Site config is not a dict",
+                    site_id=site_id,
+                    type=type(site_config_raw).__name__,
+                )
+                continue
+            site_config: JSONObject = site_config_raw
             try:
+                name_raw = site_config.get("name")
+                display_name_raw = site_config.get("display_name")
+                base_url_raw = site_config.get("base_url")
+                project_id_raw = site_config.get("project_id")
+                is_portal_raw = site_config.get("is_portal", False)
+
+                name = str(name_raw) if name_raw is not None else ""
+                display_name = (
+                    str(display_name_raw) if display_name_raw is not None else ""
+                )
+                base_url = str(base_url_raw) if base_url_raw is not None else ""
+                project_id = str(project_id_raw) if project_id_raw is not None else ""
+                is_portal = (
+                    bool(is_portal_raw) if isinstance(is_portal_raw, bool) else False
+                )
+
                 self._sites[site_id] = SiteInfo(
                     id=site_id,
-                    name=site_config["name"],
-                    display_name=site_config["display_name"],
-                    base_url=site_config["base_url"],
-                    project_id=site_config["project_id"],
-                    is_portal=site_config.get("is_portal", False),
+                    name=name,
+                    display_name=display_name,
+                    base_url=base_url,
+                    project_id=project_id,
+                    is_portal=is_portal,
                 )
             except Exception as e:
                 logger.error("Failed to load site", site_id=site_id, error=str(e))
@@ -104,7 +141,9 @@ class SiteRouter:
 
     def get_site(self, site_id: str) -> SiteInfo:
         """Get site by ID."""
-        logger.debug("Getting site", site_id=site_id, available=list(self._sites.keys()))
+        logger.debug(
+            "Getting site", site_id=site_id, available=list(self._sites.keys())
+        )
         if site_id not in self._sites:
             raise NotFoundError(
                 code=ErrorCode.SITE_NOT_FOUND,
@@ -120,20 +159,39 @@ class SiteRouter:
     def get_default_site(self) -> SiteInfo:
         """Get the default site."""
         settings = get_settings()
-        default_id = self._config.get("default_site", settings.veupathdb_default_site)
+        default_id_raw = self._config.get(
+            "default_site", settings.veupathdb_default_site
+        )
+        default_id = (
+            str(default_id_raw)
+            if default_id_raw is not None
+            else settings.veupathdb_default_site
+        )
         return self.get_site(default_id)
 
     def get_client(self, site_id: str) -> VEuPathDBClient:
         """Get or create HTTP client for a site."""
         if site_id not in self._clients:
             site = self.get_site(site_id)
-            routing = self._config.get("routing", {})
+            routing_raw = self._config.get("routing", {})
+            if not isinstance(routing_raw, dict):
+                routing: JSONObject = {}
+            else:
+                routing = routing_raw
             settings = get_settings()
-            timeout = (
-                routing.get("portal_timeout", 120)
-                if site.is_portal
-                else routing.get("component_timeout", 30)
+            portal_timeout_raw = routing.get("portal_timeout", 120)
+            component_timeout_raw = routing.get("component_timeout", 30)
+            portal_timeout = (
+                float(portal_timeout_raw)
+                if isinstance(portal_timeout_raw, (int, float))
+                else 120.0
             )
+            component_timeout = (
+                float(component_timeout_raw)
+                if isinstance(component_timeout_raw, (int, float))
+                else 30.0
+            )
+            timeout = portal_timeout if site.is_portal else component_timeout
             self._clients[site_id] = VEuPathDBClient(
                 base_url=site.service_url,
                 timeout=float(timeout),
@@ -149,8 +207,16 @@ class SiteRouter:
         """Check if component site should be used."""
         if site_id == "veupathdb":
             return False
-        routing = self._config.get("routing", {})
-        return routing.get("prefer_component", True)
+        routing_raw = self._config.get("routing", {})
+        if not isinstance(routing_raw, dict):
+            return True
+        routing: JSONObject = routing_raw
+        prefer_component_raw = routing.get("prefer_component", True)
+        return (
+            bool(prefer_component_raw)
+            if isinstance(prefer_component_raw, bool)
+            else True
+        )
 
     async def close_all(self) -> None:
         """Close all HTTP clients."""
@@ -169,4 +235,3 @@ def get_site_router() -> SiteRouter:
     if _router is None:
         _router = SiteRouter()
     return _router
-

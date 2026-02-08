@@ -102,4 +102,3 @@ export function GraphToolbar(props: {
     </div>
   );
 }
-

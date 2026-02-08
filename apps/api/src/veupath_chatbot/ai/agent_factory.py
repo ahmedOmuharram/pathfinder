@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any, Literal
+from typing import Literal, cast
 from uuid import UUID
 
 from kani import ChatMessage
+from kani.engines.base import BaseEngine
 from kani.engines.openai import OpenAIEngine
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 from .agent_runtime import PathfinderAgent
 from .planner_runtime import PathfinderPlannerAgent
-
 
 ChatMode = Literal["execute", "plan"]
 ModelProvider = Literal["openai", "anthropic", "google"]
 
 
-def _create_openai_engine(*, model: str, temperature: float, top_p: float, hyperparams: dict) -> OpenAIEngine:
+def _create_openai_engine(
+    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+) -> OpenAIEngine:
     settings = get_settings()
     # Some OpenAI models only support default sampling params (temperature=1, top_p=1).
     # To avoid hard failures, we omit temperature/top_p entirely for those models.
@@ -35,7 +38,10 @@ def _create_openai_engine(*, model: str, temperature: float, top_p: float, hyper
         **(hyperparams or {}),
     )
 
-def _create_anthropic_engine(*, model: str, temperature: float, top_p: float, hyperparams: dict):
+
+def _create_anthropic_engine(
+    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+) -> BaseEngine:
     settings = get_settings()
     # Lazy import so the API can still boot in minimal installs.
     from kani.engines.anthropic import AnthropicEngine
@@ -49,7 +55,9 @@ def _create_anthropic_engine(*, model: str, temperature: float, top_p: float, hy
     )
 
 
-def _create_google_engine(*, model: str, temperature: float, top_p: float, hyperparams: dict):
+def _create_google_engine(
+    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+) -> BaseEngine:
     settings = get_settings()
     # Lazy import so the API can still boot in minimal installs.
     from kani.engines.google import GoogleAIEngine
@@ -63,20 +71,22 @@ def _create_google_engine(*, model: str, temperature: float, top_p: float, hyper
     )
 
 
-def create_engine(*, mode: ChatMode):
+def create_engine(*, mode: ChatMode) -> BaseEngine:
     settings = get_settings()
     if mode == "plan":
         provider: ModelProvider = settings.planning_provider
         model = settings.planning_model
         temperature = settings.planning_temperature
         top_p = settings.planning_top_p
-        hyperparams = settings.planning_hyperparams
+        hyperparams_raw = settings.planning_hyperparams
     else:
         provider = "openai"
         model = settings.openai_model
         temperature = settings.openai_temperature
         top_p = settings.openai_top_p
-        hyperparams = settings.openai_hyperparams
+        hyperparams_raw = settings.openai_hyperparams
+
+    hyperparams = cast(JSONObject, hyperparams_raw or {})
 
     if provider == "openai":
         return _create_openai_engine(
@@ -95,11 +105,11 @@ def create_agent(
     site_id: str,
     user_id: UUID | None = None,
     chat_history: list[ChatMessage] | None = None,
-    strategy_graph: dict | None = None,
-    selected_nodes: dict | None = None,
-    delegation_draft_artifact: dict | None = None,
+    strategy_graph: JSONObject | None = None,
+    selected_nodes: JSONObject | None = None,
+    delegation_draft_artifact: JSONObject | None = None,
     plan_session_id: UUID | None = None,
-    get_plan_session_artifacts: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
+    get_plan_session_artifacts: Callable[[], Awaitable[JSONArray]] | None = None,
     mode: ChatMode = "execute",
 ) -> PathfinderAgent | PathfinderPlannerAgent:
     """Create a new Pathfinder agent instance (executor or planner)."""
@@ -124,4 +134,3 @@ def create_agent(
         strategy_graph=strategy_graph,
         selected_nodes=selected_nodes,
     )
-

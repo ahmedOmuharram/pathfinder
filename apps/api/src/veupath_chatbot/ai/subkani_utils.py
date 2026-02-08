@@ -3,23 +3,31 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
+from kani import Kani
 from kani.models import ChatRole
 
 from veupath_chatbot.platform.parsing import parse_jsonish
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_array,
+    as_json_object,
+)
 
 
 async def consume_subkani_round(
     *,
-    sub_kani: Any,
-    emit_event: Callable[[dict[str, Any]], Awaitable[None]],
+    sub_kani: Kani,
+    emit_event: Callable[[JSONObject], Awaitable[None]],
     task: str,
     round_prompt: str,
-) -> tuple[str | None, list[dict[str, Any]], list[str]]:
+) -> tuple[str | None, JSONArray, list[str]]:
     """Run a sub-kani round and collect created steps + error strings."""
     response_text: str | None = None
-    created_steps: list[dict[str, Any]] = []
+    created_steps: JSONArray = []
     errors: list[str] = []
 
     async for message in sub_kani.full_round(round_prompt):
@@ -70,45 +78,69 @@ async def consume_subkani_round(
 def format_dependency_context(
     *,
     task_id: str,
-    tasks_by_id: dict[str, dict[str, Any]],
-    results_by_id: dict[str, dict[str, Any]],
+    tasks_by_id: dict[str, JSONObject],
+    results_by_id: dict[str, JSONObject],
 ) -> str | None:
     """Format dependency context for a subtask prompt."""
-    deps = (tasks_by_id.get(task_id) or {}).get("depends_on") or []
+    task_obj = tasks_by_id.get(task_id)
+    if not isinstance(task_obj, dict):
+        return None
+    task_dict = as_json_object(task_obj)
+    deps_value = task_dict.get("depends_on")
+    if not isinstance(deps_value, list):
+        return None
+    deps = as_json_array(deps_value)
     if not deps:
         return None
 
     lines: list[str] = []
-    structured_steps: list[dict[str, Any]] = []
+    structured_steps: JSONArray = []
 
-    for dep_id in deps:
-        dep_node = tasks_by_id.get(dep_id) or {}
-        dep_task = dep_node.get("task", dep_id)
+    for dep_id_value in deps:
+        if not isinstance(dep_id_value, str):
+            continue
+        dep_id = dep_id_value
+        dep_node_value = tasks_by_id.get(dep_id)
+        if not isinstance(dep_node_value, dict):
+            dep_node: JSONObject = {}
+        else:
+            dep_node = as_json_object(dep_node_value)
+        dep_task_value = dep_node.get("task", dep_id)
+        dep_task = str(dep_task_value) if dep_task_value is not None else dep_id
         dep_hint = dep_node.get("hint")
-        dep_result = results_by_id.get(dep_id)
+        dep_result_value = results_by_id.get(dep_id)
         dep_steps: list[str] = []
 
-        if isinstance(dep_result, dict):
-            for step in dep_result.get("steps") or []:
-                if not isinstance(step, dict):
-                    continue
-                step_id = step.get("stepId") or step.get("id")
-                name = (
-                    step.get("displayName")
-                    or step.get("display_name")
-                    or step.get("searchName")
-                    or step.get("transformName")
-                )
-                if step_id and name:
-                    dep_steps.append(f"{step_id} ({name})")
-                elif step_id:
-                    dep_steps.append(str(step_id))
-                if step_id:
-                    structured_steps.append(step)
+        if isinstance(dep_result_value, dict):
+            dep_result = as_json_object(dep_result_value)
+            steps_value = dep_result.get("steps")
+            if isinstance(steps_value, list):
+                steps = as_json_array(steps_value)
+                for step_value in steps:
+                    if not isinstance(step_value, dict):
+                        continue
+                    step = as_json_object(step_value)
+                    step_id_value = step.get("stepId") or step.get("id")
+                    step_id = str(step_id_value) if step_id_value is not None else None
+                    name_value = (
+                        step.get("displayName")
+                        or step.get("display_name")
+                        or step.get("searchName")
+                        or step.get("transformName")
+                    )
+                    name = str(name_value) if name_value is not None else None
+                    if step_id and name:
+                        dep_steps.append(f"{step_id} ({name})")
+                    elif step_id:
+                        dep_steps.append(str(step_id))
+                    if step_id:
+                        structured_steps.append(step)
 
         hint_suffix = f" (hint: {dep_hint})" if dep_hint else ""
         if dep_steps:
-            lines.append(f"- {dep_id}: {dep_task}{hint_suffix} → {', '.join(dep_steps)}")
+            lines.append(
+                f"- {dep_id}: {dep_task}{hint_suffix} → {', '.join(dep_steps)}"
+            )
         else:
             lines.append(f"- {dep_id}: {dep_task}{hint_suffix} → no steps created")
 
@@ -119,7 +151,7 @@ def format_dependency_context(
     return "\n".join(lines) if lines else None
 
 
-def format_task_context(context: Any) -> str | None:
+def format_task_context(context: JSONValue) -> str | None:
     """Format optional per-task context for a subtask prompt."""
     if context is None:
         return None
@@ -133,7 +165,7 @@ def format_task_context(context: Any) -> str | None:
         return str(context).strip() or None
 
 
-def extract_primary_step_id(result: dict[str, Any] | None) -> str | None:
+def extract_primary_step_id(result: JSONObject | None) -> str | None:
     """Pick the most relevant created step id from a subtask result."""
     if not isinstance(result, dict):
         return None
@@ -147,4 +179,3 @@ def extract_primary_step_id(result: dict[str, Any] | None) -> str | None:
         if step_id:
             return str(step_id)
     return None
-

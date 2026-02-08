@@ -25,7 +25,8 @@ export function MessageComposer({
   // Allow external prefill (e.g. from planning mode "Build in executor").
   useEffect(() => {
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string; mode?: ChatMode }>).detail;
+      const detail = (event as CustomEvent<{ message?: string; mode?: ChatMode }>)
+        .detail;
       if (!detail || typeof detail.message !== "string") return;
       if (detail.mode && detail.mode !== mode) return;
       setMessage(detail.message);
@@ -61,13 +62,18 @@ export function MessageComposer({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2">
+    <form
+      onSubmit={handleSubmit}
+      className="flex items-end gap-2"
+      data-testid="message-composer"
+    >
       <textarea
         ref={textareaRef}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
+        data-testid="message-input"
         placeholder={
           mode === "plan"
             ? "Plan a strategy: goals, constraints, and evidence to include..."
@@ -80,6 +86,7 @@ export function MessageComposer({
         <button
           type="button"
           onClick={onStop}
+          data-testid="stop-button"
           className="shrink-0 rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition-colors hover:bg-slate-50"
           aria-label="Stop"
           title="Stop"
@@ -90,6 +97,7 @@ export function MessageComposer({
         <button
           type="submit"
           disabled={disabled || !message.trim()}
+          data-testid="send-button"
           className="shrink-0 rounded-md border border-slate-200 bg-slate-900 p-2 text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Send"
           title="Send"
@@ -109,4 +117,3 @@ export function MessageComposer({
     </form>
   );
 }
-

@@ -6,22 +6,24 @@ call `start_chat_stream` and remain thin.
 
 from __future__ import annotations
 
+import asyncio
+import os
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
-from uuid import UUID
+from datetime import UTC, datetime
+from typing import cast
+from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole
 
-from veupath_chatbot.ai.agent_factory import create_agent
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.security import create_user_token
+from veupath_chatbot.ai.agent_factory import ChatMode, create_agent
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
     StrategyRepository,
     UserRepository,
 )
-from veupath_chatbot.transport.http.streaming import stream_chat
-
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.security import create_user_token
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.bootstrap import (
     append_user_message,
     build_chat_history,
@@ -29,11 +31,64 @@ from veupath_chatbot.services.chat.bootstrap import (
     ensure_strategy,
     ensure_user,
 )
-from veupath_chatbot.services.chat.processor import ChatStreamProcessor
 from veupath_chatbot.services.chat.plan_processor import PlanStreamProcessor
+from veupath_chatbot.services.chat.processor import ChatStreamProcessor
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
+from veupath_chatbot.transport.http.streaming import stream_chat
 
 logger = get_logger(__name__)
+
+
+def _use_mock_chat_provider() -> bool:
+    return (os.environ.get("PATHFINDER_CHAT_PROVIDER") or "").strip().lower() == "mock"
+
+
+async def _mock_stream_chat(*, mode: str, message: str) -> AsyncIterator[JSONObject]:
+    """
+    Deterministic, offline-friendly stream that matches the semantic event contract
+    produced by `stream_chat()`.
+
+    This is intended for tests/E2E runs; it should never require external services.
+    """
+    deltas = [
+        f"[mock:{mode}] ",
+        "I received your message: ",
+        message,
+    ]
+    message_id = str(uuid4())
+    for d in deltas:
+        if "slow" in message.lower():
+            await asyncio.sleep(0.2)
+        yield {"type": "assistant_delta", "data": {"messageId": message_id, "delta": d}}
+    yield {
+        "type": "assistant_message",
+        "data": {"messageId": message_id, "content": "".join(deltas)},
+    }
+
+    if mode == "plan":
+        # Emit one minimal planning artifact so UI can exercise Plan→Execute flows.
+        yield {
+            "type": "planning_artifact",
+            "data": {
+                "planningArtifact": {
+                    "id": "mock_artifact",
+                    "title": "Mock planning artifact",
+                    "kind": "note",
+                    "content": "This is a deterministic artifact emitted by the mock provider.",
+                }
+            },
+        }
+        if "executor" in message.lower() or "build" in message.lower():
+            yield {
+                "type": "executor_build_request",
+                "data": {
+                    "executorBuildRequest": {
+                        "message": "Build a minimal strategy for the user's goal.",
+                    }
+                },
+            }
+
+    yield {"type": "message_end", "data": {}}
 
 
 async def start_chat_stream(
@@ -62,12 +117,14 @@ async def start_chat_stream(
             await plan_repo.get_by_id(plan_session_id) if plan_session_id else None
         )
         if plan_session is None:
-            plan_session = await plan_repo.create(user_id=user_id, site_id=site_id, title="Plan")
+            plan_session = await plan_repo.create(
+                user_id=user_id, site_id=site_id, title="Plan"
+            )
 
-        user_message = {
+        user_message: JSONObject = {
             "role": "user",
             "content": message,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         await plan_repo.add_message(plan_session.id, user_message)
         await plan_repo.clear_thinking(plan_session.id)
@@ -78,25 +135,30 @@ async def start_chat_stream(
 
         await plan_repo.refresh(plan_session)
         history: list[ChatMessage] = []
-        for msg in plan_session.messages or []:
-            role = msg.get("role")
-            content = msg.get("content")
-            if not content:
+        for msg_value in plan_session.messages or []:
+            if not isinstance(msg_value, dict):
                 continue
-            if role == "user":
+            msg = msg_value
+            role_raw = msg.get("role")
+            content_raw = msg.get("content")
+            if not content_raw or not isinstance(content_raw, str):
+                continue
+            content = content_raw
+            if role_raw == "user":
                 _, cleaned = parse_selected_nodes(content)
                 history.append(ChatMessage(role=ChatRole.USER, content=cleaned))
-            elif role == "assistant":
+            elif role_raw == "assistant":
                 history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
 
-        async def _get_plan_artifacts() -> list[dict]:
+        async def _get_plan_artifacts() -> JSONArray:
             ps = await plan_repo.get_by_id(plan_session.id)
-            return (ps.planning_artifacts or []) if ps else []
+            artifacts = (ps.planning_artifacts or []) if ps else []
+            return artifacts
 
         # Provide the latest saved delegation draft (if any) directly in the planner's
         # system prompt so the model doesn't need to "remember" via extra tool calls.
-        delegation_draft_artifact: dict | None = None
-        for a in (plan_session.planning_artifacts or []):
+        delegation_draft_artifact: JSONObject | None = None
+        for a in plan_session.planning_artifacts or []:
             if isinstance(a, dict) and a.get("id") == "delegation_draft":
                 delegation_draft_artifact = a
                 break
@@ -113,7 +175,7 @@ async def start_chat_stream(
             mode="plan",
         )
 
-        plan_payload = {
+        plan_payload: JSONObject = {
             "id": str(plan_session.id),
             "siteId": plan_session.site_id,
             "title": plan_session.title,
@@ -130,9 +192,23 @@ async def start_chat_stream(
             )
             try:
                 yield processor.start_event()
-                async for event in stream_chat(agent, model_message):
-                    event_type = event.get("type", "")
-                    event_data = event.get("data", {}) or {}
+                stream_iter = (
+                    _mock_stream_chat(mode=mode, message=model_message)
+                    if _use_mock_chat_provider()
+                    else stream_chat(agent, model_message)
+                )
+                async for event_value in stream_iter:
+                    if not isinstance(event_value, dict):
+                        continue
+                    event = event_value
+                    event_type_raw = event.get("type", "")
+                    event_type = (
+                        event_type_raw if isinstance(event_type_raw, str) else ""
+                    )
+                    event_data_raw = event.get("data")
+                    event_data = (
+                        event_data_raw if isinstance(event_data_raw, dict) else {}
+                    )
                     sse_line = await processor.on_event(event_type, event_data)
                     if sse_line:
                         yield sse_line
@@ -159,12 +235,12 @@ async def start_chat_stream(
 
     # Provide both canonical plan and snapshot-derived steps so the agent can rehydrate
     # even when plan persistence failed (steps/rootStepId fallback).
-    strategy_graph_payload = {
-        "id": strategy.id,
+    strategy_graph_payload: JSONObject = {
+        "id": str(strategy.id),
         "name": strategy.name,
         "plan": strategy.plan,
         "steps": strategy.steps,
-        "rootStepId": strategy.root_step_id,
+        "rootStepId": str(strategy.root_step_id) if strategy.root_step_id else None,
         "recordType": strategy.record_type,
     }
 
@@ -174,7 +250,7 @@ async def start_chat_stream(
         chat_history=history,
         strategy_graph=strategy_graph_payload,
         selected_nodes=selected_nodes,
-        mode=mode,
+        mode=cast(ChatMode, mode),
     )
 
     async def event_generator() -> AsyncIterator[str]:
@@ -190,9 +266,19 @@ async def start_chat_stream(
         try:
             yield processor.start_event()
 
-            async for event in stream_chat(agent, model_message):
-                event_type = event.get("type", "")
-                event_data = event.get("data", {}) or {}
+            stream_iter = (
+                _mock_stream_chat(mode=mode, message=model_message)
+                if _use_mock_chat_provider()
+                else stream_chat(agent, model_message)
+            )
+            async for event_value in stream_iter:
+                if not isinstance(event_value, dict):
+                    continue
+                event = event_value
+                event_type_raw = event.get("type", "")
+                event_type = event_type_raw if isinstance(event_type_raw, str) else ""
+                event_data_raw = event.get("data")
+                event_data = event_data_raw if isinstance(event_data_raw, dict) else {}
                 sse_line = await processor.on_event(event_type, event_data)
                 if sse_line:
                     yield sse_line
@@ -203,4 +289,3 @@ async def start_chat_stream(
             yield await processor.handle_exception(e)
 
     return auth_token, event_generator()
-

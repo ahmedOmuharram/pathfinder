@@ -16,4 +16,3 @@ site_id_ctx: ContextVar[str | None] = ContextVar("site_id", default=None)
 veupathdb_auth_token_ctx: ContextVar[str | None] = ContextVar(
     "veupathdb_auth_token", default=None
 )
-

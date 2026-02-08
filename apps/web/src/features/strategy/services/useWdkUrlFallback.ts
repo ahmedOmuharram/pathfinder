@@ -51,4 +51,3 @@ export function useWdkUrlFallback(args: {
 
   return fallback;
 }
-

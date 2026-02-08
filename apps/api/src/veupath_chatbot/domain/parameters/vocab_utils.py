@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 
 def normalize_vocab_key(value: str) -> str:
@@ -11,22 +12,31 @@ def normalize_vocab_key(value: str) -> str:
 
 
 def flatten_vocab(
-    vocabulary: dict[str, Any] | list[Any], prefer_term: bool = False
+    vocabulary: JSONObject | JSONArray, prefer_term: bool = False
 ) -> list[dict[str, str | None]]:
     entries: list[dict[str, str | None]] = []
 
-    def choose_value(data: dict[str, Any]) -> str | None:
+    def choose_value(data: JSONObject) -> str | None:
+        term_raw = data.get("term")
+        value_raw = data.get("value")
+        term = term_raw if isinstance(term_raw, str) else None
+        value = value_raw if isinstance(value_raw, str) else None
         if prefer_term:
-            return data.get("term") or data.get("value")
-        return data.get("value") or data.get("term")
+            return term or value
+        return value or term
 
-    def walk(node: dict[str, Any]) -> None:
-        data = node.get("data", {})
-        display = data.get("display")
+    def walk(node: JSONObject) -> None:
+        data_raw = node.get("data", {})
+        data = data_raw if isinstance(data_raw, dict) else {}
+        display_raw = data.get("display")
+        display = display_raw if isinstance(display_raw, str) else None
         raw_value = choose_value(data)
         entries.append({"display": display, "value": raw_value})
-        for child in node.get("children", []) or []:
-            walk(child)
+        children_raw = node.get("children", [])
+        children = children_raw if isinstance(children_raw, list) else []
+        for child in children:
+            if isinstance(child, dict):
+                walk(child)
 
     if isinstance(vocabulary, dict) and vocabulary:
         walk(vocabulary)
@@ -34,13 +44,15 @@ def flatten_vocab(
         for item in vocabulary:
             if isinstance(item, list) and item:
                 value = str(item[0])
-                display = str(item[1]) if len(item) > 1 else value
-                entries.append({"display": display, "value": value})
+                display_from_list = str(item[1]) if len(item) > 1 else value
+                entries.append({"display": display_from_list, "value": value})
             elif isinstance(item, dict):
-                display = item.get("display")
+                display_raw = item.get("display")
+                display_from_dict = (
+                    display_raw if isinstance(display_raw, str) else None
+                )
                 raw_value = choose_value(item)
-                entries.append({"display": display, "value": raw_value})
+                entries.append({"display": display_from_dict, "value": raw_value})
             else:
                 entries.append({"display": str(item), "value": str(item)})
     return entries
-

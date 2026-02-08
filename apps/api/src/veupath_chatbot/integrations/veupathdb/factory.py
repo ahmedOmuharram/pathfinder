@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     get_discovery_service,
@@ -11,13 +12,13 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
 
 
-def get_wdk_client(site_id: str):
+def get_wdk_client(site_id: str) -> VEuPathDBClient:
     """Get a raw WDK client for a site."""
     router = get_site_router()
     return router.get_client(site_id)
 
 
-def get_site(site_id: str):
+def get_site(site_id: str) -> SiteInfo:
     """Get site metadata by ID."""
     router = get_site_router()
     return router.get_site(site_id)
@@ -37,7 +38,7 @@ __all__ = [
 ]
 
 
-def list_sites():
+def list_sites() -> list[SiteInfo]:
     """List all known sites."""
     router = get_site_router()
     return router.list_sites()

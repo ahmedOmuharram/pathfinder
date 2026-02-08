@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from veupath_chatbot.domain.strategy.ast import from_dict
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategy_session import (
     StrategyGraph,
     StrategySession,
@@ -18,24 +17,34 @@ logger = get_logger(__name__)
 def build_strategy_session(
     *,
     site_id: str,
-    strategy_graph: dict | None,
+    strategy_graph: JSONObject | None,
 ) -> StrategySession:
     """Build a StrategySession from a persisted strategy graph payload.
 
     This mirrors UI persistence semantics:
     - Prefer canonical `plan` if present/parseable.
-    - Fall back to snapshot-derived `steps` + `rootStepId` hydration when plan is missing/invalid.
+    - Fall back to snapshot-derived `steps` + `rootStepId` hydration when
+      plan is missing/invalid.
     """
 
     session = StrategySession(site_id)
 
     if strategy_graph:
-        graph_id = str(strategy_graph.get("id") or strategy_graph.get("graphId"))
-        name = strategy_graph.get("name") or "Draft Strategy"
+        id_value = strategy_graph.get("id")
+        graph_id_value = strategy_graph.get("graphId")
+        graph_id_str: str | None = None
+        if isinstance(id_value, str):
+            graph_id_str = id_value
+        elif isinstance(graph_id_value, str):
+            graph_id_str = graph_id_value
+        graph_id = graph_id_str or "unknown"
+
+        name_value = strategy_graph.get("name")
+        name = str(name_value) if isinstance(name_value, str) else "Draft Strategy"
         plan = strategy_graph.get("plan")
 
         graph = StrategyGraph(graph_id, name, site_id)
-        if plan:
+        if plan and isinstance(plan, dict):
             try:
                 strategy = from_dict(plan)
                 graph.current_strategy = strategy
@@ -50,21 +59,31 @@ def build_strategy_session(
                     graph_id=graph_id,
                 )
 
-        # If plan wasn't available/valid, fall back to persisted steps/rootStepId hydration.
+        # If plan wasn't available/valid, fall back to persisted steps/
+        # rootStepId hydration.
         if not graph.steps:
-            steps_data = strategy_graph.get("steps") or []
-            root_step_id = strategy_graph.get("rootStepId") or strategy_graph.get(
-                "root_step_id"
-            )
-            record_type = strategy_graph.get("recordType") or strategy_graph.get(
-                "record_type"
-            )
+            steps_data_value = strategy_graph.get("steps")
+            steps_data = steps_data_value if isinstance(steps_data_value, list) else []
+            root_step_id_value = strategy_graph.get("rootStepId")
+            root_step_id_alt = strategy_graph.get("root_step_id")
+            root_step_id: str | None = None
+            if isinstance(root_step_id_value, str):
+                root_step_id = root_step_id_value
+            elif isinstance(root_step_id_alt, str):
+                root_step_id = root_step_id_alt
+            record_type_value = strategy_graph.get("recordType")
+            record_type_alt = strategy_graph.get("record_type")
+            record_type: str | None = None
+            if isinstance(record_type_value, str):
+                record_type = record_type_value
+            elif isinstance(record_type_alt, str):
+                record_type = record_type_alt
             try:
                 hydrate_graph_from_steps_data(
                     graph,
-                    steps_data if isinstance(steps_data, list) else [],
-                    root_step_id=str(root_step_id) if root_step_id else None,
-                    record_type=str(record_type) if record_type else None,
+                    steps_data,
+                    root_step_id=root_step_id,
+                    record_type=record_type,
                 )
                 if graph.steps:
                     graph.save_history(f"Loaded graph from persisted steps: {name}")
@@ -81,4 +100,3 @@ def build_strategy_session(
         session.create_graph("Draft Strategy")
 
     return session
-

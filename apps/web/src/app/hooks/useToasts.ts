@@ -32,7 +32,7 @@ export function useToasts(durationMs: number = DEFAULT_DURATION_MS) {
       }, durationMs);
       timers.current.set(id, timerId);
     },
-    [durationMs, removeToast]
+    [durationMs, removeToast],
   );
 
   return {

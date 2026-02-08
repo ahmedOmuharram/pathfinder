@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+out
+coverage
+playwright-report
+pnpm-lock.yaml
+yarn.lock

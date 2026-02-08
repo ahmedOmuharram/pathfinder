@@ -10,7 +10,6 @@ They are intentionally **not** part of the pure domain layer:
 
 from __future__ import annotations
 
-from typing import Any
 from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
@@ -22,6 +21,12 @@ from veupath_chatbot.domain.strategy.ast import (
     from_dict,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_object,
+)
 
 Step = PlanStepNode
 
@@ -38,7 +43,7 @@ class StrategyGraph:
         self.record_type: str | None = None
         self.current_strategy: StrategyAST | None = None
         self.steps: dict[str, Step] = {}
-        self.history: list[dict[str, Any]] = []
+        self.history: list[JSONObject] = []
         self.last_step_id: str | None = None
 
     def add_step(self, step: Step) -> str:
@@ -67,7 +72,9 @@ class StrategyGraph:
             return False
         self.history.pop()  # remove current
         previous = self.history[-1]
-        self.current_strategy = from_dict(previous["strategy"])
+        strategy_value = previous.get("strategy")
+        if isinstance(strategy_value, dict):
+            self.current_strategy = from_dict(as_json_object(strategy_value))
         return True
 
 
@@ -106,7 +113,7 @@ class StrategySession:
 
 def hydrate_graph_from_steps_data(
     graph: StrategyGraph,
-    steps_data: list[dict[str, Any]] | None,
+    steps_data: JSONArray | None,
     *,
     root_step_id: str | None = None,
     record_type: str | None = None,
@@ -120,7 +127,7 @@ def hydrate_graph_from_steps_data(
     if not steps_data or not isinstance(steps_data, list):
         return
 
-    def _parse_filters(raw: Any) -> list[StepFilter]:
+    def _parse_filters(raw: JSONValue) -> list[StepFilter]:
         items = raw if isinstance(raw, list) else []
         filters: list[StepFilter] = []
         for item in items:
@@ -138,7 +145,7 @@ def hydrate_graph_from_steps_data(
             )
         return filters
 
-    def _parse_analyses(raw: Any) -> list[StepAnalysis]:
+    def _parse_analyses(raw: JSONValue) -> list[StepAnalysis]:
         items = raw if isinstance(raw, list) else []
         analyses: list[StepAnalysis] = []
         for item in items:
@@ -147,26 +154,42 @@ def hydrate_graph_from_steps_data(
             analysis_type = item.get("analysisType") or item.get("analysis_type")
             if not analysis_type:
                 continue
+            parameters_value = item.get("parameters")
+            parameters: JSONObject = (
+                as_json_object(parameters_value)
+                if isinstance(parameters_value, dict)
+                else {}
+            )
+            custom_name_value = item.get("customName") or item.get("custom_name")
+            custom_name: str | None = (
+                str(custom_name_value) if custom_name_value is not None else None
+            )
             analyses.append(
                 StepAnalysis(
                     analysis_type=str(analysis_type),
-                    parameters=item.get("parameters") or {},
-                    custom_name=item.get("customName") or item.get("custom_name"),
+                    parameters=parameters,
+                    custom_name=custom_name,
                 )
             )
         return analyses
 
-    def _parse_reports(raw: Any) -> list[StepReport]:
+    def _parse_reports(raw: JSONValue) -> list[StepReport]:
         items = raw if isinstance(raw, list) else []
         reports: list[StepReport] = []
         for item in items:
             if not isinstance(item, dict):
                 continue
-            report_name = item.get("reportName") or item.get("report_name") or "standard"
+            report_name = (
+                item.get("reportName") or item.get("report_name") or "standard"
+            )
+            config_value = item.get("config")
+            config: JSONObject = (
+                as_json_object(config_value) if isinstance(config_value, dict) else {}
+            )
             reports.append(
                 StepReport(
                     report_name=str(report_name),
-                    config=item.get("config") or {},
+                    config=config,
                 )
             )
         return reports
@@ -188,7 +211,10 @@ def hydrate_graph_from_steps_data(
         if not isinstance(search_name, str) or not search_name:
             search_name = "__combine__" if kind == "combine" else "__unknown__"
 
-        parameters = step.get("parameters") if isinstance(step.get("parameters"), dict) else {}
+        parameters_raw = step.get("parameters")
+        parameters: JSONObject = (
+            parameters_raw if isinstance(parameters_raw, dict) else {}
+        )
         display_name = step.get("displayName")
         if not isinstance(display_name, str) or not display_name.strip():
             display_name = search_name
@@ -213,10 +239,31 @@ def hydrate_graph_from_steps_data(
 
         cp_raw = step.get("colocationParams")
         if isinstance(cp_raw, dict):
+            cp_dict = as_json_object(cp_raw)
+            upstream_value = cp_dict.get("upstream", 0)
+            downstream_value = cp_dict.get("downstream", 0)
+            strand_value = cp_dict.get("strand", "both")
+            upstream = (
+                int(upstream_value) if isinstance(upstream_value, (int, float)) else 0
+            )
+            downstream = (
+                int(downstream_value)
+                if isinstance(downstream_value, (int, float))
+                else 0
+            )
+            strand_str = str(strand_value) if strand_value is not None else "both"
+            from typing import Literal
+
+            if strand_str == "same":
+                strand: Literal["same", "opposite", "both"] = "same"
+            elif strand_str == "opposite":
+                strand = "opposite"
+            else:
+                strand = "both"
             node.colocation_params = ColocationParams(
-                upstream=cp_raw.get("upstream", 0),
-                downstream=cp_raw.get("downstream", 0),
-                strand=cp_raw.get("strand", "both"),
+                upstream=upstream,
+                downstream=downstream,
+                strand=strand,
             )
 
         nodes[step_id] = node
@@ -228,15 +275,19 @@ def hydrate_graph_from_steps_data(
         step_id = step.get("id")
         if step_id is None:
             continue
-        node = nodes.get(str(step_id))
-        if not node:
+        current_node: PlanStepNode | None = nodes.get(str(step_id))
+        if current_node is None:
             continue
         primary_id = step.get("primaryInputStepId")
         secondary_id = step.get("secondaryInputStepId")
         if primary_id is not None:
-            node.primary_input = nodes.get(str(primary_id))
+            primary_node = nodes.get(str(primary_id))
+            if primary_node is not None:
+                current_node.primary_input = primary_node
         if secondary_id is not None:
-            node.secondary_input = nodes.get(str(secondary_id))
+            secondary_node = nodes.get(str(secondary_id))
+            if secondary_node is not None:
+                current_node.secondary_input = secondary_node
 
     # Attach hydrated nodes to the graph (don't blow away any already-loaded plan steps).
     if not graph.steps:
@@ -266,10 +317,9 @@ def hydrate_graph_from_steps_data(
                 referenced.add(primary)
             if isinstance(secondary, str) and secondary:
                 referenced.add(secondary)
-        roots = [sid for sid in graph.steps.keys() if sid not in referenced]
+        roots = [sid for sid in graph.steps if sid not in referenced]
         if len(roots) == 1:
             graph.last_step_id = roots[0]
         elif not graph.last_step_id and roots:
             # Prefer the last root if multiple exist.
             graph.last_step_id = roots[-1]
-

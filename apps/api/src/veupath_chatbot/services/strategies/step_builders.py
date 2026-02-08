@@ -4,16 +4,17 @@ These functions are used to build the persisted step list from a Strategy AST.
 They intentionally do not depend on HTTP DTOs.
 """
 
-from typing import Any
+from veupath_chatbot.domain.strategy.ast import StrategyAST
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 
-
-def _extract_input_ids(step_dict: dict[str, Any]) -> tuple[str | None, str | None]:
+def _extract_input_ids(step_dict: JSONObject) -> tuple[str | None, str | None]:
     primary = step_dict.get("primaryInput") or {}
     secondary = step_dict.get("secondaryInput") or {}
-    primary_id = primary.get("id") if isinstance(primary, dict) else None
-    secondary_id = secondary.get("id") if isinstance(secondary, dict) else None
+    primary_id_raw = primary.get("id") if isinstance(primary, dict) else None
+    secondary_id_raw = secondary.get("id") if isinstance(secondary, dict) else None
+    primary_id = str(primary_id_raw) if primary_id_raw is not None else None
+    secondary_id = str(secondary_id_raw) if secondary_id_raw is not None else None
     if primary_id and secondary_id:
         return primary_id, secondary_id
     if primary_id:
@@ -21,22 +22,10 @@ def _extract_input_ids(step_dict: dict[str, Any]) -> tuple[str | None, str | Non
     return None, None
 
 
-def _step_identity_key(step: dict[str, Any]) -> tuple[str, str, str, str, str]:
-    return (
-        str(step.get("kind") or ""),
-        str(step.get("searchName") or ""),
-        "",
-        str(step.get("displayName") or ""),
-        str(step.get("operator") or ""),
-    )
-
-
 def build_steps_data_from_ast(
     strategy_ast: StrategyAST,
-    *,
-    search_name_fallback_to_transform: bool = False,  # kept for API compatibility; no-op now
-) -> list[dict[str, Any]]:
-    steps_data: list[dict[str, Any]] = []
+) -> JSONArray:
+    steps_data: JSONArray = []
     for step in strategy_ast.get_all_steps():
         step_dict = step.to_dict()
         primary_input_id, secondary_input_id = _extract_input_ids(step_dict)
@@ -68,4 +57,3 @@ def build_steps_data_from_ast(
             }
         )
     return steps_data
-

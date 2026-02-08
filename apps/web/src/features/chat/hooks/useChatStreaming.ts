@@ -1,5 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import type { Message, ToolCall, ChatMode, Citation, PlanningArtifact } from "@pathfinder/shared";
+import type {
+  Message,
+  ToolCall,
+  ChatMode,
+  Citation,
+  PlanningArtifact,
+} from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { streamChat } from "@/features/chat/stream";
 import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
@@ -43,7 +49,7 @@ interface UseChatStreamingArgs {
   currentStrategy: StrategyWithMeta | null;
   attachThinkingToLastAssistant: (
     calls: ToolCall[],
-    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> }
+    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
   ) => void;
   mode?: ChatMode;
 }
@@ -151,7 +157,7 @@ export function useChatStreaming({
                 streamingAssistantIndexRef,
                 streamingAssistantMessageIdRef,
               },
-              event
+              event,
             );
           },
 
@@ -162,7 +168,7 @@ export function useChatStreaming({
             const subKaniActivity = thinking.snapshotSubKaniActivity();
             attachThinkingToLastAssistant(
               toolCalls.length > 0 ? [...toolCalls] : [],
-              subKaniActivity
+              subKaniActivity,
             );
             if (strategyId && !appliedSnapshotRef.current) {
               getStrategy(strategyId)
@@ -188,7 +194,7 @@ export function useChatStreaming({
         },
         { strategyId: strategyId ?? undefined },
         mode,
-        controller.signal
+        controller.signal,
       );
     },
     [
@@ -219,7 +225,7 @@ export function useChatStreaming({
       getStrategy,
       attachThinkingToLastAssistant,
       mode,
-    ]
+    ],
   );
 
   return { handleSendMessage, stopStreaming, isStreaming, apiError, setIsStreaming };

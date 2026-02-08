@@ -116,10 +116,18 @@ body {
 
 @keyframes warning-dash {
   0% {
-    background-position: 0 0, 100% 0, 0 100%, 0 0;
+    background-position:
+      0 0,
+      100% 0,
+      0 100%,
+      0 0;
   }
   100% {
-    background-position: 24px 0, 100% 24px, -24px 100%, 0 -24px;
+    background-position:
+      24px 0,
+      100% 24px,
+      -24px 100%,
+      0 -24px;
   }
 }
 
@@ -303,4 +311,3 @@ body {
 .markdown-content ol ol ol {
   list-style-type: lower-roman;
 }
-

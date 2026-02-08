@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from typing import Any
 
 import structlog
 from structlog.types import EventDict, Processor
@@ -11,7 +10,7 @@ from veupath_chatbot.platform.config import get_settings
 
 
 def add_request_id(
-    logger: logging.Logger, method_name: str, event_dict: EventDict
+    logger: logging.Logger, _method_name: str, event_dict: EventDict
 ) -> EventDict:
     """Add request ID to log entries if available."""
     from veupath_chatbot.platform.context import request_id_ctx
@@ -76,7 +75,10 @@ def setup_logging() -> None:
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 
-def get_logger(name: str) -> Any:
+def get_logger(name: str) -> structlog.BoundLogger:
     """Get a structlog logger."""
-    return structlog.get_logger(name)
+    from typing import cast
 
+    logger = structlog.get_logger(name)
+    # structlog.get_logger returns a BoundLogger after configuration
+    return cast(structlog.BoundLogger, logger)

@@ -21,10 +21,38 @@ interface SitePickerProps {
 }
 
 const FALLBACK_SITES: Site[] = [
-  { id: "plasmodb", name: "PlasmoDB", displayName: "PlasmoDB", baseUrl: "https://plasmodb.org", projectId: "PlasmoDB", isPortal: false },
-  { id: "toxodb", name: "ToxoDB", displayName: "ToxoDB", baseUrl: "https://toxodb.org", projectId: "ToxoDB", isPortal: false },
-  { id: "cryptodb", name: "CryptoDB", displayName: "CryptoDB", baseUrl: "https://cryptodb.org", projectId: "CryptoDB", isPortal: false },
-  { id: "veupathdb", name: "VEuPathDB", displayName: "VEuPathDB Portal", baseUrl: "https://veupathdb.org", projectId: "EuPathDB", isPortal: true },
+  {
+    id: "plasmodb",
+    name: "PlasmoDB",
+    displayName: "PlasmoDB",
+    baseUrl: "https://plasmodb.org",
+    projectId: "PlasmoDB",
+    isPortal: false,
+  },
+  {
+    id: "toxodb",
+    name: "ToxoDB",
+    displayName: "ToxoDB",
+    baseUrl: "https://toxodb.org",
+    projectId: "ToxoDB",
+    isPortal: false,
+  },
+  {
+    id: "cryptodb",
+    name: "CryptoDB",
+    displayName: "CryptoDB",
+    baseUrl: "https://cryptodb.org",
+    projectId: "CryptoDB",
+    isPortal: false,
+  },
+  {
+    id: "veupathdb",
+    name: "VEuPathDB",
+    displayName: "VEuPathDB Portal",
+    baseUrl: "https://veupathdb.org",
+    projectId: "EuPathDB",
+    isPortal: true,
+  },
 ];
 
 export function SitePicker({
@@ -71,7 +99,7 @@ export function SitePicker({
         setVeupathdbAuth(false, null);
       })
       .finally(() => undefined);
-  }, [value]);
+  }, [value, setVeupathdbAuth]);
 
   const selectedSite = sites.find((s) => s.id === value);
   const visitUrl = selectedSite?.baseUrl
@@ -86,16 +114,18 @@ export function SitePicker({
 
   useEffect(() => {
     if (selectedSite) {
-      setSelectedSiteInfo(selectedSite.id, selectedSite.displayName || selectedSite.name);
+      setSelectedSiteInfo(
+        selectedSite.id,
+        selectedSite.displayName || selectedSite.name,
+      );
     }
   }, [selectedSite, setSelectedSiteInfo]);
 
   return (
     <div
+      data-testid="site-picker"
       className={
-        layout === "stacked"
-          ? "flex w-full flex-col gap-2"
-          : "flex items-center gap-3"
+        layout === "stacked" ? "flex w-full flex-col gap-2" : "flex items-center gap-3"
       }
     >
       {showSelect && (
@@ -105,9 +135,7 @@ export function SitePicker({
           </label>
           <div
             className={
-              layout === "stacked"
-                ? "relative w-full overflow-hidden"
-                : "relative"
+              layout === "stacked" ? "relative w-full overflow-hidden" : "relative"
             }
           >
             <select
@@ -118,12 +146,13 @@ export function SitePicker({
                 if (nextSite) {
                   setSelectedSiteInfo(
                     nextSite.id,
-                    nextSite.displayName || nextSite.name
+                    nextSite.displayName || nextSite.name,
                   );
                 }
                 onChange(nextId);
               }}
               disabled={loading}
+              data-testid="site-select"
               className={`appearance-none rounded-md border border-slate-200 bg-white pr-8 text-slate-800 transition-colors hover:border-slate-300 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 ${
                 layout === "stacked"
                   ? "w-full px-2 py-1.5 text-[12px] truncate"
@@ -295,13 +324,12 @@ export function SitePicker({
                   className="h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 />
                 <p className="mt-2 text-xs text-slate-500">
-                  If you prefer not to login from the UI, you can provide the authentication token instead.
+                  If you prefer not to login from the UI, you can provide the
+                  authentication token instead.
                 </p>
               </div>
             )}
-            {authError && (
-              <div className="mt-3 text-xs text-red-600">{authError}</div>
-            )}
+            {authError && <div className="mt-3 text-xs text-red-600">{authError}</div>}
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -340,4 +368,3 @@ export function SitePicker({
     </div>
   );
 }
-

@@ -65,7 +65,8 @@ function renderVerbatimBlocks(content: string): string {
   // This avoids markdown list parsing and preserves whitespace/newlines.
   return (content || "").replace(
     /<verbatim>\s*([\s\S]*?)\s*<\/verbatim>/g,
-    (_m, inner) => `\n\n\`\`\`text\n${String(inner ?? "").replace(/\n{3,}/g, "\n\n")}\n\`\`\`\n\n`,
+    (_m, inner) =>
+      `\n\n\`\`\`text\n${String(inner ?? "").replace(/\n{3,}/g, "\n\n")}\n\`\`\`\n\n`,
   );
 }
 
@@ -109,11 +110,12 @@ export function ChatMarkdown({
       : "";
 
   return (
-    <div className={`markdown-content whitespace-normal ${toneClassName} ${className || ""}`}>
+    <div
+      className={`markdown-content whitespace-normal ${toneClassName} ${className || ""}`}
+    >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {renderInlineCitationsMarkdown(renderVerbatimBlocks(content), citations)}
       </ReactMarkdown>
     </div>
   );
 }
-

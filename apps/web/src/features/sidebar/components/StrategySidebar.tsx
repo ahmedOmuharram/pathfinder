@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createStrategy,
   deleteStrategy,
@@ -52,13 +52,12 @@ export function StrategySidebar({
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
   const setSelectedSite = useSessionStore((state) => state.setSelectedSite);
   const graphValidationStatus = useStrategyListStore(
-    (state) => state.graphValidationStatus
+    (state) => state.graphValidationStatus,
   );
   const addStrategy = useStrategyListStore((state) => state.addStrategy);
   const removeStrategy = useStrategyListStore((state) => state.removeStrategy);
   const draftStrategy = useStrategyStore((state) => state.strategy);
-  const canCreateNew =
-    !draftStrategy || (draftStrategy.steps?.length ?? 0) > 0;
+  const canCreateNew = !draftStrategy || (draftStrategy.steps?.length ?? 0) > 0;
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
   const setStrategy = useStrategyStore((state) => state.setStrategy);
   const clearStrategy = useStrategyStore((state) => state.clear);
@@ -95,7 +94,7 @@ export function StrategySidebar({
 
   const applyOpenResult = async (
     response: Awaited<ReturnType<typeof openStrategy>>,
-    source: "new" | "open"
+    source: "new" | "open",
   ) => {
     const nextId = response.strategyId;
     setStrategyId(nextId);
@@ -127,15 +126,11 @@ export function StrategySidebar({
     }
   };
 
-  const refreshStrategies = () => {
-    return Promise.allSettled([
-      listStrategies(siteId),
-      listWdkStrategies(siteId),
-    ])
+  const refreshStrategies = useCallback(() => {
+    return Promise.allSettled([listStrategies(siteId), listWdkStrategies(siteId)])
       .then(([localResult, remoteResult]) => {
         const local = localResult.status === "fulfilled" ? localResult.value : [];
-        const remote =
-          remoteResult.status === "fulfilled" ? remoteResult.value : [];
+        const remote = remoteResult.status === "fulfilled" ? remoteResult.value : [];
         const localItems: StrategyListItem[] = local.map((item) => ({
           id: item.id,
           name: item.name,
@@ -148,7 +143,7 @@ export function StrategySidebar({
         const localByWdkId = new Map(
           localItems
             .filter((item) => item.wdkStrategyId)
-            .map((item) => [item.wdkStrategyId, item])
+            .map((item) => [item.wdkStrategyId, item]),
         );
         const remoteItems: StrategyListItem[] = (remote || [])
           .filter((item) => item?.wdkStrategyId)
@@ -169,7 +164,7 @@ export function StrategySidebar({
         setStrategyItems([...localItems, ...remoteItems]);
       })
       .catch(() => {});
-  };
+  }, [siteId]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -182,12 +177,8 @@ export function StrategySidebar({
     return await getStrategy(item.id);
   };
 
-  const buildPlanFromStrategy = (
-    strategy: Awaited<ReturnType<typeof getStrategy>>
-  ) => {
-    const stepsById = Object.fromEntries(
-      strategy.steps.map((step) => [step.id, step])
-    );
+  const buildPlanFromStrategy = (strategy: Awaited<ReturnType<typeof getStrategy>>) => {
+    const stepsById = Object.fromEntries(strategy.steps.map((step) => [step.id, step]));
     const serialized = serializeStrategyPlan(stepsById, strategy);
     if (!serialized) {
       throw new Error("Failed to serialize strategy for duplication.");
@@ -198,7 +189,7 @@ export function StrategySidebar({
   const handleDuplicate = async (
     item: StrategyListItem,
     name: string,
-    description: string
+    description: string,
   ) => {
     const baseStrategy = await loadStrategyForDuplicate(item);
     const plan = buildPlanFromStrategy({
@@ -275,7 +266,7 @@ export function StrategySidebar({
     return () => {
       isActive = false;
     };
-  }, [siteId, draftStrategy?.id, draftStrategy?.updatedAt]);
+  }, [draftStrategy?.id, draftStrategy?.updatedAt, refreshStrategies]);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -333,9 +324,7 @@ export function StrategySidebar({
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() =>
-                  setFilter(item.id as "all" | "draft" | "synced")
-                }
+                onClick={() => setFilter(item.id as "all" | "draft" | "synced")}
                 className={`rounded-md border px-2 py-1 ${
                   filter === item.id
                     ? "border-slate-300 bg-slate-100 text-slate-700"
@@ -389,9 +378,7 @@ export function StrategySidebar({
                   className="flex flex-1 flex-col text-left"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-800">
-                      {s.name}
-                    </span>
+                    <span className="text-sm font-medium text-slate-800">{s.name}</span>
                     {graphValidationStatus[s.id] && (
                       <span
                         className="inline-flex h-2 w-2 rounded-full bg-red-500"
@@ -414,9 +401,7 @@ export function StrategySidebar({
                     </span>
                   )}
                   <span className="text-[10px] text-slate-500">
-                    {mounted
-                      ? new Date(s.updatedAt).toLocaleString()
-                      : s.updatedAt}
+                    {mounted ? new Date(s.updatedAt).toLocaleString() : s.updatedAt}
                   </span>
                 </button>
                 {null}
@@ -453,7 +438,7 @@ export function StrategySidebar({
                           description: strategy.description || "",
                           isLoading: false,
                         }
-                      : prev
+                      : prev,
                   );
                 })
                 .catch(() => {
@@ -464,7 +449,7 @@ export function StrategySidebar({
                           isLoading: false,
                           error: "Failed to load strategy for duplication.",
                         }
-                      : prev
+                      : prev,
                   );
                 });
             }}
@@ -524,9 +509,7 @@ export function StrategySidebar({
       {duplicateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
-            <h3 className="text-sm font-semibold text-slate-800">
-              Duplicate strategy
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-800">Duplicate strategy</h3>
             <div className="mt-3 space-y-2">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Name
@@ -535,7 +518,7 @@ export function StrategySidebar({
                 value={duplicateModal.name}
                 onChange={(event) =>
                   setDuplicateModal((prev) =>
-                    prev ? { ...prev, name: event.target.value } : prev
+                    prev ? { ...prev, name: event.target.value } : prev,
                   )
                 }
                 disabled={duplicateModal.isLoading}
@@ -548,7 +531,7 @@ export function StrategySidebar({
                 value={duplicateModal.description}
                 onChange={(event) =>
                   setDuplicateModal((prev) =>
-                    prev ? { ...prev, description: event.target.value } : prev
+                    prev ? { ...prev, description: event.target.value } : prev,
                   )
                 }
                 rows={3}
@@ -561,9 +544,7 @@ export function StrategySidebar({
                 </div>
               )}
               {duplicateModal.error && (
-                <div className="text-[11px] text-red-600">
-                  {duplicateModal.error}
-                </div>
+                <div className="text-[11px] text-red-600">{duplicateModal.error}</div>
               )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
@@ -580,21 +561,21 @@ export function StrategySidebar({
                   if (duplicateModal.isLoading) return;
                   if (!duplicateModal.name.trim()) {
                     setDuplicateModal((prev) =>
-                      prev ? { ...prev, error: "Name is required." } : prev
+                      prev ? { ...prev, error: "Name is required." } : prev,
                     );
                     return;
                   }
                   setDuplicateModal((prev) =>
-                    prev ? { ...prev, isSubmitting: true, error: null } : prev
+                    prev ? { ...prev, isSubmitting: true, error: null } : prev,
                   );
                   try {
                     await handleDuplicate(
                       duplicateModal.item,
                       duplicateModal.name.trim(),
-                      duplicateModal.description.trim()
+                      duplicateModal.description.trim(),
                     );
                     setDuplicateModal(null);
-                  } catch (error) {
+                  } catch {
                     setDuplicateModal((prev) =>
                       prev
                         ? {
@@ -602,7 +583,7 @@ export function StrategySidebar({
                             isSubmitting: false,
                             error: "Failed to duplicate strategy.",
                           }
-                        : prev
+                        : prev,
                     );
                   }
                 }}

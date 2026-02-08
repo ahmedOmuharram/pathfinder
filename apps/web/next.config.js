@@ -3,41 +3,41 @@ const path = require("path");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@pathfinder/shared'],
+  output: "standalone",
+  transpilePackages: ["@pathfinder/shared"],
   turbopack: {
     root: path.resolve(__dirname, "../.."),
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '2mb',
+      bodySizeLimit: "2mb",
     },
   },
   async rewrites() {
-    const apiBase =
-      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     return [
       {
-        source: '/api/:path*',
+        source: "/api/:path*",
         destination: `${apiBase}/api/:path*`,
       },
       {
-        source: '/docs',
+        source: "/docs",
         destination: `${apiBase}/docs`,
       },
       {
-        source: '/docs/:path*',
+        source: "/docs/:path*",
         destination: `${apiBase}/docs/:path*`,
       },
       {
-        source: '/redoc',
+        source: "/redoc",
         destination: `${apiBase}/redoc`,
       },
       {
-        source: '/redoc/:path*',
+        source: "/redoc/:path*",
         destination: `${apiBase}/redoc/:path*`,
       },
       {
-        source: '/openapi.json',
+        source: "/openapi.json",
         destination: `${apiBase}/openapi.json`,
       },
     ];
@@ -45,4 +45,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-

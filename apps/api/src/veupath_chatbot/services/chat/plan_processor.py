@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from uuid import UUID
 
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.persistence.models import PlanSession
 from veupath_chatbot.persistence.repo import PlanSessionRepository
-from veupath_chatbot.services.chat.sse import sse_event, sse_error, sse_message_start
-from veupath_chatbot.services.chat.thinking import build_thinking_payload, normalize_tool_calls
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.chat.sse import sse_error, sse_event, sse_message_start
+from veupath_chatbot.services.chat.thinking import (
+    build_thinking_payload,
+    normalize_tool_calls,
+)
 
 logger = get_logger(__name__)
 
@@ -25,7 +28,7 @@ class PlanStreamProcessor:
         user_id: UUID,
         plan_session: PlanSession,
         auth_token: str,
-        plan_payload: dict[str, Any],
+        plan_payload: JSONObject,
         mode: str = "plan",
     ) -> None:
         self.plan_repo = plan_repo
@@ -36,10 +39,10 @@ class PlanStreamProcessor:
         self.mode = mode
 
         self.assistant_messages: list[str] = []
-        self.tool_calls: list[dict[str, Any]] = []
-        self.tool_calls_by_id: dict[str, dict[str, Any]] = {}
-        self.citations: list[dict[str, Any]] = []
-        self.planning_artifacts: list[dict[str, Any]] = []
+        self.tool_calls: JSONArray = []
+        self.tool_calls_by_id: dict[str, JSONObject] = {}
+        self.citations: JSONArray = []
+        self.planning_artifacts: JSONArray = []
         self.reasoning: str | None = None
 
         self.thinking_dirty = False
@@ -54,21 +57,26 @@ class PlanStreamProcessor:
     async def _flush_thinking(self) -> None:
         if not self.thinking_dirty:
             return
-        payload = build_thinking_payload(self.tool_calls_by_id, {}, {}, reasoning=self.reasoning)
+        payload = build_thinking_payload(
+            self.tool_calls_by_id, {}, {}, reasoning=self.reasoning
+        )
         await self.plan_repo.update_thinking(self.plan_session.id, payload)
         self.thinking_dirty = False
 
-    async def on_event(self, event_type: str, event_data: dict[str, Any]) -> str | None:
+    async def on_event(self, event_type: str, event_data: JSONObject) -> str | None:
         if event_type == "message_start":
             return None
 
         if event_type == "assistant_message":
-            content = (event_data.get("content", "") or "").strip()
+            content_value = event_data.get("content", "")
+            content_str = str(content_value) if content_value is not None else ""
+            content = content_str.strip()
             if content:
                 self.assistant_messages.append(content)
 
         elif event_type == "tool_call_start":
-            call_id = event_data.get("id")
+            call_id_value = event_data.get("id")
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if call_id:
                 self.tool_calls_by_id[call_id] = {
                     "id": call_id,
@@ -79,7 +87,8 @@ class PlanStreamProcessor:
                 await self._flush_thinking()
 
         elif event_type == "tool_call_end":
-            call_id = event_data.get("id")
+            call_id_value = event_data.get("id")
+            call_id = str(call_id_value) if isinstance(call_id_value, str) else None
             if call_id and call_id in self.tool_calls_by_id:
                 self.tool_calls_by_id[call_id]["result"] = event_data.get("result")
                 self.tool_calls.append(self.tool_calls_by_id[call_id])
@@ -118,8 +127,12 @@ class PlanStreamProcessor:
         normalized_tool_calls = normalize_tool_calls(self.tool_calls)
         # Persist final thinking so reasoning survives refresh without implying streaming.
         # Completed calls go under `lastToolCalls`; `toolCalls` is emptied.
-        if normalized_tool_calls or (isinstance(self.reasoning, str) and self.reasoning.strip()):
-            final_thinking = build_thinking_payload({}, {}, {}, reasoning=self.reasoning)
+        if normalized_tool_calls or (
+            isinstance(self.reasoning, str) and self.reasoning.strip()
+        ):
+            final_thinking = build_thinking_payload(
+                {}, {}, {}, reasoning=self.reasoning
+            )
             final_thinking["toolCalls"] = []
             final_thinking["lastToolCalls"] = normalized_tool_calls
             await self.plan_repo.update_thinking(self.plan_session.id, final_thinking)
@@ -129,12 +142,14 @@ class PlanStreamProcessor:
             self.assistant_messages = ["Done."]
 
         for index, content in enumerate(self.assistant_messages):
-            msg: dict[str, Any] = {
+            msg: JSONObject = {
                 "role": "assistant",
                 "content": content,
-                "toolCalls": normalized_tool_calls if index == len(self.assistant_messages) - 1 else None,
+                "toolCalls": normalized_tool_calls
+                if index == len(self.assistant_messages) - 1
+                else None,
                 "mode": self.mode,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             if index == len(self.assistant_messages) - 1:
                 if self.citations:
@@ -144,7 +159,9 @@ class PlanStreamProcessor:
             await self.plan_repo.add_message(self.plan_session.id, msg)
 
         if self.planning_artifacts:
-            await self.plan_repo.append_planning_artifacts(self.plan_session.id, self.planning_artifacts)
+            await self.plan_repo.append_planning_artifacts(
+                self.plan_session.id, self.planning_artifacts
+            )
 
         return []
 
@@ -152,4 +169,3 @@ class PlanStreamProcessor:
         logger.error("Plan chat error", error=str(e))
         await self.plan_repo.clear_thinking(self.plan_session.id)
         return sse_error(str(e))
-

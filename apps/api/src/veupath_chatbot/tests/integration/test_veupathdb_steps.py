@@ -1,25 +1,26 @@
 """Integration tests for VEuPathDB step creation."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX,
-    StrategyAPI,
     StepTreeNode,
+    StrategyAPI,
 )
 
 
 @pytest.fixture
-def mock_client():
+def mock_client() -> AsyncMock:
     """Create a mock VEuPathDB client."""
     client = AsyncMock(spec=VEuPathDBClient)
     return client
 
 
 @pytest.fixture
-def strategy_api(mock_client):
+def strategy_api(mock_client: AsyncMock) -> StrategyAPI:
     """Create strategy API with mock client."""
     mock_client.get.return_value = {"userId": "guest"}
     return StrategyAPI(mock_client, user_id="guest")
@@ -29,7 +30,9 @@ class TestStrategyAPI:
     """Tests for StrategyAPI."""
 
     @pytest.mark.asyncio
-    async def test_create_step(self, strategy_api, mock_client):
+    async def test_create_step(
+        self, strategy_api: StrategyAPI, mock_client: AsyncMock
+    ) -> None:
         """Test creating a search step."""
         mock_client.post.return_value = {"id": 12345}
 
@@ -46,7 +49,9 @@ class TestStrategyAPI:
         assert "/users/guest/steps" in call_args[0][0]
 
     @pytest.mark.asyncio
-    async def test_create_combined_step(self, strategy_api, mock_client):
+    async def test_create_combined_step(
+        self, strategy_api: StrategyAPI, mock_client: AsyncMock
+    ) -> None:
         """Test creating a combined step."""
         mock_client.post.return_value = {"id": 12346}
         mock_client.get_searches.return_value = [{"urlSegment": "boolean_question"}]
@@ -67,7 +72,9 @@ class TestStrategyAPI:
         assert payload["searchName"] == "boolean_question"
 
     @pytest.mark.asyncio
-    async def test_create_strategy(self, strategy_api, mock_client):
+    async def test_create_strategy(
+        self, strategy_api: StrategyAPI, mock_client: AsyncMock
+    ) -> None:
         """Test creating a strategy from step tree."""
         mock_client.post.return_value = {"strategyId": 9999}
 
@@ -90,7 +97,9 @@ class TestStrategyAPI:
         assert payload["isSaved"] is True
 
     @pytest.mark.asyncio
-    async def test_create_internal_strategy(self, strategy_api, mock_client):
+    async def test_create_internal_strategy(
+        self, strategy_api: StrategyAPI, mock_client: AsyncMock
+    ) -> None:
         """Test creating an internal (Pathfinder-tagged) strategy."""
         mock_client.post.return_value = {"strategyId": 9999}
 
@@ -111,12 +120,12 @@ class TestStrategyAPI:
 class TestStepTreeNode:
     """Tests for StepTreeNode."""
 
-    def test_simple_tree(self):
+    def test_simple_tree(self) -> None:
         """Test simple step tree serialization."""
         node = StepTreeNode(step_id=100)
         assert node.to_dict() == {"stepId": 100}
 
-    def test_nested_tree(self):
+    def test_nested_tree(self) -> None:
         """Test nested step tree serialization."""
         tree = StepTreeNode(
             step_id=100,
@@ -126,10 +135,14 @@ class TestStepTreeNode:
 
         result = tree.to_dict()
         assert result["stepId"] == 100
-        assert result["primaryInput"]["stepId"] == 10
-        assert result["secondaryInput"]["stepId"] == 11
+        primary_input_value = result.get("primaryInput")
+        assert isinstance(primary_input_value, dict)
+        assert primary_input_value["stepId"] == 10
+        secondary_input_value = result.get("secondaryInput")
+        assert isinstance(secondary_input_value, dict)
+        assert secondary_input_value["stepId"] == 11
 
-    def test_deeply_nested_tree(self):
+    def test_deeply_nested_tree(self) -> None:
         """Test deeply nested step tree."""
         tree = StepTreeNode(
             step_id=100,
@@ -141,5 +154,8 @@ class TestStepTreeNode:
         )
 
         result = tree.to_dict()
-        assert result["primaryInput"]["primaryInput"]["stepId"] == 10
-
+        primary_input_value = result.get("primaryInput")
+        assert isinstance(primary_input_value, dict)
+        nested_primary_input_value = primary_input_value.get("primaryInput")
+        assert isinstance(nested_primary_input_value, dict)
+        assert nested_primary_input_value["stepId"] == 10

@@ -1,6 +1,11 @@
-import type { SearchValidationPayload, SearchValidationResponse } from "@pathfinder/shared";
+import type {
+  SearchValidationPayload,
+  SearchValidationResponse,
+} from "@pathfinder/shared";
 
-export function formatSearchValidationPayload(payload: SearchValidationPayload | null | undefined): {
+export function formatSearchValidationPayload(
+  payload: SearchValidationPayload | null | undefined,
+): {
   message: string | null;
   keys: Set<string>;
 } {
@@ -28,8 +33,7 @@ export function formatSearchValidationPayload(payload: SearchValidationPayload |
 }
 
 export function formatSearchValidationResponse(
-  response: SearchValidationResponse | null | undefined
+  response: SearchValidationResponse | null | undefined,
 ): { message: string | null; keys: Set<string> } {
   return formatSearchValidationPayload(response?.validation);
 }
-

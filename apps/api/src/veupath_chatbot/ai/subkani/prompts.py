@@ -54,9 +54,8 @@ def build_subkani_round_prompt(
         "- If a study/paper is mentioned, reflect it in `display_name` when appropriate.\n\n"
         "## Parameter encoding (critical)\n"
         "- All parameter values must be strings.\n"
-        "- Multi-pick vocab values must be JSON-string arrays like `\"[\\\"Plasmodium falciparum 3D7\\\"]\"`.\n"
-        "- Range values must be JSON-string objects like `\"{\\\"min\\\": 1, \\\"max\\\": 5}\"`.\n\n"
+        '- Multi-pick vocab values must be JSON-string arrays like `"[\\"Plasmodium falciparum 3D7\\"]"`.\n'
+        '- Range values must be JSON-string objects like `"{\\"min\\": 1, \\"max\\": 5}"`.\n\n'
         "## Response\n"
         "After you finish the tool calls, reply with 1–2 sentences confirming what you created/updated.\n"
     )
-

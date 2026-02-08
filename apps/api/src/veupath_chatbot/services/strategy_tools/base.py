@@ -10,4 +10,3 @@ class StrategyToolsBase:
 
     def __init__(self, session: StrategySession) -> None:
         self.session = session
-

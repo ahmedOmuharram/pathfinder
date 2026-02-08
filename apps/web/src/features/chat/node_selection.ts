@@ -12,7 +12,9 @@ export type NodeSelection = {
 const NODE_PREFIX = "__NODE__";
 
 const asStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 
 export function normalizeNodeSelection(data: UnknownRecord): NodeSelection {
   const nodeIds = asStringArray(data.nodeIds);
@@ -22,17 +24,11 @@ export function normalizeNodeSelection(data: UnknownRecord): NodeSelection {
   const edges = Array.isArray(data.edges) ? (data.edges as UnknownRecord[]) : [];
 
   const fallbackNodeIds =
-    nodeIds.length > 0
-      ? nodeIds
-      : typeof data.id === "string"
-        ? [data.id]
-        : [];
+    nodeIds.length > 0 ? nodeIds : typeof data.id === "string" ? [data.id] : [];
   const normalizedSelected =
     selectedNodeIds.length > 0 ? selectedNodeIds : fallbackNodeIds;
   const normalizedNodes =
-    nodes.length > 0
-      ? nodes
-      : fallbackNodeIds.map((id) => ({ id, displayName: id }));
+    nodes.length > 0 ? nodes : fallbackNodeIds.map((id) => ({ id, displayName: id }));
 
   const withSelection = normalizedNodes.map((node) => {
     if (!node || typeof node !== "object") return node;
@@ -81,9 +77,11 @@ export function decodeNodeSelection(content: string): {
 
 export function encodeNodeSelection(
   selection: UnknownRecord | null | undefined,
-  message: string
+  message: string,
 ): string {
   if (!selection) return message;
   const payload = JSON.stringify(selection);
-  return message.trim().length > 0 ? `${NODE_PREFIX}${payload}\n${message}` : `${NODE_PREFIX}${payload}`;
+  return message.trim().length > 0
+    ? `${NODE_PREFIX}${payload}\n${message}`
+    : `${NODE_PREFIX}${payload}`;
 }

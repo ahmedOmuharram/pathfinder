@@ -12,4 +12,3 @@ export function inferStepKind(step: StepLike): StepKind {
   if (step.primaryInputStepId) return "transform";
   return "search";
 }
-

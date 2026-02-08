@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 
 from veupath_chatbot.ai.prompts import load_system_prompt
+from veupath_chatbot.platform.types import JSONObject
 
 
-def build_agent_system_prompt(*, site_id: str, selected_nodes: dict | None) -> str:
+def build_agent_system_prompt(
+    *, site_id: str, selected_nodes: JSONObject | None
+) -> str:
     base_prompt = load_system_prompt()
     site_context = (
         f"\n\n## Current Session\nYou are currently working with the **{site_id}** database. "
@@ -23,4 +26,3 @@ def build_agent_system_prompt(*, site_id: str, selected_nodes: dict | None) -> s
             f"```json\n{selected_nodes_json}\n```"
         )
     return base_prompt + site_context + node_context
-

@@ -29,13 +29,13 @@ function buildIndices(steps: StrategyStep[]) {
     if (step.primaryInputStepId) {
       usedAsInputCount.set(
         step.primaryInputStepId,
-        (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1
+        (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1,
       );
     }
     if (step.secondaryInputStepId) {
       usedAsInputCount.set(
         step.secondaryInputStepId,
-        (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1
+        (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1,
       );
     }
   }
@@ -50,7 +50,11 @@ function buildIndices(steps: StrategyStep[]) {
   };
 }
 
-function isUpstream(sourceId: string, maybeUpstreamId: string, stepsById: Map<string, StrategyStep>) {
+function isUpstream(
+  sourceId: string,
+  maybeUpstreamId: string,
+  stepsById: Map<string, StrategyStep>,
+) {
   // Walk upstream pointers (inputs) starting from sourceId.
   const visited = new Set<string>();
   const stack = [sourceId];
@@ -69,7 +73,8 @@ function isUpstream(sourceId: string, maybeUpstreamId: string, stepsById: Map<st
 
 function edgeToInputPatch(edge: Edge): Partial<StrategyStep> | null {
   if (edge.targetHandle === "left") return { primaryInputStepId: undefined };
-  if (edge.targetHandle === "left-secondary") return { secondaryInputStepId: undefined };
+  if (edge.targetHandle === "left-secondary")
+    return { secondaryInputStepId: undefined };
   if (edge.id.endsWith("-primary")) return { primaryInputStepId: undefined };
   if (edge.id.endsWith("-secondary")) return { secondaryInputStepId: undefined };
   return null;
@@ -120,7 +125,7 @@ export function useGraphConnections({
       if (!indices.rootSet.has(targetId)) return false;
       return true;
     },
-    [indices]
+    [indices],
   );
 
   const handleConnect = useCallback(
@@ -139,7 +144,7 @@ export function useGraphConnections({
       }
       setPendingCombine({ sourceId, targetId });
     },
-    [isValidConnection, updateStep]
+    [isValidConnection, updateStep],
   );
 
   const handleDeleteEdge = useCallback(
@@ -148,7 +153,7 @@ export function useGraphConnections({
       if (!patch) return;
       updateStep(edge.target, patch);
     },
-    [updateStep]
+    [updateStep],
   );
 
   const handleCombineCreate = useCallback(
@@ -158,7 +163,8 @@ export function useGraphConnections({
       if (steps.length) {
         const leftType = resolveRecordType(pendingCombine.sourceId, indices.stepsById);
         const rightType = resolveRecordType(pendingCombine.targetId, indices.stepsById);
-        inferredRecordType = leftType && leftType !== "__mismatch__" ? leftType : rightType;
+        inferredRecordType =
+          leftType && leftType !== "__mismatch__" ? leftType : rightType;
         if (
           leftType &&
           rightType &&
@@ -183,7 +189,7 @@ export function useGraphConnections({
       addStep(nextStep);
       setPendingCombine(null);
     },
-    [pendingCombine, steps.length, indices.stepsById, addStep, failCombineMismatch]
+    [pendingCombine, steps.length, indices.stepsById, addStep, failCombineMismatch],
   );
 
   const handleCombineCancel = useCallback(() => {
@@ -199,7 +205,7 @@ export function useGraphConnections({
       if (!indices.rootSet.has(sourceId) || !indices.rootSet.has(targetId)) return;
       setPendingCombine({ sourceId, targetId });
     },
-    [indices.rootIds.length, indices.rootSet]
+    [indices.rootIds.length, indices.rootSet],
   );
 
   return {
@@ -212,4 +218,3 @@ export function useGraphConnections({
     startCombine,
   };
 }
-

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 from uuid import UUID
+
+from veupath_chatbot.platform.types import JSONObject
 
 
 def parse_uuid(value: str | None) -> UUID | None:
@@ -17,7 +18,7 @@ def parse_uuid(value: str | None) -> UUID | None:
         return None
 
 
-def parse_selected_nodes(message: str) -> tuple[dict[str, Any] | None, str]:
+def parse_selected_nodes(message: str) -> tuple[JSONObject | None, str]:
     """Parse the `__NODE__{json}\\n<text>` prefix used by the UI."""
     if not message.startswith("__NODE__"):
         return None, message
@@ -75,7 +76,7 @@ def sanitize_markdown(message: str) -> str:
         if m_ord:
             indent, num = m_ord.group(1), m_ord.group(2)
             lines[i] = f"{indent}{num}. {next_line}"
-        else:
+        elif m_bul:
             indent, bullet = m_bul.group(1), m_bul.group(2)
             lines[i] = f"{indent}{bullet} {next_line}"
 
@@ -84,4 +85,3 @@ def sanitize_markdown(message: str) -> str:
         i += 1
 
     return "\n".join(lines).strip()
-

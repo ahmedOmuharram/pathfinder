@@ -96,4 +96,3 @@ export function ResultsTable({ records, columns, totalCount }: ResultsTableProps
     </div>
   );
 }
-

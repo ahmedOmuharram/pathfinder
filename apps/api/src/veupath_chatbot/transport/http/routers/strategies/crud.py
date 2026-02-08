@@ -2,30 +2,32 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
-from veupath_chatbot.transport.http.deps import CurrentUser, StrategyRepo
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.transport.http.schemas import (
-    CreateStrategyRequest,
-    StrategyResponse,
-    StrategySummaryResponse,
-    UpdateStrategyRequest,
-)
-
+from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.serialization import (
     build_steps_data_from_plan,
     count_steps_in_plan,
 )
-from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.wdk_snapshot import (
     _attach_counts_from_wdk_strategy,
+)
+from veupath_chatbot.transport.http.deps import CurrentUser, StrategyRepo
+from veupath_chatbot.transport.http.schemas import (
+    CreateStrategyRequest,
+    MessageResponse,
+    StrategyResponse,
+    StrategySummaryResponse,
+    ThinkingResponse,
+    UpdateStrategyRequest,
 )
 
 from ._shared import build_step_response
@@ -39,7 +41,7 @@ async def list_strategies(
     strategy_repo: StrategyRepo,
     user_id: CurrentUser,
     site_id: Annotated[str | None, Query(alias="siteId")] = None,
-):
+) -> list[StrategySummaryResponse]:
     """List user's saved strategies."""
     strategies = await strategy_repo.list_by_user(user_id, site_id)
     return [
@@ -49,11 +51,14 @@ async def list_strategies(
             title=s.title,
             siteId=s.site_id,
             recordType=s.record_type,
-            stepCount=(count_steps_in_plan(s.plan or {}) or (len(s.steps or []) if s.steps else 0)),
+            stepCount=(
+                count_steps_in_plan(s.plan or {})
+                or (len(s.steps or []) if s.steps else 0)
+            ),
             resultCount=s.result_count,
             wdkStrategyId=s.wdk_strategy_id,
-            createdAt=s.created_at or datetime.now(timezone.utc),
-            updatedAt=s.updated_at or s.created_at or datetime.now(timezone.utc),
+            createdAt=s.created_at or datetime.now(UTC),
+            updatedAt=s.updated_at or s.created_at or datetime.now(UTC),
         )
         for s in strategies
     ]
@@ -64,7 +69,7 @@ async def create_strategy(
     request: CreateStrategyRequest,
     strategy_repo: StrategyRepo,
     user_id: CurrentUser,
-):
+) -> StrategyResponse:
     """Create a new strategy."""
     plan_in = request.plan.model_dump(exclude_none=True)
     strategy_ast = validate_plan_or_raise(plan_in)
@@ -82,13 +87,38 @@ async def create_strategy(
     )
 
     strategy_data = strategy.__dict__
-    plan = strategy_data.get("plan") or {}
     steps = steps_data
-    description = (
-        plan.get("metadata", {}).get("description") if isinstance(plan, dict) else None
-    )
-    created_at = strategy_data.get("created_at") or datetime.now(timezone.utc)
+
+    description: str | None = None
+    if isinstance(plan, dict):
+        metadata_raw = plan.get("metadata")
+        metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+        desc_raw = metadata.get("description")
+        description = desc_raw if isinstance(desc_raw, str) else None
+
+    created_at = strategy_data.get("created_at") or datetime.now(UTC)
     updated_at = strategy_data.get("updated_at") or created_at
+
+    # Convert messages and thinking
+    messages: list[MessageResponse] | None = None
+    messages_raw = strategy_data.get("messages") or strategy.messages
+    if isinstance(messages_raw, list) and messages_raw:
+        try:
+            parsed_messages: list[MessageResponse] = []
+            for msg in messages_raw:
+                parsed_messages.append(MessageResponse.model_validate(msg))
+            messages = parsed_messages
+        except Exception:
+            messages = None
+
+    thinking: ThinkingResponse | None = None
+    thinking_raw = strategy_data.get("thinking") or strategy.thinking
+    if isinstance(thinking_raw, dict) and thinking_raw:
+        try:
+            thinking = ThinkingResponse.model_validate(thinking_raw)
+        except Exception:
+            thinking = None
+
     return StrategyResponse(
         id=strategy_data.get("id") or strategy.id,
         name=strategy_data.get("name") or strategy.name,
@@ -96,11 +126,11 @@ async def create_strategy(
         description=description,
         siteId=strategy_data.get("site_id") or strategy.site_id,
         recordType=strategy_data.get("record_type") or strategy.record_type,
-        steps=[build_step_response(s) for s in steps],
+        steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=strategy_ast.root.id,
         wdkStrategyId=strategy_data.get("wdk_strategy_id"),
-        messages=strategy_data.get("messages") or strategy.messages,
-        thinking=strategy_data.get("thinking") or strategy.thinking,
+        messages=messages,
+        thinking=thinking,
         createdAt=created_at,
         updatedAt=updated_at,
     )
@@ -110,27 +140,36 @@ async def create_strategy(
 async def get_strategy(
     strategyId: UUID,
     strategy_repo: StrategyRepo,
-):
+) -> StrategyResponse:
     """Get a strategy by ID."""
     strategy = await strategy_repo.get_by_id(strategyId)
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
 
-    description = (
-        (strategy.plan or {}).get("metadata", {}).get("description")
-        if isinstance(strategy.plan, dict)
-        else None
-    )
-    steps = build_steps_data_from_plan(strategy.plan or {})
+    plan: JSONObject = strategy.plan if isinstance(strategy.plan, dict) else {}
+
+    description: str | None = None
+    if isinstance(plan, dict):
+        metadata_raw = plan.get("metadata")
+        metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+        desc_raw = metadata.get("description")
+        description = desc_raw if isinstance(desc_raw, str) else None
+
+    steps = build_steps_data_from_plan(plan)
     if not steps and strategy.steps:
-        steps = strategy.steps
-    root_step_id = (
-        (strategy.plan or {}).get("root", {}).get("id")
-        if isinstance(strategy.plan, dict)
-        else None
-    )
+        steps = strategy.steps if isinstance(strategy.steps, list) else []
+
+    root_step_id: str | None = None
+    if isinstance(plan, dict):
+        root_raw = plan.get("root")
+        root = root_raw if isinstance(root_raw, dict) else {}
+        root_id_raw = root.get("id")
+        root_step_id = root_id_raw if isinstance(root_id_raw, str) else None
     if not root_step_id and strategy.root_step_id:
         root_step_id = strategy.root_step_id
+
     if strategy.wdk_strategy_id and steps:
         try:
             api = get_strategy_api(strategy.site_id)
@@ -138,6 +177,25 @@ async def get_strategy(
             _attach_counts_from_wdk_strategy(steps, wdk_strategy)
         except Exception as e:
             logger.warning("WDK count refresh skipped", error=str(e))
+
+    # Convert messages and thinking
+    messages: list[MessageResponse] | None = None
+    if isinstance(strategy.messages, list) and strategy.messages:
+        try:
+            parsed_messages: list[MessageResponse] = []
+            for msg in strategy.messages:
+                parsed_messages.append(MessageResponse.model_validate(msg))
+            messages = parsed_messages
+        except Exception:
+            messages = None
+
+    thinking: ThinkingResponse | None = None
+    if isinstance(strategy.thinking, dict) and strategy.thinking:
+        try:
+            thinking = ThinkingResponse.model_validate(strategy.thinking)
+        except Exception:
+            thinking = None
+
     return StrategyResponse(
         id=strategy.id,
         name=strategy.name,
@@ -145,13 +203,13 @@ async def get_strategy(
         description=description,
         siteId=strategy.site_id,
         recordType=strategy.record_type,
-        steps=[build_step_response(s) for s in steps],
+        steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
-        messages=strategy.messages,
-        thinking=strategy.thinking,
-        createdAt=strategy.created_at or datetime.now(timezone.utc),
-        updatedAt=strategy.updated_at or strategy.created_at or datetime.now(timezone.utc),
+        messages=messages,
+        thinking=thinking,
+        createdAt=strategy.created_at or datetime.now(UTC),
+        updatedAt=strategy.updated_at or strategy.created_at or datetime.now(UTC),
     )
 
 
@@ -160,7 +218,7 @@ async def update_strategy(
     strategyId: UUID,
     request: UpdateStrategyRequest,
     strategy_repo: StrategyRepo,
-):
+) -> StrategyResponse:
     """Update a strategy."""
     record_type = None
     if request.plan:
@@ -171,7 +229,7 @@ async def update_strategy(
     else:
         plan = None
 
-    fields_set = getattr(request, "model_fields_set", set())
+    fields_set: set[str] = getattr(request, "model_fields_set", set())
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
 
     strategy = await strategy_repo.update(
@@ -184,23 +242,50 @@ async def update_strategy(
         wdk_strategy_id_set=wdk_strategy_id_set,
     )
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     strategy = await strategy_repo.get_by_id(strategyId)
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     await strategy_repo.refresh(strategy)
 
-    description = (
-        (strategy.plan or {}).get("metadata", {}).get("description")
-        if isinstance(strategy.plan, dict)
-        else None
-    )
-    steps = build_steps_data_from_plan(strategy.plan or {})
-    root_step_id = (
-        (strategy.plan or {}).get("root", {}).get("id")
-        if isinstance(strategy.plan, dict)
-        else None
-    )
+    plan_obj: JSONObject = strategy.plan if isinstance(strategy.plan, dict) else {}
+    description: str | None = None
+    if isinstance(plan_obj, dict):
+        metadata_raw = plan_obj.get("metadata")
+        metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+        desc_raw = metadata.get("description")
+        description = desc_raw if isinstance(desc_raw, str) else None
+    steps = build_steps_data_from_plan(plan_obj)
+
+    root_step_id: str | None = None
+    if isinstance(plan_obj, dict):
+        root_raw = plan_obj.get("root")
+        root = root_raw if isinstance(root_raw, dict) else {}
+        root_id_raw = root.get("id")
+        root_step_id = root_id_raw if isinstance(root_id_raw, str) else None
+
+    # Convert messages and thinking
+    messages: list[MessageResponse] | None = None
+    if isinstance(strategy.messages, list) and strategy.messages:
+        try:
+            parsed_messages: list[MessageResponse] = []
+            for msg in strategy.messages:
+                parsed_messages.append(MessageResponse.model_validate(msg))
+            messages = parsed_messages
+        except Exception:
+            messages = None
+
+    thinking: ThinkingResponse | None = None
+    if isinstance(strategy.thinking, dict) and strategy.thinking:
+        try:
+            thinking = ThinkingResponse.model_validate(strategy.thinking)
+        except Exception:
+            thinking = None
+
     return StrategyResponse(
         id=strategy.id,
         name=strategy.name,
@@ -208,13 +293,13 @@ async def update_strategy(
         description=description,
         siteId=strategy.site_id,
         recordType=strategy.record_type,
-        steps=[build_step_response(s) for s in steps],
+        steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
-        messages=strategy.messages,
-        thinking=strategy.thinking,
-        createdAt=strategy.created_at or datetime.now(timezone.utc),
-        updatedAt=strategy.updated_at or strategy.created_at or datetime.now(timezone.utc),
+        messages=messages,
+        thinking=thinking,
+        createdAt=strategy.created_at or datetime.now(UTC),
+        updatedAt=strategy.updated_at or strategy.created_at or datetime.now(UTC),
     )
 
 
@@ -222,11 +307,13 @@ async def update_strategy(
 async def delete_strategy(
     strategyId: UUID,
     strategy_repo: StrategyRepo,
-):
+) -> Response:
     """Delete a strategy."""
     strategy = await strategy_repo.get_by_id(strategyId)
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
 
     if strategy.wdk_strategy_id:
         try:
@@ -237,6 +324,7 @@ async def delete_strategy(
 
     deleted = await strategy_repo.delete(strategyId)
     if not deleted:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     return Response(status_code=204)
-

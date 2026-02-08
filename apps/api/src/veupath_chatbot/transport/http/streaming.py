@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, AsyncIterator, TYPE_CHECKING
+from collections.abc import AsyncIterator
 from uuid import uuid4
 
+from kani import Kani
 from kani.models import ChatRole
 
 from veupath_chatbot.platform.errors import ErrorCode
@@ -16,22 +17,20 @@ from veupath_chatbot.platform.pydantic_validation import (
     parse_pydantic_validation_error_text,
 )
 from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.events import tool_result_to_events
-
-if TYPE_CHECKING:  # pragma: no cover
-    from kani import Kani
 
 logger = get_logger(__name__)
 
 
-async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
+async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
     """Stream chat responses from the agent as SSE-friendly events."""
     yield {"type": "message_start", "data": {}}
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue[JSONObject] = asyncio.Queue()
     agent.event_queue = queue
 
-    async def _produce_events():
+    async def _produce_events() -> None:
         try:
             saw_assistant_message = False
 
@@ -60,7 +59,10 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
                         await queue.put(
                             {
                                 "type": "assistant_message",
-                                "data": {"messageId": message_id, "content": msg.content},
+                                "data": {
+                                    "messageId": message_id,
+                                    "content": msg.content,
+                                },
                             }
                         )
                     elif streamed_any:
@@ -108,23 +110,27 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
                     await queue.put(
                         {
                             "type": "tool_call_end",
-                            "data": {"id": msg.tool_call_id, "result": tool_result_text},
+                            "data": {
+                                "id": msg.tool_call_id,
+                                "result": tool_result_text,
+                            },
                         }
                     )
 
                     try:
-                        result: dict | list | Any
-                        if parsed is None:
-                            result = {}
-                        else:
-                            result = parsed
+                        result: JSONObject | JSONArray
+                        result = {} if parsed is None else parsed
 
-                        logger.info("Tool result parsed", result_type=type(result).__name__)
+                        logger.info(
+                            "Tool result parsed", result_type=type(result).__name__
+                        )
 
-                        for event in tool_result_to_events(
-                            result, get_graph=agent.strategy_session.get_graph
-                        ):
-                            await queue.put(event)
+                        # tool_result_to_events expects JSONObject, not JSONArray
+                        if isinstance(result, dict):
+                            for event in tool_result_to_events(
+                                result, get_graph=agent.strategy_session.get_graph
+                            ):
+                                await queue.put(event)
                     except Exception as e:  # pragma: no cover
                         logger.error("Error parsing tool result", error=str(e))
 
@@ -132,11 +138,19 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
                 await queue.put(
                     {
                         "type": "assistant_message",
-                        "data": {"messageId": str(uuid4()), "content": "I processed your request."},
+                        "data": {
+                            "messageId": str(uuid4()),
+                            "content": "I processed your request.",
+                        },
                     }
                 )
         except Exception as e:  # pragma: no cover
-            logger.error("Stream error", exc_info=True)
+            logger.error(
+                "Stream error",
+                exc_info=True,
+                error=str(e),
+                errorType=type(e).__name__,
+            )
             await queue.put({"type": "error", "data": {"error": str(e)}})
         finally:
             await queue.put({"type": "message_end", "data": {}})
@@ -147,7 +161,7 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
         # `message_end` can be enqueued before late-arriving sub-kani status updates.
         # If we break immediately, the UI can show "running" forever. To prevent this,
         # we delay yielding `message_end` until the queue has been quiescent briefly.
-        pending_end: dict | None = None
+        pending_end: JSONObject | None = None
         idle_grace_seconds = 0.25
 
         while True:
@@ -163,7 +177,7 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
             # capture any late-emitted sub-kani events, then close the stream.
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=idle_grace_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # If producer finished and nothing else is queued, we can end safely.
                 if producer.done() and queue.empty():
                     break
@@ -178,4 +192,3 @@ async def stream_chat(agent: "Kani", message: str) -> AsyncIterator[dict]:
             yield pending_end
     finally:
         await producer
-

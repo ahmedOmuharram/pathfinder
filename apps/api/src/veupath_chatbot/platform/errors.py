@@ -1,11 +1,12 @@
 """Typed error model with problem+json responses."""
 
 from enum import Enum
-from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from veupath_chatbot.platform.types import JSONArray
 
 
 class ErrorCode(str, Enum):
@@ -44,7 +45,7 @@ class ProblemDetail(BaseModel):
     detail: str | None = None
     instance: str | None = None
     code: ErrorCode
-    errors: list[dict[str, Any]] | None = None
+    errors: JSONArray | None = None
 
 
 class AppError(Exception):
@@ -56,7 +57,7 @@ class AppError(Exception):
         title: str,
         status: int = 400,
         detail: str | None = None,
-        errors: list[dict[str, Any]] | None = None,
+        errors: JSONArray | None = None,
     ) -> None:
         self.code = code
         self.title = title
@@ -109,7 +110,7 @@ class ValidationError(AppError):
         self,
         title: str = "Validation failed",
         detail: str | None = None,
-        errors: list[dict[str, Any]] | None = None,
+        errors: JSONArray | None = None,
     ) -> None:
         super().__init__(
             code=ErrorCode.VALIDATION_ERROR,
@@ -174,4 +175,3 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         content=problem.model_dump(exclude_none=True),
         media_type="application/problem+json",
     )
-

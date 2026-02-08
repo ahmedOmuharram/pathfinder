@@ -55,7 +55,8 @@ export async function validateStepsForSave(args: {
       const searchName = step.searchName;
 
       if (!recordType || !searchName) {
-        errorsByStepId[step.id] = "Cannot be saved: search name or record type missing.";
+        errorsByStepId[step.id] =
+          "Cannot be saved: search name or record type missing.";
         return;
       }
 
@@ -64,7 +65,7 @@ export async function validateStepsForSave(args: {
           siteId,
           recordType,
           searchName,
-          step.parameters || {}
+          step.parameters || {},
         );
         const formatted = formatSearchValidationResponse(response);
         if (!errorsByStepId[step.id]) {
@@ -72,13 +73,13 @@ export async function validateStepsForSave(args: {
         }
       } catch (err) {
         if (!errorsByStepId[step.id]) {
-          errorsByStepId[step.id] = `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
+          errorsByStepId[step.id] =
+            `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
         }
       }
-    })
+    }),
   );
 
   const hasErrors = Object.values(errorsByStepId).some(Boolean);
   return { errorsByStepId, hasErrors };
 }
-

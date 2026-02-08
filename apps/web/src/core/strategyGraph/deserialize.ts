@@ -23,7 +23,7 @@ export function deserializeStrategyToGraph(
   onAddToChat?: (stepId: string) => void,
   onOpenDetails?: (stepId: string) => void,
   unsavedStepIds?: Set<string>,
-  options?: DeserializeOptions
+  options?: DeserializeOptions,
 ): { nodes: Node[]; edges: Edge[] } {
   if (!strategy || strategy.steps.length === 0) {
     return { nodes: [], edges: [] };
@@ -41,13 +41,13 @@ export function deserializeStrategyToGraph(
     if (step.primaryInputStepId) {
       usedAsInputCount.set(
         step.primaryInputStepId,
-        (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1
+        (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1,
       );
     }
     if (step.secondaryInputStepId) {
       usedAsInputCount.set(
         step.secondaryInputStepId,
-        (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1
+        (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1,
       );
     }
   }
@@ -166,8 +166,7 @@ export function deserializeStrategyToGraph(
         // - only show input slots when they are missing
         showPrimaryInputHandle:
           (kind === "transform" || kind === "combine") && !step.primaryInputStepId,
-        showSecondaryInputHandle:
-          kind === "combine" && !step.secondaryInputStepId,
+        showSecondaryInputHandle: kind === "combine" && !step.secondaryInputStepId,
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,

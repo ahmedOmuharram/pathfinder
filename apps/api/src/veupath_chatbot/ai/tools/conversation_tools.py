@@ -1,6 +1,6 @@
 """Tools for conversation and strategy management."""
 
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from kani import AIParam, ai_function
@@ -8,6 +8,7 @@ from kani import AIParam, ai_function
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.strategy_session import StrategySession
 
 logger = get_logger(__name__)
@@ -24,7 +25,9 @@ class ConversationTools:
         self.session = session
         self.user_id = user_id
 
-    def _tool_error(self, code: ErrorCode | str, message: str, **details: Any) -> dict[str, Any]:
+    def _tool_error(
+        self, code: ErrorCode | str, message: str, **details: JSONValue
+    ) -> JSONObject:
         return tool_error(code, message, **details)
 
     @ai_function()
@@ -33,7 +36,7 @@ class ConversationTools:
         name: Annotated[str, AIParam(desc="Name for the saved strategy")],
         description: Annotated[str | None, AIParam(desc="Description")] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to save")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Save the current strategy for later use.
 
         The strategy will be saved to the user's account and can be
@@ -74,7 +77,7 @@ class ConversationTools:
     async def load_strategy(
         self,
         strategy_id: Annotated[str, AIParam(desc="ID of strategy to load")],
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Load a previously saved strategy.
 
         This restores the strategy for viewing or modification.
@@ -90,7 +93,7 @@ class ConversationTools:
     async def list_saved_strategies(
         self,
         site_id: Annotated[str | None, AIParam(desc="Filter by site")] = None,
-    ) -> list[dict[str, Any]]:
+    ) -> JSONArray:
         """List the user's saved strategies.
 
         Returns a list of strategy summaries with names and dates.
@@ -104,7 +107,7 @@ class ConversationTools:
         new_name: Annotated[str, AIParam(desc="New name for the strategy")],
         description: Annotated[str, AIParam(desc="Strategy description")],
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to rename")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Rename the current strategy."""
         graph = self.session.get_graph(graph_id)
         if not graph:
@@ -141,7 +144,7 @@ class ConversationTools:
             bool,
             AIParam(desc="Set true to confirm deleting all nodes in the graph"),
         ] = False,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Clear the current strategy and start fresh.
 
         This removes all steps and the current strategy. Requires explicit confirmation.
@@ -175,7 +178,7 @@ class ConversationTools:
     async def get_strategy_summary(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to summarize")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get a summary of the current strategy.
 
         Returns step count, record type, and other metadata.
@@ -211,16 +214,19 @@ class ConversationTools:
     async def get_edit_history(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to inspect")] = None,
-    ) -> list[dict[str, Any]]:
+    ) -> JSONArray:
         """Get the edit history of the current strategy.
 
         Shows what changes have been made during this session.
         """
         graph = self.session.get_graph(graph_id)
         if not graph:
-            return [self._tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)]
+            return [
+                self._tool_error(
+                    ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id
+                )
+            ]
         return [
             {"index": i, "description": h.get("description", "")}
             for i, h in enumerate(graph.history)
         ]
-

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from uuid import UUID
 
 from kani import ChatMessage, ChatRole
 
-from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.persistence.models import Strategy, User
 from veupath_chatbot.persistence.repo import StrategyRepository, UserRepository
+from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 from .utils import parse_selected_nodes
 
@@ -59,17 +59,19 @@ async def ensure_strategy(
             plan={},
         )
     if not strategy:
-        raise NotFoundError(code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found")
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     return strategy
 
 
 async def append_user_message(
     strategy_repo: StrategyRepository, *, strategy_id: UUID, message: str
 ) -> None:
-    user_message = {
+    user_message: JSONObject = {
         "role": "user",
         "content": message,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     await strategy_repo.add_message(strategy_id, user_message)
     await strategy_repo.clear_thinking(strategy_id)
@@ -80,20 +82,24 @@ async def build_chat_history(
 ) -> list[ChatMessage]:
     history: list[ChatMessage] = []
     await strategy_repo.refresh(strategy)
-    for msg in strategy.messages or []:
-        role = msg.get("role")
-        content = msg.get("content")
-        if not content:
+    for msg_value in strategy.messages or []:
+        if not isinstance(msg_value, dict):
             continue
-        if role == "user":
+        msg = as_json_object(msg_value)
+        role_value = msg.get("role")
+        content_value = msg.get("content")
+        if not content_value:
+            continue
+        content = str(content_value) if content_value is not None else ""
+        if role_value == "user":
             _, cleaned = parse_selected_nodes(content)
             history.append(ChatMessage(role=ChatRole.USER, content=cleaned))
-        elif role == "assistant":
+        elif role_value == "assistant":
             history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
     return history
 
 
-def build_strategy_payload(strategy: Strategy) -> dict[str, Any]:
+def build_strategy_payload(strategy: Strategy) -> JSONObject:
     strategy_data = strategy.__dict__
     updated_at = strategy_data.get("updated_at") or strategy_data.get("created_at")
     return {
@@ -104,4 +110,3 @@ def build_strategy_payload(strategy: Strategy) -> dict[str, Any]:
         "updatedAt": updated_at.isoformat() if updated_at else None,
         "wdkStrategyId": strategy.wdk_strategy_id,
     }
-

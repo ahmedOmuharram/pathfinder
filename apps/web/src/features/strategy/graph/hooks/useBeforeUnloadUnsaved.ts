@@ -11,4 +11,3 @@ export function useBeforeUnloadUnsaved(isUnsaved: boolean) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isUnsaved]);
 }
-

@@ -6,12 +6,15 @@ positive controls are returned and known negative controls are excluded.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Literal
+import contextlib
+from typing import Literal
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.integrations.veupathdb.strategy_api import StepTreeNode
-
+from veupath_chatbot.integrations.veupathdb.strategy_api import (
+    StepTreeNode,
+    StrategyAPI,
+)
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 ControlValueFormat = Literal["newline", "json_list", "comma"]
 
@@ -28,21 +31,25 @@ def _encode_id_list(ids: list[str], fmt: ControlValueFormat) -> str:
     return json.dumps(cleaned)
 
 
-def _coerce_step_id(payload: dict[str, Any] | None) -> int | None:
+def _coerce_step_id(payload: JSONObject | None) -> int | None:
     if not isinstance(payload, dict):
         return None
     for key in ("stepId", "step_id", "id"):
         raw = payload.get(key)
         if raw is None:
             continue
-        try:
-            return int(raw)
-        except (TypeError, ValueError):
-            continue
+        # Only convert if raw is a valid type for int()
+        if isinstance(raw, (int, str, float)):
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                continue
     return None
 
 
-def _extract_record_ids(records: Any, *, preferred_key: str | None = None) -> list[str]:
+def _extract_record_ids(
+    records: JSONValue, *, preferred_key: str | None = None
+) -> list[str]:
     """Best-effort extraction of record IDs from WDK answer records."""
     if not isinstance(records, list):
         return []
@@ -85,15 +92,24 @@ def _extract_record_ids(records: Any, *, preferred_key: str | None = None) -> li
     return out
 
 
-async def _get_total_count_for_step(api, step_id: int) -> int | None:
+async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | None:
     try:
-        answer = await api.get_step_answer(step_id, pagination={"offset": 0, "numRecords": 0})
+        answer = await api.get_step_answer(
+            step_id, pagination={"offset": 0, "numRecords": 0}
+        )
         if isinstance(answer, dict):
-            meta = answer.get("meta") or {}
+            meta_raw = answer.get("meta")
+            meta: JSONObject = meta_raw if isinstance(meta_raw, dict) else {}
             raw = meta.get("totalCount")
             if raw is None:
                 return None
-            return int(raw)
+            # Only convert if raw is a valid type for int()
+            if isinstance(raw, (int, str, float)):
+                try:
+                    return int(raw)
+                except (TypeError, ValueError):
+                    return None
+            return None
     except Exception:
         return None
     return None
@@ -108,15 +124,17 @@ async def _run_intersection_control(
     controls_param_name: str,
     controls_ids: list[str],
     controls_value_format: ControlValueFormat,
-    controls_extra_parameters: dict[str, Any] | None,
+    controls_extra_parameters: JSONObject | None,
     boolean_operator: str = "INTERSECT",
     fetch_ids_limit: int = 500,
     id_field: str | None = None,
-) -> dict[str, Any]:
+) -> JSONObject:
     api = get_strategy_api(site_id)
 
     controls_params = dict(controls_extra_parameters or {})
-    controls_params[controls_param_name] = _encode_id_list(controls_ids, controls_value_format)
+    controls_params[controls_param_name] = _encode_id_list(
+        controls_ids, controls_value_format
+    )
 
     controls_step = await api.create_step(
         record_type=record_type,
@@ -155,9 +173,13 @@ async def _run_intersection_control(
         )
         raw_sid = (created or {}).get("id") or (created or {}).get("strategyId")
         if raw_sid is not None:
-            try:
-                temp_strategy_id = int(raw_sid)
-            except (TypeError, ValueError):
+            # Only convert if raw_sid is a valid type for int()
+            if isinstance(raw_sid, (int, str, float)):
+                try:
+                    temp_strategy_id = int(raw_sid)
+                except (TypeError, ValueError):
+                    temp_strategy_id = None
+            else:
                 temp_strategy_id = None
 
         total = await _get_total_count_for_step(api, combined_step_id)
@@ -165,22 +187,30 @@ async def _run_intersection_control(
         if controls_ids and len(controls_ids) <= fetch_ids_limit:
             answer = await api.get_step_answer(
                 combined_step_id,
-                pagination={"offset": 0, "numRecords": min(len(controls_ids), fetch_ids_limit)},
+                pagination={
+                    "offset": 0,
+                    "numRecords": min(len(controls_ids), fetch_ids_limit),
+                },
             )
-            ids_found = _extract_record_ids((answer or {}).get("records"), preferred_key=id_field)
+            ids_found = _extract_record_ids(
+                (answer or {}).get("records"), preferred_key=id_field
+            )
 
+        # Convert list[str] to JSONValue-compatible types
+        intersection_ids_sample: JSONValue = list(ids_found[:50])
+        intersection_ids: JSONValue = (
+            list(ids_found) if len(controls_ids) <= fetch_ids_limit else None
+        )
         return {
             "controlsCount": len([x for x in controls_ids if str(x).strip()]),
             "intersectionCount": total,
-            "intersectionIdsSample": ids_found[:50],
-            "intersectionIds": ids_found if len(controls_ids) <= fetch_ids_limit else None,
+            "intersectionIdsSample": intersection_ids_sample,
+            "intersectionIds": intersection_ids,
         }
     finally:
         if temp_strategy_id is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await api.delete_strategy(temp_strategy_id)
-            except Exception:
-                pass
 
 
 async def run_positive_negative_controls(
@@ -188,15 +218,15 @@ async def run_positive_negative_controls(
     site_id: str,
     record_type: str,
     target_search_name: str,
-    target_parameters: dict[str, Any],
+    target_parameters: JSONObject,
     controls_search_name: str,
     controls_param_name: str,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
     controls_value_format: ControlValueFormat = "newline",
-    controls_extra_parameters: dict[str, Any] | None = None,
+    controls_extra_parameters: JSONObject | None = None,
     id_field: str | None = None,
-) -> dict[str, Any]:
+) -> JSONObject:
     """Run positive + negative controls against a single WDK question configuration."""
     api = get_strategy_api(site_id)
 
@@ -212,7 +242,7 @@ async def run_positive_negative_controls(
 
     target_total = await _get_total_count_for_step(api, target_step_id)
 
-    result: dict[str, Any] = {
+    result: JSONObject = {
         "siteId": site_id,
         "recordType": record_type,
         "target": {
@@ -241,11 +271,22 @@ async def run_positive_negative_controls(
             boolean_operator="INTERSECT",
             id_field=id_field,
         )
-        found_ids = set((pos_payload.get("intersectionIds") or []) if isinstance(pos_payload, dict) else [])
+        intersection_ids_value = (
+            pos_payload.get("intersectionIds")
+            if isinstance(pos_payload, dict)
+            else None
+        )
+        pos_intersection_ids_list: list[str] = []
+        if isinstance(intersection_ids_value, list):
+            pos_intersection_ids_list = [
+                str(x) for x in intersection_ids_value if x is not None
+            ]
+        found_ids = set(pos_intersection_ids_list)
         missing = [x for x in pos if found_ids and x not in found_ids]
+        missing_ids_sample: JSONValue = list(missing[:50]) if missing else []
         result["positive"] = {
             **pos_payload,
-            "missingIdsSample": missing[:50] if missing else [],
+            "missingIdsSample": missing_ids_sample,
             "recall": (len(found_ids) / len(pos)) if found_ids else None,
         }
 
@@ -262,12 +303,22 @@ async def run_positive_negative_controls(
             boolean_operator="INTERSECT",
             id_field=id_field,
         )
-        hit_ids = set((neg_payload.get("intersectionIds") or []) if isinstance(neg_payload, dict) else [])
+        intersection_ids_value = (
+            neg_payload.get("intersectionIds")
+            if isinstance(neg_payload, dict)
+            else None
+        )
+        neg_intersection_ids_list: list[str] = []
+        if isinstance(intersection_ids_value, list):
+            neg_intersection_ids_list = [
+                str(x) for x in intersection_ids_value if x is not None
+            ]
+        hit_ids = set(neg_intersection_ids_list)
+        unexpected_hits_sample: JSONValue = list(list(hit_ids)[:50]) if hit_ids else []
         result["negative"] = {
             **neg_payload,
-            "unexpectedHitsSample": list(hit_ids)[:50] if hit_ids else [],
+            "unexpectedHitsSample": unexpected_hits_sample,
             "falsePositiveRate": (len(hit_ids) / len(neg)) if hit_ids else None,
         }
 
     return result
-

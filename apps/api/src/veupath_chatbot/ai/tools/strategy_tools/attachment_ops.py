@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.domain.strategy.ast import StepAnalysis, StepFilter, StepReport
+from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
 
 
-class StrategyAttachmentOps:
+class StrategyAttachmentOps(StrategyToolsHelpers):
     """Tools that attach metadata/configuration to existing steps."""
 
     @ai_function()
@@ -18,10 +20,12 @@ class StrategyAttachmentOps:
         self,
         step_id: Annotated[str, AIParam(desc="Step ID to filter")],
         filter_name: Annotated[str, AIParam(desc="Filter name")],
-        value: Annotated[Any, AIParam(desc="Filter value payload")],
-        disabled: Annotated[bool, AIParam(desc="Whether the filter is disabled")] = False,
+        value: Annotated[JSONValue, AIParam(desc="Filter value payload")],
+        disabled: Annotated[
+            bool, AIParam(desc="Whether the filter is disabled")
+        ] = False,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Attach or update a filter on a step."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -46,10 +50,14 @@ class StrategyAttachmentOps:
         self,
         step_id: Annotated[str, AIParam(desc="Step ID to analyze")],
         analysis_type: Annotated[str, AIParam(desc="Analysis type name")],
-        parameters: Annotated[dict[str, Any] | None, AIParam(desc="Analysis parameters")] = None,
-        custom_name: Annotated[str | None, AIParam(desc="Optional analysis name")] = None,
+        parameters: Annotated[
+            JSONObject | None, AIParam(desc="Analysis parameters")
+        ] = None,
+        custom_name: Annotated[
+            str | None, AIParam(desc="Optional analysis name")
+        ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Attach an analysis configuration to a step."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -77,10 +85,14 @@ class StrategyAttachmentOps:
     async def add_step_report(
         self,
         step_id: Annotated[str, AIParam(desc="Step ID to report")],
-        report_name: Annotated[str, AIParam(desc="Report name (e.g., 'standard')")] = "standard",
-        config: Annotated[dict[str, Any] | None, AIParam(desc="Report configuration")] = None,
+        report_name: Annotated[
+            str, AIParam(desc="Report name (e.g., 'standard')")
+        ] = "standard",
+        config: Annotated[
+            JSONObject | None, AIParam(desc="Report configuration")
+        ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Attach a report configuration to a step."""
         graph = self._get_graph(graph_id)
         if not graph:
@@ -97,4 +109,3 @@ class StrategyAttachmentOps:
         response = self._serialize_step(graph, step)
         response["ok"] = True
         return self._with_full_graph(graph, response)
-

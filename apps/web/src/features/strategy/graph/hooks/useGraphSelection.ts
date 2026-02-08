@@ -20,7 +20,7 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
 
   const buildSelectionPayload = useCallback(
     (nodeIds: string[]) => buildNodeSelectionPayload(strategy, nodeIds),
-    [strategy]
+    [strategy],
   );
 
   const handleAddToChat = useCallback(
@@ -30,7 +30,7 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
       const detail = buildSelectionPayload([stepId]);
       window.dispatchEvent(new CustomEvent("pathfinder:ask-node", { detail }));
     },
-    [buildSelectionPayload]
+    [buildSelectionPayload],
   );
 
   const handleAddSelectionToChat = useCallback(() => {
@@ -51,7 +51,7 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
         return nextIds;
       });
     },
-    [isCompact]
+    [isCompact],
   );
 
   return {

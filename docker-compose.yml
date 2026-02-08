@@ -1,0 +1,90 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      # Container-friendly defaults; override as needed.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+      QDRANT_URL: http://qdrant:6333
+      # Safer defaults for first-run; override if you have access to other models.
+      PLANNING_PROVIDER: ${PLANNING_PROVIDER:-openai}
+      PLANNING_MODEL: ${PLANNING_MODEL:-gpt-5}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    environment:
+      # Next rewrites run on the server inside this container.
+      NEXT_PUBLIC_API_URL: http://api:8000
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pathfinder
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # --- Optional manual re-index job (run on demand) ---
+  #
+  # By default, the API runs incremental ingestion in the background at startup
+  # when `rag_enabled=true` and `OPENAI_API_KEY` is set. This job is only needed
+  # when you want to *reset* and fully rebuild the Qdrant collections.
+  #
+  # Run with:
+  #   docker compose --profile ingest run --rm rag_reindex
+  rag_reindex:
+    profiles: ["ingest"]
+    image: pathfinder-api
+    working_dir: /app/apps/api
+    depends_on:
+      - qdrant
+    env_file:
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - ./apps/api/ingest_reports:/reports
+    command:
+      [
+        "/bin/sh",
+        "-lc",
+        "uv run python -m veupath_chatbot.services.vectorstore.ingest.wdk_catalog --sites all --reset && uv run python -m veupath_chatbot.services.vectorstore.ingest.public_strategies --sites all --reset --report-path /reports/ingest_public_strategies_report.jsonl"
+      ]
+    restart: "no"
+
+volumes:
+  postgres_data:
+  qdrant_data:
+

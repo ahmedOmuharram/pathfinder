@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import csv
-from typing import Any
+from typing import cast
 
 import json5
 
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.types import JSONValue
 
 
-def decode_values(value: Any, name: str) -> list[Any]:
+def decode_values(value: JSONValue, name: str) -> list[JSONValue]:
     if value is None:
         return []
     if isinstance(value, dict):
@@ -37,8 +38,10 @@ def decode_values(value: Any, name: str) -> list[Any]:
     return [value]
 
 
-def parse_json5_value(raw: str) -> Any | None:
+def parse_json5_value(raw: str) -> JSONValue | None:
     try:
-        return json5.loads(raw)
+        # json5.loads returns Any, but we know it's JSON-serializable
+        result = json5.loads(raw)
+        return cast(JSONValue, result)
     except Exception:
         return None

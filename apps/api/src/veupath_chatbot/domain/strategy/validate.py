@@ -80,7 +80,11 @@ class StrategyValidator:
                 )
             )
 
-        return ValidationResult.success() if not errors else ValidationResult.failure(errors)
+        return (
+            ValidationResult.success()
+            if not errors
+            else ValidationResult.failure(errors)
+        )
 
     def _validate_node(
         self,
@@ -158,7 +162,10 @@ class StrategyValidator:
 
         if node.secondary_input is not None:
             self._validate_node(
-                node.secondary_input, f"{path}.secondaryInput", expected_record_type, errors
+                node.secondary_input,
+                f"{path}.secondaryInput",
+                expected_record_type,
+                errors,
             )
         if node.primary_input is not None:
             self._validate_node(
@@ -169,4 +176,3 @@ class StrategyValidator:
 def validate_strategy(strategy: StrategyAST) -> ValidationResult:
     """Validate a strategy AST with default validator."""
     return StrategyValidator().validate(strategy)
-

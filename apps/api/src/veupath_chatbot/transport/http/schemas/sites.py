@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field, RootModel
+
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 
 class SiteResponse(BaseModel):
@@ -45,7 +45,7 @@ class DependentParamsRequest(BaseModel):
     """Dependent parameter values request."""
 
     parameter_name: str = Field(alias="parameterName")
-    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+    context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
 
@@ -53,24 +53,24 @@ class DependentParamsRequest(BaseModel):
 class SearchDetailsResponse(BaseModel):
     """Search details payload (UI-facing)."""
 
-    search_data: dict[str, Any] | None = Field(default=None, alias="searchData")
-    validation: dict[str, Any] | None = None
-    search_config: dict[str, Any] | None = Field(default=None, alias="searchConfig")
-    parameters: list[dict[str, Any]] | None = None
-    param_map: dict[str, Any] | None = Field(default=None, alias="paramMap")
-    question: dict[str, Any] | None = None
+    search_data: JSONObject | None = Field(default=None, alias="searchData")
+    validation: JSONObject | None = None
+    search_config: JSONObject | None = Field(default=None, alias="searchConfig")
+    parameters: JSONArray | None = None
+    param_map: JSONObject | None = Field(default=None, alias="paramMap")
+    question: JSONObject | None = None
 
     model_config = {"populate_by_name": True, "extra": "allow"}
 
 
-class DependentParamsResponse(RootModel[list[dict[str, Any]]]):
+class DependentParamsResponse(RootModel[JSONArray]):
     """Dependent parameter values response."""
 
 
 class SearchValidationRequest(BaseModel):
     """Search parameter validation request."""
 
-    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+    context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
 
@@ -78,7 +78,7 @@ class SearchValidationRequest(BaseModel):
 class ParamSpecsRequest(BaseModel):
     """Parameter specs request (optionally contextual)."""
 
-    context_values: dict[str, Any] = Field(default_factory=dict, alias="contextValues")
+    context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
 
@@ -92,7 +92,7 @@ class SearchValidationErrors(BaseModel):
 
 class SearchValidationPayload(BaseModel):
     is_valid: bool = Field(alias="isValid")
-    normalized_context_values: dict[str, Any] = Field(
+    normalized_context_values: JSONObject = Field(
         default_factory=dict, alias="normalizedContextValues"
     )
     errors: SearchValidationErrors = Field(default_factory=SearchValidationErrors)
@@ -115,11 +115,13 @@ class ParamSpecResponse(BaseModel):
     display_name: str | None = Field(default=None, alias="displayName")
     type: str
     allow_empty_value: bool = Field(default=False, alias="allowEmptyValue")
-    allow_multiple_values: bool | None = Field(default=None, alias="allowMultipleValues")
+    allow_multiple_values: bool | None = Field(
+        default=None, alias="allowMultipleValues"
+    )
     multi_pick: bool | None = Field(default=None, alias="multiPick")
     min_selected_count: int | None = Field(default=None, alias="minSelectedCount")
     max_selected_count: int | None = Field(default=None, alias="maxSelectedCount")
     count_only_leaves: bool = Field(default=False, alias="countOnlyLeaves")
-    vocabulary: Any | None = None
+    vocabulary: JSONValue | None = None
 
     model_config = {"populate_by_name": True}

@@ -14,10 +14,7 @@ export type VocabNode = {
   children?: VocabNode[];
 };
 
-export function extractVocabOptions(
-  vocabulary: unknown,
-  limit = 200
-): VocabOption[] {
+export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOption[] {
   const options: VocabOption[] = [];
   const seen = new Set<string>();
   const pushOption = (value: string, label?: string, depth = 0) => {
@@ -26,9 +23,7 @@ export function extractVocabOptions(
       return;
     }
     const rawLabel =
-      trimmedValue === "@@fake@@"
-        ? "All"
-        : (label || trimmedValue).trim();
+      trimmedValue === "@@fake@@" ? "All" : (label || trimmedValue).trim();
     const displayLabel = depth > 0 ? `${"— ".repeat(depth)}${rawLabel}` : rawLabel;
     options.push({
       value: trimmedValue,
@@ -86,17 +81,9 @@ export function extractVocabOptions(
       if (entry && typeof entry === "object") {
         const record = entry as Record<string, unknown>;
         const value =
-          record.value ??
-          record.id ??
-          record.term ??
-          record.name ??
-          record.displayName;
+          record.value ?? record.id ?? record.term ?? record.name ?? record.displayName;
         const label =
-          record.display ??
-          record.displayName ??
-          record.label ??
-          record.name ??
-          value;
+          record.display ?? record.displayName ?? record.label ?? record.name ?? value;
         if (value !== undefined) {
           pushOption(String(value), label ? String(label) : undefined);
         }
@@ -172,7 +159,7 @@ export function extractVocabTree(vocabulary: unknown): VocabNode[] | null {
       .map((entry) =>
         entry && typeof entry === "object"
           ? extractNode(entry as Record<string, unknown>)
-          : null
+          : null,
       )
       .filter((node): node is VocabNode => Boolean(node));
     const hasChildren = nodes.some((node) => node.children?.length);
@@ -186,7 +173,7 @@ export function extractVocabTree(vocabulary: unknown): VocabNode[] | null {
       .map((entry) =>
         entry && typeof entry === "object"
           ? extractNode(entry as Record<string, unknown>)
-          : null
+          : null,
       )
       .filter((node): node is VocabNode => Boolean(node));
     const hasChildren = nodes.some((node) => node.children?.length);
@@ -222,7 +209,7 @@ export function extractSpecVocabulary(spec: ParamSpec): unknown {
 
 export function buildContextValues(
   values: Record<string, unknown>,
-  allowedKeys?: string[]
+  allowedKeys?: string[],
 ): Record<string, unknown> {
   const filtered: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(values)) {
@@ -235,4 +222,3 @@ export function buildContextValues(
   }
   return filtered;
 }
-

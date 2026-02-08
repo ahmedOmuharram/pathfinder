@@ -49,10 +49,7 @@ export function DownloadButton({ onDownload, disabled }: DownloadButtonProps) {
               fill="none"
               opacity={0.25}
             />
-            <path
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
+            <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
         ) : (
           <svg
@@ -72,7 +69,12 @@ export function DownloadButton({ onDownload, disabled }: DownloadButtonProps) {
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
 
@@ -92,4 +94,3 @@ export function DownloadButton({ onDownload, disabled }: DownloadButtonProps) {
     </div>
   );
 }
-

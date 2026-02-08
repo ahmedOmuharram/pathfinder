@@ -1,11 +1,11 @@
 """Discovery and caching of record types, searches, and parameters."""
 
 import asyncio
-from typing import Any
 
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
@@ -15,9 +15,9 @@ class SearchCatalog:
 
     def __init__(self, site_id: str) -> None:
         self.site_id = site_id
-        self._record_types: list[dict[str, Any]] = []
-        self._searches: dict[str, list[dict[str, Any]]] = {}
-        self._search_details: dict[str, dict[str, Any]] = {}
+        self._record_types: JSONArray = []
+        self._searches: dict[str, JSONArray] = {}
+        self._search_details: dict[str, JSONObject] = {}
         self._loaded = False
         self._lock = asyncio.Lock()
 
@@ -48,11 +48,23 @@ class SearchCatalog:
                     if isinstance(rt, str):
                         rt_name = rt
                         self._record_types.append({"urlSegment": rt, "name": rt})
-                        searches = []
+                        searches: JSONArray | None = []
+                    elif isinstance(rt, dict):
+                        rt_dict: JSONObject = rt
+                        rt_name_raw = (
+                            rt_dict.get("urlSegment") or rt_dict.get("name") or ""
+                        )
+                        rt_name = str(rt_name_raw) if rt_name_raw is not None else ""
+                        self._record_types.append(rt_dict)
+                        searches_raw = (
+                            rt_dict.get("searches") if expanded_supported else None
+                        )
+                        if isinstance(searches_raw, list):
+                            searches = searches_raw
+                        else:
+                            searches = None
                     else:
-                        rt_name = rt.get("urlSegment", rt.get("name", ""))
-                        self._record_types.append(rt)
-                        searches = rt.get("searches") if expanded_supported else None
+                        continue
 
                     if rt_name:
                         if searches is not None and searches != []:
@@ -76,24 +88,28 @@ class SearchCatalog:
                     total_searches=sum(len(s) for s in self._searches.values()),
                 )
             except Exception as e:
-                logger.error("Failed to load catalog", site_id=self.site_id, error=str(e))
+                logger.error(
+                    "Failed to load catalog", site_id=self.site_id, error=str(e)
+                )
                 raise
 
-    def get_record_types(self) -> list[dict[str, Any]]:
+    def get_record_types(self) -> JSONArray:
         """Get all record types."""
         return self._record_types
 
-    def get_searches(self, record_type: str) -> list[dict[str, Any]]:
+    def get_searches(self, record_type: str) -> JSONArray:
         """Get searches for a record type."""
         return self._searches.get(record_type, [])
 
-    def find_search(
-        self, record_type: str, search_name: str
-    ) -> dict[str, Any] | None:
+    def find_search(self, record_type: str, search_name: str) -> JSONObject | None:
         """Find a specific search."""
         searches = self.get_searches(record_type)
-        for search in searches:
-            if search.get("urlSegment") == search_name:
+        for search_raw in searches:
+            if not isinstance(search_raw, dict):
+                continue
+            search: JSONObject = search_raw
+            url_segment_raw = search.get("urlSegment")
+            if url_segment_raw == search_name:
                 return search
         return None
 
@@ -103,7 +119,7 @@ class SearchCatalog:
         record_type: str,
         search_name: str,
         expand_params: bool = True,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get detailed search config with caching."""
         cache_key = f"{record_type}/{search_name}?expand={int(expand_params)}"
 
@@ -138,14 +154,12 @@ class DiscoveryService:
 
         return catalog
 
-    async def get_record_types(self, site_id: str) -> list[dict[str, Any]]:
+    async def get_record_types(self, site_id: str) -> JSONArray:
         """Get record types for a site."""
         catalog = await self.get_catalog(site_id)
         return catalog.get_record_types()
 
-    async def get_searches(
-        self, site_id: str, record_type: str
-    ) -> list[dict[str, Any]]:
+    async def get_searches(self, site_id: str, record_type: str) -> JSONArray:
         """Get searches for a record type."""
         catalog = await self.get_catalog(site_id)
         return catalog.get_searches(record_type)
@@ -156,7 +170,7 @@ class DiscoveryService:
         record_type: str,
         search_name: str,
         expand_params: bool = True,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get detailed search configuration."""
         catalog = await self.get_catalog(site_id)
         router = get_site_router()
@@ -192,4 +206,3 @@ def get_discovery_service() -> DiscoveryService:
     if _discovery is None:
         _discovery = DiscoveryService()
     return _discovery
-

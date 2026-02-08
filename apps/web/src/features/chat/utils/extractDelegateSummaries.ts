@@ -31,11 +31,11 @@ const DelegatePayloadSchema = z
                 displayName: z.string().optional(),
                 searchName: z.string().optional(),
                 recordType: z.string().optional(),
-              })
+              }),
             )
             .optional(),
           notes: z.string().optional(),
-        })
+        }),
       )
       .optional(),
     rejected: z
@@ -44,16 +44,19 @@ const DelegatePayloadSchema = z
           task: z.string().optional(),
           error: z.string().optional(),
           details: z.string().optional(),
-        })
+        }),
       )
       .optional(),
   })
   .passthrough();
 
-const tryParseJson = (value: unknown): unknown => {
-  if (typeof value !== "string") return value;
+const tryParseJson = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value !== "string") return null;
   try {
-    return JSON.parse(value) as unknown;
+    const parsed = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -82,4 +85,3 @@ export function extractDelegateSummaries(toolCalls: ToolCall[]) {
 
   return { summaries, rejected };
 }
-

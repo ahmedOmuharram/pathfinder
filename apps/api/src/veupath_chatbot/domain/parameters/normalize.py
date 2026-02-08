@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from typing import Any
-
 import math
+from dataclasses import dataclass
 
-from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.domain.parameters._decode_values import decode_values
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.domain.parameters.vocab_utils import flatten_vocab
+from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_array,
+    as_json_object,
+)
 
 
 @dataclass(frozen=True)
@@ -20,8 +25,8 @@ class ParameterNormalizer:
 
     specs: dict[str, ParamSpecNormalized]
 
-    def normalize(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        normalized: dict[str, Any] = {}
+    def normalize(self, parameters: JSONObject) -> JSONObject:
+        normalized: JSONObject = {}
         for name, value in (parameters or {}).items():
             spec = self.specs.get(name)
             if not spec:
@@ -35,7 +40,9 @@ class ParameterNormalizer:
             normalized[name] = self._normalize_value(spec, value)
         return normalized
 
-    def _normalize_value(self, spec: ParamSpecNormalized, value: Any) -> Any:
+    def _normalize_value(
+        self, spec: ParamSpecNormalized, value: JSONValue
+    ) -> JSONValue:
         param_type = spec.param_type
         if value is None:
             return self._handle_empty(spec, value)
@@ -106,14 +113,16 @@ class ParameterNormalizer:
 
         return value
 
-    def _handle_empty(self, spec: ParamSpecNormalized, value: Any) -> Any:
+    def _handle_empty(self, spec: ParamSpecNormalized, value: JSONValue) -> JSONValue:
         if spec.allow_empty_value:
             return ""
         if spec.param_type in {"multi-pick-vocabulary", "single-pick-vocabulary"}:
             self._validate_single_required(spec)
         return value
 
-    def _validate_multi_count(self, spec: ParamSpecNormalized, values: list[str]) -> None:
+    def _validate_multi_count(
+        self, spec: ParamSpecNormalized, values: list[str]
+    ) -> None:
         if not values and spec.allow_empty_value:
             return
         min_count = spec.min_selected_count or 0
@@ -122,13 +131,13 @@ class ParameterNormalizer:
             raise ValidationError(
                 title="Invalid parameter value",
                 detail=f"Parameter '{spec.name}' requires at least {min_count} value(s).",
-                errors=[{"param": spec.name, "value": values}],
+                errors=[{"param": spec.name, "value": list(values)}],
             )
         if max_count is not None and len(values) > max_count:
             raise ValidationError(
                 title="Invalid parameter value",
                 detail=f"Parameter '{spec.name}' allows at most {max_count} value(s).",
-                errors=[{"param": spec.name, "value": values}],
+                errors=[{"param": spec.name, "value": list(values)}],
             )
 
     def _validate_single_required(self, spec: ParamSpecNormalized) -> None:
@@ -182,7 +191,9 @@ class ParameterNormalizer:
             errors=[{"param": spec.name, "value": value}],
         )
 
-    def _enforce_leaf_values(self, spec: ParamSpecNormalized, values: list[str]) -> list[str]:
+    def _enforce_leaf_values(
+        self, spec: ParamSpecNormalized, values: list[str]
+    ) -> list[str]:
         if not spec.count_only_leaves:
             return values
         enforced: list[str] = []
@@ -215,28 +226,46 @@ class ParameterNormalizer:
         return leaf
 
     def _expand_leaf_terms_for_match(
-        self, vocabulary: dict[str, Any] | list[Any] | None, match: str
+        self, vocabulary: JSONObject | JSONArray | None, match: str
     ) -> list[str]:
         if not isinstance(vocabulary, dict) or not match:
             return []
 
-        def find_node(node: dict[str, Any]) -> dict[str, Any] | None:
-            data = node.get("data", {})
-            term = data.get("term")
-            display = data.get("display")
-            if match == term or match == display:
+        def find_node(node: JSONObject) -> JSONObject | None:
+            data_value = node.get("data", {})
+            data = as_json_object(data_value) if isinstance(data_value, dict) else {}
+            term_value = data.get("term")
+            term = str(term_value) if term_value is not None else None
+            display_value = data.get("display")
+            display = str(display_value) if display_value is not None else None
+            if match in (term, display):
                 return node
-            for child in node.get("children", []) or []:
-                found = find_node(child)
-                if found:
-                    return found
+            children_value = node.get("children", [])
+            if isinstance(children_value, list):
+                children = as_json_array(children_value)
+                for child_value in children:
+                    if isinstance(child_value, dict):
+                        child = as_json_object(child_value)
+                        found = find_node(child)
+                        if found:
+                            return found
             return None
 
-        def collect_leaf_terms(node: dict[str, Any]) -> list[str]:
-            children = node.get("children", []) or []
+        def collect_leaf_terms(node: JSONObject) -> list[str]:
+            children_value = node.get("children", [])
+            children: list[JSONObject] = []
+            if isinstance(children_value, list):
+                children_list = as_json_array(children_value)
+                for child_value in children_list:
+                    if isinstance(child_value, dict):
+                        children.append(as_json_object(child_value))
             if not children:
-                data = node.get("data", {})
-                term = data.get("term")
+                data_value = node.get("data", {})
+                data = (
+                    as_json_object(data_value) if isinstance(data_value, dict) else {}
+                )
+                term_value = data.get("term")
+                term = str(term_value) if term_value is not None else None
                 return [term] if term else []
             leaves: list[str] = []
             for child in children:
@@ -246,45 +275,68 @@ class ParameterNormalizer:
         matched_node = find_node(vocabulary)
         if not matched_node:
             return []
-        children = matched_node.get("children", []) or []
+        children_value = matched_node.get("children", [])
+        children: list[JSONObject] = []
+        if isinstance(children_value, list):
+            children_list = as_json_array(children_value)
+            for child_value in children_list:
+                if isinstance(child_value, dict):
+                    children.append(as_json_object(child_value))
         if not children:
-            data = matched_node.get("data", {})
-            term = data.get("term")
+            data_value = matched_node.get("data", {})
+            data = as_json_object(data_value) if isinstance(data_value, dict) else {}
+            term_value = data.get("term")
+            term = str(term_value) if term_value is not None else None
             return [term] if term else []
         return collect_leaf_terms(matched_node)
 
     def _find_leaf_term_for_match(
-        self, vocabulary: dict[str, Any] | list[Any] | None, match: str
+        self, vocabulary: JSONObject | JSONArray | None, match: str
     ) -> str | None:
         if not isinstance(vocabulary, dict) or not match:
             return None
 
-        def find_node(node: dict[str, Any]) -> dict[str, Any] | None:
-            data = node.get("data", {})
-            term = data.get("term")
-            display = data.get("display")
-            if match == term or match == display:
+        def find_node(node: JSONObject) -> JSONObject | None:
+            data_value = node.get("data", {})
+            data = as_json_object(data_value) if isinstance(data_value, dict) else {}
+            term_value = data.get("term")
+            term = str(term_value) if term_value is not None else None
+            display_value = data.get("display")
+            display = str(display_value) if display_value is not None else None
+            if match in (term, display):
                 return node
-            for child in node.get("children", []) or []:
-                found = find_node(child)
-                if found:
-                    return found
+            children_value = node.get("children", [])
+            if isinstance(children_value, list):
+                children_list = as_json_array(children_value)
+                for child_value in children_list:
+                    if isinstance(child_value, dict):
+                        child = as_json_object(child_value)
+                        found = find_node(child)
+                        if found:
+                            return found
             return None
 
         matched_node = find_node(vocabulary)
         if not matched_node:
             return None
-        children = matched_node.get("children", []) or []
+        children_value = matched_node.get("children", [])
+        children: list[JSONObject] = []
+        if isinstance(children_value, list):
+            children_list = as_json_array(children_value)
+            for child_value in children_list:
+                if isinstance(child_value, dict):
+                    children.append(as_json_object(child_value))
         if children:
             return None
-        data = matched_node.get("data", {})
-        term = data.get("term")
+        data_value = matched_node.get("data", {})
+        data = as_json_object(data_value) if isinstance(data_value, dict) else {}
+        term_value = data.get("term")
+        term = str(term_value) if term_value is not None else None
         return term if term else None
 
-    def _stringify(self, value: Any) -> str:
+    def _stringify(self, value: JSONValue) -> str:
         if value is None:
             return ""
         if isinstance(value, bool):
             return "true" if value else "false"
         return str(value)
-

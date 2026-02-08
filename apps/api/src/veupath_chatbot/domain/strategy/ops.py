@@ -109,4 +109,3 @@ def parse_op(value: str) -> CombineOp:
         return CombineOp(norm)
     except ValueError as exc:
         raise ValueError(f"Unknown operator: {value}") from exc
-

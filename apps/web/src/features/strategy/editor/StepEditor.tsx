@@ -32,7 +32,6 @@ interface StepEditorProps {
   onClose: () => void;
 }
 
-
 export function StepEditor({
   step,
   siteId,
@@ -42,16 +41,14 @@ export function StepEditor({
 }: StepEditorProps) {
   const [oldName, setOldName] = useState(step.displayName);
   const [name, setName] = useState(step.displayName);
-  const [editableSearchName, setEditableSearchName] = useState(
-    step.searchName || ""
-  );
+  const [editableSearchName, setEditableSearchName] = useState(step.searchName || "");
   const [operatorValue, setOperatorValue] = useState(step.operator || "");
   const [colocationParams, setColocationParams] = useState(step.colocationParams);
   const [recordTypeValue, setRecordTypeValue] = useState(
-    normalizeRecordType(step.recordType || recordType)
+    normalizeRecordType(step.recordType || recordType),
   );
   const [parameters, setParameters] = useState<Record<string, unknown>>(
-    step.parameters || {}
+    step.parameters || {},
   );
   const [recordTypeOptions, setRecordTypeOptions] = useState<RecordType[]>([]);
   const [recordTypeFilter, setRecordTypeFilter] = useState("");
@@ -63,7 +60,7 @@ export function StepEditor({
   const dependentErrors: Record<string, string | null> = {};
   const lastStepIdRef = useRef<string | null>(null);
   const [rawParams, setRawParams] = useState(
-    JSON.stringify(step.parameters || {}, null, 2)
+    JSON.stringify(step.parameters || {}, null, 2),
   );
   const [showRaw, setShowRaw] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +75,9 @@ export function StepEditor({
     return searchOptions.find((option) => option.name === searchName) || null;
   }, [searchName, searchOptions]);
   const isSearchNameAvailable = useMemo(
-    () => (searchName ? searchOptions.some((option) => option.name === searchName) : true),
-    [searchName, searchOptions]
+    () =>
+      searchName ? searchOptions.some((option) => option.name === searchName) : true,
+    [searchName, searchOptions],
   );
   const lastSpecKeyRef = useRef<string | null>(null);
 
@@ -109,7 +107,7 @@ export function StepEditor({
         const options = (results || [])
           .filter((item): item is RecordType => Boolean(item && item.name))
           .sort((a, b) =>
-            (a.displayName || a.name).localeCompare(b.displayName || b.name)
+            (a.displayName || a.name).localeCompare(b.displayName || b.name),
           );
         setRecordTypeOptions(options);
       })
@@ -136,14 +134,12 @@ export function StepEditor({
     (searchRecordType?: string | null) => {
       const normalized = normalizeRecordType(searchRecordType || "");
       if (normalized) {
-        const exists = recordTypeOptions.some(
-          (option) => option.name === normalized
-        );
+        const exists = recordTypeOptions.some((option) => option.name === normalized);
         if (exists) return normalized;
       }
       return normalizeRecordType(recordTypeValue || recordType) || "";
     },
-    [recordType, recordTypeOptions, recordTypeValue]
+    [recordType, recordTypeOptions, recordTypeValue],
   );
 
   const { paramSpecs, isLoading } = useParamSpecs({
@@ -162,7 +158,7 @@ export function StepEditor({
     if (!stepValidationError) return new Set<string>();
     const keys = new Set<string>();
     const paramNames = new Set(
-      paramSpecs.map((spec) => spec.name).filter(Boolean) as string[]
+      paramSpecs.map((spec) => spec.name).filter(Boolean) as string[],
     );
     stepValidationError
       .replace(/^Cannot be saved:\s*/i, "")
@@ -197,7 +193,7 @@ export function StepEditor({
         const options = (results || [])
           .filter((item): item is Search => Boolean(item && item.name))
           .sort((a, b) =>
-            (a.displayName || a.name).localeCompare(b.displayName || b.name)
+            (a.displayName || a.name).localeCompare(b.displayName || b.name),
           );
         setSearchOptions(options);
         if (options.length === 0) {
@@ -236,7 +232,7 @@ export function StepEditor({
       (step.parameters || {}) as Record<string, unknown>,
       paramSpecs,
       // Normal UI flow: do not accept/parse stringified arrays or CSV.
-      { allowStringParsing: false }
+      { allowStringParsing: false },
     );
     const isNewStep = lastStepIdRef.current !== step.id;
     if (!isNewStep) return;
@@ -254,8 +250,17 @@ export function StepEditor({
     setRawParams(JSON.stringify(nextParams, null, 2));
     setShowRaw(false);
     lastStepIdRef.current = step.id;
-  }, [step.id, paramSpecs]);
-
+  }, [
+    paramSpecs,
+    recordType,
+    step.colocationParams,
+    step.displayName,
+    step.id,
+    step.operator,
+    step.parameters,
+    step.recordType,
+    step.searchName,
+  ]);
 
   const vocabOptions = useMemo(() => {
     return paramSpecs.reduce<Record<string, VocabOption[]>>((acc, spec) => {
@@ -280,16 +285,14 @@ export function StepEditor({
         parsedParams as Record<string, unknown>,
         paramSpecs,
         // Normal save path: do not accept stringified arrays/CSV.
-        { allowStringParsing: false }
+        { allowStringParsing: false },
       );
       // Do not enforce business-required checks here (backend is authoritative).
       const updates: Partial<StrategyStep> = {
         displayName: nextName,
         parameters: parsedParams as Record<string, unknown>,
       };
-      const selectedRecordType = resolveRecordTypeForSearch(
-        selectedSearch?.recordType
-      );
+      const selectedRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
       const resolvedRecordType = normalizeRecordType(selectedRecordType);
       if (selectedRecordType) {
         updates.recordType = selectedRecordType;
@@ -328,7 +331,7 @@ export function StepEditor({
             siteId,
             resolvedRecordType,
             nextSearchName,
-            parsedParams as Record<string, unknown>
+            parsedParams as Record<string, unknown>,
           );
           const formatted = formatSearchValidationResponse(response);
           if (formatted.message) {
@@ -358,11 +361,7 @@ export function StepEditor({
               {stepValidationError}
             </div>
           )}
-          <StepNameFields
-            oldName={oldName}
-            name={name}
-            onNameChange={setName}
-          />
+          <StepNameFields oldName={oldName} name={name} onNameChange={setName} />
 
           {(kind === "search" || kind === "transform") && (
             <>
@@ -429,4 +428,3 @@ export function StepEditor({
     </div>
   );
 }
-

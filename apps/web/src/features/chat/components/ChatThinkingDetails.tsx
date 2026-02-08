@@ -77,7 +77,9 @@ export function ChatThinkingDetails({
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-[11px] text-slate-500">No proposals returned.</div>
+                    <div className="text-[11px] text-slate-500">
+                      No proposals returned.
+                    </div>
                   )}
                   {summary.notes && (
                     <div className="mt-1 text-[11px] text-slate-500">
@@ -108,13 +110,18 @@ export function ChatThinkingDetails({
                     <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug">
                       {task}
                     </span>
-                    <SubKaniStatusIcon status={subKaniActivity?.status?.[task] || "done"} />
+                    <SubKaniStatusIcon
+                      status={subKaniActivity?.status?.[task] || "done"}
+                    />
                   </div>
                   {calls.length > 0 ? (
                     <ToolCallInspector toolCalls={calls} />
                   ) : (
                     <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                      <Hourglass className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                      <Hourglass
+                        className="h-3.5 w-3.5 text-slate-400"
+                        aria-hidden="true"
+                      />
                       <span>No sub-kani tool calls recorded.</span>
                     </div>
                   )}
@@ -143,4 +150,3 @@ export function ChatThinkingDetails({
     </details>
   );
 }
-

@@ -1,66 +1,157 @@
 {
-  "plasmodb": [
-    "Find genes from either Plasmodium falciparum 3D7 or Plasmodium falciparum Dd2.",
-    "Find orthologous genes upregulated in P. berghei gametocytes in either Otto et al 2014 or Yeoh et al 2017 (male + female samples). Map this combination to P. falciparum 3D7 orthologs, and keep only orthologs that are also upregulated in Lasonder et al 2016 male gametocytes."
-  ],
-  "toxodb": [
-    "Find Toxoplasma gondii genes that are upregulated in bradyzoites and have signal peptides.",
-    "Find Toxoplasma gondii genes with apicoplast targeting and keep only those with orthologs in Plasmodium falciparum.",
-    "Find Toxoplasma gondii genes annotated with microneme proteins and intersect with genes expressed in tachyzoites."
-  ],
-  "cryptodb": [
-    "Find Cryptosporidium parvum genes that are highly expressed in oocysts and have transmembrane domains.",
-    "Find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins.",
-    "Find Cryptosporidium hominis genes with orthologs in Plasmodium falciparum but not in Toxoplasma gondii."
-  ],
-  "piroplasmadb": [
-    "Find Babesia bovis genes with signal peptides and stage-specific expression in blood.",
-    "Find Theileria genes with transmembrane domains and intersect with genes annotated as surface proteins.",
-    "Find PiroplasmaDB genes with orthologs in Plasmodium falciparum and keep only those with known domains."
-  ],
-  "giardiadb": [
-    "Find Giardia lamblia genes expressed in trophozoites and annotated as surface proteins.",
-    "Find Giardia genes with signal peptides and intersect with genes annotated as cyst wall proteins.",
-    "Find Giardia genes with orthologs in Cryptosporidium but not in Toxoplasma."
-  ],
-  "amoebadb": [
-    "Find Entamoeba histolytica genes upregulated in cysts and with signal peptides.",
-    "Find AmoebaDB genes annotated as adhesion proteins and intersect with genes expressed in trophozoites.",
-    "Find AmoebaDB genes with orthologs in Giardia and filter for transmembrane domains."
-  ],
-  "microsporidiadb": [
-    "Find Microsporidia genes with signal peptides and high expression in spores.",
-    "Find Microsporidia genes annotated as secreted proteins and intersect with genes with transmembrane domains.",
-    "Find Microsporidia genes with orthologs in fungi and filter for conserved domains."
-  ],
-  "tritrypdb": [
-    "Find Trypanosoma brucei genes upregulated in bloodstream forms and with signal peptides.",
-    "Find Leishmania genes annotated as surface proteins and intersect with genes expressed in promastigotes.",
-    "Find TriTrypDB genes with orthologs in Trypanosoma cruzi and filter for transmembrane domains."
-  ],
-  "fungidb": [
-    "Find fungal genes annotated as cell wall proteins and with signal peptides.",
-    "Find FungiDB genes upregulated during hyphal growth and intersect with genes with transmembrane domains.",
-    "Find FungiDB genes with orthologs in Candida and filter for transcription factors."
-  ],
-  "hostdb": [
-    "Find host immune genes upregulated during Plasmodium infection in blood.",
-    "Find HostDB genes annotated with cytokine activity and intersect with genes expressed in macrophages.",
-    "Find HostDB genes with orthologs across mammals and filter for signal peptides."
-  ],
-  "vectorbase": [
-    "Find Anopheles genes upregulated after blood feeding and with signal peptides.",
-    "Find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut.",
-    "Find VectorBase genes with orthologs in Aedes and filter for transmembrane domains."
-  ],
-  "orthomcl": [
-    "Find OrthoMCL groups that contain Plasmodium falciparum and Toxoplasma gondii orthologs.",
-    "Find OrthoMCL groups shared between Trypanosoma brucei and Leishmania major.",
-    "Find OrthoMCL groups present in Plasmodium and absent in Cryptosporidium."
-  ],
-  "veupathdb": [
-    "Find studies about malaria transmission blocking vaccines and list associated datasets.",
-    "Find vector studies mentioning insecticide resistance in Anopheles and return matching datasets.",
-    "Find host transcriptomics studies involving Plasmodium falciparum and gametocytes."
-  ]
+  "plasmodb": {
+    "plan": [
+      "What host and parasite factors control successful liver-stage infection and hypnozoite formation in P. vivax, and what does this imply for relapse-prevention strategies?",
+      "I want a strategy to find Plasmodium falciparum genes involved in gametocyte development. Help me plan the steps, identify candidate searches/parameters, and save a reusable plan artifact.",
+      "Help me plan a strategy that combines results across multiple RNA-seq studies (male + female gametocytes) and then maps to orthologs. Ask me only the minimum questions needed."
+    ],
+    "execute": [
+      "Build a strategy to find genes from either Plasmodium falciparum 3D7 or Plasmodium falciparum Dd2.",
+      "Build a strategy to find orthologous genes upregulated in P. berghei gametocytes in either Otto et al 2014 or Yeoh et al 2017 (male + female samples). Map this combination to P. falciparum 3D7 orthologs, and keep only orthologs that are also upregulated in Lasonder et al 2016 male gametocytes."
+    ]
+  },
+  "toxodb": {
+    "plan": [
+      "What molecular and environmental cues drive Toxoplasma gondii stage conversion (tachyzoite → bradyzoite), and which parasite factors are most likely to mediate cyst persistence?",
+      "Help me plan a strategy to find Toxoplasma gondii genes that are bradyzoite-upregulated and likely secreted (signal peptide / secretion-related filters). Save the plan as an artifact I can apply.",
+      "I want a strategy that finds apicoplast-targeted genes and then filters to those with orthologs in Plasmodium falciparum. Propose a concrete plan and any validation checks."
+    ],
+    "execute": [
+      "Build a strategy to find Toxoplasma gondii genes that are upregulated in bradyzoites and have signal peptides.",
+      "Build a strategy to find Toxoplasma gondii genes with apicoplast targeting and keep only those with orthologs in Plasmodium falciparum.",
+      "Build a strategy to find Toxoplasma gondii genes annotated with microneme proteins and intersect with genes expressed in tachyzoites."
+    ]
+  },
+  "cryptodb": {
+    "plan": [
+      "Which parasite factors are most likely to contribute to Cryptosporidium invasion, intracellular survival, and oocyst shedding, and how could we operationalize that into a strategy to find candidate genes?",
+      "Help me plan a strategy to find Cryptosporidium genes highly expressed in oocysts and enriched for membrane proteins (e.g. transmembrane domains). Save a plan artifact.",
+      "Plan a strategy to find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins; suggest sanity checks to avoid over-filtering."
+    ],
+    "execute": [
+      "Build a strategy to find Cryptosporidium parvum genes that are highly expressed in oocysts and have transmembrane domains.",
+      "Build a strategy to find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins.",
+      "Build a strategy to find Cryptosporidium hominis genes with orthologs in Plasmodium falciparum but not in Toxoplasma gondii."
+    ]
+  },
+  "piroplasmadb": {
+    "plan": [
+      "What parasite mechanisms underlie erythrocyte invasion and immune evasion in Babesia/Theileria, and what types of gene features would you expect in surface-exposed candidates?",
+      "Help me plan a strategy to find Babesia genes with predicted secretion signals and blood-stage expression, and save it as a planning artifact.",
+      "Plan a strategy that targets predicted surface proteins (TM domains + annotation filters) for Theileria/Babesia. Propose steps and operators."
+    ],
+    "execute": [
+      "Build a strategy to find Babesia bovis genes with signal peptides and stage-specific expression in blood.",
+      "Build a strategy to find Theileria genes with transmembrane domains and intersect with genes annotated as surface proteins.",
+      "Build a strategy to find PiroplasmaDB genes with orthologs in Plasmodium falciparum and keep only those with known domains."
+    ]
+  },
+  "giardiadb": {
+    "plan": [
+      "What parasite factors drive Giardia attachment and antigenic variation, and what gene features (surface localization, expression stage) would you prioritize for follow-up?",
+      "Help me plan a strategy to find Giardia genes expressed in trophozoites and likely on the cell surface. Save a reusable plan artifact.",
+      "Plan a strategy to find Giardia genes with signal peptides and intersect with cyst wall protein annotations; include any parameter choices you recommend."
+    ],
+    "execute": [
+      "Build a strategy to find Giardia lamblia genes expressed in trophozoites and annotated as surface proteins.",
+      "Build a strategy to find Giardia genes with signal peptides and intersect with genes annotated as cyst wall proteins.",
+      "Build a strategy to find Giardia genes with orthologs in Cryptosporidium but not in Toxoplasma."
+    ]
+  },
+  "amoebadb": {
+    "plan": [
+      "What parasite factors are most likely to control Entamoeba encystation/excystation and host tissue invasion, and how would we translate that into a query strategy?",
+      "Help me plan a strategy to find Entamoeba histolytica genes upregulated in cysts and likely secreted; save it as a planning artifact.",
+      "Plan a strategy that finds adhesion-related genes expressed in trophozoites, then filters for membrane features (e.g. TM)."
+    ],
+    "execute": [
+      "Build a strategy to find Entamoeba histolytica genes upregulated in cysts and with signal peptides.",
+      "Build a strategy to find AmoebaDB genes annotated as adhesion proteins and intersect with genes expressed in trophozoites.",
+      "Build a strategy to find AmoebaDB genes with orthologs in Giardia and filter for transmembrane domains."
+    ]
+  },
+  "microsporidiadb": {
+    "plan": [
+      "Which parasite factors could mediate Microsporidia host-cell invasion and intracellular growth, and what gene annotations/features would be most informative to prioritize?",
+      "Help me plan a strategy to find Microsporidia genes likely involved in host interaction (signal peptides / secreted annotations) and highly expressed in spores. Save the plan.",
+      "Plan a strategy that intersects secreted-protein annotations with predicted membrane proteins, and suggest a validation step."
+    ],
+    "execute": [
+      "Build a strategy to find Microsporidia genes with signal peptides and high expression in spores.",
+      "Build a strategy to find Microsporidia genes annotated as secreted proteins and intersect with genes with transmembrane domains.",
+      "Build a strategy to find Microsporidia genes with orthologs in fungi and filter for conserved domains."
+    ]
+  },
+  "tritrypdb": {
+    "plan": [
+      "What parasite factors shape tissue tropism, immune evasion, and transmission in trypanosomatids, and what does that imply for candidate surface/secreted gene discovery?",
+      "Help me plan a strategy to find Trypanosoma brucei genes upregulated in bloodstream forms and likely secreted; save the plan as an artifact.",
+      "Plan a strategy to find Leishmania surface proteins expressed in promastigotes; suggest the best combination operators and checks."
+    ],
+    "execute": [
+      "Build a strategy to find Trypanosoma brucei genes upregulated in bloodstream forms and with signal peptides.",
+      "Build a strategy to find Leishmania genes annotated as surface proteins and intersect with genes expressed in promastigotes.",
+      "Build a strategy to find TriTrypDB genes with orthologs in Trypanosoma cruzi and filter for transmembrane domains."
+    ]
+  },
+  "fungidb": {
+    "plan": [
+      "Which fungal factors are most likely to control host invasion and hyphal growth, and what gene features (cell wall localization, secretion, regulation) would you use to prioritize candidates?",
+      "Help me plan a strategy to find fungal cell wall proteins (annotation + signal peptide) and save it as a reusable plan artifact.",
+      "Plan a strategy for hyphal-growth upregulated genes and intersect with membrane features; propose parameter defaults."
+    ],
+    "execute": [
+      "Build a strategy to find fungal genes annotated as cell wall proteins and with signal peptides.",
+      "Build a strategy to find FungiDB genes upregulated during hyphal growth and intersect with genes with transmembrane domains.",
+      "Build a strategy to find FungiDB genes with orthologs in Candida and filter for transcription factors."
+    ]
+  },
+  "hostdb": {
+    "plan": [
+      "Which host pathways most strongly determine susceptibility vs resistance during infection, and how can we frame a query strategy to find host immune genes and relevant expression contrasts?",
+      "Help me plan a strategy to find host immune genes upregulated during Plasmodium infection in blood. Suggest how to select studies/contrasts and save a plan artifact.",
+      "Plan a strategy to find cytokine-activity genes expressed in macrophages, and propose checks to avoid zero-result strategies."
+    ],
+    "execute": [
+      "Build a strategy to find host immune genes upregulated during Plasmodium infection in blood.",
+      "Build a strategy to find HostDB genes annotated with cytokine activity and intersect with genes expressed in macrophages.",
+      "Build a strategy to find HostDB genes with orthologs across mammals and filter for signal peptides."
+    ]
+  },
+  "vectorbase": {
+    "plan": [
+      "What vector factors most strongly affect pathogen transmission (e.g. midgut invasion, salivary gland colonization, immune responses), and how could we find candidate genes using expression + annotation filters?",
+      "Help me plan a strategy to find Anopheles genes induced after blood feeding and likely secreted/membrane-associated; save the plan artifact.",
+      "Plan a strategy for insecticide resistance genes expressed in the midgut; suggest the best searches and parameters."
+    ],
+    "execute": [
+      "Build a strategy to find Anopheles genes upregulated after blood feeding and with signal peptides.",
+      "Build a strategy to find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut.",
+      "Build a strategy to find VectorBase genes with orthologs in Aedes and filter for transmembrane domains."
+    ]
+  },
+  "orthomcl": {
+    "plan": [
+      "Which gene families are conserved across apicomplexans vs lineage-specific, and how can orthology groups help identify essential processes or potential drug targets?",
+      "Help me plan a strategy to find OrthoMCL groups shared between two species sets, and save a reusable plan artifact (including how to validate the result).",
+      "Plan a strategy to find ortholog groups present in Plasmodium but absent in Cryptosporidium; propose the step structure."
+    ],
+    "execute": [
+      "Build a strategy to find OrthoMCL groups that contain Plasmodium falciparum and Toxoplasma gondii orthologs.",
+      "Build a strategy to find OrthoMCL groups shared between Trypanosoma brucei and Leishmania major.",
+      "Build a strategy to find OrthoMCL groups present in Plasmodium and absent in Cryptosporidium."
+    ]
+  },
+  "veupathdb": {
+    "plan": [
+      "What study and cohort factors typically determine infection severity and transmission (host age/sex, prior exposure, vector ecology, parasite genetics), and how should we translate that into a structured dataset discovery plan?",
+      "Help me plan how to translate an epidemiology-style question into a concrete query strategy on VEuPathDB, and save the plan as an artifact.",
+      "I want to search for studies about malaria transmission-blocking vaccines. Help me plan what I should query for (keywords, filters, outputs) before executing anything."
+    ],
+    "execute": [
+      "Build a strategy to find studies about malaria transmission blocking vaccines and list associated datasets.",
+      "Build a strategy to find vector studies mentioning insecticide resistance in Anopheles and return matching datasets.",
+      "Build a strategy to find host transcriptomics studies involving Plasmodium falciparum and gametocytes."
+    ]
+  }
 }

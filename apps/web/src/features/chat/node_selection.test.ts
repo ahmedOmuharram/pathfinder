@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { decodeNodeSelection, encodeNodeSelection, normalizeNodeSelection } from "./node_selection";
+import {
+  decodeNodeSelection,
+  encodeNodeSelection,
+  normalizeNodeSelection,
+} from "./node_selection";
 
 describe("node_selection", () => {
   it("round-trips selection + message", () => {
@@ -17,4 +21,3 @@ describe("node_selection", () => {
     expect(decoded.selection).toBeNull();
   });
 });
-

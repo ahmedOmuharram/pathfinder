@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from veupath_chatbot.platform.config import get_settings
 
@@ -53,4 +53,3 @@ async def embed_one(*, text: str, model: str) -> list[float]:
     """Convenience helper for one-off vector size detection."""
     embedder = OpenAIEmbeddings(model=model, batch_size=1)
     return (await embedder.embed_texts([text]))[0]
-

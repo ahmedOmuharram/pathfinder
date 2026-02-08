@@ -12,26 +12,47 @@ Tool results may include special keys that are translated into SSE events:
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from datetime import UTC
+from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.ai.tools.research_tools import LiteratureSort, ResearchTools
-from veupath_chatbot.ai.tools.registry import _record_type_query_error, _search_query_error
-from veupath_chatbot.services.control_tests import ControlValueFormat, run_positive_negative_controls
+from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
+from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
+from veupath_chatbot.ai.tools.registry import (
+    _record_type_query_error,
+    _search_query_error,
+)
+from veupath_chatbot.domain.research import LiteratureSort
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.services.control_tests import (
+    ControlValueFormat,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.research import (
+    LiteratureSearchService,
+    WebSearchService,
+)
 
 
 class PlannerToolRegistryMixin:
     """Kani tool registry for planning-mode agents."""
 
+    # These attributes are provided by PathfinderPlannerAgent
+    web_search_service: WebSearchService
+    literature_search_service: LiteratureSearchService
+    site_id: str
+    catalog_tools: CatalogTools
+    catalog_rag_tools: CatalogRagTools
+
     def _combined_result(
         self,
         *,
-        rag: object,
-        wdk: object,
+        rag: JSONValue,
+        wdk: JSONValue,
         rag_note: str | None = None,
         wdk_note: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         # Mirror the executor tool shape so the model sees consistent outputs.
         return {
             "rag": {"data": rag, "note": rag_note or ""},
@@ -56,15 +77,17 @@ class PlannerToolRegistryMixin:
         summary_max_chars: Annotated[
             int, AIParam(desc="Max characters of per-result summary to include.")
         ] = 600,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Search the web and return results with citations."""
-        # `self.research_tools` is initialized in `PathfinderPlannerAgent`.
-        return await self.research_tools.web_search(
+        # `self.web_search_service` is initialized in `PathfinderPlannerAgent`.
+        search_method = self.web_search_service.search
+        result = await search_method(
             query,
             limit=limit,
             include_summary=include_summary,
             summary_max_chars=summary_max_chars,
         )
+        return result
 
     @ai_function()
     async def literature_search(
@@ -115,14 +138,16 @@ class PlannerToolRegistryMixin:
             str | None, AIParam(desc="Optional DOI exact match filter")
         ] = None,
         pmid_equals: Annotated[
-            str | None, AIParam(desc="Optional PMID exact match filter (Europe PMC only)")
+            str | None,
+            AIParam(desc="Optional PMID exact match filter (Europe PMC only)"),
         ] = None,
         require_doi: Annotated[
             bool, AIParam(desc="If true, only return results that include a DOI")
         ] = False,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Search scientific literature across all sources and return results with citations."""
-        return await self.research_tools.literature_search(
+        search_method = self.literature_search_service.search
+        result = await search_method(
             query,
             source="all",
             limit=limit,
@@ -139,10 +164,11 @@ class PlannerToolRegistryMixin:
             pmid_equals=pmid_equals,
             require_doi=require_doi,
         )
+        return result
 
     # --- VEuPathDB/WDK catalog introspection (non-mutating) ---
     @ai_function()
-    async def list_sites(self) -> dict[str, Any]:
+    async def list_sites(self) -> JSONObject:
         """List all available VEuPathDB sites (authoritative live list)."""
         sites = await self.catalog_tools.list_sites()
         return self._combined_result(
@@ -162,7 +188,7 @@ class PlannerToolRegistryMixin:
             ),
         ] = None,
         limit: Annotated[int, AIParam(desc="Max number of results to return")] = 20,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get available record types for the current site (returns both RAG and live WDK)."""
         q = (query or "").strip()
         err = _record_type_query_error(q) if q else None
@@ -190,7 +216,7 @@ class PlannerToolRegistryMixin:
     async def list_searches(
         self,
         record_type: Annotated[str, AIParam(desc="Record type to list searches for")],
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """List available searches for a record type on the current site (authoritative live list)."""
         wdk = await self.catalog_tools.list_searches(self.site_id, record_type)
         return self._combined_result(
@@ -213,7 +239,7 @@ class PlannerToolRegistryMixin:
             str | None, AIParam(desc="Optional record type to restrict the search")
         ] = None,
         limit: Annotated[int, AIParam(desc="Max number of results to return")] = 20,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Find searches matching a query term (returns both RAG and live WDK)."""
         err = _search_query_error(query)
         if err is not None:
@@ -223,7 +249,9 @@ class PlannerToolRegistryMixin:
                 rag_note=f"Rejected vague query: {err.get('message')}",
                 wdk_note="Skipped live WDK search to avoid large irrelevant output; refine the query.",
             )
-        rag = await self.catalog_rag_tools.rag_search_for_searches(query, record_type, limit)
+        rag = await self.catalog_rag_tools.rag_search_for_searches(
+            query, record_type, limit
+        )
         wdk = await self.catalog_tools.search_for_searches(self.site_id, query)
         return self._combined_result(
             rag=rag,
@@ -237,9 +265,11 @@ class PlannerToolRegistryMixin:
         self,
         record_type: Annotated[str, AIParam(desc="Record type that owns the search")],
         search_name: Annotated[str, AIParam(desc="WDK search/question urlSegment")],
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Get detailed parameter info for a search (returns both RAG and live WDK)."""
-        rag = await self.catalog_rag_tools.rag_get_search_metadata(record_type, search_name)
+        rag = await self.catalog_rag_tools.rag_get_search_metadata(
+            record_type, search_name
+        )
         wdk = await self.catalog_tools.get_search_parameters(
             self.site_id, record_type, search_name
         )
@@ -256,17 +286,18 @@ class PlannerToolRegistryMixin:
         self,
         title: Annotated[str, AIParam(desc="Short title for the plan")],
         summary_markdown: Annotated[
-            str, AIParam(desc="Main planning output in markdown (actionable, structured)")
+            str,
+            AIParam(desc="Main planning output in markdown (actionable, structured)"),
         ],
         assumptions: Annotated[
             list[str] | None, AIParam(desc="Optional list of assumptions/constraints")
         ] = None,
         parameters: Annotated[
-            dict[str, Any] | None,
+            JSONObject | None,
             AIParam(desc="Chosen/considered parameters (free-form JSON)"),
         ] = None,
         proposed_strategy_plan: Annotated[
-            dict[str, Any] | None,
+            JSONObject | None,
             AIParam(
                 desc=(
                     "Optional future strategy plan payload. This is NOT executed in planning mode; "
@@ -274,19 +305,19 @@ class PlannerToolRegistryMixin:
                 )
             ),
         ] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Publish a reusable planning artifact (persisted to the current plan session)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         from uuid import uuid4
 
-        artifact = {
+        artifact: JSONObject = {
             "id": f"plan_{uuid4().hex[:12]}",
             "title": (title or "").strip() or "Plan",
             "summaryMarkdown": summary_markdown or "",
-            "assumptions": assumptions or [],
-            "parameters": parameters or {},
+            "assumptions": cast(JSONArray, assumptions or []),
+            "parameters": cast(JSONObject, parameters or {}),
             "proposedStrategyPlan": proposed_strategy_plan,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdAt": datetime.now(UTC).isoformat(),
         }
         return {"planningArtifact": artifact}
 
@@ -303,7 +334,7 @@ class PlannerToolRegistryMixin:
             ),
         ],
         delegation_plan: Annotated[
-            dict[str, Any] | None,
+            JSONObject | None,
             AIParam(
                 desc=(
                     "Nested delegation plan tree (task/combine nodes). "
@@ -315,12 +346,13 @@ class PlannerToolRegistryMixin:
             str | None,
             AIParam(desc="Optional short notes about unresolved decisions / TODOs."),
         ] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Save/update a draft delegation plan object on the plan session."""
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         from veupath_chatbot.platform.parsing import parse_jsonish
 
-        plan_obj: dict[str, Any] | None = delegation_plan
+        plan_obj: JSONObject | None = delegation_plan
         if plan_obj is None and isinstance(notes_markdown, str) and notes_markdown:
             # Common model failure mode: paste the JSON into notes_markdown but omit delegation_plan.
             start = notes_markdown.find("{")
@@ -340,17 +372,20 @@ class PlannerToolRegistryMixin:
                 ),
             }
 
-        artifact = {
+        artifact: JSONObject = {
             "id": "delegation_draft",
             "title": "Delegation plan (draft)",
             "summaryMarkdown": notes_markdown or "",
             "assumptions": [],
-            "parameters": {
-                "delegationGoal": (delegation_goal or "").strip(),
-                "delegationPlan": plan_obj,
-            },
+            "parameters": cast(
+                JSONObject,
+                {
+                    "delegationGoal": (delegation_goal or "").strip(),
+                    "delegationPlan": plan_obj,
+                },
+            ),
             "proposedStrategyPlan": None,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdAt": datetime.now(UTC).isoformat(),
         }
         return {"planningArtifact": artifact}
 
@@ -359,7 +394,7 @@ class PlannerToolRegistryMixin:
         self,
         delegation_goal: Annotated[str, AIParam(desc="Delegation goal")],
         delegation_plan: Annotated[
-            dict[str, Any] | None,
+            JSONObject | None,
             AIParam(
                 desc=(
                     "Delegation plan JSON tree. If omitted, the tool will attempt to load the "
@@ -368,7 +403,8 @@ class PlannerToolRegistryMixin:
             ),
         ] = None,
         additional_instructions: Annotated[
-            str | None, AIParam(desc="Optional extra instructions for the executor agent")
+            str | None,
+            AIParam(desc="Optional extra instructions for the executor agent"),
         ] = None,
         delegation_plan_artifact_id: Annotated[
             str | None,
@@ -379,12 +415,12 @@ class PlannerToolRegistryMixin:
                 )
             ),
         ] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Ask the UI to open executor mode and prefill a build message."""
         import json
 
         goal = (delegation_goal or "").strip()
-        plan: dict[str, Any] | None = delegation_plan
+        plan: JSONObject | None = delegation_plan
         loaded_from: str | None = None
 
         if plan is None:
@@ -397,8 +433,16 @@ class PlannerToolRegistryMixin:
                         continue
                     if a.get("id") != aid:
                         continue
-                    params = a.get("parameters") if isinstance(a.get("parameters"), dict) else {}
-                    candidate = params.get("delegationPlan") if isinstance(params, dict) else None
+                    params = (
+                        a.get("parameters")
+                        if isinstance(a.get("parameters"), dict)
+                        else {}
+                    )
+                    candidate = (
+                        params.get("delegationPlan")
+                        if isinstance(params, dict)
+                        else None
+                    )
                     if isinstance(candidate, dict) and candidate:
                         plan = candidate
                         loaded_from = aid
@@ -425,7 +469,11 @@ class PlannerToolRegistryMixin:
             f"```\n{plan_json}\n```\n"
         )
         if additional_instructions and str(additional_instructions).strip():
-            msg += "\nAdditional instructions:\n" + str(additional_instructions).strip() + "\n"
+            msg += (
+                "\nAdditional instructions:\n"
+                + str(additional_instructions).strip()
+                + "\n"
+            )
         return {
             "executorBuildRequest": {
                 "siteId": getattr(self, "site_id", None),
@@ -450,7 +498,7 @@ class PlannerToolRegistryMixin:
             ),
         ] = False,
         limit: Annotated[int, AIParam(desc="Max artifacts to return")] = 50,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """List planning artifacts already saved on this plan session."""
         getter = getattr(self, "get_plan_session_artifacts", None)
         if getter is None:
@@ -463,13 +511,16 @@ class PlannerToolRegistryMixin:
         items = [a for a in (artifacts or []) if isinstance(a, dict)]
         items = items[-max(int(limit), 1) :]
         if include_full:
-            return {"ok": True, "artifacts": items}
-        compact = [
-            {
-                "id": a.get("id"),
-                "title": a.get("title"),
-                "createdAt": a.get("createdAt"),
-            }
+            return {"ok": True, "artifacts": cast(JSONArray, items)}
+        compact: JSONArray = [
+            cast(
+                JSONObject,
+                {
+                    "id": a.get("id"),
+                    "title": a.get("title"),
+                    "createdAt": a.get("createdAt"),
+                },
+            )
             for a in items
         ]
         return {"ok": True, "artifacts": compact}
@@ -477,8 +528,10 @@ class PlannerToolRegistryMixin:
     @ai_function()
     async def get_saved_planning_artifact(
         self,
-        artifact_id: Annotated[str, AIParam(desc="Artifact id to fetch (e.g. 'delegation_draft')")],
-    ) -> dict[str, Any]:
+        artifact_id: Annotated[
+            str, AIParam(desc="Artifact id to fetch (e.g. 'delegation_draft')")
+        ],
+    ) -> JSONObject:
         """Fetch one previously saved planning artifact by id."""
         getter = getattr(self, "get_plan_session_artifacts", None)
         if getter is None:
@@ -500,7 +553,7 @@ class PlannerToolRegistryMixin:
     async def set_plan_title(
         self,
         title: Annotated[str, AIParam(desc="Short plan session title")],
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Update the plan session title (persisted via SSE plan_update)."""
         t = (title or "").strip()
         if not t:
@@ -510,8 +563,10 @@ class PlannerToolRegistryMixin:
     @ai_function()
     async def report_reasoning(
         self,
-        reasoning: Annotated[str, AIParam(desc="Model reasoning text to show in Thinking tab")],
-    ) -> dict[str, Any]:
+        reasoning: Annotated[
+            str, AIParam(desc="Model reasoning text to show in Thinking tab")
+        ],
+    ) -> JSONObject:
         """Publish reasoning text to the Thinking tab for planning mode."""
         r = (reasoning or "").strip()
         if not r:
@@ -523,9 +578,11 @@ class PlannerToolRegistryMixin:
     async def run_control_tests(
         self,
         record_type: Annotated[str, AIParam(desc="WDK record type (e.g. 'gene')")],
-        target_search_name: Annotated[str, AIParam(desc="WDK search/question urlSegment")],
+        target_search_name: Annotated[
+            str, AIParam(desc="WDK search/question urlSegment")
+        ],
         target_parameters: Annotated[
-            dict[str, Any], AIParam(desc="Target search parameter mapping")
+            JSONObject, AIParam(desc="Target search parameter mapping")
         ],
         controls_search_name: Annotated[
             str,
@@ -536,20 +593,23 @@ class PlannerToolRegistryMixin:
             ),
         ],
         controls_param_name: Annotated[
-            str, AIParam(desc="Parameter name within controls_search_name that accepts IDs")
+            str,
+            AIParam(desc="Parameter name within controls_search_name that accepts IDs"),
         ],
         positive_controls: Annotated[
             list[str] | None, AIParam(desc="Known-positive IDs that should be returned")
         ] = None,
         negative_controls: Annotated[
-            list[str] | None, AIParam(desc="Known-negative IDs that should NOT be returned")
+            list[str] | None,
+            AIParam(desc="Known-negative IDs that should NOT be returned"),
         ] = None,
         controls_value_format: Annotated[
             ControlValueFormat,
             AIParam(desc="How to encode ID list for the controls parameter"),
         ] = "newline",
         controls_extra_parameters: Annotated[
-            dict[str, Any] | None, AIParam(desc="Extra fixed parameters for the controls search")
+            JSONObject | None,
+            AIParam(desc="Extra fixed parameters for the controls search"),
         ] = None,
         id_field: Annotated[
             str | None,
@@ -560,7 +620,7 @@ class PlannerToolRegistryMixin:
                 )
             ),
         ] = None,
-    ) -> dict[str, Any]:
+    ) -> JSONObject:
         """Run positive and negative control tests using live WDK (temporary internal strategy)."""
         return await run_positive_negative_controls(
             site_id=self.site_id,
