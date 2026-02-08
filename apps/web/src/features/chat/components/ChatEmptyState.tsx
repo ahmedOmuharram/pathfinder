@@ -8,10 +8,9 @@ type SuggestedQuestionsData = Record<
 
 function _suggestionsForSite(
   all: SuggestedQuestionsData | unknown,
-  _options: { siteId: string; mode: ChatMode },
-  siteId: string,
-  mode: ChatMode,
+  options: { siteId: string; mode: ChatMode },
 ): string[] {
+  const { siteId, mode } = options;
   if (!all || typeof all !== "object" || Array.isArray(all)) return [];
   const bySiteRecord = all as SuggestedQuestionsData;
   const bySite = bySiteRecord[siteId] ?? bySiteRecord.plasmodb;

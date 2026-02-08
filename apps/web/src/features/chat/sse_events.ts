@@ -100,7 +100,11 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
     case "error":
       return { type, data } as ChatSSEEvent;
     default:
-      return { type: "unknown", rawType: type, data };
+      return {
+        type: "unknown",
+        rawType: type,
+        data: typeof data === "string" ? { raw: data } : data,
+      };
   }
 }
 

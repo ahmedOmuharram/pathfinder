@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Citation, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { Pencil, Save, X } from "lucide-react";
 import {
+  APIError,
   getPlanSession,
   openStrategy,
   getStrategy,
   updatePlanSession,
 } from "@/lib/api/client";
+import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
@@ -58,6 +60,27 @@ export function PlanPanel(props: { siteId: string }) {
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
   const addStrategy = useStrategyListStore((s) => s.addStrategy);
 
+  const handlePlanError = useCallback(
+    (error: unknown, fallback: string) => {
+      const isUnauthorized =
+        error instanceof APIError
+          ? error.status === 401
+          : error instanceof Error && /HTTP 401\b/.test(error.message);
+      if (isUnauthorized) {
+        setAuthToken(null);
+        setPlanSessionId(null);
+        setMessages([]);
+        setSessionArtifacts([]);
+        setIsStreaming(false);
+        setChatIsStreaming(false);
+        setApiError("Session expired. Refresh to start a new plan.");
+        return;
+      }
+      setApiError(toUserMessage(error, fallback));
+    },
+    [setAuthToken, setPlanSessionId, setMessages, setSessionArtifacts, setChatIsStreaming],
+  );
+
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -93,8 +116,17 @@ export function PlanPanel(props: { siteId: string }) {
           }
         }
       })
-      .catch(() => {});
-  }, [planSessionId, isStreaming, applyThinkingPayload, setChatIsStreaming, reset]);
+      .catch((error) => {
+        handlePlanError(error, "Failed to load plan.");
+      });
+  }, [
+    planSessionId,
+    isStreaming,
+    applyThinkingPayload,
+    setChatIsStreaming,
+    reset,
+    handlePlanError,
+  ]);
 
   const handlePlanEvent = useCallback(
     (
@@ -272,18 +304,26 @@ export function PlanPanel(props: { siteId: string }) {
                   updatedAt: new Date().toISOString(),
                 });
                 clearStrategy();
-                const full = await getStrategy(nextId);
-                setStrategy(full);
-                setStrategyMeta({
-                  name: full.name,
-                  recordType: full.recordType ?? undefined,
-                  siteId: full.siteId,
-                });
-                window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
-                // Persist a pending send so executor chat can send after it mounts.
-                setPendingExecutorSend({ strategyId: nextId, message: messageText });
+                try {
+                  const full = await getStrategy(nextId);
+                  setStrategy(full);
+                  setStrategyMeta({
+                    name: full.name,
+                    recordType: full.recordType ?? undefined,
+                    siteId: full.siteId,
+                  });
+                  window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
+                  // Persist a pending send so executor chat can send after it mounts.
+                  setPendingExecutorSend({ strategyId: nextId, message: messageText });
+                } catch (error) {
+                  setApiError(
+                    toUserMessage(error, "Failed to load the new strategy."),
+                  );
+                }
               })
-              .catch(() => {});
+              .catch((error) => {
+                setApiError(toUserMessage(error, "Failed to open a new strategy."));
+              });
           }
           break;
         }
@@ -377,7 +417,7 @@ export function PlanPanel(props: { siteId: string }) {
             setChatIsStreaming(false);
             abortRef.current = null;
             finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
-            setApiError(error.message || "Unable to reach the API.");
+            handlePlanError(error, "Unable to reach the API.");
           },
         },
         { planSessionId: planSessionId ?? undefined },
@@ -392,6 +432,7 @@ export function PlanPanel(props: { siteId: string }) {
       reset,
       finalizeToolCalls,
       setChatIsStreaming,
+      handlePlanError,
     ],
   );
 
@@ -413,9 +454,12 @@ export function PlanPanel(props: { siteId: string }) {
                 onClick={async () => {
                   if (!planSessionId) return;
                   const next = draftTitle.trim() || "Plan";
-                  await updatePlanSession(planSessionId, { title: next }).catch(
-                    () => {},
-                  );
+                  try {
+                    await updatePlanSession(planSessionId, { title: next });
+                  } catch (error) {
+                    handlePlanError(error, "Failed to update plan title.");
+                    return;
+                  }
                   setPlanTitle(next);
                   setDraftTitle(next);
                   setIsEditingTitle(false);
@@ -541,19 +585,32 @@ export function PlanPanel(props: { siteId: string }) {
                               updatedAt: new Date().toISOString(),
                             });
                             clearStrategy();
-                            const full = await getStrategy(nextId);
-                            setStrategy(full);
-                            setStrategyMeta({
-                              name: full.name,
-                              recordType: full.recordType ?? undefined,
-                              siteId: full.siteId,
-                            });
-                            window.dispatchEvent(
-                              new Event("pathfinder:open-executor-chat"),
-                            );
-                            setPendingExecutorSend({ strategyId: nextId, message });
+                            try {
+                              const full = await getStrategy(nextId);
+                              setStrategy(full);
+                              setStrategyMeta({
+                                name: full.name,
+                                recordType: full.recordType ?? undefined,
+                                siteId: full.siteId,
+                              });
+                              window.dispatchEvent(
+                                new Event("pathfinder:open-executor-chat"),
+                              );
+                              setPendingExecutorSend({ strategyId: nextId, message });
+                            } catch (error) {
+                              setApiError(
+                                toUserMessage(
+                                  error,
+                                  "Failed to load the new strategy.",
+                                ),
+                              );
+                            }
                           })
-                          .catch(() => {});
+                          .catch((error) => {
+                            setApiError(
+                              toUserMessage(error, "Failed to open a new strategy."),
+                            );
+                          });
                       }}
                     >
                       Build in executor

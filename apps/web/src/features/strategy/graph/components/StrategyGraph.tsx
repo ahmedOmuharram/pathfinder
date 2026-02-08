@@ -8,6 +8,7 @@ import {
   useNodesState,
   useEdgesState,
   type ReactFlowInstance,
+  type NodeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
@@ -64,7 +65,7 @@ interface StrategyGraphProps {
   variant?: "full" | "compact";
 }
 
-const NODE_TYPES = {
+const NODE_TYPES: NodeTypes = {
   step: StepNode,
   warningGroup: WarningGroupNode,
   warningIcon: WarningIconNode,

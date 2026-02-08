@@ -10,6 +10,7 @@ import ReactFlow, {
   NodeChange,
   type ReactFlowInstance,
   SelectionMode,
+  type NodeTypes,
 } from "reactflow";
 import type { StrategyStep } from "@/types/strategy";
 import { GraphToolbar } from "@/features/strategy/graph/components/GraphToolbar";
@@ -59,7 +60,7 @@ interface StrategyGraphLayoutProps {
   onNodeDragStop: () => void;
   onConnect: (connection: Connection) => void;
   isValidConnection: (connection: Connection) => boolean;
-  nodeTypes: Record<string, React.ComponentType<{ data: Record<string, unknown> }>>;
+  nodeTypes: NodeTypes;
   onInit: (instance: ReactFlowInstance) => void;
   onMoveStart: () => void;
   onPaneClick?: (event: React.MouseEvent) => void;

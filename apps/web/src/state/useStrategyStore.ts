@@ -129,12 +129,13 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
       // AI-driven updates often send partial step payloads.
       // Treat this as an upsert+patch: only overwrite fields that are present
       // (not `undefined`), otherwise keep the existing values.
-      const nextStepRecord: Record<string, unknown> = existing ? { ...existing } : {};
-      for (const [key, value] of Object.entries(step)) {
-        if (value !== undefined && key in step) {
-          nextStepRecord[key] = value;
-        }
-      }
+      const updates = Object.fromEntries(
+        Object.entries(step).filter(([, value]) => value !== undefined),
+      ) as Partial<StrategyStep>;
+      const nextStepRecord: StrategyStep = {
+        ...(existing ?? step),
+        ...updates,
+      };
 
       // Preserve recordType if incoming omits it.
       if (existing?.recordType && !nextStepRecord.recordType) {
@@ -152,6 +153,13 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
         if (keepExisting) {
           nextStepRecord.displayName = existingName;
         }
+      }
+      if (!nextStepRecord.id) {
+        nextStepRecord.id = step.id;
+      }
+      if (!nextStepRecord.displayName) {
+        nextStepRecord.displayName =
+          step.displayName || existing?.displayName || step.searchName || "Untitled step";
       }
       const nextStep = nextStepRecord as StrategyStep;
       const newStepsById = { ...state.stepsById, [step.id]: nextStep };

@@ -19,7 +19,6 @@ from veupath_chatbot.platform.security import get_current_user, get_optional_use
 
 # Type aliases for dependencies
 DBSession = Annotated[AsyncSession, Depends(get_db_session)]
-CurrentUser = Annotated[UUID, Depends(get_current_user)]
 OptionalUser = Annotated[UUID | None, Depends(get_optional_user)]
 
 
@@ -41,6 +40,22 @@ async def get_plan_session_repo(session: DBSession) -> PlanSessionRepository:
 UserRepo = Annotated[UserRepository, Depends(get_user_repo)]
 StrategyRepo = Annotated[StrategyRepository, Depends(get_strategy_repo)]
 PlanSessionRepo = Annotated[PlanSessionRepository, Depends(get_plan_session_repo)]
+
+
+async def get_current_user_with_db_row(
+    user_id: Annotated[UUID, Depends(get_current_user)],
+    user_repo: UserRepo,
+) -> UUID:
+    """Ensure authenticated users exist in the local DB.
+
+    We persist user IDs because many tables have a FK to `users.id`. Without this,
+    first-time sessions can trigger integrity errors that bubble up as 500s.
+    """
+    await user_repo.get_or_create(user_id)
+    return user_id
+
+
+CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
 
 
 async def get_site_context(

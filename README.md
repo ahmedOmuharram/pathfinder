@@ -1,8 +1,30 @@
-## PathFinder
+<div align="center">
+  <h1>
+    <img
+      src="apps/web/public/pathfinder-white.svg"
+      alt="PathFinder"
+      height="32"
+      style="vertical-align: middle; margin-right: 8px;"
+    />
+    PathFinder
+  </h1>
+  <p>An open-source tool-calling LLM agent for planning and building VEuPathDB search strategies (WDK strategy graphs).</p>
+  <p><strong><em>Linguistic Vagueness in Tool-Calling LLM Agents, Chapter II</em></strong></p>
+  <p>
+    <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12+" />
+    <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white" alt="Node.js 20+" />
+    <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+    <img src="https://img.shields.io/badge/Next.js-000000?logo=next.js&logoColor=white" alt="Next.js" />
+    <img src="https://img.shields.io/badge/OpenAPI-6BA539?logo=openapi-initiative&logoColor=white" alt="OpenAPI" />
+    <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" />
+    <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/Qdrant-FF4F7B?logo=qdrant&logoColor=white" alt="Qdrant" />
+  </p>
+  <img src="assets/pathfinder.png" alt="PathFinder" width="100%" />  <p>
+    <img src="https://img.shields.io/github/stars/ahmedOmuharram/pathfinder?style=social" alt="GitHub stars" />
+  </p>
 
-PathFinder is an open-source **tool-calling LLM agent** for **planning and building VEuPathDB search strategies** (WDK strategy graphs) from natural language. It is developed as part of my master’s thesis:
-
-**_Linguistic Vagueness in Tool-Calling LLM Agents_**
+</div>
 
 PathFinder’s goal is to make complex query/strategy construction **easier, faster, and more reliable** by combining:
 
@@ -14,7 +36,7 @@ This project is intended to be integrated with **VEuPathDB systems** in the futu
 
 ## What’s in this repo
 
-This is a small monorepo:
+This repo is organized as:
 
 - **`apps/api/`**: FastAPI backend (“Pathfinder API”)
   - SSE chat endpoint (`/api/v1/chat`) streams agent output and tool events.
@@ -252,4 +274,3 @@ PathFinder builds on:
 - **VEuPathDB / WDK** concepts and APIs (strategy graphs, searches, parameter specs)
 - **FastAPI** (API) and **Next.js** (web UI)
 - **Kani** for tool-calling agent orchestration
-

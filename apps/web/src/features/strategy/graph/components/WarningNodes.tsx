@@ -1,6 +1,9 @@
 import { AlertTriangle } from "lucide-react";
+import type { NodeProps } from "reactflow";
 
-export function WarningGroupNode({ data }: { data: { message: string } }) {
+type WarningNodeData = { message: string };
+
+export function WarningGroupNode({ data }: NodeProps<WarningNodeData>) {
   return (
     <div className="h-full w-full">
       <div
@@ -14,7 +17,7 @@ export function WarningGroupNode({ data }: { data: { message: string } }) {
   );
 }
 
-export function WarningIconNode({ data }: { data: { message: string } }) {
+export function WarningIconNode({ data }: NodeProps<WarningNodeData>) {
   return (
     <div
       className="group relative flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 shadow-sm"

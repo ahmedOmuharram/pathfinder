@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  APIError,
   createStrategy,
   deleteStrategy,
   getStrategy,
@@ -92,6 +93,29 @@ export function StrategySidebar({
     }
   };
 
+  const handleOpenError = (
+    err: unknown,
+    payload: { strategyId?: string; wdkStrategyId?: number },
+  ) => {
+    if (err instanceof APIError && err.status === 403) {
+      if (payload.wdkStrategyId) {
+        reportError(
+          "Access denied by VEuPathDB. Sign in to the site before opening WDK strategies.",
+        );
+      } else if (payload.strategyId) {
+        reportError(
+          "This strategy belongs to a different session. Create a new draft or duplicate it.",
+        );
+        removeStrategy(payload.strategyId);
+      } else {
+        reportError("Access denied. Please refresh and try again.");
+      }
+      refreshStrategies();
+      return;
+    }
+    reportError(toUserMessage(err, "Failed to open strategy."));
+  };
+
   const applyOpenResult = async (
     response: Awaited<ReturnType<typeof openStrategy>>,
     source: "new" | "open",
@@ -121,7 +145,15 @@ export function StrategySidebar({
       });
       refreshStrategies();
       onOpenStrategy?.(source);
-    } catch {
+    } catch (err) {
+      if (err instanceof APIError && err.status === 404) {
+        reportError("Strategy not found. The API may have restarted.");
+        removeStrategy(nextId);
+        setStrategyId(null);
+        refreshStrategies();
+      } else {
+        reportError(toUserMessage(err, "Failed to load strategy."));
+      }
       clearStrategy();
     }
   };
@@ -288,7 +320,7 @@ export function StrategySidebar({
           value={siteId}
           onChange={setSelectedSite}
           showSelect
-          showAuth={false}
+          showAuth
           showVisit
           layout="stacked"
         />
@@ -301,7 +333,7 @@ export function StrategySidebar({
               if (!canCreateNew) return;
               openStrategy({ siteId })
                 .then((response) => applyOpenResult(response, "new"))
-                .catch(() => {});
+                  .catch((err) => handleOpenError(err, {}));
             }}
             disabled={!canCreateNew}
             className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
@@ -373,7 +405,7 @@ export function StrategySidebar({
                       : { strategyId: s.id };
                     openStrategy(payload)
                       .then((response) => applyOpenResult(response, "open"))
-                      .catch(() => {});
+                      .catch((err) => handleOpenError(err, payload));
                   }}
                   className="flex flex-1 flex-col text-left"
                 >

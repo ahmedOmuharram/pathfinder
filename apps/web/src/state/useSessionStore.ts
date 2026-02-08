@@ -33,13 +33,20 @@ interface SessionState {
   setChatMode: (mode: ChatMode) => void;
 }
 
+const AUTH_TOKEN_STORAGE_KEY = "pathfinder-auth-token";
+
+const getInitialAuthToken = () => {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+};
+
 export const useSessionStore = create<SessionState>()((set) => ({
   selectedSite: "plasmodb",
   selectedSiteDisplayName: "PlasmoDB",
   strategyId: null,
   planSessionId: null,
   pendingExecutorSend: null,
-  authToken: null,
+  authToken: getInitialAuthToken(),
   veupathdbSignedIn: false,
   veupathdbName: null,
   chatIsStreaming: false,
@@ -50,7 +57,16 @@ export const useSessionStore = create<SessionState>()((set) => ({
   setStrategyId: (id) => set({ strategyId: id }),
   setPlanSessionId: (id) => set({ planSessionId: id }),
   setPendingExecutorSend: (payload) => set({ pendingExecutorSend: payload }),
-  setAuthToken: (token) => set({ authToken: token }),
+  setAuthToken: (token) => {
+    if (typeof window !== "undefined") {
+      if (token) {
+        window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+      } else {
+        window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      }
+    }
+    set({ authToken: token });
+  },
   setVeupathdbAuth: (signedIn, name = null) =>
     set({ veupathdbSignedIn: signedIn, veupathdbName: name }),
   setChatIsStreaming: (value) => set({ chatIsStreaming: value }),

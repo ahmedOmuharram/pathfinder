@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Run ruff
         working-directory: apps/api
@@ -79,7 +79,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Run tests
         working-directory: apps/api

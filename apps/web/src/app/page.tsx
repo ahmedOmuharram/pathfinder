@@ -191,7 +191,7 @@ export default function HomePage() {
           <div className="relative h-full">
             <div className="h-full pb-44">
               {chatMode === "plan" ? (
-                <PlansSidebar siteId={selectedSite} />
+                <PlansSidebar siteId={selectedSite} onToast={addToast} />
               ) : (
                 <StrategySidebar
                   siteId={selectedSite}

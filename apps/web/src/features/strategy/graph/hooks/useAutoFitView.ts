@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export function useAutoFitView(args: {
   enabled: boolean;
@@ -18,9 +18,11 @@ export function useAutoFitView(args: {
     prevNodeCountRef.current = nodeCount;
   }, [enabled, nodeCount, userHasMoved, fitView]);
 
+  const reset = useCallback(() => {
+    prevNodeCountRef.current = 0;
+  }, []);
+
   return {
-    reset: () => {
-      prevNodeCountRef.current = 0;
-    },
+    reset,
   };
 }

@@ -1,25 +1,23 @@
 "use client";
 
 import { Handle, Position } from "reactflow";
+import type { NodeProps } from "reactflow";
 import type { StrategyStep } from "@/types/strategy";
 import { inferStepKind } from "@/core/strategyGraph";
 import { OpBadge } from "./OpBadge";
 import { AlertTriangle, MessageSquarePlus } from "lucide-react";
 import { getZeroResultSuggestions } from "@/features/strategy/validation/zeroResultAdvisor";
 
-interface StepNodeProps {
-  data: {
-    step: StrategyStep;
-    onOperatorChange?: (stepId: string, operator: string) => void;
-    onAddToChat?: (stepId: string) => void;
-    isUnsaved?: boolean;
-    onOpenDetails?: (stepId: string) => void;
-    showOutputHandle?: boolean;
-    showPrimaryInputHandle?: boolean;
-    showSecondaryInputHandle?: boolean;
-  };
-  selected?: boolean;
-}
+type StepNodeData = {
+  step: StrategyStep;
+  onOperatorChange?: (stepId: string, operator: string) => void;
+  onAddToChat?: (stepId: string) => void;
+  isUnsaved?: boolean;
+  onOpenDetails?: (stepId: string) => void;
+  showOutputHandle?: boolean;
+  showPrimaryInputHandle?: boolean;
+  showSecondaryInputHandle?: boolean;
+};
 
 const TYPE_STYLES: Record<string, { container: string }> = {
   search: {
@@ -36,7 +34,7 @@ const TYPE_STYLES: Record<string, { container: string }> = {
   },
 };
 
-export function StepNode({ data, selected }: StepNodeProps) {
+export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const {
     step,
     onAddToChat,

@@ -19,8 +19,12 @@ export function useResetGraphUiOnStrategyChange(args: {
   useEffect(() => {
     setUserHasMoved(false);
     autoFitReset();
-    setSelectedNodeIds([]);
-    selectedNodeIdsRef.current = [];
+    // Avoid infinite re-render loops: only update selection state
+    // if it is non-empty.
+    if (selectedNodeIdsRef.current.length > 0) {
+      setSelectedNodeIds([]);
+      selectedNodeIdsRef.current = [];
+    }
   }, [
     strategyId,
     autoFitReset,
