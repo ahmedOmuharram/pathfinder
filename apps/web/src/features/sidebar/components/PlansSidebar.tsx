@@ -15,7 +15,10 @@ import type { PlanSessionSummary } from "@pathfinder/shared";
 
 export function PlansSidebar(props: {
   siteId: string;
-  onToast?: (toast: { type: "success" | "error" | "warning" | "info"; message: string }) => void;
+  onToast?: (toast: {
+    type: "success" | "error" | "warning" | "info";
+    message: string;
+  }) => void;
 }) {
   const { siteId, onToast } = props;
   const planSessionId = useSessionStore((s) => s.planSessionId);

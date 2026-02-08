@@ -321,6 +321,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - sites
+      summary: Get Param Specs With Context
+      description: Return normalized parameter specs, using contextual WDK vocab when provided.
+      operationId: get_param_specs_with_context_api_v1_sites__siteId__searches__recordType___searchName__param_specs_post
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParamSpecsRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParamSpecResponse'
+                title: Response Get Param Specs With Context Api V1 Sites  Siteid  Searches  Recordtype   Searchname  Param
+                  Specs Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/chat:
     post:
       tags:
@@ -391,14 +439,12 @@ paths:
       - plans
       summary: Open Plan
       operationId: open_plan_api_v1_plans_open_post
-      security:
-      - APIKeyCookie: []
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/OpenPlanSessionRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -412,12 +458,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
   /api/v1/plans/{planSessionId}:
     get:
       tags:
       - plans
       summary: Get Plan
-      operationId: get_plan_api_v1_plans__plansessionid__get
+      operationId: get_plan_api_v1_plans__planSessionId__get
       security:
       - APIKeyCookie: []
       parameters:
@@ -435,6 +483,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanSessionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - plans
+      summary: Delete Plan
+      operationId: delete_plan_api_v1_plans__planSessionId__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: planSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Plansessionid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+                title: Response Delete Plan Api V1 Plans  Plansessionid  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - plans
+      summary: Update Plan
+      operationId: update_plan_api_v1_plans__planSessionId__patch
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: planSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Plansessionid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanSessionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSessionSummaryResponse'
         '422':
           description: Validation Error
           content:
@@ -929,11 +1042,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-                title: Response List Available Filters Api V1 Strategies  Strategyid  Steps  Step Id  Filters Available Get
+                $ref: '#/components/schemas/JSONArray'
         '422':
           description: Validation Error
           content:
@@ -1058,11 +1167,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-                title: Response List Analysis Types Api V1 Strategies  Strategyid  Steps  Step Id  Analysis Types Get
+                $ref: '#/components/schemas/JSONArray'
         '422':
           description: Validation Error
           content:
@@ -1104,10 +1209,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
-                title: Response Get Analysis Type Api V1 Strategies  Strategyid  Steps  Step Id  Analysis Types  Analysis
-                  Type  Get
+                $ref: '#/components/schemas/JSONObject'
         '422':
           description: Validation Error
           content:
@@ -1143,11 +1245,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-                title: Response List Step Analyses Api V1 Strategies  Strategyid  Steps  Step Id  Analyses Get
+                $ref: '#/components/schemas/JSONArray'
         '422':
           description: Validation Error
           content:
@@ -1468,8 +1566,8 @@ components:
           enum:
           - execute
           - plan
-          default: execute
           title: Mode
+          default: execute
       type: object
       required:
       - siteId
@@ -1495,158 +1593,6 @@ components:
       - upstream
       - downstream
       title: ColocationParams
-    CombinePlanNode-Input:
-      properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec'
-            type: array
-          - type: 'null'
-          title: Reports
-        type:
-          type: string
-          const: combine
-          title: Type
-        operator:
-          type: string
-          title: Operator
-        left:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Input'
-          - $ref: '#/components/schemas/TransformPlanNode-Input'
-          title: Left
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Input'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Input'
-        right:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Input'
-          - $ref: '#/components/schemas/TransformPlanNode-Input'
-          title: Right
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Input'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Input'
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-      additionalProperties: true
-      type: object
-      required:
-      - type
-      - operator
-      - left
-      - right
-      title: CombinePlanNode
-    CombinePlanNode-Output:
-      properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec'
-            type: array
-          - type: 'null'
-          title: Reports
-        type:
-          type: string
-          const: combine
-          title: Type
-        operator:
-          type: string
-          title: Operator
-        left:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Output'
-          - $ref: '#/components/schemas/TransformPlanNode-Output'
-          title: Left
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Output'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Output'
-        right:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Output'
-          - $ref: '#/components/schemas/TransformPlanNode-Output'
-          title: Right
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Output'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Output'
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-      additionalProperties: true
-      type: object
-      required:
-      - type
-      - operator
-      - left
-      - right
-      title: CombinePlanNode
     CreateStrategyRequest:
       properties:
         name:
@@ -1672,19 +1618,14 @@ components:
           type: string
           title: Parametername
         contextValues:
-          additionalProperties: true
-          type: object
-          title: Contextvalues
+          $ref: '#/components/schemas/JSONObject'
       type: object
       required:
       - parameterName
       title: DependentParamsRequest
       description: Dependent parameter values request.
     DependentParamsResponse:
-      items:
-        additionalProperties: true
-        type: object
-      type: array
+      $ref: '#/components/schemas/JSONArray'
       title: DependentParamsResponse
       description: Dependent parameter values response.
     DownloadRequest:
@@ -1756,6 +1697,16 @@ components:
       - timestamp
       title: HealthResponse
       description: Health check response.
+    JSONArray:
+      items:
+        $ref: '#/components/schemas/JSONValue'
+      type: array
+    JSONObject:
+      additionalProperties:
+        $ref: '#/components/schemas/JSONValue'
+      type: object
+    JSONValue: {}
+    JsonValue: {}
     LoginPayload:
       properties:
         email:
@@ -1788,6 +1739,22 @@ components:
           anyOf:
           - $ref: '#/components/schemas/SubKaniActivityResponse'
           - type: 'null'
+        mode:
+          anyOf:
+          - type: string
+            enum:
+            - execute
+            - plan
+          - type: 'null'
+          title: Mode
+        citations:
+          anyOf:
+          - $ref: '#/components/schemas/JSONArray'
+          - type: 'null'
+        planningArtifacts:
+          anyOf:
+          - $ref: '#/components/schemas/JSONArray'
+          - type: 'null'
         timestamp:
           type: string
           format: date-time
@@ -1799,6 +1766,36 @@ components:
       - timestamp
       title: MessageResponse
       description: Chat message.
+    OpenPlanSessionRequest:
+      properties:
+        planSessionId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Plansessionid
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      type: object
+      required:
+      - siteId
+      title: OpenPlanSessionRequest
+    OpenPlanSessionResponse:
+      properties:
+        planSessionId:
+          type: string
+          format: uuid
+          title: Plansessionid
+      type: object
+      required:
+      - planSessionId
+      title: OpenPlanSessionResponse
     OpenStrategyRequest:
       properties:
         strategyId:
@@ -1848,6 +1845,16 @@ components:
           type: boolean
           title: Allowemptyvalue
           default: false
+        allowMultipleValues:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Allowmultiplevalues
+        multiPick:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Multipick
         minSelectedCount:
           anyOf:
           - type: integer
@@ -1864,15 +1871,21 @@ components:
           default: false
         vocabulary:
           anyOf:
-          - {}
+          - $ref: '#/components/schemas/JSONValue'
           - type: 'null'
-          title: Vocabulary
       type: object
       required:
       - name
       - type
       title: ParamSpecResponse
       description: Normalized parameter spec (UI-friendly).
+    ParamSpecsRequest:
+      properties:
+        contextValues:
+          $ref: '#/components/schemas/JSONObject'
+      type: object
+      title: ParamSpecsRequest
+      description: Parameter specs request (optionally contextual).
     PlanMetadata:
       properties:
         name:
@@ -1897,6 +1910,146 @@ components:
           title: Createdat
       type: object
       title: PlanMetadata
+    PlanNode-Input:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec-Input'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec-Input'
+            type: array
+          - type: 'null'
+          title: Reports
+        searchName:
+          type: string
+          title: Searchname
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+        primaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanNode-Input'
+          - type: 'null'
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanNode-Input'
+          - type: 'null'
+        operator:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - searchName
+      title: PlanNode
+      description: 'Untyped recursive plan node (WDK-aligned).
+
+
+        Kind is inferred from structure:
+
+        - combine: primaryInput + secondaryInput
+
+        - transform: primaryInput only
+
+        - search: no inputs'
+    PlanNode-Output:
+      properties:
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepFilterSpec'
+            type: array
+          - type: 'null'
+          title: Filters
+        analyses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepAnalysisSpec-Output'
+            type: array
+          - type: 'null'
+          title: Analyses
+        reports:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/StepReportSpec-Output'
+            type: array
+          - type: 'null'
+          title: Reports
+        searchName:
+          type: string
+          title: Searchname
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+        primaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanNode-Output'
+          - type: 'null'
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanNode-Output'
+          - type: 'null'
+        operator:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+      additionalProperties: true
+      type: object
+      required:
+      - searchName
+      title: PlanNode
+      description: 'Untyped recursive plan node (WDK-aligned).
+
+
+        Kind is inferred from structure:
+
+        - combine: primaryInput + secondaryInput
+
+        - transform: primaryInput only
+
+        - search: no inputs'
     PlanNormalizeRequest:
       properties:
         siteId:
@@ -1915,16 +2068,83 @@ components:
           $ref: '#/components/schemas/StrategyPlan-Output'
         warnings:
           anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
+          - $ref: '#/components/schemas/JSONArray'
           - type: 'null'
-          title: Warnings
       type: object
       required:
       - plan
       title: PlanNormalizeResponse
+    PlanSessionResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          type: string
+          title: Title
+        messages:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MessageResponse'
+            type: array
+          - type: 'null'
+          title: Messages
+        thinking:
+          anyOf:
+          - $ref: '#/components/schemas/ThinkingResponse'
+          - type: 'null'
+        planningArtifacts:
+          anyOf:
+          - $ref: '#/components/schemas/JSONArray'
+          - type: 'null'
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+      type: object
+      required:
+      - id
+      - siteId
+      - title
+      - updatedAt
+      - createdAt
+      title: PlanSessionResponse
+    PlanSessionSummaryResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        siteId:
+          type: string
+          title: Siteid
+        title:
+          type: string
+          title: Title
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+      type: object
+      required:
+      - id
+      - siteId
+      - title
+      - updatedAt
+      - createdAt
+      title: PlanSessionSummaryResponse
     PreviewRequest:
       properties:
         strategyId:
@@ -1952,11 +2172,7 @@ components:
           type: integer
           title: Totalcount
         records:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Records
+          $ref: '#/components/schemas/JSONArray'
         columns:
           items:
             type: string
@@ -2006,96 +2222,32 @@ components:
       properties:
         searchData:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Searchdata
         validation:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Validation
         searchConfig:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Searchconfig
         parameters:
           anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
+          - $ref: '#/components/schemas/JSONArray'
           - type: 'null'
-          title: Parameters
         paramMap:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Parammap
         question:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Question
       additionalProperties: true
       type: object
       title: SearchDetailsResponse
       description: Search details payload (UI-facing).
-    SearchPlanNode:
-      properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec'
-            type: array
-          - type: 'null'
-          title: Reports
-        type:
-          type: string
-          const: search
-          title: Type
-        searchName:
-          type: string
-          title: Searchname
-        parameters:
-          additionalProperties: true
-          type: object
-          title: Parameters
-      additionalProperties: true
-      type: object
-      required:
-      - type
-      - searchName
-      title: SearchPlanNode
     SearchResponse:
       properties:
         name:
@@ -2141,9 +2293,7 @@ components:
           type: boolean
           title: Isvalid
         normalizedContextValues:
-          additionalProperties: true
-          type: object
-          title: Normalizedcontextvalues
+          $ref: '#/components/schemas/JSONObject'
         errors:
           $ref: '#/components/schemas/SearchValidationErrors'
       type: object
@@ -2153,9 +2303,7 @@ components:
     SearchValidationRequest:
       properties:
         contextValues:
-          additionalProperties: true
-          type: object
-          title: Contextvalues
+          $ref: '#/components/schemas/JSONObject'
       type: object
       title: SearchValidationRequest
       description: Search parameter validation request.
@@ -2204,9 +2352,7 @@ components:
           type: string
           title: Analysistype
         parameters:
-          additionalProperties: true
-          type: object
-          title: Parameters
+          $ref: '#/components/schemas/JSONObject'
         customName:
           anyOf:
           - type: string
@@ -2223,9 +2369,7 @@ components:
           type: string
           title: Analysistype
         parameters:
-          additionalProperties: true
-          type: object
-          title: Parameters
+          $ref: '#/components/schemas/JSONObject'
         customName:
           anyOf:
           - type: string
@@ -2242,24 +2386,36 @@ components:
           $ref: '#/components/schemas/StepAnalysisResponse'
         wdk:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Wdk
       type: object
       required:
       - analysis
       title: StepAnalysisRunResponse
       description: Result of running a step analysis.
-    StepAnalysisSpec:
+    StepAnalysisSpec-Input:
       properties:
         analysisType:
           type: string
           title: Analysistype
         parameters:
-          additionalProperties: true
-          type: object
-          title: Parameters
+          $ref: '#/components/schemas/JSONObject'
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysisSpec
+    StepAnalysisSpec-Output:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
         customName:
           anyOf:
           - type: string
@@ -2299,7 +2455,7 @@ components:
     StepFilterRequest:
       properties:
         value:
-          title: Value
+          $ref: '#/components/schemas/JSONValue'
         disabled:
           type: boolean
           title: Disabled
@@ -2315,7 +2471,7 @@ components:
           type: string
           title: Name
         value:
-          title: Value
+          $ref: '#/components/schemas/JSONValue'
         disabled:
           type: boolean
           title: Disabled
@@ -2332,7 +2488,7 @@ components:
           type: string
           title: Name
         value:
-          title: Value
+          $ref: '#/components/schemas/JSONValue'
         disabled:
           type: boolean
           title: Disabled
@@ -2361,9 +2517,7 @@ components:
           title: Reportname
           default: standard
         config:
-          additionalProperties: true
-          type: object
-          title: Config
+          $ref: '#/components/schemas/JSONObject'
       type: object
       title: StepReportRequest
       description: Request to run a step report.
@@ -2374,9 +2528,7 @@ components:
           title: Reportname
           default: standard
         config:
-          additionalProperties: true
-          type: object
-          title: Config
+          $ref: '#/components/schemas/JSONObject'
       type: object
       title: StepReportResponse
       description: Report configuration attached to a step.
@@ -2386,25 +2538,31 @@ components:
           $ref: '#/components/schemas/StepReportResponse'
         wdk:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Wdk
       type: object
       required:
       - report
       title: StepReportRunResponse
       description: Result of running a step report.
-    StepReportSpec:
+    StepReportSpec-Input:
       properties:
         reportName:
           type: string
           title: Reportname
           default: standard
         config:
-          additionalProperties: true
-          type: object
-          title: Config
+          $ref: '#/components/schemas/JSONObject'
+      type: object
+      title: StepReportSpec
+    StepReportSpec-Output:
+      properties:
+        reportName:
+          type: string
+          title: Reportname
+          default: standard
+        config:
+          $ref: '#/components/schemas/JSONObject'
       type: object
       title: StepReportSpec
     StepResponse:
@@ -2412,9 +2570,11 @@ components:
         id:
           type: string
           title: Id
-        type:
-          type: string
-          title: Type
+        kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Kind
         displayName:
           type: string
           title: Displayname
@@ -2423,11 +2583,6 @@ components:
           - type: string
           - type: 'null'
           title: Searchname
-        transformName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Transformname
         recordType:
           anyOf:
           - type: string
@@ -2435,15 +2590,17 @@ components:
           title: Recordtype
         parameters:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Parameters
         operator:
           anyOf:
           - type: string
           - type: 'null'
           title: Operator
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
         primaryInputStepId:
           anyOf:
           - type: string
@@ -2488,7 +2645,6 @@ components:
       type: object
       required:
       - id
-      - type
       - displayName
       title: StepResponse
       description: Strategy step.
@@ -2498,17 +2654,7 @@ components:
           type: string
           title: Recordtype
         root:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Input'
-          - $ref: '#/components/schemas/TransformPlanNode-Input'
-          title: Root
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Input'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Input'
+          $ref: '#/components/schemas/PlanNode-Input'
         metadata:
           anyOf:
           - $ref: '#/components/schemas/PlanMetadata'
@@ -2525,17 +2671,7 @@ components:
           type: string
           title: Recordtype
         root:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Output'
-          - $ref: '#/components/schemas/TransformPlanNode-Output'
-          title: Root
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Output'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Output'
+          $ref: '#/components/schemas/PlanNode-Output'
         metadata:
           anyOf:
           - $ref: '#/components/schemas/PlanMetadata'
@@ -2702,6 +2838,13 @@ components:
             type: array
           - type: 'null'
           title: Toolcalls
+        lastToolCalls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ToolCallResponse'
+            type: array
+          - type: 'null'
+          title: Lasttoolcalls
         subKaniCalls:
           anyOf:
           - additionalProperties:
@@ -2732,110 +2875,6 @@ components:
       type: object
       title: ThinkingResponse
       description: In-progress tool call state.
-    OpenPlanSessionRequest:
-      properties:
-        planSessionId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: Plansessionid
-        siteId:
-          type: string
-          title: Siteid
-        title:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Title
-      type: object
-      required:
-      - siteId
-      title: OpenPlanSessionRequest
-    OpenPlanSessionResponse:
-      properties:
-        planSessionId:
-          type: string
-          format: uuid
-          title: Plansessionid
-      type: object
-      required:
-      - planSessionId
-      title: OpenPlanSessionResponse
-    PlanSessionSummaryResponse:
-      properties:
-        id:
-          type: string
-          format: uuid
-          title: Id
-        siteId:
-          type: string
-          title: Siteid
-        title:
-          type: string
-          title: Title
-        updatedAt:
-          type: string
-          format: date-time
-          title: Updatedat
-        createdAt:
-          type: string
-          format: date-time
-          title: Createdat
-      type: object
-      required:
-      - id
-      - siteId
-      - title
-      - updatedAt
-      - createdAt
-      title: PlanSessionSummaryResponse
-    PlanSessionResponse:
-      properties:
-        id:
-          type: string
-          format: uuid
-          title: Id
-        siteId:
-          type: string
-          title: Siteid
-        title:
-          type: string
-          title: Title
-        messages:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/MessageResponse'
-            type: array
-          - type: 'null'
-          title: Messages
-        thinking:
-          anyOf:
-          - $ref: '#/components/schemas/ThinkingResponse'
-          - type: 'null'
-          title: Thinking
-        planningArtifacts:
-          anyOf:
-          - items: {}
-            type: array
-          - type: 'null'
-          title: Planningartifacts
-        updatedAt:
-          type: string
-          format: date-time
-          title: Updatedat
-        createdAt:
-          type: string
-          format: date-time
-          title: Createdat
-      type: object
-      required:
-      - id
-      - siteId
-      - title
-      - updatedAt
-      - createdAt
-      title: PlanSessionResponse
     TokenPayload:
       properties:
         token:
@@ -2854,9 +2893,7 @@ components:
           type: string
           title: Name
         arguments:
-          additionalProperties: true
-          type: object
-          title: Arguments
+          $ref: '#/components/schemas/JSONObject'
         result:
           anyOf:
           - type: string
@@ -2869,136 +2906,15 @@ components:
       - arguments
       title: ToolCallResponse
       description: Tool call information.
-    TransformPlanNode-Input:
+    UpdatePlanSessionRequest:
       properties:
-        id:
+        title:
           anyOf:
           - type: string
           - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec'
-            type: array
-          - type: 'null'
-          title: Reports
-        type:
-          type: string
-          const: transform
-          title: Type
-        transformName:
-          type: string
-          title: Transformname
-        input:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Input'
-          - $ref: '#/components/schemas/TransformPlanNode-Input'
-          title: Input
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Input'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Input'
-        parameters:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Parameters
-      additionalProperties: true
+          title: Title
       type: object
-      required:
-      - type
-      - transformName
-      - input
-      title: TransformPlanNode
-    TransformPlanNode-Output:
-      properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec'
-            type: array
-          - type: 'null'
-          title: Reports
-        type:
-          type: string
-          const: transform
-          title: Type
-        transformName:
-          type: string
-          title: Transformname
-        input:
-          oneOf:
-          - $ref: '#/components/schemas/SearchPlanNode'
-          - $ref: '#/components/schemas/CombinePlanNode-Output'
-          - $ref: '#/components/schemas/TransformPlanNode-Output'
-          title: Input
-          discriminator:
-            propertyName: type
-            mapping:
-              combine: '#/components/schemas/CombinePlanNode-Output'
-              search: '#/components/schemas/SearchPlanNode'
-              transform: '#/components/schemas/TransformPlanNode-Output'
-        parameters:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Parameters
-      additionalProperties: true
-      type: object
-      required:
-      - type
-      - transformName
-      - input
-      title: TransformPlanNode
+      title: UpdatePlanSessionRequest
     UpdateStrategyRequest:
       properties:
         name:

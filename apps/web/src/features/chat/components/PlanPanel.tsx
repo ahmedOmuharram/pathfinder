@@ -78,7 +78,13 @@ export function PlanPanel(props: { siteId: string }) {
       }
       setApiError(toUserMessage(error, fallback));
     },
-    [setAuthToken, setPlanSessionId, setMessages, setSessionArtifacts, setChatIsStreaming],
+    [
+      setAuthToken,
+      setPlanSessionId,
+      setMessages,
+      setSessionArtifacts,
+      setChatIsStreaming,
+    ],
   );
 
   const stopStreaming = useCallback(() => {
@@ -316,9 +322,7 @@ export function PlanPanel(props: { siteId: string }) {
                   // Persist a pending send so executor chat can send after it mounts.
                   setPendingExecutorSend({ strategyId: nextId, message: messageText });
                 } catch (error) {
-                  setApiError(
-                    toUserMessage(error, "Failed to load the new strategy."),
-                  );
+                  setApiError(toUserMessage(error, "Failed to load the new strategy."));
                 }
               })
               .catch((error) => {

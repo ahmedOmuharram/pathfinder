@@ -159,7 +159,10 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
       }
       if (!nextStepRecord.displayName) {
         nextStepRecord.displayName =
-          step.displayName || existing?.displayName || step.searchName || "Untitled step";
+          step.displayName ||
+          existing?.displayName ||
+          step.searchName ||
+          "Untitled step";
       }
       const nextStep = nextStepRecord as StrategyStep;
       const newStepsById = { ...state.stepsById, [step.id]: nextStep };
