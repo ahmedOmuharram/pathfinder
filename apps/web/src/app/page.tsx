@@ -63,18 +63,25 @@ export default function HomePage() {
     lastSiteRef.current = selectedSite;
   }, [selectedSite, isHydrated, setStrategyId, clearStrategy, setActiveView]);
 
-  // Re-derive internal auth from VEuPathDB session on page load when the
-  // internal token is missing but the VEuPathDB session cookie is still alive.
+  // Re-derive the internal pathfinder-auth token from the live VEuPathDB
+  // session every time the page loads.  This guarantees the token always
+  // references the correct internal user, even if localStorage held a stale
+  // token from a previous Docker/DB session.
+  const authRefreshedRef = useRef(false);
   useEffect(() => {
-    if (!veupathdbSignedIn || authToken) return;
+    if (!veupathdbSignedIn) return;
+    if (authRefreshedRef.current) return;
+    authRefreshedRef.current = true;
     refreshAuth()
       .then((result) => {
         if (result.authToken) setAuthToken(result.authToken);
       })
       .catch(() => {
-        // VEuPathDB session expired – user needs to re-login.
+        // VEuPathDB session expired or invalid – clear stale token so the
+        // login gate activates.
+        setAuthToken(null);
       });
-  }, [veupathdbSignedIn, authToken, setAuthToken]);
+  }, [veupathdbSignedIn, setAuthToken]);
 
   useEffect(() => {
     if (!isHydrated) return;

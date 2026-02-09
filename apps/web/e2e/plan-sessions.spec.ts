@@ -5,8 +5,7 @@ test("plan sessions: create, rename, search, delete", async ({ page }) => {
   await gotoHome(page);
   await switchToPlan(page);
 
-  // First message establishes an auth token in localStorage (from message_start payload),
-  // enabling plan session APIs/UI.
+  // Auth is set up by gotoHome → setupAuth; send a message to verify streaming works.
   await sendMessage(page, "hello plan sessions");
   await expect(page.locator("text=[mock:plan]").first()).toBeVisible();
 

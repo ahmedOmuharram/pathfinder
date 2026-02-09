@@ -1,5 +1,6 @@
 """FastAPI application entrypoint."""
 
+import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -137,6 +138,12 @@ def create_app() -> FastAPI:
     app.include_router(steps.router)
     app.include_router(results.router)
     app.include_router(veupathdb_auth.router)
+
+    # Dev-only routes (e2e / local dev with mock chat provider).
+    if (os.environ.get("PATHFINDER_CHAT_PROVIDER") or "").strip().lower() == "mock":
+        from veupath_chatbot.transport.http.routers import dev
+
+        app.include_router(dev.router)
 
     return app
 
