@@ -260,7 +260,6 @@ export function StrategySidebar({
           value={siteId}
           onChange={setSelectedSite}
           showSelect
-          showAuth
           showVisit
           layout="stacked"
         />
