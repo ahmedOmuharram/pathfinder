@@ -154,7 +154,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         type="button"
         onClick={handleAddToChat}
         data-testid={`rf-add-to-chat-${step.id}`}
-        className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-700 z-10"
+        className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-700 z-20"
         title="Add to chat"
       >
         <MessageSquarePlus className="h-4 w-4" />
