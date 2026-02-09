@@ -303,7 +303,7 @@ async def update_strategy(
     )
 
 
-@router.delete("/{strategyId:uuid}", status_code=204)
+@router.delete("/{strategyId:uuid}", status_code=204, response_class=Response)
 async def delete_strategy(
     strategyId: UUID,
     strategy_repo: StrategyRepo,

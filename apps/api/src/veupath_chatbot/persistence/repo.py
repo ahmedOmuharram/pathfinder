@@ -43,6 +43,19 @@ class UserRepository:
             await self.session.flush()
         return user
 
+    async def get_or_create_by_external_id(self, external_id: str) -> User:
+        """Lookup a user by external identity (e.g. VEuPathDB email).
+
+        Creates a new row if none exists yet, avoiding race conditions with
+        ``INSERT … ON CONFLICT``.
+        """
+        stmt = select(User).where(User.external_id == external_id)
+        result = await self.session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+        return await self.create(external_id=external_id)
+
     async def create(self, external_id: str | None = None) -> User:
         """Create a new user."""
         user = User(external_id=external_id)

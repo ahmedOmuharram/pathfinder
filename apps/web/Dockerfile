@@ -32,6 +32,12 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# The rewrite destinations in next.config.js are evaluated at build time.
+# Inside Docker the API lives at http://api:8000 (Docker DNS), so we inject
+# the correct URL as a build arg.  Local (non-Docker) builds keep the default.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
 
 # Production image, copy all the files and run next

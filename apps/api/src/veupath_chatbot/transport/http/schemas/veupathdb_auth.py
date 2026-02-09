@@ -6,9 +6,10 @@ from pydantic import BaseModel
 
 
 class AuthSuccessResponse(BaseModel):
-    """Simple success response."""
+    """Success response, optionally carrying the internal auth token."""
 
     success: bool
+    authToken: str | None = None
 
 
 class AuthStatusResponse(BaseModel):

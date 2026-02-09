@@ -728,7 +728,7 @@ export type paths = {
         put?: never;
         /**
          * Login With Password
-         * @description Login via VEuPathDB /login and store auth cookie.
+         * @description Login via VEuPathDB /login, link internal user, and store auth cookies.
          */
         post: operations["login_with_password_api_v1_veupathdb_auth_login_post"];
         delete?: never;
@@ -777,6 +777,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/veupathdb/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Internal Auth
+         * @description Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
+         *
+         *     Called on page load when the internal token is missing/expired but the
+         *     VEuPathDB ``Authorization`` cookie is still valid.
+         */
+        post: operations["refresh_internal_auth_api_v1_veupathdb_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/veupathdb/auth/status": {
         parameters: {
             query?: never;
@@ -817,11 +840,13 @@ export type components = {
         };
         /**
          * AuthSuccessResponse
-         * @description Simple success response.
+         * @description Success response, optionally carrying the internal auth token.
          */
         AuthSuccessResponse: {
             /** Success */
             success: boolean;
+            /** Authtoken */
+            authToken?: string | null;
         };
         /**
          * ChatRequest
@@ -3123,6 +3148,26 @@ export interface operations {
         };
     };
     logout_api_v1_veupathdb_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSuccessResponse"];
+                };
+            };
+        };
+    };
+    refresh_internal_auth_api_v1_veupathdb_auth_refresh_post: {
         parameters: {
             query?: never;
             header?: never;

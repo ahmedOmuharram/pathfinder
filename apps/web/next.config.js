@@ -17,6 +17,10 @@ const nextConfig = {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     return [
       {
+        source: "/health/:path*",
+        destination: `${apiBase}/health/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiBase}/api/:path*`,
       },

@@ -28,7 +28,15 @@ export class APIError extends Error {
 }
 
 function getApiBaseUrl(): string {
-  // Next exposes NEXT_PUBLIC_* to the browser.
+  if (typeof window !== "undefined") {
+    // In the browser, use the page's own origin so every request goes through
+    // the Next.js rewrite proxy (configured in next.config.js).  This keeps
+    // cookies on the same origin as the page, avoiding cross-origin cookie
+    // issues that cause "different session" errors when the API runs on a
+    // different port (e.g. localhost:3000 → localhost:8000).
+    return window.location.origin;
+  }
+  // Server-side (SSR / route handlers): reach the API directly.
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   return base.replace(/\/+$/, "");
 }

@@ -1400,7 +1400,7 @@ paths:
       tags:
       - veupathdb-auth
       summary: Login With Password
-      description: Login via VEuPathDB /login and store auth cookie.
+      description: Login via VEuPathDB /login, link internal user, and store auth cookies.
       operationId: login_with_password_api_v1_veupathdb_auth_login_post
       parameters:
       - name: siteId
@@ -1480,6 +1480,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthSuccessResponse'
+  /api/v1/veupathdb/auth/refresh:
+    post:
+      tags:
+      - veupathdb-auth
+      summary: Refresh Internal Auth
+      description: 'Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
+
+
+        Called on page load when the internal token is missing/expired but the
+
+        VEuPathDB ``Authorization`` cookie is still valid.'
+      operationId: refresh_internal_auth_api_v1_veupathdb_auth_refresh_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
   /api/v1/veupathdb/auth/status:
     get:
       tags:
@@ -1534,11 +1553,16 @@ components:
         success:
           type: boolean
           title: Success
+        authToken:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authtoken
       type: object
       required:
       - success
       title: AuthSuccessResponse
-      description: Simple success response.
+      description: Success response, optionally carrying the internal auth token.
     ChatRequest:
       properties:
         strategyId:

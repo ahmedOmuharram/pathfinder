@@ -13,13 +13,12 @@ def sse_event(event_type: str, data: JSONObject) -> str:
 
 def sse_message_start(
     *,
-    auth_token: str,
     strategy_id: str | None = None,
     strategy: JSONObject | None = None,
     plan_session_id: str | None = None,
     plan_session: JSONObject | None = None,
 ) -> str:
-    data: JSONObject = {"authToken": auth_token}
+    data: JSONObject = {}
     if strategy_id is not None:
         data["strategyId"] = strategy_id
     if strategy is not None:

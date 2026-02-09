@@ -17,9 +17,7 @@ async def test_ready(client: httpx.AsyncClient) -> None:
     assert body["status"] == "healthy"
 
 
-async def test_open_strategy_sets_auth_cookie(client: httpx.AsyncClient) -> None:
+async def test_open_strategy_requires_auth(client: httpx.AsyncClient) -> None:
+    """Unauthenticated requests to open_strategy should be rejected."""
     resp = await client.post("/api/v1/strategies/open", json={"siteId": "plasmodb"})
-    assert resp.status_code == 200
-    # Cookie is the public contract.
-    set_cookie = resp.headers.get("set-cookie", "")
-    assert "pathfinder-auth=" in set_cookie
+    assert resp.status_code == 401

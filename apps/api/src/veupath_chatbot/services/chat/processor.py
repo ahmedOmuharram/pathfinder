@@ -49,7 +49,6 @@ class ChatStreamProcessor:
         site_id: str,
         user_id: UUID,
         strategy: Strategy,
-        auth_token: str,
         strategy_payload: JSONObject,
         mode: str = "execute",
     ) -> None:
@@ -57,7 +56,6 @@ class ChatStreamProcessor:
         self.site_id = site_id
         self.user_id = user_id
         self.strategy = strategy
-        self.auth_token = auth_token
         self.strategy_payload = strategy_payload
         self.mode = mode
 
@@ -102,7 +100,6 @@ class ChatStreamProcessor:
 
     def start_event(self) -> str:
         return sse_message_start(
-            auth_token=self.auth_token,
             strategy_id=str(self.strategy.id),
             strategy=self.strategy_payload,
         )

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from kani import ChatMessage, ChatRole
 
-from veupath_chatbot.persistence.models import Strategy, User
+from veupath_chatbot.persistence.models import Strategy
 from veupath_chatbot.persistence.repo import StrategyRepository, UserRepository
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
@@ -18,12 +18,10 @@ from .utils import parse_selected_nodes
 logger = get_logger(__name__)
 
 
-async def ensure_user(user_repo: UserRepository, user_id: UUID | None) -> UUID:
-    if user_id:
-        await user_repo.get_or_create(user_id)
-        return user_id
-    user: User = await user_repo.create()
-    return user.id
+async def ensure_user(user_repo: UserRepository, user_id: UUID) -> UUID:
+    """Ensure the authenticated user exists in the local DB and return the id."""
+    await user_repo.get_or_create(user_id)
+    return user_id
 
 
 async def ensure_strategy(

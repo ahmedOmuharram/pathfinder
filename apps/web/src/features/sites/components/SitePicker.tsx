@@ -77,6 +77,7 @@ export function SitePicker({
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
+  const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
 
   useEffect(() => {
@@ -226,6 +227,7 @@ export function SitePicker({
                   setAuthError(null);
                   try {
                     await logoutVeupathdb();
+                    setAuthToken(null);
                     setAuthStatus({ signedIn: false });
                     setVeupathdbAuth(false, null);
                   } catch {
@@ -338,10 +340,14 @@ export function SitePicker({
                   setAuthError(null);
                   setAuthBusy(true);
                   try {
+                    let result: { success: boolean; authToken?: string };
                     if (authMode === "password") {
-                      await loginVeupathdb(value, email, password);
+                      result = await loginVeupathdb(value, email, password);
                     } else {
-                      await setVeupathdbToken(token);
+                      result = await setVeupathdbToken(token);
+                    }
+                    if (result.authToken) {
+                      setAuthToken(result.authToken);
                     }
                     const status = await getVeupathdbAuthStatus(value);
                     setAuthStatus(status);

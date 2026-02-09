@@ -11,7 +11,7 @@ import { useStrategyStore } from "@/state/useStrategyStore";
 import { StrategySidebar } from "@/features/sidebar/components/StrategySidebar";
 import { PlansSidebar } from "@/features/sidebar/components/PlansSidebar";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
-import { getStrategy } from "@/lib/api/client";
+import { getStrategy, refreshAuth } from "@/lib/api/client";
 import type { Message } from "@pathfinder/shared";
 import { ToastContainer } from "@/app/components/ToastContainer";
 import { useToasts } from "@/app/hooks/useToasts";
@@ -29,6 +29,8 @@ export default function HomePage() {
     (state) => state.selectedSiteDisplayName,
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
+  const authToken = useSessionStore((state) => state.authToken);
+  const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const strategyId = useSessionStore((state) => state.strategyId);
   const { strategy } = useStrategyStore();
   const buildPlan = useStrategyStore((state) => state.buildPlan);
@@ -60,6 +62,19 @@ export default function HomePage() {
     }
     lastSiteRef.current = selectedSite;
   }, [selectedSite, isHydrated, setStrategyId, clearStrategy, setActiveView]);
+
+  // Re-derive internal auth from VEuPathDB session on page load when the
+  // internal token is missing but the VEuPathDB session cookie is still alive.
+  useEffect(() => {
+    if (!veupathdbSignedIn || authToken) return;
+    refreshAuth()
+      .then((result) => {
+        if (result.authToken) setAuthToken(result.authToken);
+      })
+      .catch(() => {
+        // VEuPathDB session expired – user needs to re-login.
+      });
+  }, [veupathdbSignedIn, authToken, setAuthToken]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -148,6 +163,50 @@ export default function HomePage() {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-500">
         <div className="text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  // Login gate: require VEuPathDB authentication to use the app.
+  if (!veupathdbSignedIn) {
+    return (
+      <div className="flex h-screen flex-col bg-slate-50 text-slate-900">
+        <div className="border-b border-slate-200 bg-white px-5 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Image src="/pathfinder.svg" alt="PathFinder" width={32} height={32} />
+              <div>
+                <div className="text-base font-semibold tracking-tight text-slate-900">
+                  PathFinder
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">
+                  VEuPathDB Strategy Builder
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Sign in to continue
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Please sign in with your VEuPathDB account to use PathFinder. Your
+              strategies and plans will be saved to your account.
+            </p>
+            <div className="mt-6">
+              <SitePicker
+                value={selectedSite}
+                onChange={setSelectedSite}
+                showSelect={false}
+                showVisit={false}
+                showAuth
+                layout="stacked"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

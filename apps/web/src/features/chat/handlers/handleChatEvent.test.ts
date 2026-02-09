@@ -88,7 +88,6 @@ describe("features/chat/handlers/handleChatEvent", () => {
       planningArtifactsBuffer,
       thinking,
       setStrategyId: vi.fn(),
-      setAuthToken: vi.fn(),
       addStrategy: vi.fn(),
       addExecutedStrategy: vi.fn(),
       setWdkInfo: vi.fn(),
@@ -217,7 +216,6 @@ describe("features/chat/handlers/handleChatEvent", () => {
         subKaniTaskEnd: vi.fn(),
       } as any,
       setStrategyId: vi.fn(),
-      setAuthToken: vi.fn(),
       addStrategy: vi.fn(),
       addExecutedStrategy: vi.fn(),
       setWdkInfo: vi.fn(),
@@ -382,7 +380,6 @@ describe("features/chat/handlers/handleChatEvent", () => {
       type: "message_start",
       data: {
         strategyId: "s99",
-        authToken: "tok",
         strategy: {
           id: "s99",
           name: "X",
@@ -396,7 +393,6 @@ describe("features/chat/handlers/handleChatEvent", () => {
       },
     } as any);
     expect(ctx.setStrategyId).toHaveBeenCalledWith("s99");
-    expect(ctx.setAuthToken).toHaveBeenCalledWith("tok");
     expect(ctx.addStrategy).toHaveBeenCalled();
     expect(ctx.loadGraph).toHaveBeenCalledWith("s99");
 

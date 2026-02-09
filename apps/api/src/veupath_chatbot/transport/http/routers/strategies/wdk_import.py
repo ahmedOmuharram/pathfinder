@@ -31,7 +31,6 @@ from veupath_chatbot.platform.errors import (
     WDKError,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.security import create_user_token
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.wdk_snapshot import (
@@ -41,9 +40,7 @@ from veupath_chatbot.services.strategies.wdk_snapshot import (
 )
 from veupath_chatbot.transport.http.deps import (
     CurrentUser,
-    OptionalUser,
     StrategyRepo,
-    UserRepo,
 )
 from veupath_chatbot.transport.http.routers._authz import get_owned_strategy_or_404
 from veupath_chatbot.transport.http.schemas import (
@@ -127,24 +124,9 @@ async def _validate_transform_steps_accept_input(
 async def open_strategy(
     request: OpenStrategyRequest,
     strategy_repo: StrategyRepo,
-    user_repo: UserRepo,
-    user_id: OptionalUser,
-    response: Response,
+    user_id: CurrentUser,
 ) -> OpenStrategyResponse:
     """Open a strategy by local or WDK strategy."""
-    if user_id:
-        await user_repo.get_or_create(user_id)
-    else:
-        user = await user_repo.create()
-        user_id = user.id
-        auth_token = create_user_token(user_id)
-        response.set_cookie(
-            key="pathfinder-auth",
-            value=auth_token,
-            httponly=True,
-            samesite="lax",
-        )
-
     if not request.strategy_id and not request.wdk_strategy_id:
         if not request.site_id:
             raise ValidationError(
@@ -165,7 +147,6 @@ async def open_strategy(
             plan={},
         )
     elif request.strategy_id:
-        assert user_id is not None
         strategy = await get_owned_strategy_or_404(
             strategy_repo, request.strategy_id, user_id
         )
@@ -329,7 +310,7 @@ async def list_wdk_strategies(
     ]
 
 
-@router.delete("/wdk/{wdkStrategyId}", status_code=204)
+@router.delete("/wdk/{wdkStrategyId}", status_code=204, response_class=Response)
 async def delete_wdk_strategy(
     wdkStrategyId: int,
     siteId: str,

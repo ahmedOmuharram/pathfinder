@@ -260,13 +260,13 @@ export async function loginVeupathdb(
   email: string,
   password: string,
   redirectTo?: string | null,
-): Promise<{ success: boolean }>;
+): Promise<{ success: boolean; authToken?: string }>;
 export async function loginVeupathdb(args: {
   siteId: string;
   email: string;
   password: string;
   redirectTo?: string | null;
-}): Promise<{ success: boolean }>;
+}): Promise<{ success: boolean; authToken?: string }>;
 export async function loginVeupathdb(
   siteIdOrArgs:
     | string
@@ -274,7 +274,7 @@ export async function loginVeupathdb(
   email?: string,
   password?: string,
   redirectTo?: string | null,
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; authToken?: string }> {
   const normalized =
     typeof siteIdOrArgs === "string"
       ? {
@@ -301,7 +301,9 @@ export async function loginVeupathdb(
   });
 }
 
-export async function setVeupathdbToken(token: string): Promise<{ success: boolean }> {
+export async function setVeupathdbToken(
+  token: string,
+): Promise<{ success: boolean; authToken?: string }> {
   return await requestJson(`/api/v1/veupathdb/auth/token`, {
     method: "POST",
     body: { token },
@@ -310,4 +312,12 @@ export async function setVeupathdbToken(token: string): Promise<{ success: boole
 
 export async function logoutVeupathdb(): Promise<{ success: boolean }> {
   return await requestJson(`/api/v1/veupathdb/auth/logout`, { method: "POST" });
+}
+
+/**
+ * Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
+ * Called on page load when the internal token is missing/expired.
+ */
+export async function refreshAuth(): Promise<{ success: boolean; authToken?: string }> {
+  return await requestJson(`/api/v1/veupathdb/auth/refresh`, { method: "POST" });
 }

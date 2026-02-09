@@ -35,7 +35,6 @@ interface UseChatStreamingArgs {
   addStrategy: (strategy: AddStrategyInput) => void;
   addExecutedStrategy: (strategy: StrategyWithMeta) => void;
   setStrategyId: (id: string | null) => void;
-  setAuthToken: (token: string | null) => void;
   setWdkInfo: ChatEventContext["setWdkInfo"];
   setStrategy: (strategy: StrategyWithMeta | null) => void;
   setStrategyMeta: ChatEventContext["setStrategyMeta"];
@@ -68,7 +67,6 @@ export function useChatStreaming({
   addStrategy,
   addExecutedStrategy,
   setStrategyId,
-  setAuthToken,
   setWdkInfo,
   setStrategy,
   setStrategyMeta,
@@ -135,7 +133,6 @@ export function useChatStreaming({
                 planningArtifactsBuffer,
                 thinking,
                 setStrategyId,
-                setAuthToken,
                 addStrategy,
                 addExecutedStrategy,
                 setWdkInfo,
@@ -207,7 +204,6 @@ export function useChatStreaming({
       siteId,
       strategyId,
       setStrategyId,
-      setAuthToken,
       addStrategy,
       addExecutedStrategy,
       setWdkInfo,

@@ -22,7 +22,6 @@ from veupath_chatbot.persistence.repo import (
     UserRepository,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.security import create_user_token
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.bootstrap import (
     append_user_message,
@@ -294,17 +293,17 @@ async def start_chat_stream(
     strategy_id: UUID | None,
     plan_session_id: UUID | None,
     mode: str = "execute",
-    user_id: UUID | None,
+    user_id: UUID,
     user_repo: UserRepository,
     strategy_repo: StrategyRepository,
     plan_repo: PlanSessionRepository,
-) -> tuple[str, AsyncIterator[str]]:
+) -> AsyncIterator[str]:
     """Start an SSE stream for a chat turn.
 
-    Returns `(auth_token, sse_iterator)` where `sse_iterator` yields SSE-formatted strings.
+    Returns an ``sse_iterator`` that yields SSE-formatted strings.
+    Authentication is handled at login time; no token is created here.
     """
     user_id = await ensure_user(user_repo, user_id)
-    auth_token = create_user_token(user_id)
 
     if mode == "plan":
         # Plan sessions are not strategies; do not create/modify the strategy sidebar.
@@ -382,7 +381,6 @@ async def start_chat_stream(
                 plan_repo=plan_repo,
                 user_id=user_id,
                 plan_session=plan_session,
-                auth_token=auth_token,
                 plan_payload=plan_payload,
                 mode=mode,
             )
@@ -413,7 +411,7 @@ async def start_chat_stream(
             except Exception as e:
                 yield await processor.handle_exception(e)
 
-        return auth_token, plan_event_generator()
+        return plan_event_generator()
 
     # Default: executor mode (strategy-bound)
     strategy = await ensure_strategy(
@@ -455,7 +453,6 @@ async def start_chat_stream(
             site_id=site_id,
             user_id=user_id,
             strategy=strategy,
-            auth_token=auth_token,
             strategy_payload=strategy_payload,
             mode=mode,
         )
@@ -488,4 +485,4 @@ async def start_chat_stream(
         except Exception as e:
             yield await processor.handle_exception(e)
 
-    return auth_token, event_generator()
+    return event_generator()

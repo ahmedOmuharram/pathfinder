@@ -17,7 +17,6 @@ export type ChatEventContext = {
 
   // Strategy/session actions
   setStrategyId: (id: string | null) => void;
-  setAuthToken: (token: string | null) => void;
   addStrategy: (s: {
     id: string;
     name: string;
@@ -73,7 +72,6 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     planningArtifactsBuffer,
     thinking,
     setStrategyId,
-    setAuthToken,
     addStrategy,
     addExecutedStrategy,
     setWdkInfo,
@@ -98,10 +96,9 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
 
   switch (event.type) {
     case "message_start": {
-      const { strategyId, authToken, strategy } = event.data as {
+      const { strategyId, strategy } = event.data as {
         strategyId?: string;
         strategy?: StrategyWithMeta;
-        authToken?: string;
       };
       if (strategyId) {
         setStrategyId(strategyId);
@@ -119,7 +116,6 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         });
         loadGraph(strategyId);
       }
-      if (authToken) setAuthToken(authToken);
       if (strategy) {
         setStrategy(strategy);
         setStrategyMeta({

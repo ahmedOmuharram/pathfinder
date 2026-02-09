@@ -23,12 +23,17 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # Rewrites in next.config.js are compiled at build time; point them at
+        # the Docker-internal API hostname so the proxy works at runtime.
+        NEXT_PUBLIC_API_URL: http://api:8000
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       - api
     environment:
-      # Next rewrites run on the server inside this container.
+      # Runtime env read by next.config.js rewrites (standalone server re-reads
+      # the config at startup) and by SSR code.
       NEXT_PUBLIC_API_URL: http://api:8000
 
   db:

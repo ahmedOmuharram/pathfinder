@@ -55,7 +55,6 @@ export function ChatPanel({
   const applyThinkingPayload = thinking.applyThinkingPayload;
   const strategyId = useSessionStore((state) => state.strategyId);
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
-  const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const setChatIsStreaming = useSessionStore((state) => state.setChatIsStreaming);
   const pendingExecutorSend = useSessionStore((state) => state.pendingExecutorSend);
   const setPendingExecutorSend = useSessionStore(
@@ -155,7 +154,6 @@ export function ChatPanel({
       addStrategy,
       addExecutedStrategy,
       setStrategyId,
-      setAuthToken,
       setWdkInfo,
       setStrategy,
       setStrategyMeta,

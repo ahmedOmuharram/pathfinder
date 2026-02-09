@@ -27,14 +27,12 @@ class PlanStreamProcessor:
         plan_repo: PlanSessionRepository,
         user_id: UUID,
         plan_session: PlanSession,
-        auth_token: str,
         plan_payload: JSONObject,
         mode: str = "plan",
     ) -> None:
         self.plan_repo = plan_repo
         self.user_id = user_id
         self.plan_session = plan_session
-        self.auth_token = auth_token
         self.plan_payload = plan_payload
         self.mode = mode
 
@@ -49,7 +47,6 @@ class PlanStreamProcessor:
 
     def start_event(self) -> str:
         return sse_message_start(
-            auth_token=self.auth_token,
             plan_session_id=str(self.plan_session.id),
             plan_session=self.plan_payload,
         )

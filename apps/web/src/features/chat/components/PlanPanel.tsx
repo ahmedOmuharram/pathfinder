@@ -200,7 +200,6 @@ export function PlanPanel(props: { siteId: string }) {
       switch (event.type) {
         case "message_start": {
           if (event.data.planSessionId) setPlanSessionId(event.data.planSessionId);
-          if (event.data.authToken) setAuthToken(event.data.authToken);
           break;
         }
         case "assistant_message": {
@@ -335,7 +334,6 @@ export function PlanPanel(props: { siteId: string }) {
     },
     [
       setPlanSessionId,
-      setAuthToken,
       setMessages,
       setSessionArtifacts,
       setPlanTitle,
