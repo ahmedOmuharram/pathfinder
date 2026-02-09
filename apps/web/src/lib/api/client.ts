@@ -9,6 +9,7 @@ import type {
   VEuPathDBSite,
 } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
+import { AppError } from "@/shared/errors/AppError";
 import { APIError, requestJson } from "./http";
 
 export { APIError };
@@ -285,7 +286,7 @@ export async function loginVeupathdb(
       : siteIdOrArgs;
 
   if (!normalized.email || !normalized.password) {
-    throw new Error("Email and password are required.");
+    throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
   return await requestJson(`/api/v1/veupathdb/auth/login`, {
     method: "POST",

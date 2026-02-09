@@ -64,12 +64,31 @@ export function PlansSidebar(props: {
     }
     try {
       const sessions = await listPlans(siteId);
+      // Backend hides empty plans. If the active plan is currently empty, it may not
+      // appear in list results — but we still want to render it (and its latest title)
+      // so search/filtering works and the user can navigate reliably.
+      if (planSessionId && !sessions.some((p) => p.id === planSessionId)) {
+        const active = await getPlanSession(planSessionId).catch(() => null);
+        if (active) {
+          setItems([
+            {
+              id: active.id,
+              siteId: active.siteId,
+              title: active.title || "Plan",
+              createdAt: active.createdAt,
+              updatedAt: active.updatedAt,
+            },
+            ...sessions,
+          ]);
+          return;
+        }
+      }
       setItems(sessions);
     } catch (error) {
       setItems([]);
       handlePlanError(error, "Failed to load plans.");
     }
-  }, [authToken, handlePlanError, siteId]);
+  }, [authToken, handlePlanError, planSessionId, siteId]);
 
   useEffect(() => {
     void refresh();
@@ -137,6 +156,7 @@ export function PlansSidebar(props: {
           Plans
         </div>
         <button
+          data-testid="plans-new-plan-button"
           type="button"
           disabled={chatIsStreaming}
           onClick={async () => {
@@ -172,6 +192,7 @@ export function PlansSidebar(props: {
       </div>
 
       <input
+        data-testid="plans-search-input"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search plans..."
@@ -188,6 +209,8 @@ export function PlansSidebar(props: {
             return (
               <div
                 key={p.id}
+                data-testid="plans-plan-item"
+                data-plan-id={p.id}
                 className={`group flex w-full items-start justify-between gap-2 rounded-md border px-3 py-2 text-left text-[11px] ${
                   isActive
                     ? "border-slate-300 bg-slate-100 text-slate-900"
@@ -208,6 +231,7 @@ export function PlansSidebar(props: {
                 </button>
                 <button
                   type="button"
+                  data-testid="plans-delete-plan-button"
                   onClick={async () => {
                     const ok = window.confirm(
                       `Delete plan “${p.title}”? This cannot be undone.`,

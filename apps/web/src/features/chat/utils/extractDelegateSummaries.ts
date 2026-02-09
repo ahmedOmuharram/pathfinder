@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolCall } from "@pathfinder/shared";
+import { parseJsonRecord } from "@/features/chat/utils/parseJson";
 
 export interface DelegateSummary {
   task: string;
@@ -50,25 +51,13 @@ const DelegatePayloadSchema = z
   })
   .passthrough();
 
-const tryParseJson = (value: unknown): Record<string, unknown> | null => {
-  if (typeof value !== "string") return null;
-  try {
-    const parsed = JSON.parse(value);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
 export function extractDelegateSummaries(toolCalls: ToolCall[]) {
   const summaries: DelegateSummary[] = [];
   const rejected: RejectedDelegateSummary[] = [];
 
   for (const toolCall of toolCalls) {
     if (toolCall.name !== "delegate_strategy_subtasks") continue;
-    const parsed = DelegatePayloadSchema.safeParse(tryParseJson(toolCall.result));
+    const parsed = DelegatePayloadSchema.safeParse(parseJsonRecord(toolCall.result));
     if (!parsed.success) continue;
 
     for (const entry of parsed.data.results ?? []) {

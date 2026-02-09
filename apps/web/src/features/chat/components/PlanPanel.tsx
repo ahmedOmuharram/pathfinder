@@ -20,6 +20,16 @@ import { MessageComposer } from "@/features/chat/components/MessageComposer";
 import { streamChat } from "@/features/chat/stream";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { parseToolArguments } from "@/features/chat/utils/parseToolArguments";
+import {
+  applyAssistantDelta,
+  finalizeAssistantMessage,
+  upsertSessionArtifact,
+} from "@/features/chat/utils/planStreamState";
+import { openAndHydrateDraftStrategy } from "@/features/strategy/services/openAndHydrateDraftStrategy";
+import {
+  buildDelegationExecutorMessage,
+  getDelegationDraft,
+} from "@/features/chat/utils/delegationDraft";
 
 export function PlanPanel(props: { siteId: string }) {
   const { siteId } = props;
@@ -66,41 +76,26 @@ export function PlanPanel(props: { siteId: string }) {
       // Switch to executor mode and create a new strategy. The executor chat will auto-send
       // the message once it mounts; do not prefill the composer (leave input empty).
       setChatMode("execute");
-      openStrategy({ siteId })
-        .then(async (response) => {
-          const nextId = response.strategyId;
-          setStrategyId(nextId);
-          addStrategy({
-            id: nextId,
-            name: "Draft Strategy",
-            title: "Draft Strategy",
-            siteId,
-            recordType: null,
-            stepCount: 0,
-            resultCount: undefined,
-            wdkStrategyId: undefined,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-          clearStrategy();
-          try {
-            const full = await getStrategy(nextId);
-            setStrategy(full);
-            setStrategyMeta({
-              name: full.name,
-              recordType: full.recordType ?? undefined,
-              siteId: full.siteId,
-            });
-            window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
-            // Persist a pending send so executor chat can send after it mounts.
-            setPendingExecutorSend({ strategyId: nextId, message: messageText });
-          } catch (error) {
-            setApiError(toUserMessage(error, "Failed to load the new strategy."));
-          }
-        })
-        .catch((error) => {
-          setApiError(toUserMessage(error, "Failed to open a new strategy."));
-        });
+      openAndHydrateDraftStrategy({
+        siteId,
+        open: () => openStrategy({ siteId }),
+        getStrategy,
+        nowIso: () => new Date().toISOString(),
+        setStrategyId,
+        addStrategy,
+        clearStrategy,
+        setStrategy,
+        setStrategyMeta,
+        onHydrateSuccess: (full) => {
+          window.dispatchEvent(new Event("pathfinder:open-executor-chat"));
+          setPendingExecutorSend({ strategyId: full.id, message: messageText });
+        },
+        onHydrateError: (error) => {
+          setApiError(toUserMessage(error, "Failed to load the new strategy."));
+        },
+      }).catch((error) => {
+        setApiError(toUserMessage(error, "Failed to open a new strategy."));
+      });
     },
     [
       addStrategy,
@@ -114,6 +109,8 @@ export function PlanPanel(props: { siteId: string }) {
       siteId,
     ],
   );
+
+  const delegationDraft = getDelegationDraft(sessionArtifacts);
 
   const handlePlanError = useCallback(
     (error: unknown, fallback: string) => {
@@ -207,52 +204,23 @@ export function PlanPanel(props: { siteId: string }) {
             messageId?: string;
             content?: string;
           };
-          const finalContent = content || "";
-
-          const idx = streamingAssistantIndexRef.current;
-          if (
-            idx !== null &&
-            idx >= 0 &&
-            (!messageId || streamingAssistantMessageIdRef.current === messageId)
-          ) {
-            setMessages((prev) => {
-              if (idx < 0 || idx >= prev.length) return prev;
-              const next = [...prev];
-              const existing = next[idx];
-              if (!existing || existing.role !== "assistant") return prev;
-              next[idx] = {
-                ...existing,
-                content: finalContent || existing.content,
-                toolCalls:
-                  toolCallsBuffer.length > 0
-                    ? [...toolCallsBuffer]
-                    : existing.toolCalls,
-                citations:
-                  citationsBuffer.length > 0
-                    ? [...citationsBuffer]
-                    : existing.citations,
-                planningArtifacts:
-                  artifactsBuffer.length > 0
-                    ? [...artifactsBuffer]
-                    : existing.planningArtifacts,
-              };
-              return next;
+          setMessages((prev) => {
+            const { messages: next, streaming } = finalizeAssistantMessage({
+              messages: prev,
+              streaming: {
+                index: streamingAssistantIndexRef.current,
+                messageId: streamingAssistantMessageIdRef.current,
+              },
+              event: { messageId, content },
+              toolCallsBuffer,
+              citationsBuffer,
+              artifactsBuffer,
+              nowIso: () => new Date().toISOString(),
             });
-          } else if (finalContent) {
-            const assistantMessage: Message = {
-              role: "assistant",
-              content: finalContent,
-              toolCalls: toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : undefined,
-              citations: citationsBuffer.length > 0 ? [...citationsBuffer] : undefined,
-              planningArtifacts:
-                artifactsBuffer.length > 0 ? [...artifactsBuffer] : undefined,
-              timestamp: new Date().toISOString(),
-            };
-            setMessages((prev) => [...prev, assistantMessage]);
-          }
-
-          streamingAssistantIndexRef.current = null;
-          streamingAssistantMessageIdRef.current = null;
+            streamingAssistantIndexRef.current = streaming.index;
+            streamingAssistantMessageIdRef.current = streaming.messageId;
+            return next;
+          });
           toolCallsBuffer.length = 0;
           citationsBuffer.length = 0;
           artifactsBuffer.length = 0;
@@ -263,32 +231,18 @@ export function PlanPanel(props: { siteId: string }) {
             messageId?: string;
             delta?: string;
           };
-          if (!delta) break;
-          if (
-            streamingAssistantIndexRef.current === null ||
-            (messageId && streamingAssistantMessageIdRef.current !== messageId)
-          ) {
-            const assistantMessage: Message = {
-              role: "assistant",
-              content: delta,
-              timestamp: new Date().toISOString(),
-            };
-            setMessages((prev) => {
-              const next = [...prev, assistantMessage];
-              streamingAssistantIndexRef.current = next.length - 1;
-              streamingAssistantMessageIdRef.current = messageId || null;
-              return next;
-            });
-            break;
-          }
-          const idx = streamingAssistantIndexRef.current;
-          if (idx === null) break;
           setMessages((prev) => {
-            if (idx < 0 || idx >= prev.length) return prev;
-            const next = [...prev];
-            const existing = next[idx];
-            if (!existing || existing.role !== "assistant") return prev;
-            next[idx] = { ...existing, content: (existing.content || "") + delta };
+            const { messages: next, streaming } = applyAssistantDelta({
+              messages: prev,
+              streaming: {
+                index: streamingAssistantIndexRef.current,
+                messageId: streamingAssistantMessageIdRef.current,
+              },
+              event: { messageId, delta },
+              nowIso: () => new Date().toISOString(),
+            });
+            streamingAssistantIndexRef.current = streaming.index;
+            streamingAssistantMessageIdRef.current = streaming.messageId;
             return next;
           });
           break;
@@ -322,18 +276,9 @@ export function PlanPanel(props: { siteId: string }) {
           if (artifact && typeof artifact === "object" && !Array.isArray(artifact)) {
             const planningArtifact = artifact as PlanningArtifact;
             artifactsBuffer.push(planningArtifact);
-            setSessionArtifacts((prev) => {
-              const next = [...prev];
-              const id = planningArtifact?.id;
-              if (typeof id === "string" && id) {
-                const idx = next.findIndex((a) => a.id === id);
-                if (idx >= 0) next[idx] = planningArtifact;
-                else next.push(planningArtifact);
-                return next;
-              }
-              next.push(planningArtifact);
-              return next;
-            });
+            setSessionArtifacts((prev) =>
+              upsertSessionArtifact(prev, planningArtifact),
+            );
           }
           break;
         }
@@ -471,6 +416,7 @@ export function PlanPanel(props: { siteId: string }) {
           {isEditingTitle ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <input
+                data-testid="plan-title-input"
                 value={draftTitle}
                 onChange={(e) => setDraftTitle(e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-[13px] text-slate-900"
@@ -479,6 +425,7 @@ export function PlanPanel(props: { siteId: string }) {
               />
               <button
                 type="button"
+                data-testid="plan-title-save"
                 onClick={async () => {
                   if (!planSessionId) return;
                   const next = draftTitle.trim() || "Plan";
@@ -502,6 +449,7 @@ export function PlanPanel(props: { siteId: string }) {
               </button>
               <button
                 type="button"
+                data-testid="plan-title-cancel"
                 onClick={() => {
                   setDraftTitle(planTitle);
                   setIsEditingTitle(false);
@@ -517,13 +465,17 @@ export function PlanPanel(props: { siteId: string }) {
           ) : (
             <>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-slate-900">
+                <div
+                  data-testid="plan-title"
+                  className="truncate text-sm font-semibold text-slate-900"
+                >
                   {planTitle}
                 </div>
                 <div className="text-[11px] text-slate-500">Planning session</div>
               </div>
               <button
                 type="button"
+                data-testid="plan-title-edit"
                 onClick={() => setIsEditingTitle(true)}
                 disabled={isStreaming}
                 className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
@@ -538,116 +490,51 @@ export function PlanPanel(props: { siteId: string }) {
       </div>
 
       {/* Delegation plan draft viewer (if present) */}
-      {sessionArtifacts.some((a) => a.id === "delegation_draft") && (
+      {delegationDraft && (
         <div className="border-b border-slate-200 bg-white px-4 py-3">
-          {(() => {
-            const draft = sessionArtifacts.find((a) => a.id === "delegation_draft");
-            const params =
-              draft?.parameters &&
-              typeof draft.parameters === "object" &&
-              !Array.isArray(draft.parameters)
-                ? (draft.parameters as Record<string, unknown>)
-                : {};
-            const goal = params.delegationGoal;
-            const plan = params.delegationPlan;
-            return (
-              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Delegation plan (draft)
-                </summary>
-                <div className="mt-2 space-y-2 text-[12px] text-slate-700">
-                  {typeof goal === "string" && goal.trim() ? (
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                        Goal
-                      </div>
-                      <div className="mt-1 rounded-md border border-slate-100 bg-slate-50 p-2 text-[12px] text-slate-700">
-                        {goal}
-                      </div>
-                    </div>
-                  ) : null}
-                  {plan ? (
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                        Plan JSON
-                      </div>
-                      <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-slate-100 bg-slate-50 p-2 text-[11px] text-slate-700">
-                        {JSON.stringify(plan, null, 2)}
-                      </pre>
-                    </div>
-                  ) : null}
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      className="rounded-md border border-slate-200 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white"
-                      onClick={() => {
-                        const message = [
-                          "Build this strategy using delegation.",
-                          "",
-                          "You MUST call `delegate_strategy_subtasks(goal, plan)` with the JSON below.",
-                          "Use any per-task `context` fields as required parameters/constraints.",
-                          "",
-                          "Goal:",
-                          typeof goal === "string" ? goal : "",
-                          "",
-                          "Delegation plan (JSON):",
-                          "```",
-                          JSON.stringify(plan || {}, null, 2),
-                          "```",
-                        ].join("\n");
-                        setChatMode("execute");
-                        openStrategy({ siteId })
-                          .then(async (response) => {
-                            const nextId = response.strategyId;
-                            setStrategyId(nextId);
-                            addStrategy({
-                              id: nextId,
-                              name: "Draft Strategy",
-                              title: "Draft Strategy",
-                              siteId,
-                              recordType: null,
-                              stepCount: 0,
-                              resultCount: undefined,
-                              wdkStrategyId: undefined,
-                              createdAt: new Date().toISOString(),
-                              updatedAt: new Date().toISOString(),
-                            });
-                            clearStrategy();
-                            try {
-                              const full = await getStrategy(nextId);
-                              setStrategy(full);
-                              setStrategyMeta({
-                                name: full.name,
-                                recordType: full.recordType ?? undefined,
-                                siteId: full.siteId,
-                              });
-                              window.dispatchEvent(
-                                new Event("pathfinder:open-executor-chat"),
-                              );
-                              setPendingExecutorSend({ strategyId: nextId, message });
-                            } catch (error) {
-                              setApiError(
-                                toUserMessage(
-                                  error,
-                                  "Failed to load the new strategy.",
-                                ),
-                              );
-                            }
-                          })
-                          .catch((error) => {
-                            setApiError(
-                              toUserMessage(error, "Failed to open a new strategy."),
-                            );
-                          });
-                      }}
-                    >
-                      Build in executor
-                    </button>
+          <details
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+            data-testid="delegation-draft-details"
+          >
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Delegation plan (draft)
+            </summary>
+            <div className="mt-2 space-y-2 text-[12px] text-slate-700">
+              {typeof delegationDraft.goal === "string" &&
+              delegationDraft.goal.trim() ? (
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Goal
+                  </div>
+                  <div className="mt-1 rounded-md border border-slate-100 bg-slate-50 p-2 text-[12px] text-slate-700">
+                    {delegationDraft.goal}
                   </div>
                 </div>
-              </details>
-            );
-          })()}
+              ) : null}
+              {delegationDraft.plan ? (
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Plan JSON
+                  </div>
+                  <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-slate-100 bg-slate-50 p-2 text-[11px] text-slate-700">
+                    {JSON.stringify(delegationDraft.plan, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  data-testid="delegation-build-executor"
+                  className="rounded-md border border-slate-200 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white"
+                  onClick={() =>
+                    startExecutorBuild(buildDelegationExecutorMessage(delegationDraft))
+                  }
+                >
+                  Build in executor
+                </button>
+              </div>
+            </div>
+          </details>
         </div>
       )}
       <ChatMessageList

@@ -45,18 +45,25 @@ repos:
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
         stages: [pre-push]
-      - id: openapi-check-api
-        name: openapi spec up-to-date (api)
-        entry: bash -c "cd apps/api && uv run python -m veupath_chatbot.devtools.openapi check"
+      - id: openapi-generate-api
+        name: openapi spec regenerate (api)
+        entry: bash -c "cd apps/api && uv run python -m veupath_chatbot.devtools.openapi generate"
         language: system
         pass_filenames: false
         types: [python]
         files: ^apps/api/.*
         stages: [pre-push]
       - id: shared-ts-openapi
-        name: openapi types up-to-date (shared-ts)
-        entry: bash -c "cd packages/shared-ts && npm run check:openapi"
+        name: openapi types regenerate (shared-ts)
+        entry: bash -c "cd packages/shared-ts && npm run generate:openapi"
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*
         stages: [pre-push]
+      - id: shared-ts-openapi-generate
+        name: openapi types regenerate (shared-ts)
+        entry: bash -c "cd packages/shared-ts && npm run generate:openapi"
+        language: system
+        pass_filenames: false
+        files: ^(packages/shared-ts/|apps/api/).*
+        stages: [manual]

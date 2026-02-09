@@ -7,13 +7,26 @@ const compat = new FlatCompat({
 
 module.exports = defineConfig([
   {
-    ignores: [".next/**", "node_modules/**", "playwright-report/**", "test-results/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "playwright-report/**",
+      "test-results/**",
+      "coverage/**",
+    ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-require-imports": "error",
+    },
+  },
+  // Tests often need flexible mocks/fixtures.
+  {
+    files: ["**/*.test.{ts,tsx}", "e2e/**/*.spec.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   // Node config files are intentionally CommonJS.

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from qdrant_client import AsyncQdrantClient
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
@@ -100,16 +101,18 @@ class QdrantStore:
             if hasattr(current, "size"):
                 size = int(current.size)
                 if size != int(vector_size):
-                    raise RuntimeError(
-                        f"Qdrant collection {name} has vector size {size}, expected {vector_size}"
+                    raise InternalError(
+                        title="Vector store misconfigured",
+                        detail=f"Qdrant collection {name} has vector size {size}, expected {vector_size}",
                     )
             elif isinstance(current, dict) and current:
                 any_vec = next(iter(current.values()))
                 if hasattr(any_vec, "size"):
                     size = int(any_vec.size)
                     if size != int(vector_size):
-                        raise RuntimeError(
-                            f"Qdrant collection {name} has vector size {size}, expected {vector_size}"
+                        raise InternalError(
+                            title="Vector store misconfigured",
+                            detail=f"Qdrant collection {name} has vector size {size}, expected {vector_size}",
                         )
 
     async def upsert(

@@ -66,6 +66,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
 
   return (
     <div
+      data-testid={`rf-node-${step.id}`}
       className={`relative h-28 w-56 px-2 py-2 transition ${
         isTransform
           ? "rounded-lg border-0 bg-transparent shadow-none"
@@ -103,6 +104,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
             type="target"
             position={Position.Left}
             id="left"
+            data-testid={`rf-handle-${step.id}-primary`}
             isConnectable={!!showPrimaryInputHandle}
             className={`h-3 w-3 border-2 border-white z-10 ${
               showPrimaryInputHandle
@@ -115,6 +117,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
               type="target"
               position={Position.Left}
               id="left-secondary"
+              data-testid={`rf-handle-${step.id}-secondary`}
               isConnectable={!!showSecondaryInputHandle}
               style={{ top: "70%" }}
               className={`h-3 w-3 border-2 border-white z-10 ${
@@ -132,6 +135,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         type="source"
         position={Position.Right}
         id="right"
+        data-testid={`rf-handle-${step.id}-output`}
         isConnectable={!!showOutputHandle}
         style={{ top: "50%" }}
         className={`h-3 w-3 border-2 border-slate-400 z-10 ${
@@ -149,6 +153,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       <button
         type="button"
         onClick={handleAddToChat}
+        data-testid={`rf-add-to-chat-${step.id}`}
         className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-700 z-10"
         title="Add to chat"
       >

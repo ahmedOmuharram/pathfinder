@@ -43,7 +43,9 @@ def _use_mock_chat_provider() -> bool:
     return (os.environ.get("PATHFINDER_CHAT_PROVIDER") or "").strip().lower() == "mock"
 
 
-async def _mock_stream_chat(*, mode: str, message: str) -> AsyncIterator[JSONObject]:
+async def _mock_stream_chat(
+    *, mode: str, message: str, strategy_id: str | None = None
+) -> AsyncIterator[JSONObject]:
     """
     Deterministic, offline-friendly stream that matches the semantic event contract
     produced by `stream_chat()`.
@@ -60,6 +62,164 @@ async def _mock_stream_chat(*, mode: str, message: str) -> AsyncIterator[JSONObj
         if "slow" in message.lower():
             await asyncio.sleep(0.2)
         yield {"type": "assistant_delta", "data": {"messageId": message_id, "delta": d}}
+
+    # Optionally emit deterministic strategy-planning artifacts in executor mode so
+    # the UI can exercise graph + selection flows in E2E.
+    msg_lower = message.lower()
+    if mode == "execute" and "artifact graph" in msg_lower:
+        now = datetime.now(UTC).isoformat()
+        yield {
+            "type": "planning_artifact",
+            "data": {
+                "planningArtifact": {
+                    "id": "mock_exec_graph_artifact",
+                    "title": "Mock executor graph artifact",
+                    "summaryMarkdown": "A deterministic multi-step artifact for E2E graph interaction tests.",
+                    "assumptions": [],
+                    "parameters": {},
+                    "proposedStrategyPlan": {
+                        "recordType": "gene",
+                        "root": {
+                            "id": "mock_transform_1",
+                            "searchName": "mock_transform",
+                            "displayName": "Mock transform step",
+                            "parameters": {},
+                            "primaryInput": {
+                                "id": "mock_search_1",
+                                "searchName": "mock_search",
+                                "displayName": "Mock search step",
+                                "parameters": {},
+                            },
+                        },
+                        "metadata": {"name": "Mock graph plan"},
+                    },
+                    "createdAt": now,
+                }
+            },
+        }
+    # Executor-mode: deterministic delegation/sub-kani + graph build flow.
+    elif mode == "execute" and (
+        "delegate_strategy_subtasks" in msg_lower or "delegation" in msg_lower
+    ):
+        # Emit a sub-kani task with a tool call so the UI can render Sub-kani Activity.
+        yield {
+            "type": "subkani_task_start",
+            "data": {"task": "delegate:build-strategy"},
+        }
+        yield {
+            "type": "subkani_tool_call_start",
+            "data": {
+                "task": "delegate:build-strategy",
+                "id": "tc_delegate_1",
+                "name": "search_for_searches",
+                "arguments": '{"query":"ortholog transform","record_type":"gene","limit":3}',
+            },
+        }
+        yield {
+            "type": "subkani_tool_call_end",
+            "data": {
+                "task": "delegate:build-strategy",
+                "id": "tc_delegate_1",
+                "result": '{"rag":{"data":[],"note":""},"wdk":{"data":[],"note":"mock"}}',
+            },
+        }
+        yield {
+            "type": "subkani_task_end",
+            "data": {"task": "delegate:build-strategy", "status": "done"},
+        }
+
+        # Emit a few strategy_update events to build a multi-step graph deterministically.
+        # Use the real strategy_id so the frontend doesn't filter them out.
+        gid = strategy_id or "mock_graph_delegation"
+        yield {
+            "type": "strategy_update",
+            "data": {
+                "graphId": gid,
+                "step": {
+                    "graphId": gid,
+                    "stepId": "mock_search_1",
+                    "type": "search",
+                    "displayName": "Delegated search step",
+                    "searchName": "mock_search",
+                    "parameters": {"q": "gametocyte", "min": 10},
+                    "recordType": "gene",
+                    "graphName": "Delegation-built strategy",
+                    "description": "A deterministic delegated strategy for E2E.",
+                },
+            },
+        }
+        yield {
+            "type": "strategy_update",
+            "data": {
+                "graphId": gid,
+                "step": {
+                    "graphId": gid,
+                    "stepId": "mock_transform_1",
+                    "type": "transform",
+                    "displayName": "Delegated transform step",
+                    "searchName": "mock_transform",
+                    "inputStepId": "mock_search_1",
+                    "parameters": {"insertBetween": True, "species": "P. falciparum"},
+                    "recordType": "gene",
+                },
+            },
+        }
+        yield {
+            "type": "strategy_update",
+            "data": {
+                "graphId": gid,
+                "step": {
+                    "graphId": gid,
+                    "stepId": "mock_combine_1",
+                    "type": "combine",
+                    "displayName": "Delegated combine step",
+                    "operator": "UNION",
+                    "leftStepId": "mock_transform_1",
+                    "rightStepId": "mock_search_1",
+                    "parameters": {},
+                    "recordType": "gene",
+                },
+            },
+        }
+
+        # Ensure the assistant message still arrives for the UI transcript.
+        yield {
+            "type": "assistant_message",
+            "data": {
+                "messageId": message_id,
+                "content": "[mock:execute] Delegation complete. Built a multi-step strategy and emitted sub-kani activity.",
+            },
+        }
+        yield {"type": "message_end", "data": {}}
+        return
+
+    # Back-compat: single-step artifact used by existing E2E tests.
+    elif mode == "execute" and "artifact" in msg_lower:
+        now = datetime.now(UTC).isoformat()
+        yield {
+            "type": "planning_artifact",
+            "data": {
+                "planningArtifact": {
+                    "id": "mock_exec_artifact",
+                    "title": "Mock executor artifact",
+                    "summaryMarkdown": "A deterministic artifact for E2E validation.",
+                    "assumptions": [],
+                    "parameters": {},
+                    "proposedStrategyPlan": {
+                        "recordType": "gene",
+                        "root": {
+                            "id": "mock_step_1",
+                            "searchName": "mock_search",
+                            "displayName": "Mock search step",
+                            "parameters": {},
+                        },
+                        "metadata": {"name": "Mock plan"},
+                    },
+                    "createdAt": now,
+                }
+            },
+        }
+
     yield {
         "type": "assistant_message",
         "data": {"messageId": message_id, "content": "".join(deltas)},
@@ -73,11 +233,47 @@ async def _mock_stream_chat(*, mode: str, message: str) -> AsyncIterator[JSONObj
                 "planningArtifact": {
                     "id": "mock_artifact",
                     "title": "Mock planning artifact",
-                    "kind": "note",
-                    "content": "This is a deterministic artifact emitted by the mock provider.",
+                    "summaryMarkdown": "This is a deterministic artifact emitted by the mock provider.",
+                    "assumptions": [],
+                    "parameters": {},
+                    "createdAt": datetime.now(UTC).isoformat(),
                 }
             },
         }
+        # Emit a deterministic delegation draft for E2E plan→delegation→execute flows.
+        if "delegation" in msg_lower:
+            yield {
+                "type": "planning_artifact",
+                "data": {
+                    "planningArtifact": {
+                        "id": "delegation_draft",
+                        "title": "Delegation plan (draft)",
+                        "summaryMarkdown": "A deterministic delegation draft for E2E.",
+                        "assumptions": [],
+                        "parameters": {
+                            "delegationGoal": "Build a gene strategy using an ortholog transform and a combine.",
+                            "delegationPlan": {
+                                "type": "task",
+                                "task": "build_strategy",
+                                "context": {"recordType": "gene"},
+                                "steps": [
+                                    {
+                                        "type": "task",
+                                        "task": "find_search",
+                                        "context": {"query": "gametocyte RNA-seq"},
+                                    },
+                                    {
+                                        "type": "task",
+                                        "task": "insert_transform",
+                                        "context": {"tool": "ortholog"},
+                                    },
+                                ],
+                            },
+                        },
+                        "createdAt": datetime.now(UTC).isoformat(),
+                    }
+                },
+            }
         if "executor" in message.lower() or "build" in message.lower():
             yield {
                 "type": "executor_build_request",
@@ -267,7 +463,11 @@ async def start_chat_stream(
             yield processor.start_event()
 
             stream_iter = (
-                _mock_stream_chat(mode=mode, message=model_message)
+                _mock_stream_chat(
+                    mode=mode,
+                    message=model_message,
+                    strategy_id=str(strategy.id),
+                )
                 if _use_mock_chat_provider()
                 else stream_chat(agent, model_message)
             )

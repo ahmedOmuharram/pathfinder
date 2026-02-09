@@ -1,4 +1,6 @@
 import { APIError } from "./http";
+import { AppError } from "@/shared/errors/AppError";
+import { isRecord } from "@/shared/utils/isRecord";
 
 export type ProblemDetail = {
   type?: string;
@@ -11,8 +13,8 @@ export type ProblemDetail = {
 };
 
 export function isProblemDetail(value: unknown): value is ProblemDetail {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
+  if (!isRecord(value)) return false;
+  const record = value;
   // Most FastAPI problem+json responses include these.
   return (
     typeof record.title === "string" &&
@@ -24,14 +26,19 @@ export function isProblemDetail(value: unknown): value is ProblemDetail {
 export function toUserMessage(err: unknown, fallback = "Request failed."): string {
   if (!err) return fallback;
 
+  if (err instanceof AppError) {
+    const msg = (err.message || "").trim();
+    return msg || fallback;
+  }
+
   if (err instanceof APIError) {
     const data = err.data;
     if (isProblemDetail(data)) {
       const msg = (data.detail || data.title || "").trim();
       return msg || fallback;
     }
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      const detail = (data as Record<string, unknown>).detail;
+    if (isRecord(data)) {
+      const detail = data.detail;
       if (typeof detail === "string" && detail.trim()) return detail;
     }
     const msg = (err.message || "").trim();

@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.persistence.models import (
@@ -26,8 +27,17 @@ class UserRepository:
 
     async def get_or_create(self, user_id: UUID) -> User:
         """Get existing user or create new one."""
+        # Avoid race conditions when multiple concurrent requests attempt to create
+        # the same user (e.g. initial page load triggering parallel API calls).
+        stmt = (
+            pg_insert(User)
+            .values(id=user_id)
+            .on_conflict_do_nothing(index_elements=[User.id])
+        )
+        await self.session.execute(stmt)
         user = await self.get_by_id(user_id)
         if user is None:
+            # Should be impossible, but keep behavior explicit.
             user = User(id=user_id)
             self.session.add(user)
             await self.session.flush()

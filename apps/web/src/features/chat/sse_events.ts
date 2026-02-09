@@ -1,6 +1,7 @@
 import type { Message, ToolCall, Citation, PlanningArtifact } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { RawSSEEvent } from "@/lib/sse";
+import { isRecord } from "@/shared/utils/isRecord";
 
 export type ChatSSEEvent =
   | {
@@ -65,9 +66,7 @@ export type ChatSSEEvent =
 function safeJsonParse(text: string): Record<string, unknown> | string {
   try {
     const parsed = JSON.parse(text);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : text;
+    return isRecord(parsed) ? parsed : text;
   } catch {
     return text;
   }

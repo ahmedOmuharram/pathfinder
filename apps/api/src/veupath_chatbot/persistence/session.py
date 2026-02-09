@@ -10,15 +10,19 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import InternalError
 
 settings = get_settings()
 db_url = make_url(settings.database_url)
 
 # SQLite was removed entirely. Enforce Postgres so dev/test/prod behavior matches.
 if not db_url.drivername.startswith("postgresql"):
-    raise RuntimeError(
-        "SQLite is no longer supported. Set DATABASE_URL to a PostgreSQL URL, e.g. "
-        "'postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder'."
+    raise InternalError(
+        title="Unsupported database configuration",
+        detail=(
+            "SQLite is no longer supported. Set DATABASE_URL to a PostgreSQL URL, e.g. "
+            "'postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder'."
+        ),
     )
 
 engine = create_async_engine(

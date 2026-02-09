@@ -14,6 +14,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
     StrategyAPI,
 )
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 ControlValueFormat = Literal["newline", "json_list", "comma"]
@@ -144,7 +145,10 @@ async def _run_intersection_control(
     )
     controls_step_id = _coerce_step_id(controls_step)
     if controls_step_id is None:
-        raise RuntimeError("Failed to create controls step (missing stepId).")
+        raise InternalError(
+            title="Control test failed",
+            detail="Failed to create controls step (missing stepId).",
+        )
 
     combined_step = await api.create_combined_step(
         primary_step_id=target_step_id,
@@ -155,7 +159,10 @@ async def _run_intersection_control(
     )
     combined_step_id = _coerce_step_id(combined_step)
     if combined_step_id is None:
-        raise RuntimeError("Failed to create combined step (missing stepId).")
+        raise InternalError(
+            title="Control test failed",
+            detail="Failed to create combined step (missing stepId).",
+        )
 
     # Wire the combined step inputs via a temporary internal strategy.
     root = StepTreeNode(

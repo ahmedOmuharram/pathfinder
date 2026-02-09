@@ -1,5 +1,6 @@
 import suggestedQuestions from "@/data/suggestedQuestions.json";
 import type { ChatMode } from "@pathfinder/shared";
+import { isRecord } from "@/shared/utils/isRecord";
 
 type SuggestedQuestionsData = Record<
   string,
@@ -11,14 +12,14 @@ function _suggestionsForSite(
   options: { siteId: string; mode: ChatMode },
 ): string[] {
   const { siteId, mode } = options;
-  if (!all || typeof all !== "object" || Array.isArray(all)) return [];
+  if (!isRecord(all)) return [];
   const bySiteRecord = all as SuggestedQuestionsData;
   const bySite = bySiteRecord[siteId] ?? bySiteRecord.plasmodb;
 
   if (!bySite) return [];
 
   // Preferred shape: { plan: string[], execute: string[] }
-  if (typeof bySite === "object" && !Array.isArray(bySite)) {
+  if (isRecord(bySite)) {
     const modeValue = (bySite as Record<string, unknown>)[mode];
     if (Array.isArray(modeValue) && modeValue.every((v) => typeof v === "string")) {
       return modeValue;

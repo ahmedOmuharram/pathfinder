@@ -20,6 +20,14 @@ from veupath_chatbot.services.embeddings.openai_embeddings import (
     embed_one,
 )
 from veupath_chatbot.services.vectorstore.collections import EXAMPLE_PLANS_V1
+from veupath_chatbot.services.vectorstore.ingest.public_strategies_helpers import (
+    EMBED_TEXT_MAX_CHARS,
+    backoff_delay_seconds,
+    embedding_text_for_example,
+    full_strategy_payload,
+    simplify_strategy_details,
+    truncate,
+)
 from veupath_chatbot.services.vectorstore.ingest.utils import existing_point_ids
 from veupath_chatbot.services.vectorstore.qdrant_store import (
     QdrantStore,
@@ -42,130 +50,7 @@ def _write_jsonl(path: Path, obj: JSONObject) -> None:
 
 
 async def _sleep_backoff(attempt: int) -> None:
-    delay = min(8, 2 ** (attempt - 1))
-    await asyncio.sleep(delay)
-
-
-_EMBED_TEXT_MAX_CHARS = 20_000
-_PARAM_VALUE_MAX_CHARS = 300
-
-
-def _truncate(s: str, *, max_chars: int) -> str:
-    if len(s) <= max_chars:
-        return s
-    return s[: max(0, max_chars - 20)] + "…(truncated)"
-
-
-def _iter_compact_steps(step_tree: JSONObject | None) -> JSONArray:
-    if not isinstance(step_tree, dict):
-        return []
-    out: JSONArray = []
-    stack = [step_tree]
-    while stack:
-        node = stack.pop()
-        if not isinstance(node, dict):
-            continue
-        out.append(node)
-        for k in ("primaryInput", "secondaryInput", "input"):
-            child = node.get(k)
-            if isinstance(child, dict):
-                stack.append(child)
-    return out
-
-
-def _embedding_text_for_example(
-    *, name: str, description: str, compact: JSONObject
-) -> str:
-    record_class = str(compact.get("recordClassName") or "")
-    step_tree_raw = compact.get("stepTree")
-    step_tree: JSONObject | None = (
-        step_tree_raw if isinstance(step_tree_raw, dict) else None
-    )
-    steps = _iter_compact_steps(step_tree)
-    step_lines: list[str] = []
-    for st in steps:
-        if not isinstance(st, dict):
-            continue
-        search_name_raw = st.get("searchName")
-        search_name = (
-            str(search_name_raw or "").strip() if search_name_raw is not None else ""
-        )
-        operator_raw = st.get("operator")
-        operator = str(operator_raw or "").strip() if operator_raw is not None else ""
-        params_raw = st.get("parameters")
-        params: JSONObject = params_raw if isinstance(params_raw, dict) else {}
-        rendered_params: list[str] = []
-        for k, v in list(params.items())[:20]:
-            vv = _truncate(
-                json.dumps(v, ensure_ascii=False), max_chars=_PARAM_VALUE_MAX_CHARS
-            )
-            rendered_params.append(f"{k}={vv}")
-        params_str = ", ".join(rendered_params)
-        line = " - " + " | ".join(x for x in [search_name, operator, params_str] if x)
-        if line.strip() != "-":
-            step_lines.append(line)
-
-    text = "\n".join(
-        [
-            name.strip(),
-            description.strip(),
-            record_class,
-            "Searches / operators / params:",
-            *step_lines[:50],
-        ]
-    ).strip()
-    return _truncate(text, max_chars=_EMBED_TEXT_MAX_CHARS)
-
-
-def _simplify_strategy_details(details: JSONObject) -> JSONObject:
-    step_tree = details.get("stepTree") or {}
-    steps = details.get("steps") or {}
-
-    def simplify_step_node(node: JSONObject) -> JSONObject:
-        sid = str(node.get("stepId") or node.get("step_id") or "")
-        step = steps.get(sid) if isinstance(steps, dict) else None
-        search_name = None
-        display_name = None
-        operator = None
-        params: JSONObject | None = None
-        if isinstance(step, dict):
-            search_name = step.get("searchName") or step.get("questionName")
-            display_name = step.get("displayName")
-            operator = step.get("operator") or step.get("booleanOperator")
-            search_config = step.get("searchConfig") or {}
-            if isinstance(search_config, dict):
-                raw_params = search_config.get("parameters") or {}
-                if isinstance(raw_params, dict):
-                    params = raw_params
-
-        out: JSONObject = {
-            "stepId": sid or None,
-            "displayName": display_name or node.get("displayName") or None,
-            "searchName": search_name or node.get("searchName") or None,
-            "operator": operator or node.get("operator") or None,
-            "parameters": params or {},
-        }
-        for key in ("primaryInput", "secondaryInput", "input"):
-            child = node.get(key)
-            if isinstance(child, dict):
-                out[key] = simplify_step_node(child)
-        return out
-
-    root = simplify_step_node(step_tree) if isinstance(step_tree, dict) else None
-    return {
-        "recordClassName": details.get("recordClassName"),
-        "rootStepId": details.get("rootStepId"),
-        "stepTree": root,
-    }
-
-
-def _full_strategy_payload(details: JSONObject) -> JSONObject:
-    return {
-        "recordClassName": details.get("recordClassName"),
-        "rootStepId": details.get("rootStepId"),
-        "stepTree": details.get("stepTree"),
-        "steps": details.get("steps"),
-    }
+    await asyncio.sleep(backoff_delay_seconds(attempt))
 
 
 async def _generate_name_and_description(
@@ -449,7 +334,7 @@ async def ingest_site(
                         if tmp_id is not None:
                             await _delete_strategy(client, tmp_id)
 
-                    compact = _simplify_strategy_details(details)
+                    compact = simplify_strategy_details(details)
                     try:
                         gen_name, gen_desc = await _generate_name_and_description(
                             strategy_compact=compact, model=llm_model
@@ -475,12 +360,12 @@ async def ingest_site(
                         "rootStepId": summary.get("rootStepId")
                         or compact.get("rootStepId"),
                         "strategyCompact": compact,
-                        "strategyFull": _full_strategy_payload(details),
+                        "strategyFull": full_strategy_payload(details),
                         "ingestedAt": int(time.time()),
                     }
                     payload["sourceHash"] = sha256_hex(stable_json_dumps(payload))
 
-                    text = _embedding_text_for_example(
+                    text = embedding_text_for_example(
                         name=gen_name,
                         description=gen_desc,
                         compact=compact,
@@ -565,13 +450,13 @@ async def _flush_batch(
 ) -> None:
     if not points:
         return
-    safe_texts = [_truncate(t, max_chars=_EMBED_TEXT_MAX_CHARS) for t in texts]
+    safe_texts = [truncate(t, max_chars=EMBED_TEXT_MAX_CHARS) for t in texts]
     try:
         vectors = await embedder.embed_texts(safe_texts)
     except Exception:
         vectors = []
         for t in safe_texts:
-            tt = _truncate(t, max_chars=10_000)
+            tt = truncate(t, max_chars=10_000)
             vectors.append((await embedder.embed_texts([tt]))[0])
     upsert_points: JSONArray = []
     for p, v in zip(points, vectors, strict=True):

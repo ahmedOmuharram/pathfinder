@@ -20,4 +20,11 @@ describe("node_selection", () => {
     expect(decoded.message).toBe("Just text");
     expect(decoded.selection).toBeNull();
   });
+
+  it("returns original content on invalid JSON payload", () => {
+    const encoded = "__NODE__{not-json}\nHello";
+    const decoded = decodeNodeSelection(encoded);
+    expect(decoded.selection).toBeNull();
+    expect(decoded.message).toBe(encoded);
+  });
 });

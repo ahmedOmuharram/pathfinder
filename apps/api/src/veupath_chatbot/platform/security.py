@@ -9,12 +9,13 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel
 
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import user_id_ctx
+from veupath_chatbot.platform.errors import RateLimitedError, UnauthorizedError
 
 # Cookie-based auth is the public contract. We still accept an Authorization header
 # as a non-documented fallback (parsed from request.headers) to avoid breaking
@@ -103,7 +104,7 @@ async def get_current_user(
 ) -> UUID:
     """Get current user ID (required)."""
     if user_id is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise UnauthorizedError(detail="Not authenticated")
     return user_id
 
 
@@ -154,4 +155,4 @@ async def check_rate_limit(request: Request) -> None:
     # Use IP address as key (in production, consider user ID too)
     client_ip = request.client.host if request.client else "unknown"
     if not rate_limiter.is_allowed(client_ip):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        raise RateLimitedError()

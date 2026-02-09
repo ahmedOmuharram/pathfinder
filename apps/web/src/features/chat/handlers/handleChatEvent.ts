@@ -138,6 +138,13 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         streamingAssistantIndexRef.current === null ||
         (messageId && streamingAssistantMessageIdRef.current !== messageId)
       ) {
+        // Mark refs synchronously so that subsequent events processed within the
+        // same synchronous batch (multiple SSE events arriving in one chunk) know
+        // a streaming message has been started and don't create duplicate messages.
+        // -1 is a sentinel meaning "created but index not yet resolved by React".
+        streamingAssistantIndexRef.current = -1;
+        streamingAssistantMessageIdRef.current = messageId || null;
+
         const assistantMessage: Message = {
           role: "assistant",
           content: delta,
@@ -146,16 +153,17 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         setMessages((prev) => {
           const next = [...prev, assistantMessage];
           streamingAssistantIndexRef.current = next.length - 1;
-          streamingAssistantMessageIdRef.current = messageId || null;
           return next;
         });
         break;
       }
 
-      const idx = streamingAssistantIndexRef.current;
-      if (idx === null) break;
+      // Append to the existing streaming message.
+      // Read the ref inside the updater so the resolved index (set by the
+      // preceding "create" updater) is visible even when events are batched.
       setMessages((prev) => {
-        if (idx < 0 || idx >= prev.length) return prev;
+        const idx = streamingAssistantIndexRef.current;
+        if (idx === null || idx < 0 || idx >= prev.length) return prev;
         const next = [...prev];
         const existing = next[idx];
         if (!existing || existing.role !== "assistant") return prev;
@@ -172,32 +180,41 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       const finalContent = content || "";
       const subKaniActivity = thinking.snapshotSubKaniActivity();
 
-      const idx = streamingAssistantIndexRef.current;
+      // Snapshot buffer contents now. The buffers are cleared synchronously
+      // below, but the updater may not execute until later when React flushes
+      // batched state updates (e.g. when multiple SSE events arrive in one chunk).
+      const finalToolCalls =
+        toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : undefined;
+      const finalCitations =
+        citationsBuffer.length > 0 ? [...citationsBuffer] : undefined;
+      const finalArtifacts =
+        planningArtifactsBuffer.length > 0 ? [...planningArtifactsBuffer] : undefined;
+
       if (
-        idx !== null &&
-        idx >= 0 &&
-        idx < Number.MAX_SAFE_INTEGER &&
+        streamingAssistantIndexRef.current !== null &&
         (!messageId || streamingAssistantMessageIdRef.current === messageId)
       ) {
         // Finalize the in-progress assistant message.
+        // Read the ref inside the updater so the resolved index (set by the
+        // preceding "create" updater) is visible even when events are batched.
         setMessages((prev) => {
-          if (idx < 0 || idx >= prev.length) return prev;
+          const idx = streamingAssistantIndexRef.current;
+          if (idx === null || idx < 0 || idx >= prev.length) return prev;
           const next = [...prev];
           const existing = next[idx];
           if (!existing || existing.role !== "assistant") return prev;
           next[idx] = {
             ...existing,
             content: finalContent || existing.content,
-            toolCalls:
-              toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : existing.toolCalls,
+            toolCalls: finalToolCalls ?? existing.toolCalls,
             subKaniActivity,
-            citations:
-              citationsBuffer.length > 0 ? [...citationsBuffer] : existing.citations,
-            planningArtifacts:
-              planningArtifactsBuffer.length > 0
-                ? [...planningArtifactsBuffer]
-                : existing.planningArtifacts,
+            citations: finalCitations ?? existing.citations,
+            planningArtifacts: finalArtifacts ?? existing.planningArtifacts,
           };
+          // Reset streaming refs atomically with the state update so they
+          // are correct when React flushes (avoids stale index after batch).
+          streamingAssistantIndexRef.current = null;
+          streamingAssistantMessageIdRef.current = null;
           return next;
         });
       } else if (finalContent) {
@@ -205,13 +222,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         const assistantMessage: Message = {
           role: "assistant",
           content: finalContent,
-          toolCalls: toolCallsBuffer.length > 0 ? [...toolCallsBuffer] : undefined,
+          toolCalls: finalToolCalls,
           subKaniActivity,
-          citations: citationsBuffer.length > 0 ? [...citationsBuffer] : undefined,
-          planningArtifacts:
-            planningArtifactsBuffer.length > 0
-              ? [...planningArtifactsBuffer]
-              : undefined,
+          citations: finalCitations,
+          planningArtifacts: finalArtifacts,
           timestamp: new Date().toISOString(),
         };
         const snapshot = pendingUndoSnapshotRef.current;

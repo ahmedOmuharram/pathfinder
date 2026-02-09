@@ -1,4 +1,5 @@
 import { buildUrl, getAuthHeaders } from "./api/http";
+import { AppError } from "@/shared/errors/AppError";
 
 export type RawSSEEvent = { type: string; data: string };
 
@@ -73,10 +74,13 @@ async function runOnce(
   });
 
   if (!resp.ok) {
-    throw new Error(`SSE request failed: HTTP ${resp.status} ${resp.statusText}`);
+    throw new AppError(
+      `SSE request failed: HTTP ${resp.status} ${resp.statusText}`,
+      "UNKNOWN",
+    );
   }
   if (!resp.body) {
-    throw new Error("SSE response has no body.");
+    throw new AppError("SSE response has no body.", "INVARIANT_VIOLATION");
   }
 
   const reader = resp.body.getReader();

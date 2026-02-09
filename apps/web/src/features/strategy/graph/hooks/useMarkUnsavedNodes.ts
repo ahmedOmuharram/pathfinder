@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { Node } from "reactflow";
 import type { StrategyStep } from "@/types/strategy";
+import { isRecord } from "@/shared/utils/isRecord";
 
 type NodeData = Record<string, unknown> & {
   isUnsaved?: boolean;
@@ -20,7 +21,7 @@ export function useMarkUnsavedNodes(args: {
       prev.map((node) => ({
         ...node,
         data: {
-          ...((node.data && typeof node.data === "object" && !Array.isArray(node.data)
+          ...((node.data && isRecord(node.data)
             ? (node.data as NodeData)
             : {}) as NodeData),
           isUnsaved: dirtyStepIds.has(node.id),

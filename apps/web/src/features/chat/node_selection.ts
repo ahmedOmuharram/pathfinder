@@ -1,3 +1,6 @@
+import { isRecord } from "@/shared/utils/isRecord";
+import { parseJsonRecord } from "@/features/chat/utils/parseJson";
+
 type UnknownRecord = Record<string, unknown>;
 
 export type NodeSelection = {
@@ -31,7 +34,7 @@ export function normalizeNodeSelection(data: UnknownRecord): NodeSelection {
     nodes.length > 0 ? nodes : fallbackNodeIds.map((id) => ({ id, displayName: id }));
 
   const withSelection = normalizedNodes.map((node) => {
-    if (!node || typeof node !== "object") return node;
+    if (!isRecord(node)) return node;
     const id = (node as { id?: string }).id;
     const selected =
       typeof (node as { selected?: boolean }).selected === "boolean"
@@ -67,12 +70,12 @@ export function decodeNodeSelection(content: string): {
   if (!jsonPart) {
     return { selection: null, message: textPart };
   }
-  try {
-    const data = JSON.parse(jsonPart) as UnknownRecord;
-    return { selection: normalizeNodeSelection(data), message: textPart };
-  } catch {
-    return { selection: null, message: content };
-  }
+  const data = parseJsonRecord(jsonPart);
+  if (!data) return { selection: null, message: content };
+  return {
+    selection: normalizeNodeSelection(data as UnknownRecord),
+    message: textPart,
+  };
 }
 
 export function encodeNodeSelection(

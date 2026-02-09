@@ -67,6 +67,22 @@ class AppError(Exception):
         super().__init__(title)
 
 
+class InternalError(AppError):
+    """Internal server error (unexpected invariant failure)."""
+
+    def __init__(
+        self,
+        title: str = "Internal error",
+        detail: str | None = None,
+    ) -> None:
+        super().__init__(
+            code=ErrorCode.INTERNAL_ERROR,
+            title=title,
+            status=500,
+            detail=detail,
+        )
+
+
 class NotFoundError(AppError):
     """Resource not found error."""
 
@@ -101,6 +117,18 @@ class ForbiddenError(AppError):
         detail: str | None = None,
     ) -> None:
         super().__init__(code=code, title=title, status=403, detail=detail)
+
+
+class RateLimitedError(AppError):
+    """Rate limited error."""
+
+    def __init__(
+        self,
+        code: ErrorCode = ErrorCode.RATE_LIMITED,
+        title: str = "Rate limit exceeded",
+        detail: str | None = None,
+    ) -> None:
+        super().__init__(code=code, title=title, status=429, detail=detail)
 
 
 class ValidationError(AppError):

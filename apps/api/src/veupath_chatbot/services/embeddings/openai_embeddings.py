@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import InternalError
 
 
 def _chunks(items: list[str], *, size: int) -> Iterable[list[str]]:
@@ -29,8 +30,9 @@ class OpenAIEmbeddings:
             # `kani[openai]` pulls in the official OpenAI client.
             from openai import AsyncOpenAI
         except Exception as exc:  # pragma: no cover
-            raise RuntimeError(
-                "OpenAI SDK not available. Install `openai` (or `kani[openai]`)."
+            raise InternalError(
+                title="OpenAI SDK not available",
+                detail="Install `openai` (or `kani[openai]`) to enable embeddings.",
             ) from exc
 
         client = AsyncOpenAI(api_key=settings.openai_api_key or None)
@@ -45,7 +47,7 @@ class OpenAIEmbeddings:
             await asyncio.sleep(0)
 
         if len(vectors) != len(texts):  # pragma: no cover (SDK contract)
-            raise RuntimeError("Embedding count mismatch")
+            raise InternalError(title="Embedding count mismatch")
         return vectors
 
 

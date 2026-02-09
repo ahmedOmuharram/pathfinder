@@ -17,6 +17,7 @@ import { useChatAutoScroll } from "@/features/chat/hooks/useChatAutoScroll";
 import { useConsumePendingAskNode } from "@/features/chat/hooks/useConsumePendingAskNode";
 import { useResetOnStrategyChange } from "@/features/chat/hooks/useResetOnStrategyChange";
 import { parseToolArguments } from "@/features/chat/utils/parseToolArguments";
+import { parseToolResult } from "@/features/chat/utils/parseToolResult";
 import { mergeMessages } from "@/features/chat/utils/mergeMessages";
 import { useChatStreaming } from "@/features/chat/hooks/useChatStreaming";
 import { useGraphSnapshot } from "@/features/chat/hooks/useGraphSnapshot";
@@ -80,32 +81,15 @@ export function ChatPanel({
   const clearStrategy = useStrategyStore((state) => state.clear);
   const stepsById = useStrategyStore((state) => state.stepsById);
 
-  const parseToolResult = (result?: string | null) => {
-    if (!result) return null;
-    try {
-      const parsed = JSON.parse(result);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        const graphSnapshot = parsed.graphSnapshot;
-        if (
-          graphSnapshot &&
-          typeof graphSnapshot === "object" &&
-          !Array.isArray(graphSnapshot)
-        ) {
-          return { graphSnapshot: graphSnapshot as Record<string, unknown> };
-        }
-        return { graphSnapshot: undefined };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
   const loadGraph = useCallback(
     (graphId: string) => {
       if (!graphId) return;
       getStrategy(graphId)
         .then((full) => {
+          // If the stream already applied graph changes (strategy_update events),
+          // don't overwrite the store – the live steps take precedence over the
+          // potentially stale fetch result.
+          if (appliedSnapshotRef.current) return;
           setStrategy(full);
           setStrategyMeta({
             name: full.name,

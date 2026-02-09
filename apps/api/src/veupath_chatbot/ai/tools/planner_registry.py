@@ -19,9 +19,9 @@ from kani import AIParam, ai_function
 
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
-from veupath_chatbot.ai.tools.registry import (
-    _record_type_query_error,
-    _search_query_error,
+from veupath_chatbot.ai.tools.query_validation import (
+    record_type_query_error,
+    search_query_error,
 )
 from veupath_chatbot.domain.research import LiteratureSort
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
@@ -191,7 +191,7 @@ class PlannerToolRegistryMixin:
     ) -> JSONObject:
         """Get available record types for the current site (returns both RAG and live WDK)."""
         q = (query or "").strip()
-        err = _record_type_query_error(q) if q else None
+        err = record_type_query_error(q) if q else None
         if err is not None:
             return self._combined_result(
                 rag=[],
@@ -241,7 +241,7 @@ class PlannerToolRegistryMixin:
         limit: Annotated[int, AIParam(desc="Max number of results to return")] = 20,
     ) -> JSONObject:
         """Find searches matching a query term (returns both RAG and live WDK)."""
-        err = _search_query_error(query)
+        err = search_query_error(query)
         if err is not None:
             return self._combined_result(
                 rag=[],

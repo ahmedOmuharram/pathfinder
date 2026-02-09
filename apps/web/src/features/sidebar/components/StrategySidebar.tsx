@@ -18,7 +18,27 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { SitePicker } from "@/features/sites/components/SitePicker";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
-import { serializeStrategyPlan } from "@/features/strategy/domain/graph";
+import {
+  buildStrategySidebarItems,
+  type StrategyListItem,
+} from "@/features/sidebar/utils/strategyItems";
+import { openAndHydrateDraftStrategy } from "@/features/strategy/services/openAndHydrateDraftStrategy";
+import { classifyOpenStrategyError } from "@/features/sidebar/utils/openError";
+import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
+import {
+  type DuplicateModalState,
+  applyDuplicateLoadFailure,
+  applyDuplicateLoadSuccess,
+  applyDuplicateSubmitFailure,
+  initDuplicateModal,
+  startDuplicateSubmit,
+  validateDuplicateName,
+} from "@/features/sidebar/utils/duplicateModalState";
+import {
+  runDeleteStrategyWorkflow,
+  runPushStrategyWorkflow,
+  runSyncFromWdkWorkflow,
+} from "@/features/sidebar/services/strategySidebarWorkflows";
 
 interface StrategySidebarProps {
   siteId: string;
@@ -27,17 +47,6 @@ interface StrategySidebarProps {
     type: "success" | "error" | "warning" | "info";
     message: string;
   }) => void;
-}
-
-interface StrategyListItem {
-  id: string;
-  name: string;
-  updatedAt: string;
-  siteId?: string;
-  wdkStrategyId?: number;
-  source: "draft" | "synced";
-  isRemote?: boolean;
-  isInternal?: boolean;
 }
 
 export function StrategySidebar({
@@ -70,14 +79,9 @@ export function StrategySidebar({
     y: number;
     item: StrategyListItem;
   } | null>(null);
-  const [duplicateModal, setDuplicateModal] = useState<{
-    item: StrategyListItem;
-    name: string;
-    description: string;
-    isLoading: boolean;
-    isSubmitting: boolean;
-    error: string | null;
-  } | null>(null);
+  const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState | null>(
+    null,
+  );
 
   const reportError = (message: string) => {
     if (typeof onToast === "function") {
@@ -97,63 +101,48 @@ export function StrategySidebar({
     err: unknown,
     payload: { strategyId?: string; wdkStrategyId?: number },
   ) => {
-    if (err instanceof APIError && err.status === 403) {
-      if (payload.wdkStrategyId) {
-        reportError(
-          "Access denied by VEuPathDB. Sign in to the site before opening WDK strategies.",
-        );
-      } else if (payload.strategyId) {
-        reportError(
-          "This strategy belongs to a different session. Create a new draft or duplicate it.",
-        );
-        removeStrategy(payload.strategyId);
-      } else {
-        reportError("Access denied. Please refresh and try again.");
-      }
-      refreshStrategies();
-      return;
-    }
-    reportError(toUserMessage(err, "Failed to open strategy."));
+    const disposition = classifyOpenStrategyError({ err, payload });
+    if (disposition.removeStrategyId) removeStrategy(disposition.removeStrategyId);
+    const msg =
+      disposition.message === "Failed to open strategy."
+        ? toUserMessage(err, disposition.message)
+        : disposition.message;
+    reportError(msg);
+    if (disposition.refresh) refreshStrategies();
   };
 
   const applyOpenResult = async (
     response: Awaited<ReturnType<typeof openStrategy>>,
     source: "new" | "open",
   ) => {
-    const nextId = response.strategyId;
-    setStrategyId(nextId);
-    addStrategy({
-      id: nextId,
-      name: "Draft Strategy",
-      title: "Draft Strategy",
-      siteId,
-      recordType: null,
-      stepCount: 0,
-      resultCount: undefined,
-      wdkStrategyId: undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-    clearStrategy();
     try {
-      const full = await getStrategy(nextId);
-      setStrategy(full);
-      setStrategyMeta({
-        name: full.name,
-        recordType: full.recordType ?? undefined,
-        siteId: full.siteId,
+      await openAndHydrateDraftStrategy({
+        siteId,
+        open: async () => response,
+        getStrategy,
+        nowIso: () => new Date().toISOString(),
+        setStrategyId,
+        addStrategy,
+        clearStrategy,
+        setStrategy,
+        setStrategyMeta,
+        onHydrateSuccess: () => {
+          refreshStrategies();
+          onOpenStrategy?.(source);
+        },
+        onHydrateError: (err) => {
+          if (err instanceof APIError && err.status === 404) {
+            reportError("Strategy not found. The API may have restarted.");
+            setStrategyId(null);
+            refreshStrategies();
+            return;
+          }
+          reportError(toUserMessage(err, "Failed to load strategy."));
+        },
+        cleanupOnHydrateError: (strategyId) => removeStrategy(strategyId),
       });
-      refreshStrategies();
-      onOpenStrategy?.(source);
-    } catch (err) {
-      if (err instanceof APIError && err.status === 404) {
-        reportError("Strategy not found. The API may have restarted.");
-        removeStrategy(nextId);
-        setStrategyId(null);
-        refreshStrategies();
-      } else {
-        reportError(toUserMessage(err, "Failed to load strategy."));
-      }
+    } catch {
+      // Error reporting/cleanup handled above; ensure local draft is cleared.
       clearStrategy();
     }
   };
@@ -163,37 +152,12 @@ export function StrategySidebar({
       .then(([localResult, remoteResult]) => {
         const local = localResult.status === "fulfilled" ? localResult.value : [];
         const remote = remoteResult.status === "fulfilled" ? remoteResult.value : [];
-        const localItems: StrategyListItem[] = local.map((item) => ({
-          id: item.id,
-          name: item.name,
-          updatedAt: item.updatedAt,
-          siteId: item.siteId,
-          wdkStrategyId: item.wdkStrategyId,
-          source: item.wdkStrategyId ? "synced" : "draft",
-          isRemote: false,
-        }));
-        const localByWdkId = new Map(
-          localItems
-            .filter((item) => item.wdkStrategyId)
-            .map((item) => [item.wdkStrategyId, item]),
-        );
-        const remoteItems: StrategyListItem[] = (remote || [])
-          .filter((item) => item?.wdkStrategyId)
-          .map((item) => ({
-            id: `wdk:${item.wdkStrategyId}`,
-            name: item.name,
-            updatedAt: new Date().toISOString(),
-            siteId: item.siteId,
-            wdkStrategyId: item.wdkStrategyId,
-            source: "synced" as const,
-            isRemote: !localByWdkId.has(item.wdkStrategyId),
-            isInternal: Boolean(item.isInternal),
-          }))
-          // Hide the app-created "Pathfinder step counts" strategy (it is purely
-          // an internal implementation detail used to compute counts).
-          .filter((item) => !item.isInternal)
-          .filter((item) => item.isRemote);
-        setStrategyItems([...localItems, ...remoteItems]);
+        const items = buildStrategySidebarItems({
+          local,
+          remote,
+          nowIso: () => new Date().toISOString(),
+        });
+        setStrategyItems(items);
       })
       .catch(() => {});
   }, [siteId]);
@@ -205,30 +169,13 @@ export function StrategySidebar({
     return () => window.removeEventListener("click", handleClick);
   }, [contextMenu]);
 
-  const loadStrategyForDuplicate = async (item: StrategyListItem) => {
-    return await getStrategy(item.id);
-  };
-
-  const buildPlanFromStrategy = (strategy: Awaited<ReturnType<typeof getStrategy>>) => {
-    const stepsById = Object.fromEntries(strategy.steps.map((step) => [step.id, step]));
-    const serialized = serializeStrategyPlan(stepsById, strategy);
-    if (!serialized) {
-      throw new Error("Failed to serialize strategy for duplication.");
-    }
-    return serialized.plan;
-  };
-
   const handleDuplicate = async (
     item: StrategyListItem,
     name: string,
     description: string,
   ) => {
-    const baseStrategy = await loadStrategyForDuplicate(item);
-    const plan = buildPlanFromStrategy({
-      ...baseStrategy,
-      name,
-      description,
-    });
+    const baseStrategy = await getStrategy(item.id);
+    const plan = buildDuplicatePlan({ baseStrategy, name, description });
     await createStrategy({
       name,
       siteId: baseStrategy.siteId,
@@ -238,47 +185,41 @@ export function StrategySidebar({
   };
 
   const handleDeleteWorkflow = async (item: StrategyListItem) => {
-    setStrategyItems((items) => items.filter((entry) => entry.id !== item.id));
-    if (strategyId === item.id) {
-      clearStrategy();
-      if (strategyId) {
-        removeStrategy(strategyId);
-      }
-      setStrategyId(null);
-    }
-    setDeleteError(null);
-    await deleteStrategy(item.id).catch(() => {});
-    refreshStrategies();
+    await runDeleteStrategyWorkflow({
+      item,
+      currentStrategyId: strategyId || null,
+      setStrategyItems,
+      clearStrategy,
+      removeStrategy,
+      setStrategyId,
+      setDeleteError,
+      deleteStrategyApi: deleteStrategy,
+      refreshStrategies,
+      reportError,
+    });
   };
 
   const handlePushOrLocalize = async (item: StrategyListItem) => {
-    await pushStrategy(item.id);
-    refreshStrategies();
+    await runPushStrategyWorkflow({
+      item,
+      pushStrategyApi: pushStrategy,
+      refreshStrategies,
+      reportError,
+    });
   };
 
   const handleSyncFromWdk = async (item: StrategyListItem) => {
-    if (!item.wdkStrategyId) {
-      reportError("Strategy must be linked to WDK to sync.");
-      return;
-    }
-    setSyncingStrategyId(item.id);
-    try {
-      const updated = await syncStrategyFromWdk(item.id);
-      if (strategyId === item.id) {
-        setStrategy(updated);
-        setStrategyMeta({
-          name: updated.name,
-          recordType: updated.recordType ?? undefined,
-          siteId: updated.siteId,
-        });
-      }
-      reportSuccess(`Synced strategy from WDK (#${item.wdkStrategyId}).`);
-      refreshStrategies();
-    } catch (e) {
-      reportError(toUserMessage(e, "Failed to sync strategy from WDK."));
-    } finally {
-      setSyncingStrategyId(null);
-    }
+    await runSyncFromWdkWorkflow({
+      item,
+      currentStrategyId: strategyId || null,
+      setSyncingStrategyId,
+      syncStrategyFromWdkApi: syncStrategyFromWdk,
+      setStrategy,
+      setStrategyMeta,
+      refreshStrategies,
+      reportSuccess,
+      reportError,
+    });
   };
 
   useEffect(() => {
@@ -329,6 +270,7 @@ export function StrategySidebar({
         <div className="mb-3 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           <span>Strategies</span>
           <button
+            data-testid="strategies-new-button"
             onClick={() => {
               if (!canCreateNew) return;
               openStrategy({ siteId })
@@ -343,6 +285,7 @@ export function StrategySidebar({
         </div>
         <div className="flex flex-col gap-2">
           <input
+            data-testid="strategies-search-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search strategies..."
@@ -384,6 +327,8 @@ export function StrategySidebar({
             {filteredItems.map((s) => (
               <div
                 key={s.id}
+                data-testid="strategies-item"
+                data-strategy-id={s.id}
                 onContextMenu={(event) => {
                   if (s.isRemote) {
                     return;
@@ -452,36 +397,16 @@ export function StrategySidebar({
             onClick={() => {
               const item = contextMenu.item;
               setContextMenu(null);
-              setDuplicateModal({
-                item,
-                name: item.name,
-                description: "",
-                isLoading: true,
-                isSubmitting: false,
-                error: null,
-              });
-              loadStrategyForDuplicate(item)
+              setDuplicateModal(initDuplicateModal(item));
+              getStrategy(item.id)
                 .then((strategy) => {
                   setDuplicateModal((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          name: strategy.name || prev.name,
-                          description: strategy.description || "",
-                          isLoading: false,
-                        }
-                      : prev,
+                    prev ? applyDuplicateLoadSuccess(prev, strategy) : prev,
                   );
                 })
                 .catch(() => {
                   setDuplicateModal((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          isLoading: false,
-                          error: "Failed to load strategy for duplication.",
-                        }
-                      : prev,
+                    prev ? applyDuplicateLoadFailure(prev) : prev,
                   );
                 });
             }}
@@ -591,14 +516,15 @@ export function StrategySidebar({
                 type="button"
                 onClick={async () => {
                   if (duplicateModal.isLoading) return;
-                  if (!duplicateModal.name.trim()) {
+                  const nameError = validateDuplicateName(duplicateModal.name);
+                  if (nameError) {
                     setDuplicateModal((prev) =>
-                      prev ? { ...prev, error: "Name is required." } : prev,
+                      prev ? { ...prev, error: nameError } : prev,
                     );
                     return;
                   }
                   setDuplicateModal((prev) =>
-                    prev ? { ...prev, isSubmitting: true, error: null } : prev,
+                    prev ? startDuplicateSubmit(prev) : prev,
                   );
                   try {
                     await handleDuplicate(
@@ -609,13 +535,7 @@ export function StrategySidebar({
                     setDuplicateModal(null);
                   } catch {
                     setDuplicateModal((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            isSubmitting: false,
-                            error: "Failed to duplicate strategy.",
-                          }
-                        : prev,
+                      prev ? applyDuplicateSubmitFailure(prev) : prev,
                     );
                   }
                 }}

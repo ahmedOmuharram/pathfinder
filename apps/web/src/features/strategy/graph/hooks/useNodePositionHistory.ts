@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { Node } from "reactflow";
 import type { StrategyStep } from "@/types/strategy";
+import { isRecord } from "@/shared/utils/isRecord";
 
 type NodeData = Record<string, unknown> & {
   isUnsaved?: boolean;
@@ -27,10 +28,7 @@ function cloneNodes(list: Node[]): Node[] {
     positionAbsolute: node.positionAbsolute
       ? { ...node.positionAbsolute }
       : node.positionAbsolute,
-    data:
-      node.data && typeof node.data === "object" && !Array.isArray(node.data)
-        ? { ...(node.data as NodeData) }
-        : node.data,
+    data: node.data && isRecord(node.data) ? { ...(node.data as NodeData) } : node.data,
   }));
 }
 

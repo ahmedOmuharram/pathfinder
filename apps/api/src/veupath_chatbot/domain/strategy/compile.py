@@ -16,7 +16,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
     StrategyAPI,
 )
-from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.errors import InternalError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -94,7 +94,10 @@ class StrategyCompiler:
         # Get root step ID
         root_step = self._compiled_steps.get(strategy.root.id)
         if not root_step:
-            raise RuntimeError("Failed to compile root step")
+            raise InternalError(
+                title="Strategy compilation failed",
+                detail="Failed to compile root step.",
+            )
 
         return CompilationResult(
             steps=list(self._compiled_steps.values()),

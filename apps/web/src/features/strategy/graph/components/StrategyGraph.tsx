@@ -42,11 +42,12 @@ import { useDraftDetailsInputs } from "@/features/strategy/graph/hooks/useDraftD
 import { useSavedSnapshotSync } from "@/features/strategy/graph/hooks/useSavedSnapshotSync";
 import { useMarkUnsavedNodes } from "@/features/strategy/graph/hooks/useMarkUnsavedNodes";
 import { useSessionStore } from "@/state/useSessionStore";
+import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
+import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
 import {
   deserializeStrategyToGraph,
   getCombineMismatchGroups,
   inferStepKind,
-  resolveRecordType,
 } from "@/features/strategy/domain/graph";
 
 interface StrategyGraphProps {
@@ -207,32 +208,19 @@ export function StrategyGraph(props: StrategyGraphProps) {
       if (isCompact || deletedNodes.length === 0) return;
       const stepsList = draftStrategy?.steps || [];
       if (stepsList.length === 0) return;
-      const stepsMap = new Map(stepsList.map((step) => [step.id, step]));
-      const toRemove = new Set<string>(
-        deletedNodes.map((node) => node.id).filter((id) => stepsMap.has(id)),
-      );
-      if (toRemove.size === 0) return;
+      const result = computeNodeDeletionResult({
+        steps: stepsList,
+        deletedNodeIds: deletedNodes.map((n) => n.id),
+      });
+      if (result.removeIds.length === 0) return;
 
-      // Only delete the selected nodes. Do NOT cascade-delete downstream steps.
-      // Instead, detach any remaining step inputs that referenced the deleted step(s).
-      for (const step of stepsList) {
-        if (toRemove.has(step.id)) continue;
-        const updates: Partial<StrategyStep> = {};
-        if (step.primaryInputStepId && toRemove.has(step.primaryInputStepId)) {
-          updates.primaryInputStepId = undefined;
-        }
-        if (step.secondaryInputStepId && toRemove.has(step.secondaryInputStepId)) {
-          updates.secondaryInputStepId = undefined;
-        }
-        if (Object.keys(updates).length > 0) {
-          updateStep(step.id, updates);
-        }
+      for (const { stepId, patch } of result.patches) {
+        updateStep(stepId, patch);
       }
-
-      for (const stepId of toRemove) {
+      for (const stepId of result.removeIds) {
         removeStep(stepId);
       }
-      if (selectedStep && toRemove.has(selectedStep.id)) {
+      if (selectedStep && result.removeIds.includes(selectedStep.id)) {
         setSelectedStep(null);
       }
     },
@@ -632,41 +620,18 @@ export function StrategyGraph(props: StrategyGraphProps) {
           onChoose={(search, options) => {
             const selectedId = selectedNodeIds[0]!;
             const stepsList = draftStrategy?.steps || strategy?.steps || [];
-            const stepsById = new Map(stepsList.map((s) => [s.id, s]));
-            const inferredRecordType =
-              resolveRecordType(selectedId, stepsById) ||
-              strategy?.recordType ||
-              stepsById.get(selectedId)?.recordType ||
-              null;
-
-            const downstream = stepsList.find(
-              (s) =>
-                s.primaryInputStepId === selectedId ||
-                s.secondaryInputStepId === selectedId,
-            );
-            const downstreamUsesPrimary = downstream?.primaryInputStepId === selectedId;
-            const downstreamUsesSecondary =
-              downstream?.secondaryInputStepId === selectedId;
-
-            const newId = `step_${Math.random().toString(16).slice(2, 10)}`;
-            const newStep: StrategyStep = {
-              id: newId,
-              kind: "transform",
-              displayName: search.displayName || "Find orthologs",
-              searchName: search.name,
-              recordType: inferredRecordType ?? undefined,
-              parameters: {},
-              primaryInputStepId: selectedId,
-            };
+            const { newStep, downstreamPatch } = computeOrthologInsert({
+              selectedId,
+              steps: stepsList,
+              strategyRecordType: strategy?.recordType ?? null,
+              search,
+              options,
+              generateId: () => `step_${Math.random().toString(16).slice(2, 10)}`,
+            });
 
             addStep(newStep);
-
-            if (options.insertBetween && downstream) {
-              if (downstreamUsesPrimary) {
-                updateStep(downstream.id, { primaryInputStepId: newId });
-              } else if (downstreamUsesSecondary) {
-                updateStep(downstream.id, { secondaryInputStepId: newId });
-              }
+            if (downstreamPatch) {
+              updateStep(downstreamPatch.stepId, downstreamPatch.patch);
             }
 
             setOrthologModalOpen(false);
