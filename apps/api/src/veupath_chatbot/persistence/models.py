@@ -62,7 +62,7 @@ class User(Base):
     )
 
     # Relationships
-    strategies: Mapped[list["Strategy"]] = relationship(
+    strategies: Mapped[list[Strategy]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -104,7 +104,7 @@ class Strategy(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="strategies")
+    user: Mapped[User] = relationship(back_populates="strategies")
 
     __table_args__ = (
         Index("ix_strategies_user_id", "user_id"),

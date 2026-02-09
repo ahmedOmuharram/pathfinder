@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from "react";
 import type { RecordType, Search, SearchValidationResponse } from "@pathfinder/shared";
 import { getRecordTypes, getSearches, validateSearchParams } from "@/lib/api/client";
 import type { StrategyStep } from "@/types/strategy";
@@ -126,7 +133,9 @@ export function StepEditor({
     const normalized = normalizeRecordType(recordTypeValue);
     const exists = recordTypeOptions.some((option) => option.name === normalized);
     if (!exists) {
-      setRecordTypeValue("");
+      startTransition(() => {
+        setRecordTypeValue("");
+      });
     }
   }, [recordTypeOptions, recordTypeValue]);
 
@@ -181,12 +190,16 @@ export function StepEditor({
     const resolvedRecordType = resolveRecordTypeForSearch();
     const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
     if (!normalizedRecordType) {
-      setSearchOptions([]);
-      setSearchListError(null);
+      startTransition(() => {
+        setSearchOptions([]);
+        setSearchListError(null);
+      });
       return;
     }
-    setIsLoadingSearches(true);
-    setSearchListError(null);
+    startTransition(() => {
+      setIsLoadingSearches(true);
+      setSearchListError(null);
+    });
     getSearches(siteId, normalizedRecordType)
       .then((results) => {
         if (!isActive) return;
@@ -223,8 +236,10 @@ export function StepEditor({
     }
     if (lastSpecKeyRef.current === nextKey) return;
     lastSpecKeyRef.current = nextKey;
-    setParameters({});
-    setRawParams("{}");
+    startTransition(() => {
+      setParameters({});
+      setRawParams("{}");
+    });
   }, [searchName, selectedSearch, resolveRecordTypeForSearch, step.id]);
 
   useEffect(() => {
@@ -240,15 +255,20 @@ export function StepEditor({
     const nextOldName = step.displayName;
     const nextName = nextOldName;
     const nextSearchName = step.searchName || "";
-    setOldName(nextOldName);
-    setName(nextName);
-    setEditableSearchName(nextSearchName);
-    setOperatorValue(step.operator || "");
-    setColocationParams(step.colocationParams);
-    setRecordTypeValue(normalizeRecordType(step.recordType || recordType));
-    setParameters(nextParams);
-    setRawParams(JSON.stringify(nextParams, null, 2));
-    setShowRaw(false);
+    const nextRecordType = normalizeRecordType(step.recordType || recordType);
+    const nextRawParams = JSON.stringify(nextParams, null, 2);
+    // Batch state updates to avoid cascading renders
+    startTransition(() => {
+      setOldName(nextOldName);
+      setName(nextName);
+      setEditableSearchName(nextSearchName);
+      setOperatorValue(step.operator || "");
+      setColocationParams(step.colocationParams);
+      setRecordTypeValue(nextRecordType);
+      setParameters(nextParams);
+      setRawParams(nextRawParams);
+      setShowRaw(false);
+    });
     lastStepIdRef.current = step.id;
   }, [
     paramSpecs,

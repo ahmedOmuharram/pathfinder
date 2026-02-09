@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from "react";
 import { CombineOperator } from "@pathfinder/shared";
 import {
   type Edge,
@@ -109,8 +116,8 @@ export function StrategyGraph(props: StrategyGraphProps) {
   } | null>(null);
   const [orthologModalOpen, setOrthologModalOpen] = useState(false);
   const lastSnapshotIdRef = useRef<string | null>(null);
-  const lastSavedStepsRef = useRef<Map<string, string>>(new Map());
-  const nodeTypes = useRef(NODE_TYPES).current;
+  const [lastSavedSteps, setLastSavedSteps] = useState<Map<string, string>>(new Map());
+  const nodeTypes = useMemo(() => NODE_TYPES, []);
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -261,16 +268,19 @@ export function StrategyGraph(props: StrategyGraphProps) {
     if (!chatIsStreaming) return;
     if (selectedStep) return;
     if (!strategy?.steps || strategy.steps.length === 0) return;
-    lastSavedStepsRef.current = new Map(
-      strategy.steps.map((step) => [step.id, buildStepSignature(step)]),
-    );
-    setLastSavedStepsVersion((v) => v + 1);
+    startTransition(() => {
+      setLastSavedSteps(
+        new Map(strategy.steps.map((step) => [step.id, buildStepSignature(step)])),
+      );
+      setLastSavedStepsVersion((v) => v + 1);
+    });
   }, [
     variant,
     chatIsStreaming,
     selectedStep,
     strategy?.steps,
     buildStepSignature,
+    setLastSavedSteps,
     setLastSavedStepsVersion,
   ]);
 
@@ -295,15 +305,14 @@ export function StrategyGraph(props: StrategyGraphProps) {
     const dirty = new Set<string>();
     const steps = strategy?.steps || [];
     if (steps.length === 0) return dirty;
-    const savedSteps = lastSavedStepsRef.current;
     for (const step of steps) {
       const signature = buildStepSignature(step);
-      if (!savedSteps.has(step.id) || savedSteps.get(step.id) !== signature) {
+      if (!lastSavedSteps.has(step.id) || lastSavedSteps.get(step.id) !== signature) {
         dirty.add(step.id);
       }
     }
     return dirty;
-  }, [strategy?.steps, lastSavedStepsVersion, buildStepSignature]);
+  }, [strategy?.steps, lastSavedStepsVersion, lastSavedSteps, buildStepSignature]);
   const dirtyStepIdsKey = useMemo(
     () => Array.from(dirtyStepIds).sort().join("|"),
     [dirtyStepIds],
@@ -363,7 +372,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     onPush,
     setStrategyMeta,
     buildStepSignature,
-    lastSavedStepsRef,
+    setLastSavedSteps,
     setLastSavedStepsVersion,
     setLastSavedPlanHash,
     validateSearchSteps,
@@ -481,7 +490,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     planHash,
     lastSnapshotIdRef,
     setLastSavedPlanHash,
-    lastSavedStepsRef,
+    setLastSavedSteps,
     buildStepSignature,
     bumpLastSavedStepsVersion: () => setLastSavedStepsVersion((v) => v + 1),
   });

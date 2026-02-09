@@ -317,7 +317,7 @@ def _build_snapshot_from_wdk(
             try:
                 if isinstance(raw_id, (int, float, str)):
                     wdk_step_id = int(raw_id)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 wdk_step_id = None
         step["wdkStepId"] = wdk_step_id
 

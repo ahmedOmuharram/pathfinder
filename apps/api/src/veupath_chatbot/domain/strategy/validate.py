@@ -26,12 +26,12 @@ class ValidationResult:
     errors: list[ValidationError]
 
     @classmethod
-    def success(cls) -> "ValidationResult":
+    def success(cls) -> ValidationResult:
         """Create a successful result."""
         return cls(valid=True, errors=[])
 
     @classmethod
-    def failure(cls, errors: list[ValidationError]) -> "ValidationResult":
+    def failure(cls, errors: list[ValidationError]) -> ValidationResult:
         """Create a failed result."""
         return cls(valid=False, errors=errors)
 

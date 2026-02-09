@@ -28,7 +28,7 @@ interface UseGraphSaveArgs {
   onPush?: () => void;
   setStrategyMeta: (meta: Partial<StrategyWithMeta>) => void;
   buildStepSignature: (step: StrategyStep) => string;
-  lastSavedStepsRef: MutableRef<Map<string, string>>;
+  setLastSavedSteps: React.Dispatch<React.SetStateAction<Map<string, string>>>;
   setLastSavedStepsVersion: React.Dispatch<React.SetStateAction<number>>;
   setLastSavedPlanHash: React.Dispatch<React.SetStateAction<string | null>>;
   validateSearchSteps: () => Promise<boolean>;
@@ -53,7 +53,7 @@ export function useGraphSave({
   onPush,
   setStrategyMeta,
   buildStepSignature,
-  lastSavedStepsRef,
+  setLastSavedSteps,
   setLastSavedStepsVersion,
   setLastSavedPlanHash,
   validateSearchSteps,
@@ -146,7 +146,7 @@ export function useGraphSave({
           const nextSavedSteps = new Map(
             draftStrategy.steps.map((step) => [step.id, buildStepSignature(step)]),
           );
-          lastSavedStepsRef.current = nextSavedSteps;
+          setLastSavedSteps(nextSavedSteps);
           setLastSavedStepsVersion((version) => version + 1);
         }
         if (toastOnSuccess) {
@@ -175,7 +175,7 @@ export function useGraphSave({
       setStrategyMeta,
       buildPlan,
       setLastSavedPlanHash,
-      lastSavedStepsRef,
+      setLastSavedSteps,
       setLastSavedStepsVersion,
       buildStepSignature,
       onToast,

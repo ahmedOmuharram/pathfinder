@@ -95,7 +95,7 @@ async def get_optional_user(
         user_id_ctx.set(user_id)
         return user_id
 
-    except (ValueError, IndexError):
+    except ValueError, IndexError:
         return None
 
 

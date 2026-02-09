@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, startTransition } from "react";
 import { MessageComposer } from "@/features/chat/components/MessageComposer";
 import { getStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/client";
 import type { Message, StrategyPlan, ToolCall } from "@pathfinder/shared";
@@ -221,7 +221,9 @@ export function ChatPanel({
       if (isStreaming) {
         return;
       }
-      setMessages([]);
+      startTransition(() => {
+        setMessages([]);
+      });
       return;
     }
     if (isStreaming) {

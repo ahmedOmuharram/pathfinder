@@ -7,7 +7,7 @@ export function useSavedSnapshotSync(args: {
   planHash: string | null;
   lastSnapshotIdRef: MutableRef<string | null>;
   setLastSavedPlanHash: (value: string | null) => void;
-  lastSavedStepsRef: MutableRef<Map<string, string>>;
+  setLastSavedSteps: (value: Map<string, string>) => void;
   buildStepSignature: (step: StrategyStep) => string;
   bumpLastSavedStepsVersion: () => void;
 }) {
@@ -16,7 +16,7 @@ export function useSavedSnapshotSync(args: {
     planHash,
     lastSnapshotIdRef,
     setLastSavedPlanHash,
-    lastSavedStepsRef,
+    setLastSavedSteps,
     buildStepSignature,
     bumpLastSavedStepsVersion,
   } = args;
@@ -28,8 +28,8 @@ export function useSavedSnapshotSync(args: {
     lastSnapshotIdRef.current = snapshotId;
     setLastSavedPlanHash(planHash);
     if (strategy?.steps) {
-      lastSavedStepsRef.current = new Map(
-        strategy.steps.map((step) => [step.id, buildStepSignature(step)]),
+      setLastSavedSteps(
+        new Map(strategy.steps.map((step) => [step.id, buildStepSignature(step)])),
       );
       bumpLastSavedStepsVersion();
     }
@@ -40,7 +40,7 @@ export function useSavedSnapshotSync(args: {
     buildStepSignature,
     lastSnapshotIdRef,
     setLastSavedPlanHash,
-    lastSavedStepsRef,
+    setLastSavedSteps,
     bumpLastSavedStepsVersion,
   ]);
 }

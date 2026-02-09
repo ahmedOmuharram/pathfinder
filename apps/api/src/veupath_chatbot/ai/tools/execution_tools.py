@@ -221,7 +221,7 @@ class ExecutionTools:
             elif isinstance(wdk_strategy_id_raw, (str, float)):
                 try:
                     wdk_strategy_id = int(wdk_strategy_id_raw)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     wdk_strategy_id = None
             compiled_map = {s.local_id: s.wdk_step_id for s in compilation_result.steps}
 

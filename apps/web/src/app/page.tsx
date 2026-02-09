@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import Image from "next/image";
 import { ChatPanel } from "@/features/chat/components/ChatPanel";
 import { PlanPanel } from "@/features/chat/components/PlanPanel";
@@ -48,12 +48,8 @@ export default function HomePage() {
     null,
   );
 
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated] = useState(true);
   const lastSiteRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -100,7 +96,9 @@ export default function HomePage() {
   useEffect(() => {
     if (chatMode !== "execute") return;
     if (!strategyId) {
-      setPreviewMessages([]);
+      startTransition(() => {
+        setPreviewMessages([]);
+      });
       return;
     }
     let cancelled = false;

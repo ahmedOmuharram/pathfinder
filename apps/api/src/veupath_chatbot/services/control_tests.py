@@ -43,7 +43,7 @@ def _coerce_step_id(payload: JSONObject | None) -> int | None:
         if isinstance(raw, (int, str, float)):
             try:
                 return int(raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
     return None
 
@@ -108,7 +108,7 @@ async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | Non
             if isinstance(raw, (int, str, float)):
                 try:
                     return int(raw)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     return None
             return None
     except Exception:
@@ -184,7 +184,7 @@ async def _run_intersection_control(
             if isinstance(raw_sid, (int, str, float)):
                 try:
                     temp_strategy_id = int(raw_sid)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     temp_strategy_id = None
             else:
                 temp_strategy_id = None

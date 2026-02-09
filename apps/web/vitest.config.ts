@@ -15,7 +15,6 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      all: true,
       // Unit coverage focuses on app "logic layers"; UI is covered by Playwright E2E.
       include: [
         "src/lib/**/*.{ts,tsx}",

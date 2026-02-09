@@ -48,8 +48,8 @@ class StepTreeNode:
     def __init__(
         self,
         step_id: int,
-        primary_input: "StepTreeNode | None" = None,
-        secondary_input: "StepTreeNode | None" = None,
+        primary_input: StepTreeNode | None = None,
+        secondary_input: StepTreeNode | None = None,
     ) -> None:
         self.step_id = step_id
         self.primary_input = primary_input

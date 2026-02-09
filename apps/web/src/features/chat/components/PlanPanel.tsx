@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import type { Citation, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { Pencil, Save, X } from "lucide-react";
 import {
@@ -146,20 +146,24 @@ export function PlanPanel(props: { siteId: string }) {
 
   useEffect(() => {
     if (!planSessionId) {
-      setMessages([]);
+      startTransition(() => {
+        setMessages([]);
+      });
       return;
     }
     if (isStreaming) return;
     // When switching plan sessions, reset local state immediately so the panel is empty.
     if (lastPlanSessionIdRef.current !== planSessionId) {
       lastPlanSessionIdRef.current = planSessionId;
-      setMessages([]);
-      setSessionArtifacts([]);
-      setApiError(null);
+      startTransition(() => {
+        setMessages([]);
+        setSessionArtifacts([]);
+        setApiError(null);
+        setIsEditingTitle(false);
+      });
       reset();
       streamingAssistantIndexRef.current = null;
       streamingAssistantMessageIdRef.current = null;
-      setIsEditingTitle(false);
     }
     getPlanSession(planSessionId)
       .then((ps) => {

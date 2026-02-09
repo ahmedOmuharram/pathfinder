@@ -66,7 +66,7 @@ async def compute_step_counts_for_plan(
             if isinstance(raw_id, (int, str, float)):
                 try:
                     temp_strategy_id = int(raw_id)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     temp_strategy_id = None
             else:
                 temp_strategy_id = None

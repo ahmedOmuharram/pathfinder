@@ -54,7 +54,7 @@ export function StrategySidebar({
   onOpenStrategy,
   onToast,
 }: StrategySidebarProps) {
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(true);
   const [siteLabels, setSiteLabels] = useState<Record<string, string>>({});
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [syncingStrategyId, setSyncingStrategyId] = useState<string | null>(null);
@@ -224,7 +224,6 @@ export function StrategySidebar({
 
   useEffect(() => {
     let isActive = true;
-    setMounted(true);
     refreshStrategies();
     listSites()
       .then((items) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, startTransition } from "react";
 import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/client";
 
@@ -29,8 +29,10 @@ export function OrthologTransformModal(props: {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    setIsLoading(true);
-    setError(null);
+    startTransition(() => {
+      setIsLoading(true);
+      setError(null);
+    });
     getSearches(siteId, recordType)
       .then((all) => {
         if (!alive) return;

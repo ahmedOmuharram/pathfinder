@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 
 export type SiteSummary = { id: string; baseUrl?: string | null };
 
@@ -17,7 +17,9 @@ export function useWdkUrlFallback(args: {
 
   useEffect(() => {
     if (!wdkStrategyId || !siteId) {
-      setFallback(null);
+      startTransition(() => {
+        setFallback(null);
+      });
       return;
     }
 

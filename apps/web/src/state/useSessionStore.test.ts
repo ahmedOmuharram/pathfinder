@@ -37,4 +37,70 @@ describe("state/useSessionStore", () => {
     store.getState().setAuthToken(null);
     expect(localStorage.getItem("pathfinder-auth-token")).toBeNull();
   });
+
+  it("setSelectedSite updates selected site", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setSelectedSite("tri TrypDB");
+    expect(store.getState().selectedSite).toBe("tri TrypDB");
+  });
+
+  it("setSelectedSiteInfo updates site and display name", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setSelectedSiteInfo("tri TrypDB", "TrypDB");
+    expect(store.getState().selectedSite).toBe("tri TrypDB");
+    expect(store.getState().selectedSiteDisplayName).toBe("TrypDB");
+  });
+
+  it("setStrategyId updates strategy id", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setStrategyId("s123");
+    expect(store.getState().strategyId).toBe("s123");
+    store.getState().setStrategyId(null);
+    expect(store.getState().strategyId).toBeNull();
+  });
+
+  it("setPlanSessionId updates plan session id", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setPlanSessionId("p123");
+    expect(store.getState().planSessionId).toBe("p123");
+  });
+
+  it("setPendingExecutorSend updates pending executor send", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    const payload = { strategyId: "s1", message: "test" };
+    store.getState().setPendingExecutorSend(payload);
+    expect(store.getState().pendingExecutorSend).toEqual(payload);
+    store.getState().setPendingExecutorSend(null);
+    expect(store.getState().pendingExecutorSend).toBeNull();
+  });
+
+  it("setVeupathdbAuth updates auth state", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setVeupathdbAuth(true, "John Doe");
+    expect(store.getState().veupathdbSignedIn).toBe(true);
+    expect(store.getState().veupathdbName).toBe("John Doe");
+    store.getState().setVeupathdbAuth(false);
+    expect(store.getState().veupathdbSignedIn).toBe(false);
+    expect(store.getState().veupathdbName).toBeNull();
+  });
+
+  it("setChatIsStreaming updates streaming state", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setChatIsStreaming(true);
+    expect(store.getState().chatIsStreaming).toBe(true);
+  });
+
+  it("setChatMode updates chat mode", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setChatMode("execute");
+    expect(store.getState().chatMode).toBe("execute");
+  });
 });

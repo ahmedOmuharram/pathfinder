@@ -340,7 +340,7 @@ class ChatStreamProcessor:
                     elif isinstance(wdk_strategy_id_value, (str, float)):
                         try:
                             wdk_strategy_id = int(wdk_strategy_id_value)
-                        except (ValueError, TypeError):
+                        except ValueError, TypeError:
                             wdk_strategy_id = None
                 if wdk_strategy_id is not None:
                     updated = await self.strategy_repo.update(
@@ -541,7 +541,7 @@ class ChatStreamProcessor:
                             elif isinstance(wdk_strategy_id_value, (str, float)):
                                 try:
                                     wdk_strategy_id = int(wdk_strategy_id_value)
-                                except (ValueError, TypeError):
+                                except ValueError, TypeError:
                                     wdk_strategy_id = None
                         if wdk_strategy_id is not None:
                             await self.strategy_repo.update(

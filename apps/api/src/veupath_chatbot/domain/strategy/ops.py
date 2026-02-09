@@ -1,11 +1,11 @@
 """Combine operations for strategy building."""
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 
-class CombineOp(str, Enum):
+class CombineOp(StrEnum):
     """Set operations for combining two step results."""
 
     # IDs in common (AND) - intersection

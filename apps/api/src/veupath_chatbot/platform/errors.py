@@ -1,6 +1,6 @@
 """Typed error model with problem+json responses."""
 
-from enum import Enum
+from enum import StrEnum
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from veupath_chatbot.platform.types import JSONArray
 
 
-class ErrorCode(str, Enum):
+class ErrorCode(StrEnum):
     """Application error codes."""
 
     # General

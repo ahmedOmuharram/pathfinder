@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/client";
 import { normalizeRecordType } from "@/features/strategy/recordType";
@@ -35,8 +35,10 @@ export function useParamSpecs({
   useEffect(() => {
     let isActive = true;
     if (!enabled) {
-      setParamSpecs([]);
-      setIsLoading(false);
+      startTransition(() => {
+        setParamSpecs([]);
+        setIsLoading(false);
+      });
       return;
     }
     const preferredRecordType =
@@ -44,12 +46,16 @@ export function useParamSpecs({
       apiRecordTypeValue ||
       recordType;
     if (!isSearchNameAvailable) {
-      setParamSpecs([]);
+      startTransition(() => {
+        setParamSpecs([]);
+      });
       return;
     }
     const resolvedRecordType = normalizeRecordType(preferredRecordType);
     if (!searchName || !resolvedRecordType) {
-      setParamSpecs([]);
+      startTransition(() => {
+        setParamSpecs([]);
+      });
       return;
     }
     const timeout = window.setTimeout(() => {

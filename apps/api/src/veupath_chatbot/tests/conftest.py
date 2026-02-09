@@ -45,7 +45,7 @@ def database_url() -> str:
 @pytest.fixture(scope="session")
 def postgres_container(
     database_url: str,
-) -> Generator[PostgresContainer | None, None, None]:
+) -> Generator[PostgresContainer | None]:
     if database_url:
         yield None
         return
@@ -80,7 +80,7 @@ def postgres_container(
 @pytest.fixture(scope="session")
 async def db_engine(
     database_url: str, postgres_container: PostgresContainer | None
-) -> AsyncGenerator[AsyncEngine, None]:
+) -> AsyncGenerator[AsyncEngine]:
     del postgres_container
     database_url = _get_test_database_url()
     # pytest-asyncio runs tests on different event loops. Asyncpg connections are bound
@@ -125,7 +125,7 @@ def patch_app_db_engine(
 
 
 @pytest.fixture
-async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     yield
     # Truncate after each test so request-level commits don't leak state.
     async with db_engine.begin() as conn:
@@ -163,7 +163,7 @@ async def client(
     app: FastAPI,
     patch_app_db_engine: None,
     db_cleaner: None,
-) -> AsyncGenerator[httpx.AsyncClient, None]:
+) -> AsyncGenerator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -172,7 +172,7 @@ async def client(
 @pytest.fixture
 async def authed_client(
     client: httpx.AsyncClient,
-) -> AsyncGenerator[httpx.AsyncClient, None]:
+) -> AsyncGenerator[httpx.AsyncClient]:
     """
     Client with a valid `pathfinder-auth` cookie set (anonymous user created).
     """
@@ -191,7 +191,7 @@ async def authed_client(
 
 
 @pytest.fixture
-def wdk_respx() -> Generator[respx.Router, None, None]:
+def wdk_respx() -> Generator[respx.Router]:
     """
     respx router for mocking outbound WDK httpx requests.
 

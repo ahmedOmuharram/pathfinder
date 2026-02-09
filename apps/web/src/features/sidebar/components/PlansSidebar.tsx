@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import { Trash2 } from "lucide-react";
 import {
   APIError,
@@ -91,7 +91,9 @@ export function PlansSidebar(props: {
   }, [authToken, handlePlanError, planSessionId, siteId]);
 
   useEffect(() => {
-    void refresh();
+    startTransition(() => {
+      refresh();
+    });
   }, [refresh]);
 
   const visibleItems = useMemo(() => {
@@ -140,7 +142,9 @@ export function PlansSidebar(props: {
   }, [authToken, handlePlanError, planSessionId, refresh, setPlanSessionId, siteId]);
 
   useEffect(() => {
-    void ensureActivePlan();
+    startTransition(() => {
+      ensureActivePlan();
+    });
   }, [ensureActivePlan]);
 
   useEffect(() => {
