@@ -9,7 +9,7 @@
     PathFinder
   </h1>
   <p>An open-source tool-calling LLM agent for planning and building VEuPathDB search strategies (WDK strategy graphs).</p>
-  <p><strong><em>Linguistic Vagueness in Tool-Calling LLM Agents, Chapter II</em></strong></p>
+  <p><strong><em>How Underspecified Prompts Shape Tool-Calling LLM Agents in Scientific Workflows, Chapter II</em></strong></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white" alt="Python 3.14+" />
     <img src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=node.js&logoColor=white" alt="Node.js 24+" />
