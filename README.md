@@ -11,8 +11,8 @@
   <p>An open-source tool-calling LLM agent for planning and building VEuPathDB search strategies (WDK strategy graphs).</p>
   <p><strong><em>Linguistic Vagueness in Tool-Calling LLM Agents, Chapter II</em></strong></p>
   <p>
-    <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12+" />
-    <img src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white" alt="Node.js 20+" />
+    <img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white" alt="Python 3.14+" />
+    <img src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=node.js&logoColor=white" alt="Node.js 24+" />
     <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
     <img src="https://img.shields.io/badge/Next.js-000000?logo=next.js&logoColor=white" alt="Next.js" />
     <img src="https://img.shields.io/badge/OpenAPI-6BA539?logo=openapi-initiative&logoColor=white" alt="OpenAPI" />
@@ -97,8 +97,8 @@ RAG is controlled by a single setting named `rag_enabled` in `apps/api/config.to
 ### Prerequisites
 
 - **Docker** (recommended for Postgres, Qdrant, and the full stack)
-- **Python 3.12+**
-- **Node.js 20+**
+- **Python 3.14+**
+- **Node.js 24+**
 
 ### Code quality (recommended)
 
@@ -239,7 +239,7 @@ The web app also uses path-based imports for shared TS types (see `apps/web/tsco
 
 PathFinder is a research-driven prototype. These are the biggest gaps you should expect today:
 
-- **CI/CD**: no GitHub Actions workflows (and `.github/` is currently ignored in `.gitignore`).
+- **CI/CD**: GitHub Actions workflows exist (see `.github/workflows/ci.yml`).
 - **License**: no `LICENSE` file yet (important for a truly open-source distribution).
 - **Contribution docs**: no `CONTRIBUTING.md`, no governance/release process.
 - **Production hardening**
@@ -247,7 +247,7 @@ PathFinder is a research-driven prototype. These are the biggest gaps you should
   - no documented deployment path (containers, reverse proxy, secrets management)
   - limited auth story (VEuPathDB auth integration is evolving)
 - **Database migrations**: schema is created via SQLAlchemy `create_all`; Alembic is listed as a dependency but not set up as a migrations workflow.
-- **Qdrant in Docker**: RAG is implemented, ingestion scripts exist, but Qdrant is not part of `docker-compose.yml`.
+- **Qdrant in Docker**: RAG is implemented, ingestion scripts exist, and Qdrant is included in `docker-compose.yml`.
 - **Evaluation** (thesis): reproducible experiments/benchmarks, datasets, and metrics for “vagueness” handling are not yet packaged as a part of the suite.
 
 If you’re looking for “good first PRs”, adding CI (pytest/ruff/mypy + web lint/typecheck/tests) and formalizing licensing/docs would be the highest impact.
