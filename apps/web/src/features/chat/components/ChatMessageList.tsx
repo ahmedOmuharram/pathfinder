@@ -85,7 +85,6 @@ export function ChatMessageList({
           displayName={displayName}
           firstName={firstName}
           signedIn={signedIn}
-          mode={mode}
           onSend={onSend}
           isStreaming={isStreaming}
           hasMessages={messages.length > 0}

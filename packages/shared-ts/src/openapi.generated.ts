@@ -1205,6 +1205,8 @@ export type components = {
             messages?: components["schemas"]["MessageResponse"][] | null;
             thinking?: components["schemas"]["ThinkingResponse"] | null;
             planningArtifacts?: components["schemas"]["JSONArray"] | null;
+            /** Modelid */
+            modelId?: string | null;
             /**
              * Updatedat
              * Format: date-time
@@ -1601,6 +1603,8 @@ export type components = {
             /** Messages */
             messages?: components["schemas"]["MessageResponse"][] | null;
             thinking?: components["schemas"]["ThinkingResponse"] | null;
+            /** Modelid */
+            modelId?: string | null;
             /**
              * Createdat
              * Format: date-time

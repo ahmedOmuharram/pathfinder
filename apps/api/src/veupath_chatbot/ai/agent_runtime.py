@@ -26,6 +26,10 @@ from veupath_chatbot.ai.tools.registry import AgentToolRegistryMixin
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.research import (
+    LiteratureSearchService,
+    WebSearchService,
+)
 
 logger = get_logger(__name__)
 
@@ -53,6 +57,8 @@ class PathfinderAgent(AgentToolRegistryMixin, Kani):
         self.strategy_tools = StrategyTools(self.strategy_session)
         self.execution_tools = ExecutionTools(self.strategy_session)
         self.conversation_tools = ConversationTools(self.strategy_session, user_id)
+        self.web_search_service = WebSearchService()
+        self.literature_search_service = LiteratureSearchService()
 
         system_prompt = build_agent_system_prompt(
             site_id=site_id, selected_nodes=selected_nodes

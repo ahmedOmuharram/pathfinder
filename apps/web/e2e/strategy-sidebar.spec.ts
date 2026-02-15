@@ -26,7 +26,7 @@ test("conversation sidebar: create and filter conversations", async ({ page }) =
   await expect(page.getByText("[mock:plan]").first()).toBeVisible();
 
   // Filter the list by typing something — just verify filtering works.
-  await search.fill("Plan");
+  await search.fill("New Conversation");
   const filteredCount = await items.count();
   expect(filteredCount).toBeGreaterThanOrEqual(0);
 

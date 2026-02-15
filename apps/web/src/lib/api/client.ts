@@ -303,7 +303,8 @@ export async function refreshAuth(): Promise<{ success: boolean; authToken?: str
 
 export interface ModelCatalogResponse {
   models: import("@pathfinder/shared").ModelCatalogEntry[];
-  defaults: { execute: string; plan: string };
+  default: string;
+  defaultReasoningEffort: import("@pathfinder/shared").ReasoningEffort;
 }
 
 export async function listModels(): Promise<ModelCatalogResponse> {

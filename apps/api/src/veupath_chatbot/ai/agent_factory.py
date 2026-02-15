@@ -93,39 +93,53 @@ _ENGINE_FACTORIES = {
 # ---------------------------------------------------------------------------
 
 
+def resolve_effective_model_id(
+    *,
+    model_override: str | None = None,
+    persisted_model_id: str | None = None,
+) -> str:
+    """Return the effective model catalog ID.
+
+    Priority: per-request override > persisted per-conversation > server default.
+    Used by the orchestrator to determine which model to persist back.
+    """
+    return model_override or persisted_model_id or get_settings().default_model_id
+
+
 def _resolve_model_config(
     *,
-    mode: ChatMode,
     provider_override: ModelProvider | None = None,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
 ) -> tuple[ModelProvider, str, float, float, JSONObject]:
     """Return (provider, model, temperature, top_p, merged_hyperparams).
 
-    When *provider_override* / *model_override* are given they take precedence
-    over the server-configured defaults.  If the caller passes a catalog ``id``
-    (e.g. ``"openai/gpt-5"``) as *model_override* we resolve the native model
-    name and provider from the catalog.
+    Model selection is **mode-agnostic**: the same default applies to both
+    planning and execution.  The caller can override any field per-request.
+
+    If the caller passes a catalog ``id`` (e.g. ``"openai/gpt-5"``) as
+    *model_override* we resolve the native model name and provider from the
+    catalog.
     """
     settings = get_settings()
 
-    # 1. Start from server defaults for the given mode.
-    if mode == "plan":
-        provider: ModelProvider = settings.planning_provider
-        model = settings.planning_model
-        temperature = settings.planning_temperature
-        top_p = settings.planning_top_p
-        base_hyperparams = settings.planning_hyperparams
+    # 1. Start from the unified server default.
+    default_entry = get_model_entry(settings.default_model_id)
+    if default_entry:
+        provider: ModelProvider = default_entry.provider
+        model = default_entry.model
     else:
+        # Fallback when the configured default_model_id isn't in the catalog.
         provider = "openai"
         model = settings.openai_model
-        temperature = settings.openai_temperature
-        top_p = settings.openai_top_p
-        base_hyperparams = settings.openai_hyperparams
+
+    # Sensible defaults — skipped by the engine constructor for
+    # sampling-restricted models (gpt-5, o1, o3, o4).
+    temperature = 0.0
+    top_p = 1.0
 
     # 2. Apply per-request overrides.
     if model_override:
-        # Try catalog lookup first (e.g. "openai/gpt-5" -> entry).
         entry = get_model_entry(model_override)
         if entry:
             provider = entry.provider
@@ -137,9 +151,18 @@ def _resolve_model_config(
     if provider_override:
         provider = provider_override
 
-    # 3. Merge hyperparams: base config + reasoning effort.
-    merged: dict[str, object] = dict(base_hyperparams or {})
-    reasoning_hp = build_reasoning_hyperparams(provider, reasoning_effort)
+    # 3. Determine effective reasoning effort.
+    #    When no explicit effort is requested, apply the server-wide default
+    #    for reasoning-capable models.
+    effective_effort = reasoning_effort
+    if effective_effort is None:
+        resolved_entry = get_model_entry(model_override or settings.default_model_id)
+        if resolved_entry and resolved_entry.supports_reasoning:
+            effective_effort = settings.default_reasoning_effort
+
+    # 4. Merge hyperparams (reasoning effort only — no per-mode base config).
+    merged: dict[str, object] = {}
+    reasoning_hp = build_reasoning_hyperparams(provider, effective_effort)
     merged.update(reasoning_hp)
 
     return provider, model, temperature, top_p, cast(JSONObject, merged)
@@ -152,14 +175,15 @@ def _resolve_model_config(
 
 def create_engine(
     *,
-    mode: ChatMode,
     provider_override: ModelProvider | None = None,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
 ) -> BaseEngine:
-    """Create an LLM engine for *mode*, optionally overridden per-request."""
+    """Create an LLM engine, optionally overridden per-request.
+
+    Model selection is mode-agnostic; the same default applies everywhere.
+    """
     provider, model, temperature, top_p, hyperparams = _resolve_model_config(
-        mode=mode,
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,
@@ -190,9 +214,12 @@ def create_agent(
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
 ) -> PathfinderAgent | PathfinderPlannerAgent:
-    """Create a new Pathfinder agent instance (executor or planner)."""
+    """Create a new Pathfinder agent instance (executor or planner).
+
+    *mode* determines the agent **type** (executor vs planner), but does
+    **not** influence model selection — any model works with any mode.
+    """
     engine = create_engine(
-        mode=mode,
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,

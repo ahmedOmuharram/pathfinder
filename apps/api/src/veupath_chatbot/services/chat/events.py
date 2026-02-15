@@ -46,9 +46,9 @@ def tool_result_to_events(
     if isinstance(reasoning, str) and reasoning.strip():
         events.append({"type": REASONING, "data": {"reasoning": reasoning}})
 
-    plan_title = result.get("planTitle")
-    if isinstance(plan_title, str) and plan_title.strip():
-        events.append({"type": PLAN_UPDATE, "data": {"title": plan_title}})
+    conversation_title = result.get("conversationTitle")
+    if isinstance(conversation_title, str) and conversation_title.strip():
+        events.append({"type": PLAN_UPDATE, "data": {"title": conversation_title}})
 
     if isinstance(result.get("executorBuildRequest"), dict):
         events.append(

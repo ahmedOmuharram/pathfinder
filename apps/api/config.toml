@@ -35,6 +35,10 @@ rag_startup_public_strategies_report_path = "/tmp/ingest_public_strategies_repor
 # Embeddings
 embeddings_model = "text-embedding-3-small"
 
+# Unified model defaults (applies to both planning and execution modes)
+default_model_id = "openai/gpt-5"
+default_reasoning_effort = "medium"
+
 # Sub-kani orchestration
 subkani_model = "gpt-4o"
 subkani_temperature = 0.0

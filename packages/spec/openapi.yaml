@@ -2187,6 +2187,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/JSONArray'
           - type: 'null'
+        modelId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Modelid
         updatedAt:
           type: string
           format: date-time
@@ -2811,6 +2816,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ThinkingResponse'
           - type: 'null'
+        modelId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Modelid
         createdAt:
           type: string
           format: date-time

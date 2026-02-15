@@ -19,13 +19,17 @@ from veupath_chatbot.ai.tools.query_validation import (
     record_type_query_error,
     search_query_error,
 )
+from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
-class AgentToolRegistryMixin:
+class AgentToolRegistryMixin(ResearchToolsMixin):
     """Mixin for agent tool registration.
+
+    Inherits ``web_search`` and ``literature_search`` from
+    :class:`ResearchToolsMixin`.
 
     Classes using this mixin must provide these attributes:
     - site_id: str
@@ -35,6 +39,8 @@ class AgentToolRegistryMixin:
     - strategy_tools: StrategyTools
     - execution_tools: ExecutionTools
     - conversation_tools: ConversationTools
+    - web_search_service: WebSearchService
+    - literature_search_service: LiteratureSearchService
     """
 
     # These attributes are provided by classes that use this mixin

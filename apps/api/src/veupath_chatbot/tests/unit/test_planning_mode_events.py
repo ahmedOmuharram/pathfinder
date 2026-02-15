@@ -12,7 +12,11 @@ def test_tool_result_to_events_emits_citations_and_planning_artifact() -> None:
         "citations": [
             {"id": "c1", "source": "web", "title": "Example", "url": "https://x"}
         ],
-        "planningArtifact": {"id": "p1", "title": "Plan", "summaryMarkdown": "x"},
+        "planningArtifact": {
+            "id": "p1",
+            "title": "New Conversation",
+            "summaryMarkdown": "x",
+        },
     }
     events = tool_result_to_events(result)
     types = [e.get("type") for e in events]

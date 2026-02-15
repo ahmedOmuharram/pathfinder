@@ -31,6 +31,7 @@ class PlanSessionResponse(BaseModel):
     planning_artifacts: JSONArray | None = Field(
         default=None, alias="planningArtifacts"
     )
+    model_id: str | None = Field(default=None, alias="modelId")
     updated_at: datetime = Field(alias="updatedAt")
     created_at: datetime = Field(alias="createdAt")
 

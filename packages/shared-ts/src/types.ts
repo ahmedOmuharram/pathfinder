@@ -302,6 +302,7 @@ export interface Strategy {
   isSaved?: boolean;
   messages?: Message[];
   thinking?: Thinking;
+  modelId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -464,6 +465,7 @@ export interface PlanSession {
   messages?: Message[];
   thinking?: Thinking;
   planningArtifacts?: PlanningArtifact[];
+  modelId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -626,4 +628,3 @@ export interface DownloadResponse {
   downloadUrl: string;
   expiresAt: string;
 }
-

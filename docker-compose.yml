@@ -15,9 +15,8 @@ services:
       # Container-friendly defaults; override as needed.
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
       QDRANT_URL: http://qdrant:6333
-      # Safer defaults for first-run; override if you have access to other models.
-      PLANNING_PROVIDER: ${PLANNING_PROVIDER:-openai}
-      PLANNING_MODEL: ${PLANNING_MODEL:-gpt-5}
+      DEFAULT_MODEL_ID: ${DEFAULT_MODEL_ID:-openai/gpt-5}
+      DEFAULT_REASONING_EFFORT: ${DEFAULT_REASONING_EFFORT:-medium}
 
   web:
     build:

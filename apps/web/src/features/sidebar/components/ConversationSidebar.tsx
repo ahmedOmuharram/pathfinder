@@ -154,7 +154,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
             {
               id: active.id,
               siteId: active.siteId,
-              title: active.title || "Plan",
+              title: active.title || "New Conversation",
               createdAt: active.createdAt,
               updatedAt: active.updatedAt,
             },
@@ -225,7 +225,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
       return;
     }
     try {
-      const res = await openPlanSession({ siteId, title: "Plan" });
+      const res = await openPlanSession({ siteId, title: "New Conversation" });
       setPlanSessionId(res.planSessionId);
       await refreshPlans();
     } catch (error) {
@@ -266,7 +266,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
       .map((p) => ({
         id: p.id,
         kind: "plan" as const,
-        title: p.title || "Plan",
+        title: p.title || "New Conversation",
         updatedAt: p.updatedAt,
         siteId: p.siteId,
       }));
@@ -279,7 +279,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         plans.unshift({
           id: planSessionId,
           kind: "plan",
-          title: "Plan",
+          title: "New Conversation",
           updatedAt: now,
           siteId,
         });
@@ -362,7 +362,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   // -------------------------------------------------------------------------
   const handleNewConversation = useCallback(async () => {
     try {
-      const res = await openPlanSession({ siteId, title: "Plan" });
+      const res = await openPlanSession({ siteId, title: "New Conversation" });
       setStrategyId(null);
       clearStrategy();
       setPlanSessionId(res.planSessionId);
@@ -371,7 +371,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         {
           id: res.planSessionId,
           siteId,
-          title: "Plan",
+          title: "New Conversation",
           createdAt: now,
           updatedAt: now,
         },
@@ -406,7 +406,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         await refreshPlans();
         if (wasActive) {
           try {
-            const res = await openPlanSession({ siteId, title: "Plan" });
+            const res = await openPlanSession({ siteId, title: "New Conversation" });
             setPlanSessionId(res.planSessionId);
             await refreshPlans();
           } catch (error) {

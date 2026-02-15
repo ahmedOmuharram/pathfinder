@@ -61,7 +61,7 @@ async def open_plan(
     created = await plan_repo.create(
         user_id=user_id,
         site_id=request.site_id,
-        title=request.title or "Plan",
+        title=request.title or "New Conversation",
         plan_session_id=request.plan_session_id,
     )
     return OpenPlanSessionResponse(planSessionId=created.id)
@@ -103,6 +103,7 @@ async def get_plan(
         messages=messages,
         thinking=thinking,
         planningArtifacts=ps.planning_artifacts,
+        modelId=ps.model_id,
         createdAt=ps.created_at or now,
         updatedAt=ps.updated_at or ps.created_at or now,
     )

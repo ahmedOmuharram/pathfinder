@@ -1,36 +1,18 @@
 import suggestedQuestions from "@/data/suggestedQuestions.json";
-import type { ChatMode } from "@pathfinder/shared";
 import { isRecord } from "@/shared/utils/isRecord";
 
-type SuggestedQuestionsData = Record<
-  string,
-  Record<ChatMode, string[]> | string[] | undefined
->;
+type SuggestedQuestionsData = Record<string, string[] | undefined>;
 
 function _suggestionsForSite(
   all: SuggestedQuestionsData | unknown,
-  options: { siteId: string; mode: ChatMode },
+  siteId: string,
 ): string[] {
-  const { siteId, mode } = options;
   if (!isRecord(all)) return [];
-  const bySiteRecord = all as SuggestedQuestionsData;
-  const bySite = bySiteRecord[siteId] ?? bySiteRecord.plasmodb;
-
-  if (!bySite) return [];
-
-  // Preferred shape: { plan: string[], execute: string[] }
-  if (isRecord(bySite)) {
-    const modeValue = (bySite as Record<string, unknown>)[mode];
-    if (Array.isArray(modeValue) && modeValue.every((v) => typeof v === "string")) {
-      return modeValue;
-    }
-  }
-
-  // Fallback shape: string[]
+  const bySite =
+    (all as SuggestedQuestionsData)[siteId] ?? (all as SuggestedQuestionsData).plasmodb;
   if (Array.isArray(bySite) && bySite.every((v) => typeof v === "string")) {
     return bySite;
   }
-
   return [];
 }
 
@@ -40,7 +22,6 @@ export function ChatEmptyState(props: {
   displayName: string;
   firstName: string | undefined;
   signedIn: boolean;
-  mode: ChatMode;
   onSend: (message: string) => void;
   isStreaming: boolean;
   hasMessages: boolean;
@@ -51,7 +32,6 @@ export function ChatEmptyState(props: {
     displayName,
     firstName,
     signedIn,
-    mode,
     onSend,
     isStreaming,
     hasMessages,
@@ -59,7 +39,7 @@ export function ChatEmptyState(props: {
 
   if (hasMessages || isStreaming) return null;
 
-  const suggestions = _suggestionsForSite(suggestedQuestions, { siteId, mode });
+  const suggestions = _suggestionsForSite(suggestedQuestions, siteId);
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
@@ -68,18 +48,12 @@ export function ChatEmptyState(props: {
           isCompact ? "text-sm" : "text-base"
         }`}
       >
-        {mode === "plan"
-          ? signedIn && firstName
-            ? `Welcome, ${firstName}. Ready to plan a strategy?`
-            : `Ready to plan a strategy?`
-          : signedIn && firstName
-            ? `Welcome, ${firstName}. Ready to create strategies?`
-            : `Ready to create strategies?`}
+        {signedIn && firstName
+          ? `Welcome, ${firstName}. Ready to explore ${displayName}?`
+          : `Ready to explore ${displayName}?`}
       </h2>
       <p className={`max-w-md text-slate-500 ${isCompact ? "mb-3" : "mb-6"}`}>
-        {mode === "plan"
-          ? `Describe your goal and I’ll propose a concrete, executable plan for ${displayName} (steps, operators, and key parameters).`
-          : `Ask me to build a VEuPathDB search strategy for ${displayName}. I can help you find records, combine results, and explore your data.`}
+        {`Describe your research question and I'll help you build a VEuPathDB search strategy for ${displayName} — from planning the approach to executing and refining the results.`}
       </p>
       <div className="grid max-w-lg grid-cols-1 gap-3 text-left">
         {suggestions.map((suggestion: string, i: number) => (

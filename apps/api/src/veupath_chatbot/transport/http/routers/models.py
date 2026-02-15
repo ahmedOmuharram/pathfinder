@@ -42,8 +42,6 @@ async def list_models() -> dict[str, object]:
     ]
     return {
         "models": models,
-        "defaults": {
-            "execute": f"openai/{settings.openai_model}",
-            "plan": f"{settings.planning_provider}/{settings.planning_model}",
-        },
+        "default": settings.default_model_id,
+        "defaultReasoningEffort": settings.default_reasoning_effort,
     }

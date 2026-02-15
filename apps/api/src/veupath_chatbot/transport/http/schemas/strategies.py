@@ -92,6 +92,7 @@ class StrategyResponse(BaseModel):
     is_saved: bool = Field(default=False, alias="isSaved")
     messages: list[MessageResponse] | None = None
     thinking: ThinkingResponse | None = None
+    model_id: str | None = Field(default=None, alias="modelId")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 

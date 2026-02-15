@@ -162,6 +162,8 @@ class StrategyRepository:
         thinking: JSONObject | None = None,
         is_saved: bool | None = None,
         is_saved_set: bool = False,
+        model_id: str | None = None,
+        model_id_set: bool = False,
     ) -> Strategy | None:
         """Update a strategy."""
         strategy = await self.get_by_id(strategy_id)
@@ -194,6 +196,8 @@ class StrategyRepository:
             strategy.thinking = thinking
         if is_saved_set:
             strategy.is_saved = bool(is_saved)
+        if model_id_set:
+            strategy.model_id = model_id
         await self.session.flush()
 
         # Create history entry if plan changed
@@ -296,8 +300,9 @@ class PlanSessionRepository:
         *,
         user_id: UUID,
         site_id: str,
-        title: str = "Plan",
+        title: str = "New Conversation",
         plan_session_id: UUID | None = None,
+        model_id: str | None = None,
     ) -> PlanSession:
         ps = PlanSession(
             id=plan_session_id,
@@ -307,6 +312,7 @@ class PlanSessionRepository:
             messages=[],
             planning_artifacts=[],
             thinking=None,
+            model_id=model_id,
         )
         self.session.add(ps)
         await self.session.flush()
@@ -334,6 +340,17 @@ class PlanSessionRepository:
 
     async def clear_thinking(self, plan_session_id: UUID) -> PlanSession | None:
         return await self.update_thinking(plan_session_id, None)
+
+    async def update_model_id(
+        self, plan_session_id: UUID, model_id: str | None
+    ) -> PlanSession | None:
+        """Persist the selected model for this plan session."""
+        ps = await self.get_by_id(plan_session_id)
+        if ps is None:
+            return None
+        ps.model_id = model_id
+        await self.session.flush()
+        return ps
 
     async def append_planning_artifacts(
         self, plan_session_id: UUID, artifacts: JSONArray

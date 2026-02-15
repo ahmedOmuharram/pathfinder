@@ -62,11 +62,11 @@ export type ChatEventContext = {
   streamingAssistantIndexRef: MutableRef<number | null>;
   streamingAssistantMessageIdRef: MutableRef<string | null>;
 
-  // --- Optional plan-mode callbacks ---
+  // --- Optional conversation callbacks ---
   onPlanSessionId?: (id: string) => void;
   onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
   onExecutorBuildRequest?: (message: string) => void;
-  onPlanTitleUpdate?: (title: string) => void;
+  onConversationTitleUpdate?: (title: string) => void;
   onApiError?: (message: string) => void;
 };
 
@@ -102,7 +102,7 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     onPlanSessionId,
     onPlanningArtifactUpdate,
     onExecutorBuildRequest,
-    onPlanTitleUpdate,
+    onConversationTitleUpdate,
     onApiError,
   } = ctx;
 
@@ -495,8 +495,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "plan_update": {
       const { title } = event.data as { title?: string };
-      if (title && onPlanTitleUpdate) {
-        onPlanTitleUpdate(title.trim());
+      if (title && onConversationTitleUpdate) {
+        onConversationTitleUpdate(title.trim());
       }
       break;
     }

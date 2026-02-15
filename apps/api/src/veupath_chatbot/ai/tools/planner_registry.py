@@ -6,7 +6,7 @@ tool surface appropriate for planning mode (no graph mutation by default).
 Tool results may include special keys that are translated into SSE events:
 - `citations`: emitted as a citations event and attached to the assistant message
 - `planningArtifact`: emitted and persisted on the plan session
-- `planTitle`: emitted as a plan_update and persisted as the plan title
+- `conversationTitle`: emitted as a plan_update and persisted as the conversation title
 - `reasoning`: emitted and persisted into the thinking payload
 """
 
@@ -23,24 +23,22 @@ from veupath_chatbot.ai.tools.query_validation import (
     record_type_query_error,
     search_query_error,
 )
-from veupath_chatbot.domain.research import LiteratureSort
+from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import (
     ControlValueFormat,
     run_positive_negative_controls,
 )
-from veupath_chatbot.services.research import (
-    LiteratureSearchService,
-    WebSearchService,
-)
 
 
-class PlannerToolRegistryMixin:
-    """Kani tool registry for planning-mode agents."""
+class PlannerToolRegistryMixin(ResearchToolsMixin):
+    """Kani tool registry for planning-mode agents.
+
+    Inherits ``web_search`` and ``literature_search`` from
+    :class:`ResearchToolsMixin`.
+    """
 
     # These attributes are provided by PathfinderPlannerAgent
-    web_search_service: WebSearchService
-    literature_search_service: LiteratureSearchService
     site_id: str
     catalog_tools: CatalogTools
     catalog_rag_tools: CatalogRagTools
@@ -58,113 +56,6 @@ class PlannerToolRegistryMixin:
             "rag": {"data": rag, "note": rag_note or ""},
             "wdk": {"data": wdk, "note": wdk_note or ""},
         }
-
-    # --- External research ---
-    @ai_function()
-    async def web_search(
-        self,
-        query: Annotated[str, AIParam(desc="Web search query")],
-        limit: Annotated[int, AIParam(desc="Max number of results (1-10)")] = 5,
-        include_summary: Annotated[
-            bool,
-            AIParam(
-                desc=(
-                    "If true, fetch each result page (best-effort) to extract a short "
-                    "summary/description when snippets are unhelpful."
-                )
-            ),
-        ] = True,
-        summary_max_chars: Annotated[
-            int, AIParam(desc="Max characters of per-result summary to include.")
-        ] = 600,
-    ) -> JSONObject:
-        """Search the web and return results with citations."""
-        # `self.web_search_service` is initialized in `PathfinderPlannerAgent`.
-        search_method = self.web_search_service.search
-        result = await search_method(
-            query,
-            limit=limit,
-            include_summary=include_summary,
-            summary_max_chars=summary_max_chars,
-        )
-        return result
-
-    @ai_function()
-    async def literature_search(
-        self,
-        query: Annotated[str, AIParam(desc="Literature search query")],
-        limit: Annotated[int, AIParam(desc="Max number of results (1-25)")] = 8,
-        sort: Annotated[
-            LiteratureSort, AIParam(desc="Sort order: relevance (default) or newest")
-        ] = "relevance",
-        max_authors: Annotated[
-            int,
-            AIParam(
-                desc=(
-                    "Max authors to keep per result/citation (default 2). "
-                    "Use -1 to include all authors. When truncated, remaining authors are replaced by 'et al.'. "
-                    "Don't modify this parameter unless you're sure you need to."
-                )
-            ),
-        ] = 2,
-        include_abstract: Annotated[
-            bool,
-            AIParam(
-                desc=(
-                    "If true, include abstracts/summaries when available (may require extra fetches)."
-                )
-            ),
-        ] = True,
-        abstract_max_chars: Annotated[
-            int,
-            AIParam(desc="Max characters of abstract/summary to include per result."),
-        ] = 2000,
-        year_from: Annotated[
-            int | None, AIParam(desc="Optional inclusive minimum publication year")
-        ] = None,
-        year_to: Annotated[
-            int | None, AIParam(desc="Optional inclusive maximum publication year")
-        ] = None,
-        author_includes: Annotated[
-            str | None, AIParam(desc="Optional substring filter against author names")
-        ] = None,
-        title_includes: Annotated[
-            str | None, AIParam(desc="Optional substring filter against titles")
-        ] = None,
-        journal_includes: Annotated[
-            str | None, AIParam(desc="Optional substring filter against journal name")
-        ] = None,
-        doi_equals: Annotated[
-            str | None, AIParam(desc="Optional DOI exact match filter")
-        ] = None,
-        pmid_equals: Annotated[
-            str | None,
-            AIParam(desc="Optional PMID exact match filter (Europe PMC only)"),
-        ] = None,
-        require_doi: Annotated[
-            bool, AIParam(desc="If true, only return results that include a DOI")
-        ] = False,
-    ) -> JSONObject:
-        """Search scientific literature across all sources and return results with citations."""
-        search_method = self.literature_search_service.search
-        result = await search_method(
-            query,
-            source="all",
-            limit=limit,
-            sort=sort,
-            max_authors=max_authors,
-            include_abstract=include_abstract,
-            abstract_max_chars=abstract_max_chars,
-            year_from=year_from,
-            year_to=year_to,
-            author_includes=author_includes,
-            title_includes=title_includes,
-            journal_includes=journal_includes,
-            doi_equals=doi_equals,
-            pmid_equals=pmid_equals,
-            require_doi=require_doi,
-        )
-        return result
 
     # --- VEuPathDB/WDK catalog introspection (non-mutating) ---
     @ai_function()
@@ -312,7 +203,7 @@ class PlannerToolRegistryMixin:
 
         artifact: JSONObject = {
             "id": f"plan_{uuid4().hex[:12]}",
-            "title": (title or "").strip() or "Plan",
+            "title": (title or "").strip() or "New Conversation",
             "summaryMarkdown": summary_markdown or "",
             "assumptions": cast(JSONArray, assumptions or []),
             "parameters": cast(JSONObject, parameters or {}),
@@ -550,15 +441,15 @@ class PlannerToolRegistryMixin:
         return {"ok": False, "error": "artifact_not_found", "artifactId": aid}
 
     @ai_function()
-    async def set_plan_title(
+    async def set_conversation_title(
         self,
-        title: Annotated[str, AIParam(desc="Short plan session title")],
+        title: Annotated[str, AIParam(desc="Short conversation title")],
     ) -> JSONObject:
-        """Update the plan session title (persisted via SSE plan_update)."""
+        """Update the conversation title (persisted via SSE plan_update)."""
         t = (title or "").strip()
         if not t:
             return {"error": "title_required"}
-        return {"planTitle": t}
+        return {"conversationTitle": t}
 
     @ai_function()
     async def report_reasoning(

@@ -23,7 +23,7 @@ Common env vars:
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` if using those providers)
 - `API_SECRET_KEY` (32+ chars)
 - `DATABASE_URL` (defaults to PostgreSQL on `localhost:5432` if unset)
-- `PLANNING_PROVIDER`, `PLANNING_MODEL` (optional; defaults are set in Docker Compose)
+- `DEFAULT_MODEL_ID`, `DEFAULT_REASONING_EFFORT` (optional; defaults are `openai/gpt-5` and `medium`)
 - `QDRANT_URL`, `QDRANT_API_KEY` (optional; compose sets container-friendly defaults)
 - Startup-ingestion tuning lives in `config.toml` (keys: `rag_startup_*`)
 

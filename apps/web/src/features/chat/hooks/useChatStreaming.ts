@@ -59,11 +59,11 @@ interface UseChatStreamingArgs {
   /** Reference strategy ID to inject into plan-mode context. */
   referenceStrategyId?: string | null;
 
-  // --- Optional plan-mode callbacks ---
+  // --- Optional conversation callbacks ---
   onPlanSessionId?: (id: string) => void;
   onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
   onExecutorBuildRequest?: (message: string) => void;
-  onPlanTitleUpdate?: (title: string) => void;
+  onConversationTitleUpdate?: (title: string) => void;
   onApiError?: (message: string) => void;
   /** Called after streaming completes successfully. */
   onStreamComplete?: () => void;
@@ -104,7 +104,7 @@ export function useChatStreaming({
   onPlanSessionId,
   onPlanningArtifactUpdate,
   onExecutorBuildRequest,
-  onPlanTitleUpdate,
+  onConversationTitleUpdate,
   onApiError,
   onStreamComplete,
   onStreamError,
@@ -184,7 +184,7 @@ export function useChatStreaming({
                 onPlanSessionId,
                 onPlanningArtifactUpdate,
                 onExecutorBuildRequest,
-                onPlanTitleUpdate,
+                onConversationTitleUpdate,
                 onApiError,
               },
               event,
@@ -268,7 +268,7 @@ export function useChatStreaming({
       onPlanSessionId,
       onPlanningArtifactUpdate,
       onExecutorBuildRequest,
-      onPlanTitleUpdate,
+      onConversationTitleUpdate,
       onApiError,
       onStreamComplete,
       onStreamError,

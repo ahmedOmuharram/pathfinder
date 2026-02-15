@@ -15,7 +15,11 @@ from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole
 
-from veupath_chatbot.ai.agent_factory import ChatMode, create_agent
+from veupath_chatbot.ai.agent_factory import (
+    ChatMode,
+    create_agent,
+    resolve_effective_model_id,
+)
 from veupath_chatbot.ai.model_catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
@@ -319,7 +323,7 @@ async def start_chat_stream(
         )
         if plan_session is None:
             plan_session = await plan_repo.create(
-                user_id=user_id, site_id=site_id, title="Plan"
+                user_id=user_id, site_id=site_id, title="New Conversation"
             )
 
         user_message: JSONObject = {
@@ -382,6 +386,12 @@ async def start_chat_stream(
                     "recordType": ref_strategy.record_type,
                 }
 
+        # Resolve the effective model: per-request > persisted > server default.
+        effective_model = resolve_effective_model_id(
+            model_override=model_override,
+            persisted_model_id=plan_session.model_id,
+        )
+
         agent = create_agent(
             site_id=site_id,
             user_id=user_id,
@@ -393,9 +403,13 @@ async def start_chat_stream(
             get_plan_session_artifacts=_get_plan_artifacts,
             mode="plan",
             provider_override=provider_override,
-            model_override=model_override,
+            model_override=effective_model,
             reasoning_effort=reasoning_effort,
         )
+
+        # Persist model selection on the conversation.
+        if effective_model != plan_session.model_id:
+            await plan_repo.update_model_id(plan_session.id, effective_model)
 
         plan_payload: JSONObject = {
             "id": str(plan_session.id),
@@ -465,6 +479,12 @@ async def start_chat_stream(
         "recordType": strategy.record_type,
     }
 
+    # Resolve the effective model: per-request > persisted > server default.
+    effective_model = resolve_effective_model_id(
+        model_override=model_override,
+        persisted_model_id=strategy.model_id,
+    )
+
     agent = create_agent(
         site_id=site_id,
         user_id=user_id,
@@ -473,9 +493,15 @@ async def start_chat_stream(
         selected_nodes=selected_nodes,
         mode=cast(ChatMode, mode),
         provider_override=provider_override,
-        model_override=model_override,
+        model_override=effective_model,
         reasoning_effort=reasoning_effort,
     )
+
+    # Persist model selection on the conversation.
+    if effective_model != strategy.model_id:
+        await strategy_repo.update(
+            strategy.id, model_id=effective_model, model_id_set=True
+        )
 
     async def event_generator() -> AsyncIterator[str]:
         processor = ChatStreamProcessor(

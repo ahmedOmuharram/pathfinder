@@ -85,7 +85,7 @@ export function SettingsPage({
 
 function GeneralTab() {
   const modelCatalog = useSettingsStore((s) => s.modelCatalog);
-  const catalogDefaults = useSettingsStore((s) => s.catalogDefaults);
+  const catalogDefault = useSettingsStore((s) => s.catalogDefault);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const setDefaultModelId = useSettingsStore((s) => s.setDefaultModelId);
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
@@ -96,8 +96,7 @@ function GeneralTab() {
   const selectedModel = modelCatalog.find((m) => m.id === defaultModelId);
   const supportsReasoning = selectedModel?.supportsReasoning ?? false;
 
-  // Show the execute-mode server default in settings (most common use)
-  const serverDefaultId = catalogDefaults?.execute ?? null;
+  const serverDefaultId = catalogDefault;
 
   return (
     <div className="space-y-5">

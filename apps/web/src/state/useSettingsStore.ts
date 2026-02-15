@@ -22,18 +22,15 @@ export interface SettingsState {
 
   /** Cached model catalog from the API. */
   modelCatalog: ModelCatalogEntry[];
-  /** Server-provided defaults per mode. */
-  catalogDefaults: { execute: string; plan: string } | null;
+  /** Unified server default model catalog ID (e.g. "openai/gpt-5"). */
+  catalogDefault: string | null;
 
   // Actions
   setDefaultModelId: (id: string | null) => void;
   setDefaultReasoningEffort: (effort: ReasoningEffort) => void;
   setAdvancedReasoningBudget: (provider: string, budget: number) => void;
   setShowRawToolCalls: (show: boolean) => void;
-  setModelCatalog: (
-    models: ModelCatalogEntry[],
-    defaults: { execute: string; plan: string },
-  ) => void;
+  setModelCatalog: (models: ModelCatalogEntry[], defaultModelId: string) => void;
   resetToDefaults: () => void;
 }
 
@@ -80,7 +77,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     (persisted.advancedReasoningBudgets as Record<string, number>) ?? {},
   showRawToolCalls: (persisted.showRawToolCalls as boolean) ?? false,
   modelCatalog: [],
-  catalogDefaults: null,
+  catalogDefault: null,
 
   setDefaultModelId: (id) => {
     set({ defaultModelId: id });
@@ -100,8 +97,8 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ showRawToolCalls: show });
     persist({ showRawToolCalls: show });
   },
-  setModelCatalog: (models, defaults) =>
-    set({ modelCatalog: models, catalogDefaults: defaults }),
+  setModelCatalog: (models, defaultModelId) =>
+    set({ modelCatalog: models, catalogDefault: defaultModelId }),
   resetToDefaults: () => {
     const defaults = {
       defaultModelId: null,

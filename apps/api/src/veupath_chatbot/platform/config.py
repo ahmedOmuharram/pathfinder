@@ -135,13 +135,9 @@ class Settings(BaseSettings):
     subkani_max_concurrency: int = 6
     subkani_timeout_seconds: int = 120
 
-    # Planning mode (planner agents)
-    planning_provider: Literal["openai", "anthropic", "google"] = "openai"
-    planning_model: str = "gpt-5"
-    # Note: some planning-capable OpenAI models only allow the default temperature=1.
-    planning_temperature: float = 1.0
-    planning_top_p: float = 1.0
-    planning_hyperparams: dict[str, object] = Field(default_factory=dict)
+    # Unified model defaults (applies to both planning and execution modes)
+    default_model_id: str = "openai/gpt-5"
+    default_reasoning_effort: Literal["none", "low", "medium", "high"] = "medium"
 
     # VEuPathDB
     veupathdb_default_site: str = "plasmodb"

@@ -434,6 +434,7 @@ async def import_wdk_strategy(
             isSaved=created.is_saved,
             messages=messages_list,
             thinking=thinking_obj,
+            modelId=created.model_id,
             createdAt=created.created_at,
             updatedAt=created.updated_at,
         )
@@ -521,6 +522,7 @@ async def sync_strategy_from_wdk(
             rootStepId=ast.root.id,
             wdkStrategyId=updated.wdk_strategy_id,
             isSaved=updated.is_saved,
+            modelId=updated.model_id,
             createdAt=updated.created_at,
             updatedAt=updated.updated_at,
         )

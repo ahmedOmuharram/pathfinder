@@ -7,7 +7,8 @@ async def test_list_wdk_strategies_mocked(
 ) -> None:
     base = "https://plasmodb.org/plasmo/service"
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"userId": "guest"})
+    # WDK UserFormatter emits user ID under "id"; StrategyAPI uses it for /users/{id}/strategies
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{base}/users/guest/strategies").respond(
         200,
         json=[

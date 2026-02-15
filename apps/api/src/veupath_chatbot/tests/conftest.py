@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
 from uuid import uuid4
@@ -15,6 +16,22 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
+
+
+async def _probe_connection(url: str) -> bool:
+    """Try connecting to the given URL. Returns False if role does not exist."""
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.begin() as _:
+            pass
+        return True
+    except Exception as e:
+        err = str(e).lower()
+        if "does not exist" in err and "role" in err:
+            return False
+        raise
+    finally:
+        await engine.dispose()
 
 
 def _get_test_database_url() -> str:
@@ -46,7 +63,30 @@ def database_url() -> str:
 def postgres_container(
     database_url: str,
 ) -> Generator[PostgresContainer | None]:
-    if database_url:
+    url = database_url or os.environ.get("DATABASE_URL", "").strip()
+    if url and "postgresql" in url:
+        # Validate connection. On macOS, localhost:5432 may point to Homebrew
+        # Postgres which uses the system user, not "postgres".
+        try:
+            parsed = make_url(url)
+            probe_url = (
+                str(
+                    parsed.set(drivername="postgresql+asyncpg").render_as_string(
+                        hide_password=False
+                    )
+                )
+                if "asyncpg" not in (parsed.drivername or "")
+                else url
+            )
+            if not asyncio.run(_probe_connection(probe_url)):
+                url = ""
+                os.environ.pop("DATABASE_URL", None)
+        except Exception:
+            # Connection refused, timeout, etc. Re-raise so user fixes
+            # DATABASE_URL or starts their Postgres.
+            raise
+
+    if url:
         yield None
         return
 

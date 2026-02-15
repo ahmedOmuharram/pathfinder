@@ -135,6 +135,7 @@ async def create_strategy(
         isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
+        modelId=strategy.model_id,
         createdAt=created_at,
         updatedAt=updated_at,
     )
@@ -213,6 +214,7 @@ async def get_strategy(
         isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
+        modelId=strategy.model_id,
         createdAt=strategy.created_at or datetime.now(UTC),
         updatedAt=strategy.updated_at or strategy.created_at or datetime.now(UTC),
     )
@@ -323,6 +325,7 @@ async def update_strategy(
         isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
+        modelId=strategy.model_id,
         createdAt=strategy.created_at or datetime.now(UTC),
         updatedAt=strategy.updated_at or strategy.created_at or datetime.now(UTC),
     )

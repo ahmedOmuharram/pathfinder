@@ -108,7 +108,7 @@ export function UnifiedChatPanel({
   // -----------------------------------------------------------------------
   const modelCatalog = useSettingsStore((s) => s.modelCatalog);
   const setModelCatalog = useSettingsStore((s) => s.setModelCatalog);
-  const catalogDefaults = useSettingsStore((s) => s.catalogDefaults);
+  const catalogDefault = useSettingsStore((s) => s.catalogDefault);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -125,7 +125,7 @@ export function UnifiedChatPanel({
   // Fetch model catalog on mount
   useEffect(() => {
     listModels()
-      .then(({ models, defaults }) => setModelCatalog(models, defaults))
+      .then((res) => setModelCatalog(res.models, res.default))
       .catch((err) => console.warn("[UnifiedChat] Failed to load models:", err));
   }, [setModelCatalog]);
 
@@ -319,7 +319,7 @@ export function UnifiedChatPanel({
     pendingExecutorBuildMessageRef.current = message;
   }, []);
 
-  const onPlanTitleUpdate = useCallback(
+  const onConversationTitleUpdate = useCallback(
     (_title: string) => {
       bumpPlanListVersion();
     },
@@ -356,11 +356,6 @@ export function UnifiedChatPanel({
   );
   const noopLoadGraph = useCallback(() => {}, []);
   const noopAddStep = useCallback(() => {}, []);
-  const noopParseToolArguments = useCallback(
-    (args: unknown) =>
-      typeof args === "object" && args ? (args as Record<string, unknown>) : {},
-    [],
-  );
   const noopParseToolResult = useCallback(() => null, []);
   const noopApplyGraphSnapshot = useCallback(() => {}, []);
   const noopGetStrategy = useCallback(() => Promise.resolve(null as never), []);
@@ -402,7 +397,7 @@ export function UnifiedChatPanel({
           setStrategyMeta: noopLoadGraph as (m: Record<string, unknown>) => void,
           clearStrategy: noopLoadGraph,
           addStep: noopAddStep,
-          parseToolArguments: noopParseToolArguments,
+          parseToolArguments,
           parseToolResult: noopParseToolResult,
           applyGraphSnapshot: noopApplyGraphSnapshot,
           getStrategy: noopGetStrategy,
@@ -417,7 +412,7 @@ export function UnifiedChatPanel({
           onPlanSessionId,
           onPlanningArtifactUpdate,
           onExecutorBuildRequest,
-          onPlanTitleUpdate,
+          onConversationTitleUpdate,
           onApiError: (msg: string) => setApiError(msg),
           onStreamComplete,
           onStreamError,
@@ -519,6 +514,8 @@ export function UnifiedChatPanel({
       .then((ps) => {
         setMessages(ps.messages || []);
         setSessionArtifacts(ps.planningArtifacts || []);
+        // Restore persisted model selection for this conversation.
+        if (ps.modelId) setSelectedModelId(ps.modelId);
         if (ps.thinking) {
           if (thinking.applyThinkingPayload(ps.thinking)) {
             setIsStreaming(true);
@@ -546,6 +543,8 @@ export function UnifiedChatPanel({
     getStrategy(strategyId)
       .then((strategy) => {
         setMessages((prev) => mergeMessages(prev, strategy.messages || []));
+        // Restore persisted model selection for this conversation.
+        if (strategy.modelId) setSelectedModelId(strategy.modelId);
         if (!isStreaming && strategy.thinking) {
           if (thinking.applyThinkingPayload(strategy.thinking)) {
             setIsStreaming(true);
@@ -750,13 +749,7 @@ export function UnifiedChatPanel({
           reasoningEffort={reasoningEffort}
           onReasoningChange={setReasoningEffort}
           onInsertStrategy={chatMode === "plan" ? onInsertStrategy : undefined}
-          serverDefaultModelId={
-            catalogDefaults
-              ? chatMode === "plan"
-                ? catalogDefaults.plan
-                : catalogDefaults.execute
-              : null
-          }
+          serverDefaultModelId={catalogDefault}
         />
       </div>
     </div>

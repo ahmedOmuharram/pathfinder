@@ -87,6 +87,7 @@ class TestStrategyAPI:
         result = await strategy_api.create_strategy(
             step_tree=tree,
             name="Test Strategy",
+            is_saved=True,
         )
 
         assert result["strategyId"] == 9999
