@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToExecute } from "./helpers";
+import { gotoHome } from "./helpers";
 
-test("execute: switching site updates the selector", async ({ page }) => {
+test("switching site updates the selector", async ({ page }) => {
   await gotoHome(page);
-  await switchToExecute(page);
 
+  // The site-select dropdown lives inside the ConversationSidebar.
   const select = page.getByTestId("site-select");
   await expect(select).toBeVisible();
 

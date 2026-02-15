@@ -21,7 +21,7 @@ from veupath_chatbot.ai.tools.query_validation import (
 )
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 class AgentToolRegistryMixin:
@@ -339,7 +339,7 @@ class AgentToolRegistryMixin:
         ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
     ) -> JSONObject:
-        """Create a new strategy step (single step-construction API)."""
+        """Create a new strategy step. Inputs must reference current subtree roots (not internal nodes)."""
         result = await self.strategy_tools.create_step(
             search_name=search_name,
             parameters=parameters,
@@ -364,10 +364,10 @@ class AgentToolRegistryMixin:
         return cast(JSONObject, result)
 
     @ai_function()
-    async def list_current_steps(self) -> JSONArray:
-        """List all steps in the current strategy context."""
+    async def list_current_steps(self) -> JSONObject:
+        """List all steps in the current strategy graph with WDK IDs and result counts."""
         result = await self.strategy_tools.list_current_steps()
-        return cast(JSONArray, result)
+        return cast(JSONObject, result)
 
     @ai_function()
     async def validate_graph_structure(self, graph_id: str | None = None) -> JSONObject:
@@ -392,17 +392,6 @@ class AgentToolRegistryMixin:
         result = await self.strategy_tools.ensure_single_output(
             graph_id, operator, display_name
         )
-        return cast(JSONObject, result)
-
-    @ai_function()
-    async def get_draft_step_counts(
-        self,
-        graph_id: Annotated[
-            str | None, AIParam(desc="Graph ID to compute counts for")
-        ] = None,
-    ) -> JSONObject:
-        """Compute draft step counts (WDK-backed) for local step IDs."""
-        result = await self.strategy_tools.get_draft_step_counts(graph_id)
         return cast(JSONObject, result)
 
     @ai_function()
@@ -535,7 +524,7 @@ class AgentToolRegistryMixin:
             str | None, AIParam(desc="Optional strategy description")
         ] = None,
     ) -> JSONObject:
-        """Build the current strategy on VEuPathDB."""
+        """Build or update the current strategy as a draft on VEuPathDB (isSaved=false). Requires exactly 1 subtree root (or explicit root_step_id). Creates on first call, updates on subsequent calls. The user promotes drafts to saved via the UI."""
         result = await self.execution_tools.build_strategy(
             strategy_name, root_step_id, record_type, description
         )

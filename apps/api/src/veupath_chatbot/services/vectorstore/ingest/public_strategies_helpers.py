@@ -32,7 +32,8 @@ def iter_compact_steps(step_tree: JSONObject | None) -> JSONArray:
         if not isinstance(node, dict):
             continue
         out.append(node)
-        for k in ("primaryInput", "secondaryInput", "input"):
+        # WDK stepTree nodes: JsonKeys.PRIMARY_INPUT_STEP, JsonKeys.SECONDARY_INPUT_STEP.
+        for k in ("primaryInput", "secondaryInput"):
             child = node.get(k)
             if isinstance(child, dict):
                 stack.append(child)
@@ -88,30 +89,38 @@ def simplify_strategy_details(details: JSONObject) -> JSONObject:
     steps = details.get("steps") or {}
 
     def simplify_step_node(node: JSONObject) -> JSONObject:
-        sid = str(node.get("stepId") or node.get("step_id") or "")
+        # stepTree nodes use JsonKeys.STEP_ID = "stepId".
+        sid = str(node.get("stepId") or "")
         step = steps.get(sid) if isinstance(steps, dict) else None
         search_name = None
         display_name = None
         operator = None
         params: JSONObject | None = None
         if isinstance(step, dict):
-            search_name = step.get("searchName") or step.get("questionName")
+            # Step objects: JsonKeys.SEARCH_NAME, JsonKeys.DISPLAY_NAME.
+            search_name = step.get("searchName")
             display_name = step.get("displayName")
-            operator = step.get("operator") or step.get("booleanOperator")
-            search_config = step.get("searchConfig") or {}
-            if isinstance(search_config, dict):
-                raw_params = search_config.get("parameters") or {}
+            # Operator is in searchConfig.parameters (key containing "operator").
+            search_config_raw = step.get("searchConfig")
+            if isinstance(search_config_raw, dict):
+                raw_params = search_config_raw.get("parameters")
                 if isinstance(raw_params, dict):
                     params = raw_params
+                    # Extract boolean operator from parameters.
+                    for pkey, pval in raw_params.items():
+                        if "operator" in str(pkey).lower() and isinstance(pval, str):
+                            operator = pval
+                            break
 
         out: JSONObject = {
             "stepId": sid or None,
-            "displayName": display_name or node.get("displayName") or None,
-            "searchName": search_name or node.get("searchName") or None,
-            "operator": operator or node.get("operator") or None,
+            "displayName": display_name or None,
+            "searchName": search_name or None,
+            "operator": operator,
             "parameters": params or {},
         }
-        for key in ("primaryInput", "secondaryInput", "input"):
+        # WDK stepTree uses "primaryInput" and "secondaryInput".
+        for key in ("primaryInput", "secondaryInput"):
             child = node.get(key)
             if isinstance(child, dict):
                 out[key] = simplify_step_node(child)

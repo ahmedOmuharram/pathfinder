@@ -106,13 +106,8 @@ class StrategyAPI:
         me = await self.client.get("/users/current")
         resolved_user_id: str | None = None
         if isinstance(me, dict):
-            # Different deployments vary in the key name.
-            candidate = (
-                me.get("userId")
-                or me.get("userID")
-                or me.get("id")
-                or me.get("user_id")
-            )
+            # WDK UserFormatter emits the user ID under JsonKeys.ID = "id".
+            candidate = me.get("id")
             if candidate is not None:
                 resolved_user_id = str(candidate)
 
@@ -135,8 +130,9 @@ class StrategyAPI:
             if not isinstance(search_raw, dict):
                 continue
             search: JSONObject = search_raw
-            name_raw = search.get("urlSegment") or search.get("name") or ""
-            name = str(name_raw) if name_raw is not None else ""
+            # WDK uses JsonKeys.URL_SEGMENT = "urlSegment" for search names.
+            name_raw = search.get("urlSegment")
+            name = str(name_raw) if isinstance(name_raw, str) else ""
             if name.startswith("boolean_question"):
                 self._boolean_search_cache[record_type] = name
                 return name
@@ -149,34 +145,28 @@ class StrategyAPI:
         """Resolve parameter names for boolean combine search."""
         boolean_search = await self._get_boolean_search_name(record_type)
         details = await self.client.get_search_details(record_type, boolean_search)
-        search_data_raw = details.get("searchData", details)
-        if not isinstance(search_data_raw, dict):
-            search_data: JSONObject = details
-        else:
-            search_data = search_data_raw
+        # WDK wraps search details under JsonKeys.SEARCH_DATA = "searchData".
+        search_data_raw = details.get("searchData")
+        search_data: JSONObject = (
+            search_data_raw if isinstance(search_data_raw, dict) else details
+        )
 
+        # WDK emits JsonKeys.PARAM_NAMES = "paramNames" — a list of param name strings.
         param_names_raw = search_data.get("paramNames")
-        if isinstance(param_names_raw, list):
-            param_names = [str(p) for p in param_names_raw if p is not None]
-        else:
-            parameters_raw = search_data.get("parameters")
-            param_names = []
-            if isinstance(parameters_raw, list):
-                for p in parameters_raw:
-                    if isinstance(p, dict):
-                        name_raw = p.get("name")
-                        if name_raw is not None:
-                            param_names.append(str(name_raw))
+        if not isinstance(param_names_raw, list):
+            raise ValueError(
+                f"Boolean search '{boolean_search}' has no 'paramNames' list"
+            )
+        param_names = [str(p) for p in param_names_raw if p is not None]
 
         left = next((p for p in param_names if p.startswith("bq_left_op")), None)
         right = next((p for p in param_names if p.startswith("bq_right_op")), None)
-        op = next(
-            (p for p in param_names if p.startswith("bq_operator")), "bq_operator"
-        )
+        op = next((p for p in param_names if p.startswith("bq_operator")), None)
 
-        if not left or not right:
+        if not left or not right or not op:
             raise ValueError(
-                f"Boolean param names not found for record type '{record_type}'"
+                f"Boolean param names not found for record type '{record_type}' "
+                f"(left={left}, right={right}, op={op}, params={param_names})"
             )
 
         return left, right, op
@@ -397,7 +387,7 @@ class StrategyAPI:
         name: str,
         description: str | None = None,
         is_public: bool = False,
-        is_saved: bool = True,
+        is_saved: bool = False,
         is_internal: bool = False,
     ) -> JSONObject:
         """Create a strategy from a step tree.
@@ -475,6 +465,14 @@ class StrategyAPI:
         # Return the updated strategy payload (best-effort).
         return await self.get_strategy(strategy_id)
 
+    async def set_saved(self, strategy_id: int, is_saved: bool) -> None:
+        """Set the isSaved flag on a WDK strategy (draft vs saved)."""
+        await self._ensure_session()
+        await self.client.patch(
+            f"/users/{self.user_id}/strategies/{strategy_id}",
+            json={"isSaved": is_saved},
+        )
+
     async def delete_strategy(self, strategy_id: int) -> None:
         """Delete a strategy."""
         await self._ensure_session()
@@ -512,7 +510,11 @@ class StrategyAPI:
         )
 
     async def get_step_count(self, step_id: int) -> int:
-        """Get result count for a step."""
+        """Get result count for a step.
+
+        Uses the standard report endpoint and reads ``meta.totalCount``
+        (``JsonKeys.TOTAL_COUNT``).
+        """
         await self._ensure_session()
         answer = await self.client.post(
             f"/users/{self.user_id}/steps/{step_id}/reports/standard",
@@ -521,13 +523,16 @@ class StrategyAPI:
             },
         )
         if not isinstance(answer, dict):
-            return 0
-        answer_dict: JSONObject = answer
-        meta_raw = answer_dict.get("meta")
+            raise ValueError(
+                f"Step count: expected dict response, got {type(answer).__name__}"
+            )
+        meta_raw = answer.get("meta")
         if not isinstance(meta_raw, dict):
-            return 0
-        meta: JSONObject = meta_raw
-        total_count_raw = meta.get("totalCount")
-        if isinstance(total_count_raw, int):
-            return total_count_raw
-        return 0
+            raise ValueError("Step count: response missing 'meta' dict")
+        total_count_raw = meta_raw.get("totalCount")
+        if not isinstance(total_count_raw, int):
+            raise ValueError(
+                f"Step count: 'meta.totalCount' is not an int "
+                f"(got {type(total_count_raw).__name__}: {total_count_raw!r})"
+            )
+        return total_count_raw

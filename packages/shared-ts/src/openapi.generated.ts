@@ -214,6 +214,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Models
+         * @description Return available models grouped by provider.
+         *
+         *     Models whose provider has no API key are returned with ``enabled: false``
+         *     so the frontend can render them as disabled in the picker.
+         */
+        get: operations["list_models_api_v1_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat": {
         parameters: {
             query?: never;
@@ -424,6 +447,30 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/strategies/sync-wdk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync All Wdk Strategies
+         * @description Batch-sync all WDK strategies into the local DB and return the full list.
+         *
+         *     For each non-internal WDK strategy, fetches the full payload and upserts
+         *     a local copy. Returns the complete list of local strategies for this site
+         *     (including non-WDK drafts).
+         */
+        post: operations["sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/strategies/wdk/{wdkStrategyId}": {
         parameters: {
             query?: never;
@@ -458,26 +505,6 @@ export type paths = {
          * @description Import a WDK strategy as a local snapshot.
          */
         post: operations["import_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__import_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/strategies/{strategyId}/push": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Push To Wdk
-         * @description Push strategy to VEuPathDB WDK.
-         */
-        post: operations["push_to_wdk_api_v1_strategies__strategyId__push_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -867,6 +894,14 @@ export type components = {
              * @enum {string}
              */
             mode: "execute" | "plan";
+            /** Provider */
+            provider?: ("openai" | "anthropic" | "google") | null;
+            /** Model */
+            model?: string | null;
+            /** Reasoningeffort */
+            reasoningEffort?: ("none" | "low" | "medium" | "high") | null;
+            /** Referencestrategyid */
+            referenceStrategyId?: string | null;
         };
         /** ColocationParams */
         ColocationParams: {
@@ -1233,16 +1268,6 @@ export type components = {
             columns: string[];
         };
         /**
-         * PushResultResponse
-         * @description Result of pushing strategy to WDK.
-         */
-        PushResultResponse: {
-            /** Wdkstrategyid */
-            wdkStrategyId: number;
-            /** Wdkurl */
-            wdkUrl: string;
-        };
-        /**
          * RecordTypeResponse
          * @description Record type information.
          */
@@ -1568,6 +1593,11 @@ export type components = {
             rootStepId: string | null;
             /** Wdkstrategyid */
             wdkStrategyId?: number | null;
+            /**
+             * Issaved
+             * @default false
+             */
+            isSaved: boolean;
             /** Messages */
             messages?: components["schemas"]["MessageResponse"][] | null;
             thinking?: components["schemas"]["ThinkingResponse"] | null;
@@ -1606,6 +1636,11 @@ export type components = {
             resultCount?: number | null;
             /** Wdkstrategyid */
             wdkStrategyId?: number | null;
+            /**
+             * Issaved
+             * @default false
+             */
+            isSaved: boolean;
             /**
              * Createdat
              * Format: date-time
@@ -1686,6 +1721,8 @@ export type components = {
             plan?: components["schemas"]["StrategyPlan-Input"] | null;
             /** Wdkstrategyid */
             wdkStrategyId?: number | null;
+            /** Issaved */
+            isSaved?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2062,6 +2099,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_models_api_v1_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -2551,6 +2610,37 @@ export interface operations {
             };
         };
     };
+    sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post: {
+        parameters: {
+            query: {
+                siteId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategySummaryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__delete: {
         parameters: {
             query: {
@@ -2602,37 +2692,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StrategyResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    push_to_wdk_api_v1_strategies__strategyId__push_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                strategyId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PushResultResponse"];
                 };
             };
             /** @description Validation Error */

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
@@ -12,6 +13,7 @@ from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.strategies.auto_push import try_auto_push_to_wdk
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.serialization import (
     build_steps_data_from_plan,
@@ -57,6 +59,7 @@ async def list_strategies(
             ),
             resultCount=s.result_count,
             wdkStrategyId=s.wdk_strategy_id,
+            isSaved=s.is_saved,
             createdAt=s.created_at or datetime.now(UTC),
             updatedAt=s.updated_at or s.created_at or datetime.now(UTC),
         )
@@ -129,6 +132,7 @@ async def create_strategy(
         steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=strategy_ast.root.id,
         wdkStrategyId=strategy_data.get("wdk_strategy_id"),
+        isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
         createdAt=created_at,
@@ -206,6 +210,7 @@ async def get_strategy(
         steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
+        isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
         createdAt=strategy.created_at or datetime.now(UTC),
@@ -231,6 +236,7 @@ async def update_strategy(
 
     fields_set: set[str] = getattr(request, "model_fields_set", set())
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
+    is_saved_set = "is_saved" in fields_set
 
     strategy = await strategy_repo.update(
         strategy_id=strategyId,
@@ -240,6 +246,8 @@ async def update_strategy(
         record_type=record_type,
         wdk_strategy_id=request.wdk_strategy_id,
         wdk_strategy_id_set=wdk_strategy_id_set,
+        is_saved=request.is_saved,
+        is_saved_set=is_saved_set,
     )
     if not strategy:
         raise NotFoundError(
@@ -286,6 +294,22 @@ async def update_strategy(
         except Exception:
             thinking = None
 
+    # If isSaved was toggled and WDK strategy exists, sync the flag to WDK.
+    if is_saved_set and strategy.wdk_strategy_id:
+        try:
+            api = get_strategy_api(strategy.site_id)
+            await api.set_saved(strategy.wdk_strategy_id, strategy.is_saved)
+        except Exception as e:
+            logger.warning(
+                "Failed to sync isSaved to WDK",
+                strategy_id=str(strategyId),
+                error=str(e),
+            )
+
+    # Best-effort auto-push to WDK (fire-and-forget).
+    if strategy.wdk_strategy_id and not is_saved_set:
+        asyncio.create_task(try_auto_push_to_wdk(strategyId, strategy_repo))
+
     return StrategyResponse(
         id=strategy.id,
         name=strategy.name,
@@ -296,6 +320,7 @@ async def update_strategy(
         steps=[build_step_response(s) for s in steps if isinstance(s, dict)],
         rootStepId=root_step_id,
         wdkStrategyId=strategy.wdk_strategy_id,
+        isSaved=strategy.is_saved,
         messages=messages,
         thinking=thinking,
         createdAt=strategy.created_at or datetime.now(UTC),

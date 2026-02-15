@@ -299,6 +299,7 @@ export interface Strategy {
   steps: Step[];
   rootStepId: string | null;
   wdkStrategyId?: number;
+  isSaved?: boolean;
   messages?: Message[];
   thinking?: Thinking;
   createdAt: string;
@@ -314,6 +315,7 @@ export interface StrategySummary {
   stepCount: number;
   resultCount?: number | null;
   wdkStrategyId?: number;
+  isSaved?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -325,6 +327,26 @@ export interface StrategySummary {
 export type MessageRole = "user" | "assistant" | "system";
 
 export type ChatMode = "execute" | "plan";
+
+export type ModelProvider = "openai" | "anthropic" | "google";
+export type ReasoningEffort = "none" | "low" | "medium" | "high";
+
+/** Model selection passed with each chat request. */
+export interface ModelSelection {
+  provider?: ModelProvider;
+  model?: string;
+  reasoningEffort?: ReasoningEffort;
+}
+
+/** An entry in the model catalog returned by GET /api/v1/models. */
+export interface ModelCatalogEntry {
+  id: string;
+  name: string;
+  provider: ModelProvider;
+  model: string;
+  supportsReasoning: boolean;
+  enabled: boolean;
+}
 
 export type CitationSource =
   | "web"
@@ -400,6 +422,9 @@ export interface Message {
   citations?: Citation[];
   planningArtifacts?: PlanningArtifact[];
   timestamp: string;
+  /** Catalog model ID that generated this message (e.g. "openai/gpt-5"). */
+  modelId?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface Conversation {

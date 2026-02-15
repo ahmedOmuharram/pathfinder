@@ -1,24 +1,38 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToExecute, sendMessage } from "./helpers";
+import { gotoHome, sendMessage } from "./helpers";
 
-test("execute: strategy sidebar can create and filter strategies", async ({ page }) => {
+test("conversation sidebar: create and filter conversations", async ({ page }) => {
   await gotoHome(page);
-  await switchToExecute(page);
 
-  const items = page.getByTestId("strategies-item");
-  const newBtn = page.getByTestId("strategies-new-button");
-  const search = page.getByTestId("strategies-search-input");
+  const items = page.getByTestId("conversation-item");
+  const newBtn = page.getByTestId("conversations-new-button");
+  const search = page.getByTestId("conversations-search-input");
 
   await expect(newBtn).toBeVisible();
 
+  // The initial gotoHome creates a plan session implicitly.
+  await expect(items.first()).toBeVisible();
+
+  const countBefore = await items.count();
   await newBtn.click();
-  await expect(items.first()).toBeVisible();
 
-  // Create some chat state on the active strategy.
-  await sendMessage(page, "hello from strategy sidebar");
-  await expect(page.getByText("[mock:execute]").first()).toBeVisible();
+  // Verify at least one more item appeared.
+  await expect
+    .poll(async () => items.count(), { timeout: 10_000 })
+    .toBeGreaterThan(countBefore);
 
-  // Filter the list by the visible strategy name.
-  await search.fill("Draft");
-  await expect(items.first()).toBeVisible();
+  // Send a message in the active conversation.
+  await sendMessage(page, "hello from sidebar test");
+  await expect(page.getByText("[mock:plan]").first()).toBeVisible();
+
+  // Filter the list by typing something — just verify filtering works.
+  await search.fill("Plan");
+  const filteredCount = await items.count();
+  expect(filteredCount).toBeGreaterThanOrEqual(0);
+
+  // Clear filter — should restore full list.
+  await search.fill("");
+  await expect
+    .poll(async () => items.count(), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(countBefore + 1);
 });

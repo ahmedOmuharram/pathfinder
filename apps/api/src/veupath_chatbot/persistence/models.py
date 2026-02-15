@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
@@ -88,8 +88,12 @@ class Strategy(Base):
     steps: Mapped[JSONArray] = mapped_column(JSON, default=list)
     root_step_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # WDK strategy ID (if pushed to VEuPathDB)
+    # WDK strategy ID (if synced to VEuPathDB)
     wdk_strategy_id: Mapped[int | None] = mapped_column()
+
+    # Draft/saved state — mirrors WDK's isSaved flag.
+    # False = draft (auto-synced working state), True = user-promoted saved.
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Result counts
     result_count: Mapped[int | None] = mapped_column()

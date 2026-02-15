@@ -1,21 +1,18 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToPlan, sendMessage } from "./helpers";
+import { gotoHome, sendMessage } from "./helpers";
 
-test("plan: send message and transition to executor", async ({ page }) => {
+test("plan: send message and receive plan-mode response", async ({ page }) => {
   await gotoHome(page);
-  await switchToPlan(page);
 
-  await sendMessage(page, "please build this in executor");
+  await sendMessage(page, "please help me plan a strategy");
 
-  // We should see a plan-mode response first.
-  await expect(page.locator("text=[mock:plan]").first()).toBeVisible();
+  // In plan mode, the mock provider responds with a [mock:plan] prefix.
+  await expect(page.locator("text=[mock:plan]").first()).toBeVisible({
+    timeout: 20_000,
+  });
 
-  // Then the UI should switch to executor mode (triggered by executor_build_request).
-  await expect(page.getByTestId("mode-toggle-execute")).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-
-  // And we should see the executor response begin.
-  await expect(page.locator("text=[mock:execute]").first()).toBeVisible();
+  // Verify our user message is visible in the transcript.
+  await expect(
+    page.getByText("please help me plan a strategy", { exact: true }).first(),
+  ).toBeVisible();
 });

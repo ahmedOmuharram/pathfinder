@@ -48,6 +48,10 @@ async def chat(
         user_repo=user_repo,
         strategy_repo=strategy_repo,
         plan_repo=plan_repo,
+        provider_override=request.provider,
+        model_override=request.model_id,
+        reasoning_effort=request.reasoning_effort,
+        reference_strategy_id=request.reference_strategy_id,
     )
     return StreamingResponse(
         sse_iter,

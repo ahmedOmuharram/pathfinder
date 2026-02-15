@@ -1,11 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToExecute, sendMessage } from "./helpers";
+import { gotoHomeWithStrategy, sendMessage } from "./helpers";
 
 test("execute: can apply a deterministic planning artifact to strategy", async ({
   page,
 }) => {
-  await gotoHome(page);
-  await switchToExecute(page);
+  await gotoHomeWithStrategy(page);
 
   // Trigger mock provider to emit a planning artifact (see API mock stream).
   await sendMessage(page, "please emit artifact");
@@ -20,7 +19,9 @@ test("execute: can apply a deterministic planning artifact to strategy", async (
   await apply.click();
 
   const req = await patchReq;
-  const body = req.postDataJSON() as any;
+  const body = req.postDataJSON() as Record<string, unknown>;
   expect(body).toHaveProperty("plan");
-  expect(body.plan?.root?.searchName).toBe("mock_search");
+  expect(
+    (body.plan as Record<string, unknown>)?.root as Record<string, unknown>,
+  ).toHaveProperty("searchName", "mock_search");
 });

@@ -369,6 +369,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/models:
+    get:
+      tags:
+      - models
+      summary: List Models
+      description: 'Return available models grouped by provider.
+
+
+        Models whose provider has no API key are returned with ``enabled: false``
+
+        so the frontend can render them as disabled in the picker.'
+      operationId: list_models_api_v1_models_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Models Api V1 Models Get
   /api/v1/chat:
     post:
       tags:
@@ -818,6 +839,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/sync-wdk:
+    post:
+      tags:
+      - strategies
+      summary: Sync All Wdk Strategies
+      description: 'Batch-sync all WDK strategies into the local DB and return the full list.
+
+
+        For each non-internal WDK strategy, fetches the full payload and upserts
+
+        a local copy. Returns the complete list of local strategies for this site
+
+        (including non-WDK drafts).'
+      operationId: sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StrategySummaryResponse'
+                title: Response Sync All Wdk Strategies Api V1 Strategies Sync Wdk Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/strategies/wdk/{wdkStrategyId}:
     delete:
       tags:
@@ -876,34 +936,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StrategyResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/strategies/{strategyId}/push:
-    post:
-      tags:
-      - strategies
-      summary: Push To Wdk
-      description: Push strategy to VEuPathDB WDK.
-      operationId: push_to_wdk_api_v1_strategies__strategyId__push_post
-      parameters:
-      - name: strategyId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Strategyid
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PushResultResponse'
         '422':
           description: Validation Error
           content:
@@ -1592,6 +1624,36 @@ components:
           - plan
           title: Mode
           default: execute
+        provider:
+          anyOf:
+          - type: string
+            enum:
+            - openai
+            - anthropic
+            - google
+          - type: 'null'
+          title: Provider
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        reasoningEffort:
+          anyOf:
+          - type: string
+            enum:
+            - none
+            - low
+            - medium
+            - high
+          - type: 'null'
+          title: Reasoningeffort
+        referenceStrategyId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Referencestrategyid
       type: object
       required:
       - siteId
@@ -2209,20 +2271,6 @@ components:
       - columns
       title: PreviewResponse
       description: Preview results response.
-    PushResultResponse:
-      properties:
-        wdkStrategyId:
-          type: integer
-          title: Wdkstrategyid
-        wdkUrl:
-          type: string
-          title: Wdkurl
-      type: object
-      required:
-      - wdkStrategyId
-      - wdkUrl
-      title: PushResultResponse
-      description: Result of pushing strategy to WDK.
     RecordTypeResponse:
       properties:
         name:
@@ -2748,6 +2796,10 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkstrategyid
+        isSaved:
+          type: boolean
+          title: Issaved
+          default: false
         messages:
           anyOf:
           - items:
@@ -2814,6 +2866,10 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkstrategyid
+        isSaved:
+          type: boolean
+          title: Issaved
+          default: false
         createdAt:
           type: string
           format: date-time
@@ -2957,6 +3013,11 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkstrategyid
+        isSaved:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Issaved
       type: object
       title: UpdateStrategyRequest
       description: Request to update a strategy.

@@ -6,7 +6,6 @@ positive controls are returned and known negative controls are excluded.
 
 from __future__ import annotations
 
-import contextlib
 from typing import Literal
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
@@ -15,7 +14,10 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StrategyAPI,
 )
 from veupath_chatbot.platform.errors import InternalError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+
+logger = get_logger(__name__)
 
 ControlValueFormat = Literal["newline", "json_list", "comma"]
 
@@ -33,87 +35,78 @@ def _encode_id_list(ids: list[str], fmt: ControlValueFormat) -> str:
 
 
 def _coerce_step_id(payload: JSONObject | None) -> int | None:
+    """Extract the step ID from a WDK step-creation response.
+
+    WDK ``StepFormatter`` emits the step ID under ``JsonKeys.ID = "id"``
+    as a Java long (always int in JSON).
+    """
     if not isinstance(payload, dict):
         return None
-    for key in ("stepId", "step_id", "id"):
-        raw = payload.get(key)
-        if raw is None:
-            continue
-        # Only convert if raw is a valid type for int()
-        if isinstance(raw, (int, str, float)):
-            try:
-                return int(raw)
-            except TypeError, ValueError:
-                continue
+    raw = payload.get("id")
+    if isinstance(raw, int):
+        return raw
     return None
 
 
 def _extract_record_ids(
     records: JSONValue, *, preferred_key: str | None = None
 ) -> list[str]:
-    """Best-effort extraction of record IDs from WDK answer records."""
+    """Extract record IDs from WDK answer records.
+
+    WDK records have:
+    - ``primaryKey``: array of ``{name, value}`` pairs (composite PK)
+    - ``attributes``: dict of attributeName → value
+
+    If ``preferred_key`` is given, look it up in ``attributes`` first.
+    Otherwise, extract the first ``primaryKey`` value.
+    """
     if not isinstance(records, list):
         return []
-    keys_to_try = []
-    if preferred_key:
-        keys_to_try.append(preferred_key)
-    keys_to_try.extend(
-        [
-            "primaryKey",
-            "primary_key",
-            "recordId",
-            "record_id",
-            "source_id",
-            "sourceId",
-            "id",
-        ]
-    )
     out: list[str] = []
     for rec in records:
         if not isinstance(rec, dict):
             continue
-        value = None
-        for k in keys_to_try:
-            if k in rec:
-                value = rec.get(k)
-                break
-        if value is None:
-            # Some WDK answers nest attributes.
+        extracted: str | None = None
+
+        # 1) If caller specified a preferred attribute, look there.
+        if preferred_key:
             attrs = rec.get("attributes")
             if isinstance(attrs, dict):
-                for k in keys_to_try:
-                    if k in attrs:
-                        value = attrs.get(k)
-                        break
-        if value is None:
-            continue
-        text = str(value).strip()
-        if text:
-            out.append(text)
+                val = attrs.get(preferred_key)
+                if isinstance(val, str) and val.strip():
+                    extracted = val.strip()
+
+        # 2) Fall back to first primaryKey value.
+        if extracted is None:
+            pk = rec.get("primaryKey")
+            if isinstance(pk, list) and pk:
+                first_pk = pk[0]
+                if isinstance(first_pk, dict):
+                    val = first_pk.get("value")
+                    if isinstance(val, str) and val.strip():
+                        extracted = val.strip()
+
+        if extracted:
+            out.append(extracted)
     return out
 
 
 async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | None:
+    """Get totalCount from a step answer's meta. Returns None on failure."""
     try:
         answer = await api.get_step_answer(
             step_id, pagination={"offset": 0, "numRecords": 0}
         )
-        if isinstance(answer, dict):
-            meta_raw = answer.get("meta")
-            meta: JSONObject = meta_raw if isinstance(meta_raw, dict) else {}
-            raw = meta.get("totalCount")
-            if raw is None:
-                return None
-            # Only convert if raw is a valid type for int()
-            if isinstance(raw, (int, str, float)):
-                try:
-                    return int(raw)
-                except TypeError, ValueError:
-                    return None
+        if not isinstance(answer, dict):
             return None
+        # WDK answer responses have JsonKeys.META → JsonKeys.TOTAL_COUNT.
+        meta_raw = answer.get("meta")
+        if not isinstance(meta_raw, dict):
+            return None
+        total = meta_raw.get("totalCount")
+        return total if isinstance(total, int) else None
     except Exception:
         return None
-    return None
 
 
 async def _run_intersection_control(
@@ -147,7 +140,7 @@ async def _run_intersection_control(
     if controls_step_id is None:
         raise InternalError(
             title="Control test failed",
-            detail="Failed to create controls step (missing stepId).",
+            detail="Failed to create controls step (missing id).",
         )
 
     combined_step = await api.create_combined_step(
@@ -161,7 +154,7 @@ async def _run_intersection_control(
     if combined_step_id is None:
         raise InternalError(
             title="Control test failed",
-            detail="Failed to create combined step (missing stepId).",
+            detail="Failed to create combined step (missing id).",
         )
 
     # Wire the combined step inputs via a temporary internal strategy.
@@ -178,16 +171,11 @@ async def _run_intersection_control(
             description=None,
             is_internal=True,
         )
-        raw_sid = (created or {}).get("id") or (created or {}).get("strategyId")
-        if raw_sid is not None:
-            # Only convert if raw_sid is a valid type for int()
-            if isinstance(raw_sid, (int, str, float)):
-                try:
-                    temp_strategy_id = int(raw_sid)
-                except TypeError, ValueError:
-                    temp_strategy_id = None
-            else:
-                temp_strategy_id = None
+        # WDK StrategyService.createStrategy returns { "id": <strategyId> }.
+        if isinstance(created, dict):
+            raw_sid = created.get("id")
+            if isinstance(raw_sid, int):
+                temp_strategy_id = raw_sid
 
         total = await _get_total_count_for_step(api, combined_step_id)
         ids_found: list[str] = []
@@ -216,8 +204,14 @@ async def _run_intersection_control(
         }
     finally:
         if temp_strategy_id is not None:
-            with contextlib.suppress(Exception):
+            try:
                 await api.delete_strategy(temp_strategy_id)
+            except Exception as e:
+                logger.warning(
+                    "Failed to delete temp WDK strategy during cleanup",
+                    temp_strategy_id=temp_strategy_id,
+                    error=str(e),
+                )
 
 
 async def run_positive_negative_controls(
@@ -245,7 +239,7 @@ async def run_positive_negative_controls(
     )
     target_step_id = _coerce_step_id(target_step)
     if target_step_id is None:
-        raise RuntimeError("Failed to create target step (missing stepId).")
+        raise RuntimeError("Failed to create target step (missing id).")
 
     target_total = await _get_total_count_for_step(api, target_step_id)
 

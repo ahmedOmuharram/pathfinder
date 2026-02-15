@@ -1,15 +1,13 @@
 import { test, expect } from "@playwright/test";
 import {
-  gotoHome,
-  switchToExecute,
+  gotoHomeWithStrategy,
   sendMessage,
   expectStreaming,
   expectIdleComposer,
 } from "./helpers";
 
 test("execute: send message and see streamed response", async ({ page }) => {
-  await gotoHome(page);
-  await switchToExecute(page);
+  await gotoHomeWithStrategy(page);
 
   await sendMessage(page, "hello from e2e");
 
@@ -20,8 +18,7 @@ test("execute: send message and see streamed response", async ({ page }) => {
 });
 
 test("execute: stop streaming returns to idle composer", async ({ page }) => {
-  await gotoHome(page);
-  await switchToExecute(page);
+  await gotoHomeWithStrategy(page);
 
   await sendMessage(page, "slow please");
   await expectStreaming(page);
@@ -44,8 +41,7 @@ test("execute: shows error for failed SSE and recovers", async ({ page }) => {
     { times: 1 },
   );
 
-  await gotoHome(page);
-  await switchToExecute(page);
+  await gotoHomeWithStrategy(page);
 
   await sendMessage(page, "please fail once");
   await expect(page.getByText("SSE request failed", { exact: false })).toBeVisible();

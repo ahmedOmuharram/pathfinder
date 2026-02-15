@@ -24,6 +24,7 @@ import {
   extractVocabOptions,
   type VocabOption,
 } from "./components/stepEditorUtils";
+import { Modal } from "@/shared/components/Modal";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
@@ -370,81 +371,79 @@ export function StepEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-4xl rounded-lg border border-slate-200 bg-white shadow-xl">
-        <StepEditorHeader onClose={onClose} />
+    <Modal open onClose={onClose} title="Edit step" maxWidth="max-w-4xl">
+      <StepEditorHeader onClose={onClose} />
 
-        {/* Content */}
-        <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
-          {stepValidationError && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
-              {stepValidationError}
-            </div>
-          )}
-          <StepNameFields oldName={oldName} name={name} onNameChange={setName} />
+      {/* Content */}
+      <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
+        {stepValidationError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
+            {stepValidationError}
+          </div>
+        )}
+        <StepNameFields oldName={oldName} name={name} onNameChange={setName} />
 
-          {(kind === "search" || kind === "transform") && (
-            <>
-              <StepSearchSelector
-                siteId={siteId}
-                stepType={kind}
-                recordTypeFilter={recordTypeFilter}
-                onRecordTypeFilterChange={setRecordTypeFilter}
-                filteredRecordTypes={filteredRecordTypes}
-                normalizedRecordTypeValue={normalizedRecordTypeValue}
-                onRecordTypeValueChange={setRecordTypeValue}
-                editableSearchName={editableSearchName}
-                onSearchNameChange={setEditableSearchName}
-                isLoadingSearches={isLoadingSearches}
-                searchOptions={searchOptions}
-                filteredSearchOptions={filteredSearchOptions}
-                searchName={searchName}
-                selectedSearch={selectedSearch}
-                isSearchNameAvailable={isSearchNameAvailable}
-                searchListError={searchListError}
-                recordTypeValue={recordTypeValue ?? null}
-                recordType={recordType}
-                recordTypeOptions={recordTypeOptions}
-              />
-
-              <StepParamFields
-                paramSpecs={paramSpecs}
-                showRaw={showRaw}
-                parameters={parameters}
-                vocabOptions={vocabOptions}
-                dependentOptions={dependentOptions}
-                dependentLoading={dependentLoading}
-                dependentErrors={dependentErrors}
-                validationErrorKeys={validationErrorKeys}
-                setParameters={setParameters}
-              />
-
-              <StepRawParamsEditor
-                showRaw={showRaw}
-                rawParams={rawParams}
-                error={error}
-                isLoading={isLoading}
-                onShowRawChange={setShowRaw}
-                onRawParamsChange={(nextValue) => {
-                  setRawParams(nextValue);
-                  setError(null);
-                }}
-              />
-            </>
-          )}
-
-          {kind === "combine" && (
-            <StepCombineOperatorSelect
-              operatorValue={operatorValue}
-              onOperatorChange={setOperatorValue}
-              colocationParams={colocationParams}
-              onColocationParamsChange={setColocationParams}
+        {(kind === "search" || kind === "transform") && (
+          <>
+            <StepSearchSelector
+              siteId={siteId}
+              stepType={kind}
+              recordTypeFilter={recordTypeFilter}
+              onRecordTypeFilterChange={setRecordTypeFilter}
+              filteredRecordTypes={filteredRecordTypes}
+              normalizedRecordTypeValue={normalizedRecordTypeValue}
+              onRecordTypeValueChange={setRecordTypeValue}
+              editableSearchName={editableSearchName}
+              onSearchNameChange={setEditableSearchName}
+              isLoadingSearches={isLoadingSearches}
+              searchOptions={searchOptions}
+              filteredSearchOptions={filteredSearchOptions}
+              searchName={searchName}
+              selectedSearch={selectedSearch}
+              isSearchNameAvailable={isSearchNameAvailable}
+              searchListError={searchListError}
+              recordTypeValue={recordTypeValue ?? null}
+              recordType={recordType}
+              recordTypeOptions={recordTypeOptions}
             />
-          )}
-        </div>
 
-        <StepEditorFooter onClose={onClose} onSave={handleSave} />
+            <StepParamFields
+              paramSpecs={paramSpecs}
+              showRaw={showRaw}
+              parameters={parameters}
+              vocabOptions={vocabOptions}
+              dependentOptions={dependentOptions}
+              dependentLoading={dependentLoading}
+              dependentErrors={dependentErrors}
+              validationErrorKeys={validationErrorKeys}
+              setParameters={setParameters}
+            />
+
+            <StepRawParamsEditor
+              showRaw={showRaw}
+              rawParams={rawParams}
+              error={error}
+              isLoading={isLoading}
+              onShowRawChange={setShowRaw}
+              onRawParamsChange={(nextValue) => {
+                setRawParams(nextValue);
+                setError(null);
+              }}
+            />
+          </>
+        )}
+
+        {kind === "combine" && (
+          <StepCombineOperatorSelect
+            operatorValue={operatorValue}
+            onOperatorChange={setOperatorValue}
+            colocationParams={colocationParams}
+            onColocationParamsChange={setColocationParams}
+          />
+        )}
       </div>
-    </div>
+
+      <StepEditorFooter onClose={onClose} onSave={handleSave} />
+    </Modal>
   );
 }

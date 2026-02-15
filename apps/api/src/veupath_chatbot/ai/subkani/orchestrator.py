@@ -98,6 +98,11 @@ async def run_subkani_task(
     emitted_step_ids: set[str] = set()
     last_errors: list[str] = []
 
+    # Snapshot the graph's subtree roots before the sub-kani runs so we
+    # can verify the single-subtree-root contract afterwards.
+    graph = strategy_session.get_graph(graph_id)
+    roots_before: set[str] = set(graph.roots) if graph else set()
+
     # If a sub-kani produces no steps, treat it as a retryable failure.
     # These retries are intentionally more aggressive than tool-level retries
     # because "no_steps" usually means "wrong search" or "missing required params".
@@ -167,10 +172,34 @@ async def run_subkani_task(
                             },
                         }
                     )
+            # ------------------------------------------------------------------
+            # Subtree-root contract: the sub-kani must have produced exactly
+            # one *new* subtree root.  New roots = current roots that were
+            # not in the snapshot taken before the sub-kani ran.
+            # ------------------------------------------------------------------
+            roots_after: set[str] = set(graph.roots) if graph else set()
+            new_roots = roots_after - roots_before
+            if len(new_roots) != 1:
+                logger.warning(
+                    "Sub-kani subtree-root contract violation",
+                    task=task,
+                    new_roots=sorted(new_roots),
+                    expected=1,
+                    actual=len(new_roots),
+                )
+            subtree_root = next(iter(new_roots)) if len(new_roots) == 1 else None
+
             await emit_event(
                 {"type": "subkani_task_end", "data": {"task": task, "status": "done"}}
             )
-            return {"task": task, "steps": created_steps, "notes": "created"}
+            result: JSONObject = {
+                "task": task,
+                "steps": created_steps,
+                "notes": "created",
+            }
+            if subtree_root:
+                result["subtreeRoot"] = subtree_root
+            return result
 
         if attempt < 4:
             await emit_event(

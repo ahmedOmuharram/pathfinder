@@ -120,6 +120,61 @@ describe("core/strategyGraph/validate", () => {
     expect(errors.some((e) => e.code === "MULTIPLE_ROOTS")).toBe(true);
   });
 
+  it("detects a broken combine (operator set, secondary input removed)", () => {
+    const steps: Step[] = [
+      { id: "a", displayName: "A", searchName: "q1", recordType: "gene" },
+      {
+        id: "c",
+        displayName: "Combine",
+        operator: "UNION",
+        primaryInputStepId: "a",
+        // secondaryInputStepId removed (user deleted the node)
+        recordType: "gene",
+      },
+    ];
+    const errors = validateStrategySteps(steps);
+    expect(errors.some((e) => e.code === "MISSING_INPUT" && e.stepId === "c")).toBe(
+      true,
+    );
+  });
+
+  it("detects a broken combine (operator set, both inputs removed)", () => {
+    const steps: Step[] = [
+      {
+        id: "c",
+        displayName: "Combine",
+        operator: "INTERSECT",
+        // both inputs removed
+        recordType: "gene",
+      },
+    ];
+    const errors = validateStrategySteps(steps);
+    expect(errors.some((e) => e.code === "MISSING_INPUT" && e.stepId === "c")).toBe(
+      true,
+    );
+  });
+
+  it("detects a broken combine via kind='combine' even without operator", () => {
+    const steps: Step[] = [
+      { id: "a", displayName: "A", searchName: "q1", recordType: "gene" },
+      {
+        id: "c",
+        displayName: "Combine",
+        kind: "combine",
+        primaryInputStepId: "a",
+        // secondaryInputStepId removed, operator also missing
+        recordType: "gene",
+      },
+    ];
+    const errors = validateStrategySteps(steps);
+    expect(errors.some((e) => e.code === "MISSING_INPUT" && e.stepId === "c")).toBe(
+      true,
+    );
+    expect(errors.some((e) => e.code === "MISSING_OPERATOR" && e.stepId === "c")).toBe(
+      true,
+    );
+  });
+
   it("resolves record types through transform/combine and detects mismatch", () => {
     const steps: Step[] = [
       { id: "left", displayName: "Left", searchName: "q1", recordType: "gene" },

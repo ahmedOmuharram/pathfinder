@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/client";
 import type { VEuPathDBSite as Site } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
+import { Modal } from "@/shared/components/Modal";
 
 interface SitePickerProps {
   value: string;
@@ -83,7 +84,10 @@ export function SitePicker({
   useEffect(() => {
     listSites()
       .then(setSites)
-      .catch(() => setSites(FALLBACK_SITES))
+      .catch((err) => {
+        console.warn("[SitePicker] Failed to load sites, using fallback:", err);
+        setSites(FALLBACK_SITES);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -95,7 +99,8 @@ export function SitePicker({
         setAuthStatus(status);
         setVeupathdbAuth(status.signedIn, status.name ?? null);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn("[SitePicker] Failed to check auth status:", err);
         setAuthStatus({ signedIn: false });
         setVeupathdbAuth(false, null);
       })
@@ -253,124 +258,116 @@ export function SitePicker({
           )}
         </div>
       )}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="text-base font-semibold text-slate-900">
-                Sign in required
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLoginModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-                aria-label="Close"
-              >
-                ×
-              </button>
+      <Modal
+        open={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        title="Sign in to VEuPathDB"
+        maxWidth="max-w-sm"
+        showCloseButton
+      >
+        <div className="p-5">
+          <div className="text-base font-semibold text-slate-900">Sign in required</div>
+          <p className="mt-2 text-sm text-slate-600">
+            Please sign in to VEuPathDB to continue.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            We do not store your login information.
+          </p>
+          <div className="mt-4 flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setAuthMode("password")}
+              className={`rounded-md px-3 py-1.5 ${
+                authMode === "password"
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              Using username and password
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode("token")}
+              className={`rounded-md px-3 py-1.5 ${
+                authMode === "token"
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              (Advanced) Using authentication token
+            </button>
+          </div>
+          {authMode === "password" && (
+            <div className="mt-4 space-y-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              />
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              Please sign in to VEuPathDB to continue.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              We do not store your login information.
-            </p>
-            <div className="mt-4 flex items-center gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setAuthMode("password")}
-                className={`rounded-md px-3 py-1.5 ${
-                  authMode === "password"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                Using username and password
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMode("token")}
-                className={`rounded-md px-3 py-1.5 ${
-                  authMode === "token"
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                (Advanced) Using authentication token
-              </button>
+          )}
+          {authMode === "token" && (
+            <div className="mt-4">
+              <textarea
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Paste VEuPathDB Authorization token"
+                className="h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                If you prefer not to login from the UI, you can provide the
+                authentication token instead.
+              </p>
             </div>
-            {authMode === "password" && (
-              <div className="mt-4 space-y-3">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-              </div>
-            )}
-            {authMode === "token" && (
-              <div className="mt-4">
-                <textarea
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Paste VEuPathDB Authorization token"
-                  className="h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  If you prefer not to login from the UI, you can provide the
-                  authentication token instead.
-                </p>
-              </div>
-            )}
-            {authError && <div className="mt-3 text-xs text-red-600">{authError}</div>}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                disabled={authBusy}
-                onClick={async () => {
-                  setAuthError(null);
-                  setAuthBusy(true);
-                  try {
-                    let result: { success: boolean; authToken?: string };
-                    if (authMode === "password") {
-                      result = await loginVeupathdb(value, email, password);
-                    } else {
-                      result = await setVeupathdbToken(token);
-                    }
-                    if (result.authToken) {
-                      setAuthToken(result.authToken);
-                    }
-                    const status = await getVeupathdbAuthStatus(value);
-                    setAuthStatus(status);
-                    setVeupathdbAuth(status.signedIn, status.name ?? null);
-                    if (status.signedIn) {
-                      setShowLoginModal(false);
-                    } else {
-                      setAuthError("Login failed. Please try again.");
-                    }
-                  } catch {
-                    setAuthError("Login failed. Please try again.");
-                  } finally {
-                    setAuthBusy(false);
+          )}
+          {authError && <div className="mt-3 text-xs text-red-600">{authError}</div>}
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={authBusy}
+              onClick={async () => {
+                setAuthError(null);
+                setAuthBusy(true);
+                try {
+                  let result: { success: boolean; authToken?: string };
+                  if (authMode === "password") {
+                    result = await loginVeupathdb(value, email, password);
+                  } else {
+                    result = await setVeupathdbToken(token);
                   }
-                }}
-                className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-              >
-                {authBusy ? "Signing in..." : "Sign in"}
-              </button>
-            </div>
+                  if (result.authToken) {
+                    setAuthToken(result.authToken);
+                  }
+                  const status = await getVeupathdbAuthStatus(value);
+                  setAuthStatus(status);
+                  setVeupathdbAuth(status.signedIn, status.name ?? null);
+                  if (status.signedIn) {
+                    setShowLoginModal(false);
+                  } else {
+                    setAuthError("Login failed. Please try again.");
+                  }
+                } catch {
+                  setAuthError("Login failed. Please try again.");
+                } finally {
+                  setAuthBusy(false);
+                }
+              }}
+              className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            >
+              {authBusy ? "Signing in..." : "Sign in"}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

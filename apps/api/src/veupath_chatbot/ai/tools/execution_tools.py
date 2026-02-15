@@ -134,32 +134,55 @@ class ExecutionTools:
         description: Annotated[str | None, AIParam(desc="Strategy description")] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to build")] = None,
     ) -> JSONObject:
-        """Build the current strategy on VEuPathDB.
+        """Build or update the current strategy on VEuPathDB.
 
-        This compiles all steps and creates the strategy on the WDK server,
-        returning the WDK strategy ID and result count.
+        If the strategy has already been built (a WDK strategy ID exists),
+        this updates it in place.  Otherwise it creates a new WDK strategy.
+        Returns per-step result counts, zero-result step detection, and the
+        WDK strategy URL.
         """
         graph = self._get_graph(graph_id)
         if not graph:
             return self._graph_not_found(graph_id)
 
-        latest_step_id = graph.last_step_id
-        latest_step = graph.get_step(latest_step_id) if latest_step_id else None
         strategy = graph.current_strategy
-        needs_rebuild = latest_step is not None and (
+
+        # ------------------------------------------------------------------
+        # Tree-first root resolution: use graph.roots directly.
+        #
+        # The graph maintains a set of subtree roots.  A complete strategy
+        # has exactly one root.  We allow an explicit root_step_id override
+        # for backward-compat but prefer graph.roots.
+        # ------------------------------------------------------------------
+        if root_step_id:
+            # Explicit override — trust the caller.
+            root_step = graph.get_step(root_step_id)
+        elif len(graph.roots) == 1:
+            root_step = graph.get_step(next(iter(graph.roots)))
+        elif len(graph.roots) > 1:
+            return self._tool_error(
+                ErrorCode.INVALID_STRATEGY,
+                f"Graph has {len(graph.roots)} subtree roots — expected exactly 1 to build. "
+                "Combine them first, or specify root_step_id.",
+                graphId=graph.id,
+                roots=cast(JSONValue, sorted(graph.roots)),
+            )
+        else:
+            root_step = None
+
+        needs_rebuild = root_step is not None and (
             not strategy
             or (
-                latest_step_id is not None
-                and strategy.get_step_by_id(latest_step_id) is None
+                root_step.id is not None
+                and strategy.get_step_by_id(root_step.id) is None
             )
         )
 
         if not strategy or needs_rebuild:
-            root_step = graph.get_step(root_step_id) if root_step_id else latest_step
             if not root_step:
                 return self._tool_error(
                     ErrorCode.INVALID_STRATEGY,
-                    "No strategy built. Provide root_step_id and record_type.",
+                    "No steps in graph. Create steps before building.",
                     graphId=graph.id,
                 )
 
@@ -206,23 +229,45 @@ class ExecutionTools:
                 strategy, api, site_id=self.session.site_id
             )
 
-            # Create the strategy
-            wdk_result = await api.create_strategy(
-                step_tree=compilation_result.step_tree,
-                name=strategy.name or "Untitled Strategy",
-                description=strategy.description,
-            )
-
-            wdk_strategy_id_raw = wdk_result.get("strategyId") or wdk_result.get("id")
-            # Convert to int if possible
+            # Create-or-update: if a WDK strategy already exists on the graph,
+            # update it rather than creating a duplicate.
+            existing_wdk_id = graph.wdk_strategy_id
             wdk_strategy_id: int | None = None
-            if isinstance(wdk_strategy_id_raw, int):
-                wdk_strategy_id = wdk_strategy_id_raw
-            elif isinstance(wdk_strategy_id_raw, (str, float)):
+
+            if existing_wdk_id is not None:
+                # Update the existing WDK strategy.
                 try:
-                    wdk_strategy_id = int(wdk_strategy_id_raw)
-                except TypeError, ValueError:
+                    await api.update_strategy(
+                        strategy_id=existing_wdk_id,
+                        step_tree=compilation_result.step_tree,
+                        name=strategy.name or "Untitled Strategy",
+                    )
+                    wdk_strategy_id = existing_wdk_id
+                    logger.info(
+                        "Updated existing WDK strategy",
+                        wdk_strategy_id=existing_wdk_id,
+                    )
+                except Exception as update_err:
+                    # If the old strategy was deleted (404), fall through to create.
+                    logger.warning(
+                        "Failed to update WDK strategy, will create new",
+                        wdk_strategy_id=existing_wdk_id,
+                        error=str(update_err),
+                    )
                     wdk_strategy_id = None
+
+            if wdk_strategy_id is None:
+                # First build (or update failed) — create a new WDK strategy.
+                wdk_result = await api.create_strategy(
+                    step_tree=compilation_result.step_tree,
+                    name=strategy.name or "Untitled Strategy",
+                    description=strategy.description,
+                )
+                if isinstance(wdk_result, dict):
+                    raw_id = wdk_result.get("id")
+                    if isinstance(raw_id, int):
+                        wdk_strategy_id = raw_id
+
             compiled_map = {s.local_id: s.wdk_step_id for s in compilation_result.steps}
 
             for step in strategy.get_all_steps():
@@ -256,39 +301,54 @@ class ExecutionTools:
                 else None
             )
 
-            # Get result count (best-effort; some WDK deployments don't expose /answer)
-            count = None
-            try:
-                count = await api.get_step_count(compilation_result.root_step_id)
-            except Exception as e:
-                logger.warning("Result count unavailable", error=str(e))
+            # Store the local→WDK step ID mapping on the graph so that
+            # list_current_steps can surface wdkStepId per step.
+            graph.wdk_step_ids = dict(compiled_map)
+            graph.wdk_strategy_id = wdk_strategy_id
 
-            if count is None and wdk_strategy_id is not None:
+            # Fetch the strategy once — WDK includes estimatedSize on every
+            # step, so one GET replaces N individual report POST calls.
+            step_counts: dict[str, int | None] = {}
+            root_count: int | None = None
+            if wdk_strategy_id is not None:
                 try:
                     strategy_info = await api.get_strategy(wdk_strategy_id)
-                    if not isinstance(strategy_info, dict):
-                        raise TypeError("Expected dict from get_strategy")
-                    root_step_id_from_strategy_raw = strategy_info.get("rootStepId")
-                    root_step_id_from_strategy: str | None = None
-                    if isinstance(root_step_id_from_strategy_raw, (int, str)):
-                        root_step_id_from_strategy = str(root_step_id_from_strategy_raw)
-                    steps_raw = strategy_info.get("steps", {})
-                    steps: dict[str, JSONValue] = {}
-                    if isinstance(steps_raw, dict):
-                        steps = {str(k): v for k, v in steps_raw.items()}
-                    root_info = (
-                        steps.get(root_step_id_from_strategy)
-                        if root_step_id_from_strategy
-                        else None
-                    )
-                    if isinstance(root_info, dict):
-                        estimated_size = root_info.get("estimatedSize")
-                        if isinstance(estimated_size, int):
-                            count = estimated_size
+                    if isinstance(strategy_info, dict):
+                        root_step_id_raw = strategy_info.get("rootStepId")
+                        steps_raw = strategy_info.get("steps")
+                        if isinstance(steps_raw, dict):
+                            # Build a reverse map: wdk_step_id → local_id
+                            wdk_to_local = {v: k for k, v in compiled_map.items()}
+                            for wdk_id_str, step_info in steps_raw.items():
+                                if not isinstance(step_info, dict):
+                                    continue
+                                estimated = step_info.get("estimatedSize")
+                                count_val = (
+                                    estimated if isinstance(estimated, int) else None
+                                )
+                                # Map back to local step ID
+                                try:
+                                    wdk_id_int = int(wdk_id_str)
+                                except ValueError, TypeError:
+                                    continue
+                                local_id = wdk_to_local.get(wdk_id_int)
+                                if local_id:
+                                    step_counts[local_id] = count_val
+                            # Extract root count specifically
+                            if isinstance(root_step_id_raw, int):
+                                root_local = wdk_to_local.get(root_step_id_raw)
+                                if root_local:
+                                    root_count = step_counts.get(root_local)
                 except Exception as e:
                     logger.warning("Strategy count lookup failed", error=str(e))
 
-            # Convert wdk_strategy_id to JSONValue for return
+            # Persist counts on the graph for list_current_steps.
+            graph.step_counts = step_counts
+
+            # Build per-step counts response keyed by local step ID.
+            counts_response: JSONObject = {str(k): v for k, v in step_counts.items()}
+            zeros = sorted([sid for sid, c in step_counts.items() if c == 0])
+
             wdk_strategy_id_value: JSONValue = wdk_strategy_id
             return {
                 "ok": True,
@@ -299,8 +359,11 @@ class ExecutionTools:
                 "wdkStrategyId": wdk_strategy_id_value,
                 "wdkUrl": wdk_url,
                 "rootStepId": compilation_result.root_step_id,
-                "resultCount": count,
+                "resultCount": root_count,
                 "stepCount": len(compilation_result.steps),
+                "counts": counts_response,
+                "zeroStepIds": cast(JSONValue, zeros),
+                "zeroCount": len(zeros),
             }
 
         except Exception as e:
@@ -328,20 +391,14 @@ class ExecutionTools:
                 strategy_raw = await api.get_strategy(wdk_strategy_id)
                 if not isinstance(strategy_raw, dict):
                     raise TypeError("Expected dict from get_strategy")
-                strategy: dict[str, JSONValue] = {
-                    str(k): v for k, v in strategy_raw.items()
-                }
-                steps_raw = strategy.get("steps") or {}
-                steps: dict[str, JSONValue] = {}
+                # WDK: steps is dict[str, stepObj], estimatedSize is on each step.
+                steps_raw = strategy_raw.get("steps")
                 if isinstance(steps_raw, dict):
-                    steps = {str(k): v for k, v in steps_raw.items()}
-                step_info = steps.get(str(wdk_step_id)) or steps.get(str(wdk_step_id))
-                if isinstance(step_info, dict):
-                    estimated_size = step_info.get("estimatedSize") or step_info.get(
-                        "estimated_size"
-                    )
-                    if isinstance(estimated_size, int):
-                        return {"stepId": wdk_step_id, "count": estimated_size}
+                    step_info = steps_raw.get(str(wdk_step_id))
+                    if isinstance(step_info, dict):
+                        estimated_size = step_info.get("estimatedSize")
+                        if isinstance(estimated_size, int):
+                            return {"stepId": wdk_step_id, "count": estimated_size}
             count = await api.get_step_count(wdk_step_id)
             return {"stepId": wdk_step_id, "count": count}
         except Exception as e:

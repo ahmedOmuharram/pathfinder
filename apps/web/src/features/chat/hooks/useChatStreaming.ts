@@ -4,6 +4,7 @@ import type {
   ToolCall,
   ChatMode,
   Citation,
+  ModelSelection,
   PlanningArtifact,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
@@ -22,6 +23,8 @@ type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
 interface UseChatStreamingArgs {
   siteId: string;
   strategyId: string | null;
+  /** Plan session id – passed to streamChat for plan mode. */
+  planSessionId?: string | null;
   draftSelection: Record<string, unknown> | null;
   setDraftSelection: (selection: Record<string, unknown> | null) => void;
   thinking: Thinking;
@@ -51,11 +54,27 @@ interface UseChatStreamingArgs {
     activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
   ) => void;
   mode?: ChatMode;
+  /** Per-request model/provider/reasoning selection. */
+  modelSelection?: ModelSelection | null;
+  /** Reference strategy ID to inject into plan-mode context. */
+  referenceStrategyId?: string | null;
+
+  // --- Optional plan-mode callbacks ---
+  onPlanSessionId?: (id: string) => void;
+  onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
+  onExecutorBuildRequest?: (message: string) => void;
+  onPlanTitleUpdate?: (title: string) => void;
+  onApiError?: (message: string) => void;
+  /** Called after streaming completes successfully. */
+  onStreamComplete?: () => void;
+  /** Called after streaming errors out (in addition to the default error handling). */
+  onStreamError?: (error: Error) => void;
 }
 
 export function useChatStreaming({
   siteId,
   strategyId,
+  planSessionId,
   draftSelection,
   setDraftSelection,
   thinking,
@@ -80,6 +99,15 @@ export function useChatStreaming({
   currentStrategy,
   attachThinkingToLastAssistant,
   mode = "execute",
+  modelSelection,
+  referenceStrategyId,
+  onPlanSessionId,
+  onPlanningArtifactUpdate,
+  onExecutorBuildRequest,
+  onPlanTitleUpdate,
+  onApiError,
+  onStreamComplete,
+  onStreamError,
 }: UseChatStreamingArgs) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -153,6 +181,11 @@ export function useChatStreaming({
                 getStrategy,
                 streamingAssistantIndexRef,
                 streamingAssistantMessageIdRef,
+                onPlanSessionId,
+                onPlanningArtifactUpdate,
+                onExecutorBuildRequest,
+                onPlanTitleUpdate,
+                onApiError,
               },
               event,
             );
@@ -179,6 +212,7 @@ export function useChatStreaming({
                 })
                 .catch(() => {});
             }
+            onStreamComplete?.();
           },
 
           onError: (error) => {
@@ -187,15 +221,23 @@ export function useChatStreaming({
             abortRef.current = null;
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             setApiError(error.message || "Unable to reach the API.");
+            onStreamError?.(error);
           },
         },
-        { strategyId: strategyId ?? undefined },
+        mode === "plan"
+          ? {
+              planSessionId: planSessionId ?? undefined,
+              referenceStrategyId: referenceStrategyId ?? undefined,
+            }
+          : { strategyId: strategyId ?? undefined },
         mode,
         controller.signal,
+        modelSelection ?? undefined,
       );
     },
     [
       draftSelection,
+      planSessionId,
       setMessages,
       setDraftSelection,
       thinking,
@@ -221,6 +263,15 @@ export function useChatStreaming({
       getStrategy,
       attachThinkingToLastAssistant,
       mode,
+      modelSelection,
+      referenceStrategyId,
+      onPlanSessionId,
+      onPlanningArtifactUpdate,
+      onExecutorBuildRequest,
+      onPlanTitleUpdate,
+      onApiError,
+      onStreamComplete,
+      onStreamError,
     ],
   );
 

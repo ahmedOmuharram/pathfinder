@@ -161,49 +161,16 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         <span className="sr-only">Add to chat</span>
       </button>
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-1">
-        <div
-          className="w-full text-center text-sm font-medium leading-tight text-slate-900"
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            overflowWrap: "anywhere",
-            wordBreak: "break-word",
-          }}
-        >
+        <div className="w-full text-center text-sm font-medium leading-tight text-slate-900 line-clamp-2 break-words">
           {step.displayName}
         </div>
         {kind === "search" && step.searchName && (
-          <div
-            className="w-full text-center text-[11px] leading-tight text-slate-500"
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-          >
+          <div className="w-full text-center text-[11px] leading-tight text-slate-500 line-clamp-2 break-words">
             {step.searchName}
           </div>
         )}
         {kind === "transform" && step.searchName && (
-          <div
-            className="w-full text-center text-[11px] font-medium leading-tight text-violet-700"
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-          >
+          <div className="w-full text-center text-[11px] font-medium leading-tight text-violet-700 line-clamp-2 break-words">
             {step.searchName}
           </div>
         )}

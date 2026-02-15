@@ -28,6 +28,10 @@ export type CombineMismatchGroup = {
 function inferKind(step: Step): "search" | "transform" | "combine" | "invalid" {
   if (step.secondaryInputStepId && !step.primaryInputStepId) return "invalid";
   if (step.primaryInputStepId && step.secondaryInputStepId) return "combine";
+  // A step with an operator (or explicit kind="combine") is a combine even if
+  // one or both inputs were removed.  This ensures combine-specific checks
+  // (two inputs required, operator required, etc.) still fire.
+  if (step.operator || step.kind === "combine") return "combine";
   if (step.primaryInputStepId) return "transform";
   return "search";
 }

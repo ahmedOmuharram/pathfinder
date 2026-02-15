@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, startTransition } from "react";
 import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/client";
+import { Modal } from "@/shared/components/Modal";
 
 function looksLikeOrthologSearch(s: Search) {
   const hay =
@@ -60,17 +61,20 @@ export function OrthologTransformModal(props: {
     [searches, selectedName],
   );
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl">
+    <Modal
+      open={open}
+      onClose={onCancel}
+      title="Insert ortholog transform"
+      maxWidth="max-w-lg"
+    >
+      <div className="p-4">
         <div className="text-sm font-semibold text-slate-900">
           Insert ortholog transform
         </div>
         <div className="mt-1 text-[12px] text-slate-500">
-          Pick the site’s ortholog/orthology transform question. You can edit parameters
-          after insertion.
+          Pick the site&apos;s ortholog/orthology transform question. You can edit
+          parameters after insertion.
         </div>
 
         <div className="mt-4 space-y-3">
@@ -135,6 +139,6 @@ export function OrthologTransformModal(props: {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

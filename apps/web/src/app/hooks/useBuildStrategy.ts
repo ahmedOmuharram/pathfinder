@@ -3,7 +3,6 @@ import {
   createStrategy,
   getStrategy,
   normalizePlan,
-  pushStrategy,
   updateStrategy,
 } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
@@ -43,9 +42,11 @@ export function useBuildStrategy({
 }: UseBuildStrategyArgs) {
   const [isBuilding, setIsBuilding] = useState(false);
 
-  // Push always includes a build (save) step:
-  // normalize plan -> persist -> push to WDK -> refresh.
-  const buildAndPush = useCallback(async () => {
+  /**
+   * Build (save) the strategy locally. Auto-push to WDK happens server-side.
+   * New strategies are created as drafts (isSaved=false).
+   */
+  const buildStrategy = useCallback(async () => {
     if (!planResult) return;
     const normalized = await normalizePlan(selectedSite, planResult.plan);
     const canonicalPlan = normalized.plan;
@@ -64,27 +65,23 @@ export function useBuildStrategy({
       });
       strategyId = created.id;
     }
-    const pushed = await pushStrategy(strategyId);
-    // Refresh after push so we pick up server-updated steps (wdkStepId/resultCount).
+    // Refresh after save so we pick up server-updated steps (wdkStepId/resultCount).
     const refreshed = await getStrategy(strategyId);
-    const built = {
-      ...refreshed!,
-      wdkStrategyId: pushed.wdkStrategyId,
-      wdkUrl: pushed.wdkUrl,
-    };
-    addExecutedStrategy(built);
+    addExecutedStrategy(refreshed);
     setStrategyMeta({
       name: refreshed.name,
       recordType: refreshed.recordType,
       siteId: refreshed.siteId,
       createdAt: refreshed.createdAt,
     });
-    setWdkInfo(
-      pushed.wdkStrategyId,
-      pushed.wdkUrl,
-      refreshed.name,
-      refreshed.description,
-    );
+    if (refreshed.wdkStrategyId) {
+      setWdkInfo(
+        refreshed.wdkStrategyId,
+        refreshed.wdkUrl,
+        refreshed.name,
+        refreshed.description,
+      );
+    }
   }, [
     addExecutedStrategy,
     planResult,
@@ -99,26 +96,29 @@ export function useBuildStrategy({
     if (!veupathdbSignedIn) {
       addToast({
         type: "warning",
-        message: "Please log in to VEuPathDB to push strategies.",
+        message: "Please log in to VEuPathDB to build strategies.",
       });
       return;
     }
     setIsBuilding(true);
     try {
-      await buildAndPush();
+      await buildStrategy();
       addToast({
         type: "success",
-        message: `Strategy pushed to ${selectedSiteDisplayName}.`,
+        message: `Strategy saved as draft on ${selectedSiteDisplayName}.`,
       });
     } catch (e) {
       addToast({
         type: "error",
-        message: toUserMessage(e, `Failed to push to ${selectedSiteDisplayName}.`),
+        message: toUserMessage(
+          e,
+          `Failed to save strategy on ${selectedSiteDisplayName}.`,
+        ),
       });
     } finally {
       setIsBuilding(false);
     }
-  }, [addToast, buildAndPush, planResult, selectedSiteDisplayName, veupathdbSignedIn]);
+  }, [addToast, buildStrategy, planResult, selectedSiteDisplayName, veupathdbSignedIn]);
 
   return {
     isBuilding,

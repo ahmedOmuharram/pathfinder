@@ -1,39 +1,62 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToPlan, sendMessage } from "./helpers";
+import { gotoHome, sendMessage } from "./helpers";
 
 test("plan sessions: create, rename, search, delete", async ({ page }) => {
   await gotoHome(page);
-  await switchToPlan(page);
 
-  // Auth is set up by gotoHome → setupAuth; send a message to verify streaming works.
+  // Send a message to verify streaming works (default mode is plan).
   await sendMessage(page, "hello plan sessions");
   await expect(page.locator("text=[mock:plan]").first()).toBeVisible();
 
-  const newPlan = page.getByTestId("plans-new-plan-button");
-  await expect(newPlan).toBeVisible();
+  const newBtn = page.getByTestId("conversations-new-button");
+  await expect(newBtn).toBeVisible();
 
-  const planItems = page.getByTestId("plans-plan-item");
-  await expect(planItems.first()).toBeVisible();
-  const initialCount = await planItems.count();
+  // Capture item count before creating a new conversation.
+  const items = page.getByTestId("conversation-item");
+  await expect(items.first()).toBeVisible();
+  const countBefore = await items.count();
 
-  await newPlan.click();
-  await expect(planItems).toHaveCount(initialCount + 1);
+  await newBtn.click();
 
-  // Rename from the plan panel header.
-  await page.getByTestId("plan-title-edit").click();
-  await page.getByTestId("plan-title-input").fill("QA Plan Title");
-  await page.getByTestId("plan-title-save").click();
-  await expect(page.getByTestId("plan-title")).toContainText("QA Plan Title", {
-    timeout: 20_000,
+  // Verify at least one more item appeared (other parallel tests may also create items).
+  await expect
+    .poll(async () => items.count(), { timeout: 10_000 })
+    .toBeGreaterThan(countBefore);
+
+  // Rename via the dropdown menu on the newest item (first in the list).
+  const firstItem = items.first();
+  await firstItem
+    .getByRole("button", { name: "Conversation actions" })
+    .click({ force: true });
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+
+  const renameInput = page.getByTestId("conversation-rename-input");
+  await expect(renameInput).toBeVisible();
+  await renameInput.fill("QA Plan Title");
+  await renameInput.press("Enter");
+
+  // Verify the rename took effect.
+  await expect(firstItem).toContainText("QA Plan Title", { timeout: 20_000 });
+
+  // Search in sidebar — should find at least the renamed item.
+  const search = page.getByTestId("conversations-search-input");
+  await search.fill("QA Plan Title");
+  const filtered = page.getByTestId("conversation-item");
+  await expect(filtered.first()).toContainText("QA Plan Title");
+
+  // Delete via dropdown → Delete → confirm modal.
+  await filtered
+    .first()
+    .getByRole("button", { name: "Conversation actions" })
+    .click({ force: true });
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+
+  // Confirm in the delete modal.
+  await expect(page.getByText("Delete conversation")).toBeVisible();
+  await page.getByRole("button", { name: "Delete" }).last().click();
+
+  // Verify the renamed item is gone from the filtered view.
+  await expect(filtered.filter({ hasText: "QA Plan Title" })).toHaveCount(0, {
+    timeout: 10_000,
   });
-
-  // Search in sidebar.
-  await page.getByTestId("plans-search-input").fill("QA Plan Title");
-  await expect(planItems).toHaveCount(1);
-  await expect(planItems.first()).toContainText("QA Plan Title");
-
-  // Delete the visible plan.
-  page.once("dialog", (d) => d.accept());
-  await planItems.first().getByTestId("plans-delete-plan-button").click();
-  await expect(planItems).toHaveCount(0);
 });

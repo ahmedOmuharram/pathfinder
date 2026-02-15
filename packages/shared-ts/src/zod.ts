@@ -42,7 +42,7 @@ const BasePlanNodeSchema = z.object({
     .array(
       z.object({
         analysisType: z.string(),
-        parameters: z.record(z.unknown()).optional(),
+        parameters: z.record(z.string(), z.unknown()).optional(),
         customName: z.string().optional(),
       })
     )
@@ -51,7 +51,7 @@ const BasePlanNodeSchema = z.object({
     .array(
       z.object({
         reportName: z.string(),
-        config: z.record(z.unknown()).optional(),
+        config: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .optional(),
@@ -61,7 +61,7 @@ const BasePlanNodeSchema = z.object({
 // because TypeScript treats them as self-referential and errors on circular types.
 export const PlanStepNodeSchema: z.ZodTypeAny = BasePlanNodeSchema.extend({
   searchName: z.string().min(1),
-  parameters: z.record(z.unknown()).optional().default({}),
+  parameters: z.record(z.string(), z.unknown()).optional().default({}),
   primaryInput: z.lazy(() => PlanStepNodeSchema).optional(),
   secondaryInput: z.lazy(() => PlanStepNodeSchema).optional(),
   operator: CombineOperatorSchema.optional(),

@@ -1,5 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { gotoHome, switchToExecute, sendMessage, switchToGraphView } from "./helpers";
+import {
+  gotoHomeWithStrategy,
+  sendMessage,
+  openGraphEditor,
+  closeGraphEditor,
+} from "./helpers";
 
 async function dragTestIdTo(page: Page, sourceTestId: string, targetTestId: string) {
   const source = page.getByTestId(sourceTestId);
@@ -17,23 +22,60 @@ async function dragTestIdTo(page: Page, sourceTestId: string, targetTestId: stri
   await page.mouse.up();
 }
 
-test("graph: selection → add-to-chat, edge delete, combine, undo, reconnect, node delete", async ({
+/**
+ * Select all visible nodes using box-select mode.
+ *
+ * Switches to "Box select" mode, then drags a selection rectangle
+ * around both nodes. This avoids triggering `onNodeClick` (and thus
+ * the StepEditor modal), which makes it far more reliable than
+ * individual click-based selection.
+ */
+async function boxSelectAllNodes(page: Page) {
+  // Ensure we're in Box select mode.
+  const boxSelectBtn = page.getByRole("button", { name: "Box select mode" });
+  await boxSelectBtn.click();
+  await page.waitForTimeout(200);
+
+  // Get bounding boxes of both nodes to compute a rectangle that encloses them.
+  const n1 = page.getByTestId("rf-node-mock_search_1");
+  const n2 = page.getByTestId("rf-node-mock_transform_1");
+  const b1 = await n1.boundingBox();
+  const b2 = await n2.boundingBox();
+  expect(b1).toBeTruthy();
+  expect(b2).toBeTruthy();
+  if (!b1 || !b2) return;
+
+  // Compute a box that encloses both nodes with some padding.
+  const left = Math.min(b1.x, b2.x) - 20;
+  const top = Math.min(b1.y, b2.y) - 20;
+  const right = Math.max(b1.x + b1.width, b2.x + b2.width) + 20;
+  const bottom = Math.max(b1.y + b1.height, b2.y + b2.height) + 20;
+
+  // Drag from top-left to bottom-right to select all nodes.
+  await page.mouse.move(left, top);
+  await page.mouse.down();
+  await page.mouse.move(right, bottom, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+}
+
+test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", async ({
   page,
 }) => {
-  await gotoHome(page);
-  await switchToExecute(page);
+  await gotoHomeWithStrategy(page);
 
   // Trigger mock provider to emit a multi-step artifact (see API mock stream).
   await sendMessage(page, "please emit artifact graph");
-  await expect(page.getByText("Saved planning artifacts")).toBeVisible({
+  await expect(page.getByText("Saved planning artifacts").first()).toBeVisible({
     timeout: 40_000,
   });
   const apply = page.getByRole("button", { name: "Apply to strategy" }).first();
   await expect(apply).toBeVisible({ timeout: 40_000 });
   await apply.click();
 
-  await switchToGraphView(page);
-  await page.getByRole("button", { name: "Fit view" }).click();
+  // Open the graph editor modal.
+  await openGraphEditor(page);
+  await page.getByRole("button", { name: "fit view" }).click();
 
   // Sanity: graph has our deterministic nodes.
   await expect(page.getByTestId("rf-node-mock_search_1")).toBeVisible({
@@ -43,120 +85,77 @@ test("graph: selection → add-to-chat, edge delete, combine, undo, reconnect, n
     timeout: 20_000,
   });
 
-  // 1) Add a single node to chat via node button.
+  // 1) Add a single node to chat via the "Add to chat" button.
   await page.getByTestId("rf-add-to-chat-mock_transform_1").click();
+  await closeGraphEditor(page);
   await expect(page.getByText("Mock transform step").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove" })).toBeVisible();
 
   // Back to graph for interaction tests.
-  await switchToGraphView(page);
+  await openGraphEditor(page);
 
-  // 2) Box select both nodes and add selection to chat via toolbar.
-  await page.locator('button[title="Box select"]').click();
+  // 2) Multi-select via box-select and add selection to chat.
+  await page.getByRole("button", { name: "fit view" }).click();
+  await boxSelectAllNodes(page);
 
-  const n1 = page.getByTestId("rf-node-mock_search_1");
-  const n2 = page.getByTestId("rf-node-mock_transform_1");
-  await expect(n1).toBeVisible();
-  await expect(n2).toBeVisible();
-  const b1 = await n1.boundingBox();
-  const b2 = await n2.boundingBox();
-  expect(b1).toBeTruthy();
-  expect(b2).toBeTruthy();
-  if (!b1 || !b2) return;
-
-  const left = Math.min(b1.x, b2.x) - 20;
-  const top = Math.min(b1.y, b2.y) - 20;
-  const right = Math.max(b1.x + b1.width, b2.x + b2.width) + 20;
-  const bottom = Math.max(b1.y + b1.height, b2.y + b2.height) + 20;
-
-  await page.mouse.move(left, top);
-  await page.mouse.down();
-  await page.mouse.move(right, bottom);
-  await page.mouse.up();
-
-  const addSelection = page.locator('button[title="Add selection to chat"]');
+  const addSelection = page.getByRole("button", {
+    name: "Add selection to chat",
+  });
   await expect(addSelection).toBeEnabled({ timeout: 10_000 });
   await addSelection.click();
+
+  await closeGraphEditor(page);
   await expect(page.getByText("Mock search step").first()).toBeVisible();
   await expect(page.getByText("Mock transform step").first()).toBeVisible();
 
-  // Back to graph to delete the edge.
-  await switchToGraphView(page);
+  // 3) Delete the connecting edge.
+  await openGraphEditor(page);
+  await page.getByRole("button", { name: "fit view" }).click();
 
-  // 3) Delete the connecting edge via edge menu.
-  await page.getByRole("button", { name: "Fit view" }).click();
-  const edgeMenu = page.getByRole("dialog", { name: "Edge actions" });
-
-  // ReactFlow SVG edge paths live in a transformed coordinate space that can
-  // confuse Playwright's viewport calculations, so we use dispatchEvent which
-  // bypasses viewport/actionability checks entirely.
+  const edgeMenu = page.getByRole("menu", { name: "Edge actions" });
   const edgeInteraction = page.locator(".react-flow__edge-interaction").first();
   await expect(edgeInteraction).toBeAttached({ timeout: 10_000 });
   await edgeInteraction.dispatchEvent("click");
   if (!(await edgeMenu.isVisible().catch(() => false))) {
-    // Retry on the visible edge path itself.
     const edgePath = page.locator(".react-flow__edge").first();
     await edgePath.dispatchEvent("click");
   }
   await expect(edgeMenu).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("button", { name: "Delete edge" }).click();
+  await page.getByRole("menuitem", { name: "Delete edge" }).click();
 
-  // After edge delete, both nodes are roots => output handles become visible.
+  // After edge delete, both nodes are roots → output handles visible.
   await expect(page.getByTestId("rf-handle-mock_search_1-output")).toBeVisible();
   await expect(page.getByTestId("rf-handle-mock_transform_1-output")).toBeVisible();
   await expect(page.getByTestId("rf-handle-mock_transform_1-primary")).toBeVisible();
 
-  // 4) Combine the two roots via toolbar gesture (multi-step flow).
-  // Fit the graph first so both disconnected roots are centered in the viewport.
-  await page.getByRole("button", { name: "Fit view" }).click();
+  // 4) Combine the two disconnected roots via box-select + toolbar.
+  await page.getByRole("button", { name: "fit view" }).click();
   await page.waitForTimeout(300);
+  await boxSelectAllNodes(page);
 
-  await page.locator('button[title="Box select"]').click();
-
-  // Use actual node positions (not the container box) for a reliable selection
-  // rectangle, matching the approach in step 2 that works.
-  const ns1 = page.getByTestId("rf-node-mock_search_1");
-  const ns2 = page.getByTestId("rf-node-mock_transform_1");
-  await expect(ns1).toBeVisible();
-  await expect(ns2).toBeVisible();
-  const bs1 = await ns1.boundingBox();
-  const bs2 = await ns2.boundingBox();
-  expect(bs1).toBeTruthy();
-  expect(bs2).toBeTruthy();
-  if (!bs1 || !bs2) return;
-
-  const selLeft = Math.min(bs1.x, bs2.x) - 20;
-  const selTop = Math.min(bs1.y, bs2.y) - 20;
-  const selRight = Math.max(bs1.x + bs1.width, bs2.x + bs2.width) + 20;
-  const selBottom = Math.max(bs1.y + bs1.height, bs2.y + bs2.height) + 20;
-
-  await page.mouse.move(selLeft, selTop);
-  await page.mouse.down();
-  await page.mouse.move(selRight, selBottom);
-  await page.mouse.up();
-
-  const combineBtn = page.locator('button[title="Combine selected steps"]');
+  const combineBtn = page.getByRole("button", {
+    name: "Combine selected steps",
+  });
   await expect(combineBtn).toBeEnabled({ timeout: 10_000 });
   await combineBtn.click();
-  await expect(page.getByText("Create combine step")).toBeVisible();
+  await expect(page.getByText("Create combine step").first()).toBeVisible();
   await page.getByRole("button", { name: "UNION" }).click();
-  await expect(page.getByText("UNION combine")).toBeVisible();
+  await expect(page.getByText("UNION combine").first()).toBeVisible();
 
-  // 5) Undo combine and verify we return to two-roots state.
+  // 5) Undo combine → back to two roots.
   await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
-  await expect(page.getByText("UNION combine")).toHaveCount(0);
+  await expect(page.getByText("UNION combine")).toHaveCount(0, {
+    timeout: 10_000,
+  });
   await expect(page.getByTestId("rf-handle-mock_search_1-output")).toBeVisible();
   await expect(page.getByTestId("rf-handle-mock_transform_1-output")).toBeVisible();
 
-  // 6) Reconnect by dragging output -> primary input.
+  // 6) Reconnect by dragging output → primary input.
   await dragTestIdTo(
     page,
     "rf-handle-mock_search_1-output",
     "rf-handle-mock_transform_1-primary",
   );
-  // Reconnected graph has single root => output handles get opacity-0 styling.
-  // Note: we check the CSS class rather than toBeHidden() because ReactFlow's
-  // base styles can override computed opacity in the headless Playwright viewport.
   await expect(page.getByTestId("rf-handle-mock_search_1-output")).toHaveClass(
     /opacity-0/,
     { timeout: 10_000 },
@@ -166,12 +165,37 @@ test("graph: selection → add-to-chat, edge delete, combine, undo, reconnect, n
     { timeout: 10_000 },
   );
 
-  // 7) Delete a node (search) and verify it disappears and downstream detaches.
-  await page.getByTestId("rf-node-mock_search_1").click();
-  await page.keyboard.press("Backspace");
-  await expect(page.getByTestId("rf-node-mock_search_1")).toHaveCount(0);
+  // 7) Delete a node: select it via box-select, then press Backspace.
+  //    Box-select ensures the ReactFlow canvas retains focus (no StepEditor popup).
+  await page.getByRole("button", { name: "fit view" }).click();
+  await page.waitForTimeout(300);
 
-  // Remaining single root => output handle gets opacity-0 styling; primary slot should reopen.
+  const searchNode = page.getByTestId("rf-node-mock_search_1");
+  const searchBox = await searchNode.boundingBox();
+  expect(searchBox).toBeTruthy();
+  if (searchBox) {
+    // Ensure we're in Box select mode.
+    await page.getByRole("button", { name: "Box select mode" }).click();
+    await page.waitForTimeout(200);
+
+    // Box-select just the search node.
+    await page.mouse.move(searchBox.x - 10, searchBox.y - 10);
+    await page.mouse.down();
+    await page.mouse.move(
+      searchBox.x + searchBox.width + 10,
+      searchBox.y + searchBox.height + 10,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    // Now delete via keyboard (canvas has focus from box-select).
+    await page.keyboard.press("Backspace");
+  }
+  await expect(page.getByTestId("rf-node-mock_search_1")).toHaveCount(0, {
+    timeout: 10_000,
+  });
+
   await expect(page.getByTestId("rf-handle-mock_transform_1-output")).toHaveClass(
     /opacity-0/,
     { timeout: 10_000 },

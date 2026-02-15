@@ -38,6 +38,11 @@ class GraphIntegrityError:
 
 
 def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
+    """Return all step IDs that are referenced as inputs by other steps.
+
+    This is the complement of ``graph.roots``.  Prefer using
+    ``graph.roots`` directly when you only need root step IDs.
+    """
     referenced: set[str] = set()
     for step in graph.steps.values():
         if not isinstance(step, PlanStepNode):
@@ -52,13 +57,20 @@ def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
 
 
 def find_root_step_ids(graph: StrategyGraph) -> list[str]:
-    """Return ids of steps that are not referenced as inputs by other steps."""
-    referenced = find_referenced_step_ids(graph)
-    return [step_id for step_id in graph.steps if step_id not in referenced]
+    """Return IDs of current subtree roots.
+
+    Uses the incrementally-maintained ``graph.roots`` set (O(1)) instead
+    of recomputing from scratch.
+    """
+    return sorted(graph.roots)
 
 
 def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
-    """Validate graph structure + single-output invariant."""
+    """Validate graph structure + single-output invariant.
+
+    Uses ``graph.roots`` for root detection and additionally checks for
+    dangling input references.
+    """
     all_ids = set(graph.steps.keys())
     if not all_ids:
         return [GraphIntegrityError("EMPTY_GRAPH", "No steps in graph.")]
@@ -76,30 +88,29 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
             )
         )
 
-    referenced: set[str] = set()
+    # Check for dangling references (inputs pointing to non-existent steps).
     for step_id, step in graph.steps.items():
         if not isinstance(step, PlanStepNode):
             continue
         primary = getattr(step.primary_input, "id", None)
         secondary = getattr(step.secondary_input, "id", None)
-        if isinstance(primary, str) and primary:
-            referenced.add(primary)
-            if primary not in all_ids:
-                add_missing(primary, step_id, "primary_input")
-        if isinstance(secondary, str) and secondary:
-            referenced.add(secondary)
-            if secondary not in all_ids:
-                add_missing(secondary, step_id, "secondary_input")
+        if isinstance(primary, str) and primary and primary not in all_ids:
+            add_missing(primary, step_id, "primary_input")
+        if isinstance(secondary, str) and secondary and secondary not in all_ids:
+            add_missing(secondary, step_id, "secondary_input")
 
-    root_ids = [sid for sid in graph.steps if sid not in referenced]
-    if len(root_ids) == 0:
+    # Use the incrementally-maintained root set.
+    root_count = len(graph.roots)
+    if root_count == 0:
         errors.append(
             GraphIntegrityError("NO_ROOTS", "Strategy graph has no root/output steps.")
         )
-    elif len(root_ids) > 1:
+    elif root_count > 1:
         errors.append(
             GraphIntegrityError(
-                "MULTIPLE_ROOTS", "Strategy graph must have a single final output step."
+                "MULTIPLE_ROOTS",
+                f"Strategy graph has {root_count} roots — expected 1. "
+                f"Roots: {sorted(graph.roots)}",
             )
         )
 

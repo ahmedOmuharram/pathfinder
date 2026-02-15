@@ -38,6 +38,7 @@ class StrategySummaryResponse(BaseModel):
     step_count: int = Field(alias="stepCount")
     result_count: int | None = Field(default=None, alias="resultCount")
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
+    is_saved: bool = Field(default=False, alias="isSaved")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -88,6 +89,7 @@ class StrategyResponse(BaseModel):
     steps: list[StepResponse]
     root_step_id: str | None = Field(alias="rootStepId")
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
+    is_saved: bool = Field(default=False, alias="isSaved")
     messages: list[MessageResponse] | None = None
     thinking: ThinkingResponse | None = None
     created_at: datetime = Field(alias="createdAt")
@@ -112,14 +114,6 @@ class UpdateStrategyRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     plan: StrategyPlan | None = None
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
-
-    model_config = {"populate_by_name": True}
-
-
-class PushResultResponse(BaseModel):
-    """Result of pushing strategy to WDK."""
-
-    wdk_strategy_id: int = Field(alias="wdkStrategyId")
-    wdk_url: str = Field(alias="wdkUrl")
+    is_saved: bool | None = Field(default=None, alias="isSaved")
 
     model_config = {"populate_by_name": True}

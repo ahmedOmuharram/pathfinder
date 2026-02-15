@@ -163,6 +163,7 @@ class ConversationTools:
             )
 
         graph.steps.clear()
+        graph.roots.clear()
         graph.current_strategy = None
         graph.history.clear()
         graph.last_step_id = None

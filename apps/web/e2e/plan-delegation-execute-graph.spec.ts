@@ -1,11 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { gotoHome, switchToPlan, switchToGraphView, sendMessage } from "./helpers";
+import { gotoHome, sendMessage, openGraphEditor } from "./helpers";
 
 test("plan → delegation draft → build in executor → sub-kani activity → graph view", async ({
   page,
 }) => {
   await gotoHome(page);
-  await switchToPlan(page);
 
   // Trigger deterministic delegation draft from mock provider (plan mode).
   await sendMessage(page, "please create delegation draft");
@@ -19,13 +18,7 @@ test("plan → delegation draft → build in executor → sub-kani activity → 
   // Transition into executor mode via the UI button.
   await page.getByTestId("delegation-build-executor").click({ force: true });
 
-  // Executor chat should mount and auto-send the queued message.
-  await expect(page.getByTestId("mode-toggle-execute")).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-
-  // Assert sub-kani activity is rendered in execute transcript.
+  // Assert sub-kani activity is rendered in the execute transcript.
   // It lives inside the assistant "Thought" details, which is collapsed by default.
   const thought = page.locator("summary").filter({ hasText: "Thought" }).first();
   await expect(thought).toBeVisible({ timeout: 20_000 });
@@ -40,10 +33,12 @@ test("plan → delegation draft → build in executor → sub-kani activity → 
     timeout: 20_000,
   });
 
-  // Switch to graph view and assert the delegated graph exists.
-  await switchToGraphView(page);
-  await page.getByRole("button", { name: "Fit view" }).click();
-  await expect(page.getByText("Delegated search step")).toBeVisible();
-  await expect(page.getByText("Delegated transform step")).toBeVisible();
-  await expect(page.getByText("Delegated combine step")).toBeVisible();
+  // Open graph editor modal and verify the delegated graph exists.
+  // Step names appear both in CompactStrategyView and in the graph modal,
+  // so use .first() to avoid strict mode violations.
+  await openGraphEditor(page);
+  await page.getByRole("button", { name: "fit view" }).click();
+  await expect(page.getByText("Delegated search step").first()).toBeVisible();
+  await expect(page.getByText("Delegated transform step").first()).toBeVisible();
+  await expect(page.getByText("Delegated combine step").first()).toBeVisible();
 });

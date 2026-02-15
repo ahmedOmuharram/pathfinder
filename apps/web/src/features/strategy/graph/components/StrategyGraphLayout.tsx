@@ -39,13 +39,6 @@ interface StrategyGraphLayoutProps {
   selectedCount: number;
   onStartCombine?: () => void;
   onStartOrthologTransform?: () => void;
-  showPush: boolean;
-  onPush: () => void;
-  canPush: boolean;
-  isPushing: boolean;
-  pushLabel: string;
-  pushDisabledReason?: string;
-  onPushDisabled?: () => void;
   canSave: boolean;
   onSave: () => void;
   onSaveDisabled?: () => void;
@@ -95,13 +88,6 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
     selectedCount,
     onStartCombine,
     onStartOrthologTransform,
-    showPush,
-    onPush,
-    canPush,
-    isPushing,
-    pushLabel,
-    pushDisabledReason,
-    onPushDisabled,
     canSave,
     onSave,
     onSaveDisabled,
@@ -163,13 +149,6 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
         />
         {!isCompact && (
           <StrategyGraphActionButtons
-            showPush={showPush}
-            onPush={onPush}
-            canPush={canPush}
-            isPushing={isPushing}
-            pushLabel={pushLabel}
-            pushDisabledReason={pushDisabledReason}
-            onPushDisabled={onPushDisabled}
             canSave={canSave}
             onSave={onSave}
             onSaveDisabled={onSaveDisabled}

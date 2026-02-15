@@ -1,7 +1,22 @@
 import type { ToolCall } from "@pathfinder/shared";
-import { Hourglass } from "lucide-react";
 import { ToolCallInspector } from "@/features/chat/components/ToolCallInspector";
 import { SubKaniStatusIcon } from "@/features/chat/components/SubKaniStatusIcon";
+
+/**
+ * Compact animated dots shown while waiting for the model to produce
+ * reasoning or tool calls. Replaces the old heavy "Waiting for…" panel.
+ */
+function PulsingDots() {
+  return (
+    <div className="flex animate-fade-in justify-start">
+      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+      </div>
+    </div>
+  );
+}
 
 export function ThinkingPanel(props: {
   isStreaming: boolean;
@@ -28,11 +43,18 @@ export function ThinkingPanel(props: {
     activeToolCalls.length > 0 ||
     lastToolCalls.length > 0 ||
     subKaniTasks.length > 0;
+
+  // Nothing to show and not streaming — hide entirely.
   if (!isStreaming && !hasAnyContent) return null;
+
+  // Streaming but no content yet — show compact animated dots.
+  if (isStreaming && !hasAnyContent) {
+    return <PulsingDots />;
+  }
 
   return (
     <div className="flex justify-start animate-fade-in">
-      <div className="w-[85%] shrink-0">
+      <div className="max-w-[85%]">
         <details
           open
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
@@ -41,7 +63,7 @@ export function ThinkingPanel(props: {
             {title || "Thinking"}
           </summary>
           <div className="mt-2 space-y-3 text-[12px] text-slate-700">
-            {reasoning && reasoning.trim().length > 0 && (
+            {hasReasoning && (
               <div className="rounded-md border border-slate-100 bg-white p-2">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   Reasoning
@@ -51,20 +73,11 @@ export function ThinkingPanel(props: {
                 </pre>
               </div>
             )}
-            {activeToolCalls.length > 0 ? (
+            {activeToolCalls.length > 0 && (
               <div className="rounded-md border border-slate-100 bg-slate-50 p-2">
                 <ToolCallInspector toolCalls={activeToolCalls} isActive />
               </div>
-            ) : isStreaming ? (
-              <div className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 p-2 text-[11px] text-slate-500">
-                <Hourglass className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-                <span>
-                  {reasoning
-                    ? "Waiting for tool calls…"
-                    : "Waiting for reasoning or tool calls…"}
-                </span>
-              </div>
-            ) : null}
+            )}
 
             {subKaniTasks.length > 0 && (
               <details open className="rounded-md border border-slate-100 bg-white p-2">
@@ -89,13 +102,7 @@ export function ThinkingPanel(props: {
                       {calls.length > 0 ? (
                         <ToolCallInspector toolCalls={calls} isActive />
                       ) : (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                          <Hourglass
-                            className="h-3.5 w-3.5 text-slate-400"
-                            aria-hidden="true"
-                          />
-                          <span>Waiting for sub-kani tool calls…</span>
-                        </div>
+                        <PulsingDots />
                       )}
                     </div>
                   ))}

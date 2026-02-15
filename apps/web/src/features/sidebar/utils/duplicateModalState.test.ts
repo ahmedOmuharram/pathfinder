@@ -15,7 +15,7 @@ describe("duplicateModalState", () => {
       id: "s1",
       name: "A",
       updatedAt: "t",
-      source: "draft",
+      isSaved: false,
     } as StrategyListItem;
     const state = initDuplicateModal(item);
     expect(state.isLoading).toBe(true);
@@ -27,7 +27,7 @@ describe("duplicateModalState", () => {
       id: "s1",
       name: "A",
       updatedAt: "t",
-      source: "draft",
+      isSaved: false,
     } as StrategyListItem;
     const prev = initDuplicateModal(item);
     const next = applyDuplicateLoadSuccess(prev, {
@@ -44,7 +44,7 @@ describe("duplicateModalState", () => {
       id: "s1",
       name: "A",
       updatedAt: "t",
-      source: "draft",
+      isSaved: false,
     } as StrategyListItem;
     const prev = initDuplicateModal(item);
     const next = applyDuplicateLoadFailure(prev);
@@ -62,7 +62,7 @@ describe("duplicateModalState", () => {
       id: "s1",
       name: "A",
       updatedAt: "t",
-      source: "draft",
+      isSaved: false,
     } as StrategyListItem;
     const prev = initDuplicateModal(item);
     const started = startDuplicateSubmit({ ...prev, isLoading: false });

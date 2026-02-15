@@ -11,13 +11,15 @@ import { expect, type Page } from "@playwright/test";
  *    succeeds without a real VEuPathDB session.
  */
 async function setupAuth(page: Page) {
-  const baseURL =
-    page.context().browser()?.contexts()[0]?.pages()[0]?.url() ??
-    "http://localhost:3000";
   const apiBase = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 
-  // 1. Obtain a valid auth token from the dev-only endpoint.
-  const resp = await page.request.post(`${apiBase}/api/v1/dev/login`);
+  // 1. Obtain a valid auth token from the dev-only endpoint (with retry).
+  let resp = await page.request.post(`${apiBase}/api/v1/dev/login`);
+  if (!resp.ok()) {
+    // Parallel workers can race on user creation — retry once.
+    await page.waitForTimeout(500);
+    resp = await page.request.post(`${apiBase}/api/v1/dev/login`);
+  }
   expect(resp.ok()).toBeTruthy();
   const { authToken } = (await resp.json()) as { authToken: string };
 
@@ -52,26 +54,50 @@ async function setupAuth(page: Page) {
   );
 }
 
+/**
+ * Navigate to the home page in plan mode (default — no strategy selected).
+ */
 export async function gotoHome(page: Page) {
   await setupAuth(page);
   await page.goto("/");
   await expect(page.getByTestId("message-composer")).toBeVisible();
 }
 
-export async function switchToPlan(page: Page) {
-  await page.getByTestId("mode-toggle-plan").click();
-  await expect(page.getByTestId("mode-toggle-plan")).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-}
+/**
+ * Navigate to the home page with a test strategy selected (execute mode).
+ *
+ * Creates a strategy via the API before navigation so it shows up in the
+ * unified sidebar, then clicks it by its unique `data-conversation-id` to
+ * enter execute mode.
+ */
+export async function gotoHomeWithStrategy(page: Page) {
+  await setupAuth(page);
 
-export async function switchToExecute(page: Page) {
-  await page.getByTestId("mode-toggle-execute").click();
-  await expect(page.getByTestId("mode-toggle-execute")).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  const apiBase = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+  const uniqueName = `E2E Strategy ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const createResp = await page.request.post(`${apiBase}/api/v1/strategies`, {
+    data: {
+      name: uniqueName,
+      siteId: "plasmodb",
+      plan: {
+        recordType: "gene",
+        root: { searchName: "GenesByTaxon", parameters: {} },
+      },
+    },
+  });
+  expect(createResp.ok()).toBeTruthy();
+  const { id: strategyId } = (await createResp.json()) as { id: string };
+
+  await page.goto("/");
+  await expect(page.getByTestId("message-composer")).toBeVisible();
+
+  // Select the strategy by its unique conversation-id to avoid strict mode
+  // violations when parallel tests create strategies with similar names.
+  const item = page.locator(
+    `[data-testid="conversation-item"][data-conversation-id="${strategyId}"]`,
   );
+  await expect(item).toBeVisible({ timeout: 10_000 });
+  await item.click();
 }
 
 export async function sendMessage(page: Page, message: string) {
@@ -79,26 +105,26 @@ export async function sendMessage(page: Page, message: string) {
   await page.getByTestId("send-button").click();
 }
 
-export async function switchToGraphView(page: Page) {
-  const chatPreview = page.getByRole("button", { name: /chat preview/i }).first();
-  if (await chatPreview.isVisible()) return;
-
-  // The preview widget is a div with role=button, labeled "Graph preview" when chat is active.
-  const graphPreview = page.getByRole("button", { name: /graph preview/i }).first();
-  await expect(graphPreview).toBeVisible();
-  await graphPreview.click();
-  await expect(chatPreview).toBeVisible({ timeout: 20_000 });
+/**
+ * Open the graph editor modal by clicking "Edit" in the CompactStrategyView.
+ * Requires a strategy with steps to be rendered.
+ */
+export async function openGraphEditor(page: Page) {
+  const editBtn = page.getByRole("button", { name: "Edit" });
+  await expect(editBtn).toBeVisible({ timeout: 20_000 });
+  await editBtn.click();
+  // The modal has both an sr-only heading and a visible span with "Graph Editor".
+  // Target the visible span specifically to avoid strict mode violation.
+  await expect(page.locator("span").filter({ hasText: "Graph Editor" })).toBeVisible();
 }
 
-export async function switchToChatView(page: Page) {
-  const composer = page.getByTestId("message-composer");
-  const graphPreview = page.getByRole("button", { name: /graph preview/i }).first();
-  if (await graphPreview.isVisible()) return;
-  const chatPreview = page.getByRole("button", { name: /chat preview/i }).first();
-  await expect(chatPreview).toBeVisible();
-  await chatPreview.click();
-  await expect(graphPreview).toBeVisible({ timeout: 20_000 });
-  await expect(composer).toBeVisible();
+/**
+ * Close the graph editor modal.
+ */
+export async function closeGraphEditor(page: Page) {
+  const closeBtn = page.getByRole("button", { name: "Close" });
+  await closeBtn.click();
+  await expect(page.getByTestId("message-composer")).toBeVisible();
 }
 
 export async function expectIdleComposer(page: Page) {

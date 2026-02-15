@@ -32,13 +32,17 @@ class SearchCatalog:
             try:
                 # Load record types with expanded searches when possible
                 raw_record_types = await client.get_record_types(expanded=True)
+                # WDK's record-types endpoint returns an array directly, but
+                # some deployments may wrap it under JsonKeys.RECORD_TYPES = "recordTypes".
                 if isinstance(raw_record_types, dict):
-                    raw_record_types = (
-                        raw_record_types.get("recordTypes")
-                        or raw_record_types.get("records")
-                        or raw_record_types.get("result")
-                        or []
-                    )
+                    wrapped = raw_record_types.get("recordTypes")
+                    if isinstance(wrapped, list):
+                        raw_record_types = wrapped
+                    else:
+                        raise ValueError(
+                            f"Unexpected record-types response shape: "
+                            f"dict without 'recordTypes' list (keys: {list(raw_record_types.keys())})"
+                        )
                 expanded_supported = any(
                     isinstance(rt, dict) and "searches" in rt for rt in raw_record_types
                 )
@@ -51,10 +55,12 @@ class SearchCatalog:
                         searches: JSONArray | None = []
                     elif isinstance(rt, dict):
                         rt_dict: JSONObject = rt
-                        rt_name_raw = (
-                            rt_dict.get("urlSegment") or rt_dict.get("name") or ""
+                        # WDK uses JsonKeys.URL_SEGMENT = "urlSegment" as the
+                        # programmatic identifier for record types.
+                        rt_name_raw = rt_dict.get("urlSegment")
+                        rt_name = (
+                            str(rt_name_raw) if isinstance(rt_name_raw, str) else ""
                         )
-                        rt_name = str(rt_name_raw) if rt_name_raw is not None else ""
                         self._record_types.append(rt_dict)
                         searches_raw = (
                             rt_dict.get("searches") if expanded_supported else None

@@ -1,5 +1,10 @@
-export function EmptyGraphState(props: { isCompact: boolean }) {
-  const { isCompact } = props;
+import { MessageSquarePlus } from "lucide-react";
+
+export function EmptyGraphState(props: {
+  isCompact: boolean;
+  onSwitchToChat?: () => void;
+}) {
+  const { isCompact, onSwitchToChat } = props;
   return (
     <div className="flex items-center justify-center h-full text-slate-500">
       <div className="text-center">
@@ -16,6 +21,16 @@ export function EmptyGraphState(props: { isCompact: boolean }) {
         <p className={`text-slate-500 ${isCompact ? "text-xs" : "text-sm"}`}>
           Your strategy will appear here as you build it
         </p>
+        {!isCompact && onSwitchToChat && (
+          <button
+            type="button"
+            onClick={onSwitchToChat}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            Switch to chat to start building
+          </button>
+        )}
       </div>
     </div>
   );

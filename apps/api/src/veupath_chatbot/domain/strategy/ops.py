@@ -99,6 +99,10 @@ def parse_op(value: str) -> CombineOp:
         "RIGHT_MINUS": CombineOp.MINUS_RIGHT,
         "LMINUS": CombineOp.MINUS_LEFT,
         "RMINUS": CombineOp.MINUS_RIGHT,
+        # WDK BooleanOperator enum values for "only" variants
+        # (semantically identical to minus: LONLY = left - right, RONLY = right - left)
+        "LONLY": CombineOp.MINUS_LEFT,
+        "RONLY": CombineOp.MINUS_RIGHT,
         "COLOCATE": CombineOp.COLOCATE,
     }
     if norm in aliases:

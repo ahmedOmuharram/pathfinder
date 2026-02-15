@@ -3,6 +3,14 @@ import { streamSSE } from "@/lib/sse";
 import type { ChatSSEEvent } from "./sse_events";
 import { parseChatSSEEvent } from "./sse_events";
 import { AppError } from "@/shared/errors/AppError";
+import type { ModelSelection } from "@pathfinder/shared";
+
+export interface StreamChatContext {
+  strategyId?: string;
+  planSessionId?: string;
+  /** Reference strategy to inject into plan-mode context. */
+  referenceStrategyId?: string;
+}
 
 export async function streamChat(
   message: string,
@@ -14,9 +22,10 @@ export async function streamChat(
     maxRetries?: number;
     retryDelay?: number;
   },
-  context?: { strategyId?: string; planSessionId?: string },
+  context?: StreamChatContext,
   mode: "execute" | "plan" = "execute",
   signal?: AbortSignal,
+  modelSelection?: ModelSelection,
 ) {
   // Fail fast if the API isn't ready (keeps retry loops clearer).
   const healthUrl = buildUrl("/health/ready");
@@ -45,7 +54,12 @@ export async function streamChat(
           siteId,
           strategyId: context?.strategyId,
           planSessionId: context?.planSessionId,
+          referenceStrategyId: context?.referenceStrategyId,
           mode,
+          // Per-request model overrides
+          provider: modelSelection?.provider,
+          model: modelSelection?.model,
+          reasoningEffort: modelSelection?.reasoningEffort,
         },
         signal,
       },

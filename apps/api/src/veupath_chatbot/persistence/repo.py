@@ -112,6 +112,7 @@ class StrategyRepository:
         wdk_strategy_id: int | None = None,
         strategy_id: UUID | None = None,
         title: str | None = None,
+        is_saved: bool = False,
     ) -> Strategy:
         """Create a new strategy."""
         strategy = Strategy(
@@ -127,6 +128,7 @@ class StrategyRepository:
             steps=steps or [],
             root_step_id=root_step_id,
             wdk_strategy_id=wdk_strategy_id,
+            is_saved=is_saved,
         )
         self.session.add(strategy)
         await self.session.flush()
@@ -158,6 +160,8 @@ class StrategyRepository:
         record_type: str | None = None,
         messages: JSONArray | None = None,
         thinking: JSONObject | None = None,
+        is_saved: bool | None = None,
+        is_saved_set: bool = False,
     ) -> Strategy | None:
         """Update a strategy."""
         strategy = await self.get_by_id(strategy_id)
@@ -188,6 +192,8 @@ class StrategyRepository:
             strategy.messages = messages
         if thinking is not None:
             strategy.thinking = thinking
+        if is_saved_set:
+            strategy.is_saved = bool(is_saved)
         await self.session.flush()
 
         # Create history entry if plan changed

@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 ChatMode = Literal["execute", "plan"]
+ModelProvider = Literal["openai", "anthropic", "google"]
+ReasoningEffort = Literal["none", "low", "medium", "high"]
 
 
 class ChatRequest(BaseModel):
@@ -21,6 +23,18 @@ class ChatRequest(BaseModel):
     site_id: str = Field(alias="siteId")
     message: str = Field(min_length=1, max_length=10000)
     mode: ChatMode = Field(default="execute")
+
+    # Per-request model overrides (optional; falls back to server defaults).
+    provider: ModelProvider | None = Field(default=None)
+    model_id: str | None = Field(default=None, alias="model")
+    reasoning_effort: ReasoningEffort | None = Field(
+        default=None, alias="reasoningEffort"
+    )
+
+    # Optional reference strategy for plan-mode context injection.
+    reference_strategy_id: UUID | None = Field(
+        default=None, alias="referenceStrategyId"
+    )
 
     model_config = {"populate_by_name": True}
 

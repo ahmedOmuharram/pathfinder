@@ -81,28 +81,16 @@ export async function listStrategies(
   });
 }
 
-export async function listWdkStrategies(siteId?: string | null): Promise<
-  {
-    wdkStrategyId: number;
-    name: string;
-    siteId: string;
-    wdkUrl?: string | null;
-    rootStepId?: number | null;
-    isSaved?: boolean | null;
-    isInternal?: boolean;
-  }[]
-> {
-  return await requestJson<
-    {
-      wdkStrategyId: number;
-      name: string;
-      siteId: string;
-      wdkUrl?: string | null;
-      rootStepId?: number | null;
-      isSaved?: boolean | null;
-      isInternal?: boolean;
-    }[]
-  >("/api/v1/strategies/wdk", { query: siteId ? { siteId } : undefined });
+/**
+ * Batch-sync all WDK strategies into the local DB and return the full
+ * local strategy list for this site.  Replaces the old
+ * ``listWdkStrategies`` + ``listStrategies`` two-call pattern.
+ */
+export async function syncWdkStrategies(siteId: string): Promise<StrategyWithMeta[]> {
+  return await requestJson<StrategyWithMeta[]>("/api/v1/strategies/sync-wdk", {
+    method: "POST",
+    query: { siteId },
+  });
 }
 
 export async function openStrategy(payload: {
@@ -148,7 +136,12 @@ export async function createStrategy(args: {
 
 export async function updateStrategy(
   strategyId: string,
-  args: { name?: string; plan?: StrategyPlan; wdkStrategyId?: number | null },
+  args: {
+    name?: string;
+    plan?: StrategyPlan;
+    wdkStrategyId?: number | null;
+    isSaved?: boolean;
+  },
 ): Promise<StrategyWithMeta> {
   return await requestJson<StrategyWithMeta>(`/api/v1/strategies/${strategyId}`, {
     method: "PATCH",
@@ -179,24 +172,6 @@ export async function computeStepCounts(
   return await requestJson<{ counts: Record<string, number | null> }>(
     "/api/v1/strategies/step-counts",
     { method: "POST", body: { siteId, plan } },
-  );
-}
-
-export async function pushStrategy(
-  strategyId: string,
-): Promise<{ wdkStrategyId: number; wdkUrl: string }> {
-  return await requestJson<{ wdkStrategyId: number; wdkUrl: string }>(
-    `/api/v1/strategies/${strategyId}/push`,
-    { method: "POST" },
-  );
-}
-
-export async function syncStrategyFromWdk(
-  strategyId: string,
-): Promise<StrategyWithMeta> {
-  return await requestJson<StrategyWithMeta>(
-    `/api/v1/strategies/${strategyId}/sync-wdk`,
-    { method: "POST" },
   );
 }
 
@@ -320,4 +295,17 @@ export async function logoutVeupathdb(): Promise<{ success: boolean }> {
  */
 export async function refreshAuth(): Promise<{ success: boolean; authToken?: string }> {
   return await requestJson(`/api/v1/veupathdb/auth/refresh`, { method: "POST" });
+}
+
+// -----------------------------------------------------------------------------
+// Models / catalog
+// -----------------------------------------------------------------------------
+
+export interface ModelCatalogResponse {
+  models: import("@pathfinder/shared").ModelCatalogEntry[];
+  defaults: { execute: string; plan: string };
+}
+
+export async function listModels(): Promise<ModelCatalogResponse> {
+  return await requestJson<ModelCatalogResponse>("/api/v1/models");
 }

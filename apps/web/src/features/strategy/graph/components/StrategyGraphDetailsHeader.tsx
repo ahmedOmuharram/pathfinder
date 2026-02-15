@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 interface StrategyGraphDetailsHeaderProps {
   detailsCollapsed: boolean;
   onToggleCollapsed: () => void;
+  /** Strategy name is now edited via the conversation header — kept here as read-only context. */
   nameValue: string;
   onNameChange: (next: string) => void;
   onNameCommit: () => void;
@@ -16,45 +17,30 @@ interface StrategyGraphDetailsHeaderProps {
 export function StrategyGraphDetailsHeader({
   detailsCollapsed,
   onToggleCollapsed,
-  nameValue,
-  onNameChange,
-  onNameCommit,
   descriptionValue,
   onDescriptionChange,
   onDescriptionCommit,
 }: StrategyGraphDetailsHeaderProps) {
   return (
     <div className="border-b border-slate-200 bg-white px-3 pb-1.5 pt-0">
+      {/* CSS grid row transition: grid-template-rows 0fr <-> 1fr animates smoothly */}
       <div
-        className="overflow-hidden transition-[height,opacity] duration-200"
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
         style={{
-          height: detailsCollapsed ? 0 : "auto",
-          opacity: detailsCollapsed ? 0 : 1,
+          gridTemplateRows: detailsCollapsed ? "0fr" : "1fr",
         }}
       >
-        <div className="mt-0.5 flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-[240px] flex-1 flex-col gap-2">
+        <div className="overflow-hidden">
+          <div className="mt-0.5">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Strategy name
-              </div>
-              <input
-                value={nameValue}
-                onChange={(event) => onNameChange(event.target.value)}
-                onBlur={onNameCommit}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    onNameCommit();
-                  }
-                }}
-                className="mt-1 w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-slate-800 outline-none transition focus:border-slate-300 focus:ring-1 focus:ring-slate-200"
-              />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <label
+                htmlFor="strategy-description-input"
+                className="text-[11px] font-semibold uppercase tracking-wide text-slate-400"
+              >
                 Description
-              </div>
+              </label>
               <textarea
+                id="strategy-description-input"
                 value={descriptionValue}
                 onChange={(event) => onDescriptionChange(event.target.value)}
                 onBlur={onDescriptionCommit}
@@ -72,6 +58,7 @@ export function StrategyGraphDetailsHeader({
         onClick={onToggleCollapsed}
         className="mt-1.5 flex w-full items-center justify-center gap-2 text-slate-400 transition hover:text-slate-600"
         aria-label={detailsCollapsed ? "Expand details" : "Collapse details"}
+        aria-expanded={!detailsCollapsed}
       >
         {detailsCollapsed ? (
           <ChevronDown className="h-4 w-4" />

@@ -61,6 +61,13 @@ export type ChatEventContext = {
   getStrategy: (id: string) => Promise<StrategyWithMeta>;
   streamingAssistantIndexRef: MutableRef<number | null>;
   streamingAssistantMessageIdRef: MutableRef<string | null>;
+
+  // --- Optional plan-mode callbacks ---
+  onPlanSessionId?: (id: string) => void;
+  onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
+  onExecutorBuildRequest?: (message: string) => void;
+  onPlanTitleUpdate?: (title: string) => void;
+  onApiError?: (message: string) => void;
 };
 
 export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
@@ -92,14 +99,24 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     getStrategy,
     streamingAssistantIndexRef,
     streamingAssistantMessageIdRef,
+    onPlanSessionId,
+    onPlanningArtifactUpdate,
+    onExecutorBuildRequest,
+    onPlanTitleUpdate,
+    onApiError,
   } = ctx;
 
   switch (event.type) {
     case "message_start": {
-      const { strategyId, strategy } = event.data as {
+      const { strategyId, strategy, planSessionId } = event.data as {
         strategyId?: string;
         strategy?: StrategyWithMeta;
+        planSessionId?: string;
       };
+      // Plan mode: notify caller of plan session id
+      if (planSessionId && onPlanSessionId) {
+        onPlanSessionId(planSessionId);
+      }
       if (strategyId) {
         setStrategyId(strategyId);
         addStrategy({
@@ -261,6 +278,7 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       const artifact = event.data.planningArtifact;
       if (artifact && typeof artifact === "object" && !Array.isArray(artifact)) {
         planningArtifactsBuffer.push(artifact as PlanningArtifact);
+        onPlanningArtifactUpdate?.(artifact as PlanningArtifact);
       }
       break;
     }
@@ -468,6 +486,20 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       if (!strategyIdAtStart || targetGraphId === strategyIdAtStart) clearStrategy();
       break;
     }
+    case "executor_build_request": {
+      const { message } = event.data as { message?: string };
+      if (message && onExecutorBuildRequest) {
+        onExecutorBuildRequest(message);
+      }
+      break;
+    }
+    case "plan_update": {
+      const { title } = event.data as { title?: string };
+      if (title && onPlanTitleUpdate) {
+        onPlanTitleUpdate(title.trim());
+      }
+      break;
+    }
     case "error": {
       const { error } = event.data as { error: string };
       const assistantMessage: Message = {
@@ -476,6 +508,7 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+      onApiError?.(error);
       break;
     }
     case "unknown":

@@ -53,13 +53,15 @@ describe("state/useSessionStore", () => {
     expect(store.getState().selectedSiteDisplayName).toBe("TrypDB");
   });
 
-  it("setStrategyId updates strategy id", async () => {
+  it("setStrategyId updates strategy id and auto-derives chatMode", async () => {
     const mod = await import("./useSessionStore");
     const store = mod.useSessionStore;
     store.getState().setStrategyId("s123");
     expect(store.getState().strategyId).toBe("s123");
+    expect(store.getState().chatMode).toBe("execute");
     store.getState().setStrategyId(null);
     expect(store.getState().strategyId).toBeNull();
+    expect(store.getState().chatMode).toBe("plan");
   });
 
   it("setPlanSessionId updates plan session id", async () => {
@@ -102,5 +104,21 @@ describe("state/useSessionStore", () => {
     const store = mod.useSessionStore;
     store.getState().setChatMode("execute");
     expect(store.getState().chatMode).toBe("execute");
+  });
+
+  it("linkConversation stores plan-to-strategy mapping and persists to localStorage", async () => {
+    const localStorage = makeLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().linkConversation("plan-1", "strategy-1");
+    expect(store.getState().linkedConversations).toEqual({
+      "plan-1": "strategy-1",
+    });
+    const persisted = JSON.parse(
+      localStorage.getItem("pathfinder-linked-conversations") ?? "{}",
+    );
+    expect(persisted).toEqual({ "plan-1": "strategy-1" });
   });
 });

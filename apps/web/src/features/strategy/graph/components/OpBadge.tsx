@@ -13,7 +13,7 @@ const OP_INFO: Record<string, { label: string }> = {
   COLOCATE: { label: "NEAR (COLOCATE)" },
 };
 
-function VennIcon({ operator }: { operator: string }) {
+export function VennIcon({ operator }: { operator: string }) {
   const stroke = "#64748b"; // slate-500
   const highlight = "#00e676"; // vibrant green (A400-ish)
   const bg = "#f8fafc"; // slate-50 (matches badge bg)

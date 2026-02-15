@@ -25,7 +25,6 @@ interface UseGraphSaveArgs {
     type: "success" | "error" | "warning" | "info";
     message: string;
   }) => void;
-  onPush?: () => void;
   setStrategyMeta: (meta: Partial<StrategyWithMeta>) => void;
   buildStepSignature: (step: StrategyStep) => string;
   setLastSavedSteps: React.Dispatch<React.SetStateAction<Map<string, string>>>;
@@ -50,7 +49,6 @@ export function useGraphSave({
   buildPlan,
   combineMismatchGroups,
   onToast,
-  onPush,
   setStrategyMeta,
   buildStepSignature,
   setLastSavedSteps,
@@ -63,12 +61,6 @@ export function useGraphSave({
 }: UseGraphSaveArgs) {
   const [isSaving, setIsSaving] = useState(false);
   const [, setSaveError] = useState<string | null>(null);
-
-  const failCombineMismatch = useCallback(() => {
-    const message = "Cannot combine steps with different record types.";
-    setSaveError(message);
-    onToast?.({ type: "error", message });
-  }, [onToast]);
 
   const persistPlan = useCallback(
     async (args: PersistPlanArgs = {}) => {
@@ -91,14 +83,13 @@ export function useGraphSave({
         return;
       }
       if (combineMismatchGroups.length > 0) {
-        // Allow saving even when the graph is invalid; surface as a warning.
+        const message =
+          "Cannot save: the graph has validation issues (cannot combine steps with different record types).";
+        setSaveError(message);
         if (toastOnWarnings) {
-          onToast?.({
-            type: "warning",
-            message:
-              "Saved, but the graph has validation issues (cannot combine steps with different record types).",
-          });
+          onToast?.({ type: "error", message });
         }
+        return;
       }
       if (overrideName || overrideDescription !== undefined) {
         setStrategyMeta({
@@ -206,10 +197,11 @@ export function useGraphSave({
     }
     const isValid = await validateSearchSteps();
     if (!isValid) {
-      onToast?.({
-        type: "warning",
-        message: "Saving despite validation errors. You can fix them later.",
-      });
+      const message =
+        "Cannot save: fix the validation errors highlighted in the graph first.";
+      setSaveError(message);
+      onToast?.({ type: "error", message });
+      return;
     }
     await persistStrategyDetails(name, descriptionValue.trim());
   }, [
@@ -224,20 +216,19 @@ export function useGraphSave({
 
   const handleAutoSaveAfterModelResponse = useCallback(async () => {
     if (!draftStrategy?.id) return;
-    // Always run validation to surface errors in the UI, but never block saving.
-    await validateSearchSteps();
-    await persistPlan({ toastOnSuccess: false, toastOnWarnings: false });
-  }, [draftStrategy?.id, validateSearchSteps, persistPlan]);
-
-  const handlePush = useCallback(async () => {
-    if (!onPush) return;
-    setSaveError(null);
-    if (combineMismatchGroups.length > 0) {
-      failCombineMismatch();
+    const isValid = await validateSearchSteps();
+    if (!isValid) {
+      // Surface the error in the UI (validation errors are already set on steps)
+      // but do not persist a structurally invalid graph.
+      onToast?.({
+        type: "error",
+        message:
+          "Auto-save skipped: the graph has validation errors that must be fixed first.",
+      });
       return;
     }
-    await onPush();
-  }, [onPush, combineMismatchGroups.length, failCombineMismatch]);
+    await persistPlan({ toastOnSuccess: false, toastOnWarnings: false });
+  }, [draftStrategy?.id, validateSearchSteps, persistPlan, onToast]);
 
   const canSave = !!draftStrategy && strategy?.id === draftStrategy.id && !!buildPlan();
 
@@ -246,7 +237,6 @@ export function useGraphSave({
     canSave,
     handleSave,
     handleAutoSaveAfterModelResponse,
-    handlePush,
     persistPlan,
   };
 }

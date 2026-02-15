@@ -46,7 +46,11 @@ export async function validateStepsForSave(args: {
   await Promise.all(
     steps.map(async (step) => {
       if (inferStepKind(step) !== "search") {
-        errorsByStepId[step.id] = undefined;
+        // Preserve structural errors already set (MISSING_INPUT, MISSING_OPERATOR, etc.).
+        // Only clear when there is no structural issue.
+        if (!errorsByStepId[step.id]) {
+          errorsByStepId[step.id] = undefined;
+        }
         return;
       }
 

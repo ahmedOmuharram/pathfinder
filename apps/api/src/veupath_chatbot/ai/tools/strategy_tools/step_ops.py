@@ -177,6 +177,61 @@ class StrategyStepOps(StrategyToolsHelpers):
                     graphId=graph.id,
                 )
 
+        # ------------------------------------------------------------------
+        # Tree-first enforcement: inputs must be current subtree roots.
+        #
+        # A root is a step that has not been consumed as input by another
+        # step.  Referencing a non-root would mean branching off an
+        # internal node, turning the tree into a DAG.
+        # ------------------------------------------------------------------
+        if primary_input is not None and primary_input_step_id not in graph.roots:
+            # Find which step already consumed this input.
+            consumer = next(
+                (
+                    s.id
+                    for s in graph.steps.values()
+                    if (
+                        getattr(getattr(s, "primary_input", None), "id", None)
+                        == primary_input_step_id
+                        or getattr(getattr(s, "secondary_input", None), "id", None)
+                        == primary_input_step_id
+                    )
+                ),
+                None,
+            )
+            return self._tool_error(
+                ErrorCode.INVALID_STRATEGY,
+                f"Step '{primary_input_step_id}' is not a subtree root — it is already consumed by step '{consumer}'. "
+                "Only current subtree roots can be used as inputs.",
+                graphId=graph.id,
+                stepId=primary_input_step_id,
+                consumedBy=consumer,
+                availableRoots=cast(JSONValue, sorted(graph.roots)),
+            )
+        if secondary_input is not None and secondary_input_step_id not in graph.roots:
+            consumer = next(
+                (
+                    s.id
+                    for s in graph.steps.values()
+                    if (
+                        getattr(getattr(s, "primary_input", None), "id", None)
+                        == secondary_input_step_id
+                        or getattr(getattr(s, "secondary_input", None), "id", None)
+                        == secondary_input_step_id
+                    )
+                ),
+                None,
+            )
+            return self._tool_error(
+                ErrorCode.INVALID_STRATEGY,
+                f"Step '{secondary_input_step_id}' is not a subtree root — it is already consumed by step '{consumer}'. "
+                "Only current subtree roots can be used as inputs.",
+                graphId=graph.id,
+                stepId=secondary_input_step_id,
+                consumedBy=consumer,
+                availableRoots=cast(JSONValue, sorted(graph.roots)),
+            )
+
         # Establish best-effort record type context for graph.
         resolved_record_type = graph.record_type or record_type
         if resolved_record_type is None and search_name:

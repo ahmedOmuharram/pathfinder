@@ -50,6 +50,7 @@ def build_strategy_session(
                 graph.current_strategy = strategy
                 graph.name = strategy.name or name
                 graph.steps = {step.id: step for step in strategy.get_all_steps()}
+                graph.recompute_roots()
                 graph.last_step_id = strategy.root.id
                 graph.save_history(f"Loaded graph: {strategy.name or name}")
             except Exception as e:

@@ -67,6 +67,8 @@ class StrategyEditOps(StrategyToolsHelpers):
 
         graph.current_strategy = None
         graph.last_step_id = next(iter(remaining), None)
+        # Recompute the subtree-root set after bulk removal.
+        graph.recompute_roots()
         response: JSONObject = {
             "deleted": cast(JSONArray, list(to_remove)),
             "graphId": graph.id,

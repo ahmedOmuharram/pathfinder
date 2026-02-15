@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 from kani import ChatMessage, ChatRole
 
 from veupath_chatbot.ai.agent_factory import ChatMode, create_agent
+from veupath_chatbot.ai.model_catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
     StrategyRepository,
@@ -297,6 +298,11 @@ async def start_chat_stream(
     user_repo: UserRepository,
     strategy_repo: StrategyRepository,
     plan_repo: PlanSessionRepository,
+    # Per-request model overrides
+    provider_override: ModelProvider | None = None,
+    model_override: str | None = None,
+    reasoning_effort: ReasoningEffort | None = None,
+    reference_strategy_id: UUID | None = None,
 ) -> AsyncIterator[str]:
     """Start an SSE stream for a chat turn.
 
@@ -358,16 +364,37 @@ async def start_chat_stream(
                 delegation_draft_artifact = a
                 break
 
+        # If a reference strategy was provided, load its graph for context.
+        ref_strategy_graph: JSONObject | None = None
+        if reference_strategy_id:
+            ref_strategy = await strategy_repo.get_by_id(reference_strategy_id)
+            if ref_strategy:
+                ref_strategy_graph = {
+                    "id": str(ref_strategy.id),
+                    "name": ref_strategy.name,
+                    "plan": ref_strategy.plan,
+                    "steps": ref_strategy.steps,
+                    "rootStepId": (
+                        str(ref_strategy.root_step_id)
+                        if ref_strategy.root_step_id
+                        else None
+                    ),
+                    "recordType": ref_strategy.record_type,
+                }
+
         agent = create_agent(
             site_id=site_id,
             user_id=user_id,
             chat_history=history,
-            strategy_graph=None,
+            strategy_graph=ref_strategy_graph,
             selected_nodes=None,
             delegation_draft_artifact=delegation_draft_artifact,
             plan_session_id=plan_session.id,
             get_plan_session_artifacts=_get_plan_artifacts,
             mode="plan",
+            provider_override=provider_override,
+            model_override=model_override,
+            reasoning_effort=reasoning_effort,
         )
 
         plan_payload: JSONObject = {
@@ -445,6 +472,9 @@ async def start_chat_stream(
         strategy_graph=strategy_graph_payload,
         selected_nodes=selected_nodes,
         mode=cast(ChatMode, mode),
+        provider_override=provider_override,
+        model_override=model_override,
+        reasoning_effort=reasoning_effort,
     )
 
     async def event_generator() -> AsyncIterator[str]:

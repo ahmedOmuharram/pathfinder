@@ -459,22 +459,24 @@ class StrategyToolsHelpers(StrategyToolsBase):
         graph: StrategyGraph,
         step: PlanStepNode,
     ) -> JSONObject:
-        default_name = step.search_name
-        info: JSONObject = {
-            "graphId": graph.id,
-            "graphName": graph.name,
-            "stepId": step.id,
-            "displayName": step.display_name or default_name,
-            "recordType": graph.record_type,
-        }
+        """Serialize a step with WDK-aligned fields.
+
+        Includes ``estimatedSize`` and ``wdkStepId`` when available on the
+        graph (populated after ``build_strategy``).  Omits noisy fields
+        (parameters, filters, analyses, reports) when empty.
+        """
         kind = step.infer_kind()
-        info["kind"] = kind
-        # `searchName` is only meaningful for WDK-backed question steps (leaf / transform).
-        # Combine steps are represented structurally (primary/secondary/operator) and do not
-        # correspond to a WDK "searchName" that the UI can load param metadata for.
+        info: JSONObject = {
+            "stepId": step.id,
+            "kind": kind,
+            "displayName": step.display_name or step.search_name,
+        }
+
+        # searchName is only meaningful for leaf / transform steps.
         if kind != "combine":
             info["searchName"] = step.search_name
-        info["parameters"] = step.parameters
+
+        # Structural relationships.
         if kind == "combine":
             info["operator"] = step.operator.value if step.operator else None
             info["primaryInputStepId"] = (
@@ -487,26 +489,47 @@ class StrategyToolsHelpers(StrategyToolsBase):
             info["primaryInputStepId"] = (
                 step.primary_input.id if step.primary_input else None
             )
-        info["filters"] = [f.to_dict() for f in getattr(step, "filters", []) or []]
-        info["analyses"] = [a.to_dict() for a in getattr(step, "analyses", []) or []]
-        info["reports"] = [r.to_dict() for r in getattr(step, "reports", []) or []]
+
+        # WDK-aligned fields (populated after build_strategy).
+        wdk_step_id = graph.wdk_step_ids.get(step.id)
+        if wdk_step_id is not None:
+            info["wdkStepId"] = wdk_step_id
+        info["isBuilt"] = wdk_step_id is not None
+
+        estimated_size = graph.step_counts.get(step.id)
+        if estimated_size is not None:
+            info["estimatedSize"] = estimated_size
+
+        # Only include heavy fields when non-empty.
+        if step.parameters:
+            info["parameters"] = step.parameters
+        filters = [f.to_dict() for f in getattr(step, "filters", []) or []]
+        if filters:
+            info["filters"] = filters
+        analyses = [a.to_dict() for a in getattr(step, "analyses", []) or []]
+        if analyses:
+            info["analyses"] = analyses
+        reports = [r.to_dict() for r in getattr(step, "reports", []) or []]
+        if reports:
+            info["reports"] = reports
         return info
 
     def _serialize_graph_step(self, step: PlanStepNode) -> JSONObject:
+        """Serialize a step for graph snapshots.
+
+        Same enrichments as ``_serialize_step`` (WDK IDs, counts) but keyed
+        by ``id`` instead of ``stepId`` for graph-snapshot compatibility.
+        """
+        graph = self._get_graph(None)
         kind = step.infer_kind()
-        default_name = step.search_name
         base: JSONObject = {
             "id": step.id,
             "kind": kind,
-            "displayName": step.display_name or default_name,
-            "recordType": graph.record_type
-            if (graph := self._get_graph(None))
-            else None,
+            "displayName": step.display_name or step.search_name,
         }
-        # Same rule as `_serialize_step`: only emit `searchName` for non-combine nodes.
         if kind != "combine":
             base["searchName"] = step.search_name
-        base["parameters"] = step.parameters
+
         base["primaryInputStepId"] = (
             step.primary_input.id if step.primary_input else None
         )
@@ -515,9 +538,29 @@ class StrategyToolsHelpers(StrategyToolsBase):
         )
         if kind == "combine":
             base["operator"] = step.operator.value if step.operator else None
-        base["filters"] = [f.to_dict() for f in getattr(step, "filters", []) or []]
-        base["analyses"] = [a.to_dict() for a in getattr(step, "analyses", []) or []]
-        base["reports"] = [r.to_dict() for r in getattr(step, "reports", []) or []]
+
+        # WDK-aligned fields (populated after build_strategy).
+        if graph:
+            wdk_step_id = graph.wdk_step_ids.get(step.id)
+            if wdk_step_id is not None:
+                base["wdkStepId"] = wdk_step_id
+            base["isBuilt"] = wdk_step_id is not None
+            estimated_size = graph.step_counts.get(step.id)
+            if estimated_size is not None:
+                base["estimatedSize"] = estimated_size
+
+        # Only include heavy fields when non-empty.
+        if step.parameters:
+            base["parameters"] = step.parameters
+        filters = [f.to_dict() for f in getattr(step, "filters", []) or []]
+        if filters:
+            base["filters"] = filters
+        analyses = [a.to_dict() for a in getattr(step, "analyses", []) or []]
+        if analyses:
+            base["analyses"] = analyses
+        reports = [r.to_dict() for r in getattr(step, "reports", []) or []]
+        if reports:
+            base["reports"] = reports
         return base
 
     def _build_graph_snapshot(self, graph: StrategyGraph) -> JSONObject:
@@ -565,9 +608,15 @@ class StrategyToolsHelpers(StrategyToolsBase):
         }
 
     def _build_context_plan(self, graph: StrategyGraph) -> JSONObject | None:
-        if not graph.last_step_id:
+        # Prefer the single subtree root from graph.roots; fall back to
+        # last_step_id for backward compatibility with not-yet-hydrated graphs.
+        if len(graph.roots) == 1:
+            root_id = next(iter(graph.roots))
+        elif graph.last_step_id:
+            root_id = graph.last_step_id
+        else:
             return None
-        root_step = graph.get_step(graph.last_step_id)
+        root_step = graph.get_step(root_id)
         if not root_step:
             return None
         record_type = graph.record_type

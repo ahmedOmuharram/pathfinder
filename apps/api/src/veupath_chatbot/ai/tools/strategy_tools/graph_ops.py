@@ -6,10 +6,7 @@ from typing import Annotated, Protocol, cast
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
-from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
-from veupath_chatbot.services.strategies.wdk_counts import compute_step_counts_for_plan
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.strategy_tools.graph_integrity import (
     find_root_step_ids,
     validate_graph_integrity,
@@ -45,18 +42,29 @@ class StrategyGraphOps(StrategyToolsHelpers):
     async def list_current_steps(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to inspect")] = None,
-    ) -> JSONArray:
-        """List all steps in the current strategy context.
+    ) -> JSONObject:
+        """List all steps in the current strategy graph.
 
-        Shows what steps have been created and their relationships.
+        Returns graph metadata and per-step details including WDK step IDs
+        and estimated result counts (when the strategy has been built).
         """
         graph = self._get_graph(graph_id)
         if not graph:
-            return [self._graph_not_found(graph_id)]
+            return self._graph_not_found(graph_id)
         steps: JSONArray = []
         for _, step in graph.steps.items():
             steps.append(self._serialize_step(graph, step))
-        return steps
+
+        wdk_strategy_id_value: JSONValue = graph.wdk_strategy_id
+        return {
+            "graphId": graph.id,
+            "graphName": graph.name,
+            "recordType": graph.record_type,
+            "wdkStrategyId": wdk_strategy_id_value,
+            "isBuilt": graph.wdk_strategy_id is not None,
+            "stepCount": len(steps),
+            "steps": steps,
+        }
 
     @ai_function()
     async def validate_graph_structure(
@@ -193,74 +201,4 @@ class StrategyGraphOps(StrategyToolsHelpers):
             "rootStepIds": root_step_ids,
             "graphSnapshot": graph_snapshot,
             "validation": final_validation,
-        }
-
-    @ai_function()
-    async def get_draft_step_counts(
-        self,
-        graph_id: Annotated[
-            str | None, AIParam(desc="Graph ID to compute counts for")
-        ] = None,
-    ) -> JSONObject:
-        """Compute result counts for each draft step (WDK-backed, no build required).
-
-        This compiles and executes the *current plan* in a temporary WDK strategy, then
-        returns counts keyed by local step ID. Use this to detect 0-result steps early.
-        """
-        graph = self._get_graph(graph_id)
-        if not graph:
-            return self._graph_not_found(graph_id)
-
-        validation = await self.validate_graph_structure(graph_id=graph.id)
-        if validation.get("ok") is not True:
-            return {
-                "ok": False,
-                "code": "GRAPH_INVALID",
-                "message": "Cannot compute counts until the graph validates as single-output.",
-                "validation": validation,
-            }
-
-        root_ids_raw = validation.get("rootStepIds")
-        root_ids = list(root_ids_raw if isinstance(root_ids_raw, list) else [])
-        if len(root_ids) != 1:
-            return {
-                "ok": False,
-                "code": "GRAPH_INVALID",
-                "message": "Cannot compute counts without a single root step.",
-                "validation": validation,
-            }
-
-        root_step = graph.get_step(root_ids[0])
-        record_type = self._infer_record_type(root_step) if root_step else None
-        if not root_step or not record_type:
-            return self._tool_error(
-                "COUNT_UNAVAILABLE",
-                "Cannot compute counts: unable to infer record type for current output.",
-                graphId=graph.id,
-                rootStepId=root_ids[0] if root_ids else None,
-            )
-
-        strategy = StrategyAST(
-            record_type=record_type,
-            root=root_step,
-            name=graph.name,
-            description=getattr(graph.current_strategy, "description", None)
-            if graph.current_strategy
-            else None,
-        )
-        plan = strategy.to_dict()
-        # Re-validate via the same path as HTTP endpoints to keep behavior consistent.
-        strategy_ast = validate_plan_or_raise(plan)
-        counts = await compute_step_counts_for_plan(
-            plan, strategy_ast, self.session.site_id
-        )
-        zeros = sorted([step_id for step_id, count in counts.items() if count == 0])
-        return {
-            "ok": True,
-            "graphId": graph.id,
-            "graphName": graph.name,
-            "rootStepId": root_ids[0],
-            "counts": counts,
-            "zeroStepIds": zeros,
-            "zeroCount": len(zeros),
         }

@@ -27,6 +27,7 @@ from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collection
 from veupath_chatbot.transport.http.routers import (
     chat,
     health,
+    models,
     plans,
     results,
     sites,
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health.router)
     app.include_router(sites.router)
+    app.include_router(models.router)
     app.include_router(chat.router)
     app.include_router(plans.router)
     app.include_router(strategies.router)

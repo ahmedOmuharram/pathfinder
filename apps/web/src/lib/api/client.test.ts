@@ -29,9 +29,8 @@ import {
   normalizePlan,
   openPlanSession,
   openStrategy,
-  pushStrategy,
   setVeupathdbToken,
-  syncStrategyFromWdk,
+  syncWdkStrategies,
   updatePlanSession,
   updateStrategy,
   validateSearchParams,
@@ -186,17 +185,12 @@ describe("lib/api/client", () => {
     });
   });
 
-  it("push/sync strategy hit the correct endpoints", async () => {
-    requestJsonMock.mockResolvedValueOnce({ wdkStrategyId: 1, wdkUrl: "u" } as any);
-    await pushStrategy("s1");
-    expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/strategies/s1/push", {
+  it("syncWdkStrategies calls the batch sync endpoint", async () => {
+    requestJsonMock.mockResolvedValueOnce([]);
+    await syncWdkStrategies("plasmodb");
+    expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/strategies/sync-wdk", {
       method: "POST",
-    });
-
-    requestJsonMock.mockResolvedValueOnce({ id: "s1" } as any);
-    await syncStrategyFromWdk("s1");
-    expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/strategies/s1/sync-wdk", {
-      method: "POST",
+      query: { siteId: "plasmodb" },
     });
   });
 

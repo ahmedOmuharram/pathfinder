@@ -274,20 +274,12 @@ async def auth_status(
     properties: dict[str, object] = {}
     if isinstance(properties_value, dict):
         properties = {str(k): v for k, v in properties_value.items()}
-    name: str | None = None
-    first_value = properties.get("first_name") or properties.get("firstName")
-    last_value = properties.get("last_name") or properties.get("lastName")
+    first_value = properties.get("firstName")
+    last_value = properties.get("lastName")
     first: str | None = str(first_value) if isinstance(first_value, str) else None
     last: str | None = str(last_value) if isinstance(last_value, str) else None
+    name: str | None = None
     if first or last:
-        name_parts: list[str] = []
-        if first:
-            name_parts.append(first)
-        if last:
-            name_parts.append(last)
-        name = " ".join(name_parts)
-    else:
-        full_name_value = properties.get("fullName") or properties.get("name")
-        name = str(full_name_value) if isinstance(full_name_value, str) else None
+        name = " ".join(part for part in (first, last) if part)
     name = name or email
     return {"signedIn": not is_guest, "name": name, "email": email}

@@ -35,11 +35,10 @@ All tools above return **both** `rag` and `wdk` results. Treat:
 - `rename_step(step_id, new_name, graph_id?)`
 - `validate_graph_structure(graph_id?)`
 - `ensure_single_output(graph_id?, operator?, display_name?)`
-- `get_draft_step_counts(graph_id?)`
 
 ### Execution / outputs (only if your delegated task explicitly asks)
 
-- `build_strategy(strategy_name?, root_step_id?, record_type?, description?)`
+- `build_strategy(strategy_name?, root_step_id?, record_type?, description?)` — creates on first call, updates on subsequent calls; returns per-step `counts`, `zeroStepIds`, and `zeroCount`
 - `preview_results(step_id, limit?, graph_id?)`
 - `get_result_count(wdk_step_id)`
 - `get_download_url(wdk_step_id, format?, attributes?)`
@@ -76,18 +75,23 @@ All tools above return **both** `rag` and `wdk` results. Treat:
 - Treat dependency context as your memory. If it is missing/empty, call `list_current_steps`.
 - Do not guess IDs, names, or prior outputs. Use tool outputs and dependency context.
 
-## Single-output invariant (scope note)
+## Subtree contract (must-follow)
 
-- Your job is to complete **your subtask** as a small unit of work:
-  - **1 step**, or
-  - **1 step + 1 unary transform** (i.e. a second step with `primary_input_step_id`), or
-  - **2 steps + 1 combine** (i.e. a third step that combines the two using `secondary_input_step_id` + `operator`).
-- Do **not** attempt to globally unify multiple roots unless the task explicitly instructs you to combine specific step IDs.
+Your subtask must produce exactly **one new subtree root**. A subtree is a valid tree fragment:
 
-## Input-dependent steps
+- **1 leaf step** — a single-node subtree (the leaf is the root).
+- **1 leaf + 1 transform** — a two-node chain (the transform consumes the leaf and becomes the new root).
+- **2 leaves + 1 combine** — a three-node tree (the combine consumes both leaves and becomes the root).
 
-- For any step that depends on a prior result, set `primary_input_step_id` in `create_step`.
-- For binary operations, set `secondary_input_step_id` + `operator` in `create_step`.
+Do **not** leave orphan steps or multiple unconnected subtrees. Do **not** attempt to globally unify roots from other subtasks — the orchestrator handles cross-subtree combines.
+
+## Tree-first step rules (must-follow)
+
+- **Leaf step** (no inputs): always valid, creates a new subtree.
+- **Transform step** (`primary_input_step_id`): the referenced step **must be a current subtree root**. If it's already consumed by another step, `create_step` will reject it.
+- **Combine step** (`primary_input_step_id` + `secondary_input_step_id` + `operator`): **both** referenced steps must be current subtree roots.
+
+If `create_step` returns an error with `availableRoots`, use those IDs instead.
 
 ## Parameter Encoding (must-follow)
 

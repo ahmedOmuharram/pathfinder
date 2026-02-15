@@ -27,10 +27,14 @@ def test_truncate_adds_suffix_when_truncating() -> None:
 
 
 def test_iter_compact_steps_walks_inputs() -> None:
+    # WDK stepTree uses primaryInput / secondaryInput (not "input").
     tree: JSONObject = {
         "stepId": "root",
         "primaryInput": {"stepId": "a"},
-        "secondaryInput": {"stepId": "b", "input": {"stepId": "c"}},
+        "secondaryInput": {
+            "stepId": "b",
+            "primaryInput": {"stepId": "c"},
+        },
     }
     steps = iter_compact_steps(tree)
     ids = {s.get("stepId") for s in steps if isinstance(s, dict)}
@@ -38,6 +42,7 @@ def test_iter_compact_steps_walks_inputs() -> None:
 
 
 def test_simplify_strategy_details_prefers_step_map_fields() -> None:
+    # Matches real WDK format: operator is in searchConfig.parameters, not step-level.
     details = {
         "recordClassName": "GeneRecordClasses.GeneRecordClass",
         "rootStepId": 123,
@@ -46,8 +51,7 @@ def test_simplify_strategy_details_prefers_step_map_fields() -> None:
             "1": {
                 "displayName": "Display",
                 "searchName": "search_q",
-                "operator": "UNION",
-                "searchConfig": {"parameters": {"k": "v"}},
+                "searchConfig": {"parameters": {"bq_operator": "UNION", "k": "v"}},
             }
         },
     }
@@ -58,7 +62,7 @@ def test_simplify_strategy_details_prefers_step_map_fields() -> None:
     assert compact["stepTree"]["searchName"] == "search_q"
     assert compact["stepTree"]["displayName"] == "Display"
     assert compact["stepTree"]["operator"] == "UNION"
-    assert compact["stepTree"]["parameters"] == {"k": "v"}
+    assert compact["stepTree"]["parameters"] == {"bq_operator": "UNION", "k": "v"}
 
 
 def test_full_strategy_payload_includes_steps_and_tree() -> None:

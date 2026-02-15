@@ -183,7 +183,8 @@ async def get_search_parameters(
     for spec in param_specs:
         if not isinstance(spec, dict):
             continue
-        name_raw = spec.get("name") or spec.get("paramName") or spec.get("id")
+        # WDK parameter specs use JsonKeys.NAME = "name".
+        name_raw = spec.get("name")
         name = name_raw if isinstance(name_raw, str) else ""
         if not name:
             continue

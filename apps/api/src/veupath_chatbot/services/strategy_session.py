@@ -43,18 +43,58 @@ class StrategyGraph:
         self.record_type: str | None = None
         self.current_strategy: StrategyAST | None = None
         self.steps: dict[str, Step] = {}
+        # Current subtree root IDs.  Every step creation updates this set:
+        # the new step is added as a root and any inputs it consumes are
+        # removed.  A complete strategy has exactly one root.
+        self.roots: set[str] = set()
         self.history: list[JSONObject] = []
         self.last_step_id: str | None = None
+        # Populated after build_strategy / compile — maps local step IDs to WDK IDs.
+        self.wdk_step_ids: dict[str, int] = {}
+        # Populated after build_strategy — maps local step IDs to estimatedSize.
+        self.step_counts: dict[str, int | None] = {}
+        # WDK strategy ID, set after build_strategy creates the strategy on WDK.
+        self.wdk_strategy_id: int | None = None
 
     def add_step(self, step: Step) -> str:
-        """Add a step to the graph."""
+        """Add a step and maintain the subtree-root set.
+
+        The new step becomes a root.  If it consumes existing roots as
+        ``primary_input`` or ``secondary_input``, those are removed from the
+        root set (they are now internal nodes of the new step's subtree).
+        """
         self.steps[step.id] = step
+        # The new step is always a root of its subtree.
+        self.roots.add(step.id)
+        # Inputs consumed by this step are no longer roots.
+        if step.primary_input and step.primary_input.id in self.roots:
+            self.roots.discard(step.primary_input.id)
+        if step.secondary_input and step.secondary_input.id in self.roots:
+            self.roots.discard(step.secondary_input.id)
         self.last_step_id = step.id
         return step.id
 
     def get_step(self, step_id: str) -> Step | None:
         """Get a step by ID."""
         return self.steps.get(step_id)
+
+    def recompute_roots(self) -> None:
+        """Recompute ``roots`` from the current ``steps`` dict.
+
+        A root is any step that is not referenced as the ``primary_input``
+        or ``secondary_input`` of another step.  Call this after bulk
+        mutations (delete, hydration) where incremental root tracking is
+        impractical.
+        """
+        referenced: set[str] = set()
+        for step in self.steps.values():
+            primary = getattr(getattr(step, "primary_input", None), "id", None)
+            secondary = getattr(getattr(step, "secondary_input", None), "id", None)
+            if isinstance(primary, str) and primary:
+                referenced.add(primary)
+            if isinstance(secondary, str) and secondary:
+                referenced.add(secondary)
+        self.roots = {sid for sid in self.steps if sid not in referenced}
 
     def save_history(self, description: str) -> None:
         """Save current state to history."""
@@ -305,21 +345,14 @@ def hydrate_graph_from_steps_data(
                 graph.record_type = str(step.get("recordType"))
                 break
 
-    # Best-effort root/last step pointer (used for plan emission).
+    # Recompute the subtree-root set from the hydrated step graph.
+    graph.recompute_roots()
+
+    # Best-effort last-step pointer (used for plan emission / backward compat).
     if root_step_id and str(root_step_id) in graph.steps:
         graph.last_step_id = str(root_step_id)
-    else:
-        referenced: set[str] = set()
-        for node in graph.steps.values():
-            primary = getattr(getattr(node, "primary_input", None), "id", None)
-            secondary = getattr(getattr(node, "secondary_input", None), "id", None)
-            if isinstance(primary, str) and primary:
-                referenced.add(primary)
-            if isinstance(secondary, str) and secondary:
-                referenced.add(secondary)
-        roots = [sid for sid in graph.steps if sid not in referenced]
-        if len(roots) == 1:
-            graph.last_step_id = roots[0]
-        elif not graph.last_step_id and roots:
-            # Prefer the last root if multiple exist.
-            graph.last_step_id = roots[-1]
+    elif len(graph.roots) == 1:
+        graph.last_step_id = next(iter(graph.roots))
+    elif not graph.last_step_id and graph.roots:
+        # Pick an arbitrary root when multiple exist.
+        graph.last_step_id = next(iter(graph.roots))

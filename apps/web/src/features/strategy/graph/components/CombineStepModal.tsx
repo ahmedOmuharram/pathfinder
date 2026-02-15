@@ -1,5 +1,7 @@
 "use client";
 
+import { Modal } from "@/shared/components/Modal";
+
 export interface PendingCombine {
   sourceId: string;
   targetId: string;
@@ -18,11 +20,14 @@ export function CombineStepModal({
   onChoose,
   onCancel,
 }: CombineStepModalProps) {
-  if (!pendingCombine) return null;
-
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
+    <Modal
+      open={!!pendingCombine}
+      onClose={onCancel}
+      title="Create combine step"
+      maxWidth="max-w-md"
+    >
+      <div className="p-4">
         <div className="text-sm font-semibold text-slate-900">Create combine step</div>
         <div className="mt-1 text-[12px] text-slate-500">
           Choose how to combine the two selected steps.
@@ -37,7 +42,7 @@ export function CombineStepModal({
             >
               <span className="font-semibold">{operator}</span>
               <span className="text-[11px] text-slate-500">
-                {pendingCombine.sourceId} + {pendingCombine.targetId}
+                {pendingCombine?.sourceId} + {pendingCombine?.targetId}
               </span>
             </button>
           ))}
@@ -52,6 +57,6 @@ export function CombineStepModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -41,6 +41,7 @@ import {
 } from "@/features/strategy/graph/components/WarningNodes";
 import { EmptyGraphState } from "@/features/strategy/graph/components/EmptyGraphState";
 import { CombineStepModal } from "@/features/strategy/graph/components/CombineStepModal";
+import { EdgeContextMenu } from "@/features/strategy/graph/components/EdgeContextMenu";
 import { StrategyGraphLayout } from "@/features/strategy/graph/components/StrategyGraphLayout";
 import { OrthologTransformModal } from "@/features/strategy/graph/components/OrthologTransformModal";
 import { useBeforeUnloadUnsaved } from "@/features/strategy/graph/hooks/useBeforeUnloadUnsaved";
@@ -61,16 +62,12 @@ interface StrategyGraphProps {
   strategy: StrategyWithMeta | null;
   siteId: string;
   onReset?: () => void;
-  onPush?: () => void;
-  canPush?: boolean;
-  isPushing?: boolean;
-  pushLabel?: string;
-  pushDisabledReason?: string;
   onToast?: (toast: {
     type: "success" | "error" | "warning" | "info";
     message: string;
   }) => void;
   variant?: "full" | "compact";
+  onSwitchToChat?: () => void;
 }
 
 const NODE_TYPES: NodeTypes = {
@@ -87,23 +84,11 @@ const DEFAULT_NODE_HEIGHT = 112;
 const COMBINE_MISMATCH_ERROR = "Cannot combine steps with different record types.";
 
 export function StrategyGraph(props: StrategyGraphProps) {
-  const {
-    strategy,
-    siteId,
-    onPush,
-    canPush = false,
-    isPushing = false,
-    pushLabel = "Push",
-    pushDisabledReason,
-    onToast,
-    variant = "full",
-  } = props;
+  const { strategy, siteId, onToast, variant = "full", onSwitchToChat } = props;
   const isCompact = variant === "compact";
   const chatIsStreaming = useSessionStore((state) => state.chatIsStreaming);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [, setSaveError] = useState<string | null>(null);
-  const [, setLastSavedPlanHash] = useState<string | null>(null);
   const [lastSavedStepsVersion, setLastSavedStepsVersion] = useState(0);
   const [nameValue, setNameValue] = useState("");
   const [descriptionValue, setDescriptionValue] = useState("");
@@ -205,7 +190,6 @@ export function StrategyGraph(props: StrategyGraphProps) {
     addStep,
     updateStep,
     failCombineMismatch: () => {
-      setSaveError(COMBINE_MISMATCH_ERROR);
       onToast?.({ type: "error", message: COMBINE_MISMATCH_ERROR });
     },
   });
@@ -363,18 +347,24 @@ export function StrategyGraph(props: StrategyGraphProps) {
     strategy,
   });
 
-  const { isSaving, canSave, handleSave, handlePush } = useGraphSave({
+  // setLastSavedPlanHash was tracked via state but the value was never read.
+  // Provide a no-op setter so downstream hooks can call it without effect.
+  const noopSetLastSavedPlanHash = useCallback(
+    (_v: React.SetStateAction<string | null>) => {},
+    [],
+  );
+
+  const { isSaving, canSave, handleSave } = useGraphSave({
     strategy,
     draftStrategy,
     buildPlan,
     combineMismatchGroups,
     onToast,
-    onPush,
     setStrategyMeta,
     buildStepSignature,
     setLastSavedSteps,
     setLastSavedStepsVersion,
-    setLastSavedPlanHash,
+    setLastSavedPlanHash: noopSetLastSavedPlanHash,
     validateSearchSteps,
     nameValue,
     setNameValue,
@@ -382,27 +372,20 @@ export function StrategyGraph(props: StrategyGraphProps) {
   });
 
   const saveDisabledReason = useMemo(() => {
-    if (canSave && !isSaving) return undefined;
+    if (canSave && !isSaving && !graphHasValidationIssues) return undefined;
     if (isSaving) return "Saving...";
     if (!draftStrategy) return "No draft strategy loaded.";
     if (!strategy || strategy.id !== draftStrategy.id) {
       return "Open the active draft to save.";
     }
+    if (graphHasValidationIssues) {
+      return "Cannot save: fix the validation errors highlighted in the graph.";
+    }
     if (!buildPlan()) {
-      return "Cannot save a canonical plan yet: strategy must have a single final output step.";
+      return "Cannot save: strategy must have a single final output step. Add a final combine step (e.g., UNION) to produce one output.";
     }
     return "Save is currently unavailable.";
-  }, [canSave, isSaving, draftStrategy, strategy, buildPlan]);
-
-  const resolvedPushDisabledReason = useMemo(() => {
-    if (canPush && !isPushing) return undefined;
-    if (isPushing) return "Pushing...";
-    if (pushDisabledReason) return pushDisabledReason;
-    if (!planResult) {
-      return "Cannot push: strategy must have a single final output step.";
-    }
-    return "Push is currently unavailable.";
-  }, [canPush, isPushing, pushDisabledReason, planResult]);
+  }, [canSave, isSaving, draftStrategy, strategy, buildPlan, graphHasValidationIssues]);
 
   const handleNodeDragStop = useCallback(() => {
     pushSnapshot(nodes);
@@ -489,7 +472,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
     strategy,
     planHash,
     lastSnapshotIdRef,
-    setLastSavedPlanHash,
+    setLastSavedPlanHash: noopSetLastSavedPlanHash,
     setLastSavedSteps,
     buildStepSignature,
     bumpLastSavedStepsVersion: () => setLastSavedStepsVersion((v) => v + 1),
@@ -514,7 +497,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
   };
 
   if (!strategy || strategy.steps.length === 0) {
-    return <EmptyGraphState isCompact={isCompact} />;
+    return <EmptyGraphState isCompact={isCompact} onSwitchToChat={onSwitchToChat} />;
   }
 
   return (
@@ -540,18 +523,6 @@ export function StrategyGraph(props: StrategyGraphProps) {
         selectedCount={selectedNodeIds.length}
         onStartCombine={handleStartCombineFromSelection}
         onStartOrthologTransform={handleStartOrthologTransformFromSelection}
-        showPush={!!onPush}
-        onPush={() => void handlePush()}
-        canPush={canPush}
-        isPushing={isPushing}
-        pushLabel={pushLabel}
-        pushDisabledReason={resolvedPushDisabledReason}
-        onPushDisabled={() => {
-          onToast?.({
-            type: "warning",
-            message: resolvedPushDisabledReason || "Cannot push.",
-          });
-        }}
         canSave={canSave}
         onSave={() => void handleSave()}
         onSaveDisabled={() => {
@@ -593,24 +564,21 @@ export function StrategyGraph(props: StrategyGraphProps) {
         snapGrid={SNAP_GRID}
       />
       {!isCompact && edgeMenu && (
-        <div
-          className="fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white px-1 py-1 shadow-md"
-          style={{ left: edgeMenu.x, top: edgeMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-label="Edge actions"
-        >
-          <button
-            type="button"
-            className="w-full rounded px-2 py-1 text-left text-xs font-medium text-red-700 hover:bg-red-50"
-            onClick={() => {
-              handleDeleteEdge(edgeMenu.edge);
-              setEdgeMenu(null);
-            }}
-          >
-            Delete edge
-          </button>
-        </div>
+        <EdgeContextMenu
+          edge={edgeMenu.edge}
+          x={edgeMenu.x}
+          y={edgeMenu.y}
+          steps={editableSteps}
+          onDeleteEdge={(edge) => {
+            handleDeleteEdge(edge);
+            setEdgeMenu(null);
+          }}
+          onChangeOperator={(stepId, operator) => {
+            updateStep(stepId, { operator });
+            setEdgeMenu(null);
+          }}
+          onClose={() => setEdgeMenu(null)}
+        />
       )}
       {!isCompact && (
         <CombineStepModal

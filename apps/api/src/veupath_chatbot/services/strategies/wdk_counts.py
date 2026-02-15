@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import hashlib
 import json
 from collections import OrderedDict
@@ -47,7 +45,8 @@ async def compute_step_counts_for_plan(
 
     # WDK step reports (used for counts) require that the step be part of a strategy.
     # The compiler creates steps + a stepTree, but does not persist a WDK strategy.
-    # Create a temporary (unsaved) WDK strategy so counts can be computed, then delete it.
+    # Create a temporary (unsaved) WDK strategy, then fetch it once to read all
+    # estimatedSize values in a single call instead of N individual report calls.
     temp_strategy_id: int | None = None
     try:
         created = await api.create_strategy(
@@ -56,45 +55,44 @@ async def compute_step_counts_for_plan(
             description=None,
             is_internal=True,
         )
-        raw_id = (
-            (created or {}).get("id")
-            or (created or {}).get("strategyId")
-            or (created or {}).get("strategy_id")
-        )
-        if raw_id is not None:
-            # Only convert if raw_id is a valid type for int()
-            if isinstance(raw_id, (int, str, float)):
-                try:
-                    temp_strategy_id = int(raw_id)
-                except TypeError, ValueError:
-                    temp_strategy_id = None
-            else:
-                temp_strategy_id = None
+        # WDK StrategyService.createStrategy returns { "id": <strategyId> }.
+        if isinstance(created, dict):
+            raw_id = created.get("id")
+            if isinstance(raw_id, int):
+                temp_strategy_id = raw_id
     except Exception:
-        # Best-effort: if we can't create a strategy, counts will likely remain unknown.
+        # Best-effort: if we can't create a strategy, counts will remain unknown.
         temp_strategy_id = None
 
     counts: dict[str, int | None] = {step.local_id: None for step in result.steps}
 
-    semaphore = asyncio.Semaphore(8)
-
-    async def fetch_count(step_id: int) -> int | None:
-        async with semaphore:
-            try:
-                return await api.get_step_count(step_id)
-            except Exception:
-                return None
-
-    tasks = [fetch_count(step.wdk_step_id) for step in result.steps]
-    counts_raw = await asyncio.gather(*tasks, return_exceptions=False)
-    for step, count in zip(result.steps, counts_raw, strict=False):
-        if isinstance(count, int):
-            counts[step.local_id] = count
+    # Fetch the strategy once — WDK includes estimatedSize on every step in the
+    # strategy.steps dict, so one GET replaces N individual report POST calls.
+    if temp_strategy_id is not None:
+        try:
+            wdk_strategy = await api.get_strategy(temp_strategy_id)
+            if isinstance(wdk_strategy, dict):
+                steps_dict = wdk_strategy.get("steps")
+                if isinstance(steps_dict, dict):
+                    for step in result.steps:
+                        step_info = steps_dict.get(str(step.wdk_step_id))
+                        if isinstance(step_info, dict):
+                            estimated = step_info.get("estimatedSize")
+                            if isinstance(estimated, int):
+                                counts[step.local_id] = estimated
+        except Exception as e:
+            logger.warning("Failed to read counts from strategy payload", error=str(e))
 
     # Best-effort cleanup (avoid polluting the user's WDK account).
     if temp_strategy_id is not None:
-        with contextlib.suppress(Exception):
+        try:
             await api.delete_strategy(temp_strategy_id)
+        except Exception as e:
+            logger.warning(
+                "Failed to delete temp WDK strategy during cleanup",
+                temp_strategy_id=temp_strategy_id,
+                error=str(e),
+            )
 
     if any(isinstance(value, int) for value in counts.values()):
         _STEP_COUNTS_CACHE[cache_key] = counts

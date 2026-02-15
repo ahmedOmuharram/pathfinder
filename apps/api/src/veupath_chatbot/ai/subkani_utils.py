@@ -166,9 +166,19 @@ def format_task_context(context: JSONValue) -> str | None:
 
 
 def extract_primary_step_id(result: JSONObject | None) -> str | None:
-    """Pick the most relevant created step id from a subtask result."""
+    """Pick the subtree root from a subtask result.
+
+    Prefers the ``subtreeRoot`` field (set by the tree-first contract
+    enforcement in the orchestrator).  Falls back to the last created step
+    ID for backward compatibility.
+    """
     if not isinstance(result, dict):
         return None
+    # Prefer the explicitly tracked subtree root.
+    subtree_root = result.get("subtreeRoot")
+    if isinstance(subtree_root, str) and subtree_root:
+        return subtree_root
+    # Fallback: last step in the created-steps list.
     steps = result.get("steps")
     if not isinstance(steps, list):
         return None
