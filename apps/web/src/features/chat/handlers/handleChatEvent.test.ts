@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import type { Message, ToolCall } from "@pathfinder/shared";
+import {
+  EXECUTE_EPITOPE_SEARCH_EVENTS,
+  PLAN_ARTIFACT_EVENTS,
+  OPTIMIZATION_PROGRESS_EVENTS,
+  DELEGATION_EVENTS,
+} from "./__fixtures__/realisticEvents";
 
 function makeStateSetters() {
   let messages: Message[] = [];
@@ -108,6 +114,9 @@ describe("features/chat/handlers/handleChatEvent", () => {
       getStrategy: vi.fn(),
       streamingAssistantIndexRef: { current: null as number | null },
       streamingAssistantMessageIdRef: { current: null as string | null },
+      setOptimizationProgress: vi.fn(),
+      reasoningRef: { current: null as string | null },
+      optimizationProgressRef: { current: null as any },
     };
 
     const ctx = { ...base, ...(overrides ?? {}) };
@@ -236,6 +245,9 @@ describe("features/chat/handlers/handleChatEvent", () => {
       getStrategy: vi.fn(),
       streamingAssistantIndexRef: { current: null as number | null },
       streamingAssistantMessageIdRef: { current: null as string | null },
+      setOptimizationProgress: vi.fn(),
+      reasoningRef: { current: null as string | null },
+      optimizationProgressRef: { current: null as any },
     };
 
     // Dispatch all events synchronously (as if they arrived in one SSE chunk).
@@ -309,7 +321,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
         graphId: "s1",
         step: {
           stepId: "a",
-          type: "search",
+          kind: "search",
           displayName: "A",
         },
       },
@@ -330,7 +342,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
     expect(ctx.pendingUndoSnapshotRef.current).toBeNull();
   });
 
-  it("strategy_update maps legacy input fields into step inputs and updates strategy meta", () => {
+  it("strategy_update maps step inputs and updates strategy meta", () => {
     const { ctx } = makeCtx();
     handleChatEvent(ctx, {
       type: "strategy_update",
@@ -338,10 +350,10 @@ describe("features/chat/handlers/handleChatEvent", () => {
         graphId: "s1",
         step: {
           stepId: "c",
-          type: "combine",
+          kind: "combine",
           displayName: "Combine",
-          leftStepId: "a",
-          rightStepId: "b",
+          primaryInputStepId: "a",
+          secondaryInputStepId: "b",
           graphName: "New name",
           description: "Desc",
           recordType: "gene",
@@ -541,7 +553,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
       type: "strategy_update",
       data: {
         graphId: "other",
-        step: { stepId: "x", type: "search", displayName: "X", recordType: "gene" },
+        step: { stepId: "x", kind: "search", displayName: "X", recordType: "gene" },
       },
     } as any);
     expect(ctx.addStep).not.toHaveBeenCalled();
@@ -553,7 +565,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
         graphId: "s1",
         step: {
           stepId: "a",
-          type: "search",
+          kind: "search",
           displayName: "A",
           searchName: "q",
           recordType: "gene",
@@ -574,5 +586,267 @@ describe("features/chat/handlers/handleChatEvent", () => {
     );
     expect(ctx.appliedSnapshotRef.current).toBe(true);
     expect(ctx.pendingUndoSnapshotRef.current).toEqual(snapshot);
+  });
+
+  // Realistic event sequences — replay full SSE streams from backend scenarios
+
+  describe("realistic execute mode: epitope search + build", () => {
+    it("processes full event stream without errors and produces correct state", () => {
+      const currentStrategy = {
+        id: "strat-001",
+        name: "Draft Strategy",
+        siteId: "plasmodb",
+        recordType: null as string | null,
+        steps: [],
+        rootStepId: null,
+        createdAt: "2025-02-15T00:00:00Z",
+        updatedAt: "2025-02-15T00:00:00Z",
+      };
+      const { ctx, state, toolCallsBuffer, applyGraphSnapshot, thinking } = makeCtx({
+        strategyIdAtStart: "strat-001",
+        currentStrategy,
+        strategyRef: { current: currentStrategy },
+        getStrategy: vi.fn(async () => currentStrategy),
+      });
+
+      for (const event of EXECUTE_EPITOPE_SEARCH_EVENTS) {
+        handleChatEvent(ctx, event as ChatSSEEvent);
+      }
+
+      // ── Strategy initialization ──
+      expect(ctx.setStrategyId).toHaveBeenCalledWith("strat-001");
+      expect(ctx.addStrategy).toHaveBeenCalled();
+      expect(ctx.loadGraph).toHaveBeenCalledWith("strat-001");
+
+      // ── Tool calls processed ──
+      // search_for_searches + create_step + build_strategy = 3 tool calls completed
+      expect(toolCallsBuffer).toHaveLength(0); // cleared after assistant_message
+
+      // ── Strategy updates applied ──
+      expect(ctx.addStep).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "step-001",
+          kind: "search",
+          searchName: "GenesWithEpitopes",
+        }),
+      );
+      expect(ctx.setStrategyMeta).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Epitope vaccine targets",
+          recordType: "transcript",
+        }),
+      );
+
+      // ── WDK link applied ──
+      expect(ctx.addExecutedStrategy).toHaveBeenCalled();
+      expect(ctx.setWdkInfo).toHaveBeenCalledWith(
+        987654,
+        "https://plasmodb.org/plasmo/app/workspace/strategies/987654",
+        "Epitope vaccine targets",
+        undefined,
+      );
+
+      // ── Final assistant message ──
+      expect(state.messages).toHaveLength(1);
+      const msg = state.messages[0]!;
+      expect(msg.role).toBe("assistant");
+      expect(msg.content).toBe(
+        "I've built a strategy for P. falciparum genes with high or medium epitope evidence.",
+      );
+      // Tool calls should be attached to the message
+      expect(msg.toolCalls).toBeDefined();
+      expect(msg.toolCalls!.length).toBeGreaterThanOrEqual(3);
+      expect(msg.toolCalls!.map((tc: ToolCall) => tc.name)).toEqual(
+        expect.arrayContaining([
+          "search_for_searches",
+          "create_step",
+          "build_strategy",
+        ]),
+      );
+
+      // ── Refs cleaned up ──
+      expect(ctx.streamingAssistantIndexRef.current).toBeNull();
+      expect(ctx.streamingAssistantMessageIdRef.current).toBeNull();
+    });
+
+    it("handles batched delivery (React 18 batching) of realistic events", () => {
+      const batchState = makeBatchingStateSetters();
+      const toolCallsBuffer: ToolCall[] = [];
+      const citationsBuffer: any[] = [];
+      const planningArtifactsBuffer: any[] = [];
+
+      const ctx = {
+        siteId: "plasmodb",
+        strategyIdAtStart: "strat-001" as string | null,
+        toolCallsBuffer,
+        citationsBuffer,
+        planningArtifactsBuffer,
+        thinking: {
+          updateActiveFromBuffer: vi.fn(),
+          updateReasoning: vi.fn(),
+          snapshotSubKaniActivity: vi.fn(() => ({ calls: {}, status: {} })),
+          subKaniTaskStart: vi.fn(),
+          subKaniToolCallStart: vi.fn(),
+          subKaniToolCallEnd: vi.fn(),
+          subKaniTaskEnd: vi.fn(),
+        } as any,
+        setStrategyId: vi.fn(),
+        addStrategy: vi.fn(),
+        addExecutedStrategy: vi.fn(),
+        setWdkInfo: vi.fn(),
+        setStrategy: vi.fn(),
+        setStrategyMeta: vi.fn(),
+        clearStrategy: vi.fn(),
+        addStep: vi.fn(),
+        loadGraph: vi.fn(),
+        pendingUndoSnapshotRef: { current: null as any },
+        appliedSnapshotRef: { current: false },
+        strategyRef: { current: null as any },
+        currentStrategy: null,
+        setMessages: batchState.setMessages,
+        setUndoSnapshots: batchState.setUndoSnapshots,
+        parseToolArguments: vi.fn(() => ({})),
+        parseToolResult: vi.fn(() => null),
+        applyGraphSnapshot: vi.fn(),
+        getStrategy: vi.fn(async () => ({
+          id: "strat-001",
+          name: "Epitope vaccine targets",
+          siteId: "plasmodb",
+          recordType: "gene",
+          steps: [],
+          rootStepId: null,
+          createdAt: "t",
+          updatedAt: "t",
+        })),
+        streamingAssistantIndexRef: { current: null as number | null },
+        streamingAssistantMessageIdRef: { current: null as string | null },
+        setOptimizationProgress: vi.fn(),
+        reasoningRef: { current: null as string | null },
+        optimizationProgressRef: { current: null as any },
+      };
+
+      // Dispatch all events synchronously (simulating chunk delivery)
+      for (const event of EXECUTE_EPITOPE_SEARCH_EVENTS) {
+        handleChatEvent(ctx, event as ChatSSEEvent);
+      }
+
+      // Before flush, messages are queued
+      expect(batchState.messages).toHaveLength(0);
+
+      batchState.flush();
+
+      // After flush: one assistant message with correct content
+      expect(batchState.messages).toHaveLength(1);
+      expect(batchState.messages[0]?.role).toBe("assistant");
+      expect(batchState.messages[0]?.content).toContain("epitope evidence");
+    });
+  });
+
+  describe("realistic plan mode: artifact + executor request", () => {
+    it("processes planning events and fires callbacks", () => {
+      const onPlanSessionId = vi.fn();
+      const onPlanningArtifactUpdate = vi.fn();
+      const onExecutorBuildRequest = vi.fn();
+
+      const { ctx, state, planningArtifactsBuffer } = makeCtx({
+        onPlanSessionId,
+        onPlanningArtifactUpdate,
+        onExecutorBuildRequest,
+      });
+
+      for (const event of PLAN_ARTIFACT_EVENTS) {
+        handleChatEvent(ctx, event as ChatSSEEvent);
+      }
+
+      // ── Artifact should be buffered then attached ──
+      expect(state.messages).toHaveLength(1);
+      const msg = state.messages[0]!;
+      expect(msg.planningArtifacts).toBeDefined();
+      if (msg.planningArtifacts && msg.planningArtifacts.length > 0) {
+        expect(msg.planningArtifacts[0]?.title).toBe("Vaccine target search plan");
+      }
+
+      // ── Callbacks fired ──
+      if (onPlanningArtifactUpdate.mock.calls.length > 0) {
+        expect(onPlanningArtifactUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ id: "artifact-001" }),
+        );
+      }
+
+      if (onExecutorBuildRequest.mock.calls.length > 0) {
+        expect(onExecutorBuildRequest).toHaveBeenCalled();
+      }
+
+      // Refs cleaned up
+      expect(ctx.streamingAssistantIndexRef.current).toBeNull();
+    });
+  });
+
+  describe("realistic optimization progress events", () => {
+    it("updates optimization progress through started → trials → completed", () => {
+      const { ctx, state } = makeCtx();
+
+      for (const event of OPTIMIZATION_PROGRESS_EVENTS) {
+        handleChatEvent(ctx, event as ChatSSEEvent);
+      }
+
+      // setOptimizationProgress should have been called multiple times
+      expect(ctx.setOptimizationProgress).toHaveBeenCalled();
+      const calls = ctx.setOptimizationProgress.mock.calls;
+      // At least 5 calls: started + 3 trials + completed
+      expect(calls.length).toBeGreaterThanOrEqual(5);
+
+      // Final message should exist
+      expect(state.messages).toHaveLength(1);
+      expect(state.messages[0]?.content).toBe("Optimization complete.");
+    });
+  });
+
+  describe("realistic delegation (sub-kani) events", () => {
+    it("routes sub-kani lifecycle events to thinking tracker", () => {
+      const { ctx, state, thinking } = makeCtx({
+        strategyIdAtStart: "strat-del",
+        getStrategy: vi.fn(async () => ({
+          id: "strat-del",
+          name: "Delegation strategy",
+          siteId: "plasmodb",
+          recordType: "gene",
+          steps: [],
+          rootStepId: null,
+          createdAt: "t",
+          updatedAt: "t",
+        })),
+      });
+
+      for (const event of DELEGATION_EVENTS) {
+        handleChatEvent(ctx, event as ChatSSEEvent);
+      }
+
+      // ── Strategy initialized ──
+      expect(ctx.setStrategyId).toHaveBeenCalledWith("strat-del");
+      expect(ctx.loadGraph).toHaveBeenCalledWith("strat-del");
+
+      // ── Sub-kani lifecycle ──
+      expect(thinking.subKaniTaskStart).toHaveBeenCalledWith("delegate:build-step-1");
+      expect(thinking.subKaniToolCallStart).toHaveBeenCalledTimes(2);
+      expect(thinking.subKaniToolCallEnd).toHaveBeenCalledTimes(2);
+      expect(thinking.subKaniTaskEnd).toHaveBeenCalledWith(
+        "delegate:build-step-1",
+        "done",
+      );
+
+      // ── Strategy update from delegation ──
+      expect(ctx.addStep).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "step-d1",
+          kind: "search",
+          searchName: "GenesWithEpitopes",
+        }),
+      );
+
+      // ── Final message ──
+      expect(state.messages).toHaveLength(1);
+      expect(state.messages[0]?.content).toBe("Delegation complete.");
+    });
   });
 });

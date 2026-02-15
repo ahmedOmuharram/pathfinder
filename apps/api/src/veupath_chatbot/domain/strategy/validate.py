@@ -32,7 +32,11 @@ class ValidationResult:
 
     @classmethod
     def failure(cls, errors: list[ValidationError]) -> ValidationResult:
-        """Create a failed result."""
+        """Create a failed result.
+
+        :param errors: Validation errors list.
+
+        """
         return cls(valid=False, errors=errors)
 
 
@@ -46,15 +50,18 @@ class StrategyValidator:
     ) -> None:
         """Initialize validator.
 
-        Args:
-            available_searches: Map of record_type -> list of search names
-            available_transforms: List of available transform names
+        :param available_searches: Map of record_type -> list of search names.
+        :param available_transforms: List of available transform names.
         """
         self.available_searches = available_searches or {}
         self.available_transforms = available_transforms or []
 
     def validate(self, strategy: StrategyAST) -> ValidationResult:
-        """Validate a strategy AST."""
+        """Validate a strategy AST.
+
+        :param strategy: Strategy AST.
+
+        """
         errors: list[ValidationError] = []
 
         # Validate record type
@@ -93,7 +100,14 @@ class StrategyValidator:
         expected_record_type: str,
         errors: list[ValidationError],
     ) -> None:
-        """Validate a single node in the AST."""
+        """Validate a single node in the AST.
+
+        :param node: Plan step node.
+        :param path: Node path.
+        :param expected_record_type: Expected record type.
+        :param errors: Validation errors list.
+
+        """
         kind = node.infer_kind()
 
         if not node.search_name:
@@ -174,5 +188,9 @@ class StrategyValidator:
 
 
 def validate_strategy(strategy: StrategyAST) -> ValidationResult:
-    """Validate a strategy AST with default validator."""
+    """Validate a strategy AST with default validator.
+
+    :param strategy: Strategy AST.
+
+    """
     return StrategyValidator().validate(strategy)

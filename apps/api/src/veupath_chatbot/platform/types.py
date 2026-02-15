@@ -17,7 +17,12 @@ type JSONArray = list[JSONValue]
 
 
 def as_json_object(value: JSONValue) -> JSONObject:
-    """Type guard: assert that a JSONValue is a JSONObject."""
+    """Type guard: assert that a JSONValue is a JSONObject.
+
+    :param value: Value to check.
+    :returns: Same value as JSONObject.
+    :raises TypeError: If value is not a dict.
+    """
     if not isinstance(value, dict):
         raise TypeError(f"Expected dict, got {type(value)}")
     # After isinstance check, value is known to be dict[str, JSONValue]
@@ -25,7 +30,12 @@ def as_json_object(value: JSONValue) -> JSONObject:
 
 
 def as_json_array(value: JSONValue) -> JSONArray:
-    """Type guard: assert that a JSONValue is a JSONArray."""
+    """Type guard: assert that a JSONValue is a JSONArray.
+
+    :param value: Value to check.
+    :returns: Same value as JSONArray.
+    :raises TypeError: If value is not a list.
+    """
     if not isinstance(value, list):
         raise TypeError(f"Expected list, got {type(value)}")
     # After isinstance check, value is known to be list[JSONValue]

@@ -12,7 +12,13 @@ from veupath_chatbot.platform.config import get_settings
 def add_request_id(
     logger: logging.Logger, _method_name: str, event_dict: EventDict
 ) -> EventDict:
-    """Add request ID to log entries if available."""
+    """Add request ID to log entries if available.
+
+    :param logger: Logger instance.
+    :param _method_name: Method name (structlog processor convention).
+    :param event_dict: Log event dictionary to modify.
+    :returns: Updated event dict.
+    """
     from veupath_chatbot.platform.context import request_id_ctx
 
     request_id = request_id_ctx.get()
@@ -76,7 +82,11 @@ def setup_logging() -> None:
 
 
 def get_logger(name: str) -> structlog.BoundLogger:
-    """Get a structlog logger."""
+    """Get a structlog logger.
+
+    :param name: Logger name (typically __name__).
+    :returns: Configured bound logger.
+    """
     from typing import cast
 
     logger = structlog.get_logger(name)

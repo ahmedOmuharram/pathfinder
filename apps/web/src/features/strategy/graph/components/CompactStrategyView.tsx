@@ -18,9 +18,7 @@ import {
 } from "@/features/strategy/graph/utils/compactLayout";
 import { VennIcon } from "@/features/strategy/graph/components/OpBadge";
 
-// ---------------------------------------------------------------------------
 // Style helpers
-// ---------------------------------------------------------------------------
 
 const KIND_BORDER: Record<string, string> = {
   search: "border-emerald-400/70",
@@ -34,9 +32,7 @@ const KIND_COUNT: Record<string, string> = {
   transform: "text-violet-600",
 };
 
-// ---------------------------------------------------------------------------
 // Primitives
-// ---------------------------------------------------------------------------
 
 /** Tiny horizontal arrow, vertically centered in the row. */
 function Arrow() {
@@ -80,9 +76,7 @@ function InlineVenn({ operator }: { operator: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Segment renderers
-// ---------------------------------------------------------------------------
 
 /** A plain step (search or transform) — just a pill on the spine. */
 function PlainSegment({ step }: { step: CompactStep }) {
@@ -118,9 +112,7 @@ function CombineSegment({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Main component
-// ---------------------------------------------------------------------------
 
 interface CompactStrategyViewProps {
   strategy: StrategyWithMeta | null;

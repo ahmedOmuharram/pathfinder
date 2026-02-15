@@ -9,7 +9,11 @@ from veupath_chatbot.platform.types import JSONObject
 
 
 def validate_plan_or_raise(plan: JSONObject) -> StrategyAST:
-    """Parse and validate a strategy plan, raising typed ValidationError."""
+    """Parse and validate a strategy plan, raising typed ValidationError.
+
+    :param plan: Plan or strategy dict.
+
+    """
     try:
         strategy_ast = from_dict(plan)
     except Exception as exc:

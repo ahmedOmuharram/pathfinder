@@ -9,7 +9,7 @@ import {
   getRootSteps,
   getRootStepId,
   serializeStrategyPlan,
-} from "@/features/strategy/domain/graph";
+} from "@/core/strategyGraph";
 import { inferStepKind } from "@/core/strategyGraph";
 
 const isUrlLike = (value: string | null | undefined) =>

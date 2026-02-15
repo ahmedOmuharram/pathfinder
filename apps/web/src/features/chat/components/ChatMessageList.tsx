@@ -1,5 +1,10 @@
 import { useState } from "react";
-import type { Message, ToolCall, PlanningArtifact } from "@pathfinder/shared";
+import type {
+  Message,
+  ToolCall,
+  PlanningArtifact,
+  OptimizationProgressData,
+} from "@pathfinder/shared";
 import type { ChatMode } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import { decodeNodeSelection } from "@/features/chat/node_selection";
@@ -10,6 +15,7 @@ import { ChatMarkdown } from "@/features/chat/components/ChatMarkdown";
 import { ChatThinkingDetails } from "@/features/chat/components/ChatThinkingDetails";
 import { ThinkingPanel } from "@/features/chat/components/ThinkingPanel";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { OptimizationProgressPanel } from "@/features/chat/components/OptimizationProgressPanel";
 
 interface ChatMessageListProps {
   isCompact: boolean;
@@ -31,6 +37,8 @@ interface ChatMessageListProps {
     subKaniStatus: Record<string, string>;
     reasoning?: string | null;
   };
+  optimizationProgress?: OptimizationProgressData | null;
+  onCancelOptimization?: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -48,29 +56,26 @@ export function ChatMessageList({
   onUndoSnapshot,
   onApplyPlanningArtifact,
   thinking,
+  optimizationProgress,
+  onCancelOptimization,
   messagesEndRef,
 }: ChatMessageListProps) {
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [showCitationTags, setShowCitationTags] = useState(false);
 
-  const lastMessageRole =
-    messages.length > 0 ? messages[messages.length - 1]?.role : null;
-  const thinkingInsertIndex =
-    mode === "plan"
-      ? (() => {
-          // Critical UX: when a *new* planning turn starts, we don't want to mutate/show
-          // the thinking panel above the previous assistant response. Until the first
-          // assistant tokens arrive (i.e., an assistant message exists at the end),
-          // keep the thinking panel at the bottom.
-          if (isStreaming && lastMessageRole !== "assistant") {
-            return null;
-          }
-          for (let i = messages.length - 1; i >= 0; i -= 1) {
-            if (messages[i]?.role === "assistant") return i;
-          }
-          return null;
-        })()
-      : null;
+  // Find the last assistant message index so we can attach live streaming UI to it.
+  const lastAssistantIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.role === "assistant") return i;
+    }
+    return -1;
+  })();
+
+  // The live thinking panel should appear at the bottom (not attached to any message)
+  // when streaming but no assistant message has appeared yet.
+  const showFloatingThinking =
+    isStreaming &&
+    (lastAssistantIndex === -1 || messages[messages.length - 1]?.role !== "assistant");
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -107,20 +112,13 @@ export function ChatMessageList({
           const nodeList = Array.isArray(nodeData?.nodes) ? nodeData.nodes : [];
           const nodeIds = Array.isArray(nodeData?.nodeIds) ? nodeData.nodeIds : [];
           const messageKey = `${index}-${message.timestamp}`;
+
+          // Is this the assistant message currently being streamed?
+          const isActiveStreamingMessage =
+            isStreaming && message.role === "assistant" && index === lastAssistantIndex;
+
           return (
             <div key={index} className="space-y-2">
-              {mode === "plan" && thinkingInsertIndex === index ? (
-                <ThinkingPanel
-                  isStreaming={isStreaming}
-                  activeToolCalls={thinking.activeToolCalls}
-                  lastToolCalls={thinking.lastToolCalls}
-                  subKaniCalls={thinking.subKaniCalls}
-                  subKaniStatus={thinking.subKaniStatus}
-                  reasoning={thinking.reasoning}
-                  title="Thinking"
-                />
-              ) : null}
-
               <div
                 className={`flex ${
                   message.role === "user" ? "justify-end" : "justify-start"
@@ -167,33 +165,38 @@ export function ChatMessageList({
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : message.role === "assistant" ? (
                   <div className="flex max-w-[85%] flex-col gap-1">
-                    {message.role === "assistant" ? (
+                    {/* 1. Thinking (live) / Thought (historical) */}
+                    {isActiveStreamingMessage ? (
+                      <ThinkingPanel
+                        isStreaming={isStreaming}
+                        activeToolCalls={thinking.activeToolCalls}
+                        lastToolCalls={thinking.lastToolCalls}
+                        subKaniCalls={thinking.subKaniCalls}
+                        subKaniStatus={thinking.subKaniStatus}
+                        reasoning={thinking.reasoning}
+                        title="Thinking"
+                      />
+                    ) : (
                       <ChatThinkingDetails
                         toolCalls={message.toolCalls}
                         delegateSummaries={delegateSummary.summaries}
                         delegateRejected={delegateSummary.rejected}
                         subKaniActivity={subKaniActivity}
+                        reasoning={message.reasoning}
                         title="Thought"
                       />
-                    ) : null}
-                    <div
-                      className={`rounded-lg px-3 py-2 ${
-                        message.role === "user"
-                          ? "bg-slate-900 text-white selection:bg-white selection:text-slate-900"
-                          : "border border-slate-200 bg-slate-50 text-slate-700"
-                      }`}
-                    >
+                    )}
+
+                    {/* 2. Model's response */}
+                    <div className="rounded-lg px-3 py-2 border border-slate-200 bg-slate-50 text-slate-700">
                       <ChatMarkdown
                         content={message.content}
-                        citations={
-                          message.role === "assistant" ? message.citations : undefined
-                        }
-                        tone={message.role === "user" ? "onDark" : "default"}
+                        citations={message.citations}
+                        tone="default"
                       />
-                      {message.role === "assistant" &&
-                        Array.isArray(message.planningArtifacts) &&
+                      {Array.isArray(message.planningArtifacts) &&
                         message.planningArtifacts.length > 0 && (
                           <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700">
                             <div className="mb-1 font-medium text-slate-900">
@@ -220,125 +223,134 @@ export function ChatMessageList({
                             </ul>
                           </div>
                         )}
-                      {message.role === "assistant" &&
-                        Array.isArray(message.citations) &&
-                        message.citations.length > 0 && (
-                          <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700">
-                            {(() => {
-                              const total = message.citations?.length || 0;
-                              const expanded = Boolean(expandedSources[messageKey]);
-
-                              return (
-                                <>
-                                  <div className="mb-1 flex items-center justify-between gap-2">
-                                    <div className="font-medium text-slate-900">
-                                      Sources
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        type="button"
-                                        className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
-                                          showCitationTags
-                                            ? "border-slate-300 bg-slate-50 text-slate-900"
-                                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                        }`}
-                                        onClick={() => setShowCitationTags((v) => !v)}
-                                        aria-pressed={showCitationTags}
-                                        title="Toggle citation tags"
-                                      >
-                                        {showCitationTags
-                                          ? "Hide citation tags"
-                                          : "Show citation tags"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1 text-slate-700 hover:bg-slate-50"
-                                        onClick={() =>
-                                          setExpandedSources((prev) => ({
-                                            ...prev,
-                                            [messageKey]: !expanded,
-                                          }))
-                                        }
-                                        aria-label={
-                                          expanded
-                                            ? "Collapse sources"
-                                            : "Expand sources"
-                                        }
-                                        title={
-                                          expanded
-                                            ? "Collapse sources"
-                                            : "Expand sources"
-                                        }
-                                      >
-                                        {expanded ? (
-                                          <ChevronUp
-                                            className="h-4 w-4"
-                                            aria-hidden="true"
-                                          />
-                                        ) : (
-                                          <ChevronDown
-                                            className="h-4 w-4"
-                                            aria-hidden="true"
-                                          />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {!expanded ? (
-                                    <div className="text-[11px] text-slate-500">
-                                      {total} source{total === 1 ? "" : "s"}
-                                    </div>
-                                  ) : (
-                                    <ol className="list-decimal space-y-1 pl-4">
-                                      {message.citations.map((c, i) => (
-                                        <li key={c.id} id={`cite-${i + 1}`}>
-                                          {showCitationTags && c.tag ? (
-                                            <span className="mr-2 font-mono text-[11px] text-slate-500">
-                                              [{c.tag}]{" "}
-                                            </span>
-                                          ) : null}
-                                          {Array.isArray(c.authors) &&
-                                          c.authors.length > 0 ? (
-                                            <span className="text-slate-600">
-                                              {`${c.authors.filter(Boolean).join(", ")} `}
-                                            </span>
-                                          ) : null}
-                                          {c.url ? (
-                                            <a
-                                              href={c.url}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
-                                            >
-                                              {c.title}
-                                            </a>
-                                          ) : (
-                                            <span>{c.title}</span>
-                                          )}
-                                          {c.year ? (
-                                            <span className="text-slate-500">
-                                              {" "}
-                                              ({c.year})
-                                            </span>
-                                          ) : null}
-                                          {c.doi ? (
-                                            <span className="text-slate-500">
-                                              {" "}
-                                              · DOI: {c.doi}
-                                            </span>
-                                          ) : null}
-                                        </li>
-                                      ))}
-                                    </ol>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
                     </div>
-                    {message.role === "assistant" && undoSnapshot && (
+
+                    {/* 3. Sources */}
+                    {Array.isArray(message.citations) &&
+                      message.citations.length > 0 && (
+                        <div className="rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700">
+                          {(() => {
+                            const total = message.citations?.length || 0;
+                            const expanded = Boolean(expandedSources[messageKey]);
+
+                            return (
+                              <>
+                                <div className="mb-1 flex items-center justify-between gap-2">
+                                  <div className="font-medium text-slate-900">
+                                    Sources
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                                        showCitationTags
+                                          ? "border-slate-300 bg-slate-50 text-slate-900"
+                                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                      }`}
+                                      onClick={() => setShowCitationTags((v) => !v)}
+                                      aria-pressed={showCitationTags}
+                                      title="Toggle citation tags"
+                                    >
+                                      {showCitationTags
+                                        ? "Hide citation tags"
+                                        : "Show citation tags"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1 text-slate-700 hover:bg-slate-50"
+                                      onClick={() =>
+                                        setExpandedSources((prev) => ({
+                                          ...prev,
+                                          [messageKey]: !expanded,
+                                        }))
+                                      }
+                                      aria-label={
+                                        expanded ? "Collapse sources" : "Expand sources"
+                                      }
+                                      title={
+                                        expanded ? "Collapse sources" : "Expand sources"
+                                      }
+                                    >
+                                      {expanded ? (
+                                        <ChevronUp
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <ChevronDown
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {!expanded ? (
+                                  <div className="text-[11px] text-slate-500">
+                                    {total} source{total === 1 ? "" : "s"}
+                                  </div>
+                                ) : (
+                                  <ol className="list-decimal space-y-1 pl-4">
+                                    {message.citations.map((c, i) => (
+                                      <li key={c.id} id={`cite-${i + 1}`}>
+                                        {showCitationTags && c.tag ? (
+                                          <span className="mr-2 font-mono text-[11px] text-slate-500">
+                                            [{c.tag}]{" "}
+                                          </span>
+                                        ) : null}
+                                        {Array.isArray(c.authors) &&
+                                        c.authors.length > 0 ? (
+                                          <span className="text-slate-600">
+                                            {`${c.authors.filter(Boolean).join(", ")} `}
+                                          </span>
+                                        ) : null}
+                                        {c.url ? (
+                                          <a
+                                            href={c.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+                                          >
+                                            {c.title}
+                                          </a>
+                                        ) : (
+                                          <span>{c.title}</span>
+                                        )}
+                                        {c.year ? (
+                                          <span className="text-slate-500">
+                                            {" "}
+                                            ({c.year})
+                                          </span>
+                                        ) : null}
+                                        {c.doi ? (
+                                          <span className="text-slate-500">
+                                            {" "}
+                                            · DOI: {c.doi}
+                                          </span>
+                                        ) : null}
+                                      </li>
+                                    ))}
+                                  </ol>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                    {/* 4. Optimization progress and graph */}
+                    {isActiveStreamingMessage && optimizationProgress ? (
+                      <OptimizationProgressPanel
+                        data={optimizationProgress}
+                        onCancel={onCancelOptimization}
+                      />
+                    ) : message.optimizationProgress ? (
+                      <OptimizationProgressPanel data={message.optimizationProgress} />
+                    ) : null}
+
+                    {/* Undo button */}
+                    {undoSnapshot && (
                       <div className="flex justify-start">
                         <button
                           type="button"
@@ -362,14 +374,20 @@ export function ChatMessageList({
                       </div>
                     )}
                   </div>
+                ) : (
+                  <div className="flex max-w-[85%] flex-col gap-1">
+                    <div className="rounded-lg px-3 py-2 bg-slate-900 text-white selection:bg-white selection:text-slate-900">
+                      <ChatMarkdown content={message.content} tone="onDark" />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           );
         })}
 
-        {mode === "execute" ||
-        (mode === "plan" && isStreaming && thinkingInsertIndex === null) ? (
+        {/* Floating thinking panel: only shown when streaming but no assistant message is at the end yet */}
+        {showFloatingThinking ? (
           <ThinkingPanel
             isStreaming={isStreaming}
             activeToolCalls={thinking.activeToolCalls}
@@ -377,7 +395,7 @@ export function ChatMessageList({
             subKaniCalls={thinking.subKaniCalls}
             subKaniStatus={thinking.subKaniStatus}
             reasoning={thinking.reasoning}
-            title={mode === "plan" ? "Thinking" : undefined}
+            title="Thinking"
           />
         ) : null}
 

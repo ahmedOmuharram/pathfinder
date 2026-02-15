@@ -104,11 +104,20 @@ class SearchCatalog:
         return self._record_types
 
     def get_searches(self, record_type: str) -> JSONArray:
-        """Get searches for a record type."""
+        """Get searches for a record type.
+
+        :param record_type: WDK record type.
+
+        """
         return self._searches.get(record_type, [])
 
     def find_search(self, record_type: str, search_name: str) -> JSONObject | None:
-        """Find a specific search."""
+        """Find a specific search.
+
+        :param record_type: WDK record type.
+        :param search_name: WDK search name.
+
+        """
         searches = self.get_searches(record_type)
         for search_raw in searches:
             if not isinstance(search_raw, dict):

@@ -11,7 +11,11 @@ router = APIRouter(prefix="/api/v1", tags=["models"])
 
 
 def _provider_enabled(provider: ModelProvider) -> bool:
-    """Return ``True`` if the server has an API key configured for *provider*."""
+    """Check whether a model provider has its API key configured.
+
+    :param provider: Model provider.
+    :returns: True if the provider is enabled, False otherwise.
+    """
     settings = get_settings()
     key_map: dict[ModelProvider, str] = {
         "openai": settings.openai_api_key,

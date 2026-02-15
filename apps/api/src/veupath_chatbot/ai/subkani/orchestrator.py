@@ -172,11 +172,6 @@ async def run_subkani_task(
                             },
                         }
                     )
-            # ------------------------------------------------------------------
-            # Subtree-root contract: the sub-kani must have produced exactly
-            # one *new* subtree root.  New roots = current roots that were
-            # not in the snapshot taken before the sub-kani ran.
-            # ------------------------------------------------------------------
             roots_after: set[str] = set(graph.roots) if graph else set()
             new_roots = roots_after - roots_before
             if len(new_roots) != 1:

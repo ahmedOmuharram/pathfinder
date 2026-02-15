@@ -60,6 +60,9 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
+# Sphinx docs
+**/docs/_build/
+
 # Logs
 *.log
 npm-debug.log*

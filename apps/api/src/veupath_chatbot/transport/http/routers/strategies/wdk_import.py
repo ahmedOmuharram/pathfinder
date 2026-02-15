@@ -115,6 +115,9 @@ def _parse_wdk_strategy_id(item: JSONObject) -> int | None:
 
     WDK's ``StrategyFormatter`` emits ``strategyId`` (``JsonKeys.STRATEGY_ID``)
     as a Java long (always an int in JSON).
+
+    :param item: Item dict.
+
     """
     wdk_id = item.get("strategyId")
     if isinstance(wdk_id, int):

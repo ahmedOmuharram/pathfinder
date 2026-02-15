@@ -1,5 +1,11 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { Message, ToolCall, Citation, PlanningArtifact } from "@pathfinder/shared";
+import type {
+  Message,
+  ToolCall,
+  Citation,
+  PlanningArtifact,
+  OptimizationProgressData,
+} from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
@@ -62,7 +68,11 @@ export type ChatEventContext = {
   streamingAssistantIndexRef: MutableRef<number | null>;
   streamingAssistantMessageIdRef: MutableRef<string | null>;
 
-  // --- Optional conversation callbacks ---
+  setOptimizationProgress: Dispatch<SetStateAction<OptimizationProgressData | null>>;
+
+  reasoningRef: MutableRef<string | null>;
+  optimizationProgressRef: MutableRef<OptimizationProgressData | null>;
+
   onPlanSessionId?: (id: string) => void;
   onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
   onExecutorBuildRequest?: (message: string) => void;
@@ -202,6 +212,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         citationsBuffer.length > 0 ? [...citationsBuffer] : undefined;
       const finalArtifacts =
         planningArtifactsBuffer.length > 0 ? [...planningArtifactsBuffer] : undefined;
+      const finalReasoning = ctx.reasoningRef.current ?? undefined;
+      const finalOptimization = ctx.optimizationProgressRef.current ?? undefined;
 
       if (
         streamingAssistantIndexRef.current !== null &&
@@ -223,6 +235,9 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
             subKaniActivity,
             citations: finalCitations ?? existing.citations,
             planningArtifacts: finalArtifacts ?? existing.planningArtifacts,
+            reasoning: finalReasoning || existing.reasoning || undefined,
+            optimizationProgress:
+              finalOptimization || existing.optimizationProgress || undefined,
           };
           // Reset streaming refs atomically with the state update so they
           // are correct when React flushes (avoids stale index after batch).
@@ -239,6 +254,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
           subKaniActivity,
           citations: finalCitations,
           planningArtifacts: finalArtifacts,
+          reasoning: finalReasoning || undefined,
+          optimizationProgress: finalOptimization || undefined,
           timestamp: new Date().toISOString(),
         };
         const snapshot = pendingUndoSnapshotRef.current;
@@ -261,6 +278,8 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       toolCallsBuffer.length = 0;
       citationsBuffer.length = 0;
       planningArtifactsBuffer.length = 0;
+      ctx.reasoningRef.current = null;
+      ctx.optimizationProgressRef.current = null;
       break;
     }
     case "citations": {
@@ -286,6 +305,7 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       const reasoning = (event.data as { reasoning?: string })?.reasoning;
       if (typeof reasoning === "string") {
         thinking.updateReasoning(reasoning);
+        ctx.reasoningRef.current = reasoning;
       }
       break;
     }
@@ -361,15 +381,11 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
         graphId?: string;
         step: {
           stepId: string;
-          type: string;
           kind?: string;
           displayName: string;
           searchName?: string;
           transformName?: string;
           operator?: string;
-          leftStepId?: string;
-          rightStepId?: string;
-          inputStepId?: string;
           primaryInputStepId?: string;
           secondaryInputStepId?: string;
           parameters?: Record<string, unknown>;
@@ -402,14 +418,13 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       if (!strategyIdAtStart || strategyIdAtStart === targetGraphId) {
         addStep({
           id: step.stepId,
-          kind: (step.kind ?? step.type) as StrategyStep["kind"],
-          displayName: step.displayName || step.kind || step.type,
+          kind: (step.kind ?? "search") as StrategyStep["kind"],
+          displayName: step.displayName || step.kind || "Untitled step",
           recordType: step.recordType ?? undefined,
           searchName: step.searchName,
           operator: (step.operator as StrategyStep["operator"]) ?? undefined,
-          primaryInputStepId:
-            step.primaryInputStepId || step.leftStepId || step.inputStepId,
-          secondaryInputStepId: step.secondaryInputStepId || step.rightStepId,
+          primaryInputStepId: step.primaryInputStepId,
+          secondaryInputStepId: step.secondaryInputStepId,
           parameters: step.parameters,
         });
         appliedSnapshotRef.current = true;
@@ -487,10 +502,21 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       break;
     }
     case "executor_build_request": {
-      const { message } = event.data as { message?: string };
+      const ebr = (
+        event.data as {
+          executorBuildRequest?: Record<string, unknown>;
+        }
+      ).executorBuildRequest;
+      const message = typeof ebr?.message === "string" ? ebr.message : undefined;
       if (message && onExecutorBuildRequest) {
         onExecutorBuildRequest(message);
       }
+      break;
+    }
+    case "optimization_progress": {
+      const progressData = event.data as OptimizationProgressData;
+      ctx.setOptimizationProgress(progressData);
+      ctx.optimizationProgressRef.current = progressData;
       break;
     }
     case "plan_update": {

@@ -62,7 +62,12 @@ class SiteInfo:
         return base
 
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
-        """Build a strategy URL for the web UI."""
+        """Build a strategy URL for the web UI.
+
+        :param strategy_id: WDK strategy ID.
+        :param root_step_id: Root step ID (default: None).
+
+        """
         if root_step_id is not None:
             return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}/{root_step_id}"
         return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}"
@@ -140,7 +145,11 @@ class SiteRouter:
         logger.info("Sites loaded", site_ids=list(self._sites.keys()))
 
     def get_site(self, site_id: str) -> SiteInfo:
-        """Get site by ID."""
+        """Get site by ID.
+
+        :param site_id: VEuPathDB site identifier.
+
+        """
         logger.debug(
             "Getting site", site_id=site_id, available=list(self._sites.keys())
         )
@@ -170,7 +179,11 @@ class SiteRouter:
         return self.get_site(default_id)
 
     def get_client(self, site_id: str) -> VEuPathDBClient:
-        """Get or create HTTP client for a site."""
+        """Get or create HTTP client for a site.
+
+        :param site_id: VEuPathDB site identifier.
+
+        """
         if site_id not in self._clients:
             site = self.get_site(site_id)
             routing_raw = self._config.get("routing", {})
@@ -204,7 +217,11 @@ class SiteRouter:
         return self.get_client("veupathdb")
 
     def should_use_component(self, site_id: str) -> bool:
-        """Check if component site should be used."""
+        """Check if component site should be used.
+
+        :param site_id: VEuPathDB site identifier.
+
+        """
         if site_id == "veupathdb":
             return False
         routing_raw = self._config.get("routing", {})

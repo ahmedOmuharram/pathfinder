@@ -147,13 +147,6 @@ class ExecutionTools:
 
         strategy = graph.current_strategy
 
-        # ------------------------------------------------------------------
-        # Tree-first root resolution: use graph.roots directly.
-        #
-        # The graph maintains a set of subtree roots.  A complete strategy
-        # has exactly one root.  We allow an explicit root_step_id override
-        # for backward-compat but prefer graph.roots.
-        # ------------------------------------------------------------------
         if root_step_id:
             # Explicit override — trust the caller.
             root_step = graph.get_step(root_step_id)

@@ -162,12 +162,22 @@ async def get_search_parameters(
     param_specs = extract_param_specs(details if isinstance(details, dict) else {})
 
     def _allowed_values(vocab: JSONObject | JSONArray | None) -> list[str]:
+        """Extract WDK-accepted parameter values from a vocabulary.
+
+        Uses term/value (what WDK actually accepts) rather than display labels,
+        so the LLM can pass these values directly to WDK API calls without
+        needing vocabulary normalisation.
+
+        :param vocab: Vocabulary tree or flat list from catalog.
+        :returns: List of WDK-accepted values.
+        """
         if not vocab:
             return []
         values: list[str] = []
         seen: set[str] = set()
-        for entry in flatten_vocab(vocab, prefer_term=False):
-            candidate = entry.get("display") or entry.get("value")
+        for entry in flatten_vocab(vocab, prefer_term=True):
+            # Prefer the WDK-accepted value; fall back to display if missing.
+            candidate = entry.get("value") or entry.get("display")
             if not candidate:
                 continue
             text = str(candidate)
@@ -200,11 +210,14 @@ async def get_search_parameters(
         param_type = type_raw if isinstance(type_raw, str) else "string"
         help_raw = spec.get("help")
         help_text = help_raw if isinstance(help_raw, str) else ""
+        is_visible_raw = spec.get("isVisible")
+        is_visible = is_visible_raw if isinstance(is_visible_raw, bool) else True
         info: JSONObject = {
             "name": name,
             "displayName": display_name,
             "type": param_type,
             "required": required,
+            "isVisible": is_visible,
             "help": help_text,
         }
 
@@ -487,7 +500,11 @@ async def validate_search_params(
 
 
 def _normalize_param_value(value: object) -> str:
-    """Normalize a parameter value to a string representation."""
+    """Normalize a parameter value to a string representation.
+
+    :param value: Raw parameter value.
+    :returns: String representation for WDK.
+    """
     if value is None:
         return ""
     if isinstance(value, bool):
@@ -502,7 +519,12 @@ def _normalize_param_value(value: object) -> str:
 
 
 def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONObject:
-    """Filter context values to keys WDK recognizes for the search (best-effort)."""
+    """Filter context values to keys WDK recognizes for the search (best-effort).
+
+    :param raw_context: Raw context from request.
+    :param allowed: Set of allowed parameter names.
+    :returns: Filtered context dict.
+    """
     return (
         {key: value for key, value in raw_context.items() if key in allowed}
         if allowed
@@ -511,7 +533,11 @@ def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONOb
 
 
 def _unwrap_search_data(details: JSONObject | None) -> JSONObject | None:
-    """Normalize WDK/discovery payload shape to the dict that contains parameters."""
+    """Normalize WDK/discovery payload shape to the dict that contains parameters.
+
+    :param details: Search details from WDK/discovery.
+    :returns: Search data dict or None.
+    """
     if not isinstance(details, dict):
         return None
     search_data_raw = details.get("searchData")
@@ -564,7 +590,11 @@ async def _get_search_details_with_portal_fallback(
 
 
 def _extract_param_names(details: JSONObject) -> set[str]:
-    """Extract parameter names from WDK search details."""
+    """Extract parameter names from WDK search details.
+
+    :param details: Search details from WDK.
+    :returns: Set of parameter names.
+    """
     if not isinstance(details, dict):
         return set()
     search_data = details.get("searchData")

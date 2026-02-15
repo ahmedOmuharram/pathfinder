@@ -10,11 +10,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-# ============================================================================
-# Combine Operations
-# ============================================================================
-
-
 class CombineOperator(str, Enum):
     """Set operations for combining two steps."""
 
@@ -32,11 +27,6 @@ COMBINE_OPERATOR_LABELS: dict[CombineOperator, str] = {
     CombineOperator.MINUS_RIGHT: "Not in left",
     CombineOperator.COLOCATE: "Genomic colocation",
 }
-
-
-# ============================================================================
-# Strategy Plan DSL (AST)
-# ============================================================================
 
 
 class ColocationParams(BaseModel):
@@ -114,11 +104,6 @@ class StrategyPlan(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-# ============================================================================
-# VEuPathDB Site Configuration
-# ============================================================================
-
-
 class VEuPathDBSite(BaseModel):
     """VEuPathDB site configuration."""
 
@@ -130,11 +115,6 @@ class VEuPathDBSite(BaseModel):
     is_portal: bool = Field(alias="isPortal")
 
     model_config = {"populate_by_name": True}
-
-
-# ============================================================================
-# API Types
-# ============================================================================
 
 
 class RecordType(BaseModel):
@@ -171,11 +151,6 @@ class Search(BaseModel):
     parameters: list[SearchParameter]
 
     model_config = {"populate_by_name": True}
-
-
-# ============================================================================
-# Strategy Types
-# ============================================================================
 
 
 class Step(BaseModel):
@@ -226,10 +201,6 @@ class StrategySummary(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
-# ============================================================================
-# Chat Types
-# ============================================================================
 
 ChatMode = Literal["execute", "plan"]
 
@@ -282,11 +253,6 @@ class ChatRequest(BaseModel):
     mode: ChatMode = Field(default="execute")
 
     model_config = {"populate_by_name": True}
-
-
-# ============================================================================
-# Result Types
-# ============================================================================
 
 
 class PreviewRequest(BaseModel):

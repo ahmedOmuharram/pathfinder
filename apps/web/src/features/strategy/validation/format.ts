@@ -3,12 +3,10 @@ import type {
   SearchValidationResponse,
 } from "@pathfinder/shared";
 
-export function formatSearchValidationPayload(
-  payload: SearchValidationPayload | null | undefined,
-): {
-  message: string | null;
-  keys: Set<string>;
-} {
+export function formatSearchValidationResponse(
+  response: SearchValidationResponse | null | undefined,
+): { message: string | null; keys: Set<string> } {
+  const payload: SearchValidationPayload | null | undefined = response?.validation;
   if (!payload || payload.isValid !== false) return { message: null, keys: new Set() };
 
   const general = payload.errors?.general || [];
@@ -30,10 +28,4 @@ export function formatSearchValidationPayload(
       : "Cannot be saved: parameters do not match the spec.";
 
   return { message, keys };
-}
-
-export function formatSearchValidationResponse(
-  response: SearchValidationResponse | null | undefined,
-): { message: string | null; keys: Set<string> } {
-  return formatSearchValidationPayload(response?.validation);
 }

@@ -34,7 +34,6 @@ export function buildNodeSelectionPayload(
       .map((step) => ({
         id: step.id,
         kind: inferStepKind(step),
-        type: inferStepKind(step), // legacy consumer compatibility
         displayName: step.displayName,
         searchName: step.searchName,
         operator: step.operator,

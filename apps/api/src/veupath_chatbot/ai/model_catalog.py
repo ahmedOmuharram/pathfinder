@@ -12,10 +12,6 @@ from typing import Literal
 ModelProvider = Literal["openai", "anthropic", "google"]
 ReasoningEffort = Literal["none", "low", "medium", "high"]
 
-# ---------------------------------------------------------------------------
-# Reasoning-effort → provider-specific hyperparams
-# ---------------------------------------------------------------------------
-
 # OpenAI reasoning models (gpt-5*, o1, o3, o4) use the ``reasoning`` param.
 _OPENAI_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
     "none": {"reasoning": {"effort": "none"}},
@@ -54,17 +50,14 @@ def build_reasoning_hyperparams(
 ) -> dict[str, object]:
     """Return provider-specific hyperparams that implement *effort*.
 
-    Returns an empty dict when *effort* is ``None`` (use server defaults).
+    :param provider: Model provider.
+    :param effort: Reasoning effort (default: None).
+    :returns: Dict of provider-specific hyperparameters, or empty dict.
     """
     if effort is None:
         return {}
     effort_map = _EFFORT_MAPS.get(provider, {})
     return dict(effort_map.get(effort, {}))
-
-
-# ---------------------------------------------------------------------------
-# Model catalog
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,5 +139,9 @@ _CATALOG_INDEX: dict[str, ModelEntry] = {m.id: m for m in MODEL_CATALOG}
 
 
 def get_model_entry(model_id: str) -> ModelEntry | None:
-    """Return the catalog entry for *model_id*, or ``None`` if unknown."""
+    """Look up a model by catalog ID.
+
+    :param model_id: Model identifier (e.g. ``openai/gpt-5``).
+    :returns: Model entry if found, otherwise None.
+    """
     return _CATALOG_INDEX.get(model_id)

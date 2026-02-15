@@ -15,6 +15,8 @@ class GUID(TypeDecorator[str]):
     """Platform-independent GUID type.
 
     Uses CHAR(36) and stores UUIDs as strings.
+
+
     """
 
     impl = CHAR

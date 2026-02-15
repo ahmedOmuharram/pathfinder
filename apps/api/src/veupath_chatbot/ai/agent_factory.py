@@ -25,11 +25,6 @@ from .planner_runtime import PathfinderPlannerAgent
 ChatMode = Literal["execute", "plan"]
 
 
-# ---------------------------------------------------------------------------
-# Per-provider engine constructors
-# ---------------------------------------------------------------------------
-
-
 def _create_openai_engine(
     *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
 ) -> OpenAIEngine:
@@ -41,11 +36,14 @@ def _create_openai_engine(
     if not sampling_restricted:
         kwargs["temperature"] = temperature
         kwargs["top_p"] = top_p
-    return OpenAIEngine(
-        api_key=settings.openai_api_key,
-        model=model,
-        **kwargs,
-        **(hyperparams or {}),
+    return cast(
+        BaseEngine,
+        OpenAIEngine(
+            api_key=settings.openai_api_key,
+            model=model,
+            **kwargs,
+            **(hyperparams or {}),
+        ),
     )
 
 
@@ -56,12 +54,15 @@ def _create_anthropic_engine(
     # Lazy import so the API can still boot in minimal installs.
     from kani.engines.anthropic import AnthropicEngine
 
-    return AnthropicEngine(
-        api_key=settings.anthropic_api_key,
-        model=model,
-        temperature=temperature,
-        top_p=top_p,
-        **(hyperparams or {}),
+    return cast(
+        BaseEngine,
+        AnthropicEngine(
+            api_key=settings.anthropic_api_key,
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            **(hyperparams or {}),
+        ),
     )
 
 
@@ -72,12 +73,15 @@ def _create_google_engine(
     # Lazy import so the API can still boot in minimal installs.
     from kani.engines.google import GoogleAIEngine
 
-    return GoogleAIEngine(
-        api_key=settings.gemini_api_key,
-        model=model,
-        temperature=temperature,
-        top_p=top_p,
-        **(hyperparams or {}),
+    return cast(
+        BaseEngine,
+        GoogleAIEngine(
+            api_key=settings.gemini_api_key,
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            **(hyperparams or {}),
+        ),
     )
 
 
@@ -88,20 +92,19 @@ _ENGINE_FACTORIES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Resolve effective provider/model/hyperparams
-# ---------------------------------------------------------------------------
-
-
 def resolve_effective_model_id(
     *,
     model_override: str | None = None,
     persisted_model_id: str | None = None,
 ) -> str:
-    """Return the effective model catalog ID.
+    """Resolve effective model ID from override and persisted state.
 
     Priority: per-request override > persisted per-conversation > server default.
     Used by the orchestrator to determine which model to persist back.
+
+    :param model_override: Model ID override (default: None).
+    :param persisted_model_id: Persisted model ID (default: None).
+    :returns: Effective model ID.
     """
     return model_override or persisted_model_id or get_settings().default_model_id
 
@@ -112,14 +115,17 @@ def _resolve_model_config(
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
 ) -> tuple[ModelProvider, str, float, float, JSONObject]:
-    """Return (provider, model, temperature, top_p, merged_hyperparams).
+    """Resolve provider, model, and hyperparams from overrides and defaults.
 
     Model selection is **mode-agnostic**: the same default applies to both
-    planning and execution.  The caller can override any field per-request.
+    planning and execution.  If the caller passes a catalog ``id`` (e.g.
+    ``"openai/gpt-5"``) as *model_override* we resolve the native model name
+    and provider from the catalog.
 
-    If the caller passes a catalog ``id`` (e.g. ``"openai/gpt-5"``) as
-    *model_override* we resolve the native model name and provider from the
-    catalog.
+    :param provider_override: Provider override (default: None).
+    :param model_override: Model ID override (default: None).
+    :param reasoning_effort: Reasoning effort (default: None).
+    :returns: Tuple of (provider, model, temperature, top_p, hyperparams).
     """
     settings = get_settings()
 
@@ -168,11 +174,6 @@ def _resolve_model_config(
     return provider, model, temperature, top_p, cast(JSONObject, merged)
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 def create_engine(
     *,
     provider_override: ModelProvider | None = None,
@@ -182,6 +183,11 @@ def create_engine(
     """Create an LLM engine, optionally overridden per-request.
 
     Model selection is mode-agnostic; the same default applies everywhere.
+
+    :param provider_override: Provider override (default: None).
+    :param model_override: Model ID override (default: None).
+    :param reasoning_effort: Reasoning effort (default: None).
+    :returns: Configured LLM engine instance.
     """
     provider, model, temperature, top_p, hyperparams = _resolve_model_config(
         provider_override=provider_override,
@@ -191,11 +197,14 @@ def create_engine(
     factory = _ENGINE_FACTORIES.get(provider)
     if factory is None:
         raise ValueError(f"Unknown provider: {provider!r}")
-    return factory(
-        model=model,
-        temperature=temperature,
-        top_p=top_p,
-        hyperparams=hyperparams,
+    return cast(
+        BaseEngine,
+        factory(
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            hyperparams=hyperparams,
+        ),
     )
 
 
@@ -218,6 +227,20 @@ def create_agent(
 
     *mode* determines the agent **type** (executor vs planner), but does
     **not** influence model selection — any model works with any mode.
+
+    :param site_id: VEuPathDB site identifier.
+    :param user_id: User ID (default: None).
+    :param chat_history: Chat history (default: None).
+    :param strategy_graph: Strategy graph payload (default: None).
+    :param selected_nodes: Selected nodes (default: None).
+    :param delegation_draft_artifact: Delegation draft (default: None).
+    :param plan_session_id: Plan session ID (default: None).
+    :param get_plan_session_artifacts: Async callable to fetch plan artifacts (default: None).
+    :param mode: Chat mode (default: "execute").
+    :param provider_override: Model provider override (default: None).
+    :param model_override: Model ID override (default: None).
+    :param reasoning_effort: Reasoning effort (default: None).
+    :returns: Configured agent instance.
     """
     engine = create_engine(
         provider_override=provider_override,

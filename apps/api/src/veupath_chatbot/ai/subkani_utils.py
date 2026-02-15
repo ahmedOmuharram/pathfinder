@@ -81,7 +81,13 @@ def format_dependency_context(
     tasks_by_id: dict[str, JSONObject],
     results_by_id: dict[str, JSONObject],
 ) -> str | None:
-    """Format dependency context for a subtask prompt."""
+    """Format dependency context for a subtask prompt.
+
+    :param task_id: Task ID to format context for.
+    :param tasks_by_id: Map of task ID to task data.
+    :param results_by_id: Map of task ID to result data.
+    :returns: Formatted context string or None.
+    """
     task_obj = tasks_by_id.get(task_id)
     if not isinstance(task_obj, dict):
         return None
@@ -152,7 +158,11 @@ def format_dependency_context(
 
 
 def format_task_context(context: JSONValue) -> str | None:
-    """Format optional per-task context for a subtask prompt."""
+    """Format optional per-task context for a subtask prompt.
+
+    :param context: Context value.
+
+    """
     if context is None:
         return None
     if isinstance(context, str):
@@ -170,7 +180,10 @@ def extract_primary_step_id(result: JSONObject | None) -> str | None:
 
     Prefers the ``subtreeRoot`` field (set by the tree-first contract
     enforcement in the orchestrator).  Falls back to the last created step
-    ID for backward compatibility.
+    ID when subtreeRoot is not set (e.g. combine results).
+
+    :param result: JSONObject | None.
+
     """
     if not isinstance(result, dict):
         return None

@@ -31,13 +31,10 @@ class TemporaryResultsAPI:
     ) -> JSONObject:
         """Create a temporary result for download.
 
-        Args:
-            step_id: Step ID to export
-            reporter: Reporter type (tabular, fullRecord, etc.)
-            format_config: Reporter-specific configuration
-
-        Returns:
-            Temporary result info with ID and download URL
+        :param step_id: Step ID to export.
+        :param reporter: Reporter type (tabular, fullRecord, etc.).
+        :param format_config: Reporter-specific configuration.
+        :returns: Temporary result info with ID and download URL.
         """
         payload: JSONObject = {
             "stepId": step_id,
@@ -72,13 +69,10 @@ class TemporaryResultsAPI:
     ) -> str:
         """Get download URL for step results.
 
-        Args:
-            step_id: Step ID
-            format: Output format (csv, tab, json)
-            attributes: Attributes to include
-
-        Returns:
-            Download URL
+        :param step_id: Step ID.
+        :param format: Output format (csv, tab, json).
+        :param attributes: Attributes to include.
+        :returns: Download URL.
         """
         format_config: JSONObject = {}
 
@@ -109,13 +103,10 @@ class TemporaryResultsAPI:
     ) -> JSONObject:
         """Get preview of step results.
 
-        Args:
-            step_id: Step ID
-            limit: Max records to return
-            attributes: Attributes to include
-
-        Returns:
-            Preview data with records
+        :param step_id: Step ID.
+        :param limit: Max records to return.
+        :param attributes: Attributes to include.
+        :returns: Preview data with records.
         """
         params: JSONObject = {
             "numRecords": limit,

@@ -76,7 +76,11 @@ class ChatStreamProcessor:
         self.thinking_flush_interval = 2.0
 
     def resolve_graph_id(self, raw_id: str | None | JSONValue) -> str | None:
-        """Resolve graph ID, converting JSONValue to str if needed."""
+        """Resolve graph ID, converting JSONValue to str if needed.
+
+        :param raw_id: Raw ID (str, None, or JSON).
+
+        """
         if raw_id is None:
             return None
         if isinstance(raw_id, str):
@@ -343,6 +347,7 @@ class ChatStreamProcessor:
                     updated = await self.strategy_repo.update(
                         strategy_id=graph_uuid,
                         wdk_strategy_id=wdk_strategy_id,
+                        wdk_strategy_id_set=True,
                     )
                     if not updated:
                         name_value = event_data.get("name")
@@ -439,15 +444,13 @@ class ChatStreamProcessor:
                     latest_plan["metadata"] = metadata
 
                 try:
-                    if isinstance(snapshot, dict) and snapshot.get("steps"):
-                        # Snapshot-only persistence is deprecated; prefer plan persistence.
+                    # Prefer plan-derived steps; use snapshot only when plan is missing.
+                    if isinstance(latest_plan, dict):
+                        steps_data = build_steps_data_from_plan(latest_plan)
+                    elif isinstance(snapshot, dict) and snapshot.get("steps"):
                         steps_data = build_steps_data_from_graph_snapshot(snapshot)
                     else:
-                        steps_data = (
-                            build_steps_data_from_plan(latest_plan)
-                            if isinstance(latest_plan, dict)
-                            else []
-                        )
+                        steps_data = []
 
                     if isinstance(snapshot, dict):
                         name_snapshot = snapshot.get("name")
@@ -544,6 +547,7 @@ class ChatStreamProcessor:
                             await self.strategy_repo.update(
                                 strategy_id=graph_uuid,
                                 wdk_strategy_id=wdk_strategy_id,
+                                wdk_strategy_id_set=True,
                             )
                         pending = {**pending, "strategySnapshotId": str(graph_uuid)}
                         extra_events.append(sse_event("strategy_link", pending))

@@ -19,6 +19,7 @@ CITATIONS = "citations"
 REASONING = "reasoning"
 PLAN_UPDATE = "plan_update"
 EXECUTOR_BUILD_REQUEST = "executor_build_request"
+OPTIMIZATION_PROGRESS = "optimization_progress"
 
 
 def tool_result_to_events(
@@ -67,7 +68,6 @@ def tool_result_to_events(
             all_steps = [
                 {
                     "stepId": sid,
-                    # legacy compatibility: include both kind and type
                     "kind": getattr(s, "infer_kind", lambda: None)(),
                     "displayName": s.display_name,
                 }
@@ -140,13 +140,14 @@ def tool_result_to_events(
             {"type": GRAPH_DELETED, "data": {"graphId": result.get("graphId")}}
         )
 
-    if "wdkStrategyId" in result:
+    wdk_strategy_id = result.get("wdkStrategyId")
+    if wdk_strategy_id is not None:
         events.append(
             {
                 "type": STRATEGY_LINK,
                 "data": {
                     "graphId": result.get("graphId"),
-                    "wdkStrategyId": result.get("wdkStrategyId"),
+                    "wdkStrategyId": wdk_strategy_id,
                     "wdkUrl": result.get("wdkUrl"),
                     "name": result.get("name"),
                     "description": result.get("description"),

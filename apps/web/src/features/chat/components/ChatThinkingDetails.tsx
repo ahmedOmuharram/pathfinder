@@ -19,6 +19,7 @@ interface ChatThinkingDetailsProps {
   delegateSummaries?: DelegateSummary[];
   delegateRejected?: RejectedDelegateSummary[];
   subKaniActivity?: SubKaniActivity;
+  reasoning?: string | null;
   title?: string;
 }
 
@@ -27,13 +28,16 @@ export function ChatThinkingDetails({
   delegateSummaries = [],
   delegateRejected = [],
   subKaniActivity,
+  reasoning,
   title,
 }: ChatThinkingDetailsProps) {
   const hasToolCalls = (toolCalls?.length || 0) > 0;
   const hasSubKaniActivity = Object.keys(subKaniActivity?.calls || {}).length > 0;
   const hasDelegate = delegateSummaries.length > 0 || delegateRejected.length > 0;
+  const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
 
-  if (!hasToolCalls && !hasSubKaniActivity && !hasDelegate) return null;
+  if (!hasToolCalls && !hasSubKaniActivity && !hasDelegate && !hasReasoning)
+    return null;
 
   const subKaniTasks = Object.keys(subKaniActivity?.calls || {});
 
@@ -43,6 +47,16 @@ export function ChatThinkingDetails({
         {title || "Thinking"}
       </summary>
       <div className="mt-2 space-y-3 text-[12px] text-slate-700">
+        {hasReasoning && (
+          <div className="rounded-md border border-slate-100 bg-white p-2">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Reasoning
+            </div>
+            <pre className="whitespace-pre-wrap break-words text-[11px] text-slate-700">
+              {reasoning}
+            </pre>
+          </div>
+        )}
         {hasToolCalls && (
           <div className="rounded-md border border-slate-100 bg-slate-50 p-2">
             <ToolCallInspector toolCalls={toolCalls || []} />

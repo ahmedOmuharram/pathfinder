@@ -4,7 +4,11 @@ from veupath_chatbot.domain.strategy.ops import CombineOp
 
 
 def explain_operation(op: CombineOp) -> str:
-    """Explain what a combine operation does."""
+    """Explain what a combine operation does.
+
+    :param op: Combine operator.
+    :returns: Human-readable explanation of the operation.
+    """
     explanations = {
         CombineOp.INTERSECT: (
             "Returns records that appear in **both** input sets. "

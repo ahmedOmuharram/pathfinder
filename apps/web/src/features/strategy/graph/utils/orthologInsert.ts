@@ -1,6 +1,6 @@
 import type { Search } from "@pathfinder/shared";
 import type { StrategyStep } from "@/types/strategy";
-import { resolveRecordType } from "@/features/strategy/domain/graph";
+import { resolveRecordType } from "@/core/strategyGraph";
 
 export type OrthologInsertResult = {
   newStep: StrategyStep;

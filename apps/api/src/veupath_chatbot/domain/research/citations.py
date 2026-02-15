@@ -130,7 +130,11 @@ def _suggest_citation_tag(
 
 
 def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:
-    """Ensure all citation tags are unique by appending suffixes if needed."""
+    """Ensure all citation tags are unique by appending suffixes if needed.
+
+    :param citations: Citation objects.
+
+    """
     used: dict[str, int] = {}
     for c in citations:
         if not isinstance(c, dict):

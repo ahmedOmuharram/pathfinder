@@ -2,7 +2,7 @@ import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import { validateSearchParams } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
-import { getRootSteps, validateStrategySteps } from "@/features/strategy/domain/graph";
+import { getRootSteps, validateStrategySteps } from "@/core/strategyGraph";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 import { inferStepKind } from "@/core/strategyGraph";
 

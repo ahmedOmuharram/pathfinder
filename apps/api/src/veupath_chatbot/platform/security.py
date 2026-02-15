@@ -36,7 +36,12 @@ def generate_csrf_token() -> str:
 
 
 def verify_csrf_token(token: str, session_token: str) -> bool:
-    """Verify CSRF token against session."""
+    """Verify CSRF token against session.
+
+    :param token: Token to verify.
+    :param session_token: Session token for HMAC comparison.
+    :returns: True if token matches.
+    """
     settings = get_settings()
     expected = hmac.new(
         settings.api_secret_key.encode(),
@@ -109,7 +114,12 @@ async def get_current_user(
 
 
 def create_user_token(user_id: UUID, expires_in: int = 86400) -> str:
-    """Create a simple user token (for demo purposes)."""
+    """Create a simple user token (for demo purposes).
+
+    :param user_id: User UUID.
+    :param expires_in: Token expiry in seconds (default: 86400).
+
+    """
     settings = get_settings()
     expiry = int(time.time()) + expires_in
     signature = hmac.new(
@@ -128,7 +138,11 @@ class RateLimiter:
         self.requests: dict[str, list[float]] = {}
 
     def is_allowed(self, key: str) -> bool:
-        """Check if request is allowed."""
+        """Check if request is allowed.
+
+        :param key: Client/request identifier.
+        :returns: True if within rate limit.
+        """
         now = time.time()
         minute_ago = now - 60
 

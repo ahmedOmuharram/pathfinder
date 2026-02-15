@@ -22,7 +22,11 @@ def sha256_hex(text: str) -> str:
 
 
 def context_hash(context: JSONObject) -> str:
-    """Stable hash for (WDK-wire) contextParamValues."""
+    """Stable hash for (WDK-wire) contextParamValues.
+
+    :param context: Context param dict from WDK wire format.
+    :returns: SHA256 hex digest.
+    """
     return sha256_hex(stable_json_dumps(context))
 
 
@@ -33,6 +37,9 @@ def point_uuid(key: str) -> str:
     """Deterministic UUID for a human-readable key.
 
     Qdrant point IDs must be either an integer or UUID.
+
+    :param key: Human-readable key.
+    :returns: UUID string.
     """
     return str(uuid.uuid5(_POINT_ID_NAMESPACE, key))
 
@@ -365,7 +372,12 @@ class QdrantStore:
 
 
 def _maybe_log_qdrant_error(op: str, *, collection: str, error: Exception) -> None:
-    """Log Qdrant errors without spamming in normal flows."""
+    """Log Qdrant errors without spamming in normal flows.
+
+    :param op: Operation name (e.g. "upsert", "search").
+    :param collection: Collection name.
+    :param error: Exception that occurred.
+    """
     try:
         from qdrant_client.http.exceptions import UnexpectedResponse
 

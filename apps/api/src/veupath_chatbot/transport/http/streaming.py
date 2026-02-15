@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from uuid import uuid4
@@ -191,4 +192,11 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
         if pending_end is not None:
             yield pending_end
     finally:
-        await producer
+        # Signal any long-running tools (e.g. parameter optimisation) to stop.
+        cancel_event = getattr(agent, "_cancel_event", None)
+        if cancel_event is not None:
+            cancel_event.set()
+        # Cancel the producer so it doesn't keep running after client disconnect.
+        producer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await producer

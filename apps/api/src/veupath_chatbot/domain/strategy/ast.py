@@ -65,13 +65,14 @@ class StepReport:
 
 @dataclass
 class PlanStepNode:
-    """
-    Untyped recursive strategy node.
+    """Untyped recursive strategy node.
 
     Kind is inferred from structure:
     - combine: primary_input and secondary_input
     - transform: primary_input only
     - search: no inputs
+
+
     """
 
     search_name: str
@@ -161,7 +162,11 @@ class StrategyAST:
         return steps
 
     def get_step_by_id(self, step_id: str) -> PlanStepNode | None:
-        """Find a step by its ID."""
+        """Find a step by its ID.
+
+        :param step_id: Step identifier.
+
+        """
         for step in self.get_all_steps():
             if step.id == step_id:
                 return step
@@ -169,7 +174,11 @@ class StrategyAST:
 
 
 def from_dict(data: JSONObject) -> StrategyAST:
-    """Parse strategy from dictionary representation."""
+    """Parse strategy from dictionary representation.
+
+    :param data: Data dict.
+
+    """
 
     def parse_filters(node_data: JSONObject) -> list[StepFilter]:
         filters: list[StepFilter] = []

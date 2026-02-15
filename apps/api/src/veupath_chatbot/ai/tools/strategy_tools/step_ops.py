@@ -34,15 +34,14 @@ class StrategyStepOps(StrategyToolsHelpers):
     ) -> tuple[str | None, str | None, str | None]:
         """Extract left/right/operator from WDK boolean-question parameter conventions.
 
-        WDK boolean questions sometimes encode combines as a "boolean_question_*" search with
-        parameters like:
-          - bq_left_op_<...>: <stepId>
-          - bq_right_op_<...>: <stepId>
-          - bq_operator: UNION|INTERSECT|MINUS|...
+        WDK boolean questions sometimes encode combines as a "boolean_question_*"
+        search with ``bq_left_op_``, ``bq_right_op_``, ``bq_operator``. Our graph
+        model represents combines structurally; we translate these WDK boolean
+        keys from the parameters dict.
 
-        Our graph model represents combines structurally (primary/secondary/operator), so we
-        translate these WDK-style parameters to the structural representation and strip the
-        WDK boolean keys from `parameters`.
+        :param parameters: WDK boolean-question parameters (may contain
+            ``bq_left_op_``, ``bq_right_op_``, ``bq_operator``).
+        :returns: Tuple of (left_step_id, right_step_id, operator) or (None, None, None).
         """
         if not isinstance(parameters, dict) or not parameters:
             return None, None, None
@@ -110,13 +109,16 @@ class StrategyStepOps(StrategyToolsHelpers):
             AIParam(desc="Optional friendly name for this step"),
         ] = None,
         upstream: Annotated[
-            int | None, AIParam(desc="Upstream bp for COLOCATE")
+            int | None,
+            AIParam(desc="Upstream bp for COLOCATE (default: 0)"),
         ] = None,
         downstream: Annotated[
-            int | None, AIParam(desc="Downstream bp for COLOCATE")
+            int | None,
+            AIParam(desc="Downstream bp for COLOCATE (default: 0)"),
         ] = None,
         strand: Annotated[
-            str | None, AIParam(desc="Strand for COLOCATE: same|opposite|both")
+            str | None,
+            AIParam(desc="Strand for COLOCATE: same|opposite|both (default: both)"),
         ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
     ) -> JSONObject:
@@ -177,13 +179,6 @@ class StrategyStepOps(StrategyToolsHelpers):
                     graphId=graph.id,
                 )
 
-        # ------------------------------------------------------------------
-        # Tree-first enforcement: inputs must be current subtree roots.
-        #
-        # A root is a step that has not been consumed as input by another
-        # step.  Referencing a non-root would mean branching off an
-        # internal node, turning the tree into a DAG.
-        # ------------------------------------------------------------------
         if primary_input is not None and primary_input_step_id not in graph.roots:
             # Find which step already consumed this input.
             consumer = next(

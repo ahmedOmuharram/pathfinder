@@ -1,6 +1,7 @@
 import asyncio
+import contextlib
 import os
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from uuid import uuid4
 
 import httpx
@@ -16,6 +17,11 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
+
+from veupath_chatbot.tests.fixtures.scripted_engine import (
+    ScriptedKaniEngine,
+    ScriptedTurn,
+)
 
 
 async def _probe_connection(url: str) -> bool:
@@ -153,10 +159,13 @@ def session_maker(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 def patch_app_db_engine(
     db_engine: AsyncEngine, session_maker: async_sessionmaker[AsyncSession]
 ) -> None:
-    """
-    Patch the app's global DB engine/sessionmaker so:
+    """Patch the app's global DB engine/sessionmaker so:
     - FastAPI lifespan init_db() uses the test engine
     - get_db_session dependency uses the test engine
+
+    :param db_engine: Database engine.
+    :param session_maker: Async session maker.
+
     """
     import veupath_chatbot.persistence.session as session_module
 
@@ -232,11 +241,72 @@ async def authed_client(
 
 @pytest.fixture
 def wdk_respx() -> Generator[respx.Router]:
-    """
-    respx router for mocking outbound WDK httpx requests.
+    """respx router for mocking outbound WDK httpx requests.
 
     The WDK integration uses httpx.AsyncClient under the hood, so respx can
     intercept those requests by matching on full URLs.
+
+
     """
     with respx.mock(assert_all_called=False) as router:
         yield router
+
+
+@pytest.fixture(autouse=True)
+async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
+    """Close shared WDK httpx clients after each test.
+
+    The site_router caches httpx clients.  If we don't close them between
+    tests, the next test may try to reuse connections from an event loop
+    that asyncio has already torn down.
+    """
+    yield
+    try:
+        from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+
+        router = get_site_router()
+        await router.close_all()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def scripted_engine_factory() -> Callable[
+    [list[ScriptedTurn]],
+    contextlib.AbstractContextManager[ScriptedKaniEngine],
+]:
+    """Fixture that patches ``create_engine`` so Kani agents use a ScriptedKaniEngine.
+
+    Returns a context-manager function.  Usage inside a test::
+
+        with scripted_engine_factory(turns) as engine:
+            # engine is the ScriptedKaniEngine; send chat requests here
+            ...
+
+    The mock-chat-provider env var is explicitly cleared so that the
+    orchestrator uses the real ``stream_chat`` path (agent + tools + live WDK).
+
+
+    """
+    from contextlib import contextmanager
+    from unittest.mock import patch
+
+    @contextmanager
+    def _factory(
+        turns: list[ScriptedTurn],
+    ) -> Generator[ScriptedKaniEngine]:
+        engine = ScriptedKaniEngine(turns)
+        with (
+            patch(
+                "veupath_chatbot.ai.agent_factory.create_engine",
+                return_value=engine,
+            ),
+            patch.dict(
+                os.environ,
+                {"PATHFINDER_CHAT_PROVIDER": ""},
+                clear=False,
+            ),
+        ):
+            yield engine
+
+    return _factory

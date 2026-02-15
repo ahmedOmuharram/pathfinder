@@ -99,7 +99,12 @@ def _build_success_response(
     veupathdb_token: str,
     auth_token: str | None,
 ) -> JSONResponse:
-    """Build a ``JSONResponse`` that sets both cookies and carries the token."""
+    """Build a ``JSONResponse`` that sets both cookies and carries the token.
+
+    :param veupathdb_token: VEuPathDB auth token.
+    :param auth_token: str | None.
+
+    """
     body: dict[str, object] = {"success": True}
     if auth_token:
         body["authToken"] = auth_token
@@ -122,11 +127,6 @@ def _build_success_response(
             path="/",
         )
     return resp
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.post("/login", response_model=AuthSuccessResponse)

@@ -261,6 +261,7 @@ Each sub-kani delegation task produces exactly **one subtree root**. The orchest
   - **number-range / date-range**: `"{\"min\": 1, \"max\": 5}"` (JSON string)
   - **filter**: JSON stringified object/array
 - **input-step**: step id string (input is wired structurally; do not provide input-step params in leaf parameter objects)
+- **Hidden parameters**: `get_search_parameters` returns `isVisible` for each param. Parameters with `isVisible: false` are infrastructure params (e.g. `dataset_url`). They are still required — you **must** include them with their `defaultValue` in the `parameters` dict when calling `create_step`. Never omit a required hidden parameter.
 - If you get a "missing required parameters" error on a leaf step, call `get_search_parameters`, fix the missing fields, and retry once.
 
 ## Organism / Stage Consistency (must-follow)

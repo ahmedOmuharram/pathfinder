@@ -4,9 +4,7 @@
 
 import { z } from "zod";
 
-// ============================================================================
 // Combine Operations
-// ============================================================================
 
 export const CombineOperatorSchema = z.enum([
   "INTERSECT",
@@ -16,9 +14,7 @@ export const CombineOperatorSchema = z.enum([
   "COLOCATE",
 ]);
 
-// ============================================================================
 // Strategy Plan DSL (AST)
-// ============================================================================
 
 export const ColocationParamsSchema = z.object({
   upstream: z.number().int().min(0),
@@ -117,9 +113,7 @@ export const StrategyPlanSchema = z.object({
     .optional(),
 });
 
-// ============================================================================
 // API Request/Response Schemas
-// ============================================================================
 
 export const ChatRequestSchema = z.object({
   strategyId: z.string().uuid().optional(),
@@ -151,9 +145,7 @@ export const UpdateStrategyRequestSchema = z.object({
   plan: StrategyPlanSchema.optional(),
 });
 
-// ============================================================================
 // Search Schemas (site discovery)
-// ============================================================================
 
 export const SearchSchema = z.object({
   name: z.string(),
@@ -162,9 +154,7 @@ export const SearchSchema = z.object({
   recordType: z.string(),
 });
 
-// ============================================================================
 // Validation Helpers
-// ============================================================================
 
 export function validateChatRequest(data: unknown) {
   return ChatRequestSchema.safeParse(data);

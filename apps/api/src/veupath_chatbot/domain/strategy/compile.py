@@ -373,6 +373,42 @@ class StrategyCompiler:
         input_step_param = find_input_step_param(specs)
         if input_step_param:
             normalized[input_step_param] = ""
+
+        # Auto-upload datasets for input-dataset params.
+        # WDK DatasetParam fields expect an integer dataset ID. If the LLM provided
+        # raw record IDs (e.g. gene locus tags) instead, upload them as a transient
+        # dataset and swap in the integer ID. This is infrastructure plumbing — the
+        # LLM explicitly chose the IDs; we just translate the transport format.
+        for param_name, spec in specs.items():
+            if spec.param_type != "input-dataset":
+                continue
+            raw_value = normalized.get(param_name)
+            if raw_value is None:
+                continue
+            str_value = str(raw_value).strip()
+            # Already a valid dataset ID (integer)?
+            try:
+                int(str_value)
+                continue  # nothing to do
+            except ValueError, TypeError:
+                pass
+            # Looks like raw IDs — split on commas/newlines and upload.
+            ids = [
+                tok.strip()
+                for tok in str_value.replace("\n", ",").split(",")
+                if tok.strip()
+            ]
+            if not ids:
+                continue
+            dataset_id = await self.api.create_dataset(ids)
+            normalized[param_name] = str(dataset_id)
+            logger.info(
+                "Uploaded dataset for input-dataset param",
+                param=param_name,
+                id_count=len(ids),
+                dataset_id=dataset_id,
+            )
+
         return normalized
 
 

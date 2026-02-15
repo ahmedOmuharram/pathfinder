@@ -13,8 +13,6 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
-from kani import ChatMessage, ChatRole
-
 from veupath_chatbot.ai.agent_factory import (
     ChatMode,
     create_agent,
@@ -31,9 +29,9 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.bootstrap import (
     append_user_message,
     build_chat_history,
+    build_plan_chat_history,
     build_strategy_payload,
     ensure_strategy,
-    ensure_user,
 )
 from veupath_chatbot.services.chat.plan_processor import PlanStreamProcessor
 from veupath_chatbot.services.chat.processor import ChatStreamProcessor
@@ -313,7 +311,7 @@ async def start_chat_stream(
     Returns an ``sse_iterator`` that yields SSE-formatted strings.
     Authentication is handled at login time; no token is created here.
     """
-    user_id = await ensure_user(user_repo, user_id)
+    await user_repo.get_or_create(user_id)
 
     if mode == "plan":
         # Plan sessions are not strategies; do not create/modify the strategy sidebar.
@@ -339,21 +337,7 @@ async def start_chat_stream(
         _, model_message = parse_selected_nodes(message)
 
         await plan_repo.refresh(plan_session)
-        history: list[ChatMessage] = []
-        for msg_value in plan_session.messages or []:
-            if not isinstance(msg_value, dict):
-                continue
-            msg = msg_value
-            role_raw = msg.get("role")
-            content_raw = msg.get("content")
-            if not content_raw or not isinstance(content_raw, str):
-                continue
-            content = content_raw
-            if role_raw == "user":
-                _, cleaned = parse_selected_nodes(content)
-                history.append(ChatMessage(role=ChatRole.USER, content=cleaned))
-            elif role_raw == "assistant":
-                history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
+        history = build_plan_chat_history(messages=plan_session.messages or [])
 
         async def _get_plan_artifacts() -> JSONArray:
             ps = await plan_repo.get_by_id(plan_session.id)

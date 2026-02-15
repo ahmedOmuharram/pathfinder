@@ -56,7 +56,7 @@ import {
   deserializeStrategyToGraph,
   getCombineMismatchGroups,
   inferStepKind,
-} from "@/features/strategy/domain/graph";
+} from "@/core/strategyGraph";
 
 interface StrategyGraphProps {
   strategy: StrategyWithMeta | null;

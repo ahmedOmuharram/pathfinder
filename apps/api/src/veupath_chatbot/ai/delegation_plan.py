@@ -70,7 +70,11 @@ def build_delegation_plan(
         return f"node_{node_counter}"
 
     def _canon(value: JSONValue) -> JSONValue:
-        """Best-effort canonicalization for hashing."""
+        """Best-effort canonicalization for hashing.
+
+        :param value: Value to process.
+
+        """
         if isinstance(value, dict):
             return {
                 str(k): _canon(v)
@@ -85,7 +89,13 @@ def build_delegation_plan(
     def _get_field(
         node: JSONObject, *keys: str, default: JSONValue = None
     ) -> JSONValue:
-        """Get field from node with multiple possible keys."""
+        """Get field from node with multiple possible keys.
+
+        :param node: Node dict to read from.
+        :param keys: Possible keys to try.
+        :param default: Default value if no key found.
+        :returns: Value at first matching key, or default.
+        """
         for key in keys:
             if key in node:
                 return node[key]
@@ -94,7 +104,11 @@ def build_delegation_plan(
     def _compile_dependencies(
         *nodes: JSONValue,
     ) -> tuple[list[str], JSONObject | None]:
-        """Compile child nodes and return their IDs, or an error."""
+        """Compile child nodes and return their IDs, or an error.
+
+        :param nodes: Child nodes to compile.
+        :returns: Tuple of dependency IDs and optional error.
+        """
         dep_ids: list[str] = []
         for node in nodes:
             if node is None:
@@ -113,11 +127,11 @@ def build_delegation_plan(
     ) -> str:
         """Get existing node ID from signature or create new one.
 
-        Args:
-            signature_obj: Object to use for signature matching
-            target_list: List to append new nodes to
-            node_data: Node data dict (will be modified with id)
-            task_formatter: Optional function to format task field using node_id
+        :param signature_obj: Object to use for signature matching.
+        :param target_list: List to append new nodes to.
+        :param node_data: Node data dict (will be modified with id).
+        :param task_formatter: Optional function to format task field using node_id.
+        :returns: Node ID (existing or newly created).
         """
         signature = str(_canon(signature_obj))
         existing = seen_signatures.get(signature)
@@ -290,7 +304,11 @@ def build_delegation_plan(
 
     # Build nodes_by_id with explicit kinds; validate DAG.
     def _build_nodes_by_id(node_list: JSONArray) -> dict[str, JSONObject]:
-        """Extract nodes from list into nodes_by_id dict."""
+        """Extract nodes from list into nodes_by_id dict.
+
+        :param node_list: List of nodes.
+
+        """
         result: dict[str, JSONObject] = {}
         for node in node_list:
             if isinstance(node, dict):

@@ -4,7 +4,7 @@ import { APIError } from "@/lib/api/http";
 import { toUserMessage } from "@/lib/api/errors";
 import type { StrategyPlan } from "@pathfinder/shared";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
-import type { CombineMismatchGroup } from "@/features/strategy/domain/graph";
+import type { CombineMismatchGroup } from "@/core/strategyGraph";
 import type { MutableRef } from "@/shared/types/refs";
 
 const isUuid = (value: string) =>

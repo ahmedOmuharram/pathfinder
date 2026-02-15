@@ -58,7 +58,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  # --- Optional manual re-index job (run on demand) ---
+  # Optional manual re-index job (run on demand).
   #
   # By default, the API runs incremental ingestion in the background at startup
   # when `rag_enabled=true` and `OPENAI_API_KEY` is set. This job is only needed

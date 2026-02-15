@@ -222,6 +222,22 @@ npm run typecheck
 npm test
 ```
 
+## Documentation
+
+**API docs:** [veupathdb-pathfinder.readthedocs.io](https://veupathdb-pathfinder.readthedocs.io/)
+
+API documentation is built with **Sphinx** and covers architecture, agents, tools, and modules. A `.readthedocs.yaml` config is included for hosting on Read the Docs.
+
+### Build locally
+
+```bash
+cd apps/api
+uv sync --extra dev
+uv run sphinx-build -b html docs docs/_build/html
+```
+
+Open `apps/api/docs/_build/html/index.html` in a browser.
+
 ## OpenAPI + shared types
 
 - OpenAPI spec: `packages/spec/openapi.yaml`

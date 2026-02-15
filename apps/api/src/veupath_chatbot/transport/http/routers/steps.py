@@ -35,7 +35,11 @@ logger = get_logger(__name__)
 
 
 def _get_steps_as_objects(steps: JSONArray) -> list[JSONObject]:
-    """Convert JSONArray to list[JSONObject] with type checking."""
+    """Convert JSONArray to list[JSONObject] with type checking.
+
+    :param steps: Steps array.
+
+    """
     result: list[JSONObject] = []
     for step in steps:
         if isinstance(step, dict):
@@ -51,7 +55,13 @@ def _find_step(strategy_steps: list[JSONObject], step_id: str) -> JSONObject | N
 
 
 def _update_plan(plan: JSONObject, step_id: str, updates: JSONObject) -> JSONObject:
-    """Update a plan AST with step attachments."""
+    """Update a plan AST with step attachments.
+
+    :param plan: Plan or strategy dict.
+    :param step_id: Step identifier.
+    :param updates: Update payload.
+
+    """
     try:
         ast = from_dict(plan)
     except Exception as exc:

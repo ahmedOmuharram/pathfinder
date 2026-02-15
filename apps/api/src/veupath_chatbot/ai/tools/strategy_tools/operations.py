@@ -29,6 +29,8 @@ class StrategyTools(
 
     This class uses multiple inheritance to compose tool methods from mixins.
     StrategyStepOps provides create_step, which StrategyGraphOps.ensure_single_output uses.
+
+
     """
 
     def __init__(self, session: StrategySession) -> None:

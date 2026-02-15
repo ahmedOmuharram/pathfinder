@@ -12,6 +12,9 @@ def backoff_delay_seconds(attempt: int) -> int:
     """Exponential backoff delay (capped).
 
     Matches the ingest script's prior behavior: min(8, 2 ** (attempt - 1)).
+
+    :param attempt: Retry attempt number (1-based).
+    :returns: Delay in seconds.
     """
     return int(min(8, 2 ** (attempt - 1)))
 

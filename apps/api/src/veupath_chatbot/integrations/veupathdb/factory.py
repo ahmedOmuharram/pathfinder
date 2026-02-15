@@ -13,13 +13,21 @@ from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryRe
 
 
 def get_wdk_client(site_id: str) -> VEuPathDBClient:
-    """Get a raw WDK client for a site."""
+    """Get a raw WDK client for a site.
+
+    :param site_id: VEuPathDB site identifier.
+
+    """
     router = get_site_router()
     return router.get_client(site_id)
 
 
 def get_site(site_id: str) -> SiteInfo:
-    """Get site metadata by ID."""
+    """Get site metadata by ID.
+
+    :param site_id: VEuPathDB site identifier.
+
+    """
     router = get_site_router()
     return router.get_site(site_id)
 
@@ -45,17 +53,29 @@ def list_sites() -> list[SiteInfo]:
 
 
 def get_strategy_api(site_id: str) -> StrategyAPI:
-    """Get a Strategy API wrapper for a site."""
+    """Get a Strategy API wrapper for a site.
+
+    :param site_id: VEuPathDB site identifier.
+
+    """
     return StrategyAPI(get_wdk_client(site_id))
 
 
 def get_results_api(site_id: str) -> TemporaryResultsAPI:
-    """Get a temporary results API wrapper for a site."""
+    """Get a temporary results API wrapper for a site.
+
+    :param site_id: VEuPathDB site identifier.
+
+    """
     return TemporaryResultsAPI(get_wdk_client(site_id))
 
 
 def get_discovery(site_id: str | None = None) -> DiscoveryService:
-    """Get the shared discovery service (site_id reserved for future use)."""
+    """Get the shared discovery service (site_id reserved for future use).
+
+    :param site_id: Site ID (default: None).
+
+    """
     del site_id
     return get_discovery_service()
 

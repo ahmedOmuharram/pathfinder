@@ -26,6 +26,9 @@ def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     - errorCount: int | None
     - errors: list[dict] (best-effort)
     - raw: original text
+
+    :param text: Pydantic error text (or None).
+    :returns: Parsed validation summary or None.
     """
     if not text:
         return None

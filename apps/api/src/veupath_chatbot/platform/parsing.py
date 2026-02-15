@@ -15,6 +15,9 @@ def parse_jsonish(
     Some tool frameworks return `dict`/`list`, others return a string (often JSON),
     and some return a Python-literal string representation. This function handles
     those cases without making assumptions about the payload schema.
+
+    :param value: str | JSONObject | JSONArray | None.
+
     """
     if value is None:
         return None

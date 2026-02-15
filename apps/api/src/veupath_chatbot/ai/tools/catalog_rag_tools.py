@@ -23,6 +23,8 @@ class CatalogRagTools:
 
     These tools read from Qdrant and fall back to authoritative WDK calls only for
     context-dependent vocab (dependent params) via the cached pathway.
+
+
     """
 
     def __init__(self, *, site_id: str) -> None:

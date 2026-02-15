@@ -3,6 +3,8 @@
 This module is imported by `PathfinderPlannerAgent` to expose a *restricted*
 tool surface appropriate for planning mode (no graph mutation by default).
 
+Keep the module import side-effect free (no instantiation at import time).
+
 Tool results may include special keys that are translated into SSE events:
 - `citations`: emitted as a citations event and attached to the assistant message
 - `planningArtifact`: emitted and persisted on the plan session
@@ -12,6 +14,7 @@ Tool results may include special keys that are translated into SSE events:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC
 from typing import Annotated, cast
 
@@ -29,6 +32,20 @@ from veupath_chatbot.services.control_tests import (
     ControlValueFormat,
     run_positive_negative_controls,
 )
+from veupath_chatbot.services.gene_lookup import (
+    lookup_genes_by_text,
+    resolve_gene_ids,
+)
+from veupath_chatbot.services.parameter_optimization import (
+    OptimizationConfig,
+    ParameterSpec,
+)
+from veupath_chatbot.services.parameter_optimization import (
+    optimize_search_parameters as _run_optimization,
+)
+from veupath_chatbot.services.parameter_optimization import (
+    result_to_json as _opt_result_to_json,
+)
 
 
 class PlannerToolRegistryMixin(ResearchToolsMixin):
@@ -36,12 +53,21 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
 
     Inherits ``web_search`` and ``literature_search`` from
     :class:`ResearchToolsMixin`.
+
+    The attributes ``site_id``, ``catalog_tools``, and ``catalog_rag_tools``
+    are provided by :class:`PathfinderPlannerAgent`.
+
+    Subclasses (e.g. PathfinderPlannerAgent) must provide :meth:`_emit_event`
+    for streaming progress during optimize_search_parameters.
     """
 
-    # These attributes are provided by PathfinderPlannerAgent
     site_id: str
     catalog_tools: CatalogTools
     catalog_rag_tools: CatalogRagTools
+
+    async def _emit_event(self, event: JSONObject) -> None:
+        """Emit an SSE event. Override in subclass to push to streaming queue."""
+        pass
 
     def _combined_result(
         self,
@@ -51,13 +77,12 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
         rag_note: str | None = None,
         wdk_note: str | None = None,
     ) -> JSONObject:
-        # Mirror the executor tool shape so the model sees consistent outputs.
+        """Build combined RAG+WDK result, mirroring executor tool shape for consistency."""
         return {
             "rag": {"data": rag, "note": rag_note or ""},
             "wdk": {"data": wdk, "note": wdk_note or ""},
         }
 
-    # --- VEuPathDB/WDK catalog introspection (non-mutating) ---
     @ai_function()
     async def list_sites(self) -> JSONObject:
         """List all available VEuPathDB sites (authoritative live list)."""
@@ -171,7 +196,6 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             wdk_note="Live WDK expanded search details (authoritative when it succeeds).",
         )
 
-    # --- Planning artifact publishing/persistence ---
     @ai_function()
     async def save_planning_artifact(
         self,
@@ -238,14 +262,18 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             AIParam(desc="Optional short notes about unresolved decisions / TODOs."),
         ] = None,
     ) -> JSONObject:
-        """Save/update a draft delegation plan object on the plan session."""
+        """Save/update a draft delegation plan object on the plan session.
+
+        If ``delegation_plan`` is omitted but ``notes_markdown`` contains a JSON
+        object, it is extracted (common model failure: paste JSON into notes but
+        omit delegation_plan).
+        """
         from datetime import datetime
 
         from veupath_chatbot.platform.parsing import parse_jsonish
 
         plan_obj: JSONObject | None = delegation_plan
         if plan_obj is None and isinstance(notes_markdown, str) and notes_markdown:
-            # Common model failure mode: paste the JSON into notes_markdown but omit delegation_plan.
             start = notes_markdown.find("{")
             end = notes_markdown.rfind("}")
             if start != -1 and end != -1 and end > start:
@@ -307,7 +335,11 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             ),
         ] = None,
     ) -> JSONObject:
-        """Ask the UI to open executor mode and prefill a build message."""
+        """Ask the UI to open executor mode and prefill a build message.
+
+        Delegation plan JSON is emitted in a plain fenced block (no language) to
+        avoid syntax highlighting in the UI.
+        """
         import json
 
         goal = (delegation_goal or "").strip()
@@ -356,7 +388,6 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             "Use any per-task `context` fields as required parameters/constraints.\n\n"
             f"Goal:\n{goal}\n\n"
             "Delegation plan (JSON):\n"
-            # Use a plain fenced block (no language) to avoid syntax highlighting in the UI.
             f"```\n{plan_json}\n```\n"
         )
         if additional_instructions and str(additional_instructions).strip():
@@ -375,7 +406,6 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             }
         }
 
-    # --- Plan-session artifact viewing ---
     @ai_function()
     async def list_saved_planning_artifacts(
         self,
@@ -464,7 +494,6 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             return {"error": "reasoning_required"}
         return {"reasoning": r}
 
-    # --- WDK-backed validation (controls) ---
     @ai_function()
     async def run_control_tests(
         self,
@@ -527,5 +556,272 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             id_field=id_field,
         )
 
+    @ai_function()
+    async def lookup_gene_records(
+        self,
+        query: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "Free-text query to search for gene records — gene name, symbol, "
+                    "locus tag, product description, or keyword (e.g. 'PfAP2-G', "
+                    "'gametocyte surface antigen', 'Pfs25')."
+                )
+            ),
+        ],
+        record_type: Annotated[
+            str | None,
+            AIParam(
+                desc=(
+                    "Document type filter for site-search (default 'gene'). "
+                    "Use 'gene' for most lookups."
+                )
+            ),
+        ] = None,
+        limit: Annotated[int, AIParam(desc="Max results to return (default 10)")] = 10,
+    ) -> JSONObject:
+        """Look up gene records by name, symbol, or description using VEuPathDB site-search.
 
-# Keep the module import side-effect free (no instantiation).
+        Use this to resolve human-readable gene names (from literature or user input)
+        to VEuPathDB gene IDs.  The returned IDs can then be used as positive/negative
+        controls in `run_control_tests` or `optimize_search_parameters`.
+        """
+        return await lookup_genes_by_text(
+            self.site_id,
+            query,
+            record_type=record_type,
+            limit=max(1, min(limit, 50)),
+        )
+
+    @ai_function()
+    async def resolve_gene_ids_to_records(
+        self,
+        gene_ids: Annotated[
+            list[str],
+            AIParam(
+                desc=(
+                    "List of gene/locus tag IDs to resolve (e.g. "
+                    "['PF3D7_1222600', 'PF3D7_1031000'])."
+                )
+            ),
+        ],
+        record_type: Annotated[
+            str, AIParam(desc="WDK record type (default 'transcript')")
+        ] = "transcript",
+        search_name: Annotated[
+            str,
+            AIParam(desc="WDK search that accepts ID lists (default 'GeneByLocusTag')"),
+        ] = "GeneByLocusTag",
+        param_name: Annotated[
+            str,
+            AIParam(desc="Parameter name for the ID list (default 'ds_gene_ids')"),
+        ] = "ds_gene_ids",
+    ) -> JSONObject:
+        """Resolve known gene IDs to full records (product name, organism, gene type).
+
+        Use this to validate gene IDs or fetch metadata for IDs you already have
+        (e.g. from literature).  For discovering genes by name, use `lookup_gene_records` instead.
+        """
+        ids = [str(x).strip() for x in (gene_ids or []) if str(x).strip()]
+        if not ids:
+            return {"records": [], "totalCount": 0, "error": "No gene IDs provided."}
+        if len(ids) > 200:
+            return {
+                "records": [],
+                "totalCount": 0,
+                "error": "Too many IDs (max 200). Reduce the list.",
+            }
+        return await resolve_gene_ids(
+            self.site_id,
+            ids,
+            record_type=record_type,
+            search_name=search_name,
+            param_name=param_name,
+        )
+
+    @ai_function()
+    async def optimize_search_parameters(
+        self,
+        record_type: Annotated[str, AIParam(desc="WDK record type (e.g. 'gene')")],
+        search_name: Annotated[
+            str, AIParam(desc="WDK search/question urlSegment to optimise")
+        ],
+        parameter_space_json: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "JSON array of parameters to optimise. Each entry is an object: "
+                    '{"name": "<paramName>", "type": "numeric"|"integer"|"categorical", '
+                    '"min": <number>, "max": <number>, "logScale"?: bool, "step"?: <number>, "choices"?: ["a","b"]}. '
+                    "Example: "
+                    '[{"name":"fold_change","type":"numeric","min":1.5,"max":20}]'
+                )
+            ),
+        ],
+        fixed_parameters_json: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "JSON object of parameters held constant during optimisation. "
+                    'Example: {"organism":"P. falciparum 3D7","direction":"up-regulated"}'
+                )
+            ),
+        ],
+        controls_search_name: Annotated[
+            str,
+            AIParam(desc="Search that accepts a list of record IDs (for controls)"),
+        ],
+        controls_param_name: Annotated[
+            str,
+            AIParam(desc="Parameter name within controls_search_name that accepts IDs"),
+        ],
+        positive_controls: Annotated[
+            list[str] | None,
+            AIParam(desc="Known-positive IDs that should be returned"),
+        ] = None,
+        negative_controls: Annotated[
+            list[str] | None,
+            AIParam(desc="Known-negative IDs that should NOT be returned"),
+        ] = None,
+        budget: Annotated[int, AIParam(desc="Max number of trials (default 30)")] = 30,
+        objective: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "Scoring objective: 'f1' (balanced, default), 'recall', "
+                    "'precision', 'f_beta' (specify beta), or 'custom'"
+                )
+            ),
+        ] = "f1",
+        beta: Annotated[
+            float, AIParam(desc="Beta value for f_beta objective (default 1.0)")
+        ] = 1.0,
+        method: Annotated[
+            str,
+            AIParam(
+                desc="Optimisation method: 'bayesian' (default, recommended), 'grid', or 'random'"
+            ),
+        ] = "bayesian",
+        controls_value_format: Annotated[
+            ControlValueFormat,
+            AIParam(desc="How to encode the control ID list"),
+        ] = "newline",
+        controls_extra_parameters_json: Annotated[
+            str | None,
+            AIParam(
+                desc="JSON object of extra fixed parameters for the controls search"
+            ),
+        ] = None,
+        id_field: Annotated[
+            str | None,
+            AIParam(desc="Optional record-id field name for answer records"),
+        ] = None,
+        result_count_penalty: Annotated[
+            float,
+            AIParam(
+                desc=(
+                    "Weight for penalising large result sets (0 = off, 0.1 = tiebreaker, "
+                    "higher = strongly prefer tighter results). Default 0.1."
+                )
+            ),
+        ] = 0.1,
+    ) -> str:
+        """Optimise search parameters against positive/negative control gene lists.
+
+        Runs multiple trials, varying the parameters in `parameter_space` while
+        holding `fixed_parameters` constant. Each trial evaluates the search
+        against the controls and scores the result. Returns the best
+        configuration, all trials, Pareto frontier, and sensitivity analysis.
+
+        This is a long-running operation. The user will see real-time progress
+        in the UI. Always confirm the plan with the user before calling this.
+        """
+        try:
+            raw_space = json.loads(parameter_space_json)
+        except (json.JSONDecodeError, TypeError) as exc:
+            return json.dumps(
+                {"error": f"parameter_space_json is not valid JSON: {exc}"}
+            )
+
+        if not isinstance(raw_space, list):
+            return json.dumps({"error": "parameter_space_json must be a JSON array"})
+
+        try:
+            fixed_parameters: JSONObject = (
+                json.loads(fixed_parameters_json) if fixed_parameters_json else {}
+            )
+        except (json.JSONDecodeError, TypeError) as exc:
+            return json.dumps(
+                {"error": f"fixed_parameters_json is not valid JSON: {exc}"}
+            )
+
+        controls_extra_parameters: JSONObject | None = None
+        if controls_extra_parameters_json:
+            try:
+                controls_extra_parameters = json.loads(controls_extra_parameters_json)
+            except (json.JSONDecodeError, TypeError) as exc:
+                return json.dumps(
+                    {
+                        "error": f"controls_extra_parameters_json is not valid JSON: {exc}"
+                    }
+                )
+
+        specs: list[ParameterSpec] = []
+        for p in raw_space:
+            if not isinstance(p, dict):
+                continue
+            ptype = str(p.get("type", "numeric"))
+            if ptype not in ("numeric", "integer", "categorical"):
+                ptype = "numeric"
+            specs.append(
+                ParameterSpec(
+                    name=str(p.get("name", "")),
+                    param_type=ptype,  # type: ignore[arg-type]
+                    min_value=float(p["min"]) if "min" in p else None,
+                    max_value=float(p["max"]) if "max" in p else None,
+                    log_scale=bool(p.get("logScale", False)),
+                    step=float(p["step"]) if "step" in p else None,
+                    choices=(
+                        [str(c) for c in p["choices"]]
+                        if "choices" in p and isinstance(p["choices"], list)
+                        else None
+                    ),
+                )
+            )
+
+        obj = (
+            objective
+            if objective in ("f1", "f_beta", "recall", "precision", "custom")
+            else "f1"
+        )
+        meth = method if method in ("bayesian", "grid", "random") else "bayesian"
+
+        config = OptimizationConfig(
+            budget=max(1, min(budget, 200)),
+            objective=obj,  # type: ignore[arg-type]
+            beta=beta,
+            method=meth,  # type: ignore[arg-type]
+            result_count_penalty=max(0.0, result_count_penalty),
+        )
+
+        cancel_event = getattr(self, "_cancel_event", None)
+
+        result = await _run_optimization(
+            site_id=self.site_id,
+            record_type=record_type,
+            search_name=search_name,
+            fixed_parameters=fixed_parameters,
+            parameter_space=specs,
+            controls_search_name=controls_search_name,
+            controls_param_name=controls_param_name,
+            positive_controls=positive_controls,
+            negative_controls=negative_controls,
+            controls_value_format=controls_value_format,
+            controls_extra_parameters=controls_extra_parameters,
+            id_field=id_field,
+            config=config,
+            progress_callback=self._emit_event,
+            check_cancelled=(cancel_event.is_set if cancel_event is not None else None),
+        )
+
+        return json.dumps(_opt_result_to_json(result))

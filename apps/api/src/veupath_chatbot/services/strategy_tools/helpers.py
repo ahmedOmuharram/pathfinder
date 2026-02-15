@@ -335,7 +335,12 @@ class StrategyToolsHelpers(StrategyToolsBase):
         return target
 
     def _vocab_contains_value(self, vocabulary: JSONObject, value: str) -> bool:
-        """Check if a vocabulary tree contains the value (display or value field)."""
+        """Check if a vocabulary tree contains the value (display or value field).
+
+        :param vocabulary: Vocabulary tree from catalog.
+        :param value: Value to search for.
+        :returns: True if value is found.
+        """
         target = value.strip()
         if not target or not vocabulary:
             return False
@@ -464,6 +469,10 @@ class StrategyToolsHelpers(StrategyToolsBase):
         Includes ``estimatedSize`` and ``wdkStepId`` when available on the
         graph (populated after ``build_strategy``).  Omits noisy fields
         (parameters, filters, analyses, reports) when empty.
+
+        :param graph: Strategy graph with WDK IDs and counts.
+        :param step: Step node to serialize.
+        :returns: Serialized step dict.
         """
         kind = step.infer_kind()
         info: JSONObject = {
@@ -519,6 +528,9 @@ class StrategyToolsHelpers(StrategyToolsBase):
 
         Same enrichments as ``_serialize_step`` (WDK IDs, counts) but keyed
         by ``id`` instead of ``stepId`` for graph-snapshot compatibility.
+
+        :param step: Step node to serialize.
+        :returns: Serialized step dict keyed by id.
         """
         graph = self._get_graph(None)
         kind = step.infer_kind()
@@ -609,7 +621,7 @@ class StrategyToolsHelpers(StrategyToolsBase):
 
     def _build_context_plan(self, graph: StrategyGraph) -> JSONObject | None:
         # Prefer the single subtree root from graph.roots; fall back to
-        # last_step_id for backward compatibility with not-yet-hydrated graphs.
+        # last_step_id when roots is ambiguous or not yet populated.
         if len(graph.roots) == 1:
             root_id = next(iter(graph.roots))
         elif graph.last_step_id:

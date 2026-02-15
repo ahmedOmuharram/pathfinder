@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Node } from "reactflow";
-import type { CombineMismatchGroup } from "@/features/strategy/domain/graph";
+import type { CombineMismatchGroup } from "@/core/strategyGraph";
 
 export function useWarningGroupNodes(args: {
   nodes: Node[];

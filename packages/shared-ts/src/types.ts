@@ -2,9 +2,7 @@
  * Shared TypeScript types for Pathfinder - VEuPathDB Strategy Builder
  */
 
-// ============================================================================
 // Combine Operations
-// ============================================================================
 
 export const CombineOperator = {
   INTERSECT: "INTERSECT",
@@ -25,9 +23,7 @@ export const CombineOperatorLabels: Record<CombineOperator, string> = {
   COLOCATE: "Genomic colocation",
 };
 
-// ============================================================================
 // Strategy Plan DSL (AST)
-// ============================================================================
 
 export interface ColocationParams {
   upstream: number;
@@ -101,9 +97,7 @@ export interface StrategyPlan {
   };
 }
 
-// ============================================================================
 // VEuPathDB Site Configuration
-// ============================================================================
 
 export interface VEuPathDBSite {
   id: string;
@@ -221,9 +215,7 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
   },
 ];
 
-// ============================================================================
 // API Types
-// ============================================================================
 
 export interface RecordType {
   name: string;
@@ -238,9 +230,7 @@ export interface Search {
   recordType: string;
 }
 
-// ============================================================================
 // Strategy Types
-// ============================================================================
 
 export type StepKind = "search" | "transform" | "combine";
 
@@ -321,9 +311,7 @@ export interface StrategySummary {
   updatedAt: string;
 }
 
-// ============================================================================
 // Chat Types
-// ============================================================================
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -422,6 +410,10 @@ export interface Message {
   mode?: ChatMode;
   citations?: Citation[];
   planningArtifacts?: PlanningArtifact[];
+  /** Model reasoning text captured during the turn. */
+  reasoning?: string | null;
+  /** Final optimization progress snapshot for this turn. */
+  optimizationProgress?: OptimizationProgressData | null;
   timestamp: string;
   /** Catalog model ID that generated this message (e.g. "openai/gpt-5"). */
   modelId?: string;
@@ -446,9 +438,7 @@ export interface ChatRequest {
   mode?: ChatMode;
 }
 
-// ============================================================================
 // Planning (plan sessions)
-// ============================================================================
 
 export interface PlanSessionSummary {
   id: string;
@@ -480,9 +470,7 @@ export interface OpenPlanSessionResponse {
   planSessionId: string;
 }
 
-// ============================================================================
 // Search parameter validation/specs (UI-facing)
-// ============================================================================
 
 export interface SearchDetailsResponse {
   searchData?: Record<string, unknown>;
@@ -523,9 +511,7 @@ export interface ParamSpec {
   [key: string]: unknown;
 }
 
-// ============================================================================
 // Strategy Requests/Responses
-// ============================================================================
 
 export interface StepCountsResponse {
   counts: Record<string, number | null>;
@@ -568,9 +554,60 @@ export interface WdkStrategySummary {
   isInternal?: boolean;
 }
 
-// ============================================================================
+// Parameter Optimisation
+
+export interface OptimizationTrial {
+  trialNumber: number;
+  parameters: Record<string, unknown>;
+  score: number;
+  recall: number | null;
+  falsePositiveRate: number | null;
+  resultCount: number | null;
+  positiveHits: number | null;
+  negativeHits: number | null;
+  totalPositives: number | null;
+  totalNegatives: number | null;
+}
+
+export interface OptimizationParameterSpec {
+  name: string;
+  type: "numeric" | "integer" | "categorical";
+  minValue?: number | null;
+  maxValue?: number | null;
+  logScale?: boolean;
+  choices?: string[] | null;
+}
+
+export type OptimizationStatus =
+  | "started"
+  | "running"
+  | "completed"
+  | "cancelled"
+  | "error";
+
+export interface OptimizationProgressData {
+  optimizationId: string;
+  status: OptimizationStatus;
+  searchName?: string;
+  recordType?: string;
+  budget?: number;
+  objective?: string;
+  positiveControlsCount?: number;
+  negativeControlsCount?: number;
+  parameterSpace?: OptimizationParameterSpec[];
+  currentTrial?: number;
+  totalTrials?: number;
+  trial?: OptimizationTrial;
+  bestTrial?: OptimizationTrial | null;
+  recentTrials?: OptimizationTrial[];
+  allTrials?: OptimizationTrial[];
+  paretoFrontier?: OptimizationTrial[];
+  sensitivity?: Record<string, number>;
+  totalTimeSeconds?: number;
+  error?: string;
+}
+
 // SSE Event Types
-// ============================================================================
 
 export type SSEEventType =
   | "message_start"
@@ -601,9 +638,7 @@ export interface ToolCallEndEvent {
   data: { id: string; result: string };
 }
 
-// ============================================================================
 // Result Types
-// ============================================================================
 
 export interface PreviewRequest {
   strategyId: string;

@@ -27,6 +27,10 @@ def _extract_record_type(wdk_strategy: JSONObject) -> str:
     ``RecordClass::getUrlSegment()`` string (e.g. ``"gene"``, ``"transcript"``).
 
     Raises ``ValueError`` when the field is missing or not a non-empty string.
+
+    :param wdk_strategy: WDK strategy payload.
+    :returns: Record type urlSegment.
+    :raises ValueError: If recordClassName is missing.
     """
     value = wdk_strategy.get("recordClassName")
     if isinstance(value, str) and value.strip():
@@ -43,6 +47,11 @@ def _get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
     WDK's ``StrategyFormatter.getDetailedStrategyJson`` always stores steps as
     a dict keyed by ``Long.toString(step.getStepId())``, so a simple string
     lookup is all that's needed.
+
+    :param steps: WDK steps dict.
+    :param step_id: Step ID.
+    :returns: Step info dict.
+    :raises ValueError: If step not found.
     """
     result = steps.get(str(step_id))
     if isinstance(result, dict):
@@ -70,6 +79,9 @@ def _extract_estimated_size(step_info: JSONObject) -> int | None:
 
     WDK's ``StepFormatter`` emits ``estimatedSize`` as an ``Integer`` (may be
     ``null`` when the step hasn't been run yet).
+
+    :param step_info: WDK step object.
+    :returns: Estimated size or None.
     """
     value = step_info.get("estimatedSize")
     if isinstance(value, int):
@@ -83,6 +95,9 @@ def _attach_counts_from_wdk_strategy(
     """Enrich local ``steps_data`` with ``estimatedSize`` from the WDK payload.
 
     WDK's ``steps`` is always a dict keyed by string step-ID.
+
+    :param steps_data: Local steps data to enrich.
+    :param wdk_strategy: WDK strategy with steps dict.
     """
     steps_info_raw = wdk_strategy.get("steps")
     if not isinstance(steps_info_raw, dict) or not steps_info_raw:
@@ -115,6 +130,11 @@ def _build_node_from_wdk(
     - ``stepTree`` nodes: ``stepId``, ``primaryInput``, ``secondaryInput``
     - ``steps`` dict entries: ``id``, ``searchName``, ``customName``,
       ``displayName``, ``searchConfig`` → ``parameters``
+
+    :param step_tree: WDK stepTree node.
+    :param steps: WDK steps dict.
+    :param record_type: Record type urlSegment.
+    :returns: PlanStepNode tree.
     """
     step_id_value = step_tree.get("stepId")
     if not isinstance(step_id_value, int):
@@ -213,6 +233,10 @@ def _build_snapshot_from_wdk(
     - ``stepTree``: recursive tree of ``{stepId, primaryInput?, secondaryInput?}``
     - ``steps``: dict of ``stringStepId → stepObject``
     - ``recordClassName``: urlSegment string (e.g. ``"gene"``)
+
+    :param wdk_strategy: WDK strategy payload from getDetailedStrategyJson.
+    :returns: Tuple of (StrategyAST, steps list).
+    :raises ValueError: If stepTree or steps is missing.
     """
     step_tree_value = wdk_strategy.get("stepTree")
     if not isinstance(step_tree_value, dict):

@@ -1,6 +1,6 @@
 import type { StrategyPlan } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
-import { serializeStrategyPlan } from "@/features/strategy/domain/graph";
+import { serializeStrategyPlan } from "@/core/strategyGraph";
 import { AppError } from "@/shared/errors/AppError";
 
 export function buildDuplicatePlan(args: {

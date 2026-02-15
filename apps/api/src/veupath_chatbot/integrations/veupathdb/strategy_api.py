@@ -8,6 +8,7 @@ This implements the WDK REST pattern:
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
@@ -23,6 +24,14 @@ PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX = "__pathfinder_internal__:"
 
 
 def is_internal_wdk_strategy_name(name: str | None) -> bool:
+    """Check if a WDK strategy name is a Pathfinder internal helper strategy.
+
+    Internal strategies are used for control tests and step counts.
+    They are tagged with ``__pathfinder_internal__:`` prefix.
+
+    :param name: WDK strategy name or None.
+    :returns: True if the name indicates an internal strategy.
+    """
     return bool(name) and str(name).startswith(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX)
 
 
@@ -33,6 +42,11 @@ def _tag_internal_wdk_strategy_name(name: str) -> str:
 
 
 def strip_internal_wdk_strategy_name(name: str) -> str:
+    """Remove the internal strategy name prefix if present.
+
+    :param name: WDK strategy name (may include internal prefix).
+    :returns: Display name without the ``__pathfinder_internal__:`` prefix.
+    """
     if name.startswith(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX):
         return name[len(PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX) :]
     return name
@@ -43,7 +57,12 @@ CURRENT_USER = "current"
 
 
 class StepTreeNode:
-    """Node in a step tree (for building strategy)."""
+    """Node in a step tree (for building strategy).
+
+    Represents a single step with optional primary (and for combines, secondary)
+    input references. Used to build the ``stepTree`` payload for WDK strategy
+    creation.
+    """
 
     def __init__(
         self,
@@ -51,6 +70,12 @@ class StepTreeNode:
         primary_input: StepTreeNode | None = None,
         secondary_input: StepTreeNode | None = None,
     ) -> None:
+        """Build a step tree node.
+
+        :param step_id: WDK step ID (integer from create_step).
+        :param primary_input: Child node for unary/binary operations.
+        :param secondary_input: Second child for combine (e.g. UNION) steps.
+        """
         self.step_id = step_id
         self.primary_input = primary_input
         self.secondary_input = secondary_input
@@ -66,16 +91,30 @@ class StepTreeNode:
 
 
 class StrategyAPI:
-    """API for creating and managing WDK strategies."""
+    """API for creating and managing WDK strategies.
+
+    Provides methods to create steps, compose step trees, build strategies,
+    run reports, and manage datasets. Follows the WDK REST pattern:
+    create unattached steps, then POST a strategy with a stepTree linking them.
+    """
 
     def __init__(self, client: VEuPathDBClient, user_id: str = CURRENT_USER) -> None:
+        """Initialize the strategy API.
+
+        :param client: VEuPathDB HTTP client (site-specific).
+        :param user_id: WDK user ID; defaults to ``"current"`` (resolved at first use).
+        """
         self.client = client
         self.user_id = user_id
         self._session_initialized = False
         self._boolean_search_cache: dict[str, str] = {}
 
     def _normalize_param_value(self, value: JSONValue) -> str:
-        """Normalize parameters to WDK-accepted string values."""
+        """Normalize parameters to WDK-accepted string values.
+
+        :param value: Value to process.
+
+        """
         if value is None:
             return ""
         if isinstance(value, bool):
@@ -171,6 +210,41 @@ class StrategyAPI:
 
         return left, right, op
 
+    async def create_dataset(self, ids: list[str]) -> int:
+        """Upload an ID list as a WDK dataset and return the dataset ID.
+
+        WDK DatasetParam parameters (type ``input-dataset``) expect an integer
+        dataset ID, not raw IDs.  This method creates a transient dataset via
+        ``POST /users/{userId}/datasets`` and returns the integer ID that can
+        be used as the parameter value.
+
+        :param ids: List of record IDs (e.g. gene locus tags).
+        :returns: Integer dataset ID.
+        :raises InternalError: If dataset creation fails or no ID is returned.
+        """
+        await self._ensure_session()
+        payload: JSONObject = cast(
+            JSONObject,
+            {"sourceType": "idList", "sourceContent": {"ids": ids}},
+        )
+        result = await self.client.post(
+            f"/users/{self.user_id}/datasets",
+            json=payload,
+        )
+        if isinstance(result, dict):
+            ds_id = result.get("id")
+            if isinstance(ds_id, int):
+                logger.info(
+                    "Created WDK dataset",
+                    dataset_id=ds_id,
+                    id_count=len(ids),
+                )
+                return ds_id
+        raise InternalError(
+            title="Dataset creation failed",
+            detail=f"WDK returned unexpected response: {result!r}",
+        )
+
     async def create_step(
         self,
         record_type: str,
@@ -180,14 +254,11 @@ class StrategyAPI:
     ) -> JSONObject:
         """Create an unattached step.
 
-        Args:
-            record_type: Record type (e.g., "gene", "transcript")
-            search_name: Name of the search question
-            parameters: Search parameters
-            custom_name: Optional custom name for the step
-
-        Returns:
-            Created step data with stepId
+        :param record_type: Record type (e.g., "gene", "transcript").
+        :param search_name: Name of the search question.
+        :param parameters: Search parameters.
+        :param custom_name: Optional custom name for the step.
+        :returns: Created step data with stepId.
         """
         normalized_params = self._normalize_parameters(parameters)
         payload: JSONObject = {
@@ -224,14 +295,12 @@ class StrategyAPI:
     ) -> JSONObject:
         """Create a combined step (boolean operation).
 
-        Args:
-            primary_step_id: ID of the primary (left) step
-            secondary_step_id: ID of the secondary (right) step
-            boolean_operator: One of INTERSECT, UNION, MINUS, LMINUS, RMINUS
-            custom_name: Optional custom name
-
-        Returns:
-            Created step data
+        :param primary_step_id: ID of the primary (left) step.
+        :param secondary_step_id: ID of the secondary (right) step.
+        :param boolean_operator: One of INTERSECT, UNION, MINUS, LMINUS, RMINUS.
+        :param record_type: WDK record type.
+        :param custom_name: Optional custom name.
+        :returns: Created step data.
         """
         await self._ensure_session()
         boolean_search = await self._get_boolean_search_name(record_type)
@@ -278,14 +347,11 @@ class StrategyAPI:
     ) -> JSONObject:
         """Create a transform step.
 
-        Args:
-            input_step_id: ID of the input step
-            transform_name: Name of the transform question
-            parameters: Transform parameters
-            custom_name: Optional custom name
-
-        Returns:
-            Created step data
+        :param input_step_id: ID of the input step.
+        :param transform_name: Name of the transform question.
+        :param parameters: Transform parameters.
+        :param custom_name: Optional custom name.
+        :returns: Created step data.
         """
         normalized_params = self._normalize_parameters(parameters)
         payload: JSONObject = {
@@ -392,13 +458,13 @@ class StrategyAPI:
     ) -> JSONObject:
         """Create a strategy from a step tree.
 
-        Args:
-            step_tree: Root of the step tree
-            name: Strategy name
-            description: Optional description
-
-        Returns:
-            Created strategy data
+        :param step_tree: Root of the step tree.
+        :param name: Strategy name.
+        :param description: Optional description.
+        :param is_public: Whether the strategy is public.
+        :param is_saved: Whether the strategy is saved.
+        :param is_internal: Whether to tag as internal (Pathfinder helper).
+        :returns: Created strategy data.
         """
         if is_internal:
             name = _tag_internal_wdk_strategy_name(name)
@@ -484,28 +550,25 @@ class StrategyAPI:
         attributes: list[str] | None = None,
         pagination: dict[str, int] | None = None,
     ) -> JSONObject:
-        """Get answer records for a step.
+        """Get answer records for a step via the standard report endpoint.
 
-        Args:
-            step_id: Step ID
-            attributes: Attributes to include in response
-            pagination: Offset and numRecords
-
-        Returns:
-            Answer data with records
+        :param step_id: Step ID.
+        :param attributes: Attributes to include in response.
+        :param pagination: Offset and numRecords.
+        :returns: Answer data with records.
         """
-        params: JSONObject = {}
+        report_config: JSONObject = {}
         if attributes:
-            params["attributes"] = ",".join(attributes)
+            report_config["attributes"] = cast(JSONValue, attributes)
         if pagination:
-            params.update(pagination)
+            report_config["pagination"] = cast(JSONValue, pagination)
 
         await self._ensure_session()
         return cast(
             JSONObject,
-            await self.client.get(
-                f"/users/{self.user_id}/steps/{step_id}/answer",
-                params=params,
+            await self.client.post(
+                f"/users/{self.user_id}/steps/{step_id}/reports/standard",
+                json={"reportConfig": report_config},
             ),
         )
 

@@ -2,7 +2,6 @@ import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 
 export interface GraphSnapshotStepInput {
   id: string;
-  type?: string; // legacy
   kind?: string;
   displayName?: string;
   searchName?: string;
@@ -34,7 +33,6 @@ const normalizeName = (value: string | null | undefined) =>
 const isFallbackDisplayName = (
   name: string | null | undefined,
   step: {
-    type?: string;
     kind?: string;
     searchName?: string;
     operator?: string;
@@ -46,7 +44,6 @@ const isFallbackDisplayName = (
   const candidates = new Set<string>([
     normalizeName(step.searchName),
     normalizeName(step.kind),
-    normalizeName(step.type),
   ]);
   if (step.operator) {
     const op = normalizeName(step.operator);
@@ -86,7 +83,7 @@ export function buildStrategyFromGraphSnapshot(args: {
         )
         .map((step) => {
           const existing = stepsById[step.id];
-          const incomingName = step.displayName || step.kind || step.type;
+          const incomingName = step.displayName || step.kind;
           const existingName = existing?.displayName;
           const keepExisting =
             !!existingName &&
@@ -97,7 +94,6 @@ export function buildStrategyFromGraphSnapshot(args: {
             (keepExisting ? existingName : incomingName) ||
             step.searchName ||
             step.kind ||
-            step.type ||
             step.id;
           const resolvedRecordType = step.recordType ?? existing?.recordType;
           const inputs = toStringArray(step.inputStepIds);
@@ -107,7 +103,7 @@ export function buildStrategyFromGraphSnapshot(args: {
 
           return {
             id: step.id,
-            kind: (step.kind ?? step.type) as StrategyStep["kind"],
+            kind: (step.kind ?? "search") as StrategyStep["kind"],
             displayName: resolvedName,
             recordType: resolvedRecordType ?? undefined,
             searchName: step.searchName,

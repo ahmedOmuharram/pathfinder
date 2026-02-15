@@ -46,6 +46,16 @@ API will be available at:
 - `http://localhost:8000/health`
 - `http://localhost:8000/docs` (when docs are enabled)
 
+### Build Sphinx docs
+
+```bash
+cd apps/api
+uv sync --extra dev
+uv run sphinx-build -b html docs docs/_build/html
+```
+
+Output: `docs/_build/html/`. Hosted at [veupathdb-pathfinder.readthedocs.io](https://veupathdb-pathfinder.readthedocs.io/).
+
 ### Run tests / lint / typecheck
 
 ```bash

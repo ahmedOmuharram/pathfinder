@@ -25,6 +25,10 @@ def build_strategy_session(
     - Prefer canonical `plan` if present/parseable.
     - Fall back to snapshot-derived `steps` + `rootStepId` hydration when
       plan is missing/invalid.
+
+    :param site_id: VEuPathDB site identifier.
+    :param strategy_graph: JSONObject | None.
+
     """
 
     session = StrategySession(site_id)

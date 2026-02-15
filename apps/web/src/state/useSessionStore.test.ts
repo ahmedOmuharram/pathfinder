@@ -53,15 +53,13 @@ describe("state/useSessionStore", () => {
     expect(store.getState().selectedSiteDisplayName).toBe("TrypDB");
   });
 
-  it("setStrategyId updates strategy id and auto-derives chatMode", async () => {
+  it("setStrategyId updates strategy id", async () => {
     const mod = await import("./useSessionStore");
     const store = mod.useSessionStore;
     store.getState().setStrategyId("s123");
     expect(store.getState().strategyId).toBe("s123");
-    expect(store.getState().chatMode).toBe("execute");
     store.getState().setStrategyId(null);
     expect(store.getState().strategyId).toBeNull();
-    expect(store.getState().chatMode).toBe("plan");
   });
 
   it("setPlanSessionId updates plan session id", async () => {
@@ -69,16 +67,6 @@ describe("state/useSessionStore", () => {
     const store = mod.useSessionStore;
     store.getState().setPlanSessionId("p123");
     expect(store.getState().planSessionId).toBe("p123");
-  });
-
-  it("setPendingExecutorSend updates pending executor send", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    const payload = { strategyId: "s1", message: "test" };
-    store.getState().setPendingExecutorSend(payload);
-    expect(store.getState().pendingExecutorSend).toEqual(payload);
-    store.getState().setPendingExecutorSend(null);
-    expect(store.getState().pendingExecutorSend).toBeNull();
   });
 
   it("setVeupathdbAuth updates auth state", async () => {
@@ -97,13 +85,6 @@ describe("state/useSessionStore", () => {
     const store = mod.useSessionStore;
     store.getState().setChatIsStreaming(true);
     expect(store.getState().chatIsStreaming).toBe(true);
-  });
-
-  it("setChatMode updates chat mode", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setChatMode("execute");
-    expect(store.getState().chatMode).toBe("execute");
   });
 
   it("linkConversation stores plan-to-strategy mapping and persists to localStorage", async () => {

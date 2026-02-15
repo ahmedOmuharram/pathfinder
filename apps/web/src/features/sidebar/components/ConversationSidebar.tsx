@@ -42,9 +42,7 @@ import {
 import { runDeleteStrategyWorkflow } from "@/features/sidebar/services/strategySidebarWorkflows";
 import type { PlanSessionSummary } from "@pathfinder/shared";
 
-// ---------------------------------------------------------------------------
 // Unified sidebar item (plans + strategies collapsed into one type)
-// ---------------------------------------------------------------------------
 
 type ConversationKind = "plan" | "strategy";
 
@@ -60,9 +58,7 @@ interface ConversationItem {
   strategyItem?: StrategyListItem;
 }
 
-// ---------------------------------------------------------------------------
 // Props
-// ---------------------------------------------------------------------------
 
 interface ConversationSidebarProps {
   siteId: string;
@@ -73,9 +69,7 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProps) {
-  // -------------------------------------------------------------------------
   // Global state
-  // -------------------------------------------------------------------------
   const planSessionId = useSessionStore((s) => s.planSessionId);
   const setPlanSessionId = useSessionStore((s) => s.setPlanSessionId);
   const strategyId = useSessionStore((s) => s.strategyId);
@@ -96,9 +90,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const setStrategy = useStrategyStore((s) => s.setStrategy);
   const clearStrategy = useStrategyStore((s) => s.clear);
 
-  // -------------------------------------------------------------------------
   // Local state
-  // -------------------------------------------------------------------------
   const [planItems, setPlanItems] = useState<PlanSessionSummary[]>([]);
   const [strategyItems, setStrategyItems] = useState<StrategyListItem[]>([]);
   const [query, setQuery] = useState("");
@@ -111,9 +103,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  // -------------------------------------------------------------------------
   // Error helpers
-  // -------------------------------------------------------------------------
   const reportError = useCallback(
     (message: string) => onToast?.({ type: "error", message }),
     [onToast],
@@ -136,9 +126,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     [authToken, reportError, setAuthToken, setPlanSessionId],
   );
 
-  // -------------------------------------------------------------------------
   // Data fetching
-  // -------------------------------------------------------------------------
   const refreshPlans = useCallback(async () => {
     if (!authToken) {
       setPlanItems([]);
@@ -207,9 +195,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     void refreshStrategies();
   }, [draftStrategy?.id, draftStrategy?.updatedAt, refreshStrategies]);
 
-  // -------------------------------------------------------------------------
   // Ensure there's always an active plan session
-  // -------------------------------------------------------------------------
   const ensureActivePlan = useCallback(async () => {
     if (!authToken) return;
     if (planSessionId) return;
@@ -247,9 +233,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     });
   }, [ensureActivePlan]);
 
-  // -------------------------------------------------------------------------
   // Build merged conversation list
-  // -------------------------------------------------------------------------
   const linkedStrategyIds = useMemo(
     () => new Set(Object.values(linkedConversations)),
     [linkedConversations],
@@ -301,24 +285,20 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     );
   }, [planItems, strategyItems, linkedPlanIds, planSessionId, siteId]);
 
-  // -------------------------------------------------------------------------
   // Filter
-  // -------------------------------------------------------------------------
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return conversations;
     return conversations.filter((c) => c.title.toLowerCase().includes(q));
   }, [conversations, query]);
 
-  // -------------------------------------------------------------------------
   // Selection logic
-  // -------------------------------------------------------------------------
   const activeId = strategyId || planSessionId || null;
 
   const handleSelect = useCallback(
     (item: ConversationItem) => {
       if (item.kind === "plan") {
-        setStrategyId(null); // clears strategyId and auto-sets chatMode to "plan"
+        setStrategyId(null); // clears strategyId so the panel switches to plan mode
         clearStrategy();
         setPlanSessionId(item.id);
       } else {
@@ -357,9 +337,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     ],
   );
 
-  // -------------------------------------------------------------------------
   // New conversation
-  // -------------------------------------------------------------------------
   const handleNewConversation = useCallback(async () => {
     try {
       const res = await openPlanSession({ siteId, title: "New Conversation" });
@@ -390,9 +368,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     handlePlanError,
   ]);
 
-  // -------------------------------------------------------------------------
   // Delete conversation
-  // -------------------------------------------------------------------------
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -450,9 +426,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     reportError,
   ]);
 
-  // -------------------------------------------------------------------------
   // Strategy-specific actions
-  // -------------------------------------------------------------------------
 
   const startRename = useCallback((item: ConversationItem) => {
     setRenamingId(item.id);
@@ -520,9 +494,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     [reportError],
   );
 
-  // -------------------------------------------------------------------------
   // Render
-  // -------------------------------------------------------------------------
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 border-r border-slate-200 bg-white px-3 py-4">
       {/* Site picker */}

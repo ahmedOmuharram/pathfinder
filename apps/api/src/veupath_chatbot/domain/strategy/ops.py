@@ -45,7 +45,7 @@ WDK_BOOLEAN_OPS: dict[CombineOp, str] = {
 
 @dataclass
 class ColocationParams:
-    """Parameters for genomic colocation operation."""
+    """Parameters for colocation operator."""
 
     upstream: int = 0
     downstream: int = 0
@@ -64,19 +64,33 @@ class ColocationParams:
 
 
 def get_op_label(op: CombineOp) -> str:
-    """Get human-readable label for an operator."""
+    """Get human-readable label for an operator.
+
+    :param op: Combine operator.
+    :returns: Human-readable label.
+    """
     return OP_LABELS.get(op, op.value)
 
 
 def get_wdk_operator(op: CombineOp) -> str:
-    """Get WDK boolean operator name."""
+    """Get WDK boolean operator name.
+
+    :param op: Combine operator.
+    :returns: WDK boolean operator name.
+    :raises ValueError: If op is COLOCATE.
+    """
     if op == CombineOp.COLOCATE:
         raise ValueError("COLOCATE requires special handling, not boolean operator")
     return WDK_BOOLEAN_OPS[op]
 
 
 def parse_op(value: str) -> CombineOp:
-    """Parse operator from string value."""
+    """Parse operator from string value.
+
+    :param value: String value to parse.
+    :returns: Parsed combine operator.
+    :raises ValueError: If value is empty or unknown.
+    """
     raw = (value or "").strip()
     if not raw:
         raise ValueError("Unknown operator: <empty>")

@@ -25,7 +25,11 @@ def tokenize_query(text: str) -> list[str]:
 
 
 def record_type_query_error(query: str) -> JSONObject | None:
-    """Return an error payload when query is too vague, else None."""
+    """Return a validation error object if the query is too vague; otherwise None.
+
+    :param query: User query string.
+    :returns: Error dict if query is too vague, otherwise None.
+    """
     q = (query or "").strip()
     if not q:
         return None
@@ -55,7 +59,11 @@ def record_type_query_error(query: str) -> JSONObject | None:
 
 
 def search_query_error(query: str) -> JSONObject | None:
-    """Return an error payload when query is too vague, else None."""
+    """Return a validation error object if the query is invalid; otherwise None.
+
+    :param query: User query string.
+    :returns: Error dict if query is invalid or too vague, otherwise None.
+    """
     q = (query or "").strip()
     if not q:
         return {

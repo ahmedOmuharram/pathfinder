@@ -41,6 +41,8 @@ class AgentToolRegistryMixin(ResearchToolsMixin):
     - conversation_tools: ConversationTools
     - web_search_service: WebSearchService
     - literature_search_service: LiteratureSearchService
+
+
     """
 
     # These attributes are provided by classes that use this mixin
@@ -64,6 +66,12 @@ class AgentToolRegistryMixin(ResearchToolsMixin):
 
         This keeps the tool surface stable: callers always receive both data sources and can
         decide which to trust based on availability/staleness.
+
+        :param rag: RAG context.
+        :param wdk: WDK context.
+        :param rag_note: RAG note (default: None).
+        :param wdk_note: WDK note (default: None).
+
         """
         return {
             "rag": {"data": rag, "note": rag_note or ""},
@@ -220,11 +228,12 @@ class AgentToolRegistryMixin(ResearchToolsMixin):
     ) -> JSONObject:
         """Get dependent vocab for a parameter.
 
-        Notes:
-        - WDK's `/refreshed-dependent-params` requires a *changed* param value; if `context_values`
-          does not include `param_name`, we can't call that endpoint safely (it will 422 for many params).
-        - In that case we fall back to fetching expanded search details and returning the parameter spec
-          (which often includes the vocabulary needed to pick an initial value).
+        .. note::
+           WDK's ``/refreshed-dependent-params`` requires a *changed* param value; if
+           ``context_values`` does not include ``param_name``, we cannot call that
+           endpoint safely (it will 422 for many params). In that case we fall back to
+           fetching expanded search details and returning the parameter spec (which
+           often includes the vocabulary needed to pick an initial value).
         """
 
         async def _fallback_from_search_details() -> JSONObject | None:

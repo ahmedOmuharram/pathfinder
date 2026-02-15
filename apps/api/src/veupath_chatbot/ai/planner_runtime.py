@@ -73,3 +73,10 @@ class PathfinderPlannerAgent(PlannerToolRegistryMixin, Kani):
 
         # For consistency with executor streaming (sub-kani uses this too).
         self.event_queue: asyncio.Queue[JSONObject] | None = None
+        # Cancellation signal – set by stream_chat when the client disconnects.
+        self._cancel_event = asyncio.Event()
+
+    async def _emit_event(self, event: JSONObject) -> None:
+        """Push an SSE event onto the streaming queue (no-op if queue not wired)."""
+        if self.event_queue is not None:
+            await self.event_queue.put(event)

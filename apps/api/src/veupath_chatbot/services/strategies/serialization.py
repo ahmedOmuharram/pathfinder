@@ -13,7 +13,11 @@ from .step_builders import build_steps_data_from_ast
 
 
 def build_steps_data_from_plan(plan: JSONObject) -> JSONArray:
-    """Build persisted steps list from a plan dict (AST payload)."""
+    """Build persisted steps list from a plan dict (AST payload).
+
+    :param plan: Plan dict (AST payload).
+    :returns: List of step data dicts.
+    """
     try:
         ast = from_dict(plan)
     except Exception:
@@ -23,7 +27,11 @@ def build_steps_data_from_plan(plan: JSONObject) -> JSONArray:
 
 
 def count_steps_in_plan(plan: JSONObject) -> int:
-    """Count steps in a plan without relying on persisted step lists."""
+    """Count steps in a plan without relying on persisted step lists.
+
+    :param plan: Plan dict (AST payload).
+    :returns: Step count.
+    """
     try:
         ast = from_dict(plan)
     except Exception:
@@ -37,6 +45,9 @@ def build_steps_data_from_graph_snapshot(
     """Build persisted steps list from a `graphSnapshot` payload.
 
     Normalizes whatever the UI sends into our canonical derived step shape.
+
+    :param snapshot: Graph snapshot from UI.
+    :returns: List of step data dicts.
     """
     steps_data: JSONArray = []
     snapshot_steps = snapshot.get("steps") or []

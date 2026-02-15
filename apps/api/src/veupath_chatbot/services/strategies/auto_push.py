@@ -32,7 +32,11 @@ _PUSH_LOCKS_MAX = 200
 
 
 def _get_push_lock(strategy_id: UUID) -> asyncio.Lock:
-    """Return (or create) an asyncio.Lock for the given strategy."""
+    """Get or create a per-strategy lock for serialising WDK push operations.
+
+    :param strategy_id: Strategy UUID.
+    :returns: Asyncio lock for the given strategy.
+    """
     if strategy_id not in _push_locks:
         # Evict oldest entries to bound memory.
         if len(_push_locks) >= _PUSH_LOCKS_MAX:

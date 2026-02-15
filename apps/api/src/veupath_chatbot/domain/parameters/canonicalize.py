@@ -1,15 +1,14 @@
 """Canonicalize parameter values (API-friendly) using WDK parameter specs.
 
-This module is the counterpart to `domain/parameters/normalize.py`:
-- `normalize.py` produces WDK wire-safe values (often strings/JSON strings).
-- `canonicalize.py` produces API-friendly canonical JSON shapes:
-  - multi-pick values -> list[str]
-  - scalar values -> string (stringified), never arrays/dicts
-  - range values -> {min, max}
-  - filter values -> dict/list where applicable
+This module is the counterpart to ``domain/parameters/normalize``:
 
-It is used at API boundaries (plan normalization, validation) to ensure the
-frontend can be a *consumer* of stable rules without re-implementing coercion.
+- ``normalize`` produces WDK wire-safe values (often strings/JSON strings).
+- ``canonicalize`` produces API-friendly canonical JSON shapes:
+  multi-pick values become ``list[str]``, scalars become strings,
+  range values become ``{min, max}``, filter values become dict/list.
+
+Used at API boundaries (plan normalization, validation) so the frontend
+can consume stable rules without re-implementing coercion.
 """
 
 from __future__ import annotations

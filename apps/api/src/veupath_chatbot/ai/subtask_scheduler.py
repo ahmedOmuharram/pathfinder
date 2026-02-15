@@ -87,7 +87,11 @@ async def run_nodes_with_dependencies(
 def partition_task_results(
     results: JSONArray,
 ) -> tuple[JSONArray, JSONArray]:
-    """Split results into validated and rejected, preserving stable shape."""
+    """Split results into validated and rejected, preserving stable shape.
+
+    :param results: Results array.
+
+    """
     validated: JSONArray = []
     rejected: JSONArray = []
 

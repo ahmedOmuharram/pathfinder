@@ -14,9 +14,7 @@ import { APIError, requestJson } from "./http";
 
 export { APIError };
 
-// -----------------------------------------------------------------------------
 // Sites / discovery
-// -----------------------------------------------------------------------------
 
 export async function listSites(): Promise<VEuPathDBSite[]> {
   return await requestJson<VEuPathDBSite[]>("/api/v1/sites");
@@ -69,9 +67,7 @@ export async function validateSearchParams(
   );
 }
 
-// -----------------------------------------------------------------------------
 // Strategies
-// -----------------------------------------------------------------------------
 
 export async function listStrategies(
   siteId?: string | null,
@@ -175,9 +171,7 @@ export async function computeStepCounts(
   );
 }
 
-// -----------------------------------------------------------------------------
 // Plan sessions
-// -----------------------------------------------------------------------------
 
 export async function listPlans(siteId?: string | null): Promise<PlanSessionSummary[]> {
   return await requestJson<PlanSessionSummary[]>("/api/v1/plans", {
@@ -218,9 +212,7 @@ export async function deletePlanSession(
   });
 }
 
-// -----------------------------------------------------------------------------
 // VEuPathDB auth bridge
-// -----------------------------------------------------------------------------
 
 export async function getVeupathdbAuthStatus(siteId: string): Promise<{
   signedIn: boolean;
@@ -297,9 +289,7 @@ export async function refreshAuth(): Promise<{ success: boolean; authToken?: str
   return await requestJson(`/api/v1/veupathdb/auth/refresh`, { method: "POST" });
 }
 
-// -----------------------------------------------------------------------------
 // Models / catalog
-// -----------------------------------------------------------------------------
 
 export interface ModelCatalogResponse {
   models: import("@pathfinder/shared").ModelCatalogEntry[];

@@ -2,10 +2,6 @@
 
 These types model the *working* state while a user (or an AI agent) is building a
 VEuPathDB strategy during a chat session.
-
-They are intentionally **not** part of the pure domain layer:
-- They hold mutable state (steps/history/current draft strategy)
-- They represent an application/session concept (chat + graph = strategy session)
 """
 
 from __future__ import annotations
@@ -62,6 +58,9 @@ class StrategyGraph:
         The new step becomes a root.  If it consumes existing roots as
         ``primary_input`` or ``secondary_input``, those are removed from the
         root set (they are now internal nodes of the new step's subtree).
+
+        :param step: Step to add.
+        :returns: Step ID.
         """
         self.steps[step.id] = step
         # The new step is always a root of its subtree.
@@ -75,7 +74,11 @@ class StrategyGraph:
         return step.id
 
     def get_step(self, step_id: str) -> Step | None:
-        """Get a step by ID."""
+        """Get a step by ID.
+
+        :param step_id: Step ID.
+        :returns: Step or None.
+        """
         return self.steps.get(step_id)
 
     def recompute_roots(self) -> None:
@@ -85,6 +88,8 @@ class StrategyGraph:
         or ``secondary_input`` of another step.  Call this after bulk
         mutations (delete, hydration) where incremental root tracking is
         impractical.
+
+
         """
         referenced: set[str] = set()
         for step in self.steps.values():
@@ -97,7 +102,10 @@ class StrategyGraph:
         self.roots = {sid for sid in self.steps if sid not in referenced}
 
     def save_history(self, description: str) -> None:
-        """Save current state to history."""
+        """Save current state to history.
+
+        :param description: Description of the state.
+        """
         if self.current_strategy:
             self.history.append(
                 {
@@ -126,13 +134,21 @@ class StrategySession:
         self.graph: StrategyGraph | None = None
 
     def add_graph(self, graph: StrategyGraph) -> None:
-        """Register an existing graph in the session."""
+        """Register an existing graph in the session.
+
+        :param graph: Strategy graph to register.
+        """
         if self.graph and self.graph.id != graph.id:
             return
         self.graph = graph
 
     def create_graph(self, name: str, graph_id: str | None = None) -> StrategyGraph:
-        """Create a new empty graph and register it."""
+        """Create a new empty graph and register it.
+
+        :param name: Graph name.
+        :param graph_id: Optional graph ID (default: None).
+        :returns: The graph.
+        """
         if self.graph:
             if name and name != self.graph.name:
                 self.graph.name = name
@@ -143,7 +159,11 @@ class StrategySession:
         return graph
 
     def get_graph(self, graph_id: str | None) -> StrategyGraph | None:
-        """Get graph by ID (or active graph if None)."""
+        """Get graph by ID (or active graph if None).
+
+        :param graph_id: Graph ID, or None for active graph.
+        :returns: Graph or None.
+        """
         if not self.graph:
             return None
         if graph_id is None or graph_id == self.graph.id:
@@ -163,6 +183,11 @@ def hydrate_graph_from_steps_data(
     This is used when we have a persisted `steps` list (and maybe `root_step_id`) but
     no canonical `plan` to parse into an AST. It enables tools like `list_current_steps`
     to reflect existing UI-visible nodes.
+
+    :param graph: Strategy graph to hydrate.
+    :param steps_data: Flat steps list from persistence.
+    :param root_step_id: Root step ID (default: None).
+    :param record_type: Record type (default: None).
     """
     if not steps_data or not isinstance(steps_data, list):
         return
@@ -348,7 +373,7 @@ def hydrate_graph_from_steps_data(
     # Recompute the subtree-root set from the hydrated step graph.
     graph.recompute_roots()
 
-    # Best-effort last-step pointer (used for plan emission / backward compat).
+    # Best-effort last-step pointer (used for plan emission when roots is ambiguous).
     if root_step_id and str(root_step_id) in graph.steps:
         graph.last_step_id = str(root_step_id)
     elif len(graph.roots) == 1:

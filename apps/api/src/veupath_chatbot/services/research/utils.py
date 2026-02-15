@@ -11,19 +11,32 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 def norm_text(value: str | None) -> str:
-    """Normalize text for comparison."""
+    """Normalize text for comparison.
+
+    :param value: Text to normalize.
+    :returns: Normalized string.
+    """
     return (value or "").strip().lower()
 
 
 def list_str(value: JSONValue) -> list[str]:
-    """Convert a JSON value to a list of strings."""
+    """Convert a JSON value to a list of strings.
+
+    :param value: Value to process.
+
+    """
     if isinstance(value, list):
         return [str(v) for v in value if v is not None]
     return []
 
 
 def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | None:
-    """Limit the number of authors, appending 'et al.' if truncated."""
+    """Limit the number of authors, appending 'et al.' if truncated.
+
+    :param authors: Author list.
+    :param max_authors: Maximum number of authors (-1 for no limit).
+    :returns: Truncated list or None.
+    """
     if not isinstance(authors, list) or not authors:
         return None
     cleaned = [str(a) for a in authors if a is not None and str(a).strip()]
@@ -40,7 +53,12 @@ def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | No
 
 
 def truncate_text(text: str | None, max_chars: int) -> str | None:
-    """Truncate text to max_chars, appending ellipsis if truncated."""
+    """Truncate text to max_chars, appending ellipsis if truncated.
+
+    :param text: Text to truncate.
+    :param max_chars: Maximum character count.
+    :returns: Truncated string or None.
+    """
     if not isinstance(text, str):
         return None
     t = text.strip()
@@ -52,7 +70,11 @@ def truncate_text(text: str | None, max_chars: int) -> str | None:
 
 
 def strip_tags(text: str) -> str:
-    """Remove HTML tags and normalize whitespace."""
+    """Remove HTML tags and normalize whitespace.
+
+    :param text: HTML string.
+    :returns: Plain text.
+    """
     cleaned = _re.sub(r"<[^>]+>", " ", text)
     cleaned = _html.unescape(cleaned)
     cleaned = _re.sub(r"\s+", " ", cleaned).strip()
@@ -60,7 +82,11 @@ def strip_tags(text: str) -> str:
 
 
 def decode_ddg_redirect(href: str) -> str:
-    """Decode DuckDuckGo redirect URLs."""
+    """Decode DuckDuckGo redirect URLs.
+
+    :param href: Redirect URL.
+    :returns: Decoded URL.
+    """
     h = (href or "").strip()
     if not h:
         return h
@@ -91,7 +117,11 @@ _LOW_VALUE_QUERY_TOKENS = {
 
 
 def candidate_queries(q: str) -> list[str]:
-    """Generate candidate query variations for fallback searches."""
+    """Generate candidate query variations for fallback searches.
+
+    :param q: Search query.
+    :returns: Candidate query variations.
+    """
     raw = (q or "").strip()
     if not raw:
         return []
@@ -115,7 +145,12 @@ def candidate_queries(q: str) -> list[str]:
 
 
 def looks_blocked(status_code: int, html: str) -> bool:
-    """Check if a response looks like it was blocked by rate limiting."""
+    """Check if a response looks like it was blocked by rate limiting.
+
+    :param status_code: HTTP status code.
+    :param html: Response HTML body.
+    :returns: True if response looks blocked.
+    """
     if status_code == 202:
         return True
     h = (html or "").lower()
@@ -125,7 +160,11 @@ def looks_blocked(status_code: int, html: str) -> bool:
 
 
 def norm_for_match(text: str | None) -> str:
-    """Normalize text for fuzzy matching."""
+    """Normalize text for fuzzy matching.
+
+    :param text: Text to normalize.
+    :returns: Normalized string for matching.
+    """
     if not isinstance(text, str):
         return ""
     t = text.lower()
@@ -134,14 +173,24 @@ def norm_for_match(text: str | None) -> str:
 
 
 def fallback_ratio(a: str, b: str) -> float:
-    """Fallback similarity ratio using SequenceMatcher."""
+    """Fallback similarity ratio using SequenceMatcher.
+
+    :param a: First string.
+    :param b: Second string.
+    :returns: Similarity ratio (0-100).
+    """
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio() * 100.0
 
 
 def fuzzy_score(query: str, text: str) -> float:
-    """Calculate fuzzy similarity score between query and text."""
+    """Calculate fuzzy similarity score between query and text.
+
+    :param query: Search query.
+    :param text: Text to score.
+    :returns: Fuzzy similarity score.
+    """
     q = norm_for_match(query)
     t = norm_for_match(text)
     if not q or not t:
@@ -155,7 +204,12 @@ def fuzzy_score(query: str, text: str) -> float:
 
 
 def rerank_score(query: str, item: JSONObject) -> tuple[float, dict[str, float]]:
-    """Calculate reranking score for a literature search result."""
+    """Calculate reranking score for a literature search result.
+
+    :param query: Search query.
+    :param item: Literature result item.
+    :returns: Tuple of (score, score breakdown).
+    """
     title = str(item.get("title") or "")
     abstract = str(item.get("abstract") or item.get("snippet") or "")
     journal = str(item.get("journalTitle") or item.get("journal") or "")
@@ -183,7 +237,24 @@ def passes_filters(
     pmid_equals: str | None,
     require_doi: bool,
 ) -> bool:
-    """Check if a literature result passes all filters."""
+    """Check if a literature result passes all filters.
+
+    :param title: Result title.
+    :param authors: Author list.
+    :param year: Publication year.
+    :param doi: DOI.
+    :param pmid: PubMed ID.
+    :param journal: Journal name.
+    :param year_from: Minimum year filter.
+    :param year_to: Maximum year filter.
+    :param author_includes: Author substring filter.
+    :param title_includes: Title substring filter.
+    :param journal_includes: Journal substring filter.
+    :param doi_equals: Exact DOI filter.
+    :param pmid_equals: Exact PMID filter.
+    :param require_doi: Whether DOI is required.
+    :returns: True if result passes all filters.
+    """
     if year_from is not None and (year is None or year < year_from):
         return False
     if year_to is not None and (year is None or year > year_to):
@@ -213,7 +284,11 @@ def passes_filters(
 
 
 def dedupe_key(item: JSONObject) -> str:
-    """Generate a deduplication key for a literature result."""
+    """Generate a deduplication key for a literature result.
+
+    :param item: Item dict.
+
+    """
     pmid = item.get("pmid")
     doi = item.get("doi")
     url = item.get("url")

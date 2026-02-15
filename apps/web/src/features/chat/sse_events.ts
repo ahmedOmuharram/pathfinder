@@ -1,4 +1,10 @@
-import type { Message, ToolCall, Citation, PlanningArtifact } from "@pathfinder/shared";
+import type {
+  Message,
+  ToolCall,
+  Citation,
+  PlanningArtifact,
+  OptimizationProgressData,
+} from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { RawSSEEvent } from "@/lib/sse";
 import { isRecord } from "@/shared/utils/isRecord";
@@ -60,6 +66,10 @@ export type ChatSSEEvent =
       };
     }
   | { type: "strategy_cleared"; data: { graphId?: string } }
+  | {
+      type: "optimization_progress";
+      data: OptimizationProgressData;
+    }
   | { type: "error"; data: { error: string } }
   | { type: "unknown"; data: Record<string, unknown> | string; rawType: string };
 
@@ -96,6 +106,7 @@ export function parseChatSSEEvent(event: RawSSEEvent): ChatSSEEvent {
     case "strategy_link":
     case "strategy_meta":
     case "strategy_cleared":
+    case "optimization_progress":
     case "error":
       return { type, data } as ChatSSEEvent;
     default:

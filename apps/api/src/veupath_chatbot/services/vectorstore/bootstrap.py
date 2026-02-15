@@ -20,6 +20,9 @@ def _known_embedding_dims(model: str) -> int | None:
 
     This avoids a network call at API startup while still letting us create
     empty collections before ingestion runs.
+
+    :param model: OpenAI model name (e.g. text-embedding-3-small).
+    :returns: Dimension count or None if unknown.
     """
     m = (model or "").strip()
     if m == "text-embedding-3-small":

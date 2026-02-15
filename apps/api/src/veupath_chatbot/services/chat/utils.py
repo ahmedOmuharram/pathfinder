@@ -19,7 +19,11 @@ def parse_uuid(value: str | None) -> UUID | None:
 
 
 def parse_selected_nodes(message: str) -> tuple[JSONObject | None, str]:
-    """Parse the `__NODE__{json}\\n<text>` prefix used by the UI."""
+    """Parse the `__NODE__{json}\\n<text>` prefix used by the UI.
+
+    :param message: Chat message.
+
+    """
     if not message.startswith("__NODE__"):
         return None, message
     raw = message[len("__NODE__") :]
@@ -50,6 +54,9 @@ def sanitize_markdown(message: str) -> str:
     non-empty line:
 
       1. Title:
+
+    :param message: Chat message.
+
     """
     if not message or "\n" not in message:
         return message

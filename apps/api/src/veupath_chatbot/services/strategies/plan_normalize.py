@@ -1,14 +1,7 @@
 """Strategy plan normalization helpers.
 
-This module provides two distinct concepts:
-
-1) Canonicalization (API-facing):
-   - Produce canonical JSON shapes so the frontend is a consumer:
-     multi-pick -> list[str], ranges -> {min,max}, etc.
-
-2) WDK wire normalization (integration-facing, deprecated):
-   - Older code joined lists into CSV strings, which is lossy and should not be used
-     for persisted plans. Kept temporarily for compatibility where needed.
+Produce canonical JSON shapes for frontend consumption. Multi-pick becomes
+list[str], ranges become ``{min, max}``, etc.
 """
 
 from __future__ import annotations
@@ -146,47 +139,5 @@ async def canonicalize_plan_parameters(
         return node
 
     await canonicalize_node(root)
-    plan["root"] = root
-    return plan
-
-
-def _normalize_param_value_to_wdk_string(value: JSONValue) -> str:
-    """Deprecated: lossy WDK coercion (kept temporarily)."""
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return str(value)
-    if isinstance(value, list):
-        return ",".join(str(item) for item in value if item is not None)
-    if isinstance(value, dict):
-        return str(value)
-    return str(value)
-
-
-def _normalize_plan_parameters_to_wdk_strings(plan: JSONObject) -> JSONObject:
-    """Deprecated: ensure all search/transform parameters are WDK-safe strings."""
-    root = plan.get("root")
-    if not isinstance(root, dict):
-        return plan
-
-    def normalize_node(node: JSONObject) -> JSONObject:
-        params = node.get("parameters")
-        if isinstance(params, dict):
-            node["parameters"] = {
-                key: _normalize_param_value_to_wdk_string(value)
-                for key, value in params.items()
-            }
-
-        primary = node.get("primaryInput")
-        secondary = node.get("secondaryInput")
-        if isinstance(primary, dict):
-            normalize_node(primary)
-        if isinstance(secondary, dict):
-            normalize_node(secondary)
-        return node
-
-    normalize_node(root)
     plan["root"] = root
     return plan

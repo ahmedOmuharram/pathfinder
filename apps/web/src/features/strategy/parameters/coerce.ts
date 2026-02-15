@@ -51,7 +51,7 @@ export function coerceMultiValue(
   return [String(value)];
 }
 
-export function coerceScalarValue(value: unknown): unknown {
+function coerceScalarValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.length > 0 ? value[0] : undefined;
   }
@@ -74,12 +74,4 @@ export function coerceParametersForSpecs(
     }
   }
   return next;
-}
-
-export function coerceParametersForPlan(
-  params: Record<string, unknown>,
-): Record<string, unknown> {
-  // Plan payload should already be in canonical JSON shapes.
-  // We intentionally do NOT parse/accept CSV or JSON-string arrays here.
-  return { ...(params || {}) };
 }

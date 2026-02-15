@@ -6,6 +6,7 @@ import type {
   Citation,
   ModelSelection,
   PlanningArtifact,
+  OptimizationProgressData,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { streamChat } from "@/features/chat/stream";
@@ -59,7 +60,7 @@ interface UseChatStreamingArgs {
   /** Reference strategy ID to inject into plan-mode context. */
   referenceStrategyId?: string | null;
 
-  // --- Optional conversation callbacks ---
+  /** Optional conversation callbacks. */
   onPlanSessionId?: (id: string) => void;
   onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
   onExecutorBuildRequest?: (message: string) => void;
@@ -111,34 +112,44 @@ export function useChatStreaming({
 }: UseChatStreamingArgs) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [optimizationProgress, setOptimizationProgress] =
+    useState<OptimizationProgressData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const streamingAssistantIndexRef = useRef<number | null>(null);
   const streamingAssistantMessageIdRef = useRef<string | null>(null);
+  const reasoningRef = useRef<string | null>(null);
+  const optimizationProgressRef = useRef<OptimizationProgressData | null>(null);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
   }, []);
 
-  const handleSendMessage = useCallback(
-    async (content: string) => {
-      const finalContent = encodeNodeSelection(draftSelection, content);
-      const userMessage: Message = {
-        role: "user",
-        content: finalContent,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      if (draftSelection) {
-        setDraftSelection(null);
-      }
+  /**
+   * Shared stream setup — resets state, wires event handling, and calls
+   * `streamChat`.  Used by both `handleSendMessage` (user-initiated) and
+   * `handleAutoExecute` (system-initiated, no visible user message).
+   */
+  const executeStream = useCallback(
+    async (
+      content: string,
+      streamMode: "execute" | "plan",
+      streamContext: {
+        strategyId?: string;
+        planSessionId?: string;
+        referenceStrategyId?: string;
+      },
+    ) => {
       setIsStreaming(true);
       setApiError(null);
       thinking.reset();
+      setOptimizationProgress(null);
       pendingUndoSnapshotRef.current = null;
       appliedSnapshotRef.current = false;
       streamingAssistantIndexRef.current = null;
       streamingAssistantMessageIdRef.current = null;
+      reasoningRef.current = null;
+      optimizationProgressRef.current = null;
 
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
@@ -147,15 +158,17 @@ export function useChatStreaming({
       const controller = new AbortController();
       abortRef.current = controller;
 
+      const effectiveStrategyId = streamContext.strategyId ?? strategyId;
+
       await streamChat(
-        finalContent,
+        content,
         siteId,
         {
           onMessage: (event: ChatSSEEvent) => {
             handleChatEvent(
               {
                 siteId,
-                strategyIdAtStart: strategyId,
+                strategyIdAtStart: effectiveStrategyId ?? null,
                 toolCallsBuffer: toolCalls,
                 citationsBuffer,
                 planningArtifactsBuffer,
@@ -181,6 +194,9 @@ export function useChatStreaming({
                 getStrategy,
                 streamingAssistantIndexRef,
                 streamingAssistantMessageIdRef,
+                setOptimizationProgress,
+                reasoningRef,
+                optimizationProgressRef,
                 onPlanSessionId,
                 onPlanningArtifactUpdate,
                 onExecutorBuildRequest,
@@ -200,8 +216,31 @@ export function useChatStreaming({
               toolCalls.length > 0 ? [...toolCalls] : [],
               subKaniActivity,
             );
-            if (strategyId && !appliedSnapshotRef.current) {
-              getStrategy(strategyId)
+
+            // Persist reasoning and optimization data with the last assistant message.
+            const savedReasoning = reasoningRef.current;
+            const savedOptimization = optimizationProgressRef.current;
+            if (savedReasoning || savedOptimization) {
+              setMessages((prev) => {
+                for (let i = prev.length - 1; i >= 0; i -= 1) {
+                  if (prev[i].role !== "assistant") continue;
+                  const msg = prev[i];
+                  if (msg.reasoning && msg.optimizationProgress) return prev;
+                  const next = [...prev];
+                  next[i] = {
+                    ...msg,
+                    reasoning: msg.reasoning || savedReasoning || undefined,
+                    optimizationProgress:
+                      msg.optimizationProgress || savedOptimization || undefined,
+                  };
+                  return next;
+                }
+                return prev;
+              });
+            }
+
+            if (effectiveStrategyId && !appliedSnapshotRef.current) {
+              getStrategy(effectiveStrategyId)
                 .then((full) => {
                   setStrategy(full);
                   setStrategyMeta({
@@ -224,22 +263,14 @@ export function useChatStreaming({
             onStreamError?.(error);
           },
         },
-        mode === "plan"
-          ? {
-              planSessionId: planSessionId ?? undefined,
-              referenceStrategyId: referenceStrategyId ?? undefined,
-            }
-          : { strategyId: strategyId ?? undefined },
-        mode,
+        streamContext,
+        streamMode,
         controller.signal,
         modelSelection ?? undefined,
       );
     },
     [
-      draftSelection,
-      planSessionId,
       setMessages,
-      setDraftSelection,
       thinking,
       pendingUndoSnapshotRef,
       appliedSnapshotRef,
@@ -262,9 +293,7 @@ export function useChatStreaming({
       applyGraphSnapshot,
       getStrategy,
       attachThinkingToLastAssistant,
-      mode,
       modelSelection,
-      referenceStrategyId,
       onPlanSessionId,
       onPlanningArtifactUpdate,
       onExecutorBuildRequest,
@@ -275,5 +304,60 @@ export function useChatStreaming({
     ],
   );
 
-  return { handleSendMessage, stopStreaming, isStreaming, apiError, setIsStreaming };
+  /** User-initiated send — appends a visible user message then streams. */
+  const handleSendMessage = useCallback(
+    async (content: string) => {
+      const finalContent = encodeNodeSelection(draftSelection, content);
+      const userMessage: Message = {
+        role: "user",
+        content: finalContent,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      if (draftSelection) {
+        setDraftSelection(null);
+      }
+
+      const streamContext =
+        mode === "plan"
+          ? {
+              planSessionId: planSessionId ?? undefined,
+              referenceStrategyId: referenceStrategyId ?? undefined,
+            }
+          : { strategyId: strategyId ?? undefined };
+
+      await executeStream(finalContent, mode, streamContext);
+    },
+    [
+      draftSelection,
+      planSessionId,
+      setMessages,
+      setDraftSelection,
+      strategyId,
+      mode,
+      referenceStrategyId,
+      executeStream,
+    ],
+  );
+
+  /**
+   * System-initiated execution — sends the prompt to the model without
+   * adding a visible user message.  Used for the plan→execute auto-handoff.
+   */
+  const handleAutoExecute = useCallback(
+    async (prompt: string, targetStrategyId: string) => {
+      await executeStream(prompt, "execute", { strategyId: targetStrategyId });
+    },
+    [executeStream],
+  );
+
+  return {
+    handleSendMessage,
+    handleAutoExecute,
+    stopStreaming,
+    isStreaming,
+    apiError,
+    setIsStreaming,
+    optimizationProgress,
+  };
 }

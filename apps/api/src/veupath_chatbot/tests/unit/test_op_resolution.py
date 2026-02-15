@@ -39,6 +39,8 @@ class TestOperationParsing:
 
         These come from the WDK BooleanOperator Java enum's getBaseOperator():
         UNION, INTERSECT, MINUS (left), RMINUS (right), LONLY, RONLY.
+
+
         """
         assert parse_op("INTERSECT") == CombineOp.INTERSECT
         assert parse_op("UNION") == CombineOp.UNION

@@ -8,7 +8,13 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 def tool_error(code: str | Enum, message: str, **details: JSONValue) -> JSONObject:
-    """Build a standardized tool error payload."""
+    """Build a standardized tool error payload.
+
+    :param code: Error code (string or Enum).
+    :param message: Error message.
+    :param details: Additional details as keyword arguments.
+    :returns: Standardized error payload dict.
+    """
     code_value = code.value if isinstance(code, Enum) else str(code)
     payload: JSONObject = {"ok": False, "code": code_value, "message": message}
     if details:

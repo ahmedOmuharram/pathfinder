@@ -21,7 +21,11 @@ def mock_client() -> AsyncMock:
 
 @pytest.fixture
 def strategy_api(mock_client: AsyncMock) -> StrategyAPI:
-    """Create strategy API with mock client."""
+    """Create strategy API with mock client.
+
+    :param mock_client: Mocked WDK client.
+
+    """
     mock_client.get.return_value = {"userId": "guest"}
     return StrategyAPI(mock_client, user_id="guest")
 

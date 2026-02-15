@@ -75,37 +75,26 @@ export function UnifiedChatPanel({
   referenceStrategyId: referenceStrategyIdProp = null,
   onConsumeReferenceStrategy,
 }: UnifiedChatPanelProps) {
-  // -----------------------------------------------------------------------
   // Global state
-  // -----------------------------------------------------------------------
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyIdGlobal = useSessionStore((s) => s.setStrategyId);
   const planSessionId = useSessionStore((s) => s.planSessionId);
   const setPlanSessionId = useSessionStore((s) => s.setPlanSessionId);
   const setAuthToken = useSessionStore((s) => s.setAuthToken);
   const setChatIsStreaming = useSessionStore((s) => s.setChatIsStreaming);
-  const setPendingExecutorSend = useSessionStore((s) => s.setPendingExecutorSend);
-  const pendingExecutorSend = useSessionStore((s) => s.pendingExecutorSend);
   const bumpPlanListVersion = useSessionStore((s) => s.bumpPlanListVersion);
-  const setOpenExecutorChat = useSessionStore((s) => s.setOpenExecutorChat);
   const selectedSiteDisplayName = useSessionStore((s) => s.selectedSiteDisplayName);
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const veupathdbName = useSessionStore((s) => s.veupathdbName);
-  const setComposerPrefill = useSessionStore((s) => s.setComposerPrefill);
   const linkConversation = useSessionStore((s) => s.linkConversation);
 
   const firstName = veupathdbName?.split(" ")[0];
   const displayName = selectedSiteDisplayName || siteId;
 
-  // -----------------------------------------------------------------------
-  // Derived mode — the core of the unified conversation model.
-  // If a strategy is attached, we're in execute mode; otherwise plan mode.
-  // -----------------------------------------------------------------------
+  // Derived mode — execute when strategy attached, otherwise plan
   const chatMode: ChatMode = strategyId ? "execute" : "plan";
 
-  // -----------------------------------------------------------------------
   // Settings / model state
-  // -----------------------------------------------------------------------
   const modelCatalog = useSettingsStore((s) => s.modelCatalog);
   const setModelCatalog = useSettingsStore((s) => s.setModelCatalog);
   const catalogDefault = useSettingsStore((s) => s.catalogDefault);
@@ -129,9 +118,7 @@ export function UnifiedChatPanel({
       .catch((err) => console.warn("[UnifiedChat] Failed to load models:", err));
   }, [setModelCatalog]);
 
-  // -----------------------------------------------------------------------
   // Local state
-  // -----------------------------------------------------------------------
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionArtifacts, setSessionArtifacts] = useState<PlanningArtifact[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -147,14 +134,16 @@ export function UnifiedChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastPlanSessionIdRef = useRef<string | null>(null);
   const pendingExecutorBuildMessageRef = useRef<string | null>(null);
+  /** Strategy ID + prompt to auto-execute after the plan→execute transition. */
+  const pendingAutoExecuteRef = useRef<{ strategyId: string; prompt: string } | null>(
+    null,
+  );
   const pendingUndoSnapshotRef = useRef<StrategyWithMeta | null>(null);
   const appliedSnapshotRef = useRef(false);
   const isStreamingRef = useRef(false);
   const previousStrategyIdRef = useRef<string | null>(null);
 
-  // -----------------------------------------------------------------------
   // Strategy store
-  // -----------------------------------------------------------------------
   const currentStrategy = useStrategyStore((s) => s.strategy);
   const strategyRef = useLatestRef(currentStrategy);
   const addStep = useStrategyStore((s) => s.addStep);
@@ -166,9 +155,7 @@ export function UnifiedChatPanel({
   const addStrategy = useStrategyListStore((s) => s.addStrategy);
   const addExecutedStrategy = useStrategyListStore((s) => s.addExecutedStrategy);
 
-  // -----------------------------------------------------------------------
   // Error handling
-  // -----------------------------------------------------------------------
   const handleError = useCallback(
     (error: unknown, fallback: string) => {
       const isUnauthorized =
@@ -189,9 +176,7 @@ export function UnifiedChatPanel({
     [setAuthToken, setPlanSessionId, setChatIsStreaming],
   );
 
-  // -----------------------------------------------------------------------
   // Graph loading (execute mode)
-  // -----------------------------------------------------------------------
   const loadGraph = useCallback(
     (graphId: string) => {
       if (!graphId) return;
@@ -254,9 +239,7 @@ export function UnifiedChatPanel({
     setStrategyMeta,
   });
 
-  // -----------------------------------------------------------------------
   // Plan-mode helpers (executor build, delegation)
-  // -----------------------------------------------------------------------
   const startExecutorBuild = useCallback(
     (messageText: string) => {
       openAndHydrateDraftStrategy({
@@ -270,15 +253,14 @@ export function UnifiedChatPanel({
         setStrategy,
         setStrategyMeta,
         onHydrateSuccess: (full) => {
-          // Link this plan session to the newly created strategy
           if (planSessionId) {
             linkConversation(planSessionId, full.id);
           }
-          setOpenExecutorChat(true);
-          setPendingExecutorSend({
+          // Store for the auto-execute effect (fires after mode flips to "execute").
+          pendingAutoExecuteRef.current = {
             strategyId: full.id,
-            message: messageText,
-          });
+            prompt: messageText,
+          };
         },
         onHydrateError: (error) => {
           setApiError(toUserMessage(error, "Failed to load the new strategy."));
@@ -292,8 +274,6 @@ export function UnifiedChatPanel({
       clearStrategy,
       linkConversation,
       planSessionId,
-      setPendingExecutorSend,
-      setOpenExecutorChat,
       setStrategy,
       setStrategyIdGlobal,
       setStrategyMeta,
@@ -303,9 +283,7 @@ export function UnifiedChatPanel({
 
   const delegationDraft = getDelegationDraft(sessionArtifacts);
 
-  // -----------------------------------------------------------------------
   // Plan-mode callbacks for useChatStreaming
-  // -----------------------------------------------------------------------
   const onPlanSessionId = useCallback(
     (id: string) => setPlanSessionId(id),
     [setPlanSessionId],
@@ -344,9 +322,7 @@ export function UnifiedChatPanel({
     [setChatIsStreaming, handleError],
   );
 
-  // -----------------------------------------------------------------------
   // Plan-mode no-op stubs
-  // -----------------------------------------------------------------------
   const noopSetDraftSelection = useCallback(() => {}, []);
   const noopSetUndoSnapshots = useCallback(
     (() => {}) as React.Dispatch<
@@ -363,18 +339,14 @@ export function UnifiedChatPanel({
   const noopAddExecutedStrategy = useCallback(() => {}, []);
   const noopSetWdkInfo = useCallback(() => {}, []);
 
-  // -----------------------------------------------------------------------
   // Build model selection for the current request
-  // -----------------------------------------------------------------------
   const currentModelSelection = buildModelSelection(
     selectedModelId,
     reasoningEffort,
     modelCatalog,
   );
 
-  // -----------------------------------------------------------------------
   // useChatStreaming - one instance, mode-aware
-  // -----------------------------------------------------------------------
   const streamingArgs =
     chatMode === "plan"
       ? {
@@ -454,14 +426,14 @@ export function UnifiedChatPanel({
 
   const {
     handleSendMessage: handleSendRaw,
+    handleAutoExecute,
     stopStreaming,
     isStreaming,
     setIsStreaming,
+    optimizationProgress,
   } = useChatStreaming(streamingArgs);
 
-  // -----------------------------------------------------------------------
   // Sync streaming state globally
-  // -----------------------------------------------------------------------
   useEffect(() => {
     setChatIsStreaming(isStreaming);
   }, [isStreaming, setChatIsStreaming]);
@@ -469,9 +441,7 @@ export function UnifiedChatPanel({
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
 
-  // -----------------------------------------------------------------------
   // Plan-mode: wrap send to bump list version
-  // -----------------------------------------------------------------------
   const onSend = useCallback(
     async (content: string) => {
       setChatIsStreaming(true);
@@ -490,9 +460,7 @@ export function UnifiedChatPanel({
     ],
   );
 
-  // -----------------------------------------------------------------------
   // Load plan session messages when plan session changes
-  // -----------------------------------------------------------------------
   useEffect(() => {
     if (chatMode !== "plan") return;
     if (!planSessionId) {
@@ -529,9 +497,7 @@ export function UnifiedChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMode, planSessionId, isStreaming]);
 
-  // -----------------------------------------------------------------------
   // Load strategy messages when strategy changes (execute mode)
-  // -----------------------------------------------------------------------
   useEffect(() => {
     if (chatMode !== "execute") return;
     if (!strategyId) {
@@ -560,33 +526,22 @@ export function UnifiedChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMode, strategyId, isStreaming]);
 
-  // -----------------------------------------------------------------------
-  // Send pending executor message (from plan -> executor build flow)
-  // -----------------------------------------------------------------------
+  // Auto-execute after plan→execute transition
   useEffect(() => {
-    if (!pendingExecutorSend) return;
-    if (!strategyId) return;
-    if (pendingExecutorSend.strategyId !== strategyId) return;
+    const pending = pendingAutoExecuteRef.current;
+    if (!pending) return;
+    if (!strategyId || pending.strategyId !== strategyId) return;
     if (isStreamingRef.current) return;
-    const msg = (pendingExecutorSend.message || "").trim();
-    if (!msg) {
-      setPendingExecutorSend(null);
-      return;
-    }
-    handleSendRaw(msg);
-    setComposerPrefill({ mode: "execute", message: "" });
-    setPendingExecutorSend(null);
-  }, [
-    pendingExecutorSend,
-    strategyId,
-    handleSendRaw,
-    setPendingExecutorSend,
-    setComposerPrefill,
-  ]);
 
-  // -----------------------------------------------------------------------
+    const prompt = pending.prompt.trim();
+    pendingAutoExecuteRef.current = null;
+    if (!prompt) return;
+
+    setChatIsStreaming(true);
+    handleAutoExecute(prompt, pending.strategyId);
+  }, [strategyId, handleAutoExecute, setChatIsStreaming]);
+
   // Hooks for execute-mode features
-  // -----------------------------------------------------------------------
   useChatPreviewUpdate(
     chatMode === "execute" ? strategyId : null,
     `${messages.length}`,
@@ -612,9 +567,7 @@ export function UnifiedChatPanel({
     onConsumeAskNode,
   });
 
-  // -----------------------------------------------------------------------
   // Render
-  // -----------------------------------------------------------------------
 
   return (
     <div className="flex h-full flex-col bg-white text-[13px]">
@@ -721,6 +674,8 @@ export function UnifiedChatPanel({
             : undefined
         }
         thinking={thinking}
+        optimizationProgress={optimizationProgress}
+        onCancelOptimization={stopStreaming}
         messagesEndRef={messagesEndRef}
       />
 

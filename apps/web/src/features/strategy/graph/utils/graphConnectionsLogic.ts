@@ -1,7 +1,7 @@
 import type { Connection, Edge } from "reactflow";
 import type { StrategyStep } from "@/types/strategy";
 import { inferStepKind } from "@/core/strategyGraph";
-import { resolveRecordType } from "@/features/strategy/domain/graph";
+import { resolveRecordType } from "@/core/strategyGraph";
 
 export type GraphIndices = {
   stepsById: Map<string, StrategyStep>;

@@ -38,10 +38,13 @@ class GraphIntegrityError:
 
 
 def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
-    """Return all step IDs that are referenced as inputs by other steps.
+    """Return step IDs referenced as primary/secondary inputs (non-root steps).
 
-    This is the complement of ``graph.roots``.  Prefer using
-    ``graph.roots`` directly when you only need root step IDs.
+    This is the complement of ``graph.roots``. Prefer using ``graph.roots``
+    directly when you only need root step IDs.
+
+    :param graph: Strategy graph.
+    :returns: Set of step IDs that are referenced as inputs.
     """
     referenced: set[str] = set()
     for step in graph.steps.values():
@@ -57,19 +60,25 @@ def find_referenced_step_ids(graph: StrategyGraph) -> set[str]:
 
 
 def find_root_step_ids(graph: StrategyGraph) -> list[str]:
-    """Return IDs of current subtree roots.
+    """Return root step IDs in sorted order.
 
-    Uses the incrementally-maintained ``graph.roots`` set (O(1)) instead
-    of recomputing from scratch.
+    Uses the incrementally-maintained ``graph.roots`` set (O(1)) instead of
+    recomputing from scratch.
+
+    :param graph: Strategy graph.
+    :returns: Sorted list of root step IDs.
     """
     return sorted(graph.roots)
 
 
 def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
-    """Validate graph structure + single-output invariant.
+    """Validate graph structure and single-output invariant.
 
     Uses ``graph.roots`` for root detection and additionally checks for
     dangling input references.
+
+    :param graph: Strategy graph to validate.
+    :returns: List of integrity errors (empty if valid).
     """
     all_ids = set(graph.steps.keys())
     if not all_ids:

@@ -2,26 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
 from kani import ChatMessage, ChatRole
+from kani.models import FunctionCall, ToolCall
 
 from veupath_chatbot.persistence.models import Strategy
-from veupath_chatbot.persistence.repo import StrategyRepository, UserRepository
+from veupath_chatbot.persistence.repo import StrategyRepository
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, as_json_object
+from veupath_chatbot.platform.types import JSONArray, JSONObject, as_json_object
+from veupath_chatbot.services.chat.thinking import normalize_tool_calls
 
 from .utils import parse_selected_nodes
 
 logger = get_logger(__name__)
-
-
-async def ensure_user(user_repo: UserRepository, user_id: UUID) -> UUID:
-    """Ensure the authenticated user exists in the local DB and return the id."""
-    await user_repo.get_or_create(user_id)
-    return user_id
 
 
 async def ensure_strategy(
@@ -93,6 +90,91 @@ async def build_chat_history(
             _, cleaned = parse_selected_nodes(content)
             history.append(ChatMessage(role=ChatRole.USER, content=cleaned))
         elif role_value == "assistant":
+            history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
+    return history
+
+
+def build_plan_chat_history(*, messages: JSONArray) -> list[ChatMessage]:
+    """Build chat history for the planner including tool calls and their results.
+
+    :param messages: Message list.
+
+    """
+    history: list[ChatMessage] = []
+    for msg_value in messages or []:
+        if not isinstance(msg_value, dict):
+            continue
+        msg = as_json_object(msg_value)
+        role_raw = msg.get("role")
+        content_raw = msg.get("content")
+        if role_raw == "user":
+            content = str(content_raw) if content_raw is not None else ""
+            _, cleaned = parse_selected_nodes(content)
+            history.append(ChatMessage(role=ChatRole.USER, content=cleaned))
+            continue
+        if role_raw != "assistant":
+            continue
+
+        content = str(content_raw) if content_raw is not None else ""
+        tool_calls_raw = msg.get("toolCalls")
+        tool_calls_list: JSONArray = []
+        if isinstance(tool_calls_raw, list) and tool_calls_raw:
+            tool_calls_list = normalize_tool_calls(tool_calls_raw)
+
+        if tool_calls_list:
+            kani_tool_calls: list[ToolCall] = []
+            for tc in tool_calls_list:
+                if not isinstance(tc, dict):
+                    continue
+                name = tc.get("name")
+                args = tc.get("arguments")
+                if not name:
+                    continue
+                if isinstance(args, str):
+                    args_str = args
+                elif isinstance(args, dict):
+                    args_str = json.dumps(args)
+                else:
+                    args_str = "{}"
+                call_id = str(tc.get("id") or "")
+                if not call_id:
+                    continue
+                kani_tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        type="function",
+                        function=FunctionCall(name=name, arguments=args_str),
+                    )
+                )
+            history.append(
+                ChatMessage(
+                    role=ChatRole.ASSISTANT,
+                    content=content or None,
+                    tool_calls=kani_tool_calls,
+                )
+            )
+            for tc in tool_calls_list:
+                if not isinstance(tc, dict):
+                    continue
+                result = tc.get("result")
+                name = tc.get("name")
+                call_id = str(tc.get("id") or "")
+                if not call_id:
+                    continue
+                if isinstance(result, str):
+                    result_str = result
+                elif result is not None:
+                    result_str = json.dumps(result)
+                else:
+                    result_str = ""
+                history.append(
+                    ChatMessage.function(
+                        name=name or "",
+                        content=result_str,
+                        tool_call_id=call_id,
+                    )
+                )
+        else:
             history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
     return history
 

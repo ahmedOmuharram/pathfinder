@@ -9,9 +9,7 @@
 
 import type { Step, StepKind } from "@pathfinder/shared";
 
-// ---------------------------------------------------------------------------
 // Public types
-// ---------------------------------------------------------------------------
 
 export interface CompactStep {
   id: string;
@@ -37,9 +35,7 @@ export interface SpineSegment {
   secondaryInput?: CompactStep;
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function inferKind(step: Step): StepKind {
   if (step.kind) return step.kind;
@@ -60,9 +56,7 @@ function toCompact(step: Step, stepNumber: number): CompactStep {
   };
 }
 
-// ---------------------------------------------------------------------------
 // Layout builder
-// ---------------------------------------------------------------------------
 
 /**
  * Build a flat spine layout from a step array + rootStepId.
@@ -80,7 +74,7 @@ export function buildSpineLayout(
 
   const byId = new Map(steps.map((s) => [s.id, s]));
 
-  // --- Topological sort for step numbers (leaf-first) ---
+  // Topological sort for step numbers (leaf-first)
   const visited = new Set<string>();
   const ordered: Step[] = [];
 
@@ -99,7 +93,7 @@ export function buildSpineLayout(
   const stepNumbers = new Map<string, number>();
   ordered.forEach((s, i) => stepNumbers.set(s.id, i + 1));
 
-  // --- Walk the primary chain from root to leaf ---
+  // Walk the primary chain from root to leaf
   const spine: Step[] = [];
   let cur = byId.get(rootStepId);
   while (cur) {
@@ -108,7 +102,7 @@ export function buildSpineLayout(
   }
   spine.reverse(); // now left-to-right
 
-  // --- Build segments ---
+  // Build segments
   return spine.map((step): SpineSegment => {
     const compact = toCompact(step, stepNumbers.get(step.id) ?? 0);
     const kind = inferKind(step);

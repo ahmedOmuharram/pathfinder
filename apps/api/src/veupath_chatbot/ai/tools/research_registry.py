@@ -22,6 +22,7 @@ class ResearchToolsMixin:
     """Mixin that exposes web and literature search as Kani tools.
 
     Classes using this mixin must provide these attributes:
+
     - web_search_service: WebSearchService
     - literature_search_service: LiteratureSearchService
     """

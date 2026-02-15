@@ -26,6 +26,9 @@ def _encode_context_param_values_for_wdk(context: JSONObject) -> JSONObject:
 
     Many WDK endpoints expect multi-pick values as JSON-encoded *strings*
     (e.g. '["a","b"]'), not arrays.
+
+    :param context: Context dict.
+    :returns: Encoded context suitable for WDK wire format.
     """
     encoded: JSONObject = {}
     for k, v in (context or {}).items():
@@ -41,7 +44,11 @@ def _encode_context_param_values_for_wdk(context: JSONObject) -> JSONObject:
 
 
 def encode_context_param_values_for_wdk(context: JSONObject) -> JSONObject:
-    """Public helper: encode contextParamValues for WDK wire format."""
+    """Public helper: encode contextParamValues for WDK wire format.
+
+    :param context: Context dict.
+    :returns: Encoded context suitable for WDK wire format.
+    """
     return _encode_context_param_values_for_wdk(context)
 
 
@@ -53,7 +60,11 @@ def _convert_params_for_httpx(
     ]
     | None
 ):
-    """Convert JSONObject params to format httpx expects."""
+    """Convert JSONObject params to format httpx expects.
+
+    :param params: Optional params dict.
+    :returns: Mapping suitable for httpx, or None if params is None.
+    """
     if params is None:
         return None
     result: dict[
@@ -211,10 +222,6 @@ class VEuPathDBClient:
         """DELETE request."""
         return await self._request("DELETE", path)
 
-    # =========================================================================
-    # High-level API methods
-    # =========================================================================
-
     async def get_record_types(self, expanded: bool = False) -> JSONArray:
         """Get available record types."""
         params: JSONObject | None = {"format": "expanded"} if expanded else None
@@ -307,10 +314,6 @@ class VEuPathDBClient:
                 f"/record-types/{record_type}/ontology/{ontology}/term-summary"
             ),
         )
-
-    # =========================================================================
-    # Step filters, analyses, reports
-    # =========================================================================
 
     async def list_step_filters(self, user_id: str, step_id: int) -> JSONArray:
         """List filters applied to a step."""

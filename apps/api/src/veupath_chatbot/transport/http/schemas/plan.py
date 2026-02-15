@@ -53,13 +53,14 @@ class ColocationParams(BaseModel):
 
 
 class PlanNode(BasePlanNode):
-    """
-    Untyped recursive plan node (WDK-aligned).
+    """Untyped recursive plan node (WDK-aligned).
 
     Kind is inferred from structure:
     - combine: primaryInput + secondaryInput
     - transform: primaryInput only
     - search: no inputs
+
+
     """
 
     searchName: str
