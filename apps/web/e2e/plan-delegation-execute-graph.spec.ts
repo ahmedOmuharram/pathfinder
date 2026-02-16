@@ -9,11 +9,20 @@ test("plan → delegation draft → build in executor → sub-kani activity → 
   // Trigger deterministic delegation draft from mock provider (plan mode).
   await sendMessage(page, "please create delegation draft");
 
-  await expect(page.getByTestId("delegation-draft-details")).toBeVisible();
+  // Wait for the mock response to finish streaming first — under parallel
+  // test load the API can take 10-20s to start delivering SSE events.
+  await expect(page.getByText("[mock:plan]").first()).toBeVisible({ timeout: 30_000 });
+
+  // The delegation draft is emitted as a planning_artifact *after* the
+  // assistant_message event, so it should be available by the time the
+  // assistant response is visible.
+  await expect(page.getByTestId("delegation-draft-details")).toBeVisible({
+    timeout: 10_000,
+  });
   await page.getByTestId("delegation-draft-details").locator("summary").click();
   await expect(
     page.getByText("Build a gene strategy using an ortholog transform and a combine."),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 10_000 });
 
   // Transition into executor mode via the UI button.
   await page.getByTestId("delegation-build-executor").click({ force: true });

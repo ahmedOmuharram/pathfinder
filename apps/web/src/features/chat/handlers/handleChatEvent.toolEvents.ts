@@ -32,7 +32,10 @@ export function handleToolCallEndEvent(ctx: ChatEventContext, data: unknown) {
 
 export function handleSubKaniTaskStartEvent(ctx: ChatEventContext, data: unknown) {
   const { task } = data as { task?: string };
-  if (task) ctx.thinking.subKaniTaskStart(task);
+  if (!task) return;
+  ctx.thinking.subKaniTaskStart(task);
+  ctx.subKaniStatusBuffer[task] = "running";
+  ctx.subKaniCallsBuffer[task] = ctx.subKaniCallsBuffer[task] || [];
 }
 
 export function handleSubKaniToolCallStartEvent(ctx: ChatEventContext, data: unknown) {
@@ -50,6 +53,9 @@ export function handleSubKaniToolCallStartEvent(ctx: ChatEventContext, data: unk
   if (!task) return;
   const newToolCall: ToolCall = { id, name, arguments: ctx.parseToolArguments(args) };
   ctx.thinking.subKaniToolCallStart(task, newToolCall);
+  const taskCalls = ctx.subKaniCallsBuffer[task] || [];
+  taskCalls.push(newToolCall);
+  ctx.subKaniCallsBuffer[task] = taskCalls;
 }
 
 export function handleSubKaniToolCallEndEvent(ctx: ChatEventContext, data: unknown) {
@@ -60,10 +66,16 @@ export function handleSubKaniToolCallEndEvent(ctx: ChatEventContext, data: unkno
   };
   if (!task) return;
   ctx.thinking.subKaniToolCallEnd(task, id, result);
+  const taskCalls = ctx.subKaniCallsBuffer[task];
+  if (taskCalls) {
+    const call = taskCalls.find((c) => c.id === id);
+    if (call) call.result = result;
+  }
 }
 
 export function handleSubKaniTaskEndEvent(ctx: ChatEventContext, data: unknown) {
   const { task, status } = data as { task?: string; status?: string };
   if (!task) return;
   ctx.thinking.subKaniTaskEnd(task, status);
+  ctx.subKaniStatusBuffer[task] = status || "done";
 }

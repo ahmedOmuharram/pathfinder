@@ -9,7 +9,13 @@ test("execute: can apply a deterministic planning artifact to strategy", async (
   // Trigger mock provider to emit a planning artifact (see API mock stream).
   await sendMessage(page, "please emit artifact");
 
-  await expect(page.getByText("Saved planning artifacts")).toBeVisible();
+  // Wait for the mock execute-mode response to complete before looking for
+  // the artifact section — under parallel load the API can be slow, and
+  // other tests' plan-mode messages may also contain artifact headings.
+  await expect(page.getByText("[mock:execute]").first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText("Saved planning artifacts").first()).toBeVisible();
   const apply = page.getByRole("button", { name: "Apply to strategy" }).first();
   await expect(apply).toBeVisible();
 

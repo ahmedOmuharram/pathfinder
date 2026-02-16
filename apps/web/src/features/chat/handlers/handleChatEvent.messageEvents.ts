@@ -4,9 +4,18 @@ import type {
   OptimizationProgressData,
   OptimizationTrial,
   PlanningArtifact,
+  ToolCall,
 } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
 import type { ChatEventContext } from "./handleChatEvent.types";
+
+export function snapshotSubKaniActivityFromBuffers(
+  calls: Record<string, ToolCall[]>,
+  status: Record<string, string>,
+) {
+  if (Object.keys(calls).length === 0) return undefined;
+  return { calls: { ...calls }, status: { ...status } };
+}
 
 export function handleMessageStartEvent(ctx: ChatEventContext, data: unknown) {
   const { strategyId, strategy, planSessionId } = data as {
@@ -99,7 +108,10 @@ export function handleAssistantMessageEvent(ctx: ChatEventContext, data: unknown
     content?: string;
   };
   const finalContent = content || "";
-  const subKaniActivity = ctx.thinking.snapshotSubKaniActivity();
+  const subKaniActivity = snapshotSubKaniActivityFromBuffers(
+    ctx.subKaniCallsBuffer,
+    ctx.subKaniStatusBuffer,
+  );
 
   const finalToolCalls =
     ctx.toolCallsBuffer.length > 0 ? [...ctx.toolCallsBuffer] : undefined;

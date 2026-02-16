@@ -68,6 +68,8 @@ export function makeCtx(overrides?: Partial<any>) {
   const toolCallsBuffer: ToolCall[] = [];
   const citationsBuffer: any[] = [];
   const planningArtifactsBuffer: any[] = [];
+  const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
+  const subKaniStatusBuffer: Record<string, string> = {};
   const state = makeStateSetters();
   const applyGraphSnapshot = vi.fn();
   const thinking = {
@@ -86,6 +88,8 @@ export function makeCtx(overrides?: Partial<any>) {
     toolCallsBuffer,
     citationsBuffer,
     planningArtifactsBuffer,
+    subKaniCallsBuffer,
+    subKaniStatusBuffer,
     thinking,
     setStrategyId: vi.fn(),
     addStrategy: vi.fn(),

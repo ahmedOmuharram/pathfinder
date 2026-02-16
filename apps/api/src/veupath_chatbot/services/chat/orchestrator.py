@@ -132,6 +132,8 @@ async def _mock_stream_chat(
 
         # Emit a few strategy_update events to build a multi-step graph deterministically.
         # Use the real strategy_id so the frontend doesn't filter them out.
+        # Field names must match _serialize_step() in helpers.py (kind, primaryInputStepId,
+        # secondaryInputStepId) so the frontend handler can build a valid graph.
         gid = strategy_id or "mock_graph_delegation"
         yield {
             "type": "strategy_update",
@@ -140,7 +142,7 @@ async def _mock_stream_chat(
                 "step": {
                     "graphId": gid,
                     "stepId": "mock_search_1",
-                    "type": "search",
+                    "kind": "search",
                     "displayName": "Delegated search step",
                     "searchName": "mock_search",
                     "parameters": {"q": "gametocyte", "min": 10},
@@ -157,10 +159,10 @@ async def _mock_stream_chat(
                 "step": {
                     "graphId": gid,
                     "stepId": "mock_transform_1",
-                    "type": "transform",
+                    "kind": "transform",
                     "displayName": "Delegated transform step",
                     "searchName": "mock_transform",
-                    "inputStepId": "mock_search_1",
+                    "primaryInputStepId": "mock_search_1",
                     "parameters": {"insertBetween": True, "species": "P. falciparum"},
                     "recordType": "gene",
                 },
@@ -173,11 +175,11 @@ async def _mock_stream_chat(
                 "step": {
                     "graphId": gid,
                     "stepId": "mock_combine_1",
-                    "type": "combine",
+                    "kind": "combine",
                     "displayName": "Delegated combine step",
                     "operator": "UNION",
-                    "leftStepId": "mock_transform_1",
-                    "rightStepId": "mock_search_1",
+                    "primaryInputStepId": "mock_transform_1",
+                    "secondaryInputStepId": "mock_search_1",
                     "parameters": {},
                     "recordType": "gene",
                 },

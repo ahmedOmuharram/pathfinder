@@ -12,6 +12,7 @@ import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { streamChat } from "@/features/chat/stream";
 import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
+import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
@@ -153,6 +154,8 @@ export function useChatStreaming({
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
+      const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
+      const subKaniStatusBuffer: Record<string, string> = {};
 
       const controller = new AbortController();
       setAbortController(controller);
@@ -171,6 +174,8 @@ export function useChatStreaming({
                 toolCallsBuffer: toolCalls,
                 citationsBuffer,
                 planningArtifactsBuffer,
+                subKaniCallsBuffer,
+                subKaniStatusBuffer,
                 thinking,
                 setStrategyId,
                 addStrategy,
@@ -205,7 +210,10 @@ export function useChatStreaming({
             setIsStreaming(false);
             setAbortController(null);
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
-            const subKaniActivity = thinking.snapshotSubKaniActivity();
+            const subKaniActivity = snapshotSubKaniActivityFromBuffers(
+              subKaniCallsBuffer,
+              subKaniStatusBuffer,
+            );
             attachThinkingToLastAssistant(
               toolCalls.length > 0 ? [...toolCalls] : [],
               subKaniActivity,

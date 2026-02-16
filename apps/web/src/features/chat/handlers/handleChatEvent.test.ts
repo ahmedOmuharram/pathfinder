@@ -89,6 +89,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
     const toolCallsBuffer: ToolCall[] = [];
     const citationsBuffer: any[] = [];
     const planningArtifactsBuffer: any[] = [];
+    const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
+    const subKaniStatusBuffer: Record<string, string> = {};
 
     const ctx = {
       siteId: "plasmodb",
@@ -96,6 +98,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
       toolCallsBuffer,
       citationsBuffer,
       planningArtifactsBuffer,
+      subKaniCallsBuffer,
+      subKaniStatusBuffer,
       thinking: {
         updateActiveFromBuffer: vi.fn(),
         updateReasoning: vi.fn(),
@@ -551,6 +555,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
       const toolCallsBuffer: ToolCall[] = [];
       const citationsBuffer: any[] = [];
       const planningArtifactsBuffer: any[] = [];
+      const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
+      const subKaniStatusBuffer: Record<string, string> = {};
 
       const ctx = {
         siteId: "plasmodb",
@@ -558,6 +564,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
         toolCallsBuffer,
         citationsBuffer,
         planningArtifactsBuffer,
+        subKaniCallsBuffer,
+        subKaniStatusBuffer,
         thinking: {
           updateActiveFromBuffer: vi.fn(),
           updateReasoning: vi.fn(),

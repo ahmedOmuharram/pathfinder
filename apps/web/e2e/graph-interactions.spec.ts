@@ -23,40 +23,99 @@ async function dragTestIdTo(page: Page, sourceTestId: string, targetTestId: stri
 }
 
 /**
- * Select all visible nodes using box-select mode.
- *
- * Switches to "Box select" mode, then drags a selection rectangle
- * around both nodes. This avoids triggering `onNodeClick` (and thus
- * the StepEditor modal), which makes it far more reliable than
- * individual click-based selection.
+ * Clamp a value to [min, max].
  */
-async function boxSelectAllNodes(page: Page) {
-  // Ensure we're in Box select mode.
-  const boxSelectBtn = page.getByRole("button", { name: "Box select mode" });
-  await boxSelectBtn.click();
-  await page.waitForTimeout(200);
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
-  // Get bounding boxes of both nodes to compute a rectangle that encloses them.
-  const n1 = page.getByTestId("rf-node-mock_search_1");
-  const n2 = page.getByTestId("rf-node-mock_transform_1");
-  const b1 = await n1.boundingBox();
-  const b2 = await n2.boundingBox();
-  expect(b1).toBeTruthy();
-  expect(b2).toBeTruthy();
-  if (!b1 || !b2) return;
+/**
+ * Perform a single box-select drag around the given node bounding boxes,
+ * clamped within the ReactFlow container.
+ */
+async function performBoxSelectDrag(
+  page: Page,
+  boxes: { x: number; y: number; width: number; height: number }[],
+  containerBox: { x: number; y: number; width: number; height: number },
+) {
+  const PAD = 40;
+  const INSET = 5;
 
-  // Compute a box that encloses both nodes with some padding.
-  const left = Math.min(b1.x, b2.x) - 20;
-  const top = Math.min(b1.y, b2.y) - 20;
-  const right = Math.max(b1.x + b1.width, b2.x + b2.width) + 20;
-  const bottom = Math.max(b1.y + b1.height, b2.y + b2.height) + 20;
+  const minX = Math.min(...boxes.map((b) => b.x));
+  const minY = Math.min(...boxes.map((b) => b.y));
+  const maxX = Math.max(...boxes.map((b) => b.x + b.width));
+  const maxY = Math.max(...boxes.map((b) => b.y + b.height));
 
-  // Drag from top-left to bottom-right to select all nodes.
+  const left = clamp(
+    minX - PAD,
+    containerBox.x + INSET,
+    containerBox.x + containerBox.width - INSET,
+  );
+  const top = clamp(
+    minY - PAD,
+    containerBox.y + INSET,
+    containerBox.y + containerBox.height - INSET,
+  );
+  const right = clamp(
+    maxX + PAD,
+    containerBox.x + INSET,
+    containerBox.x + containerBox.width - INSET,
+  );
+  const bottom = clamp(
+    maxY + PAD,
+    containerBox.y + INSET,
+    containerBox.y + containerBox.height - INSET,
+  );
+
   await page.mouse.move(left, top);
   await page.mouse.down();
-  await page.mouse.move(right, bottom, { steps: 5 });
+  await page.mouse.move(right, bottom, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(300);
+}
+
+/**
+ * Select all visible nodes using box-select mode.
+ *
+ * Drags a selection rectangle across the full ReactFlow container to
+ * select everything. Starts from the bottom-left corner (away from the
+ * toolbar in the top-right) and ends at the top-right, sweeping the
+ * entire canvas. Retries up to 3 times if ReactFlow doesn't register
+ * the selection.
+ */
+async function boxSelectAllNodes(page: Page) {
+  const boxSelectBtn = page.getByRole("button", { name: "Box select mode" });
+  await boxSelectBtn.click();
+  await expect(boxSelectBtn).toHaveAttribute("aria-pressed", "true", {
+    timeout: 5_000,
+  });
+
+  const container = page.locator(".react-flow").first();
+  const addSelectionBtn = page.getByRole("button", { name: "Add selection to chat" });
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const cb = await container.boundingBox();
+    expect(cb).toBeTruthy();
+    if (!cb) return;
+
+    // Drag from bottom-left to top-right of the ReactFlow container.
+    // Starting from the bottom-left avoids the toolbar overlay (top-right)
+    // and the controls panel (bottom-left small area, offset by 10px).
+    const startX = cb.x + 10;
+    const startY = cb.y + cb.height - 10;
+    const endX = cb.x + cb.width - 10;
+    const endY = cb.y + 10;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const isSelected = await addSelectionBtn.isEnabled().catch(() => false);
+    if (isSelected) return;
+
+    await page.waitForTimeout(500);
+  }
 }
 
 test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", async ({
@@ -96,6 +155,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
 
   // 2) Multi-select via box-select and add selection to chat.
   await page.getByRole("button", { name: "fit view" }).click();
+  await page.waitForTimeout(500);
   await boxSelectAllNodes(page);
 
   const addSelection = page.getByRole("button", {
@@ -130,7 +190,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
 
   // 4) Combine the two disconnected roots via box-select + toolbar.
   await page.getByRole("button", { name: "fit view" }).click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
   await boxSelectAllNodes(page);
 
   const combineBtn = page.getByRole("button", {
@@ -165,33 +225,26 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
     { timeout: 10_000 },
   );
 
-  // 7) Delete a node: select it via box-select, then press Backspace.
-  //    Box-select ensures the ReactFlow canvas retains focus (no StepEditor popup).
+  // 7) Delete a node: click to select (opens StepEditor), close via Cancel
+  //    (not Escape — Escape also deselects in ReactFlow), then Backspace.
   await page.getByRole("button", { name: "fit view" }).click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(500);
 
   const searchNode = page.getByTestId("rf-node-mock_search_1");
-  const searchBox = await searchNode.boundingBox();
-  expect(searchBox).toBeTruthy();
-  if (searchBox) {
-    // Ensure we're in Box select mode.
-    await page.getByRole("button", { name: "Box select mode" }).click();
-    await page.waitForTimeout(200);
+  await searchNode.click();
 
-    // Box-select just the search node.
-    await page.mouse.move(searchBox.x - 10, searchBox.y - 10);
-    await page.mouse.down();
-    await page.mouse.move(
-      searchBox.x + searchBox.width + 10,
-      searchBox.y + searchBox.height + 10,
-      { steps: 5 },
-    );
-    await page.mouse.up();
-    await page.waitForTimeout(300);
+  // Close StepEditor via the Cancel button so the node stays selected.
+  const cancelBtn = page.getByRole("button", { name: "Cancel" });
+  await expect(cancelBtn).toBeVisible({ timeout: 5_000 });
+  await cancelBtn.click();
 
-    // Now delete via keyboard (canvas has focus from box-select).
-    await page.keyboard.press("Backspace");
-  }
+  // Wait for the modal to fully close.
+  await expect(cancelBtn).not.toBeVisible({ timeout: 5_000 });
+
+  // Focus the ReactFlow canvas and delete the selected node.
+  await page.locator(".react-flow").first().focus();
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Backspace");
   await expect(page.getByTestId("rf-node-mock_search_1")).toHaveCount(0, {
     timeout: 10_000,
   });

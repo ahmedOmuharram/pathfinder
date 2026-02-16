@@ -27,6 +27,8 @@ export type ChatEventContext = {
   toolCallsBuffer: ToolCall[];
   citationsBuffer: Citation[];
   planningArtifactsBuffer: PlanningArtifact[];
+  subKaniCallsBuffer: Record<string, ToolCall[]>;
+  subKaniStatusBuffer: Record<string, string>;
   thinking: Thinking;
 
   // Strategy/session actions
