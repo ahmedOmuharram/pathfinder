@@ -12,6 +12,8 @@ from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
     StrategyAPI,
+    is_internal_wdk_strategy_name,
+    strip_internal_wdk_strategy_name,
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
@@ -158,6 +160,7 @@ async def _run_intersection_control(
     ``"<stepId> is not a valid step ID"``.
     """
     api = get_strategy_api(site_id)
+    await _cleanup_internal_control_test_strategies(api)
 
     target_step = await api.create_step(
         record_type=record_type,
@@ -276,6 +279,45 @@ async def _run_intersection_control(
                     temp_strategy_id=temp_strategy_id,
                     error=str(e),
                 )
+
+
+async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
+    """Best-effort cleanup of leaked internal control-test strategies.
+
+    Control-test runs create temporary WDK strategies under the current user
+    account. They are deleted at the end of each run, but interrupted requests
+    (tab close, timeout, network errors) can leave internal drafts behind.
+    """
+    try:
+        strategies = await api.list_strategies()
+    except Exception:
+        return
+    if not isinstance(strategies, list):
+        return
+
+    for strategy in strategies:
+        if not isinstance(strategy, dict):
+            continue
+        name_raw = strategy.get("name")
+        if not isinstance(name_raw, str):
+            continue
+        if not is_internal_wdk_strategy_name(name_raw):
+            continue
+        display_name = strip_internal_wdk_strategy_name(name_raw)
+        if not display_name.startswith("Pathfinder control test"):
+            continue
+
+        strategy_id_raw = strategy.get("strategyId")
+        if not isinstance(strategy_id_raw, int):
+            continue
+        try:
+            await api.delete_strategy(strategy_id_raw)
+        except Exception as e:
+            logger.warning(
+                "Failed to delete stale internal control-test strategy",
+                strategy_id=strategy_id_raw,
+                error=str(e),
+            )
 
 
 async def run_positive_negative_controls(

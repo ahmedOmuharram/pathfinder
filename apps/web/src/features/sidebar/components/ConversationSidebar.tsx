@@ -7,8 +7,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { MoreVertical } from "lucide-react";
 import {
   APIError,
   createStrategy,
@@ -28,35 +26,19 @@ import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { SitePicker } from "@/features/sites/components/SitePicker";
 import type { StrategyListItem } from "@/features/sidebar/utils/strategyItems";
-import { Modal } from "@/shared/components/Modal";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 import {
   type DuplicateModalState,
   applyDuplicateLoadFailure,
   applyDuplicateLoadSuccess,
   initDuplicateModal,
-  startDuplicateSubmit,
-  validateDuplicateName,
-  applyDuplicateSubmitFailure,
 } from "@/features/sidebar/utils/duplicateModalState";
 import { runDeleteStrategyWorkflow } from "@/features/sidebar/services/strategySidebarWorkflows";
 import type { PlanSessionSummary } from "@pathfinder/shared";
-
-// Unified sidebar item (plans + strategies collapsed into one type)
-
-type ConversationKind = "plan" | "strategy";
-
-interface ConversationItem {
-  id: string;
-  kind: ConversationKind;
-  title: string;
-  updatedAt: string;
-  siteId?: string;
-  /** Number of steps — shown for strategies */
-  stepCount?: number;
-  /** Strategy-specific fields */
-  strategyItem?: StrategyListItem;
-}
+import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
+import { ConversationListItem } from "@/features/sidebar/components/ConversationListItem";
+import { DeleteConversationModal } from "@/features/sidebar/components/DeleteConversationModal";
+import { DuplicateStrategyModal } from "@/features/sidebar/components/DuplicateStrategyModal";
 
 // Props
 
@@ -458,8 +440,8 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   );
 
   const handleDuplicate = useCallback(
-    async (si: StrategyListItem, name: string, description: string) => {
-      const baseStrategy = await getStrategy(si.id);
+    async (strategyIdToDuplicate: string, name: string, description: string) => {
+      const baseStrategy = await getStrategy(strategyIdToDuplicate);
       const plan = buildDuplicatePlan({ baseStrategy, name, description });
       await createStrategy({
         name,
@@ -545,277 +527,60 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
             </div>
           )}
           {filtered.map((item) => {
-            const isActive = activeId === item.id;
             const si = item.strategyItem;
-            const isRenaming = renamingId === item.id;
             return (
-              <div
+              <ConversationListItem
                 key={item.id}
-                data-testid="conversation-item"
-                data-conversation-id={item.id}
-                className={`group flex w-full items-start justify-between gap-2 rounded-md border px-3 py-2 text-[11px] ${
-                  isActive
-                    ? "border-slate-300 bg-slate-100 text-slate-900"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {/* Main area: inline rename input or clickable label */}
-                {isRenaming ? (
-                  <input
-                    data-testid="conversation-rename-input"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => void commitRename(item)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void commitRename(item);
-                      }
-                      if (e.key === "Escape") setRenamingId(null);
-                    }}
-                    className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-sm font-medium text-slate-800 outline-none focus:border-slate-400"
-                    autoFocus
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(item)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-slate-800">
-                        {item.title}
-                      </span>
-                      {item.kind === "strategy" && si && (
-                        <span
-                          className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
-                            !si.wdkStrategyId
-                              ? "bg-amber-100 text-amber-700"
-                              : si.isSaved
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {!si.wdkStrategyId
-                            ? "Building"
-                            : si.isSaved
-                              ? "Saved"
-                              : "Draft"}
-                        </span>
-                      )}
-                      {si && graphValidationStatus[si.id] && (
-                        <span
-                          className="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500"
-                          title="Validation issues"
-                        />
-                      )}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      {new Date(item.updatedAt).toLocaleString()}
-                    </div>
-                  </button>
-                )}
-
-                {/* Dropdown menu — unified for plans and strategies */}
-                {!isRenaming && (
-                  <DropdownMenu.Root>
-                    <DropdownMenu.Trigger asChild>
-                      <button
-                        type="button"
-                        className="ml-1 shrink-0 rounded-md p-1 text-slate-400 opacity-0 transition hover:text-slate-700 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                        aria-label="Conversation actions"
-                      >
-                        <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </DropdownMenu.Trigger>
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content
-                        className="z-50 min-w-[160px] rounded-md border border-slate-200 bg-white p-1 text-[12px] text-slate-700 shadow-lg"
-                        sideOffset={4}
-                        align="end"
-                      >
-                        <DropdownMenu.Item
-                          className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
-                          onSelect={() => startRename(item)}
-                        >
-                          Rename
-                        </DropdownMenu.Item>
-                        {/* Strategy-only actions */}
-                        {si && (
-                          <>
-                            <DropdownMenu.Item
-                              className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
-                              onSelect={() => {
-                                setDuplicateModal(initDuplicateModal(si));
-                                getStrategy(si.id)
-                                  .then((strategy) => {
-                                    setDuplicateModal((prev) =>
-                                      prev
-                                        ? applyDuplicateLoadSuccess(prev, strategy)
-                                        : prev,
-                                    );
-                                  })
-                                  .catch(() => {
-                                    setDuplicateModal((prev) =>
-                                      prev ? applyDuplicateLoadFailure(prev) : prev,
-                                    );
-                                  });
-                              }}
-                            >
-                              Duplicate
-                            </DropdownMenu.Item>
-                            {si.wdkStrategyId && (
-                              <DropdownMenu.Item
-                                className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
-                                onSelect={() => void handleToggleSaved(si)}
-                              >
-                                {si.isSaved ? "Revert to draft" : "Mark as saved"}
-                              </DropdownMenu.Item>
-                            )}
-                          </>
-                        )}
-                        <DropdownMenu.Separator className="my-1 h-px bg-slate-100" />
-                        <DropdownMenu.Item
-                          className="cursor-pointer rounded px-2 py-1 text-red-600 outline-none hover:bg-red-50 focus:bg-red-50"
-                          onSelect={() => setDeleteTarget(item)}
-                        >
-                          Delete
-                        </DropdownMenu.Item>
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu.Root>
-                )}
-              </div>
+                item={item}
+                isActive={activeId === item.id}
+                isRenaming={renamingId === item.id}
+                renameValue={renameValue}
+                graphHasValidationIssue={Boolean(si && graphValidationStatus[si.id])}
+                onRenameValueChange={setRenameValue}
+                onCommitRename={(target) => {
+                  void commitRename(target);
+                }}
+                onCancelRename={() => setRenamingId(null)}
+                onSelect={handleSelect}
+                onStartRename={startRename}
+                onStartDelete={setDeleteTarget}
+                onStartDuplicate={(strategy) => {
+                  setDuplicateModal(initDuplicateModal(strategy));
+                  getStrategy(strategy.id)
+                    .then((loadedStrategy) => {
+                      setDuplicateModal((prev) =>
+                        prev ? applyDuplicateLoadSuccess(prev, loadedStrategy) : prev,
+                      );
+                    })
+                    .catch(() => {
+                      setDuplicateModal((prev) =>
+                        prev ? applyDuplicateLoadFailure(prev) : prev,
+                      );
+                    });
+                }}
+                onToggleSaved={(strategy) => {
+                  void handleToggleSaved(strategy);
+                }}
+              />
             );
           })}
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
-      <Modal
-        open={!!deleteTarget}
+      <DeleteConversationModal
+        target={deleteTarget}
+        isDeleting={isDeleting}
         onClose={() => setDeleteTarget(null)}
-        title="Delete conversation"
-        maxWidth="max-w-sm"
-      >
-        <div className="px-5 pb-5 pt-2">
-          <p className="text-[13px] text-slate-600">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold text-slate-900">
-              &ldquo;{deleteTarget?.title}&rdquo;
-            </span>
-            ? This cannot be undone.
-          </p>
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void confirmDelete()}
-              disabled={isDeleting}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
-            >
-              {isDeleting ? "Deleting\u2026" : "Delete"}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        onConfirmDelete={() => {
+          void confirmDelete();
+        }}
+      />
 
-      {/* Duplicate strategy modal */}
-      <Modal
-        open={!!duplicateModal}
-        onClose={() => setDuplicateModal(null)}
-        title="Duplicate strategy"
-      >
-        {duplicateModal && (
-          <div className="p-4">
-            <div className="mt-3 space-y-2">
-              <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Name
-              </label>
-              <input
-                value={duplicateModal.name}
-                onChange={(event) =>
-                  setDuplicateModal((prev) =>
-                    prev ? { ...prev, name: event.target.value } : prev,
-                  )
-                }
-                disabled={duplicateModal.isLoading}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-[13px] text-slate-800"
-              />
-              <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Description
-              </label>
-              <textarea
-                value={duplicateModal.description}
-                onChange={(event) =>
-                  setDuplicateModal((prev) =>
-                    prev ? { ...prev, description: event.target.value } : prev,
-                  )
-                }
-                rows={3}
-                disabled={duplicateModal.isLoading}
-                className="w-full resize-none rounded-md border border-slate-200 px-3 py-2 text-[13px] text-slate-800"
-              />
-              {duplicateModal.isLoading && (
-                <div className="text-[11px] text-slate-500">
-                  Loading strategy details...
-                </div>
-              )}
-              {duplicateModal.error && (
-                <div className="text-[11px] text-red-600">{duplicateModal.error}</div>
-              )}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDuplicateModal(null)}
-                className="rounded-md px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (duplicateModal.isLoading) return;
-                  const nameError = validateDuplicateName(duplicateModal.name);
-                  if (nameError) {
-                    setDuplicateModal((prev) =>
-                      prev ? { ...prev, error: nameError } : prev,
-                    );
-                    return;
-                  }
-                  setDuplicateModal((prev) =>
-                    prev ? startDuplicateSubmit(prev) : prev,
-                  );
-                  try {
-                    await handleDuplicate(
-                      duplicateModal.item,
-                      duplicateModal.name.trim(),
-                      duplicateModal.description.trim(),
-                    );
-                    setDuplicateModal(null);
-                  } catch {
-                    setDuplicateModal((prev) =>
-                      prev ? applyDuplicateSubmitFailure(prev) : prev,
-                    );
-                  }
-                }}
-                disabled={duplicateModal.isSubmitting || duplicateModal.isLoading}
-                className="rounded-md bg-slate-900 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slate-700 disabled:opacity-60"
-              >
-                {duplicateModal.isSubmitting ? "Duplicating..." : "Duplicate"}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <DuplicateStrategyModal
+        duplicateModal={duplicateModal}
+        setDuplicateModal={setDuplicateModal}
+        onDuplicate={handleDuplicate}
+      />
     </div>
   );
 }

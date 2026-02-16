@@ -17,12 +17,22 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     if (cur.role !== msg.role) return msg;
     if ((cur.content || "") !== (msg.content || "")) return msg;
 
+    // Use explicit null checks (not ??) so that server-returned null doesn't
+    // overwrite richer locally-attached data.  ?? only skips undefined, but
+    // JSON null deserializes as null which ?? preserves.
     return {
       ...msg,
-      toolCalls: msg.toolCalls ?? cur.toolCalls,
-      subKaniActivity: msg.subKaniActivity ?? cur.subKaniActivity,
-      citations: msg.citations ?? cur.citations,
-      planningArtifacts: msg.planningArtifacts ?? cur.planningArtifacts,
+      toolCalls: msg.toolCalls != null ? msg.toolCalls : cur.toolCalls,
+      subKaniActivity:
+        msg.subKaniActivity != null ? msg.subKaniActivity : cur.subKaniActivity,
+      citations: msg.citations != null ? msg.citations : cur.citations,
+      planningArtifacts:
+        msg.planningArtifacts != null ? msg.planningArtifacts : cur.planningArtifacts,
+      reasoning: msg.reasoning != null ? msg.reasoning : cur.reasoning,
+      optimizationProgress:
+        msg.optimizationProgress != null
+          ? msg.optimizationProgress
+          : cur.optimizationProgress,
     };
   });
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { OptimizationProgressData, OptimizationTrial } from "@pathfinder/shared";
-import { ChevronDown, ChevronUp, X, FlaskConical, Check } from "lucide-react";
+import { X, FlaskConical, Check, ChevronDown, ChevronRight } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -9,6 +9,8 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceArea,
+  ReferenceLine,
 } from "recharts";
 
 // Helpers
@@ -55,7 +57,31 @@ interface ScoreChartDatum {
   bestSoFar: number;
 }
 
-function ScoreChart({ trials }: { trials: OptimizationTrial[] }) {
+const CHART_HEIGHT = 320;
+
+function buildTrialTicks(totalTrials: number): number[] {
+  if (totalTrials <= 0) return [0];
+  if (totalTrials <= 12) {
+    return Array.from({ length: totalTrials + 1 }, (_, i) => i);
+  }
+  const step = Math.ceil(totalTrials / 10);
+  const ticks: number[] = [];
+  for (let t = 0; t <= totalTrials; t += step) ticks.push(t);
+  if (ticks[ticks.length - 1] !== totalTrials) ticks.push(totalTrials);
+  return ticks;
+}
+
+function ScoreChart({
+  trials,
+  totalTrials,
+  currentTrial,
+  isDone,
+}: {
+  trials: OptimizationTrial[];
+  totalTrials: number;
+  currentTrial: number;
+  isDone: boolean;
+}) {
   const chartData = useMemo<ScoreChartDatum[]>(() => {
     if (trials.length < 2) return [];
 
@@ -72,62 +98,108 @@ function ScoreChart({ trials }: { trials: OptimizationTrial[] }) {
 
   if (chartData.length < 2) return null;
 
+  const effectiveTotal = Math.max(
+    1,
+    totalTrials,
+    chartData[chartData.length - 1]?.trial ?? 1,
+  );
+  const stopTrial = Math.max(
+    0,
+    Math.min(
+      effectiveTotal,
+      Math.max(currentTrial, chartData[chartData.length - 1]?.trial ?? 0),
+    ),
+  );
+  const hasEarlyStop = isDone && stopTrial < effectiveTotal;
+  const trialTicks = buildTrialTicks(effectiveTotal);
+
   return (
     <div>
       <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
         Score progression
       </div>
       <div className="rounded border border-slate-200 bg-slate-50 px-1 py-1">
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart
-            data={chartData}
-            margin={{ top: 4, right: 8, bottom: 0, left: -16 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis
-              dataKey="trial"
-              tick={{ fontSize: 9, fill: "#94a3b8" }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              domain={[0, "auto"]}
-              tick={{ fontSize: 9, fill: "#94a3b8" }}
-              tickLine={false}
-              axisLine={false}
-              width={32}
-            />
-            <RechartsTooltip
-              contentStyle={{
-                fontSize: 11,
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid #e2e8f0",
-              }}
-              labelFormatter={(v) => `Trial ${v}`}
-              formatter={(value: number | undefined, name: string | undefined) => [
-                value != null ? value.toFixed(4) : "--",
-                name === "score" ? "Score" : "Best so far",
-              ]}
-            />
-            <Line
-              type="monotone"
-              dataKey="score"
-              stroke="#94a3b8"
-              strokeWidth={1}
-              dot={false}
-              isAnimationActive={false}
-            />
-            <Line
-              type="stepAfter"
-              dataKey="bestSoFar"
-              stroke="#6366f1"
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <div
+          style={{
+            width: "100%",
+            height: CHART_HEIGHT,
+            contain: "size layout",
+            overflow: "hidden",
+          }}
+        >
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 4, right: 8, bottom: 0, left: 8 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis
+                type="number"
+                dataKey="trial"
+                domain={[0, effectiveTotal]}
+                ticks={trialTicks}
+                allowDataOverflow
+                tick={{ fontSize: 9, fill: "#94a3b8" }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                type="number"
+                domain={[0, 1]}
+                ticks={[0, 0.25, 0.5, 0.75, 1]}
+                tick={{ fontSize: 9, fill: "#94a3b8" }}
+                tickLine={false}
+                axisLine={false}
+                width={32}
+              />
+              {hasEarlyStop ? (
+                <>
+                  <ReferenceArea
+                    x1={stopTrial}
+                    x2={effectiveTotal}
+                    fill="#e2e8f0"
+                    fillOpacity={0.45}
+                  />
+                  <ReferenceLine
+                    x={stopTrial}
+                    stroke="#64748b"
+                    strokeDasharray="4 4"
+                    ifOverflow="visible"
+                  />
+                </>
+              ) : null}
+              <RechartsTooltip
+                contentStyle={{
+                  fontSize: 11,
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  border: "1px solid #e2e8f0",
+                }}
+                labelFormatter={(v) => `Trial ${v}`}
+                formatter={(value: number | undefined, name: string | undefined) => [
+                  value != null ? value.toFixed(4) : "--",
+                  name === "score" ? "Score" : "Best so far",
+                ]}
+              />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="#94a3b8"
+                strokeWidth={1}
+                dot={false}
+                isAnimationActive={false}
+              />
+              <Line
+                type="stepAfter"
+                dataKey="bestSoFar"
+                stroke="#6366f1"
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
       <div className="mt-1 flex gap-3 text-[9px] text-slate-400">
         <span className="flex items-center gap-1">
@@ -186,14 +258,6 @@ function TrialTable({
               >
                 <td className="px-1.5 py-1 tabular-nums text-slate-500">
                   {t.trialNumber}
-                  {isPareto && (
-                    <span
-                      className="ml-0.5 text-[9px] text-indigo-500"
-                      title="Pareto optimal"
-                    >
-                      *
-                    </span>
-                  )}
                 </td>
                 {paramNames.map((n) => (
                   <td key={n} className="px-1.5 py-1 tabular-nums">
@@ -236,6 +300,53 @@ function TrialTable({
   );
 }
 
+// Collapsible trial section (collapsed by default)
+
+function CollapsibleTrialSection({
+  displayTrials,
+  allTrialsCount,
+  recentTrialsCount,
+  paramNames,
+  paretoTrialNumbers,
+}: {
+  displayTrials: OptimizationTrial[];
+  allTrialsCount: number;
+  recentTrialsCount: number;
+  paramNames: string[];
+  paretoTrialNumbers: Set<number>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="mb-1 flex w-full items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-700"
+      >
+        {expanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+        <span>Recent trials</span>
+        {allTrialsCount > recentTrialsCount ? (
+          <span className="ml-auto font-normal normal-case tracking-normal text-slate-400">
+            Showing last {recentTrialsCount} of {allTrialsCount} trials
+          </span>
+        ) : null}
+      </button>
+      {expanded && (
+        <TrialTable
+          trials={displayTrials}
+          paramNames={paramNames}
+          paretoTrialNumbers={paretoTrialNumbers}
+        />
+      )}
+    </div>
+  );
+}
+
 // Main component
 
 interface OptimizationProgressPanelProps {
@@ -247,8 +358,6 @@ export function OptimizationProgressPanel({
   data,
   onCancel,
 }: OptimizationProgressPanelProps) {
-  const [showAllTrials, setShowAllTrials] = useState(false);
-
   const isRunning = data.status === "started" || data.status === "running";
   const isComplete = data.status === "completed";
   const isCancelled = data.status === "cancelled";
@@ -263,9 +372,8 @@ export function OptimizationProgressPanel({
     data.parameterSpace?.map((p) => p.name) ??
     (data.bestTrial ? Object.keys(data.bestTrial.parameters) : []);
 
-  const displayTrials = showAllTrials
-    ? (data.allTrials ?? data.recentTrials ?? [])
-    : (data.recentTrials ?? []);
+  const chartTrials = data.allTrials ?? data.recentTrials ?? [];
+  const displayTrials = data.recentTrials ?? data.allTrials ?? [];
 
   const paretoTrialNumbers = new Set(
     (data.paretoFrontier ?? []).map((t) => t.trialNumber),
@@ -273,7 +381,7 @@ export function OptimizationProgressPanel({
 
   return (
     <div className="flex animate-fade-in justify-start">
-      <div className="w-full max-w-[85%]">
+      <div data-testid="optimization-panel" className="w-[760px] max-w-full">
         <div className="rounded-lg border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
             <div className="flex items-center gap-2">
@@ -447,8 +555,13 @@ export function OptimizationProgressPanel({
               </div>
             )}
 
-            {(data.allTrials ?? data.recentTrials ?? []).length >= 2 && (
-              <ScoreChart trials={data.allTrials ?? data.recentTrials ?? []} />
+            {chartTrials.length >= 2 && (
+              <ScoreChart
+                trials={chartTrials}
+                totalTrials={total}
+                currentTrial={current}
+                isDone={isDone}
+              />
             )}
 
             {isDone && data.sensitivity && Object.keys(data.sensitivity).length > 0 && (
@@ -469,52 +582,14 @@ export function OptimizationProgressPanel({
               </div>
             )}
 
-            {isDone && data.paretoFrontier && data.paretoFrontier.length > 1 && (
-              <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Pareto frontier ({data.paretoFrontier.length} optimal)
-                </div>
-                <div className="text-[11px] text-slate-600">
-                  Trials marked with{" "}
-                  <span className="font-medium text-indigo-500">*</span> are
-                  Pareto-optimal (best trade-off between recall and FPR).
-                </div>
-              </div>
-            )}
-
             {displayTrials.length > 0 && (
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    {showAllTrials ? "All trials" : "Recent trials"}
-                  </span>
-                  {isDone &&
-                    (data.allTrials?.length ?? 0) >
-                      (data.recentTrials?.length ?? 0) && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllTrials((v) => !v)}
-                        className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 hover:text-slate-700"
-                      >
-                        {showAllTrials ? (
-                          <>
-                            Show recent <ChevronUp className="h-3 w-3" />
-                          </>
-                        ) : (
-                          <>
-                            Show all ({data.allTrials?.length}){" "}
-                            <ChevronDown className="h-3 w-3" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                </div>
-                <TrialTable
-                  trials={displayTrials}
-                  paramNames={paramNames}
-                  paretoTrialNumbers={paretoTrialNumbers}
-                />
-              </div>
+              <CollapsibleTrialSection
+                displayTrials={displayTrials}
+                allTrialsCount={data.allTrials?.length ?? 0}
+                recentTrialsCount={data.recentTrials?.length ?? 0}
+                paramNames={paramNames}
+                paretoTrialNumbers={paretoTrialNumbers}
+              />
             )}
           </div>
         </div>

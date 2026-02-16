@@ -28,6 +28,25 @@ from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
+
+def _normalize_organism(raw: str) -> str:
+    """Clean organism string; handle JSON array format from site-search."""
+    s = strip_html_tags(raw or "")
+    if not s:
+        return ""
+    s = s.strip()
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            import json as _json
+
+            parsed = _json.loads(s)
+            if isinstance(parsed, list) and parsed:
+                return strip_html_tags(str(parsed[0])).strip()
+        except ValueError, TypeError:
+            pass
+    return s
+
+
 # Default attributes to request for gene records via the standard reporter.
 _DEFAULT_GENE_ATTRIBUTES = [
     "primary_key",
@@ -35,6 +54,82 @@ _DEFAULT_GENE_ATTRIBUTES = [
     "organism",
     "gene_type",
 ]
+
+
+async def _enrich_sparse_gene_results(
+    site_id: str,
+    results: list[JSONObject],
+    limit: int,
+) -> list[JSONObject]:
+    """Enrich results that lack organism/product/displayName via WDK standard reporter.
+
+    Site-search only returns ``foundInFields`` for fields where the query matched.
+    When a gene matches in literature (e.g. MULTIgene_PubMed), organism/product
+    are absent. We fetch full metadata from the WDK to fill the gaps.
+    """
+    ids_to_enrich: list[str] = [
+        str(r["geneId"])
+        for r in results
+        if isinstance(r, dict)
+        and r.get("geneId")
+        and (not r.get("organism") or not r.get("product") or not r.get("displayName"))
+    ]
+    if not ids_to_enrich:
+        return results
+
+    try:
+        # GeneByLocusTag exists on transcript record type
+        resolved = await resolve_gene_ids(
+            site_id,
+            ids_to_enrich[:50],
+            record_type="transcript",
+        )
+    except Exception as exc:
+        logger.debug(
+            "Gene enrichment via WDK skipped",
+            site_id=site_id,
+            count=len(ids_to_enrich),
+            error=str(exc),
+        )
+        return results
+
+    if resolved.get("error"):
+        return results
+
+    records = resolved.get("records")
+    if not isinstance(records, list) or not records:
+        return results
+
+    by_id: dict[str, JSONObject] = {}
+    for rec in records:
+        if isinstance(rec, dict) and rec.get("geneId"):
+            by_id[str(rec["geneId"]).strip()] = rec
+
+    enriched: list[JSONObject] = []
+    for r in results:
+        if not isinstance(r, dict):
+            enriched.append(r)
+            continue
+        gene_id = r.get("geneId")
+        meta = by_id.get(str(gene_id or "")) if gene_id else None
+        if not meta:
+            enriched.append(r)
+            continue
+
+        merged = dict(r)
+        if not merged.get("organism") and meta.get("organism"):
+            merged["organism"] = _normalize_organism(str(meta["organism"]))
+        if not merged.get("product") and meta.get("product"):
+            merged["product"] = strip_html_tags(str(meta["product"]))
+        if not merged.get("displayName"):
+            merged["displayName"] = str(
+                merged.get("product") or meta.get("product") or gene_id or ""
+            )
+        if not merged.get("project") and meta.get("project"):
+            merged["project"] = str(meta["project"])
+        enriched.append(merged)
+
+    return enriched[:limit]
 
 
 async def lookup_genes_by_text(
@@ -100,10 +195,14 @@ async def lookup_genes_by_text(
         if not gene_id:
             continue
 
-        # Display name (often the gene symbol or product)
+        # Display name (often the gene symbol or product) — check hyperlinkName and doc-level fields
         display_name = strip_html_tags(str(doc.get("hyperlinkName") or ""))
+        if not display_name and doc.get("product"):
+            display_name = strip_html_tags(str(doc.get("product", "")))
+        if not display_name and doc.get("gene_product"):
+            display_name = strip_html_tags(str(doc.get("gene_product", "")))
 
-        # Extract useful fields from foundInFields
+        # Extract useful fields from foundInFields (only contains fields where query matched)
         found = doc.get("foundInFields") or {}
         organism = ""
         product = ""
@@ -116,7 +215,9 @@ async def lookup_genes_by_text(
                 clean_key = field_key.replace("TEXT__", "")
                 if clean_key in ("organism", "gene_organism_full"):
                     organism = (
-                        strip_html_tags(str(field_values[0])) if field_values else ""
+                        _normalize_organism(str(field_values[0]))
+                        if field_values
+                        else ""
                     )
                 elif clean_key in ("product", "gene_product"):
                     product = (
@@ -124,6 +225,18 @@ async def lookup_genes_by_text(
                     )
                 if field_values:
                     matched_fields.append(clean_key)
+
+        # Fallback: check doc-level fields (site-search may expose these in some layouts)
+        if not organism and doc.get("organism"):
+            organism = _normalize_organism(str(doc.get("organism", "")))
+        if not organism and doc.get("gene_organism_full"):
+            organism = _normalize_organism(str(doc.get("gene_organism_full", "")))
+        if not product and doc.get("product"):
+            product = strip_html_tags(str(doc.get("product", "")))
+        if not product and doc.get("gene_product"):
+            product = strip_html_tags(str(doc.get("gene_product", "")))
+        if not display_name and product:
+            display_name = product
 
         results.append(
             cast(
@@ -138,6 +251,9 @@ async def lookup_genes_by_text(
                 },
             )
         )
+
+    # Enrich sparse results (e.g. when match was only in literature/MULTIgene_PubMed)
+    results = await _enrich_sparse_gene_results(site_id, results, limit)
 
     return cast(
         JSONObject,
@@ -245,22 +361,39 @@ async def resolve_gene_ids(
         if not isinstance(rec, dict):
             continue
 
-        # Extract primary key
-        pk = rec.get("id") or rec.get("primaryKey")
-        gene_id = ""
-        if isinstance(pk, list) and pk:
-            first_pk = pk[0]
-            if isinstance(first_pk, dict):
-                gene_id = str(first_pk.get("value", "")).strip()
-
-        # Extract attributes
+        # Extract primary key and attributes
         rec_attrs = rec.get("attributes")
         if not isinstance(rec_attrs, dict):
             rec_attrs = {}
 
+        pk = rec.get("id") or rec.get("primaryKey")
+        gene_id = ""
+        project = ""
+        if isinstance(pk, list):
+            for elem in pk:
+                if not isinstance(elem, dict):
+                    continue
+                name = elem.get("name")
+                val = elem.get("value")
+                if (
+                    name in ("gene_source_id", "gene")
+                    and isinstance(val, str)
+                    and val.strip()
+                ):
+                    gene_id = val.strip()
+                elif name == "project_id" and isinstance(val, str) and val.strip():
+                    project = val.strip()
+        if not gene_id and isinstance(pk, list) and pk:
+            first_pk = pk[0]
+            if isinstance(first_pk, dict):
+                gene_id = str(first_pk.get("value", "")).strip()
+        if not gene_id:
+            gene_id = str(rec_attrs.get("primary_key", "")).strip()
+
         records.append(
             {
                 "geneId": gene_id or rec_attrs.get("primary_key", ""),
+                "project": project,
                 "product": rec_attrs.get("gene_product", ""),
                 "organism": rec_attrs.get("organism", ""),
                 "geneType": rec_attrs.get("gene_type", ""),

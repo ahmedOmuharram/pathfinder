@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type {
   Message,
   ToolCall,
@@ -16,7 +16,7 @@ import { encodeNodeSelection } from "@/features/chat/node_selection";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
-import type { MutableRef } from "@/shared/types/refs";
+import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 
 type Thinking = ReturnType<typeof useThinkingState>;
 type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
@@ -33,8 +33,8 @@ interface UseChatStreamingArgs {
   setUndoSnapshots: React.Dispatch<
     React.SetStateAction<Record<number, StrategyWithMeta>>
   >;
-  pendingUndoSnapshotRef: MutableRef<StrategyWithMeta | null>;
-  appliedSnapshotRef: MutableRef<boolean>;
+  sessionRef: { current: StreamingSession | null };
+  createSession: () => StreamingSession;
   loadGraph: (graphId: string) => void;
   addStrategy: (strategy: AddStrategyInput) => void;
   addExecutedStrategy: (strategy: StrategyWithMeta) => void;
@@ -48,7 +48,6 @@ interface UseChatStreamingArgs {
   parseToolResult: ChatEventContext["parseToolResult"];
   applyGraphSnapshot: (graphSnapshot: GraphSnapshotInput) => void;
   getStrategy: (id: string) => Promise<StrategyWithMeta>;
-  strategyRef: MutableRef<StrategyWithMeta | null>;
   currentStrategy: StrategyWithMeta | null;
   attachThinkingToLastAssistant: (
     calls: ToolCall[],
@@ -81,8 +80,8 @@ export function useChatStreaming({
   thinking,
   setMessages,
   setUndoSnapshots,
-  pendingUndoSnapshotRef,
-  appliedSnapshotRef,
+  sessionRef,
+  createSession,
   loadGraph,
   addStrategy,
   addExecutedStrategy,
@@ -96,7 +95,6 @@ export function useChatStreaming({
   parseToolResult,
   applyGraphSnapshot,
   getStrategy,
-  strategyRef,
   currentStrategy,
   attachThinkingToLastAssistant,
   mode = "execute",
@@ -114,21 +112,17 @@ export function useChatStreaming({
   const [apiError, setApiError] = useState<string | null>(null);
   const [optimizationProgress, setOptimizationProgress] =
     useState<OptimizationProgressData | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const streamingAssistantIndexRef = useRef<number | null>(null);
-  const streamingAssistantMessageIdRef = useRef<string | null>(null);
-  const reasoningRef = useRef<string | null>(null);
-  const optimizationProgressRef = useRef<OptimizationProgressData | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   const stopStreaming = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-  }, []);
+    abortController?.abort();
+    setAbortController(null);
+  }, [abortController]);
 
   /**
    * Shared stream setup — resets state, wires event handling, and calls
-   * `streamChat`.  Used by both `handleSendMessage` (user-initiated) and
-   * `handleAutoExecute` (system-initiated, no visible user message).
+   * ``streamChat``.  Used by both ``handleSendMessage`` (user-initiated)
+   * and ``handleAutoExecute`` (system-initiated, no visible user message).
    */
   const executeStream = useCallback(
     async (
@@ -144,19 +138,24 @@ export function useChatStreaming({
       setApiError(null);
       thinking.reset();
       setOptimizationProgress(null);
-      pendingUndoSnapshotRef.current = null;
-      appliedSnapshotRef.current = false;
-      streamingAssistantIndexRef.current = null;
-      streamingAssistantMessageIdRef.current = null;
-      reasoningRef.current = null;
-      optimizationProgressRef.current = null;
+
+      const session = createSession();
+      sessionRef.current = session;
+
+      const streamState: ChatEventContext["streamState"] = {
+        streamingAssistantIndex: null,
+        streamingAssistantMessageId: null,
+        turnAssistantIndex: null,
+        reasoning: null,
+        optimizationProgress: null,
+      };
 
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
 
       const controller = new AbortController();
-      abortRef.current = controller;
+      setAbortController(controller);
 
       const effectiveStrategyId = streamContext.strategyId ?? strategyId;
 
@@ -182,9 +181,7 @@ export function useChatStreaming({
                 clearStrategy,
                 addStep,
                 loadGraph,
-                pendingUndoSnapshotRef,
-                appliedSnapshotRef,
-                strategyRef,
+                session,
                 currentStrategy,
                 setMessages,
                 setUndoSnapshots,
@@ -192,11 +189,8 @@ export function useChatStreaming({
                 parseToolResult,
                 applyGraphSnapshot,
                 getStrategy,
-                streamingAssistantIndexRef,
-                streamingAssistantMessageIdRef,
+                streamState,
                 setOptimizationProgress,
-                reasoningRef,
-                optimizationProgressRef,
                 onPlanSessionId,
                 onPlanningArtifactUpdate,
                 onExecutorBuildRequest,
@@ -209,7 +203,7 @@ export function useChatStreaming({
 
           onComplete: () => {
             setIsStreaming(false);
-            abortRef.current = null;
+            setAbortController(null);
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             const subKaniActivity = thinking.snapshotSubKaniActivity();
             attachThinkingToLastAssistant(
@@ -217,21 +211,34 @@ export function useChatStreaming({
               subKaniActivity,
             );
 
-            // Persist reasoning and optimization data with the last assistant message.
-            const savedReasoning = reasoningRef.current;
-            const savedOptimization = optimizationProgressRef.current;
-            if (savedReasoning || savedOptimization) {
+            // Persist reasoning to the last assistant message.
+            const savedReasoning = streamState.reasoning;
+            if (savedReasoning) {
               setMessages((prev) => {
                 for (let i = prev.length - 1; i >= 0; i -= 1) {
                   if (prev[i].role !== "assistant") continue;
                   const msg = prev[i];
-                  if (msg.reasoning && msg.optimizationProgress) return prev;
+                  if (msg.reasoning) return prev;
+                  const next = [...prev];
+                  next[i] = { ...msg, reasoning: savedReasoning };
+                  return next;
+                }
+                return prev;
+              });
+            }
+
+            // Force-write optimization data to the last assistant message.
+            // Use unconditional write (not ??) so downstream refetches can
+            // never overwrite with undefined before React commits.
+            const savedOptimization = streamState.optimizationProgress;
+            if (savedOptimization) {
+              setMessages((prev) => {
+                for (let i = prev.length - 1; i >= 0; i -= 1) {
+                  if (prev[i].role !== "assistant") continue;
                   const next = [...prev];
                   next[i] = {
-                    ...msg,
-                    reasoning: msg.reasoning || savedReasoning || undefined,
-                    optimizationProgress:
-                      msg.optimizationProgress || savedOptimization || undefined,
+                    ...prev[i],
+                    optimizationProgress: savedOptimization,
                   };
                   return next;
                 }
@@ -239,7 +246,7 @@ export function useChatStreaming({
               });
             }
 
-            if (effectiveStrategyId && !appliedSnapshotRef.current) {
+            if (effectiveStrategyId && !session.snapshotApplied) {
               getStrategy(effectiveStrategyId)
                 .then((full) => {
                   setStrategy(full);
@@ -257,7 +264,7 @@ export function useChatStreaming({
           onError: (error) => {
             console.error("Chat error:", error);
             setIsStreaming(false);
-            abortRef.current = null;
+            setAbortController(null);
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
             setApiError(error.message || "Unable to reach the API.");
             onStreamError?.(error);
@@ -272,8 +279,8 @@ export function useChatStreaming({
     [
       setMessages,
       thinking,
-      pendingUndoSnapshotRef,
-      appliedSnapshotRef,
+      sessionRef,
+      createSession,
       siteId,
       strategyId,
       setStrategyId,
@@ -285,7 +292,6 @@ export function useChatStreaming({
       clearStrategy,
       addStep,
       loadGraph,
-      strategyRef,
       currentStrategy,
       setUndoSnapshots,
       parseToolArguments,
@@ -324,7 +330,10 @@ export function useChatStreaming({
               planSessionId: planSessionId ?? undefined,
               referenceStrategyId: referenceStrategyId ?? undefined,
             }
-          : { strategyId: strategyId ?? undefined };
+          : {
+              strategyId: strategyId ?? undefined,
+              referenceStrategyId: referenceStrategyId ?? undefined,
+            };
 
       await executeStream(finalContent, mode, streamContext);
     },

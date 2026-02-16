@@ -18,10 +18,15 @@ test("plan → delegation draft → build in executor → sub-kani activity → 
   // Transition into executor mode via the UI button.
   await page.getByTestId("delegation-build-executor").click({ force: true });
 
+  // Wait for the executor response to complete (strategy creation + chat stream).
+  await expect(
+    page.getByText("Delegation complete. Built a multi-step strategy"),
+  ).toBeVisible({ timeout: 30_000 });
+
   // Assert sub-kani activity is rendered in the execute transcript.
   // It lives inside the assistant "Thought" details, which is collapsed by default.
   const thought = page.locator("summary").filter({ hasText: "Thought" }).first();
-  await expect(thought).toBeVisible({ timeout: 20_000 });
+  await expect(thought).toBeVisible({ timeout: 10_000 });
   await thought.click();
   const thoughtDetails = thought.locator("..");
   const subKani = thoughtDetails

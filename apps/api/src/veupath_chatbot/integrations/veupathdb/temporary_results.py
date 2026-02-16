@@ -1,5 +1,6 @@
 """VEuPathDB /temporary-results helpers for downloads."""
 
+import asyncio
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
@@ -38,7 +39,9 @@ class TemporaryResultsAPI:
         """
         payload: JSONObject = {
             "stepId": step_id,
-            "reporterName": reporter,
+            # WDK expects "reportName" here; using "reporterName" triggers
+            # 400: JSONObject["reportName"] not found.
+            "reportName": reporter,
         }
         if format_config:
             payload["reportConfig"] = format_config
@@ -92,8 +95,52 @@ class TemporaryResultsAPI:
             reporter="tabular" if format in ("csv", "tab") else "fullRecordJson",
             format_config=format_config,
         )
+        url = self._extract_download_url(result)
+        if url:
+            return url
 
-        return cast(str, result.get("url", ""))
+        # Some WDK deployments return an ID first, then populate the URL on
+        # subsequent GET /temporary-results/{id}. Poll briefly before failing.
+        result_id_raw = result.get("id") or result.get("resultId")
+        result_id = str(result_id_raw) if result_id_raw is not None else ""
+        if not result_id:
+            raise RuntimeError(
+                "VEuPathDB temporary-results response did not include either a "
+                "download URL or a temporary result id."
+            )
+
+        last_status = "unknown"
+        for _ in range(8):
+            await asyncio.sleep(0.5)
+            latest = await self.get_temporary_result(result_id)
+            url = self._extract_download_url(latest)
+            if url:
+                return url
+            status_raw = latest.get("status") or latest.get("state")
+            if isinstance(status_raw, str) and status_raw:
+                last_status = status_raw
+
+        raise RuntimeError(
+            f"Temporary result {result_id} did not produce a download URL "
+            f"(last status: {last_status})."
+        )
+
+    @staticmethod
+    def _extract_download_url(payload: JSONObject) -> str:
+        """Extract a download URL across known WDK response shapes."""
+        direct = (
+            payload.get("url")
+            or payload.get("downloadUrl")
+            or payload.get("download_url")
+        )
+        if isinstance(direct, str) and direct.strip():
+            return direct
+        links_raw = payload.get("links")
+        if isinstance(links_raw, dict):
+            links_url = links_raw.get("download") or links_raw.get("url")
+            if isinstance(links_url, str) and links_url.strip():
+                return links_url
+        return ""
 
     async def get_step_preview(
         self,
@@ -108,19 +155,21 @@ class TemporaryResultsAPI:
         :param attributes: Attributes to include.
         :returns: Preview data with records.
         """
-        params: JSONObject = {
-            "numRecords": limit,
-            "offset": 0,
+        report_config: JSONObject = {
+            "pagination": {
+                "offset": 0,
+                "numRecords": limit,
+            }
         }
         if attributes:
-            params["attributes"] = ",".join(attributes)
+            report_config["attributes"] = cast(JSONArray, attributes)
 
-        # Use the step answer endpoint for preview
+        # Use standard report endpoint for preview.
         await self._ensure_session()
         return cast(
             JSONObject,
-            await self.client.get(
-                f"/users/current/steps/{step_id}/answer",
-                params=params,
+            await self.client.post(
+                f"/users/current/steps/{step_id}/reports/standard",
+                json={"reportConfig": report_config},
             ),
         )

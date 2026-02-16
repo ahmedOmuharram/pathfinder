@@ -86,6 +86,10 @@ class MessageResponse(BaseModel):
     planning_artifacts: JSONArray | None = Field(
         default=None, alias="planningArtifacts"
     )
+    reasoning: str | None = Field(default=None)
+    optimization_progress: JSONObject | None = Field(
+        default=None, alias="optimizationProgress"
+    )
     timestamp: datetime
 
     model_config = {"populate_by_name": True, "extra": "ignore"}

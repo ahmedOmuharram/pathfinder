@@ -1022,6 +1022,9 @@ export type components = {
             mode?: ("execute" | "plan") | null;
             citations?: components["schemas"]["JSONArray"] | null;
             planningArtifacts?: components["schemas"]["JSONArray"] | null;
+            /** Reasoning */
+            reasoning?: string | null;
+            optimizationProgress?: components["schemas"]["JSONObject"] | null;
             /**
              * Timestamp
              * Format: date-time

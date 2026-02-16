@@ -84,7 +84,7 @@ export function InsertStrategyModal({
     >
       <div className="flex flex-col gap-3 px-5 pb-5 pt-2">
         <p className="text-[12px] text-slate-500">
-          Select a strategy to include as context in your planning conversation.
+          Select a strategy to include as context in your conversation.
         </p>
 
         {/* Search input */}

@@ -15,7 +15,7 @@ import { ReasoningToggle } from "./ReasoningToggle";
 interface MessageComposerProps {
   onSend: (message: string) => void;
   disabled?: boolean;
-  /** Current mode — used for placeholder text and composer prefill, not shown to user. */
+  /** Current mode — used for composer prefill matching (plan vs execute). */
   mode?: ChatMode;
   isStreaming?: boolean;
   onStop?: () => void;
@@ -73,8 +73,10 @@ export function MessageComposer({
     }
   }, [message]);
 
-  // Resolve whether selected model supports reasoning
-  const selectedModel = models.find((m) => m.id === selectedModelId);
+  // Resolve whether selected model supports reasoning.
+  // When using server default (selectedModelId null), use serverDefaultModelId to look up the model.
+  const effectiveModelId = selectedModelId ?? serverDefaultModelId ?? null;
+  const selectedModel = models.find((m) => m.id === effectiveModelId);
   const supportsReasoning = selectedModel?.supportsReasoning ?? false;
 
   const handleSubmit = useCallback(
@@ -145,11 +147,7 @@ export function MessageComposer({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           data-testid="message-input"
-          placeholder={
-            mode === "plan"
-              ? "Plan a strategy: goals, constraints, and evidence to include..."
-              : "Ask me to build a search strategy..."
-          }
+          placeholder="Ask me to build a search strategy or describe your research question..."
           rows={1}
           className="min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
         />

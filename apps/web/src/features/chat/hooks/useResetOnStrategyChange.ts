@@ -2,55 +2,50 @@ import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Message } from "@pathfinder/shared";
 import type { StrategyWithMeta } from "@/types/strategy";
-import type { MutableRef } from "@/shared/types/refs";
+import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 
 export function useResetOnStrategyChange(args: {
   strategyId: string | null;
-  isStreamingRef: MutableRef<boolean>;
-  previousStrategyIdRef: MutableRef<string | null>;
+  previousStrategyId: string | null | undefined;
+  isStreaming: boolean;
   resetThinking: () => void;
   setIsStreaming: (value: boolean) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setUndoSnapshots: Dispatch<SetStateAction<Record<number, StrategyWithMeta>>>;
-  pendingUndoSnapshotRef: MutableRef<StrategyWithMeta | null>;
+  sessionRef: { current: StreamingSession | null };
 }) {
   const {
     strategyId,
-    isStreamingRef,
-    previousStrategyIdRef,
+    previousStrategyId,
+    isStreaming,
     resetThinking,
     setIsStreaming,
     setMessages,
     setUndoSnapshots,
-    pendingUndoSnapshotRef,
+    sessionRef,
   } = args;
 
   useEffect(() => {
-    const previousId = previousStrategyIdRef.current;
-    previousStrategyIdRef.current = strategyId;
-
-    if (!isStreamingRef.current) {
+    if (!isStreaming) {
       resetThinking();
       setIsStreaming(false);
     }
 
-    if (strategyId && previousId && previousId !== strategyId) {
+    if (strategyId && previousStrategyId && previousStrategyId !== strategyId) {
       setMessages([]);
       setUndoSnapshots({});
-      pendingUndoSnapshotRef.current = null;
-    }
-
-    if (!strategyId) {
-      return;
+      if (sessionRef.current) {
+        sessionRef.current.consumeUndoSnapshot();
+      }
     }
   }, [
     strategyId,
-    isStreamingRef,
-    previousStrategyIdRef,
+    previousStrategyId,
+    isStreaming,
     resetThinking,
     setIsStreaming,
     setMessages,
     setUndoSnapshots,
-    pendingUndoSnapshotRef,
+    sessionRef,
   ]);
 }

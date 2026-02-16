@@ -16,6 +16,9 @@ type StreamSSEOptions = {
   onComplete?: () => void;
   maxRetries?: number;
   retryDelay?: number;
+  /** Max milliseconds to wait between SSE chunks before treating the
+   *  connection as hung and aborting.  Defaults to 900 000 (15 minutes). */
+  readTimeoutMs?: number;
 };
 
 function sleep(ms: number) {
@@ -86,9 +89,27 @@ async function runOnce(
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const readTimeout = options.readTimeoutMs ?? 900_000;
 
   while (true) {
-    const { done, value } = await reader.read();
+    // Race the reader against a timeout so we detect hung connections
+    // (e.g. model process died but the TCP socket stays open).
+    const result = await Promise.race([
+      reader.read(),
+      sleep(readTimeout).then(
+        () => ({ done: false, value: undefined, timedOut: true }) as const,
+      ),
+    ]);
+
+    if ("timedOut" in result && result.timedOut) {
+      reader.cancel().catch(() => {});
+      throw new AppError(
+        `No data received for ${Math.round(readTimeout / 1000)}s — connection appears hung.`,
+        "TIMEOUT",
+      );
+    }
+
+    const { done, value } = result as ReadableStreamReadResult<Uint8Array>;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const parsed = parseSSEChunk(buffer);

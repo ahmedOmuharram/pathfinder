@@ -25,6 +25,8 @@ from .events import (
     GRAPH_DELETED,
     GRAPH_PLAN,
     GRAPH_SNAPSHOT,
+    OPTIMIZATION_PROGRESS,
+    REASONING,
     STRATEGY_LINK,
     STRATEGY_META,
 )
@@ -70,6 +72,9 @@ class ChatStreamProcessor:
         self.latest_plans: dict[str, JSONObject] = {}
         self.latest_graph_snapshots: dict[str, JSONObject] = {}
         self.pending_strategy_link: dict[str, JSONObject] = {}
+
+        self.reasoning: str | None = None
+        self.optimization_progress: JSONObject | None = None
 
         self.last_thinking_flush = datetime.now(UTC)
         self.thinking_dirty = False
@@ -132,6 +137,14 @@ class ChatStreamProcessor:
             artifact = event_data.get("planningArtifact")
             if isinstance(artifact, dict):
                 self.planning_artifacts.append(artifact)
+
+        elif event_type == REASONING:
+            reasoning = event_data.get("reasoning")
+            if isinstance(reasoning, str) and reasoning.strip():
+                self.reasoning = reasoning
+
+        elif event_type == OPTIMIZATION_PROGRESS:
+            self.optimization_progress = event_data
 
         elif event_type == GRAPH_SNAPSHOT:
             snapshot_value = event_data.get("graphSnapshot")
@@ -321,17 +334,13 @@ class ChatStreamProcessor:
 
         elif event_type == STRATEGY_LINK:
             graph_id = self.resolve_graph_id(event_data.get("graphId"))
-            if graph_id:
-                event_data["graphId"] = graph_id
-                self.pending_strategy_link[str(graph_id)] = event_data
-
-            graph_id_for_uuid_value = event_data.get("graphId")
-            graph_id_for_uuid = (
-                str(graph_id_for_uuid_value)
-                if isinstance(graph_id_for_uuid_value, str)
-                else None
-            )
-            graph_uuid = parse_uuid(graph_id_for_uuid)
+            current_graph_id = str(self.strategy.id)
+            # In execute mode, stream events must bind to the active strategy.
+            # This avoids creating duplicate local conversations when background
+            # WDK sync runs before stream finalization commits.
+            graph_uuid = self.strategy.id
+            event_data["graphId"] = current_graph_id
+            self.pending_strategy_link[current_graph_id] = event_data
             if graph_uuid:
                 wdk_strategy_id_value = event_data.get("wdkStrategyId")
                 wdk_strategy_id: int | None = None
@@ -349,22 +358,12 @@ class ChatStreamProcessor:
                         wdk_strategy_id=wdk_strategy_id,
                         wdk_strategy_id_set=True,
                     )
-                    if not updated:
-                        name_value = event_data.get("name")
-                        name = (
-                            str(name_value)
-                            if isinstance(name_value, str)
-                            else "Draft Strategy"
-                        )
-                        await self.strategy_repo.create(
-                            user_id=self.user_id,
-                            name=name,
-                            site_id=self.site_id,
-                            record_type=None,
-                            plan={},
-                            wdk_strategy_id=wdk_strategy_id,
-                            strategy_id=graph_uuid,
-                        )
+                    if updated:
+                        self.strategy.wdk_strategy_id = wdk_strategy_id
+                        # Explicitly commit linkage mid-stream so other requests
+                        # (e.g. sidebar sync) see the binding and do not import
+                        # the same WDK strategy as a separate local conversation.
+                        await self.strategy_repo.session.commit()
                 event_data = {**event_data, "strategySnapshotId": str(graph_uuid)}
 
         return sse_event(event_type, event_data)
@@ -410,6 +409,12 @@ class ChatStreamProcessor:
                     assistant_message["citations"] = self.citations
                 if self.planning_artifacts:
                     assistant_message["planningArtifacts"] = self.planning_artifacts
+                if self.reasoning:
+                    assistant_message["reasoning"] = self.reasoning
+                if self.optimization_progress:
+                    assistant_message["optimizationProgress"] = (
+                        self.optimization_progress
+                    )
             await self.strategy_repo.add_message(self.strategy.id, assistant_message)
 
         if self.latest_plans:

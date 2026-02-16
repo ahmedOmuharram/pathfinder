@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ToolCall } from "@pathfinder/shared";
 
 export type ThinkingPayload = {
@@ -16,17 +16,6 @@ export function useThinkingState() {
   const [subKaniCalls, setSubKaniCalls] = useState<Record<string, ToolCall[]>>({});
   const [subKaniStatus, setSubKaniStatus] = useState<Record<string, string>>({});
   const [reasoning, setReasoning] = useState<string | null>(null);
-
-  const subKaniCallsRef = useRef<Record<string, ToolCall[]>>({});
-  const subKaniStatusRef = useRef<Record<string, string>>({});
-
-  useEffect(() => {
-    subKaniCallsRef.current = subKaniCalls;
-  }, [subKaniCalls]);
-
-  useEffect(() => {
-    subKaniStatusRef.current = subKaniStatus;
-  }, [subKaniStatus]);
 
   const reset = useCallback(() => {
     setActiveToolCalls([]);
@@ -106,13 +95,12 @@ export function useThinkingState() {
   }, [subKaniCalls, subKaniStatus]);
 
   const snapshotSubKaniActivity = useCallback(() => {
-    const calls = subKaniCallsRef.current;
-    if (Object.keys(calls).length === 0) return undefined;
+    if (Object.keys(subKaniCalls).length === 0) return undefined;
     return {
-      calls: { ...calls },
-      status: { ...subKaniStatusRef.current },
+      calls: { ...subKaniCalls },
+      status: { ...subKaniStatus },
     };
-  }, []);
+  }, [subKaniCalls, subKaniStatus]);
 
   return {
     activeToolCalls,

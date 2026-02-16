@@ -2,135 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import type { Message, ToolCall } from "@pathfinder/shared";
+import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import {
   EXECUTE_EPITOPE_SEARCH_EVENTS,
   PLAN_ARTIFACT_EVENTS,
   OPTIMIZATION_PROGRESS_EVENTS,
   DELEGATION_EVENTS,
 } from "./__fixtures__/realisticEvents";
-
-function makeStateSetters() {
-  let messages: Message[] = [];
-  let undoSnapshots: Record<number, any> = {};
-
-  const setMessages = (updater: any) => {
-    messages = typeof updater === "function" ? updater(messages) : updater;
-  };
-  const setUndoSnapshots = (updater: any) => {
-    undoSnapshots = typeof updater === "function" ? updater(undoSnapshots) : updater;
-  };
-  return {
-    get messages() {
-      return messages;
-    },
-    get undoSnapshots() {
-      return undoSnapshots;
-    },
-    setMessages,
-    setUndoSnapshots,
-  };
-}
-
-/**
- * Simulates React 18 batching: updaters are queued and executed later
- * (as happens when multiple SSE events arrive in a single chunk).
- */
-function makeBatchingStateSetters() {
-  let messages: Message[] = [];
-  let undoSnapshots: Record<number, any> = {};
-  const messageQueue: ((prev: Message[]) => Message[])[] = [];
-  const snapshotQueue: ((prev: Record<number, any>) => Record<number, any>)[] = [];
-
-  const setMessages = (updater: any) => {
-    if (typeof updater === "function") messageQueue.push(updater);
-    else messages = updater;
-  };
-  const setUndoSnapshots = (updater: any) => {
-    if (typeof updater === "function") snapshotQueue.push(updater);
-    else undoSnapshots = updater;
-  };
-  /** Flush queued updaters in order, simulating React's deferred flush. */
-  function flush() {
-    for (const fn of messageQueue) messages = fn(messages);
-    messageQueue.length = 0;
-    for (const fn of snapshotQueue) undoSnapshots = fn(undoSnapshots);
-    snapshotQueue.length = 0;
-  }
-  return {
-    get messages() {
-      return messages;
-    },
-    get undoSnapshots() {
-      return undoSnapshots;
-    },
-    setMessages,
-    setUndoSnapshots,
-    flush,
-  };
-}
+import { makeBatchingStateSetters, makeCtx } from "./handleChatEvent.testUtils";
 
 describe("features/chat/handlers/handleChatEvent", () => {
-  function makeCtx(overrides?: Partial<any>) {
-    const toolCallsBuffer: ToolCall[] = [];
-    const citationsBuffer: any[] = [];
-    const planningArtifactsBuffer: any[] = [];
-    const state = makeStateSetters();
-    const applyGraphSnapshot = vi.fn();
-    const thinking = {
-      updateActiveFromBuffer: vi.fn(),
-      updateReasoning: vi.fn(),
-      snapshotSubKaniActivity: vi.fn(() => ({ calls: {}, status: {} })),
-      subKaniTaskStart: vi.fn(),
-      subKaniToolCallStart: vi.fn(),
-      subKaniToolCallEnd: vi.fn(),
-      subKaniTaskEnd: vi.fn(),
-    } as any;
-
-    const base = {
-      siteId: "plasmodb",
-      strategyIdAtStart: "s1",
-      toolCallsBuffer,
-      citationsBuffer,
-      planningArtifactsBuffer,
-      thinking,
-      setStrategyId: vi.fn(),
-      addStrategy: vi.fn(),
-      addExecutedStrategy: vi.fn(),
-      setWdkInfo: vi.fn(),
-      setStrategy: vi.fn(),
-      setStrategyMeta: vi.fn(),
-      clearStrategy: vi.fn(),
-      addStep: vi.fn(),
-      loadGraph: vi.fn(),
-      pendingUndoSnapshotRef: { current: null as any },
-      appliedSnapshotRef: { current: false },
-      strategyRef: { current: null as any },
-      currentStrategy: null,
-      setMessages: state.setMessages,
-      setUndoSnapshots: state.setUndoSnapshots,
-      parseToolArguments: vi.fn(() => ({ a: 1 })),
-      parseToolResult: vi.fn(() => ({ graphSnapshot: { x: 1 } })),
-      applyGraphSnapshot,
-      getStrategy: vi.fn(),
-      streamingAssistantIndexRef: { current: null as number | null },
-      streamingAssistantMessageIdRef: { current: null as string | null },
-      setOptimizationProgress: vi.fn(),
-      reasoningRef: { current: null as string | null },
-      optimizationProgressRef: { current: null as any },
-    };
-
-    const ctx = { ...base, ...(overrides ?? {}) };
-    return {
-      ctx,
-      state,
-      toolCallsBuffer,
-      citationsBuffer,
-      planningArtifactsBuffer,
-      thinking,
-      applyGraphSnapshot,
-    };
-  }
-
   it("buffers tool calls/citations/artifacts and attaches them on assistant_message", () => {
     const {
       ctx,
@@ -233,9 +114,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
       clearStrategy: vi.fn(),
       addStep: vi.fn(),
       loadGraph: vi.fn(),
-      pendingUndoSnapshotRef: { current: null as any },
-      appliedSnapshotRef: { current: false },
-      strategyRef: { current: null as any },
+      session: new StreamingSession(null),
       currentStrategy: null,
       setMessages: batchState.setMessages,
       setUndoSnapshots: batchState.setUndoSnapshots,
@@ -243,11 +122,14 @@ describe("features/chat/handlers/handleChatEvent", () => {
       parseToolResult: vi.fn(() => null),
       applyGraphSnapshot: vi.fn(),
       getStrategy: vi.fn(),
-      streamingAssistantIndexRef: { current: null as number | null },
-      streamingAssistantMessageIdRef: { current: null as string | null },
+      streamState: {
+        streamingAssistantIndex: null,
+        streamingAssistantMessageId: null,
+        turnAssistantIndex: null,
+        reasoning: null,
+        optimizationProgress: null,
+      },
       setOptimizationProgress: vi.fn(),
-      reasoningRef: { current: null as string | null },
-      optimizationProgressRef: { current: null as any },
     };
 
     // Dispatch all events synchronously (as if they arrived in one SSE chunk).
@@ -295,25 +177,23 @@ describe("features/chat/handlers/handleChatEvent", () => {
     expect(batchState.messages[0]?.planningArtifacts?.[0]?.id).toBe("a1");
 
     // Refs are cleaned up.
-    expect(ctx.streamingAssistantIndexRef.current).toBeNull();
-    expect(ctx.streamingAssistantMessageIdRef.current).toBeNull();
+    expect(ctx.streamState.streamingAssistantIndex).toBeNull();
+    expect(ctx.streamState.streamingAssistantMessageId).toBeNull();
   });
 
   it("strategy_update captures an undo snapshot and assistant_message persists it by message index", () => {
-    const { ctx, state } = makeCtx({
-      strategyRef: {
-        current: {
-          id: "s1",
-          name: "Draft",
-          siteId: "plasmodb",
-          recordType: "gene",
-          steps: [],
-          rootStepId: null,
-          createdAt: "t",
-          updatedAt: "t",
-        },
-      },
-    });
+    const strategySnapshot = {
+      id: "s1",
+      name: "Draft",
+      siteId: "plasmodb",
+      recordType: "gene",
+      steps: [],
+      rootStepId: null,
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const session = new StreamingSession(strategySnapshot);
+    const { ctx, state } = makeCtx({ session });
 
     handleChatEvent(ctx, {
       type: "strategy_update",
@@ -327,8 +207,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
       },
     } as any);
 
-    expect(ctx.pendingUndoSnapshotRef.current).toBeTruthy();
-    expect(ctx.appliedSnapshotRef.current).toBe(true);
+    expect(ctx.session.undoSnapshot).toBeTruthy();
+    expect(ctx.session.snapshotApplied).toBe(true);
 
     // No streaming assistant active => assistant_message is appended; undo snapshot stored at index.
     handleChatEvent(ctx, {
@@ -339,7 +219,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
     expect(state.messages).toHaveLength(1);
     expect(state.messages[0]?.content).toBe("done");
     expect(Object.keys(state.undoSnapshots)).toEqual(["0"]);
-    expect(ctx.pendingUndoSnapshotRef.current).toBeNull();
+    expect(ctx.session.undoSnapshot).toBeNull();
   });
 
   it("strategy_update maps step inputs and updates strategy meta", () => {
@@ -542,11 +422,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
       updatedAt: "t",
     };
 
-    const { ctx } = makeCtx({
-      strategyRef: { current: snapshot },
-      pendingUndoSnapshotRef: { current: null },
-      appliedSnapshotRef: { current: false },
-    });
+    const session = new StreamingSession(snapshot);
+    const { ctx } = makeCtx({ session });
 
     // Guard: mismatched graphId should do nothing when strategyIdAtStart is set.
     handleChatEvent(ctx, {
@@ -584,8 +461,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
         recordType: "gene",
       }),
     );
-    expect(ctx.appliedSnapshotRef.current).toBe(true);
-    expect(ctx.pendingUndoSnapshotRef.current).toEqual(snapshot);
+    expect(ctx.session.snapshotApplied).toBe(true);
+    expect(ctx.session.undoSnapshot).toEqual(snapshot);
   });
 
   // Realistic event sequences — replay full SSE streams from backend scenarios
@@ -605,7 +482,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
       const { ctx, state, toolCallsBuffer, applyGraphSnapshot, thinking } = makeCtx({
         strategyIdAtStart: "strat-001",
         currentStrategy,
-        strategyRef: { current: currentStrategy },
+        session: new StreamingSession(currentStrategy),
         getStrategy: vi.fn(async () => currentStrategy),
       });
 
@@ -665,8 +542,8 @@ describe("features/chat/handlers/handleChatEvent", () => {
       );
 
       // ── Refs cleaned up ──
-      expect(ctx.streamingAssistantIndexRef.current).toBeNull();
-      expect(ctx.streamingAssistantMessageIdRef.current).toBeNull();
+      expect(ctx.streamState.streamingAssistantIndex).toBeNull();
+      expect(ctx.streamState.streamingAssistantMessageId).toBeNull();
     });
 
     it("handles batched delivery (React 18 batching) of realistic events", () => {
@@ -699,9 +576,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
         clearStrategy: vi.fn(),
         addStep: vi.fn(),
         loadGraph: vi.fn(),
-        pendingUndoSnapshotRef: { current: null as any },
-        appliedSnapshotRef: { current: false },
-        strategyRef: { current: null as any },
+        session: new StreamingSession(null),
         currentStrategy: null,
         setMessages: batchState.setMessages,
         setUndoSnapshots: batchState.setUndoSnapshots,
@@ -718,11 +593,14 @@ describe("features/chat/handlers/handleChatEvent", () => {
           createdAt: "t",
           updatedAt: "t",
         })),
-        streamingAssistantIndexRef: { current: null as number | null },
-        streamingAssistantMessageIdRef: { current: null as string | null },
+        streamState: {
+          streamingAssistantIndex: null,
+          streamingAssistantMessageId: null,
+          turnAssistantIndex: null,
+          reasoning: null,
+          optimizationProgress: null,
+        },
         setOptimizationProgress: vi.fn(),
-        reasoningRef: { current: null as string | null },
-        optimizationProgressRef: { current: null as any },
       };
 
       // Dispatch all events synchronously (simulating chunk delivery)
@@ -778,7 +656,7 @@ describe("features/chat/handlers/handleChatEvent", () => {
       }
 
       // Refs cleaned up
-      expect(ctx.streamingAssistantIndexRef.current).toBeNull();
+      expect(ctx.streamState.streamingAssistantIndex).toBeNull();
     });
   });
 
@@ -796,9 +674,101 @@ describe("features/chat/handlers/handleChatEvent", () => {
       // At least 5 calls: started + 3 trials + completed
       expect(calls.length).toBeGreaterThanOrEqual(5);
 
-      // Final message should exist
+      // Final message should exist and carry persisted optimization payload
       expect(state.messages).toHaveLength(1);
       expect(state.messages[0]?.content).toBe("Optimization complete.");
+      expect(state.messages[0]?.optimizationProgress).toBeDefined();
+      expect(state.messages[0]?.optimizationProgress?.status).toBe("completed");
+    });
+
+    it("does not attach optimization_progress to previous assistant before current turn assistant exists", () => {
+      const { ctx, state } = makeCtx();
+
+      // Seed prior conversation history (outside current streaming turn).
+      // User started a new turn; no current assistant message yet.
+      state.setMessages([
+        {
+          role: "assistant",
+          content: "Previous answer.",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          role: "user",
+          content: "new question",
+          timestamp: "2026-01-01T00:00:01.000Z",
+        },
+      ]);
+
+      expect(ctx.streamState.streamingAssistantIndex).toBeNull();
+      expect(state.messages).toHaveLength(2);
+
+      handleChatEvent(ctx, {
+        type: "optimization_progress",
+        data: {
+          optimizationId: "opt-test",
+          status: "running",
+          totalTrials: 5,
+          currentTrial: 2,
+          recentTrials: [
+            {
+              trialNumber: 1,
+              parameters: {},
+              score: 0.5,
+              recall: 0.5,
+              falsePositiveRate: 0.1,
+              resultCount: 10,
+            },
+          ],
+        },
+      } as any);
+
+      // Progress is live-only at this point; previous assistant must remain untouched.
+      expect(state.messages[0]?.optimizationProgress).toBeUndefined();
+    });
+
+    it("attaches optimization_progress to current turn assistant only", () => {
+      const { ctx, state } = makeCtx();
+
+      // Seed prior conversation history (outside current streaming turn).
+      state.setMessages([
+        {
+          role: "assistant",
+          content: "Starting.",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          role: "user",
+          content: "optimize this",
+          timestamp: "2026-01-01T00:00:01.000Z",
+        },
+      ]);
+
+      // Live optimization arrives before assistant_delta for this turn.
+      handleChatEvent(ctx, {
+        type: "optimization_progress",
+        data: {
+          optimizationId: "opt-2",
+          status: "completed",
+          totalTrials: 3,
+          currentTrial: 3,
+        },
+      } as any);
+
+      // Current turn assistant starts streaming.
+      handleChatEvent(ctx, {
+        type: "assistant_delta",
+        data: { messageId: "m2", delta: "Done." },
+      } as ChatSSEEvent);
+      handleChatEvent(ctx, {
+        type: "assistant_message",
+        data: { messageId: "m2", content: "Done." },
+      } as any);
+
+      expect(state.messages).toHaveLength(3);
+      // Previous assistant must stay clean.
+      expect(state.messages[0]?.optimizationProgress).toBeUndefined();
+      // Current assistant owns optimization for this turn.
+      expect(state.messages[2]?.optimizationProgress?.status).toBe("completed");
     });
   });
 

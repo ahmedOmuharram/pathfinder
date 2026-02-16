@@ -32,6 +32,9 @@ interface SessionState {
   /** Prefill content for the message composer. */
   composerPrefill: { mode: ChatMode; message: string } | null;
 
+  /** Whether the VEuPathDB auth token has been refreshed in this session. */
+  authRefreshed: boolean;
+
   setSelectedSite: (siteId: string) => void;
   setSelectedSiteInfo: (siteId: string, displayName: string) => void;
   setStrategyId: (id: string | null) => void;
@@ -47,6 +50,7 @@ interface SessionState {
   bumpChatPreviewVersion: () => void;
   setPendingAskNode: (payload: Record<string, unknown> | null) => void;
   setComposerPrefill: (payload: { mode: ChatMode; message: string } | null) => void;
+  setAuthRefreshed: (value: boolean) => void;
 }
 
 const AUTH_TOKEN_STORAGE_KEY = "pathfinder-auth-token";
@@ -83,6 +87,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
   chatPreviewVersion: 0,
   pendingAskNode: null,
   composerPrefill: null,
+  authRefreshed: false,
 
   setSelectedSite: (siteId) => set({ selectedSite: siteId }),
   setSelectedSiteInfo: (siteId, displayName) =>
@@ -117,6 +122,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
     set((s) => ({ chatPreviewVersion: s.chatPreviewVersion + 1 })),
   setPendingAskNode: (payload) => set({ pendingAskNode: payload }),
   setComposerPrefill: (payload) => set({ composerPrefill: payload }),
+  setAuthRefreshed: (value) => set({ authRefreshed: value }),
 }));
 
 // Inject token getter for transport-layer helpers (keeps `lib/api/*` independent of `state/*`).

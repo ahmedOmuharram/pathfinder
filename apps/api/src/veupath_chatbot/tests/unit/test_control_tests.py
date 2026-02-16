@@ -84,6 +84,7 @@ def _make_mock_api(
 
     # delete_strategy succeeds
     api.delete_strategy = AsyncMock(return_value=None)
+    api.list_strategies = AsyncMock(return_value=[])
 
     # create_dataset returns dataset ID
     api.create_dataset = AsyncMock(return_value=create_dataset_id)
@@ -390,6 +391,53 @@ class TestRunIntersectionControl:
 
         # Strategy was still cleaned up
         api.delete_strategy.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("veupath_chatbot.services.control_tests.get_strategy_api")
+    async def test_cleans_up_stale_internal_control_test_strategies(
+        self, mock_get_api: MagicMock
+    ) -> None:
+        api = _make_mock_api(
+            search_details={
+                "searchData": {
+                    "parameters": [
+                        {"name": "gene_list", "type": "string"},
+                    ]
+                }
+            }
+        )
+        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.list_strategies = AsyncMock(
+            return_value=[
+                {
+                    "strategyId": 123,
+                    "name": "__pathfinder_internal__:Pathfinder control test",
+                },
+                {
+                    "strategyId": 456,
+                    "name": "__pathfinder_internal__:Other internal helper",
+                },
+                {"strategyId": 789, "name": "User visible strategy"},
+            ]
+        )
+        mock_get_api.return_value = api
+
+        await _run_intersection_control(
+            site_id="plasmodb",
+            record_type="transcript",
+            target_search_name="SomeRNASearch",
+            target_parameters={"fold": "1"},
+            controls_search_name="SomeSearch",
+            controls_param_name="gene_list",
+            controls_ids=["A", "B"],
+            controls_value_format="newline",
+            controls_extra_parameters=None,
+        )
+
+        # One stale internal control-test strategy + the newly created temp strategy.
+        assert api.delete_strategy.await_count == 2
+        deleted_ids = [c.args[0] for c in api.delete_strategy.await_args_list]
+        assert 123 in deleted_ids
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")

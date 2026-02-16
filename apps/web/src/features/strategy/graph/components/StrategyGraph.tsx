@@ -8,6 +8,7 @@ import {
   useState,
   startTransition,
 } from "react";
+import { usePrevious } from "@/shared/hooks/usePrevious";
 import { CombineOperator } from "@pathfinder/shared";
 import {
   type Edge,
@@ -100,14 +101,13 @@ export function StrategyGraph(props: StrategyGraphProps) {
     y: number;
   } | null>(null);
   const [orthologModalOpen, setOrthologModalOpen] = useState(false);
-  const lastSnapshotIdRef = useRef<string | null>(null);
   const [lastSavedSteps, setLastSavedSteps] = useState<Map<string, string>>(new Map());
   const nodeTypes = useMemo(() => NODE_TYPES, []);
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
-  const lastLayoutSeedRef = useRef<number>(layoutSeed);
-  const lastStrategyIdRef = useRef<string | null>(null);
+  const prevLayoutSeed = usePrevious(layoutSeed);
+  const prevStrategyId = usePrevious(strategy?.id ?? null);
   const updateStep = useStrategyStore((state) => state.updateStep);
   const addStep = useStrategyStore((state) => state.addStep);
   const removeStep = useStrategyStore((state) => state.removeStep);
@@ -170,7 +170,6 @@ export function StrategyGraph(props: StrategyGraphProps) {
     setInteractionMode,
     selectedNodeIds,
     setSelectedNodeIds,
-    selectedNodeIdsRef,
     handleAddToChat,
     handleAddSelectionToChat,
     handleSelectionChange,
@@ -273,7 +272,6 @@ export function StrategyGraph(props: StrategyGraphProps) {
     setUserHasMoved,
     autoFitReset: autoFit.reset,
     setSelectedNodeIds,
-    selectedNodeIdsRef,
   });
 
   const isDraftView = !!draftStrategy && strategy?.id === draftStrategy.id;
@@ -419,10 +417,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
 
   useEffect(() => {
     const forceRelayout =
-      lastLayoutSeedRef.current !== layoutSeed ||
-      lastStrategyIdRef.current !== (strategy?.id || null);
-    lastLayoutSeedRef.current = layoutSeed;
-    lastStrategyIdRef.current = strategy?.id || null;
+      prevLayoutSeed !== layoutSeed || prevStrategyId !== (strategy?.id || null);
 
     const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
       strategy,
@@ -451,6 +446,8 @@ export function StrategyGraph(props: StrategyGraphProps) {
     handleAddToChat,
     handleOpenDetails,
     layoutSeed,
+    prevLayoutSeed,
+    prevStrategyId,
     resetNodeHistory,
     dirtyStepIds,
     isUnsaved,
@@ -471,7 +468,6 @@ export function StrategyGraph(props: StrategyGraphProps) {
   useSavedSnapshotSync({
     strategy,
     planHash,
-    lastSnapshotIdRef,
     setLastSavedPlanHash: noopSetLastSavedPlanHash,
     setLastSavedSteps,
     buildStepSignature,

@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  startTransition,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
+import { usePrevious } from "@/shared/hooks/usePrevious";
 import type { RecordType, Search, SearchValidationResponse } from "@pathfinder/shared";
 import { getRecordTypes, getSearches, validateSearchParams } from "@/lib/api/client";
 import type { StrategyStep } from "@/types/strategy";
@@ -66,7 +60,7 @@ export function StepEditor({
   const dependentOptions: Record<string, VocabOption[]> = {};
   const dependentLoading: Record<string, boolean> = {};
   const dependentErrors: Record<string, string | null> = {};
-  const lastStepIdRef = useRef<string | null>(null);
+  const prevStepId = usePrevious(step.id);
   const [rawParams, setRawParams] = useState(
     JSON.stringify(step.parameters || {}, null, 2),
   );
@@ -87,8 +81,6 @@ export function StepEditor({
       searchName ? searchOptions.some((option) => option.name === searchName) : true,
     [searchName, searchOptions],
   );
-  const lastSpecKeyRef = useRef<string | null>(null);
-
   const filteredSearchOptions = useMemo(() => {
     const query = editableSearchName.trim().toLowerCase();
     if (!query) return searchOptions;
@@ -228,31 +220,29 @@ export function StepEditor({
     };
   }, [siteId, recordType, resolveRecordTypeForSearch]);
 
+  const resolvedSpecRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
+  const specKey = `${step.id}:${resolvedSpecRecordType || ""}:${searchName || ""}`;
+  const prevSpecKey = usePrevious(specKey);
+
   useEffect(() => {
-    const resolvedRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
-    const nextKey = `${step.id}:${resolvedRecordType || ""}:${searchName || ""}`;
-    if (lastSpecKeyRef.current === null) {
-      lastSpecKeyRef.current = nextKey;
-      return;
-    }
-    if (lastSpecKeyRef.current === nextKey) return;
-    lastSpecKeyRef.current = nextKey;
+    if (prevSpecKey === undefined) return;
+    if (prevSpecKey === specKey) return;
     startTransition(() => {
       setParameters({});
       setRawParams("{}");
     });
-  }, [searchName, selectedSearch, resolveRecordTypeForSearch, step.id]);
+  }, [specKey, prevSpecKey]);
 
   useEffect(() => {
+    const isNewStep = prevStepId !== step.id;
+    if (!isNewStep) return;
+
     const nextParams = coerceParametersForSpecs(
       (step.parameters || {}) as Record<string, unknown>,
       paramSpecs,
       // Normal UI flow: do not accept/parse stringified arrays or CSV.
       { allowStringParsing: false },
     );
-    const isNewStep = lastStepIdRef.current !== step.id;
-    if (!isNewStep) return;
-
     const nextOldName = step.displayName;
     const nextName = nextOldName;
     const nextSearchName = step.searchName || "";
@@ -270,8 +260,8 @@ export function StepEditor({
       setRawParams(nextRawParams);
       setShowRaw(false);
     });
-    lastStepIdRef.current = step.id;
   }, [
+    prevStepId,
     paramSpecs,
     recordType,
     step.colocationParams,

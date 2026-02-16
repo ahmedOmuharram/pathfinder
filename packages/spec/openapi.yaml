@@ -1841,6 +1841,15 @@ components:
           anyOf:
           - $ref: '#/components/schemas/JSONArray'
           - type: 'null'
+        reasoning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reasoning
+        optimizationProgress:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
         timestamp:
           type: string
           format: date-time

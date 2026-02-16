@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Node } from "reactflow";
 import type { StrategyWithMeta } from "@/types/strategy";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
@@ -17,7 +17,6 @@ const areNodeIdsEqual = (a: string[], b: string[]) => {
 export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs) {
   const [interactionMode, setInteractionMode] = useState<"select" | "pan">("pan");
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-  const selectedNodeIdsRef = useRef<string[]>([]);
   const setPendingAskNode = useSessionStore((s) => s.setPendingAskNode);
 
   const buildSelectionPayload = useCallback(
@@ -35,10 +34,13 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
   );
 
   const handleAddSelectionToChat = useCallback(() => {
-    const currentSelection = selectedNodeIdsRef.current;
-    if (currentSelection.length === 0) return;
-    const detail = buildSelectionPayload(currentSelection);
-    setPendingAskNode(detail);
+    setSelectedNodeIds((currentSelection) => {
+      if (currentSelection.length > 0) {
+        const detail = buildSelectionPayload(currentSelection);
+        setPendingAskNode(detail);
+      }
+      return currentSelection;
+    });
   }, [buildSelectionPayload, setPendingAskNode]);
 
   const handleSelectionChange = useCallback(
@@ -47,7 +49,6 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
       const nextIds = selectedNodes.map((node) => node.id).sort();
       setSelectedNodeIds((prev) => {
         if (areNodeIdsEqual(prev, nextIds)) return prev;
-        selectedNodeIdsRef.current = nextIds;
         return nextIds;
       });
     },
@@ -59,7 +60,6 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
     setInteractionMode,
     selectedNodeIds,
     setSelectedNodeIds,
-    selectedNodeIdsRef,
     handleAddToChat,
     handleAddSelectionToChat,
     handleSelectionChange,

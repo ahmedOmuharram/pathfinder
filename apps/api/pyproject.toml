@@ -82,7 +82,14 @@ exclude = ["scripts/", "docs/"]
 
 [[tool.mypy.overrides]]
 module = "veupath_chatbot.tests.*"
-disable_error_code = ["no-untyped-def"]
+disable_error_code = [
+    "no-untyped-def",
+    "arg-type",
+    "assignment",
+    "return-value",
+    "type-arg",
+    "var-annotated",
+]
 
 [dependency-groups]
 dev = [

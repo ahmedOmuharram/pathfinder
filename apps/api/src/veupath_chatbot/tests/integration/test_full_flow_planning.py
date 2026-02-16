@@ -286,9 +286,9 @@ class TestParameterOptimization:
                             [
                                 {
                                     "name": "fold_change",
-                                    "type": "float",
-                                    "low": 1.5,
-                                    "high": 5.0,
+                                    "type": "numeric",
+                                    "min": 1.5,
+                                    "max": 5.0,
                                 }
                             ]
                         ),

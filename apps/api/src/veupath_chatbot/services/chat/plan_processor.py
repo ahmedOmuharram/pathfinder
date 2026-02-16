@@ -9,6 +9,7 @@ from veupath_chatbot.persistence.models import PlanSession
 from veupath_chatbot.persistence.repo import PlanSessionRepository
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.chat.events import OPTIMIZATION_PROGRESS
 from veupath_chatbot.services.chat.sse import sse_error, sse_event, sse_message_start
 from veupath_chatbot.services.chat.thinking import (
     build_thinking_payload,
@@ -42,6 +43,7 @@ class PlanStreamProcessor:
         self.citations: JSONArray = []
         self.planning_artifacts: JSONArray = []
         self.reasoning: str | None = None
+        self.optimization_progress: JSONObject | None = None
 
         self.thinking_dirty = False
 
@@ -109,6 +111,9 @@ class PlanStreamProcessor:
                 self.thinking_dirty = True
                 await self._flush_thinking()
 
+        elif event_type == OPTIMIZATION_PROGRESS:
+            self.optimization_progress = event_data
+
         elif event_type == "plan_update":
             title = event_data.get("title")
             if isinstance(title, str) and title.strip():
@@ -153,6 +158,10 @@ class PlanStreamProcessor:
                     msg["citations"] = self.citations
                 if self.planning_artifacts:
                     msg["planningArtifacts"] = self.planning_artifacts
+                if self.reasoning:
+                    msg["reasoning"] = self.reasoning
+                if self.optimization_progress:
+                    msg["optimizationProgress"] = self.optimization_progress
             await self.plan_repo.add_message(self.plan_session.id, msg)
 
         if self.planning_artifacts:

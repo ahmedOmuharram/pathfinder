@@ -14,7 +14,7 @@ from veupath_chatbot.integrations.veupathdb.factory import (
 )
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.errors import ErrorCode, WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -417,6 +417,37 @@ class ExecutionTools:
 
         The URL can be used to download results in the specified format.
         """
+        if not isinstance(wdk_step_id, int) or wdk_step_id <= 0:
+            return self._tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "wdk_step_id must be a positive integer.",
+                wdk_step_id=wdk_step_id,
+                expected="positive integer",
+            )
+        if format not in {"csv", "tab", "json"}:
+            return self._tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "format must be one of: csv, tab, json.",
+                format=format,
+                allowed=["csv", "tab", "json"],
+            )
+        if attributes is not None:
+            if len(attributes) == 0:
+                return self._tool_error(
+                    ErrorCode.VALIDATION_ERROR,
+                    "attributes cannot be an empty list when provided.",
+                    attributes=attributes,
+                )
+            bad_attrs = [
+                a for a in attributes if not isinstance(a, str) or not a.strip()
+            ]
+            if bad_attrs:
+                return self._tool_error(
+                    ErrorCode.VALIDATION_ERROR,
+                    "attributes must contain non-empty strings.",
+                    invalidAttributes=cast(JSONValue, bad_attrs),
+                )
+
         try:
             results_api = self._get_results_api()
             url = await results_api.get_download_url(
@@ -424,13 +455,62 @@ class ExecutionTools:
                 format=format,
                 attributes=attributes,
             )
+            if not isinstance(url, str) or not url:
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB did not provide a usable download URL for this step. "
+                    "This usually means the temporary result is still being prepared "
+                    "or the upstream payload shape changed.",
+                    wdk_step_id=wdk_step_id,
+                    format=format,
+                )
             return {
                 "downloadUrl": url,
                 "format": format,
                 "stepId": wdk_step_id,
             }
+        except WDKError as e:
+            if e.status == 404:
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "Step not found in VEuPathDB. The step ID may be stale, from a different session, or not built yet. Build/rebuild the strategy and use a fresh step ID from this run.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            if e.status == 400 and "reportName" in (e.detail or ""):
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB rejected the download request payload (missing/invalid reportName). This is a server integration issue, not your step data.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            if e.status in (401, 403):
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "Not authorized to download this step in VEuPathDB. Re-authenticate and retry, or use a step ID from your own strategy.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            if e.status >= 500:
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB is temporarily unavailable while generating the download URL. Please retry in a moment.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            return self._tool_error(
+                ErrorCode.WDK_ERROR,
+                f"VEuPathDB rejected get_download_url for step {wdk_step_id}: {e.detail}",
+                wdk_step_id=wdk_step_id,
+                http_status=e.status,
+            )
         except Exception as e:
-            return self._tool_error(ErrorCode.WDK_ERROR, str(e))
+            return self._tool_error(
+                ErrorCode.WDK_ERROR,
+                "Failed to generate download URL from VEuPathDB.",
+                wdk_step_id=wdk_step_id,
+                detail=str(e),
+            )
 
     @ai_function()
     async def get_sample_records(
@@ -442,11 +522,30 @@ class ExecutionTools:
 
         Returns the first N records to show the user what data is available.
         """
-        try:
-            results_api = self._get_results_api()
-            preview_raw = await results_api.get_step_preview(
-                step_id=wdk_step_id,
+        if not isinstance(wdk_step_id, int) or wdk_step_id <= 0:
+            return self._tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "wdk_step_id must be a positive integer.",
+                wdk_step_id=wdk_step_id,
+                expected="positive integer",
+            )
+        if not isinstance(limit, int) or limit < 1 or limit > 500:
+            return self._tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "limit must be an integer between 1 and 500.",
                 limit=limit,
+                min=1,
+                max=500,
+            )
+
+        try:
+            # Use the standard report endpoint via StrategyAPI rather than the
+            # legacy /answer endpoint. This avoids opaque 404s on deployments
+            # that do not expose /answer for current-user steps.
+            strategy_api = self._get_api()
+            preview_raw = await strategy_api.get_step_answer(
+                step_id=wdk_step_id,
+                pagination={"offset": 0, "numRecords": limit},
             )
             if not isinstance(preview_raw, dict):
                 raise TypeError("Expected dict from get_step_preview")
@@ -471,5 +570,38 @@ class ExecutionTools:
                 "totalCount": total_count,
                 "attributes": attributes,
             }
+        except WDKError as e:
+            if e.status == 404:
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "Step not found in VEuPathDB. The step ID may be stale, from a different session, or not built yet. Build/rebuild the strategy and use a fresh step ID from this run.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            if e.status in (401, 403):
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "Not authorized to read this step in VEuPathDB. Re-authenticate and retry, or use a step ID from your own strategy.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            if e.status >= 500:
+                return self._tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB is temporarily unavailable while reading step records. Please retry in a moment.",
+                    wdk_step_id=wdk_step_id,
+                    http_status=e.status,
+                )
+            return self._tool_error(
+                ErrorCode.WDK_ERROR,
+                f"VEuPathDB rejected get_sample_records for step {wdk_step_id}: {e.detail}",
+                wdk_step_id=wdk_step_id,
+                http_status=e.status,
+            )
         except Exception as e:
-            return self._tool_error(ErrorCode.WDK_ERROR, str(e))
+            return self._tool_error(
+                ErrorCode.WDK_ERROR,
+                "Failed to fetch sample records from VEuPathDB.",
+                wdk_step_id=wdk_step_id,
+                detail=str(e),
+            )

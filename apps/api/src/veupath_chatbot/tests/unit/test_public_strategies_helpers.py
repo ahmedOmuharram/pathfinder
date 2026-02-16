@@ -55,7 +55,7 @@ def test_simplify_strategy_details_prefers_step_map_fields() -> None:
             }
         },
     }
-    compact = simplify_strategy_details(details)  # type: ignore[arg-type]
+    compact = simplify_strategy_details(details)
     assert compact["recordClassName"] == details["recordClassName"]
     assert compact["rootStepId"] == 123
     assert isinstance(compact["stepTree"], dict)
@@ -72,7 +72,7 @@ def test_full_strategy_payload_includes_steps_and_tree() -> None:
         "stepTree": {"stepId": "1"},
         "steps": {},
     }
-    payload = full_strategy_payload(details)  # type: ignore[arg-type]
+    payload = full_strategy_payload(details)
     assert payload["recordClassName"] == "x"
     assert payload["rootStepId"] == 1
     assert payload["stepTree"] == {"stepId": "1"}
@@ -88,7 +88,7 @@ def test_embedding_text_for_example_includes_search_name_and_params() -> None:
             "parameters": {"p": "value"},
         },
     }
-    text = embedding_text_for_example(name="N", description="D", compact=compact)  # type: ignore[arg-type]
+    text = embedding_text_for_example(name="N", description="D", compact=compact)
     assert "N" in text
     assert "D" in text
     assert "search_q" in text

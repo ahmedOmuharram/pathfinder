@@ -13,6 +13,73 @@ describe("features/chat/utils", () => {
     expect(mergeMessages([a], [a, b])).toHaveLength(2);
   });
 
+  it("mergeMessages preserves local optimizationProgress when server returns null", () => {
+    const localOpt = {
+      optimizationId: "o1",
+      status: "completed" as const,
+      currentTrial: 5,
+      totalTrials: 5,
+    };
+    const local = [
+      {
+        role: "assistant",
+        content: "done",
+        optimizationProgress: localOpt,
+        timestamp: "t1",
+      },
+    ] as any;
+    const incoming = [
+      {
+        role: "assistant",
+        content: "done",
+        optimizationProgress: null,
+        timestamp: "t1",
+      },
+    ] as any;
+    const result = mergeMessages(local, incoming);
+    expect(result[0].optimizationProgress).toEqual(localOpt);
+  });
+
+  it("mergeMessages preserves local optimizationProgress when server returns undefined", () => {
+    const localOpt = {
+      optimizationId: "o1",
+      status: "completed" as const,
+      currentTrial: 5,
+      totalTrials: 5,
+    };
+    const local = [
+      {
+        role: "assistant",
+        content: "done",
+        optimizationProgress: localOpt,
+        timestamp: "t1",
+      },
+    ] as any;
+    const incoming = [{ role: "assistant", content: "done", timestamp: "t1" }] as any;
+    const result = mergeMessages(local, incoming);
+    expect(result[0].optimizationProgress).toEqual(localOpt);
+  });
+
+  it("mergeMessages uses server optimizationProgress when it has data", () => {
+    const serverOpt = {
+      optimizationId: "o2",
+      status: "completed" as const,
+      currentTrial: 10,
+      totalTrials: 10,
+    };
+    const local = [{ role: "assistant", content: "done", timestamp: "t1" }] as any;
+    const incoming = [
+      {
+        role: "assistant",
+        content: "done",
+        optimizationProgress: serverOpt,
+        timestamp: "t1",
+      },
+    ] as any;
+    const result = mergeMessages(local, incoming);
+    expect(result[0].optimizationProgress).toEqual(serverOpt);
+  });
+
   it("parseToolArguments handles objects and JSON strings safely", () => {
     expect(parseToolArguments(null)).toEqual({});
     expect(parseToolArguments({ a: 1 })).toEqual({ a: 1 });

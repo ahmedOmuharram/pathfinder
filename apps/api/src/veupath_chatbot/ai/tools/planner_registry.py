@@ -736,23 +736,98 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
         This is a long-running operation. The user will see real-time progress
         in the UI. Always confirm the plan with the user before calling this.
         """
+
+        def _err(msg: str) -> str:
+            return json.dumps({"error": msg})
+
+        # -- scalar argument validation ----------------------------------------
+
+        if not record_type or not record_type.strip():
+            return _err("record_type is required and must be a non-empty string.")
+
+        if not search_name or not search_name.strip():
+            return _err("search_name is required and must be a non-empty string.")
+
+        if not controls_search_name or not controls_search_name.strip():
+            return _err(
+                "controls_search_name is required and must be a non-empty string."
+            )
+
+        if not controls_param_name or not controls_param_name.strip():
+            return _err(
+                "controls_param_name is required and must be a non-empty string."
+            )
+
+        has_positives = positive_controls and len(positive_controls) > 0
+        has_negatives = negative_controls and len(negative_controls) > 0
+        if not has_positives and not has_negatives:
+            return _err(
+                "At least one of positive_controls or negative_controls must be "
+                "provided with at least one ID. Without any controls the optimiser "
+                "has no signal to score against."
+            )
+
+        _valid_objectives = ("f1", "f_beta", "recall", "precision", "custom")
+        if objective not in _valid_objectives:
+            return _err(
+                f"Invalid objective '{objective}'. "
+                f"Must be one of: {', '.join(repr(o) for o in _valid_objectives)}."
+            )
+
+        _valid_methods = ("bayesian", "grid", "random")
+        if method not in _valid_methods:
+            return _err(
+                f"Invalid method '{method}'. "
+                f"Must be one of: {', '.join(repr(m) for m in _valid_methods)}."
+            )
+
+        _valid_formats: tuple[str, ...] = ("newline", "json_list", "comma")
+        if controls_value_format not in _valid_formats:
+            return _err(
+                f"Invalid controls_value_format '{controls_value_format}'. "
+                f"Must be one of: {', '.join(repr(f) for f in _valid_formats)}."
+            )
+
+        if not isinstance(budget, int) or budget < 1:
+            return _err(f"budget must be a positive integer, got {budget!r}.")
+        if budget > 200:
+            return _err(
+                f"budget={budget} exceeds the maximum of 200. "
+                "Use a smaller budget or narrow the parameter space."
+            )
+
+        if objective == "f_beta" and (not isinstance(beta, (int, float)) or beta <= 0):
+            return _err(
+                f"beta must be a positive number when objective is 'f_beta', got {beta!r}."
+            )
+
+        # -- JSON argument parsing & validation --------------------------------
+
         try:
             raw_space = json.loads(parameter_space_json)
         except (json.JSONDecodeError, TypeError) as exc:
-            return json.dumps(
-                {"error": f"parameter_space_json is not valid JSON: {exc}"}
-            )
+            return _err(f"parameter_space_json is not valid JSON: {exc}")
 
         if not isinstance(raw_space, list):
-            return json.dumps({"error": "parameter_space_json must be a JSON array"})
+            return _err("parameter_space_json must be a JSON array.")
+
+        if len(raw_space) == 0:
+            return _err(
+                "parameter_space_json is an empty array. "
+                "Provide at least one parameter to optimise."
+            )
 
         try:
             fixed_parameters: JSONObject = (
                 json.loads(fixed_parameters_json) if fixed_parameters_json else {}
             )
         except (json.JSONDecodeError, TypeError) as exc:
-            return json.dumps(
-                {"error": f"fixed_parameters_json is not valid JSON: {exc}"}
+            return _err(f"fixed_parameters_json is not valid JSON: {exc}")
+
+        if not isinstance(fixed_parameters, dict):
+            return _err(
+                "fixed_parameters_json must be a JSON object (dict), "
+                f"got {type(fixed_parameters).__name__}."
             )
 
         controls_extra_parameters: JSONObject | None = None
@@ -760,23 +835,90 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
             try:
                 controls_extra_parameters = json.loads(controls_extra_parameters_json)
             except (json.JSONDecodeError, TypeError) as exc:
-                return json.dumps(
-                    {
-                        "error": f"controls_extra_parameters_json is not valid JSON: {exc}"
-                    }
+                return _err(f"controls_extra_parameters_json is not valid JSON: {exc}")
+            if not isinstance(controls_extra_parameters, dict):
+                return _err(
+                    "controls_extra_parameters_json must be a JSON object (dict), "
+                    f"got {type(controls_extra_parameters).__name__}."
                 )
 
+        # -- parameter_space entry validation ----------------------------------
+
+        _valid_param_types = ("numeric", "integer", "categorical")
+
         specs: list[ParameterSpec] = []
-        for p in raw_space:
+        seen_names: set[str] = set()
+        for i, p in enumerate(raw_space):
             if not isinstance(p, dict):
-                continue
-            ptype = str(p.get("type", "numeric"))
-            if ptype not in ("numeric", "integer", "categorical"):
-                ptype = "numeric"
+                return _err(
+                    f"parameter_space[{i}] must be an object, got {type(p).__name__}."
+                )
+
+            pname = p.get("name")
+            if not pname or not isinstance(pname, str):
+                return _err(f"parameter_space[{i}] is missing a 'name' string field.")
+
+            if pname in seen_names:
+                return _err(
+                    f"parameter_space[{i}]: duplicate parameter name '{pname}'. "
+                    "Each parameter must have a unique name."
+                )
+            seen_names.add(pname)
+
+            ptype = p.get("type")
+            if ptype not in _valid_param_types:
+                return _err(
+                    f"parameter_space[{i}] ('{pname}'): "
+                    f"invalid type '{ptype}'. "
+                    f"Must be one of: {', '.join(repr(t) for t in _valid_param_types)}."
+                )
+
+            if ptype in ("numeric", "integer"):
+                if "min" not in p or "max" not in p:
+                    return _err(
+                        f"parameter_space[{i}] ('{pname}'): "
+                        f"type '{ptype}' requires both 'min' and 'max' fields."
+                    )
+                try:
+                    lo = float(p["min"])
+                    hi = float(p["max"])
+                except TypeError, ValueError:
+                    return _err(
+                        f"parameter_space[{i}] ('{pname}'): "
+                        f"'min' and 'max' must be numbers, "
+                        f"got min={p['min']!r}, max={p['max']!r}."
+                    )
+                if lo >= hi:
+                    return _err(
+                        f"parameter_space[{i}] ('{pname}'): "
+                        f"'min' ({lo}) must be strictly less than 'max' ({hi})."
+                    )
+                if "step" in p:
+                    try:
+                        step_val = float(p["step"])
+                    except TypeError, ValueError:
+                        return _err(
+                            f"parameter_space[{i}] ('{pname}'): "
+                            f"'step' must be a number, got {p['step']!r}."
+                        )
+                    if step_val <= 0:
+                        return _err(
+                            f"parameter_space[{i}] ('{pname}'): "
+                            f"'step' must be positive, got {step_val}."
+                        )
+
+            if ptype == "categorical":
+                choices_raw = p.get("choices")
+                if not isinstance(choices_raw, list) or len(choices_raw) == 0:
+                    return _err(
+                        f"parameter_space[{i}] ('{pname}'): "
+                        f"type 'categorical' requires a non-empty 'choices' array."
+                    )
+
             specs.append(
                 ParameterSpec(
-                    name=str(p.get("name", "")),
-                    param_type=ptype,  # type: ignore[arg-type]
+                    name=pname,
+                    param_type=ptype,
                     min_value=float(p["min"]) if "min" in p else None,
                     max_value=float(p["max"]) if "max" in p else None,
                     log_scale=bool(p.get("logScale", False)),
@@ -789,18 +931,13 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
                 )
             )
 
-        obj = (
-            objective
-            if objective in ("f1", "f_beta", "recall", "precision", "custom")
-            else "f1"
-        )
-        meth = method if method in ("bayesian", "grid", "random") else "bayesian"
+        # -- build config ------------------------------------------------------
 
         config = OptimizationConfig(
-            budget=max(1, min(budget, 200)),
-            objective=obj,  # type: ignore[arg-type]
+            budget=budget,
+            objective=objective,  # type: ignore[arg-type]
             beta=beta,
-            method=meth,  # type: ignore[arg-type]
+            method=method,  # type: ignore[arg-type]
             result_count_penalty=max(0.0, result_count_penalty),
         )
 

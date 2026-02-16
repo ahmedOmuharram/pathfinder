@@ -125,6 +125,48 @@ def _parse_wdk_strategy_id(item: JSONObject) -> int | None:
     return None
 
 
+def _is_internal_control_test_name(name: str | None) -> bool:
+    if not isinstance(name, str):
+        return False
+    if not is_internal_wdk_strategy_name(name):
+        return False
+    return strip_internal_wdk_strategy_name(name).startswith("Pathfinder control test")
+
+
+async def _cleanup_internal_control_test_strategies(
+    *,
+    api: StrategyAPI,
+    site_id: str,
+    wdk_items: JSONArray,
+) -> None:
+    """Delete leaked internal control-test strategies from the user's WDK workspace."""
+    if not isinstance(wdk_items, list):
+        return
+    for item in wdk_items:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not _is_internal_control_test_name(name if isinstance(name, str) else None):
+            continue
+        wdk_id = _parse_wdk_strategy_id(item)
+        if wdk_id is None:
+            continue
+        try:
+            await api.delete_strategy(wdk_id)
+            logger.info(
+                "Deleted leaked internal control-test WDK strategy",
+                site_id=site_id,
+                wdk_strategy_id=wdk_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to delete leaked internal control-test strategy",
+                site_id=site_id,
+                wdk_strategy_id=wdk_id,
+                error=str(e),
+            )
+
+
 @router.post("/open", response_model=OpenStrategyResponse)
 async def open_strategy(
     request: OpenStrategyRequest,
@@ -293,6 +335,9 @@ async def sync_all_wdk_strategies(
     try:
         api = get_strategy_api(site.id)
         wdk_items = await api.list_strategies()
+        await _cleanup_internal_control_test_strategies(
+            api=api, site_id=site.id, wdk_items=wdk_items
+        )
     except Exception as e:
         logger.warning("WDK list failed during sync", site_id=site.id, error=str(e))
         wdk_items = []

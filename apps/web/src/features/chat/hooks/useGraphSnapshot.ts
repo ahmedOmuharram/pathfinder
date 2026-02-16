@@ -2,15 +2,13 @@ import { useCallback } from "react";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import { buildStrategyFromGraphSnapshot } from "@/features/chat/utils/graphSnapshot";
-import type { MutableRef } from "@/shared/types/refs";
+import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 
 interface UseGraphSnapshotArgs {
   siteId: string;
   strategyId: string | null;
   stepsById: Record<string, StrategyStep>;
-  strategyRef: MutableRef<StrategyWithMeta | null>;
-  pendingUndoSnapshotRef: MutableRef<StrategyWithMeta | null>;
-  appliedSnapshotRef: MutableRef<boolean>;
+  sessionRef: { current: StreamingSession | null };
   setStrategy: (strategy: StrategyWithMeta) => void;
   setStrategyMeta: (meta: {
     name?: string;
@@ -23,9 +21,7 @@ export function useGraphSnapshot({
   siteId,
   strategyId,
   stepsById,
-  strategyRef,
-  pendingUndoSnapshotRef,
-  appliedSnapshotRef,
+  sessionRef,
   setStrategy,
   setStrategyMeta,
 }: UseGraphSnapshotArgs) {
@@ -37,16 +33,14 @@ export function useGraphSnapshot({
       if (strategyId && snapshotId !== strategyId) {
         return;
       }
-      const snapshot = strategyRef.current;
-      if (!pendingUndoSnapshotRef.current && snapshot && snapshot.id === snapshotId) {
-        pendingUndoSnapshotRef.current = snapshot;
-      }
+      const session = sessionRef.current;
+      session?.captureUndoSnapshot(snapshotId);
       const nextStrategy = buildStrategyFromGraphSnapshot({
         snapshotId,
         siteId,
         graphSnapshot,
         stepsById,
-        existingStrategy: snapshot,
+        existingStrategy: session?.latestStrategy ?? null,
       });
       setStrategy(nextStrategy);
       setStrategyMeta({
@@ -54,18 +48,9 @@ export function useGraphSnapshot({
         description: nextStrategy.description,
         recordType: nextStrategy.recordType ?? undefined,
       });
-      appliedSnapshotRef.current = true;
+      session?.markSnapshotApplied();
     },
-    [
-      strategyId,
-      strategyRef,
-      pendingUndoSnapshotRef,
-      siteId,
-      stepsById,
-      setStrategy,
-      setStrategyMeta,
-      appliedSnapshotRef,
-    ],
+    [strategyId, sessionRef, siteId, stepsById, setStrategy, setStrategyMeta],
   );
 
   return { applyGraphSnapshot };

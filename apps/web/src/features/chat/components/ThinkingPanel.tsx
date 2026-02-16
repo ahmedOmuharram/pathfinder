@@ -47,14 +47,18 @@ export function ThinkingPanel(props: {
   // Nothing to show and not streaming — hide entirely.
   if (!isStreaming && !hasAnyContent) return null;
 
-  // Streaming but no content yet — show compact animated dots.
+  // Streaming but no content yet — show compact animated dots; parent provides 85% width.
   if (isStreaming && !hasAnyContent) {
-    return <PulsingDots />;
+    return (
+      <div className="w-full animate-fade-in">
+        <PulsingDots />
+      </div>
+    );
   }
 
   return (
-    <div className="flex justify-start animate-fade-in">
-      <div className="max-w-[85%]">
+    <div className="flex w-full justify-start animate-fade-in">
+      <div className="w-full">
         <details
           open
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"

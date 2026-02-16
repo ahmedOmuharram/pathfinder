@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
-import type { MutableRef } from "@/shared/types/refs";
+import { usePrevious } from "@/shared/hooks/usePrevious";
 
 export function useSavedSnapshotSync(args: {
   strategy: StrategyWithMeta | null;
   planHash: string | null;
-  lastSnapshotIdRef: MutableRef<string | null>;
   setLastSavedPlanHash: (value: string | null) => void;
   setLastSavedSteps: (value: Map<string, string>) => void;
   buildStepSignature: (step: StrategyStep) => string;
@@ -14,18 +13,18 @@ export function useSavedSnapshotSync(args: {
   const {
     strategy,
     planHash,
-    lastSnapshotIdRef,
     setLastSavedPlanHash,
     setLastSavedSteps,
     buildStepSignature,
     bumpLastSavedStepsVersion,
   } = args;
 
+  const snapshotId = strategy?.id || null;
+  const prevSnapshotId = usePrevious(snapshotId);
+
   useEffect(() => {
-    const snapshotId = strategy?.id || null;
-    if (!snapshotId || snapshotId === lastSnapshotIdRef.current) return;
+    if (!snapshotId || snapshotId === prevSnapshotId) return;
     if (!planHash) return;
-    lastSnapshotIdRef.current = snapshotId;
     setLastSavedPlanHash(planHash);
     if (strategy?.steps) {
       setLastSavedSteps(
@@ -34,11 +33,11 @@ export function useSavedSnapshotSync(args: {
       bumpLastSavedStepsVersion();
     }
   }, [
-    strategy?.id,
+    snapshotId,
+    prevSnapshotId,
     strategy?.steps,
     planHash,
     buildStepSignature,
-    lastSnapshotIdRef,
     setLastSavedPlanHash,
     setLastSavedSteps,
     bumpLastSavedStepsVersion,

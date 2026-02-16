@@ -1,4 +1,8 @@
-export type AppErrorCode = "INVARIANT_VIOLATION" | "SERIALIZE_FAILED" | "UNKNOWN";
+export type AppErrorCode =
+  | "INVARIANT_VIOLATION"
+  | "SERIALIZE_FAILED"
+  | "TIMEOUT"
+  | "UNKNOWN";
 
 /**
  * A typed, application-level error for client-side failures that are not API errors.

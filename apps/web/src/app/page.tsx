@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePrevious } from "@/shared/hooks/usePrevious";
 import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
@@ -48,15 +49,14 @@ export default function HomePage() {
   const pendingAskNode = useSessionStore((state) => state.pendingAskNode);
   const setPendingAskNode = useSessionStore((state) => state.setPendingAskNode);
 
-  const lastSiteRef = useRef<string | null>(null);
+  const prevSite = usePrevious(selectedSite);
 
   useEffect(() => {
-    if (lastSiteRef.current && lastSiteRef.current !== selectedSite) {
+    if (prevSite && prevSite !== selectedSite) {
       setStrategyId(null);
       clearStrategy();
     }
-    lastSiteRef.current = selectedSite;
-  }, [selectedSite, setStrategyId, clearStrategy]);
+  }, [selectedSite, prevSite, setStrategyId, clearStrategy]);
 
   /** Intercept site changes: confirm if there's an active strategy to avoid data loss. */
   const handleSiteChange = useCallback(
@@ -79,11 +79,12 @@ export default function HomePage() {
   }, [pendingSiteChange, setSelectedSite]);
 
   // Re-derive the internal pathfinder-auth token from the live VEuPathDB session.
-  const authRefreshedRef = useRef(false);
+  const authRefreshed = useSessionStore((state) => state.authRefreshed);
+  const setAuthRefreshed = useSessionStore((state) => state.setAuthRefreshed);
   useEffect(() => {
     if (!veupathdbSignedIn) return;
-    if (authRefreshedRef.current) return;
-    authRefreshedRef.current = true;
+    if (authRefreshed) return;
+    setAuthRefreshed(true);
     refreshAuth()
       .then((result) => {
         if (result.authToken) setAuthToken(result.authToken);
@@ -91,7 +92,7 @@ export default function HomePage() {
       .catch(() => {
         setAuthToken(null);
       });
-  }, [veupathdbSignedIn, setAuthToken]);
+  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, setAuthToken]);
 
   const hasGraph = !!(strategy && strategy.steps.length > 0);
 
@@ -250,9 +251,9 @@ export default function HomePage() {
         onInsert={(insertedStrategy) => {
           setShowInsertStrategy(false);
           setReferenceStrategyId(insertedStrategy.id);
-          // Prefill the composer with a mention of the strategy
+          const mode = useSessionStore.getState().strategyId ? "execute" : "plan";
           useSessionStore.getState().setComposerPrefill({
-            mode: "plan",
+            mode,
             message: `[Using strategy: "${insertedStrategy.name}" — ${insertedStrategy.steps.length} steps] `,
           });
         }}
