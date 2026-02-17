@@ -98,7 +98,7 @@ export function AssistantMessageParts({
     : { summaries: [], rejected: [] };
 
   return (
-    <div className="flex max-w-[85%] flex-col gap-1">
+    <div className="flex flex-col gap-1">
       {parts.map((part) => {
         switch (part.tag) {
           case "thought":

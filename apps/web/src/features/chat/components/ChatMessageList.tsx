@@ -14,6 +14,7 @@ import { ChatMarkdown } from "@/features/chat/components/ChatMarkdown";
 import { ThinkingPanel } from "@/features/chat/components/ThinkingPanel";
 import { OptimizationProgressPanel } from "@/features/chat/components/OptimizationProgressPanel";
 import { AssistantMessageParts } from "@/features/chat/components/AssistantMessageParts";
+import { formatMessageTime } from "@/lib/formatTime";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -143,30 +144,37 @@ export function ChatMessageList({
                         <ChatMarkdown content={decoded.message} tone="onDark" />
                       </div>
                     )}
+                    <MessageTimestamp iso={message.timestamp} align="right" />
                   </div>
                 ) : message.role === "assistant" ? (
-                  <AssistantMessageParts
-                    index={index}
-                    message={message}
-                    messageKey={messageKey}
-                    isLive={isLive}
-                    thinking={thinking}
-                    optimizationProgress={isLive ? optimizationProgress : null}
-                    onCancelOptimization={onCancelOptimization}
-                    onApplyPlanningArtifact={onApplyPlanningArtifact}
-                    expandedSources={expandedSources}
-                    setExpandedSources={setExpandedSources}
-                    showCitationTags={showCitationTags}
-                    setShowCitationTags={setShowCitationTags}
-                    undoSnapshot={undoSnapshot}
-                    onUndoSnapshot={onUndoSnapshot}
-                  />
+                  <div className="flex max-w-[85%] flex-col gap-1">
+                    <AssistantMessageParts
+                      index={index}
+                      message={message}
+                      messageKey={messageKey}
+                      isLive={isLive}
+                      thinking={thinking}
+                      optimizationProgress={isLive ? optimizationProgress : null}
+                      onCancelOptimization={onCancelOptimization}
+                      onApplyPlanningArtifact={onApplyPlanningArtifact}
+                      expandedSources={expandedSources}
+                      setExpandedSources={setExpandedSources}
+                      showCitationTags={showCitationTags}
+                      setShowCitationTags={setShowCitationTags}
+                      undoSnapshot={undoSnapshot}
+                      onUndoSnapshot={onUndoSnapshot}
+                    />
+                    {!isLive && (
+                      <MessageTimestamp iso={message.timestamp} align="left" />
+                    )}
+                  </div>
                 ) : (
                   /* ---- Plain user text message ---- */
                   <div className="flex max-w-[85%] flex-col gap-1">
                     <div className="rounded-lg px-3 py-2 bg-slate-900 text-white selection:bg-white selection:text-slate-900">
                       <ChatMarkdown content={message.content} tone="onDark" />
                     </div>
+                    <MessageTimestamp iso={message.timestamp} align="right" />
                   </div>
                 )}
               </div>
@@ -198,5 +206,19 @@ export function ChatMessageList({
         <div ref={messagesEndRef} />
       </div>
     </div>
+  );
+}
+
+function MessageTimestamp({ iso, align }: { iso: string; align: "left" | "right" }) {
+  const text = formatMessageTime(iso);
+  if (!text) return null;
+  return (
+    <span
+      className={`block text-[10px] leading-none text-slate-400 select-none ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      {text}
+    </span>
   );
 }

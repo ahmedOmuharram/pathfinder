@@ -13,7 +13,7 @@ interface LoginGateProps {
  */
 export function LoginGate({ selectedSite, onSiteChange }: LoginGateProps) {
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-900">
+    <div className="flex h-full flex-col bg-slate-50 text-slate-900">
       <div className="border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">

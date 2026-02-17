@@ -2,6 +2,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreVertical } from "lucide-react";
 import type { StrategyListItem } from "@/features/sidebar/utils/strategyItems";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
+import { formatSidebarTime } from "@/lib/formatTime";
 
 interface ConversationListItemProps {
   item: ConversationItem;
@@ -93,7 +94,7 @@ export function ConversationListItem({
             )}
           </div>
           <div className="text-[10px] text-slate-500">
-            {new Date(item.updatedAt).toLocaleString()}
+            {formatSidebarTime(item.updatedAt)}
           </div>
         </button>
       )}

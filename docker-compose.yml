@@ -17,7 +17,8 @@ services:
       QDRANT_URL: http://qdrant:6333
       DEFAULT_MODEL_ID: ${DEFAULT_MODEL_ID:-openai/gpt-5}
       DEFAULT_REASONING_EFFORT: ${DEFAULT_REASONING_EFFORT:-medium}
-      # Enable dev login for E2E tests and local development.
+      # "mock" = fake chat (no API key needed; used by E2E). Set PATHFINDER_CHAT_PROVIDER=
+      # (or any non-mock value) in .env to use real LLM chat.
       PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:-mock}
 
   web:

@@ -383,12 +383,13 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
 
         plan_json = json.dumps(plan, ensure_ascii=True, indent=2, sort_keys=True)
         msg = (
-            "Build this strategy using delegation.\n\n"
-            "You MUST call `delegate_strategy_subtasks(goal, plan)` with the JSON below.\n"
-            "Use any per-task `context` fields as required parameters/constraints.\n\n"
+            f"Build this strategy.\n\n"
             f"Goal:\n{goal}\n\n"
-            "Delegation plan (JSON):\n"
-            f"```\n{plan_json}\n```\n"
+            "Plan (JSON):\n"
+            f"```\n{plan_json}\n```\n\n"
+            "You may build the steps directly or use `delegate_strategy_subtasks(goal, plan)` "
+            "to delegate — choose whichever approach is most appropriate for the complexity "
+            "of the plan. Use any per-task `context` fields as required parameters/constraints.\n"
         )
         if additional_instructions and str(additional_instructions).strip():
             msg += (
@@ -930,8 +931,6 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
                     ),
                 )
             )
-
-        # -- build config ------------------------------------------------------
 
         config = OptimizationConfig(
             budget=budget,
