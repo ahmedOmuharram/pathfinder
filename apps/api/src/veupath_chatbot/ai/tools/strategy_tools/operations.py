@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import cast
 
-from veupath_chatbot.services.strategy_session import StrategySession
-from veupath_chatbot.services.strategy_tools.base import StrategyToolsBase
+from veupath_chatbot.domain.strategy.session import StrategySession
+from veupath_chatbot.services.strategies.engine.base import StrategyToolsBase
 
 from .attachment_ops import StrategyAttachmentOps
 from .discovery_ops import StrategyDiscoveryOps

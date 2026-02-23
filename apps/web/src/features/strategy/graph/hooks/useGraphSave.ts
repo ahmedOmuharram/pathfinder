@@ -3,9 +3,9 @@ import { normalizePlan, updateStrategy } from "@/lib/api/client";
 import { APIError } from "@/lib/api/http";
 import { toUserMessage } from "@/lib/api/errors";
 import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
-import type { CombineMismatchGroup } from "@/core/strategyGraph";
-import type { MutableRef } from "@/shared/types/refs";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { CombineMismatchGroup } from "@/lib/strategyGraph";
+import type { MutableRef } from "@/lib/types/refs";
 
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(

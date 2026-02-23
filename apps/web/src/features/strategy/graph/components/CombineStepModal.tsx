@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 
 export interface PendingCombine {
   sourceId: string;

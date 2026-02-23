@@ -5,7 +5,7 @@ import type {
   PlanningArtifact,
   ToolCall,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { ChatMarkdown } from "@/features/chat/components/ChatMarkdown";
 import { ChatThinkingDetails } from "@/features/chat/components/ChatThinkingDetails";
 import { OptimizationProgressPanel } from "@/features/chat/components/OptimizationProgressPanel";

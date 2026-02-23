@@ -1,6 +1,6 @@
 import { APIError } from "./http";
-import { AppError } from "@/shared/errors/AppError";
-import { isRecord } from "@/shared/utils/isRecord";
+import { AppError } from "@/lib/errors/AppError";
+import { isRecord } from "@/lib/utils/isRecord";
 
 export type ProblemDetail = {
   type?: string;

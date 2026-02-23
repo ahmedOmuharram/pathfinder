@@ -1,5 +1,5 @@
-import type { StrategyStep } from "@/types/strategy";
-import { inferStepKind } from "@/core/strategyGraph";
+import type { StrategyStep } from "@/features/strategy/types";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 export function getZeroResultSuggestions(step: StrategyStep): string[] {
   const suggestions: string[] = [];

@@ -1,0 +1,68 @@
+import type {
+  ExperimentConfig,
+  EnrichmentAnalysisType,
+  ParamSpec,
+} from "@pathfinder/shared";
+import { flattenVocab, isMultiPickParam, buildDisplayMap } from "../paramUtils";
+
+export interface BuildConfigInput {
+  siteId: string;
+  selectedRecordType: string;
+  selectedSearch: string;
+  parameters: Record<string, string>;
+  paramSpecs: ParamSpec[];
+  positiveControls: string[];
+  negativeControls: string[];
+  enableCV: boolean;
+  kFolds: number;
+  enrichments: Set<EnrichmentAnalysisType>;
+  name: string;
+  controlsSearchName: string;
+  controlsParamName: string;
+}
+
+export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig {
+  const {
+    siteId,
+    selectedRecordType,
+    selectedSearch,
+    parameters,
+    paramSpecs,
+    positiveControls,
+    negativeControls,
+    enableCV,
+    kFolds,
+    enrichments,
+    name,
+    controlsSearchName,
+    controlsParamName,
+  } = input;
+
+  const fixedParams: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parameters)) {
+    if (v === "") continue;
+    const spec = paramSpecs.find((s) => s.name === k);
+    if (spec && isMultiPickParam(spec)) {
+      fixedParams[k] = v.split(",").filter(Boolean);
+    } else {
+      fixedParams[k] = v;
+    }
+  }
+
+  return {
+    siteId,
+    recordType: selectedRecordType,
+    searchName: selectedSearch,
+    parameters: fixedParams,
+    positiveControls,
+    negativeControls,
+    controlsSearchName,
+    controlsParamName,
+    controlsValueFormat: "newline",
+    enableCrossValidation: enableCV,
+    kFolds,
+    enrichmentTypes: Array.from(enrichments) as EnrichmentAnalysisType[],
+    name: name || `${selectedSearch} experiment`,
+    parameterDisplayValues: buildDisplayMap(parameters, paramSpecs),
+  };
+}

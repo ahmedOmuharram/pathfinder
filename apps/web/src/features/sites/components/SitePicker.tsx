@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/client";
 import type { VEuPathDBSite as Site } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 
 interface SitePickerProps {
   value: string;

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { AppError } from "@/shared/errors/AppError";
+import { AppError } from "@/lib/errors/AppError";
 
-vi.mock("@/core/strategyGraph", () => ({
+vi.mock("@/lib/strategyGraph", () => ({
   serializeStrategyPlan: vi.fn(),
 }));
 
-import { serializeStrategyPlan } from "@/core/strategyGraph";
+import { serializeStrategyPlan } from "@/lib/strategyGraph";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 
 describe("buildDuplicatePlan", () => {

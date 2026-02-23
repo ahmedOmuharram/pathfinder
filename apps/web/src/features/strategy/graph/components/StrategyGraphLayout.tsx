@@ -12,7 +12,7 @@ import ReactFlow, {
   SelectionMode,
   type NodeTypes,
 } from "reactflow";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import { GraphToolbar } from "@/features/strategy/graph/components/GraphToolbar";
 import { GraphWdkBadge } from "@/features/strategy/graph/components/GraphWdkBadge";
 import { StrategyGraphActionButtons } from "@/features/strategy/graph/components/StrategyGraphActionButtons";

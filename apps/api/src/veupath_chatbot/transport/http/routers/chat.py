@@ -52,6 +52,9 @@ async def chat(
         model_override=request.model_id,
         reasoning_effort=request.reasoning_effort,
         reference_strategy_id=request.reference_strategy_id,
+        mentions=[m.model_dump(by_alias=True) for m in request.mentions]
+        if request.mentions
+        else None,
     )
     return StreamingResponse(
         sse_iter,

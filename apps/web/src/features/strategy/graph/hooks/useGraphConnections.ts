@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Connection, Edge } from "reactflow";
 import { CombineOperator } from "@pathfinder/shared";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import {
   buildGraphIndices,
   edgeToInputPatch,

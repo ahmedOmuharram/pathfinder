@@ -4,13 +4,13 @@
 
 import { create } from "zustand";
 import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import {
   getRootSteps,
   getRootStepId,
   serializeStrategyPlan,
-} from "@/core/strategyGraph";
-import { inferStepKind } from "@/core/strategyGraph";
+} from "@/lib/strategyGraph";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 const isUrlLike = (value: string | null | undefined) =>
   typeof value === "string" &&

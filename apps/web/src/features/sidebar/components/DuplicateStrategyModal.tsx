@@ -1,4 +1,4 @@
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import type { DuplicateModalState } from "@/features/sidebar/utils/duplicateModalState";
 import {
   applyDuplicateSubmitFailure,

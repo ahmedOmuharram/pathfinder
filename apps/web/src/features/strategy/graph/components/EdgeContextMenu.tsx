@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import type { Edge } from "reactflow";
 import { CombineOperator } from "@pathfinder/shared";
-import type { StrategyStep } from "@/types/strategy";
-import { inferStepKind } from "@/core/strategyGraph";
+import type { StrategyStep } from "@/features/strategy/types";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 const COMBINE_OPERATORS: readonly CombineOperator[] = [
   CombineOperator.INTERSECT,

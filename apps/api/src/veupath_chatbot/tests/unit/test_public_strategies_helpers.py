@@ -1,5 +1,4 @@
-from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.vectorstore.ingest.public_strategies_helpers import (
+from veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers import (
     backoff_delay_seconds,
     embedding_text_for_example,
     full_strategy_payload,
@@ -7,6 +6,7 @@ from veupath_chatbot.services.vectorstore.ingest.public_strategies_helpers impor
     simplify_strategy_details,
     truncate,
 )
+from veupath_chatbot.platform.types import JSONObject
 
 
 def test_backoff_delay_seconds_caps_at_8() -> None:

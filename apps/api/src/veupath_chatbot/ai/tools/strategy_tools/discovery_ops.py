@@ -16,7 +16,7 @@ from veupath_chatbot.platform.types import (
     JSONObject,
     JSONValue,
 )
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 
 class StrategyDiscoveryOps(StrategyToolsHelpers):

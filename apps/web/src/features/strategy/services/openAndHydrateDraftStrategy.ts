@@ -1,4 +1,4 @@
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { buildDraftStrategySummary } from "@/features/strategy/utils/draftSummary";
 
 export async function openAndHydrateDraftStrategy(args: {

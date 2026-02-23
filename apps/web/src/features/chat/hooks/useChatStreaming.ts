@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type {
+  ChatMention,
   Message,
   ToolCall,
   ChatMode,
@@ -14,7 +15,7 @@ import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
 import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -133,6 +134,7 @@ export function useChatStreaming({
         strategyId?: string;
         planSessionId?: string;
         referenceStrategyId?: string;
+        mentions?: ChatMention[];
       },
     ) => {
       setIsStreaming(true);
@@ -320,7 +322,7 @@ export function useChatStreaming({
 
   /** User-initiated send — appends a visible user message then streams. */
   const handleSendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, mentions?: ChatMention[]) => {
       const finalContent = encodeNodeSelection(draftSelection, content);
       const userMessage: Message = {
         role: "user",
@@ -337,10 +339,12 @@ export function useChatStreaming({
           ? {
               planSessionId: planSessionId ?? undefined,
               referenceStrategyId: referenceStrategyId ?? undefined,
+              mentions,
             }
           : {
               strategyId: strategyId ?? undefined,
               referenceStrategyId: referenceStrategyId ?? undefined,
+              mentions,
             };
 
       await executeStream(finalContent, mode, streamContext);

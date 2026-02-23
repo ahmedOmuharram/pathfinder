@@ -1,4 +1,4 @@
-import { isRecord } from "@/shared/utils/isRecord";
+import { isRecord } from "@/lib/utils/isRecord";
 
 export function parseToolArguments(args: unknown): Record<string, unknown> {
   if (!args) return {};

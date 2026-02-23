@@ -1,5 +1,5 @@
 import { buildUrl, getAuthHeaders } from "./api/http";
-import { AppError } from "@/shared/errors/AppError";
+import { AppError } from "@/lib/errors/AppError";
 
 export type RawSSEEvent = { type: string; data: string };
 

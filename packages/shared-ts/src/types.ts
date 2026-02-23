@@ -663,3 +663,227 @@ export interface DownloadResponse {
   downloadUrl: string;
   expiresAt: string;
 }
+
+// Experiment Lab Types
+
+export type EnrichmentAnalysisType =
+  | "go_function"
+  | "go_component"
+  | "go_process"
+  | "pathway"
+  | "word";
+
+export type ExperimentStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "error"
+  | "cancelled";
+
+export type ExperimentProgressPhase =
+  | "started"
+  | "optimizing"
+  | "evaluating"
+  | "cross_validating"
+  | "enriching"
+  | "completed"
+  | "error";
+
+export interface ConfusionMatrix {
+  truePositives: number;
+  falsePositives: number;
+  trueNegatives: number;
+  falseNegatives: number;
+}
+
+export interface ExperimentMetrics {
+  confusionMatrix: ConfusionMatrix;
+  sensitivity: number;
+  specificity: number;
+  precision: number;
+  negativePredictiveValue: number;
+  falsePositiveRate: number;
+  falseNegativeRate: number;
+  f1Score: number;
+  mcc: number;
+  balancedAccuracy: number;
+  youdensJ: number;
+  totalResults: number;
+  totalPositives: number;
+  totalNegatives: number;
+}
+
+export interface GeneInfo {
+  id: string;
+  name?: string | null;
+  organism?: string | null;
+  product?: string | null;
+}
+
+export interface FoldMetrics {
+  foldIndex: number;
+  metrics: ExperimentMetrics;
+  positiveControlIds: string[];
+  negativeControlIds: string[];
+}
+
+export interface CrossValidationResult {
+  k: number;
+  folds: FoldMetrics[];
+  meanMetrics: ExperimentMetrics;
+  stdMetrics: Record<string, number>;
+  overfittingScore: number;
+  overfittingLevel: "low" | "moderate" | "high";
+}
+
+export interface EnrichmentTerm {
+  termId: string;
+  termName: string;
+  geneCount: number;
+  backgroundCount: number;
+  foldEnrichment: number;
+  oddsRatio: number;
+  pValue: number;
+  fdr: number;
+  bonferroni: number;
+  genes: string[];
+}
+
+export interface EnrichmentResult {
+  analysisType: EnrichmentAnalysisType;
+  terms: EnrichmentTerm[];
+  totalGenesAnalyzed: number;
+  backgroundSize: number;
+}
+
+export interface OptimizeSpec {
+  name: string;
+  type: "numeric" | "integer" | "categorical";
+  min?: number;
+  max?: number;
+  step?: number;
+  choices?: string[];
+}
+
+export interface ExperimentConfig {
+  siteId: string;
+  recordType: string;
+  searchName: string;
+  parameters: Record<string, unknown>;
+  positiveControls: string[];
+  negativeControls: string[];
+  controlsSearchName: string;
+  controlsParamName: string;
+  controlsValueFormat?: string;
+  enableCrossValidation: boolean;
+  kFolds: number;
+  enrichmentTypes: EnrichmentAnalysisType[];
+  name: string;
+  description?: string;
+  optimizationSpecs?: OptimizeSpec[];
+  parameterDisplayValues?: Record<string, string>;
+  optimizationBudget?: number;
+  optimizationObjective?: string;
+  parentExperimentId?: string | null;
+}
+
+export interface OptimizationTrialResult {
+  trialNumber: number;
+  parameters: Record<string, unknown>;
+  score: number;
+  recall: number | null;
+  falsePositiveRate: number | null;
+  resultCount: number | null;
+}
+
+export interface OptimizationResult {
+  optimizationId: string;
+  status: string;
+  bestTrial: OptimizationTrialResult | null;
+  allTrials: OptimizationTrialResult[];
+  paretoFrontier: OptimizationTrialResult[];
+  sensitivity: Record<string, number>;
+  totalTimeSeconds: number;
+  totalTrials: number;
+  errorMessage: string | null;
+}
+
+export interface Experiment {
+  id: string;
+  config: ExperimentConfig;
+  status: ExperimentStatus;
+  metrics: ExperimentMetrics | null;
+  crossValidation: CrossValidationResult | null;
+  enrichmentResults: EnrichmentResult[];
+  truePositiveGenes: GeneInfo[];
+  falseNegativeGenes: GeneInfo[];
+  falsePositiveGenes: GeneInfo[];
+  trueNegativeGenes: GeneInfo[];
+  optimizationResult: OptimizationResult | null;
+  notes: string | null;
+  batchId: string | null;
+  error: string | null;
+  totalTimeSeconds: number | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface ExperimentSummary {
+  id: string;
+  name: string;
+  siteId: string;
+  searchName: string;
+  recordType: string;
+  status: ExperimentStatus;
+  f1Score: number | null;
+  sensitivity: number | null;
+  specificity: number | null;
+  totalPositives: number;
+  totalNegatives: number;
+  createdAt: string;
+  batchId: string | null;
+}
+
+export interface TrialProgressData {
+  currentTrial: number;
+  totalTrials: number;
+  trial: {
+    trialNumber: number;
+    score: number;
+    recall: number | null;
+    falsePositiveRate: number | null;
+    resultCount: number | null;
+    parameters: Record<string, unknown>;
+  };
+  bestTrial: {
+    trialNumber: number;
+    score: number;
+    parameters: Record<string, unknown>;
+  } | null;
+  recentTrials: {
+    trialNumber: number;
+    score: number;
+  }[];
+}
+
+export interface ExperimentProgressData {
+  experimentId: string;
+  phase: ExperimentProgressPhase;
+  message?: string;
+  metrics?: ExperimentMetrics | null;
+  cvFoldIndex?: number;
+  cvTotalFolds?: number;
+  enrichmentType?: EnrichmentAnalysisType;
+  trialProgress?: TrialProgressData;
+  error?: string;
+}
+
+// Chat @-Mention References
+
+export type ChatMentionType = "strategy" | "experiment";
+
+export interface ChatMention {
+  type: ChatMentionType;
+  id: string;
+  displayName: string;
+}

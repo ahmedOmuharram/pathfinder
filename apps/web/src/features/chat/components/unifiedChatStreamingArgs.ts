@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ChatMode, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -69,7 +69,7 @@ interface BuildUnifiedChatStreamingArgsParams {
   currentModelSelection: ReturnType<
     typeof import("@/features/chat/components/MessageComposer").buildModelSelection
   >;
-  referenceStrategyIdProp: string | null;
+  referenceStrategyIdProp?: string | null;
   onPlanSessionId: (id: string) => void;
   onPlanningArtifactUpdate: (artifact: PlanningArtifact) => void;
   onExecutorBuildRequest: (message: string) => void;

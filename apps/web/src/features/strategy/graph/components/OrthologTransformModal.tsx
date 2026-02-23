@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, startTransition } from "react";
 import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/client";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 
 function looksLikeOrthologSearch(s: Search) {
   const hay =

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from veupath_chatbot.ai.model_catalog import MODEL_CATALOG, ModelProvider
+from veupath_chatbot.ai.models.catalog import MODEL_CATALOG, ModelProvider
 from veupath_chatbot.platform.config import get_settings
 
 router = APIRouter(prefix="/api/v1", tags=["models"])

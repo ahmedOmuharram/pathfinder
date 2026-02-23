@@ -9,7 +9,7 @@ from kani import AIParam, ai_function
 from veupath_chatbot.domain.strategy.ast import StepAnalysis, StepFilter, StepReport
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 
 class StrategyAttachmentOps(StrategyToolsHelpers):

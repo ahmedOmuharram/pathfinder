@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Square, FileText } from "lucide-react";
+import { Square, X } from "lucide-react";
 import type {
+  ChatMention,
   ChatMode,
   ModelCatalogEntry,
   ModelSelection,
@@ -11,9 +12,10 @@ import type {
 import { useSessionStore } from "@/state/useSessionStore";
 import { ModelPicker } from "./ModelPicker";
 import { ReasoningToggle } from "./ReasoningToggle";
+import { MentionAutocomplete } from "./MentionAutocomplete";
 
 interface MessageComposerProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, mentions?: ChatMention[]) => void;
   disabled?: boolean;
   /** Current mode — used for composer prefill matching (plan vs execute). */
   mode?: ChatMode;
@@ -27,10 +29,10 @@ interface MessageComposerProps {
   /** Current reasoning effort. */
   reasoningEffort?: ReasoningEffort;
   onReasoningChange?: (effort: ReasoningEffort) => void;
-  /** Callback to open insert-strategy modal (shown when no strategy is attached). */
-  onInsertStrategy?: () => void;
   /** Server default model ID for the current mode — shown in the picker. */
   serverDefaultModelId?: string | null;
+  /** Site ID for @-mention data fetching. */
+  siteId: string;
 }
 
 export function MessageComposer({
@@ -44,10 +46,15 @@ export function MessageComposer({
   onModelChange,
   reasoningEffort = "medium",
   onReasoningChange,
-  onInsertStrategy,
   serverDefaultModelId,
+  siteId,
 }: MessageComposerProps) {
   const [message, setMessage] = useState("");
+  const [mentions, setMentions] = useState<ChatMention[]>([]);
+  const [mentionActive, setMentionActive] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionPos, setMentionPos] = useState({ top: 0, left: 0 });
+  const mentionStartRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Allow external prefill (e.g. from planning mode "Build in executor").
@@ -79,25 +86,69 @@ export function MessageComposer({
   const selectedModel = models.find((m) => m.id === effectiveModelId);
   const supportsReasoning = selectedModel?.supportsReasoning ?? false;
 
+  const checkMentionTrigger = useCallback((value: string, cursorPos: number) => {
+    const before = value.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf("@");
+    if (
+      atIdx === -1 ||
+      (atIdx > 0 && before[atIdx - 1] !== " " && before[atIdx - 1] !== "\n")
+    ) {
+      setMentionActive(false);
+      return;
+    }
+    const query = before.slice(atIdx + 1);
+    if (query.includes(" ") && query.length > 20) {
+      setMentionActive(false);
+      return;
+    }
+    mentionStartRef.current = atIdx;
+    setMentionQuery(query);
+    setMentionPos({ top: 36, left: 8 });
+    setMentionActive(true);
+  }, []);
+
+  const handleMentionSelect = useCallback(
+    (mention: ChatMention) => {
+      const start = mentionStartRef.current ?? 0;
+      const before = message.slice(0, start);
+      const textarea = textareaRef.current;
+      const cursorPos = textarea?.selectionStart ?? message.length;
+      const after = message.slice(cursorPos);
+      const token = `@${mention.type === "strategy" ? "Strategy" : "Experiment"}: ${mention.displayName} `;
+      setMessage(before + token + after);
+      setMentions((prev) => [...prev, mention]);
+      setMentionActive(false);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    },
+    [message],
+  );
+
+  const removeMention = useCallback((idx: number) => {
+    setMentions((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      if (mentionActive) return;
       if (message.trim() && !disabled) {
-        onSend(message.trim());
+        onSend(message.trim(), mentions.length > 0 ? mentions : undefined);
         setMessage("");
+        setMentions([]);
       }
     },
-    [message, disabled, onSend],
+    [message, disabled, onSend, mentions, mentionActive],
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (mentionActive) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit(e);
       }
     },
-    [handleSubmit],
+    [handleSubmit, mentionActive],
   );
 
   return (
@@ -123,31 +174,50 @@ export function MessageComposer({
             disabled={isStreaming}
           />
         )}
-
-        {/* Reference strategy button (visible when no strategy is attached / plan mode) */}
-        {onInsertStrategy && (
-          <button
-            type="button"
-            onClick={onInsertStrategy}
-            disabled={isStreaming}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FileText className="h-3 w-3" aria-hidden />
-            Reference a Strategy
-          </button>
-        )}
       </div>
 
+      {/* Mention chips */}
+      {mentions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {mentions.map((m, i) => (
+            <span
+              key={`${m.type}-${m.id}`}
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+            >
+              {m.type === "strategy" ? "Strategy" : "Experiment"}: {m.displayName}
+              <button
+                type="button"
+                onClick={() => removeMention(i)}
+                className="ml-0.5 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Input row */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+      <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
+        <MentionAutocomplete
+          siteId={siteId}
+          query={mentionQuery}
+          position={mentionPos}
+          visible={mentionActive}
+          onSelect={handleMentionSelect}
+          onDismiss={() => setMentionActive(false)}
+        />
         <textarea
           ref={textareaRef}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            checkMentionTrigger(e.target.value, e.target.selectionStart ?? 0);
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           data-testid="message-input"
-          placeholder="Ask me to build a search strategy or describe your research question..."
+          placeholder="Ask a question... Use @ to reference strategies or experiments"
           rows={1}
           className="min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
         />

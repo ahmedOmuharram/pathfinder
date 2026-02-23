@@ -7,11 +7,11 @@ from typing import Annotated, Protocol, cast
 from kani import AIParam, ai_function
 
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.strategy_tools.graph_integrity import (
+from veupath_chatbot.services.strategies.engine.graph_integrity import (
     find_root_step_ids,
     validate_graph_integrity,
 )
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 
 class CreateStepProtocol(Protocol):

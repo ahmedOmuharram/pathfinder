@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Node } from "reactflow";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
 import { useSessionStore } from "@/state/useSessionStore";
 

@@ -1,6 +1,6 @@
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { NodeSelection } from "@/features/chat/node_selection";
-import { inferStepKind } from "@/core/strategyGraph";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 export function buildNodeSelectionPayload(
   strategy: StrategyWithMeta | null,

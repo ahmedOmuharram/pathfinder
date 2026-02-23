@@ -1,4 +1,4 @@
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 
 /**
  * Mutable state scoped to a single chat streaming session.

@@ -1,4 +1,4 @@
-from veupath_chatbot.ai.delegation_plan import build_delegation_plan
+from veupath_chatbot.ai.orchestration.delegation import build_delegation_plan
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 

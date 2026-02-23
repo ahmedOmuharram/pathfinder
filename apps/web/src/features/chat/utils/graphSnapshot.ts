@@ -1,4 +1,4 @@
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 
 export interface GraphSnapshotStepInput {
   id: string;

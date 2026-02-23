@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 
 describe("buildNodeSelectionPayload", () => {
   test("includes selected node(s) plus one-hop context (inputs + parents of selected inputs)", () => {

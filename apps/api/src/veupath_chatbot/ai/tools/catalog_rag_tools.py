@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from typing import cast
 
-from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.embeddings.openai_embeddings import embed_one
-from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
-from veupath_chatbot.services.vectorstore.collections import (
+from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
+from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
+from veupath_chatbot.integrations.vectorstore.collections import (
     WDK_RECORD_TYPES_V1,
     WDK_SEARCHES_V1,
 )
-from veupath_chatbot.services.vectorstore.dependent_vocab_cache import (
+from veupath_chatbot.integrations.vectorstore.dependent_vocab_cache import (
     get_dependent_vocab_authoritative_cached,
 )
-from veupath_chatbot.services.vectorstore.qdrant_store import QdrantStore, point_uuid
+from veupath_chatbot.integrations.vectorstore.qdrant_store import (
+    QdrantStore,
+    point_uuid,
+)
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 
 class CatalogRagTools:

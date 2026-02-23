@@ -4,7 +4,7 @@
 
 import { create } from "zustand";
 import type { StrategySummary } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 
 interface StrategyListState {
   strategies: StrategySummary[];

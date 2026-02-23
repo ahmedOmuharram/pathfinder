@@ -1,7 +1,7 @@
 import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
-import { serializeStrategyPlan } from "@/core/strategyGraph";
-import { AppError } from "@/shared/errors/AppError";
+import type { StrategyWithMeta } from "@/features/strategy/types";
+import { serializeStrategyPlan } from "@/lib/strategyGraph";
+import { AppError } from "@/lib/errors/AppError";
 
 export function buildDuplicatePlan(args: {
   baseStrategy: StrategyWithMeta;

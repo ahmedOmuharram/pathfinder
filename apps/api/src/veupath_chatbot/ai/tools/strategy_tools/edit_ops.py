@@ -11,7 +11,7 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 
 class StrategyEditOps(StrategyToolsHelpers):

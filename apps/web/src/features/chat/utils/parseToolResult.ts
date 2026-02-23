@@ -1,4 +1,4 @@
-import { isRecord } from "@/shared/utils/isRecord";
+import { isRecord } from "@/lib/utils/isRecord";
 
 export function parseToolResult(
   result?: string | null,

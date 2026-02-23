@@ -6,7 +6,7 @@ import type {
   PlanningArtifact,
   OptimizationProgressData,
 } from "@pathfinder/shared";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 

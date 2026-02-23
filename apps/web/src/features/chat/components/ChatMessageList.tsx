@@ -6,7 +6,7 @@ import type {
   OptimizationProgressData,
 } from "@pathfinder/shared";
 import type { ChatMode } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { decodeNodeSelection } from "@/features/chat/node_selection";
 import { ChatEmptyState } from "@/features/chat/components/ChatEmptyState";
 import { NodeCard } from "@/features/chat/components/NodeCard";

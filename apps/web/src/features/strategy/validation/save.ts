@@ -1,10 +1,10 @@
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import { validateSearchParams } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
-import { getRootSteps, validateStrategySteps } from "@/core/strategyGraph";
+import { getRootSteps, validateStrategySteps } from "@/lib/strategyGraph";
 import { normalizeRecordType } from "@/features/strategy/recordType";
-import { inferStepKind } from "@/core/strategyGraph";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 export async function validateStepsForSave(args: {
   siteId: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
 
 function step(partial: Partial<StrategyStep> & { id: string }): StrategyStep {

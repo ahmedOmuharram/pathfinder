@@ -6,7 +6,7 @@ import type {
   PlanningArtifact,
   ToolCall,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { ChatEventContext } from "./handleChatEvent.types";
 
 export function snapshotSubKaniActivityFromBuffers(

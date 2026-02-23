@@ -1,4 +1,4 @@
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 
 interface DeleteConversationModalProps {

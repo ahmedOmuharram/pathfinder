@@ -1,5 +1,5 @@
-import suggestedQuestions from "@/data/suggestedQuestions.json";
-import { isRecord } from "@/shared/utils/isRecord";
+import suggestedQuestions from "@/features/chat/data/suggestedQuestions.json";
+import { isRecord } from "@/lib/utils/isRecord";
 
 type SuggestedQuestionsData = Record<string, string[] | undefined>;
 

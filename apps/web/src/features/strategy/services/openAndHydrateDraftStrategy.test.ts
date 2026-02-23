@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { openAndHydrateDraftStrategy } from "@/features/strategy/services/openAndHydrateDraftStrategy";
 
 describe("openAndHydrateDraftStrategy", () => {

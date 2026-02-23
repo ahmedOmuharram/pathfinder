@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.services.vectorstore.ingest.public_strategies import (
+from veupath_chatbot.integrations.vectorstore.ingest.public_strategies import (
     ingest_public_strategies,
 )
-from veupath_chatbot.services.vectorstore.ingest.wdk_catalog import ingest_wdk_catalog
+from veupath_chatbot.integrations.vectorstore.ingest.wdk_catalog import (
+    ingest_wdk_catalog,
+)
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 

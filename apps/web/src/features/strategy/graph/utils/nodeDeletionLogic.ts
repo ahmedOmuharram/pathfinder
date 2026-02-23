@@ -1,4 +1,4 @@
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 
 export type NodeDeletionResult = {
   removeIds: string[];

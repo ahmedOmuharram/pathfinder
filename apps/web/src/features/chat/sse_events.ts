@@ -5,9 +5,9 @@ import type {
   PlanningArtifact,
   OptimizationProgressData,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { RawSSEEvent } from "@/lib/sse";
-import { isRecord } from "@/shared/utils/isRecord";
+import { isRecord } from "@/lib/utils/isRecord";
 
 export type ChatSSEEvent =
   | {

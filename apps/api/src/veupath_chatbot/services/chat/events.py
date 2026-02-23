@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.strategy_session import StrategyGraph
 
 GRAPH_SNAPSHOT = "graph_snapshot"
 GRAPH_PLAN = "graph_plan"

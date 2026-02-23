@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { Pencil } from "lucide-react";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import {
   buildSpineLayout,
   type CompactStep,

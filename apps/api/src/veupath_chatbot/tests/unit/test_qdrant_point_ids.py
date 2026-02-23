@@ -1,4 +1,4 @@
-from veupath_chatbot.services.vectorstore.qdrant_store import point_uuid
+from veupath_chatbot.integrations.vectorstore.qdrant_store import point_uuid
 
 
 def test_point_uuid_is_deterministic() -> None:

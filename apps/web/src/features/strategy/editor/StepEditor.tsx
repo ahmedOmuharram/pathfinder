@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
-import { usePrevious } from "@/shared/hooks/usePrevious";
+import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { RecordType, Search, SearchValidationResponse } from "@pathfinder/shared";
 import { getRecordTypes, getSearches, validateSearchParams } from "@/lib/api/client";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import { StepCombineOperatorSelect } from "./components/StepCombineOperatorSelect";
 import { StepEditorFooter } from "./components/StepEditorFooter";
 import { StepEditorHeader } from "./components/StepEditorHeader";
@@ -18,12 +18,12 @@ import {
   extractVocabOptions,
   type VocabOption,
 } from "./components/stepEditorUtils";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
 import { normalizeRecordType } from "@/features/strategy/recordType";
 import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
 import { toUserMessage } from "@/lib/api/errors";
-import { inferStepKind } from "@/core/strategyGraph";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 interface StepEditorProps {
   step: StrategyStep;

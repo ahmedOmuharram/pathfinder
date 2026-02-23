@@ -8,7 +8,7 @@ import {
   useState,
   startTransition,
 } from "react";
-import { usePrevious } from "@/shared/hooks/usePrevious";
+import { usePrevious } from "@/lib/hooks/usePrevious";
 import { CombineOperator } from "@pathfinder/shared";
 import {
   type Edge,
@@ -19,7 +19,7 @@ import {
   type NodeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
@@ -57,7 +57,7 @@ import {
   deserializeStrategyToGraph,
   getCombineMismatchGroups,
   inferStepKind,
-} from "@/core/strategyGraph";
+} from "@/lib/strategyGraph";
 
 interface StrategyGraphProps {
   strategy: StrategyWithMeta | null;

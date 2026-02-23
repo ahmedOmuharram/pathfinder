@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { StrategyStep, StrategyWithMeta } from "@/types/strategy";
+import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import { buildStrategyFromGraphSnapshot } from "@/features/chat/utils/graphSnapshot";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";

@@ -2,14 +2,16 @@ import { buildUrl, getAuthHeaders } from "@/lib/api/http";
 import { streamSSE } from "@/lib/sse";
 import type { ChatSSEEvent } from "./sse_events";
 import { parseChatSSEEvent } from "./sse_events";
-import { AppError } from "@/shared/errors/AppError";
-import type { ModelSelection } from "@pathfinder/shared";
+import { AppError } from "@/lib/errors/AppError";
+import type { ChatMention, ModelSelection } from "@pathfinder/shared";
 
 export interface StreamChatContext {
   strategyId?: string;
   planSessionId?: string;
-  /** Reference strategy to inject into plan-mode context. */
+  /** Legacy — prefer ``mentions`` instead. */
   referenceStrategyId?: string;
+  /** @-mention references to strategies and experiments. */
+  mentions?: ChatMention[];
 }
 
 export async function streamChat(
@@ -55,6 +57,7 @@ export async function streamChat(
           strategyId: context?.strategyId,
           planSessionId: context?.planSessionId,
           referenceStrategyId: context?.referenceStrategyId,
+          mentions: context?.mentions,
           mode,
           // Per-request model overrides
           provider: modelSelection?.provider,

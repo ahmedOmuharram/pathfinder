@@ -6,6 +6,7 @@ from kani import AIParam, ai_function
 
 from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.compile import compile_strategy
+from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_results_api,
@@ -18,7 +19,6 @@ from veupath_chatbot.platform.errors import ErrorCode, WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.strategy_session import StrategyGraph, StrategySession
 
 logger = get_logger(__name__)
 

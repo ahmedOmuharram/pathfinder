@@ -1,5 +1,5 @@
 import type { PlanningArtifact } from "@pathfinder/shared";
-import { isRecord } from "@/shared/utils/isRecord";
+import { isRecord } from "@/lib/utils/isRecord";
 
 export type DelegationDraft = {
   goal?: string;

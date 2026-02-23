@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Connection, Edge } from "reactflow";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import {
   buildGraphIndices,
   edgeToInputPatch,

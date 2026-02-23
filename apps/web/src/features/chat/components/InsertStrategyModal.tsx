@@ -6,9 +6,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import { listStrategies } from "@/lib/api/client";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import { Loader2, Search } from "lucide-react";
 
 interface InsertStrategyModalProps {

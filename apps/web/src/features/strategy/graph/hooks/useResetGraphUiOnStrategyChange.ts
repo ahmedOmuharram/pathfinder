@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { usePrevious } from "@/shared/hooks/usePrevious";
+import { usePrevious } from "@/lib/hooks/usePrevious";
 
 export function useResetGraphUiOnStrategyChange(args: {
   strategyId: string | undefined;

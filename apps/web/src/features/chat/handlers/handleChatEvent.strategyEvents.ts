@@ -1,4 +1,4 @@
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import type { ChatEventContext } from "./handleChatEvent.types";
 
 export function handleStrategyUpdateEvent(ctx: ChatEventContext, data: unknown) {

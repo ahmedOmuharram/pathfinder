@@ -12,6 +12,7 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from veupath_chatbot import __version__
+from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
 from veupath_chatbot.persistence.session import close_db, init_db
@@ -23,9 +24,9 @@ from veupath_chatbot.platform.errors import (
     http_exception_handler,
 )
 from veupath_chatbot.platform.logging import get_logger, setup_logging
-from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.transport.http.routers import (
     chat,
+    experiments,
     health,
     models,
     plans,
@@ -139,6 +140,7 @@ def create_app() -> FastAPI:
     app.include_router(strategies.router)
     app.include_router(steps.router)
     app.include_router(results.router)
+    app.include_router(experiments.router)
     app.include_router(veupathdb_auth.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).

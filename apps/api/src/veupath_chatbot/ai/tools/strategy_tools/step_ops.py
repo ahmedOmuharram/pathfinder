@@ -17,7 +17,7 @@ from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.strategy_tools.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 logger = get_logger(__name__)
 

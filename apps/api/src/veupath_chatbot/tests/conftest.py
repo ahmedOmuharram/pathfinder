@@ -298,7 +298,7 @@ def scripted_engine_factory() -> Callable[
         engine = ScriptedKaniEngine(turns)
         with (
             patch(
-                "veupath_chatbot.ai.agent_factory.create_engine",
+                "veupath_chatbot.ai.agents.factory.create_engine",
                 return_value=engine,
             ),
             patch.dict(

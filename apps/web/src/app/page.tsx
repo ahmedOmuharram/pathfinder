@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { usePrevious } from "@/shared/hooks/usePrevious";
+import { usePrevious } from "@/lib/hooks/usePrevious";
 import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
@@ -12,14 +12,14 @@ import { refreshAuth } from "@/lib/api/client";
 import { ToastContainer } from "@/app/components/ToastContainer";
 import { LoginGate } from "@/app/components/LoginGate";
 import { TopBar } from "@/app/components/TopBar";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
-import { useBuildStrategy } from "@/app/hooks/useBuildStrategy";
-import { Settings, X } from "lucide-react";
+import { useBuildStrategy } from "@/features/strategy/hooks/useBuildStrategy";
+import { FlaskConical, Settings, X } from "lucide-react";
+import Link from "next/link";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
-import { InsertStrategyModal } from "@/features/chat/components/InsertStrategyModal";
 
 export default function HomePage() {
   const { selectedSite, setSelectedSite } = useSessionStore();
@@ -44,8 +44,6 @@ export default function HomePage() {
   const [pendingSiteChange, setPendingSiteChange] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [graphEditing, setGraphEditing] = useState(false);
-  const [showInsertStrategy, setShowInsertStrategy] = useState(false);
-  const [referenceStrategyId, setReferenceStrategyId] = useState<string | null>(null);
   const pendingAskNode = useSessionStore((state) => state.pendingAskNode);
   const setPendingAskNode = useSessionStore((state) => state.setPendingAskNode);
 
@@ -124,15 +122,24 @@ export default function HomePage() {
         selectedSite={selectedSite}
         onSiteChange={handleSiteChange}
         actions={
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="rounded-md border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-            aria-label="Settings"
-            title="Settings"
-          >
-            <Settings className="h-4 w-4" aria-hidden />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/experiments"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+              Experiments
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="rounded-md border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         }
       />
 
@@ -158,9 +165,6 @@ export default function HomePage() {
               siteId={selectedSite}
               pendingAskNode={pendingAskNode}
               onConsumeAskNode={() => setPendingAskNode(null)}
-              onInsertStrategy={() => setShowInsertStrategy(true)}
-              referenceStrategyId={referenceStrategyId}
-              onConsumeReferenceStrategy={() => setReferenceStrategyId(null)}
             />
           </div>
 
@@ -241,22 +245,6 @@ export default function HomePage() {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         siteId={selectedSite}
-      />
-
-      {/* Insert strategy modal */}
-      <InsertStrategyModal
-        open={showInsertStrategy}
-        siteId={selectedSite}
-        onClose={() => setShowInsertStrategy(false)}
-        onInsert={(insertedStrategy) => {
-          setShowInsertStrategy(false);
-          setReferenceStrategyId(insertedStrategy.id);
-          const mode = useSessionStore.getState().strategyId ? "execute" : "plan";
-          useSessionStore.getState().setComposerPrefill({
-            mode,
-            message: `[Using strategy: "${insertedStrategy.name}" — ${insertedStrategy.steps.length} steps] `,
-          });
-        }}
       />
     </div>
   );

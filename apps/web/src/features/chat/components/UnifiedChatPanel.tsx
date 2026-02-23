@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, startTransition } from "react";
-import { usePrevious } from "@/shared/hooks/usePrevious";
+import { usePrevious } from "@/lib/hooks/usePrevious";
 import type {
   ChatMode,
   Message,
@@ -17,7 +17,7 @@ import type {
   StrategyPlan,
   ToolCall,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
+import type { StrategyWithMeta } from "@/features/strategy/types";
 import {
   APIError,
   getPlanSession,
@@ -60,20 +60,12 @@ interface UnifiedChatPanelProps {
   siteId: string;
   pendingAskNode?: Record<string, unknown> | null;
   onConsumeAskNode?: () => void;
-  onInsertStrategy?: () => void;
-  /** Reference strategy ID injected from insert-strategy modal. */
-  referenceStrategyId?: string | null;
-  /** Clear the reference strategy ID after it's consumed. */
-  onConsumeReferenceStrategy?: () => void;
 }
 
 export function UnifiedChatPanel({
   siteId,
   pendingAskNode = null,
   onConsumeAskNode,
-  onInsertStrategy,
-  referenceStrategyId: referenceStrategyIdProp = null,
-  onConsumeReferenceStrategy,
 }: UnifiedChatPanelProps) {
   // Global state
   const strategyId = useSessionStore((s) => s.strategyId);
@@ -373,7 +365,7 @@ export function UnifiedChatPanel({
     currentStrategy,
     attachThinkingToLastAssistant,
     currentModelSelection,
-    referenceStrategyIdProp,
+    referenceStrategyIdProp: null,
     onPlanSessionId,
     onPlanningArtifactUpdate,
     onExecutorBuildRequest,
@@ -401,21 +393,13 @@ export function UnifiedChatPanel({
 
   // Plan-mode: wrap send to bump list version
   const onSend = useCallback(
-    async (content: string) => {
+    async (content: string, mentions?: import("@pathfinder/shared").ChatMention[]) => {
       setChatIsStreaming(true);
       setApiError(null);
       if (chatMode === "plan") bumpPlanListVersion();
-      await handleSendRaw(content);
-      // Consume the reference strategy after it's been sent with the message.
-      onConsumeReferenceStrategy?.();
+      await handleSendRaw(content, mentions);
     },
-    [
-      handleSendRaw,
-      setChatIsStreaming,
-      chatMode,
-      bumpPlanListVersion,
-      onConsumeReferenceStrategy,
-    ],
+    [handleSendRaw, setChatIsStreaming, chatMode, bumpPlanListVersion],
   );
 
   useUnifiedChatDataLoading({
@@ -573,8 +557,8 @@ export function UnifiedChatPanel({
           onModelChange={setSelectedModelId}
           reasoningEffort={reasoningEffort}
           onReasoningChange={setReasoningEffort}
-          onInsertStrategy={onInsertStrategy}
           serverDefaultModelId={catalogDefault}
+          siteId={siteId}
         />
       </div>
     </div>

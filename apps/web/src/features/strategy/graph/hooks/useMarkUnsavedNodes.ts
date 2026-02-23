@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Node } from "reactflow";
-import type { StrategyStep } from "@/types/strategy";
-import { isRecord } from "@/shared/utils/isRecord";
+import type { StrategyStep } from "@/features/strategy/types";
+import { isRecord } from "@/lib/utils/isRecord";
 
 type NodeData = Record<string, unknown> & {
   isUnsaved?: boolean;

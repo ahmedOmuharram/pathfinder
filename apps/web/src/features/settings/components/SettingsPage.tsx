@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { Modal } from "@/shared/components/Modal";
+import { Modal } from "@/lib/components/Modal";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { ModelPicker } from "@/features/chat/components/ModelPicker";
 import { ReasoningToggle } from "@/features/chat/components/ReasoningToggle";

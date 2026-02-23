@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { StrategyStep } from "@/types/strategy";
+import type { StrategyStep } from "@/features/strategy/types";
 import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
 
 function step(partial: Partial<StrategyStep> & { id: string }): StrategyStep {

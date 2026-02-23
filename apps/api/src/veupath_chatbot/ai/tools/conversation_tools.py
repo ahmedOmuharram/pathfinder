@@ -5,11 +5,11 @@ from uuid import UUID
 
 from kani import AIParam, ai_function
 
+from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.strategy_session import StrategySession
 
 logger = get_logger(__name__)
 

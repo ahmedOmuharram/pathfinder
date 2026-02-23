@@ -8,8 +8,8 @@ import type {
   StrategyPlan,
   VEuPathDBSite,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/types/strategy";
-import { AppError } from "@/shared/errors/AppError";
+import type { StrategyWithMeta } from "@/features/strategy/types";
+import { AppError } from "@/lib/errors/AppError";
 import { APIError, requestJson } from "./http";
 
 export { APIError };

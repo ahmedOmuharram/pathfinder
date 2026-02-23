@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
+from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
+from veupath_chatbot.integrations.vectorstore.collections import EXAMPLE_PLANS_V1
+from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.embeddings.openai_embeddings import embed_one
-from veupath_chatbot.services.vectorstore.bootstrap import ensure_rag_collections
-from veupath_chatbot.services.vectorstore.collections import EXAMPLE_PLANS_V1
-from veupath_chatbot.services.vectorstore.qdrant_store import QdrantStore
 
 
 class ExamplePlansRagTools:

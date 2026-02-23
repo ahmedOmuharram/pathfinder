@@ -1,4 +1,4 @@
-import { isRecord } from "@/shared/utils/isRecord";
+import { isRecord } from "@/lib/utils/isRecord";
 import { parseJsonRecord } from "@/features/chat/utils/parseJson";
 
 type UnknownRecord = Record<string, unknown>;

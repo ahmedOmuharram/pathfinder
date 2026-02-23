@@ -13,12 +13,12 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
-from veupath_chatbot.ai.agent_factory import (
+from veupath_chatbot.ai.agents.factory import (
     ChatMode,
     create_agent,
     resolve_effective_model_id,
 )
-from veupath_chatbot.ai.model_catalog import ModelProvider, ReasoningEffort
+from veupath_chatbot.ai.models.catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
     StrategyRepository,
@@ -307,6 +307,7 @@ async def start_chat_stream(
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
     reference_strategy_id: UUID | None = None,
+    mentions: list[dict[str, str]] | None = None,
 ) -> AsyncIterator[str]:
     """Start an SSE stream for a chat turn.
 
@@ -314,6 +315,13 @@ async def start_chat_stream(
     Authentication is handled at login time; no token is created here.
     """
     await user_repo.get_or_create(user_id)
+
+    # Build rich context from @-mentions (strategies and experiments).
+    mentioned_context: str | None = None
+    if mentions:
+        from veupath_chatbot.services.chat.mention_context import build_mention_context
+
+        mentioned_context = await build_mention_context(mentions, strategy_repo) or None
 
     if mode == "plan":
         # Plan sessions are not strategies; do not create/modify the strategy sidebar.
@@ -391,6 +399,7 @@ async def start_chat_stream(
             provider_override=provider_override,
             model_override=effective_model,
             reasoning_effort=reasoning_effort,
+            mentioned_context=mentioned_context,
         )
 
         # Persist model selection on the conversation.
@@ -481,6 +490,7 @@ async def start_chat_stream(
         provider_override=provider_override,
         model_override=effective_model,
         reasoning_effort=reasoning_effort,
+        mentioned_context=mentioned_context,
     )
 
     # Persist model selection on the conversation.
