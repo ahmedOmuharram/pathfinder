@@ -7,7 +7,12 @@ import { Input } from "@/lib/components/ui/Input";
 import { cn } from "@/lib/utils/cn";
 import { PanelMessageContent } from "./PanelMessageContent";
 import { ToolIndicator } from "./ToolIndicator";
-import { STEP_LABELS, STEP_PLACEHOLDERS, QUICK_ACTION_PROMPTS } from "./constants";
+import {
+  STEP_LABELS,
+  STEP_PLACEHOLDERS,
+  QUICK_ACTION_PROMPTS,
+  type QuickAction,
+} from "./constants";
 import type { SearchSuggestion, RunConfigSuggestion } from "../../suggestionParser";
 
 interface AiAssistantPanelProps {
@@ -140,7 +145,12 @@ export function AiAssistantPanel({
     setActiveTools(new Set());
   }, [streamText]);
 
-  const quickAction = QUICK_ACTION_PROMPTS[step];
+  const rawQuickAction = QUICK_ACTION_PROMPTS[step];
+  const quickActions: QuickAction[] = rawQuickAction
+    ? Array.isArray(rawQuickAction)
+      ? rawQuickAction
+      : [rawQuickAction]
+    : [];
 
   const modelName =
     modelCatalog?.models.find((m) => m.id === selectedModel)?.name ??
@@ -205,18 +215,19 @@ export function AiAssistantPanel({
           )}
         </div>
 
-        {quickAction && (
+        {quickActions.map((qa) => (
           <Button
+            key={qa.label}
             variant="outline"
             size="sm"
-            onClick={() => sendMessage(quickAction.prompt)}
+            onClick={() => sendMessage(qa.prompt)}
             disabled={streaming}
             className="text-xs"
           >
             <Wand2 className="h-3 w-3" />
-            {quickAction.label}
+            {qa.label}
           </Button>
-        )}
+        ))}
       </div>
 
       <div
@@ -229,17 +240,21 @@ export function AiAssistantPanel({
             <div className="text-sm text-muted-foreground">
               Context-aware guidance from literature and VEuPathDB catalogs.
             </div>
-            {quickAction && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => sendMessage(quickAction.prompt)}
-                disabled={streaming}
-                className="mt-3"
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                {quickAction.label}
-              </Button>
+            {quickActions.length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {quickActions.map((qa) => (
+                  <Button
+                    key={qa.label}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => sendMessage(qa.prompt)}
+                    disabled={streaming}
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    {qa.label}
+                  </Button>
+                ))}
+              </div>
             )}
           </div>
         )}

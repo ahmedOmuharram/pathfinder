@@ -4,6 +4,23 @@ export {
   deleteExperiment,
   updateExperimentNotes,
   exportExperiment,
+  getExperimentAttributes,
+  getExperimentRecords,
+  getExperimentRecordDetail,
+  getExperimentStrategy,
+  getExperimentDistribution,
+  getExperimentAnalysisTypes,
+  runExperimentAnalysis,
+  refineExperiment,
+  reEvaluateExperiment,
+} from "./crud";
+
+export type {
+  RecordAttribute,
+  WdkRecord,
+  RecordsResponse,
+  StrategyNode,
+  StrategyResponse,
 } from "./crud";
 
 export {

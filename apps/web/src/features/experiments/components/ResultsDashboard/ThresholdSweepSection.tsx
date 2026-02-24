@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import type { Experiment } from "@pathfinder/shared";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Play, Loader2 } from "lucide-react";
+import { Button } from "@/lib/components/ui/Button";
 import { runThresholdSweep, type ThresholdSweepResult } from "../../api";
-import { Section } from "./Section";
 import { pct } from "./utils";
 
 interface ThresholdSweepSectionProps {
@@ -10,12 +10,12 @@ interface ThresholdSweepSectionProps {
 }
 
 export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps) {
-  const [expanded, setExpanded] = useState(false);
   const [paramName, setParamName] = useState("");
   const [minVal, setMinVal] = useState("");
   const [maxVal, setMaxVal] = useState("");
   const [steps, setSteps] = useState("10");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ThresholdSweepResult | null>(null);
 
   const numericParams = useMemo(() => {
@@ -33,6 +33,7 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
     if (!paramName || isNaN(mn) || isNaN(mx) || mn >= mx || isNaN(st)) return;
 
     setLoading(true);
+    setError(null);
     try {
       const res = await runThresholdSweep(
         experiment.id,
@@ -42,119 +43,104 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
         Math.max(3, Math.min(50, st)),
       );
       setResult(res);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
   }, [experiment.id, paramName, minVal, maxVal, steps]);
 
-  return (
-    <Section title="Threshold Sweep">
-      <div className="rounded-lg border border-border bg-card">
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-accent"
-        >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
-          <span className="text-xs text-muted-foreground">
-            Sweep a numeric parameter across a range to visualize the
-            sensitivity/specificity trade-off
-          </span>
-        </button>
-
-        {expanded && (
-          <div className="space-y-4 border-t border-border px-5 py-4">
-            {numericParams.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No numeric parameters detected in this experiment&apos;s configuration.
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-4 gap-3">
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      Parameter
-                    </label>
-                    <select
-                      value={paramName}
-                      onChange={(e) => {
-                        setParamName(e.target.value);
-                        const p = numericParams.find(
-                          (np) => np.name === e.target.value,
-                        );
-                        if (p) {
-                          const cv = p.currentValue;
-                          setMinVal(String(Math.max(0, cv * 0.2)));
-                          setMaxVal(String(cv * 3));
-                        }
-                      }}
-                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
-                    >
-                      <option value="">Select...</option>
-                      {numericParams.map((np) => (
-                        <option key={np.name} value={np.name}>
-                          {np.name} (current: {np.currentValue})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      Min
-                    </label>
-                    <input
-                      type="number"
-                      value={minVal}
-                      onChange={(e) => setMinVal(e.target.value)}
-                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      Max
-                    </label>
-                    <input
-                      type="number"
-                      value={maxVal}
-                      onChange={(e) => setMaxVal(e.target.value)}
-                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs text-muted-foreground">
-                      Steps
-                    </label>
-                    <input
-                      type="number"
-                      min={3}
-                      max={50}
-                      value={steps}
-                      onChange={(e) => setSteps(e.target.value)}
-                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRun}
-                  disabled={loading || !paramName || !minVal || !maxVal}
-                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {loading ? "Running sweep..." : "Run Sweep"}
-                </button>
-              </>
-            )}
-
-            {result && <SweepChart result={result} />}
-          </div>
-        )}
+  if (numericParams.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-muted/30 px-5 py-8 text-center text-sm text-muted-foreground">
+        No numeric parameters detected in this experiment&apos;s configuration.
       </div>
-    </Section>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Sweep a numeric parameter across a range to visualize the
+        sensitivity/specificity trade-off.
+      </p>
+
+      <div className="grid grid-cols-4 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Parameter
+          </label>
+          <select
+            value={paramName}
+            onChange={(e) => {
+              setParamName(e.target.value);
+              const p = numericParams.find((np) => np.name === e.target.value);
+              if (p) {
+                const cv = p.currentValue;
+                setMinVal(String(Math.max(0, cv * 0.2)));
+                setMaxVal(String(cv * 3));
+              }
+            }}
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">Select…</option>
+            {numericParams.map((np) => (
+              <option key={np.name} value={np.name}>
+                {np.name} (current: {np.currentValue})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Min
+          </label>
+          <input
+            type="number"
+            value={minVal}
+            onChange={(e) => setMinVal(e.target.value)}
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Max
+          </label>
+          <input
+            type="number"
+            value={maxVal}
+            onChange={(e) => setMaxVal(e.target.value)}
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Steps
+          </label>
+          <input
+            type="number"
+            min={3}
+            max={50}
+            value={steps}
+            onChange={(e) => setSteps(e.target.value)}
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      <Button
+        size="sm"
+        onClick={handleRun}
+        disabled={loading || !paramName || !minVal || !maxVal}
+        loading={loading}
+      >
+        <Play className="h-3.5 w-3.5" />
+        {loading ? "Running…" : "Run Sweep"}
+      </Button>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      {result && <SweepChart result={result} />}
+    </div>
   );
 }
 

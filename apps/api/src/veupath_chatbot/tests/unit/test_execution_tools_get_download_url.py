@@ -115,11 +115,11 @@ async def test_create_temporary_result_uses_report_name_field() -> None:
     client = _CaptureClient()
     api = TemporaryResultsAPI(client)
 
-    await api.create_temporary_result(step_id=437637443, reporter="tabular")
+    await api.create_temporary_result(step_id=437637443, reporter="standard")
 
     assert client.last_path == "/temporary-results"
     assert client.last_json is not None
-    assert client.last_json.get("reportName") == "tabular"
+    assert client.last_json.get("reportName") == "standard"
     assert "reporterName" not in client.last_json
 
 

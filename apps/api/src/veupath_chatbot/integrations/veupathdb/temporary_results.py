@@ -27,13 +27,13 @@ class TemporaryResultsAPI:
     async def create_temporary_result(
         self,
         step_id: int,
-        reporter: str = "tabular",
+        reporter: str = "standard",
         format_config: JSONObject | None = None,
     ) -> JSONObject:
         """Create a temporary result for download.
 
         :param step_id: Step ID to export.
-        :param reporter: Reporter type (tabular, fullRecord, etc.).
+        :param reporter: WDK reporter name (standard, fullRecord, etc.).
         :param format_config: Reporter-specific configuration.
         :returns: Temporary result info with ID and download URL.
         """
@@ -92,7 +92,7 @@ class TemporaryResultsAPI:
 
         result = await self.create_temporary_result(
             step_id=step_id,
-            reporter="tabular" if format in ("csv", "tab") else "fullRecordJson",
+            reporter="standard" if format in ("csv", "tab") else "fullRecord",
             format_config=format_config,
         )
         url = self._extract_download_url(result)

@@ -428,11 +428,11 @@ class StrategyAPI:
         """Create a new analysis instance for a step."""
         await self._ensure_session()
         payload: JSONObject = {
-            "analysisType": analysis_type,
+            "analysisName": analysis_type,
             "parameters": parameters or {},
         }
         if custom_name:
-            payload["customName"] = custom_name
+            payload["displayName"] = custom_name
         return await self.client.create_step_analysis(self.user_id, step_id, payload)
 
     async def run_step_report(
@@ -570,6 +570,104 @@ class StrategyAPI:
                 f"/users/{self.user_id}/steps/{step_id}/reports/standard",
                 json={"reportConfig": report_config},
             ),
+        )
+
+    async def get_step_records(
+        self,
+        step_id: int,
+        attributes: list[str] | None = None,
+        tables: list[str] | None = None,
+        pagination: dict[str, int] | None = None,
+        sorting: list[JSONObject] | None = None,
+    ) -> JSONObject:
+        """Get paginated records for a step with configurable attributes and sorting.
+
+        :param step_id: WDK step ID (must be part of a strategy).
+        :param attributes: Attribute names to include.
+        :param tables: Table names to include.
+        :param pagination: ``{offset, numRecords}`` for server-side paging.
+        :param sorting: List of ``{attributeName, direction}`` dicts.
+        :returns: Standard report response with ``records`` and ``meta``.
+        """
+        report_config: JSONObject = {}
+        if attributes:
+            report_config["attributes"] = cast(JSONValue, attributes)
+        if tables:
+            report_config["tables"] = cast(JSONValue, tables)
+        if pagination:
+            report_config["pagination"] = cast(JSONValue, pagination)
+        if sorting:
+            report_config["sorting"] = cast(JSONValue, sorting)
+
+        await self._ensure_session()
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/steps/{step_id}/reports/standard",
+                json={"reportConfig": report_config},
+            ),
+        )
+
+    async def get_record_type_info(self, record_type: str) -> JSONObject:
+        """Get expanded record type info including attributes and tables.
+
+        :param record_type: WDK record type (e.g. "gene").
+        :returns: Record type metadata with attribute fields.
+        """
+        await self._ensure_session()
+        return cast(
+            JSONObject,
+            await self.client.get(
+                f"/record-types/{record_type}",
+                params={"format": "expanded"},
+            ),
+        )
+
+    async def get_single_record(
+        self,
+        record_type: str,
+        primary_key: list[JSONObject],
+        attributes: list[str] | None = None,
+        tables: list[str] | None = None,
+    ) -> JSONObject:
+        """Fetch a single record by its primary key.
+
+        WDK's ``POST /record-types/{type}/records`` requires ``primaryKey``,
+        ``attributes``, and ``tables`` arrays in the request body.  When
+        ``attributes`` or ``tables`` are not provided we send empty arrays
+        which tells WDK to return the default set.
+
+        :param record_type: WDK record type.
+        :param primary_key: List of ``{name, value}`` primary key parts.
+        :param attributes: Attribute names to include (empty = default set).
+        :param tables: Table names to include (empty = none).
+        :returns: Full record with requested attributes/tables.
+        """
+        payload: JSONObject = {
+            "primaryKey": cast(JSONValue, primary_key),
+            "attributes": cast(JSONValue, attributes or []),
+            "tables": cast(JSONValue, tables or []),
+        }
+
+        await self._ensure_session()
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/record-types/{record_type}/records",
+                json=payload,
+            ),
+        )
+
+    async def get_filter_summary(self, step_id: int, filter_name: str) -> JSONObject:
+        """Get filter summary distribution data for a step attribute.
+
+        :param step_id: WDK step ID (must be part of a strategy).
+        :param filter_name: Name of the filter to summarize.
+        :returns: Filter summary JSON with distribution data.
+        """
+        await self._ensure_session()
+        return await self.client.get_step_filter_summary(
+            self.user_id, step_id, filter_name
         )
 
     async def get_step_count(self, step_id: int) -> int:

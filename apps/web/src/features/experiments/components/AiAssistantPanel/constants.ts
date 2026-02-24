@@ -1,11 +1,14 @@
 import type { WizardStep } from "../../api";
 
+export type QuickAction = { label: string; prompt: string };
+
 export const STEP_LABELS: Record<WizardStep, string> = {
   search: "Search Selection",
   parameters: "Parameter Configuration",
   controls: "Control Gene Selection",
   run: "Run Configuration",
   results: "Results Interpretation",
+  analysis: "Deep Results Analysis",
 };
 
 export const STEP_PLACEHOLDERS: Record<WizardStep, string> = {
@@ -14,10 +17,12 @@ export const STEP_PLACEHOLDERS: Record<WizardStep, string> = {
   controls: "e.g. Known positive control genes for this analysis type?",
   run: "e.g. Should cross-validation be enabled given these control sizes?",
   results: "e.g. How should these metrics inform my research question?",
+  analysis:
+    "Ask about specific genes, patterns in results, why certain genes are false positives...",
 };
 
 export const QUICK_ACTION_PROMPTS: Partial<
-  Record<WizardStep, { label: string; prompt: string }>
+  Record<WizardStep, QuickAction | QuickAction[]>
 > = {
   search: {
     label: "Search recommendations",
@@ -39,4 +44,25 @@ export const QUICK_ACTION_PROMPTS: Partial<
     prompt:
       "Recommend the best run configuration for this experiment: name, whether to enable robustness analysis, fold count, and which enrichment analyses to run.",
   },
+  analysis: [
+    {
+      label: "Explain false positives",
+      prompt:
+        "Why are some negative control genes showing up in the results? Analyze the false positives.",
+    },
+    {
+      label: "Find patterns",
+      prompt: "What common attributes or features do the top results share?",
+    },
+    {
+      label: "Compare TP vs FP",
+      prompt:
+        "Compare the true positive genes against the false positive genes. What distinguishes them?",
+    },
+    {
+      label: "Summarize results",
+      prompt:
+        "Give me a comprehensive summary of these experiment results and actionable next steps.",
+    },
+  ],
 };

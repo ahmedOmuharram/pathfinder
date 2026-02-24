@@ -395,6 +395,6 @@ class VEuPathDBClient:
         return cast(
             JSONObject,
             await self.get(
-                f"/users/{user_id}/steps/{step_id}/reports/filter-summary/{filter_name}"
+                f"/users/{user_id}/steps/{step_id}/filter-summary/{filter_name}"
             ),
         )

@@ -10,7 +10,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Literal
 
-from kani import ChatMessage, ChatRole
+from kani import ChatMessage, ChatRole, Kani
 
 from veupath_chatbot.ai.agents.experiment import ExperimentAssistantAgent
 from veupath_chatbot.ai.agents.factory import create_engine
@@ -18,7 +18,7 @@ from veupath_chatbot.ai.models.catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.transport.http.streaming import stream_chat
 
-WizardStep = Literal["search", "parameters", "controls", "run"]
+WizardStep = Literal["search", "parameters", "controls", "run", "results", "analysis"]
 
 _BASE_PERSONA = """\
 You are a scientific research assistant embedded in the VEuPathDB Experiment Lab wizard.
@@ -232,6 +232,60 @@ Example:
 
 The user is working on site "{site_id}".
 {context_block}""",
+    "results": """\
+{persona}
+
+## Current step: Results Interpretation
+
+The user has completed an experiment and is viewing the results. Help them
+understand and interpret the metrics, gene lists, and classification outcomes.
+
+### What you can do
+- Explain classification metrics (sensitivity, specificity, precision, F1, MCC)
+- Interpret what high/low values mean for their research question
+- Suggest next steps (parameter tuning, different searches, enrichment analysis)
+
+### Rules
+- Be specific — reference the actual metric values from context
+- Relate metrics back to the biological question
+- Suggest actionable improvements if metrics are poor
+
+The user is working on site "{site_id}".
+{context_block}""",
+    "analysis": """\
+{persona}
+
+## Current step: Deep Results Analysis
+
+The user has completed an experiment and wants to deeply analyze the results.
+You have tools to access the actual WDK result records, look up individual
+genes, compare gene groups, and explore attribute distributions.
+
+### Available tools
+- **fetch_result_records**: Page through the experiment's search results with
+  classification labels (TP/FP/FN/TN)
+- **lookup_gene_detail**: Get full details for a specific gene
+- **get_attribute_distribution**: See value distributions for any attribute
+- **compare_gene_groups**: Compare attributes between two sets of genes
+- **search_results**: Find records matching a text pattern
+- **lookup_genes**: Search for genes by name/description
+- **web_search / literature_search**: Find relevant literature
+
+### Workflow
+1. Use your tools to access the actual data — never guess about specific genes
+2. Look at real attributes and classification status
+3. Identify patterns, commonalities, and outliers
+4. Present findings with specific evidence from the data
+
+### Guidelines
+- Always ground your analysis in actual data from tool calls
+- When comparing TP vs FP, look at attribute differences systematically
+- Cite specific gene IDs and attribute values
+- Provide actionable suggestions for improving search quality
+
+The user is working on site "{site_id}".
+Experiment ID: {experiment_id}
+{context_block}""",
 }
 
 
@@ -280,11 +334,24 @@ def build_system_prompt(
     """
     template = _STEP_PROMPTS[step]
     context_block = _build_context_block(context)
-    return template.format(
-        persona=_BASE_PERSONA,
-        site_id=site_id,
-        context_block=context_block,
+    experiment_id = (
+        str(context.get("experimentId", "")) if isinstance(context, dict) else ""
     )
+    fmt_kwargs = {
+        "persona": _BASE_PERSONA,
+        "site_id": site_id,
+        "context_block": context_block,
+        "experiment_id": experiment_id,
+    }
+    import string
+
+    formatter = string.Formatter()
+    used_keys = {
+        field_name
+        for _, field_name, _, _ in formatter.parse(template)
+        if field_name is not None
+    }
+    return template.format(**{k: v for k, v in fmt_kwargs.items() if k in used_keys})
 
 
 def _build_chat_history(history: list[JSONObject]) -> list[ChatMessage]:
@@ -336,12 +403,29 @@ async def run_assistant(
     system_prompt = build_system_prompt(step, site_id, context)
     chat_history = _build_chat_history(history or [])
 
-    agent = ExperimentAssistantAgent(
-        engine=engine,
-        site_id=site_id,
-        system_prompt=system_prompt,
-        chat_history=chat_history,
-    )
+    agent: Kani
+    if step == "analysis":
+        from veupath_chatbot.services.experiment.ai_analysis_tools import (
+            ExperimentAnalysisAgent,
+        )
+
+        experiment_id = (
+            str(context.get("experimentId", "")) if isinstance(context, dict) else ""
+        )
+        agent = ExperimentAnalysisAgent(
+            engine=engine,
+            site_id=site_id,
+            experiment_id=experiment_id,
+            system_prompt=system_prompt,
+            chat_history=chat_history,
+        )
+    else:
+        agent = ExperimentAssistantAgent(
+            engine=engine,
+            site_id=site_id,
+            system_prompt=system_prompt,
+            chat_history=chat_history,
+        )
 
     async for event in stream_chat(agent, message):
         yield event

@@ -11,6 +11,8 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.strategy_api import StepTreeNode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -113,6 +115,20 @@ async def run_experiment(
             message="Evaluation complete",
             metrics=metrics_to_json(metrics),
         )
+
+        # --- Persist a WDK strategy for result exploration ---
+        try:
+            wdk_ids = await _persist_experiment_strategy(config, experiment_id)
+            raw_sid = wdk_ids.get("strategy_id")
+            raw_step = wdk_ids.get("step_id")
+            experiment.wdk_strategy_id = raw_sid if isinstance(raw_sid, int) else None
+            experiment.wdk_step_id = raw_step if isinstance(raw_step, int) else None
+        except Exception as exc:
+            logger.warning(
+                "Failed to persist WDK strategy for experiment",
+                experiment_id=experiment_id,
+                error=str(exc),
+            )
 
         # --- Phase 1b: Parameter optimization (optional) ---
         if config.optimization_specs and len(config.optimization_specs) > 0:
@@ -316,3 +332,81 @@ def _extract_id_set(
     if isinstance(ids_raw, list):
         return {str(g) for g in ids_raw if g is not None}
     return set()
+
+
+async def _persist_experiment_strategy(
+    config: ExperimentConfig,
+    experiment_id: str,
+) -> JSONObject:
+    """Create a persisted WDK strategy for result exploration.
+
+    This strategy survives the experiment run and enables downstream
+    features like result table browsing, step analyses, and interactive
+    filtering.
+
+    :param config: Experiment configuration.
+    :param experiment_id: Unique experiment identifier.
+    :returns: Dict with ``strategy_id`` and ``step_id``.
+    """
+    api = get_strategy_api(config.site_id)
+
+    step_payload = await api.create_step(
+        record_type=config.record_type,
+        search_name=config.search_name,
+        parameters=config.parameters or {},
+        custom_name=f"Experiment: {config.name}",
+    )
+    step_id: int | None = None
+    if isinstance(step_payload, dict):
+        raw = step_payload.get("id")
+        if isinstance(raw, int):
+            step_id = raw
+    if step_id is None:
+        raise ValueError("Failed to create WDK step for experiment strategy")
+
+    root = StepTreeNode(step_id)
+    created = await api.create_strategy(
+        step_tree=root,
+        name=f"exp:{experiment_id}",
+        description=f"Persisted strategy for experiment {config.name}",
+        is_internal=True,
+    )
+    strategy_id: int | None = None
+    if isinstance(created, dict):
+        raw = created.get("id")
+        if isinstance(raw, int):
+            strategy_id = raw
+    if strategy_id is None:
+        raise ValueError("Failed to create WDK strategy for experiment")
+
+    logger.info(
+        "Persisted WDK strategy for experiment",
+        experiment_id=experiment_id,
+        strategy_id=strategy_id,
+        step_id=step_id,
+    )
+    return {"strategy_id": strategy_id, "step_id": step_id}
+
+
+async def cleanup_experiment_strategy(experiment: Experiment) -> None:
+    """Delete the persisted WDK strategy when an experiment is deleted.
+
+    :param experiment: Experiment whose WDK strategy should be cleaned up.
+    """
+    if experiment.wdk_strategy_id is None:
+        return
+    try:
+        api = get_strategy_api(experiment.config.site_id)
+        await api.delete_strategy(experiment.wdk_strategy_id)
+        logger.info(
+            "Deleted WDK strategy for experiment",
+            experiment_id=experiment.id,
+            strategy_id=experiment.wdk_strategy_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete WDK strategy during experiment cleanup",
+            experiment_id=experiment.id,
+            strategy_id=experiment.wdk_strategy_id,
+            error=str(exc),
+        )

@@ -202,7 +202,13 @@ export function createBatchExperimentStream(
   return controller;
 }
 
-export type WizardStep = "search" | "parameters" | "controls" | "run" | "results";
+export type WizardStep =
+  | "search"
+  | "parameters"
+  | "controls"
+  | "run"
+  | "results"
+  | "analysis";
 
 export interface AiAssistMessage {
   role: "user" | "assistant";

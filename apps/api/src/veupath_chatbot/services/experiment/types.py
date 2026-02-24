@@ -186,6 +186,9 @@ class Experiment:
     completed_at: str | None = None
     batch_id: str | None = None
     optimization_result: JSONObject | None = None
+    wdk_strategy_id: int | None = None
+    wdk_step_id: int | None = None
+    notes: str | None = None
 
 
 def metrics_to_json(m: ExperimentMetrics) -> JSONObject:
@@ -329,6 +332,9 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         "completedAt": exp.completed_at,
         "batchId": exp.batch_id,
         "optimizationResult": exp.optimization_result,
+        "wdkStrategyId": exp.wdk_strategy_id,
+        "wdkStepId": exp.wdk_step_id,
+        "notes": exp.notes,
     }
     return result
 

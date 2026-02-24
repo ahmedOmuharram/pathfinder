@@ -130,6 +130,17 @@ class ExperimentSummaryResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ThresholdSweepRequest(BaseModel):
+    """Request to sweep a numeric parameter across a range."""
+
+    parameter_name: str = Field(alias="parameterName")
+    min_value: float = Field(alias="minValue")
+    max_value: float = Field(alias="maxValue")
+    steps: int = Field(default=10, ge=3, le=50)
+
+    model_config = {"populate_by_name": True}
+
+
 class AiAssistRequest(BaseModel):
     """Request for the experiment wizard AI assistant."""
 

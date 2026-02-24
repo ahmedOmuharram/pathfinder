@@ -832,6 +832,8 @@ export interface Experiment {
   totalTimeSeconds: number | null;
   createdAt: string;
   completedAt: string | null;
+  wdkStrategyId: number | null;
+  wdkStepId: number | null;
 }
 
 export interface ExperimentSummary {
