@@ -504,7 +504,10 @@ async def optimize_search_parameters(
                 optuna_trials.append(ot)
                 batch_params.append(params)
 
-            full_params_list = [{**fixed_parameters, **p} for p in batch_params]
+            clean_fixed = {
+                k: v for k, v in fixed_parameters.items() if v not in ("", None)
+            }
+            full_params_list = [{**clean_fixed, **p} for p in batch_params]
             wdk_results = await asyncio.gather(
                 *(
                     _evaluate_trial(fp, bp)

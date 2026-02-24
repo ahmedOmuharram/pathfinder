@@ -85,6 +85,115 @@ export function ParamField({
   const errorBorder = hasError ? "border-red-300" : "border-slate-200";
   const errorRing = hasError ? "focus:border-red-400" : "focus:border-slate-300";
 
+  // --- Optimize mode: numeric range ---
+  if (
+    isOptimizing &&
+    (optimizeSpec.type === "numeric" || optimizeSpec.type === "integer")
+  ) {
+    return (
+      <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
+        {labelRow}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <label className="mb-0.5 block text-[10px] text-slate-500">Min</label>
+            <input
+              type="number"
+              value={optimizeSpec.min ?? ""}
+              onChange={(e) =>
+                onOptimizeChange({
+                  ...optimizeSpec,
+                  min: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              placeholder="Auto"
+              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-0.5 block text-[10px] text-slate-500">Max</label>
+            <input
+              type="number"
+              value={optimizeSpec.max ?? ""}
+              onChange={(e) =>
+                onOptimizeChange({
+                  ...optimizeSpec,
+                  max: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              placeholder="Auto"
+              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+            />
+          </div>
+          <div className="w-20">
+            <label className="mb-0.5 block text-[10px] text-slate-500">Step</label>
+            <input
+              type="number"
+              value={optimizeSpec.step ?? ""}
+              onChange={(e) =>
+                onOptimizeChange({
+                  ...optimizeSpec,
+                  step: e.target.value ? Number(e.target.value) : undefined,
+                })
+              }
+              placeholder="Auto"
+              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+            />
+          </div>
+        </div>
+        <div className="mt-1 text-[10px] text-amber-600">
+          Leave blank to use the full parameter range
+        </div>
+      </div>
+    );
+  }
+
+  // --- Optimize mode: categorical choices ---
+  if (isOptimizing && vocabEntries.length > 0) {
+    const selectedChoices = new Set(optimizeSpec.choices ?? []);
+    const toggleChoice = (v: string) => {
+      const next = new Set(selectedChoices);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      const choices = Array.from(next);
+      onOptimizeChange({
+        ...optimizeSpec,
+        choices: choices.length > 0 ? choices : undefined,
+      });
+    };
+
+    return (
+      <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
+        {labelRow}
+        <div className="mb-1 text-[10px] text-amber-600">
+          Select values to try (leave all unchecked to try all)
+        </div>
+        <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-white">
+          {vocabEntries.map((entry) => (
+            <label
+              key={entry.value}
+              className="flex items-center gap-2 px-2 py-1 text-[11px] text-slate-700 hover:bg-amber-50"
+            >
+              <input
+                type="checkbox"
+                checked={selectedChoices.has(entry.value)}
+                onChange={() => toggleChoice(entry.value)}
+                className="h-3 w-3 rounded border-slate-300"
+              />
+              {entry.display}
+            </label>
+          ))}
+        </div>
+        {selectedChoices.size > 0 && (
+          <div className="mt-0.5 text-[10px] text-amber-600">
+            {selectedChoices.size} of {vocabEntries.length} selected
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- Normal mode (not optimizing) ---
+
   if (vocabEntries.length > 0) {
     if (isMultiPick) {
       const selected = new Set(value ? value.split(",") : []);

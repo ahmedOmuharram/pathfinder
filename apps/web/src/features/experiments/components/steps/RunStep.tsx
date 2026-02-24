@@ -1,5 +1,5 @@
 import type { EnrichmentAnalysisType, OptimizeSpec } from "@pathfinder/shared";
-import { Target } from "lucide-react";
+import { Globe, Target } from "lucide-react";
 
 const ENRICHMENT_OPTIONS: [EnrichmentAnalysisType, string][] = [
   ["go_function", "GO: Molecular Function"],
@@ -42,6 +42,16 @@ interface RunStepProps {
   onBudgetDraftChange: (val: string) => void;
   optimizationObjective: string;
   onObjectiveChange: (val: string) => void;
+  batchMode: boolean;
+  onBatchModeChange: (val: boolean) => void;
+  batchOrganisms: string[];
+  onBatchOrganismsChange: (val: string[]) => void;
+  organismOptions: string[];
+  organismParamName: string;
+  batchOrganismControls: Record<string, { positive: string; negative: string }>;
+  onBatchOrganismControlsChange: (
+    val: Record<string, { positive: string; negative: string }>,
+  ) => void;
 }
 
 export function RunStep({
@@ -66,9 +76,18 @@ export function RunStep({
   onBudgetDraftChange,
   optimizationObjective,
   onObjectiveChange,
+  batchMode,
+  onBatchModeChange,
+  batchOrganisms,
+  onBatchOrganismsChange,
+  organismOptions,
+  organismParamName,
+  batchOrganismControls,
+  onBatchOrganismControlsChange,
 }: RunStepProps) {
   const hasOptimization = optimizeSpecs.size > 0;
   const optimizedParamNames = Array.from(optimizeSpecs.values()).map((s) => s.name);
+  const hasBatchCapability = organismOptions.length > 1 && !!organismParamName;
 
   return (
     <div className="space-y-4">
@@ -200,6 +219,113 @@ export function RunStep({
         </div>
       </div>
 
+      {/* Batch mode */}
+      {hasBatchCapability && (
+        <div className="rounded-md border border-slate-200 p-3">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={batchMode}
+              onChange={(e) => onBatchModeChange(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300"
+            />
+            <Globe className="h-3.5 w-3.5 text-slate-500" />
+            <span className="text-[12px] font-medium text-slate-700">
+              Batch Mode — Run Across Multiple Organisms
+            </span>
+          </label>
+          <p className="mt-1 ml-5.5 text-[10px] text-slate-500">
+            Run the same search with the same controls across multiple organisms in
+            parallel. Each organism produces its own experiment.
+          </p>
+
+          {batchMode && (
+            <div className="mt-3 space-y-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Select organisms ({batchOrganisms.length} selected)
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white">
+                {organismOptions.map((org) => {
+                  const checked = batchOrganisms.includes(org);
+                  return (
+                    <label
+                      key={org}
+                      className="flex items-center gap-2 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? batchOrganisms.filter((o) => o !== org)
+                            : [...batchOrganisms, org];
+                          onBatchOrganismsChange(next);
+                        }}
+                        className="h-3 w-3 rounded border-slate-300"
+                      />
+                      {org}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {batchOrganisms.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Per-organism control overrides (optional)
+                  </div>
+                  {batchOrganisms.map((org) => {
+                    const ctrls = batchOrganismControls[org] ?? {
+                      positive: "",
+                      negative: "",
+                    };
+                    return (
+                      <div
+                        key={org}
+                        className="rounded border border-slate-100 bg-slate-50 p-2"
+                      >
+                        <div className="mb-1 text-[11px] font-medium text-slate-700">
+                          {org}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={ctrls.positive}
+                            onChange={(e) =>
+                              onBatchOrganismControlsChange({
+                                ...batchOrganismControls,
+                                [org]: { ...ctrls, positive: e.target.value },
+                              })
+                            }
+                            placeholder="Positive genes (comma-sep)"
+                            className="rounded border border-slate-200 px-2 py-1 text-[10px] outline-none placeholder:text-slate-400"
+                          />
+                          <input
+                            type="text"
+                            value={ctrls.negative}
+                            onChange={(e) =>
+                              onBatchOrganismControlsChange({
+                                ...batchOrganismControls,
+                                [org]: { ...ctrls, negative: e.target.value },
+                              })
+                            }
+                            placeholder="Negative genes (comma-sep)"
+                            className="rounded border border-slate-200 px-2 py-1 text-[10px] outline-none placeholder:text-slate-400"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[10px] text-slate-400">
+                    Leave empty to use the default positive/negative controls.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3">
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-indigo-700">
           Summary
@@ -235,6 +361,12 @@ export function RunStep({
             <div>
               Enrichment:{" "}
               <span className="font-medium">{enrichments.size} analyses</span>
+            </div>
+          )}
+          {batchMode && batchOrganisms.length > 0 && (
+            <div>
+              Batch:{" "}
+              <span className="font-medium">{batchOrganisms.length} organisms</span>
             </div>
           )}
         </div>

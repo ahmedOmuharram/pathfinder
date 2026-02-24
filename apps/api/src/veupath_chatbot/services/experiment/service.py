@@ -143,6 +143,7 @@ async def run_experiment(
                 k: v
                 for k, v in config.parameters.items()
                 if not any(s.name == k for s in config.optimization_specs)
+                and v not in ("", None)
             }
 
             async def _opt_progress(event: JSONObject) -> None:

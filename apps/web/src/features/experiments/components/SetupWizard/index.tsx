@@ -72,14 +72,14 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
     setOptimizationBudgetDraft,
     optimizationObjective,
     setOptimizationObjective,
-    batchMode: _batchMode,
-    setBatchMode: _setBatchMode,
-    batchOrganisms: _batchOrganisms,
-    setBatchOrganisms: _setBatchOrganisms,
-    batchOrganismControls: _batchOrgCtrls,
-    setBatchOrganismControls: _setBatchOrgCtrls,
-    organismParamName: _organismParamName,
-    organismOptions: _organismOptions,
+    batchMode,
+    setBatchMode,
+    batchOrganisms,
+    setBatchOrganisms,
+    batchOrganismControls,
+    setBatchOrganismControls,
+    organismParamName,
+    organismOptions,
   } = wizard;
 
   return (
@@ -172,6 +172,14 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
               onBudgetDraftChange={setOptimizationBudgetDraft}
               optimizationObjective={optimizationObjective}
               onObjectiveChange={setOptimizationObjective}
+              batchMode={batchMode}
+              onBatchModeChange={setBatchMode}
+              batchOrganisms={batchOrganisms}
+              onBatchOrganismsChange={setBatchOrganisms}
+              organismOptions={organismOptions}
+              organismParamName={organismParamName}
+              batchOrganismControls={batchOrganismControls}
+              onBatchOrganismControlsChange={setBatchOrganismControls}
             />
           )}
         </div>
