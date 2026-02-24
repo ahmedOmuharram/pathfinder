@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EnrichmentAnalysisType,
+  OptimizeSpec,
   ParamSpec,
   RecordType,
   Search,
 } from "@pathfinder/shared";
 import { useExperimentStore } from "../../store";
-import { getRecordTypes, getSearches, getParamSpecs } from "@/lib/api/client";
+import {
+  getRecordTypes,
+  getSearches,
+  getParamSpecs,
+  type ResolvedGene,
+} from "@/lib/api/client";
 import { isParamRequired, isParamEmpty } from "../paramUtils";
 import type { WizardStep as AiWizardStep } from "../../api";
 import type { SearchSuggestion, RunConfigSuggestion } from "../../suggestionParser";
@@ -19,6 +25,7 @@ import { applyCloneConfig } from "./applyCloneConfig";
 export function useSetupWizard(siteId: string) {
   const {
     runExperiment,
+    runBatchExperiment,
     setView,
     isRunning,
     error: storeError,
@@ -45,8 +52,8 @@ export function useSetupWizard(siteId: string) {
   const [paramSpecsLoading, setParamSpecsLoading] = useState(false);
   const [parameters, setParameters] = useState<Record<string, string>>({});
 
-  const [positiveGenes, setPositiveGenes] = useState<{ geneId: string }[]>([]);
-  const [negativeGenes, setNegativeGenes] = useState<{ geneId: string }[]>([]);
+  const [positiveGenes, setPositiveGenes] = useState<ResolvedGene[]>([]);
+  const [negativeGenes, setNegativeGenes] = useState<ResolvedGene[]>([]);
   const controlsSearchName = "GeneByLocusTag";
   const controlsParamName = "ds_gene_ids";
   const [showGeneLookup, setShowGeneLookup] = useState(false);
@@ -61,6 +68,40 @@ export function useSetupWizard(siteId: string) {
   const [enrichments, setEnrichments] = useState<Set<EnrichmentAnalysisType>>(
     new Set(),
   );
+
+  const [optimizeSpecs, setOptimizeSpecs] = useState<Map<string, OptimizeSpec>>(
+    new Map(),
+  );
+  const [optimizationBudget, setOptimizationBudget] = useState(30);
+  const [optimizationBudgetDraft, setOptimizationBudgetDraft] = useState("30");
+  const [optimizationObjective, setOptimizationObjective] =
+    useState<string>("balanced_accuracy");
+
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchOrganisms, setBatchOrganisms] = useState<string[]>([]);
+  const [batchOrganismControls, setBatchOrganismControls] = useState<
+    Record<string, { positive: string; negative: string }>
+  >({});
+
+  const { organismParamName, organismOptions } = useMemo(() => {
+    const orgSpec = paramSpecs.find(
+      (s) => s.name === "organism" || s.name === "organisms",
+    );
+    if (!orgSpec || !orgSpec.vocabulary)
+      return { organismParamName: "", organismOptions: [] as string[] };
+    const entries = Array.isArray(orgSpec.vocabulary)
+      ? orgSpec.vocabulary
+      : typeof orgSpec.vocabulary === "object"
+        ? Object.entries(orgSpec.vocabulary).map(([k, v]) => ({
+            value: String(k),
+            display: String(v),
+          }))
+        : [];
+    return {
+      organismParamName: orgSpec.name,
+      organismOptions: entries.map((e: { value: string }) => e.value),
+    };
+  }, [paramSpecs]);
 
   const pendingCloneParams = useRef<Record<string, unknown> | null>(null);
   const pendingSuggestedParams = useRef<Record<string, string> | null>(null);
@@ -210,7 +251,15 @@ export function useSetupWizard(siteId: string) {
   );
 
   const handleGeneAdd = useCallback((geneId: string, role: "positive" | "negative") => {
-    const gene = { geneId };
+    const gene: ResolvedGene = {
+      geneId,
+      displayName: geneId,
+      organism: "",
+      product: "",
+      geneName: "",
+      geneType: "",
+      location: "",
+    };
     if (role === "positive") {
       setPositiveGenes((prev) =>
         prev.some((g) => g.geneId === geneId) ? prev : [...prev, gene],
@@ -255,6 +304,18 @@ export function useSetupWizard(siteId: string) {
     });
   }, []);
 
+  const handleOptimizeChange = useCallback(
+    (paramName: string, spec: OptimizeSpec | null) => {
+      setOptimizeSpecs((prev) => {
+        const next = new Map(prev);
+        if (spec) next.set(paramName, spec);
+        else next.delete(paramName);
+        return next;
+      });
+    },
+    [],
+  );
+
   const handleRun = useCallback(() => {
     clearError();
     const config = buildExperimentConfig({
@@ -271,8 +332,36 @@ export function useSetupWizard(siteId: string) {
       name,
       controlsSearchName,
       controlsParamName,
+      optimizeSpecs,
+      optimizationBudget,
+      optimizationObjective,
     });
-    runExperiment(config);
+
+    if (batchMode && batchOrganisms.length > 0 && organismParamName) {
+      const targets = batchOrganisms.map((org) => {
+        const overrides = batchOrganismControls[org];
+        const orgPos = overrides?.positive.trim()
+          ? overrides.positive
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : positiveControls;
+        const orgNeg = overrides?.negative.trim()
+          ? overrides.negative
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : negativeControls;
+        return {
+          organism: org,
+          positiveControls: orgPos,
+          negativeControls: orgNeg,
+        };
+      });
+      runBatchExperiment(config, organismParamName, targets);
+    } else {
+      runExperiment(config);
+    }
   }, [
     siteId,
     selectedRecordType,
@@ -285,7 +374,15 @@ export function useSetupWizard(siteId: string) {
     kFolds,
     enrichments,
     name,
+    optimizeSpecs,
+    optimizationBudget,
+    optimizationObjective,
+    batchMode,
+    batchOrganisms,
+    batchOrganismControls,
+    organismParamName,
     runExperiment,
+    runBatchExperiment,
     clearError,
   ]);
 
@@ -349,10 +446,26 @@ export function useSetupWizard(siteId: string) {
     handleParamsApply,
     handleRunConfigApply,
     handleParameterChange,
+    handleOptimizeChange,
     toggleEnrichment,
     goBack,
     goNext,
     runOrValidate,
     canNext,
+    optimizeSpecs,
+    optimizationBudget,
+    optimizationBudgetDraft,
+    setOptimizationBudget,
+    setOptimizationBudgetDraft,
+    optimizationObjective,
+    setOptimizationObjective,
+    batchMode,
+    setBatchMode,
+    batchOrganisms,
+    setBatchOrganisms,
+    batchOrganismControls,
+    setBatchOrganismControls,
+    organismParamName,
+    organismOptions,
   };
 }

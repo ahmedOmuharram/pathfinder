@@ -418,6 +418,8 @@ export interface Message {
   /** Catalog model ID that generated this message (e.g. "openai/gpt-5"). */
   modelId?: string;
   reasoningEffort?: ReasoningEffort;
+  /** @-mentions attached to a user message. */
+  mentions?: ChatMention[];
 }
 
 export interface Conversation {
@@ -504,9 +506,13 @@ export interface ParamSpec {
   displayName?: string;
   type: string;
   allowEmptyValue?: boolean;
+  allowMultipleValues?: boolean;
+  multiPick?: boolean;
   minSelectedCount?: number;
   maxSelectedCount?: number;
   countOnlyLeaves?: boolean;
+  /** WDK default value for this parameter. */
+  initialDisplayValue?: unknown;
   vocabulary?: unknown;
   [key: string]: unknown;
 }

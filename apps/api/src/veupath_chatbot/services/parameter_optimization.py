@@ -35,7 +35,17 @@ CancelCheck = Callable[[], bool]
 """Returns True when the optimisation should stop early."""
 
 OptimizationMethod = Literal["bayesian", "grid", "random"]
-OptimizationObjective = Literal["f1", "f_beta", "recall", "precision", "custom"]
+OptimizationObjective = Literal[
+    "f1",
+    "f_beta",
+    "recall",
+    "precision",
+    "specificity",
+    "balanced_accuracy",
+    "mcc",
+    "youdens_j",
+    "custom",
+]
 ParameterType = Literal["numeric", "integer", "categorical"]
 
 
@@ -126,13 +136,30 @@ def _compute_score(
     result_count: int | None = None,
 ) -> float:
     r = recall if recall is not None else 0.0
-    precision = 1.0 - (fpr if fpr is not None else 0.0)
+    raw_fpr = fpr if fpr is not None else 0.0
+    precision = 1.0 - raw_fpr
+    specificity = 1.0 - raw_fpr
 
     match cfg.objective:
         case "recall":
             base = r
         case "precision":
             base = precision
+        case "specificity":
+            base = specificity
+        case "balanced_accuracy":
+            base = (r + specificity) / 2.0
+        case "mcc":
+            # Approximation from recall and specificity when only aggregate rates
+            # are available: MCC = (TPR*TNR - FPR*FNR) / sqrt((TPR+FPR)*(TPR+FNR)*(TNR+FPR)*(TNR+FNR))
+            tpr, tnr, fpr_val, fnr = r, specificity, raw_fpr, 1.0 - r
+            num = tpr * tnr - fpr_val * fnr
+            denom = (
+                (tpr + fpr_val) * (tpr + fnr) * (tnr + fpr_val) * (tnr + fnr)
+            ) ** 0.5
+            base = (num / denom) if denom > 1e-10 else 0.0
+        case "youdens_j":
+            base = r + specificity - 1.0
         case "f1":
             denom = precision + r
             base = (2 * precision * r / denom) if denom > 0 else 0.0
@@ -141,11 +168,9 @@ def _compute_score(
             denom = b2 * precision + r
             base = ((1 + b2) * precision * r / denom) if denom > 0 else 0.0
         case "custom":
-            base = cfg.recall_weight * r - cfg.precision_weight * (
-                fpr if fpr is not None else 0.0
-            )
+            base = cfg.recall_weight * r - cfg.precision_weight * raw_fpr
         case _:
-            base = r  # fallback
+            base = r
 
     # Apply optional result-count penalty (tiebreaker for large result sets).
     if cfg.result_count_penalty > 0 and result_count is not None and result_count > 0:

@@ -10,6 +10,7 @@ import {
   getExperiment,
   deleteExperiment as deleteExperimentApi,
   createExperimentStream,
+  createBatchExperimentStream,
 } from "./api";
 
 type ExperimentView =
@@ -20,12 +21,19 @@ type ExperimentView =
   | "overlap"
   | "enrichment-compare";
 
+export interface TrialHistoryEntry {
+  trialNumber: number;
+  score: number;
+  bestScore: number;
+}
+
 interface ExperimentState {
   view: ExperimentView;
   experiments: ExperimentSummary[];
   currentExperiment: Experiment | null;
   compareExperiment: Experiment | null;
   progress: ExperimentProgressData | null;
+  trialHistory: TrialHistoryEntry[];
   isRunning: boolean;
   error: string | null;
   abortController: AbortController | null;
@@ -55,12 +63,32 @@ interface ExperimentState {
   reset: () => void;
 }
 
+function _accumulateTrial(
+  existing: TrialHistoryEntry[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  progressData: any,
+): TrialHistoryEntry[] {
+  const tp = progressData?.trialProgress;
+  if (!tp?.trial) return existing;
+  const { trialNumber, score } = tp.trial;
+  if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
+  return [
+    ...existing,
+    {
+      trialNumber,
+      score,
+      bestScore: tp.bestTrial?.score ?? score,
+    },
+  ];
+}
+
 export const useExperimentStore = create<ExperimentState>((set, get) => ({
   view: "list",
   experiments: [],
   currentExperiment: null,
   compareExperiment: null,
   progress: null,
+  trialHistory: [],
   isRunning: false,
   error: null,
   abortController: null,
@@ -114,11 +142,14 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     const prev = get().abortController;
     prev?.abort();
 
-    set({ isRunning: true, progress: null, error: null });
+    set({ isRunning: true, progress: null, trialHistory: [], error: null });
 
     const controller = createExperimentStream(config, {
       onProgress: (data) => {
-        set({ progress: data });
+        set({
+          progress: data,
+          trialHistory: _accumulateTrial(get().trialHistory, data),
+        });
       },
       onComplete: (experiment) => {
         set({
@@ -127,8 +158,7 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
           view: "results",
           abortController: null,
         });
-        const siteId = config.siteId;
-        get().fetchExperiments(siteId);
+        get().fetchExperiments(config.siteId);
       },
       onError: (error) => {
         set({ error, isRunning: false, abortController: null });
@@ -138,9 +168,35 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     set({ abortController: controller });
   },
 
-  runBatchExperiment: (_config, _organismParamName, _targets) => {
-    // Batch experiment support - to be implemented
-    set({ error: "Batch experiments not yet implemented in this build" });
+  runBatchExperiment: (config, organismParamName, targets) => {
+    const prev = get().abortController;
+    prev?.abort();
+
+    set({ isRunning: true, progress: null, trialHistory: [], error: null });
+
+    const controller = createBatchExperimentStream(config, organismParamName, targets, {
+      onProgress: (data) => {
+        set({
+          progress: data,
+          trialHistory: _accumulateTrial(get().trialHistory, data),
+        });
+      },
+      onComplete: (experiments, _batchId) => {
+        const first = experiments[0] ?? null;
+        set({
+          currentExperiment: first,
+          isRunning: false,
+          view: first ? "results" : "list",
+          abortController: null,
+        });
+        get().fetchExperiments(config.siteId);
+      },
+      onError: (error) => {
+        set({ error, isRunning: false, abortController: null });
+      },
+    });
+
+    set({ abortController: controller });
   },
 
   cancelExperiment: () => {
@@ -169,6 +225,7 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
       currentExperiment: null,
       compareExperiment: null,
       progress: null,
+      trialHistory: [],
       isRunning: false,
       error: null,
       abortController: null,

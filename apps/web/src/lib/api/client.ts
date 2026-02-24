@@ -289,6 +289,66 @@ export async function refreshAuth(): Promise<{ success: boolean; authToken?: str
   return await requestJson(`/api/v1/veupathdb/auth/refresh`, { method: "POST" });
 }
 
+// Gene search
+
+export interface GeneSearchResult {
+  geneId: string;
+  displayName: string;
+  organism: string;
+  product: string;
+  matchedFields: string[];
+  geneName?: string;
+  geneType?: string;
+  location?: string;
+}
+
+export interface GeneSearchResponse {
+  results: GeneSearchResult[];
+  totalCount: number;
+  suggestedOrganisms?: string[];
+}
+
+export async function searchGenes(
+  siteId: string,
+  query: string,
+  organism?: string | null,
+  limit: number = 20,
+  offset: number = 0,
+): Promise<GeneSearchResponse> {
+  const params: Record<string, string> = { q: query, limit: String(limit) };
+  if (organism) params.organism = organism;
+  if (offset > 0) params.offset = String(offset);
+  return await requestJson<GeneSearchResponse>(
+    `/api/v1/sites/${encodeURIComponent(siteId)}/genes/search`,
+    { query: params },
+  );
+}
+
+export interface ResolvedGene {
+  geneId: string;
+  displayName: string;
+  organism: string;
+  product: string;
+  geneName: string;
+  geneType: string;
+  location: string;
+}
+
+export interface GeneResolveResponse {
+  resolved: ResolvedGene[];
+  unresolved: string[];
+}
+
+export async function resolveGeneIds(
+  siteId: string,
+  geneIds: string[],
+): Promise<GeneResolveResponse> {
+  return await requestJson<GeneResolveResponse>(
+    `/api/v1/sites/${encodeURIComponent(siteId)}/genes/resolve`,
+    { method: "POST", body: { geneIds } },
+  );
+}
+
 // Models / catalog
 
 export interface ModelCatalogResponse {

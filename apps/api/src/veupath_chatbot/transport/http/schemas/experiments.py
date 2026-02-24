@@ -15,6 +15,29 @@ EnrichmentAnalysisType = Literal[
 ]
 
 
+OptimizationObjective = Literal[
+    "f1",
+    "recall",
+    "precision",
+    "specificity",
+    "balanced_accuracy",
+    "mcc",
+    "youdens_j",
+    "f_beta",
+]
+
+
+class OptimizationSpecRequest(BaseModel):
+    """Describes a single parameter to optimise."""
+
+    name: str
+    type: Literal["numeric", "integer", "categorical"]
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    choices: list[str] | None = None
+
+
 class CreateExperimentRequest(BaseModel):
     """Request to create and run an experiment."""
 
@@ -34,6 +57,40 @@ class CreateExperimentRequest(BaseModel):
     )
     name: str = Field(default="Untitled Experiment", max_length=200)
     description: str = Field(default="", max_length=2000)
+    optimization_specs: list[OptimizationSpecRequest] | None = Field(
+        default=None, alias="optimizationSpecs"
+    )
+    optimization_budget: int = Field(
+        default=30, alias="optimizationBudget", ge=5, le=200
+    )
+    optimization_objective: OptimizationObjective | None = Field(
+        default=None, alias="optimizationObjective"
+    )
+    parameter_display_values: JSONObject | None = Field(
+        default=None, alias="parameterDisplayValues"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class BatchOrganismTargetRequest(BaseModel):
+    """Per-organism override for a cross-organism batch experiment."""
+
+    organism: str
+    positive_controls: list[str] = Field(default_factory=list, alias="positiveControls")
+    negative_controls: list[str] = Field(default_factory=list, alias="negativeControls")
+
+    model_config = {"populate_by_name": True}
+
+
+class CreateBatchExperimentRequest(BaseModel):
+    """Request to run the same search across multiple organisms."""
+
+    base: CreateExperimentRequest
+    organism_param_name: str = Field(alias="organismParamName")
+    target_organisms: list[BatchOrganismTargetRequest] = Field(
+        alias="targetOrganisms", min_length=1
+    )
 
     model_config = {"populate_by_name": True}
 

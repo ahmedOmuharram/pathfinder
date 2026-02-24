@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Square, X } from "lucide-react";
+import { FileText, FlaskConical, Square, X } from "lucide-react";
 import type {
   ChatMention,
   ChatMode,
@@ -114,9 +114,12 @@ export function MessageComposer({
       const textarea = textareaRef.current;
       const cursorPos = textarea?.selectionStart ?? message.length;
       const after = message.slice(cursorPos);
-      const token = `@${mention.type === "strategy" ? "Strategy" : "Experiment"}: ${mention.displayName} `;
-      setMessage(before + token + after);
-      setMentions((prev) => [...prev, mention]);
+      setMessage(before + after);
+      setMentions((prev) => {
+        if (prev.some((m) => m.type === mention.type && m.id === mention.id))
+          return prev;
+        return [...prev, mention];
+      });
       setMentionActive(false);
       setTimeout(() => textareaRef.current?.focus(), 0);
     },
@@ -176,27 +179,6 @@ export function MessageComposer({
         )}
       </div>
 
-      {/* Mention chips */}
-      {mentions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {mentions.map((m, i) => (
-            <span
-              key={`${m.type}-${m.id}`}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
-            >
-              {m.type === "strategy" ? "Strategy" : "Experiment"}: {m.displayName}
-              <button
-                type="button"
-                onClick={() => removeMention(i)}
-                className="ml-0.5 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Input row */}
       <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
         <MentionAutocomplete
@@ -207,20 +189,50 @@ export function MessageComposer({
           onSelect={handleMentionSelect}
           onDismiss={() => setMentionActive(false)}
         />
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={(e) => {
-            setMessage(e.target.value);
-            checkMentionTrigger(e.target.value, e.target.selectionStart ?? 0);
-          }}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          data-testid="message-input"
-          placeholder="Ask a question... Use @ to reference strategies or experiments"
-          rows={1}
-          className="min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-        />
+        <div className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white focus-within:border-slate-300 focus-within:ring-1 focus-within:ring-slate-200">
+          {/* Mention chips inside the input container */}
+          {mentions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 border-b border-slate-100 px-2.5 py-1.5">
+              {mentions.map((m, i) => {
+                const MIcon = m.type === "strategy" ? FileText : FlaskConical;
+                return (
+                  <span
+                    key={`${m.type}-${m.id}`}
+                    className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200"
+                  >
+                    <MIcon className="h-3 w-3 shrink-0" />
+                    {m.displayName}
+                    <button
+                      type="button"
+                      onClick={() => removeMention(i)}
+                      className="ml-0.5 rounded p-0.5 text-blue-400 transition hover:bg-blue-100 hover:text-blue-600"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              checkMentionTrigger(e.target.value, e.target.selectionStart ?? 0);
+            }}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            data-testid="message-input"
+            placeholder={
+              mentions.length > 0
+                ? "Ask about referenced items..."
+                : "Ask a question... Use @ to reference strategies or experiments"
+            }
+            rows={1}
+            className="min-w-0 w-full resize-none overflow-hidden border-0 bg-transparent px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
         {isStreaming && onStop ? (
           <button
             type="button"

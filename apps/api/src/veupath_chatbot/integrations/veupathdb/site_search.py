@@ -28,10 +28,14 @@ async def query_site_search(
     *,
     search_text: str,
     document_type: str | None = None,
+    organisms: list[str] | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> JSONObject:
-    """Query the site's /site-search endpoint and return parsed JSON."""
+    """Query the site's /site-search endpoint and return parsed JSON.
+
+    :param organisms: Optional organism names to restrict results to.
+    """
     router = get_site_router()
     site = router.get_site(site_id)
 
@@ -46,6 +50,8 @@ async def query_site_search(
     }
     if document_type:
         payload["documentTypeFilter"] = {"documentType": document_type}
+    if organisms:
+        payload["restrictSearchToOrganisms"] = organisms
 
     import httpx
 

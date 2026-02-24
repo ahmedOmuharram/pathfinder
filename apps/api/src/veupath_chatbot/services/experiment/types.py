@@ -16,6 +16,7 @@ ExperimentStatus = Literal["pending", "running", "completed", "error", "cancelle
 ExperimentProgressPhase = Literal[
     "started",
     "evaluating",
+    "optimizing",
     "cross_validating",
     "enriching",
     "completed",
@@ -112,6 +113,18 @@ class EnrichmentResult:
 
 
 @dataclass(slots=True)
+class OptimizationSpec:
+    """Describes a single parameter to optimise."""
+
+    name: str
+    type: str  # "numeric" | "integer" | "categorical"
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    choices: list[str] | None = None
+
+
+@dataclass(slots=True)
 class ExperimentConfig:
     """Full configuration for an experiment run."""
 
@@ -129,6 +142,28 @@ class ExperimentConfig:
     enrichment_types: list[EnrichmentAnalysisType] = field(default_factory=list)
     name: str = ""
     description: str = ""
+    optimization_specs: list[OptimizationSpec] | None = None
+    optimization_budget: int = 30
+    optimization_objective: str = "balanced_accuracy"
+    parameter_display_values: dict[str, str] | None = None
+
+
+@dataclass(slots=True)
+class BatchOrganismTarget:
+    """Per-organism overrides for a cross-organism batch experiment."""
+
+    organism: str
+    positive_controls: list[str] = field(default_factory=list)
+    negative_controls: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class BatchExperimentConfig:
+    """Configuration for running the same search across multiple organisms."""
+
+    base_config: ExperimentConfig
+    organism_param_name: str
+    target_organisms: list[BatchOrganismTarget] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -149,6 +184,8 @@ class Experiment:
     total_time_seconds: float | None = None
     created_at: str = ""
     completed_at: str | None = None
+    batch_id: str | None = None
+    optimization_result: JSONObject | None = None
 
 
 def metrics_to_json(m: ExperimentMetrics) -> JSONObject:
@@ -251,7 +288,23 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         "enrichmentTypes": list(exp.config.enrichment_types),
         "name": exp.config.name,
         "description": exp.config.description,
+        "optimizationBudget": exp.config.optimization_budget,
+        "optimizationObjective": exp.config.optimization_objective,
     }
+    if exp.config.optimization_specs:
+        config["optimizationSpecs"] = [
+            {
+                "name": s.name,
+                "type": s.type,
+                "min": s.min,
+                "max": s.max,
+                "step": s.step,
+                "choices": s.choices,
+            }
+            for s in exp.config.optimization_specs
+        ]
+    if exp.config.parameter_display_values:
+        config["parameterDisplayValues"] = exp.config.parameter_display_values
 
     result: JSONObject = {
         "id": exp.id,
@@ -274,6 +327,8 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         ),
         "createdAt": exp.created_at,
         "completedAt": exp.completed_at,
+        "batchId": exp.batch_id,
+        "optimizationResult": exp.optimization_result,
     }
     return result
 

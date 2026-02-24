@@ -327,6 +327,7 @@ export function useChatStreaming({
       const userMessage: Message = {
         role: "user",
         content: finalContent,
+        mentions: mentions?.length ? mentions : undefined,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMessage]);

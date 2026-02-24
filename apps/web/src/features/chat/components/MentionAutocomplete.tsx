@@ -9,9 +9,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, FlaskConical, Loader2 } from "lucide-react";
-import type { ChatMention, ExperimentSummary } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
-import { listStrategies } from "@/lib/api/client";
+import type {
+  ChatMention,
+  ExperimentSummary,
+  StrategySummary,
+} from "@pathfinder/shared";
+import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { listExperiments } from "@/features/experiments/api/crud";
 
 interface MentionAutocompleteProps {
@@ -38,49 +41,35 @@ export function MentionAutocomplete({
   onSelect,
   onDismiss,
 }: MentionAutocompleteProps) {
-  const [strategies, setStrategies] = useState<StrategyWithMeta[]>([]);
+  const storeStrategies = useStrategyListStore((s) => s.strategies);
   const [experiments, setExperiments] = useState<ExperimentSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingExperiments, setLoadingExperiments] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const strategies = useMemo(
+    () => storeStrategies.filter((s) => s.stepCount > 0),
+    [storeStrategies],
+  );
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
-    let pending = 2;
-
-    const done = () => {
-      pending -= 1;
-      if (pending <= 0 && !cancelled) setLoading(false);
-    };
-
-    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
-      Promise.race([
-        p,
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
-      ]);
 
     queueMicrotask(() => {
-      if (!cancelled) setLoading(true);
+      if (!cancelled) setLoadingExperiments(true);
     });
 
-    withTimeout(listStrategies(siteId), 4000)
-      .then((strats) => {
-        if (!cancelled) setStrategies(strats.filter((s) => s.steps.length > 0));
-      })
-      .catch(() => {
-        if (!cancelled) setStrategies([]);
-      })
-      .finally(done);
-
-    withTimeout(listExperiments(siteId), 4000)
+    listExperiments(siteId)
       .then((exps) => {
         if (!cancelled) setExperiments(exps.filter((e) => e.status === "completed"));
       })
       .catch(() => {
         if (!cancelled) setExperiments([]);
       })
-      .finally(done);
+      .finally(() => {
+        if (!cancelled) setLoadingExperiments(false);
+      });
 
     return () => {
       cancelled = true;
@@ -95,7 +84,7 @@ export function MentionAutocomplete({
       if (q && !s.name.toLowerCase().includes(q)) continue;
       result.push({
         mention: { type: "strategy", id: s.id, displayName: s.name },
-        subtitle: `${s.steps.length} step${s.steps.length !== 1 ? "s" : ""}${s.recordType ? ` · ${s.recordType}` : ""}`,
+        subtitle: `${s.stepCount} step${s.stepCount !== 1 ? "s" : ""}${s.recordType ? ` · ${s.recordType}` : ""}`,
         icon: FileText,
       });
     }
@@ -153,45 +142,44 @@ export function MentionAutocomplete({
       className="absolute z-50 w-72 rounded-md border border-slate-200 bg-white shadow-lg"
       style={{ bottom: position.top, left: position.left }}
     >
-      {loading && (
+      {loadingExperiments && options.length === 0 && (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       )}
-      {!loading && options.length === 0 && (
+      {!loadingExperiments && options.length === 0 && (
         <div className="px-3 py-3 text-center text-[11px] text-slate-400">
           {query ? "No matches" : "No strategies or experiments"}
         </div>
       )}
-      {!loading &&
-        options.map((opt, i) => {
-          const Icon = opt.icon;
-          return (
-            <button
-              key={`${opt.mention.type}-${opt.mention.id}`}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onSelect(opt.mention);
-              }}
-              onMouseEnter={() => setFocusIndex(i)}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${
-                i === focusIndex ? "bg-slate-100" : "hover:bg-slate-50"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-slate-800">
-                  {opt.mention.displayName}
-                </div>
-                <div className="truncate text-[10px] text-slate-400">
-                  {opt.mention.type === "strategy" ? "Strategy" : "Experiment"} ·{" "}
-                  {opt.subtitle}
-                </div>
+      {options.map((opt, i) => {
+        const Icon = opt.icon;
+        return (
+          <button
+            key={`${opt.mention.type}-${opt.mention.id}`}
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSelect(opt.mention);
+            }}
+            onMouseEnter={() => setFocusIndex(i)}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${
+              i === focusIndex ? "bg-slate-100" : "hover:bg-slate-50"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium text-slate-800">
+                {opt.mention.displayName}
               </div>
-            </button>
-          );
-        })}
+              <div className="truncate text-[10px] text-slate-400">
+                {opt.mention.type === "strategy" ? "Strategy" : "Experiment"} ·{" "}
+                {opt.subtitle}
+              </div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

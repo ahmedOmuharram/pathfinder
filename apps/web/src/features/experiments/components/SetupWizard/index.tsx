@@ -59,11 +59,27 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
     handleParamsApply,
     handleRunConfigApply,
     handleParameterChange,
+    handleOptimizeChange,
     toggleEnrichment,
     goBack,
     goNext,
     runOrValidate,
     canNext,
+    optimizeSpecs,
+    optimizationBudget,
+    optimizationBudgetDraft,
+    setOptimizationBudget,
+    setOptimizationBudgetDraft,
+    optimizationObjective,
+    setOptimizationObjective,
+    batchMode: _batchMode,
+    setBatchMode: _setBatchMode,
+    batchOrganisms: _batchOrganisms,
+    setBatchOrganisms: _setBatchOrganisms,
+    batchOrganismControls: _batchOrgCtrls,
+    setBatchOrganismControls: _setBatchOrgCtrls,
+    organismParamName: _organismParamName,
+    organismOptions: _organismOptions,
   } = wizard;
 
   return (
@@ -116,8 +132,8 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
               parameters={parameters}
               onParameterChange={handleParameterChange}
               onParametersReplace={setParameters}
-              optimizeSpecs={{}}
-              onOptimizeSpecChange={() => {}}
+              optimizeSpecs={Object.fromEntries(optimizeSpecs)}
+              onOptimizeSpecChange={handleOptimizeChange}
               showValidation={attemptedSteps.has(1)}
             />
           )}
@@ -131,8 +147,6 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
               showGeneLookup={showGeneLookup}
               onShowGeneLookupChange={setShowGeneLookup}
               isTransformSearch={isTransformSearch}
-              selectedSearch={selectedSearch}
-              selectedRecordType={selectedRecordType}
             />
           )}
           {step === 3 && (
@@ -151,6 +165,13 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
               onKFoldsDraftChange={setKFoldsDraft}
               enrichments={enrichments}
               onToggleEnrichment={toggleEnrichment}
+              optimizeSpecs={optimizeSpecs}
+              optimizationBudget={optimizationBudget}
+              optimizationBudgetDraft={optimizationBudgetDraft}
+              onBudgetChange={setOptimizationBudget}
+              onBudgetDraftChange={setOptimizationBudgetDraft}
+              optimizationObjective={optimizationObjective}
+              onObjectiveChange={setOptimizationObjective}
             />
           )}
         </div>

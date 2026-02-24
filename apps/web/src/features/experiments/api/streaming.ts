@@ -232,6 +232,7 @@ export function streamAiAssist(
 
   (async () => {
     let fullText = "";
+    let completed = false;
     try {
       const resp = await fetch(url, {
         method: "POST",
@@ -297,7 +298,8 @@ export function streamAiAssist(
                 handlers.onToolCall?.(parsed.name ?? "tool", "end");
               } else if (eventType === "error") {
                 handlers.onError?.(parsed.error ?? "Unknown error");
-              } else if (eventType === "message_end") {
+              } else if (eventType === "message_end" && !completed) {
+                completed = true;
                 handlers.onComplete?.(fullText);
               }
             } catch {

@@ -1,9 +1,10 @@
 import type {
   ExperimentConfig,
   EnrichmentAnalysisType,
+  OptimizeSpec,
   ParamSpec,
 } from "@pathfinder/shared";
-import { flattenVocab, isMultiPickParam, buildDisplayMap } from "../paramUtils";
+import { isMultiPickParam, buildDisplayMap } from "../paramUtils";
 
 export interface BuildConfigInput {
   siteId: string;
@@ -19,6 +20,9 @@ export interface BuildConfigInput {
   name: string;
   controlsSearchName: string;
   controlsParamName: string;
+  optimizeSpecs?: Map<string, OptimizeSpec>;
+  optimizationBudget?: number;
+  optimizationObjective?: string;
 }
 
 export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig {
@@ -49,7 +53,7 @@ export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig
     }
   }
 
-  return {
+  const config: ExperimentConfig = {
     siteId,
     recordType: selectedRecordType,
     searchName: selectedSearch,
@@ -65,4 +69,13 @@ export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig
     name: name || `${selectedSearch} experiment`,
     parameterDisplayValues: buildDisplayMap(parameters, paramSpecs),
   };
+
+  const { optimizeSpecs, optimizationBudget, optimizationObjective } = input;
+  if (optimizeSpecs && optimizeSpecs.size > 0) {
+    config.optimizationSpecs = Array.from(optimizeSpecs.values());
+    config.optimizationBudget = optimizationBudget ?? 30;
+    config.optimizationObjective = optimizationObjective ?? "balanced_accuracy";
+  }
+
+  return config;
 }

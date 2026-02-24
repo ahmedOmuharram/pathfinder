@@ -122,6 +122,9 @@ class ParamSpecResponse(BaseModel):
     min_selected_count: int | None = Field(default=None, alias="minSelectedCount")
     max_selected_count: int | None = Field(default=None, alias="maxSelectedCount")
     count_only_leaves: bool = Field(default=False, alias="countOnlyLeaves")
+    initial_display_value: JSONValue | None = Field(
+        default=None, alias="initialDisplayValue"
+    )
     vocabulary: JSONValue | None = None
 
     model_config = {"populate_by_name": True}

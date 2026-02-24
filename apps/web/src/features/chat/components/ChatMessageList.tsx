@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { FileText, FlaskConical } from "lucide-react";
 import type {
+  ChatMention,
   Message,
   ToolCall,
   PlanningArtifact,
@@ -129,6 +131,9 @@ export function ChatMessageList({
                 {/* ---- Node-card messages (user selections) ---- */}
                 {nodeData ? (
                   <div className="flex max-w-[85%] flex-col items-end gap-1">
+                    {message.mentions?.length ? (
+                      <MentionChips mentions={message.mentions} />
+                    ) : null}
                     <div className="flex w-full gap-2 overflow-x-auto pb-1">
                       {nodeList.map((node, nodeIndex) => (
                         <div
@@ -170,7 +175,10 @@ export function ChatMessageList({
                   </div>
                 ) : (
                   /* ---- Plain user text message ---- */
-                  <div className="flex max-w-[85%] flex-col gap-1">
+                  <div className="flex max-w-[85%] flex-col items-end gap-1">
+                    {message.mentions?.length ? (
+                      <MentionChips mentions={message.mentions} />
+                    ) : null}
                     <div className="rounded-lg px-3 py-2 bg-slate-900 text-white selection:bg-white selection:text-slate-900">
                       <ChatMarkdown content={message.content} tone="onDark" />
                     </div>
@@ -205,6 +213,25 @@ export function ChatMessageList({
 
         <div ref={messagesEndRef} />
       </div>
+    </div>
+  );
+}
+
+function MentionChips({ mentions }: { mentions: ChatMention[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {mentions.map((m) => {
+        const Icon = m.type === "strategy" ? FileText : FlaskConical;
+        return (
+          <span
+            key={`${m.type}-${m.id}`}
+            className="inline-flex items-center gap-1 rounded-md bg-blue-900/40 px-2 py-0.5 text-[10px] font-medium text-blue-200 ring-1 ring-inset ring-blue-700/50"
+          >
+            <Icon className="h-2.5 w-2.5 shrink-0" />
+            {m.displayName}
+          </span>
+        );
+      })}
     </div>
   );
 }

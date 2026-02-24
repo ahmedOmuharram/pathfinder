@@ -1,4 +1,5 @@
-import type { EnrichmentAnalysisType } from "@pathfinder/shared";
+import type { EnrichmentAnalysisType, OptimizeSpec } from "@pathfinder/shared";
+import { Target } from "lucide-react";
 
 const ENRICHMENT_OPTIONS: [EnrichmentAnalysisType, string][] = [
   ["go_function", "GO: Molecular Function"],
@@ -6,6 +7,17 @@ const ENRICHMENT_OPTIONS: [EnrichmentAnalysisType, string][] = [
   ["go_process", "GO: Biological Process"],
   ["pathway", "Metabolic Pathway Enrichment"],
   ["word", "Word Enrichment (Product Descriptions)"],
+];
+
+const OBJECTIVE_OPTIONS: [string, string, string][] = [
+  ["balanced_accuracy", "Balanced Accuracy", "(TPR + TNR) / 2"],
+  ["f1", "F1 Score", "Harmonic mean of precision & recall"],
+  ["recall", "Recall (Sensitivity)", "TP / (TP + FN)"],
+  ["precision", "Precision", "TP / (TP + FP)"],
+  ["specificity", "Specificity", "TN / (TN + FP)"],
+  ["mcc", "MCC", "Matthews Correlation Coefficient"],
+  ["youdens_j", "Youden's J", "Sensitivity + Specificity - 1"],
+  ["f_beta", "F-beta", "Weighted F-measure"],
 ];
 
 interface RunStepProps {
@@ -23,6 +35,13 @@ interface RunStepProps {
   onKFoldsDraftChange: (val: string) => void;
   enrichments: Set<EnrichmentAnalysisType>;
   onToggleEnrichment: (type: EnrichmentAnalysisType) => void;
+  optimizeSpecs: Map<string, OptimizeSpec>;
+  optimizationBudget: number;
+  optimizationBudgetDraft: string;
+  onBudgetChange: (val: number) => void;
+  onBudgetDraftChange: (val: string) => void;
+  optimizationObjective: string;
+  onObjectiveChange: (val: string) => void;
 }
 
 export function RunStep({
@@ -40,7 +59,17 @@ export function RunStep({
   onKFoldsDraftChange,
   enrichments,
   onToggleEnrichment,
+  optimizeSpecs,
+  optimizationBudget,
+  optimizationBudgetDraft,
+  onBudgetChange,
+  onBudgetDraftChange,
+  optimizationObjective,
+  onObjectiveChange,
 }: RunStepProps) {
+  const hasOptimization = optimizeSpecs.size > 0;
+  const optimizedParamNames = Array.from(optimizeSpecs.values()).map((s) => s.name);
+
   return (
     <div className="space-y-4">
       <div>
@@ -55,6 +84,65 @@ export function RunStep({
           className="w-full rounded-md border border-slate-200 px-3 py-2 text-[12px] outline-none placeholder:text-slate-400 focus:border-slate-300"
         />
       </div>
+
+      {/* Optimization config */}
+      {hasOptimization && (
+        <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3">
+          <div className="mb-2 flex items-center gap-1.5">
+            <Target className="h-3.5 w-3.5 text-amber-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+              Parameter Optimization
+            </span>
+          </div>
+          <div className="mb-2 text-[11px] text-slate-600">
+            Optimizing:{" "}
+            <span className="font-medium text-amber-700">
+              {optimizedParamNames.join(", ")}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] text-slate-500">
+                Trial Budget
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={200}
+                value={optimizationBudgetDraft}
+                onChange={(e) => onBudgetDraftChange(e.target.value)}
+                onBlur={() => {
+                  const n = parseInt(optimizationBudgetDraft);
+                  const clamped = Number.isNaN(n) ? 30 : Math.max(5, Math.min(200, n));
+                  onBudgetChange(clamped);
+                  onBudgetDraftChange(String(clamped));
+                }}
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px] outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-slate-500">
+                Objective Metric
+              </label>
+              <select
+                value={optimizationObjective}
+                onChange={(e) => onObjectiveChange(e.target.value)}
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px] outline-none"
+              >
+                {OBJECTIVE_OPTIONS.map(([value, label, desc]) => (
+                  <option key={value} value={value} title={desc}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="mt-1.5 text-[10px] text-slate-400">
+            {OBJECTIVE_OPTIONS.find(([v]) => v === optimizationObjective)?.[2]}
+          </p>
+        </div>
+      )}
 
       <div className="rounded-md border border-slate-200 p-3">
         <label className="flex items-center gap-2">
@@ -129,6 +217,15 @@ export function RunStep({
           <div>
             Negative controls: <span className="font-medium">{negativeCount}</span>
           </div>
+          {hasOptimization && (
+            <div>
+              Optimization:{" "}
+              <span className="font-medium">
+                {optimizeSpecs.size} params, {optimizationBudget} trials (
+                {optimizationObjective})
+              </span>
+            </div>
+          )}
           {enableCV && (
             <div>
               Robustness analysis: <span className="font-medium">{kFolds} subsets</span>

@@ -114,6 +114,94 @@ async def run_experiment(
             metrics=metrics_to_json(metrics),
         )
 
+        # --- Phase 1b: Parameter optimization (optional) ---
+        if config.optimization_specs and len(config.optimization_specs) > 0:
+            from veupath_chatbot.services.parameter_optimization import (
+                OptimizationConfig,
+                optimize_search_parameters,
+                result_to_json,
+            )
+            from veupath_chatbot.services.parameter_optimization import (
+                ParameterSpec as OptParamSpec,
+            )
+
+            await _emit("evaluating", message="Running parameter optimization...")
+
+            opt_param_space = [
+                OptParamSpec(
+                    name=s.name,
+                    param_type=s.type,  # type: ignore[arg-type]
+                    min_value=s.min,
+                    max_value=s.max,
+                    step=s.step,
+                    choices=s.choices,
+                )
+                for s in config.optimization_specs
+            ]
+
+            fixed_params = {
+                k: v
+                for k, v in config.parameters.items()
+                if not any(s.name == k for s in config.optimization_specs)
+            }
+
+            async def _opt_progress(event: JSONObject) -> None:
+                """Bridge optimization_progress events into experiment_progress."""
+                trial_data = event.get("data", {})
+                trial_num = (
+                    trial_data.get("currentTrial", "?")
+                    if isinstance(trial_data, dict)
+                    else "?"
+                )
+                await _emit(
+                    "optimizing",
+                    message=f"Trial {trial_num} / {config.optimization_budget}",
+                    trialProgress=event.get("data"),
+                )
+
+            opt_result = await optimize_search_parameters(
+                site_id=config.site_id,
+                record_type=config.record_type,
+                search_name=config.search_name,
+                fixed_parameters=fixed_params,
+                parameter_space=opt_param_space,
+                controls_search_name=config.controls_search_name,
+                controls_param_name=config.controls_param_name,
+                positive_controls=config.positive_controls or None,
+                negative_controls=config.negative_controls or None,
+                controls_value_format=config.controls_value_format,
+                config=OptimizationConfig(
+                    budget=config.optimization_budget,
+                    objective=config.optimization_objective,  # type: ignore[arg-type]
+                ),
+                progress_callback=_opt_progress,
+            )
+
+            experiment.optimization_result = result_to_json(opt_result)
+
+            if opt_result.best_trial:
+                optimized_params = dict(config.parameters)
+                optimized_params.update(opt_result.best_trial.parameters)
+                experiment.metrics = metrics
+                await _emit(
+                    "evaluating",
+                    message="Optimization complete — re-evaluating with best parameters",
+                )
+
+                result = await run_positive_negative_controls(
+                    site_id=config.site_id,
+                    record_type=config.record_type,
+                    target_search_name=config.search_name,
+                    target_parameters=optimized_params,
+                    controls_search_name=config.controls_search_name,
+                    controls_param_name=config.controls_param_name,
+                    positive_controls=config.positive_controls or None,
+                    negative_controls=config.negative_controls or None,
+                    controls_value_format=config.controls_value_format,
+                )
+                metrics = metrics_from_control_result(result)
+                experiment.metrics = metrics
+
         # --- Phase 2: Cross-validation (optional) ---
         if (
             config.enable_cross_validation

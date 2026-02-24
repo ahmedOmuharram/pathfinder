@@ -3,6 +3,7 @@
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
@@ -52,6 +53,7 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
         multi_pick_raw = raw.get("multiPick")
         multi_pick = bool(multi_pick_raw) if isinstance(multi_pick_raw, bool) else None
         vocabulary_raw = raw.get("vocabulary")
+        initial_display_value = raw.get("initialDisplayValue")
         results.append(
             ParamSpecResponse(
                 name=name,
@@ -63,6 +65,7 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
                 minSelectedCount=normalized.min_selected_count,
                 maxSelectedCount=normalized.max_selected_count,
                 countOnlyLeaves=normalized.count_only_leaves,
+                initialDisplayValue=initial_display_value,
                 vocabulary=vocabulary_raw,
             )
         )
@@ -343,3 +346,138 @@ async def get_param_specs_with_context(
     else:
         details = {}
     return _build_param_specs(details)
+
+
+# ---- Gene search / resolve ------------------------------------------------
+
+
+class GeneSearchResultResponse(BaseModel):
+    """A single gene result from site-search."""
+
+    geneId: str
+    displayName: str = ""
+    organism: str = ""
+    product: str = ""
+    geneName: str = ""
+    geneType: str = ""
+    location: str = ""
+    matchedFields: list[str] = []
+
+
+class GeneSearchResponse(BaseModel):
+    """Paginated gene search response."""
+
+    results: list[GeneSearchResultResponse]
+    totalCount: int
+    suggestedOrganisms: list[str] = []
+
+
+class GeneResolveRequest(BaseModel):
+    """Request body for gene ID resolution."""
+
+    geneIds: list[str]
+
+
+class ResolvedGeneResponse(BaseModel):
+    """A resolved gene record."""
+
+    geneId: str
+    displayName: str = ""
+    organism: str = ""
+    product: str = ""
+    geneName: str = ""
+    geneType: str = ""
+    location: str = ""
+
+
+class GeneResolveResponse(BaseModel):
+    """Gene ID resolution response."""
+
+    resolved: list[ResolvedGeneResponse]
+    unresolved: list[str]
+
+
+@router.get("/{siteId}/genes/search", response_model=GeneSearchResponse)
+async def search_genes(
+    siteId: str,
+    q: str = "",
+    organism: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> GeneSearchResponse:
+    """Search genes by text using multi-strategy gene lookup."""
+    from veupath_chatbot.services.gene_lookup import lookup_genes_by_text
+
+    data = await lookup_genes_by_text(
+        siteId, q, organism=organism or None, limit=limit, offset=offset
+    )
+    data_dict = data if isinstance(data, dict) else {}
+    raw_results = data_dict.get("results")
+    if not isinstance(raw_results, list):
+        raw_results = []
+    total = data_dict.get("totalCount", 0)
+    suggested_raw = data_dict.get("suggestedOrganisms")
+    suggested = suggested_raw if isinstance(suggested_raw, list) else []
+
+    results: list[GeneSearchResultResponse] = []
+    for r in raw_results:
+        if not isinstance(r, dict):
+            continue
+        results.append(
+            GeneSearchResultResponse(
+                geneId=str(r.get("geneId", "")),
+                displayName=str(r.get("displayName", "")),
+                organism=str(r.get("organism", "")),
+                product=str(r.get("product", "")),
+                geneName=str(r.get("geneName", "")),
+                geneType=str(r.get("geneType", "")),
+                location=str(r.get("location", "")),
+                matchedFields=r.get("matchedFields", []),
+            )
+        )
+
+    return GeneSearchResponse(
+        results=results,
+        totalCount=total if isinstance(total, int) else len(results),
+        suggestedOrganisms=suggested,
+    )
+
+
+@router.post("/{siteId}/genes/resolve", response_model=GeneResolveResponse)
+async def resolve_genes(
+    siteId: str,
+    payload: GeneResolveRequest,
+) -> GeneResolveResponse:
+    """Resolve gene IDs to full records via WDK standard reporter."""
+    from veupath_chatbot.services.gene_lookup import resolve_gene_ids
+
+    data = await resolve_gene_ids(siteId, payload.geneIds)
+
+    raw_records = data.get("records") if isinstance(data, dict) else []
+    if not isinstance(raw_records, list):
+        raw_records = []
+
+    resolved_ids: set[str] = set()
+    resolved: list[ResolvedGeneResponse] = []
+    for rec in raw_records:
+        if not isinstance(rec, dict):
+            continue
+        gene_id = str(rec.get("geneId", "")).strip()
+        if not gene_id:
+            continue
+        resolved_ids.add(gene_id)
+        resolved.append(
+            ResolvedGeneResponse(
+                geneId=gene_id,
+                displayName=str(rec.get("product", gene_id)),
+                organism=str(rec.get("organism", "")),
+                product=str(rec.get("product", "")),
+                geneName=str(rec.get("geneName", "")),
+                geneType=str(rec.get("geneType", "")),
+                location=str(rec.get("location", "")),
+            )
+        )
+
+    unresolved = [gid for gid in payload.geneIds if gid not in resolved_ids]
+
+    return GeneResolveResponse(resolved=resolved, unresolved=unresolved)
