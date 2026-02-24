@@ -272,10 +272,16 @@ export function useChatStreaming({
           },
 
           onError: (error) => {
-            console.error("Chat error:", error);
             setIsStreaming(false);
             setAbortController(null);
             thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+
+            const isAbort =
+              error.name === "AbortError" ||
+              (error.message && /abort/i.test(error.message));
+            if (isAbort) return;
+
+            console.error("Chat error:", error);
             setApiError(error.message || "Unable to reach the API.");
             onStreamError?.(error);
           },

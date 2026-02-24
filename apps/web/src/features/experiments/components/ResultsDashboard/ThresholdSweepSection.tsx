@@ -50,34 +50,34 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
 
   return (
     <Section title="Threshold Sweep">
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="rounded-lg border border-border bg-card">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-slate-50/80"
+          className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-accent"
         >
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-muted-foreground">
             Sweep a numeric parameter across a range to visualize the
             sensitivity/specificity trade-off
           </span>
         </button>
 
         {expanded && (
-          <div className="space-y-4 border-t border-slate-200 px-5 py-4">
+          <div className="space-y-4 border-t border-border px-5 py-4">
             {numericParams.length === 0 ? (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 No numeric parameters detected in this experiment&apos;s configuration.
               </p>
             ) : (
               <>
                 <div className="grid grid-cols-4 gap-3">
                   <div>
-                    <label className="mb-1 block text-[10px] text-slate-500">
+                    <label className="mb-1 block text-xs text-muted-foreground">
                       Parameter
                     </label>
                     <select
@@ -93,7 +93,7 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
                           setMaxVal(String(cv * 3));
                         }
                       }}
-                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
                     >
                       <option value="">Select...</option>
                       {numericParams.map((np) => (
@@ -104,25 +104,29 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] text-slate-500">Min</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      Min
+                    </label>
                     <input
                       type="number"
                       value={minVal}
                       onChange={(e) => setMinVal(e.target.value)}
-                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] text-slate-500">Max</label>
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                      Max
+                    </label>
                     <input
                       type="number"
                       value={maxVal}
                       onChange={(e) => setMaxVal(e.target.value)}
-                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] text-slate-500">
+                    <label className="mb-1 block text-xs text-muted-foreground">
                       Steps
                     </label>
                     <input
@@ -131,7 +135,7 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
                       max={50}
                       value={steps}
                       onChange={(e) => setSteps(e.target.value)}
-                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded border border-border px-2 py-1.5 text-xs outline-none transition-colors duration-150"
                     />
                   </div>
                 </div>
@@ -139,7 +143,7 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
                   type="button"
                   onClick={handleRun}
                   disabled={loading || !paramName || !minVal || !maxVal}
-                  className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
                 >
                   {loading ? "Running sweep..." : "Run Sweep"}
                 </button>
@@ -159,7 +163,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
 
   if (validPoints.length < 2) {
     return (
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground">
         Not enough valid data points to render a chart.
       </p>
     );
@@ -200,7 +204,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
 
   return (
     <div>
-      <div className="mb-2 text-xs font-medium text-slate-500">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">
         Metrics vs {result.parameter}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: H }}>
@@ -218,7 +222,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
               x={PAD.left - 6}
               y={y(v) + 3}
               textAnchor="end"
-              className="fill-slate-400"
+              className="fill-muted-foreground"
               style={{ fontSize: 9 }}
             >
               {(v * 100).toFixed(0)}%
@@ -231,7 +235,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
             x={x(p.value)}
             y={H - PAD.bottom + 16}
             textAnchor="middle"
-            className="fill-slate-400"
+            className="fill-muted-foreground"
             style={{ fontSize: 9 }}
           >
             {Number.isInteger(p.value) ? p.value : p.value.toFixed(2)}
@@ -241,7 +245,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
           x={PAD.left + plotW / 2}
           y={H - 4}
           textAnchor="middle"
-          className="fill-slate-500"
+          className="fill-muted-foreground"
           style={{ fontSize: 10 }}
         >
           {result.parameter}
@@ -275,7 +279,7 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
           </g>
         ))}
       </svg>
-      <div className="mt-2 flex justify-center gap-6 text-[10px] text-slate-500">
+      <div className="mt-2 flex justify-center gap-6 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded bg-blue-600" />
           Sensitivity
@@ -286,17 +290,17 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
         </span>
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-0.5 w-4 rounded border-t border-dashed border-slate-900 bg-transparent"
+            className="inline-block h-0.5 w-4 rounded border-t border-dashed border-foreground bg-transparent"
             style={{ borderTopWidth: 2 }}
           />
           F1
         </span>
       </div>
 
-      <div className="mt-4 max-h-40 overflow-y-auto rounded-md border border-slate-200">
+      <div className="mt-4 max-h-40 overflow-y-auto rounded-md border border-border">
         <table className="w-full text-left text-xs">
-          <thead className="sticky top-0 bg-white">
-            <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+          <thead className="sticky top-0 bg-card">
+            <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2 font-medium">{result.parameter}</th>
               <th className="px-3 py-2 font-medium">Sensitivity</th>
               <th className="px-3 py-2 font-medium">Specificity</th>
@@ -304,20 +308,20 @@ function SweepChart({ result }: { result: ThresholdSweepResult }) {
               <th className="px-3 py-2 font-medium">Results</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-border/50">
             {validPoints.map((p) => (
               <tr key={p.value}>
-                <td className="px-3 py-1.5 font-mono text-slate-700">{p.value}</td>
-                <td className="px-3 py-1.5 font-mono text-slate-600">
+                <td className="px-3 py-1.5 font-mono text-foreground">{p.value}</td>
+                <td className="px-3 py-1.5 font-mono text-muted-foreground">
                   {pct(p.metrics!.sensitivity)}
                 </td>
-                <td className="px-3 py-1.5 font-mono text-slate-600">
+                <td className="px-3 py-1.5 font-mono text-muted-foreground">
                   {pct(p.metrics!.specificity)}
                 </td>
-                <td className="px-3 py-1.5 font-mono text-slate-600">
+                <td className="px-3 py-1.5 font-mono text-muted-foreground">
                   {pct(p.metrics!.f1Score)}
                 </td>
-                <td className="px-3 py-1.5 font-mono text-slate-600">
+                <td className="px-3 py-1.5 font-mono text-muted-foreground">
                   {p.metrics!.totalResults}
                 </td>
               </tr>

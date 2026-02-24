@@ -1,5 +1,8 @@
 import type { Experiment } from "@pathfinder/shared";
 import { ArrowLeft, Download, GitCompare, RotateCcw } from "lucide-react";
+import { Button } from "@/lib/components/ui/Button";
+import { Badge } from "@/lib/components/ui/Badge";
+import { Separator } from "@/lib/components/ui/Separator";
 import { exportExperiment } from "../../api";
 import { useExperimentStore } from "../../store";
 import { NotesEditor } from "./NotesEditor";
@@ -30,40 +33,46 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl space-y-8 px-8 py-6">
+      <div className="mx-auto max-w-5xl space-y-8 px-8 py-6 animate-fade-in">
         <header>
           <button
             type="button"
             onClick={() => setView("list")}
-            className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-400 transition hover:text-slate-600"
+            className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <ArrowLeft className="h-3 w-3" />
             Experiments
           </button>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold tracking-tight text-slate-900">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-foreground">
                 {experiment.config.name}
               </h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px]">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="font-mono text-xs">
                   {experiment.config.searchName}
-                </span>
-                <span>{experiment.config.recordType}</span>
+                </Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {experiment.config.recordType}
+                </Badge>
                 {experiment.totalTimeSeconds && (
-                  <span>{experiment.totalTimeSeconds.toFixed(1)}s</span>
+                  <span className="text-xs text-muted-foreground">
+                    {experiment.totalTimeSeconds.toFixed(1)}s
+                  </span>
                 )}
                 {experiment.createdAt && (
-                  <span>{new Date(experiment.createdAt).toLocaleDateString()}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(experiment.createdAt).toLocaleDateString()}
+                  </span>
                 )}
               </div>
               {parentId && parentName && (
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span>Derived from</span>
                   <button
                     type="button"
                     onClick={() => loadExperiment(parentId)}
-                    className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-indigo-600 transition hover:border-indigo-200 hover:bg-indigo-50"
+                    className="rounded-md border border-border bg-muted px-2 py-0.5 font-medium text-primary transition-colors duration-150 hover:border-primary/30 hover:bg-primary/5"
                   >
                     {parentName}
                   </button>
@@ -71,38 +80,36 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
               )}
             </div>
             <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => exportExperiment(experiment.id, experiment.config.name)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
               >
-                <Download className="h-3 w-3" />
+                <Download className="h-3.5 w-3.5" />
                 Export
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("setup")}
-                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                <RotateCcw className="h-3 w-3" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setView("setup")}>
+                <RotateCcw className="h-3.5 w-3.5" />
                 Re-run
-              </button>
+              </Button>
               {experiments.length > 1 && (
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     const other = experiments.find((e) => e.id !== experiment.id);
                     if (other) loadCompareExperiment(other.id);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
                 >
-                  <GitCompare className="h-3 w-3" />
+                  <GitCompare className="h-3.5 w-3.5" />
                   Compare
-                </button>
+                </Button>
               )}
             </div>
           </div>
         </header>
+
+        <Separator />
 
         <NotesEditor
           experimentId={experiment.id}

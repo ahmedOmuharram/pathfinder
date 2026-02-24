@@ -69,30 +69,30 @@ export function OrthologTransformModal(props: {
       maxWidth="max-w-lg"
     >
       <div className="p-4">
-        <div className="text-sm font-semibold text-slate-900">
+        <div className="text-sm font-semibold text-foreground">
           Insert ortholog transform
         </div>
-        <div className="mt-1 text-[12px] text-slate-500">
+        <div className="mt-1 text-sm text-muted-foreground">
           Pick the site&apos;s ortholog/orthology transform question. You can edit
           parameters after insertion.
         </div>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Transform tool
             </label>
             {isLoading ? (
-              <div className="text-[12px] text-slate-500">Loading…</div>
+              <div className="text-sm text-muted-foreground">Loading…</div>
             ) : searches.length === 0 ? (
-              <div className="text-[12px] text-slate-600">
+              <div className="text-sm text-muted-foreground">
                 {error || "No ortholog transforms found for this record type."}
               </div>
             ) : (
               <select
                 value={selectedName}
                 onChange={(e) => setSelectedName(e.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
               >
                 {searches.map((s) => (
                   <option key={s.name} value={s.name}>
@@ -102,13 +102,13 @@ export function OrthologTransformModal(props: {
               </select>
             )}
             {selected?.description ? (
-              <div className="mt-2 text-[12px] text-slate-500">
+              <div className="mt-2 text-sm text-muted-foreground">
                 {selected.description}
               </div>
             ) : null}
           </div>
 
-          <label className="flex items-center gap-2 text-[12px] text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={insertBetween}
@@ -122,7 +122,7 @@ export function OrthologTransformModal(props: {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600"
+            className="rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             Cancel
           </button>
@@ -133,7 +133,7 @@ export function OrthologTransformModal(props: {
               if (!selected) return;
               onChoose(selected, { insertBetween });
             }}
-            className="rounded-md border border-slate-200 bg-slate-900 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-60"
+            className="rounded-md border border-border bg-primary px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground transition-colors duration-150 disabled:opacity-60"
           >
             Insert
           </button>

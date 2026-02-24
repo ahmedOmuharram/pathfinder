@@ -12,12 +12,13 @@ from typing import Literal
 ModelProvider = Literal["openai", "anthropic", "google"]
 ReasoningEffort = Literal["none", "low", "medium", "high"]
 
-# OpenAI reasoning models (gpt-5*, o1, o3, o4) use the ``reasoning`` param.
+# OpenAI reasoning models (gpt-5*, o1, o3, o4) use the flat
+# ``reasoning_effort`` param accepted by ``chat.completions.create()``.
 _OPENAI_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
-    "none": {"reasoning": {"effort": "none"}},
-    "low": {"reasoning": {"effort": "low"}},
+    "none": {"reasoning_effort": "none"},
+    "low": {"reasoning_effort": "low"},
     "medium": {},  # server default
-    "high": {"reasoning": {"effort": "high"}},
+    "high": {"reasoning_effort": "high"},
 }
 
 # Anthropic extended thinking uses ``thinking`` param with a budget.
@@ -28,13 +29,14 @@ _ANTHROPIC_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
     "high": {"thinking": {"type": "enabled", "budget_tokens": 32768}},
 }
 
-# Google Gemini 2.5 uses ``thinking_config`` with a token budget.
+# Google Gemini 2.5 uses ``thinking_config`` passed directly to
+# ``GenerateContentConfig`` (not nested under ``generation_config``).
 # A budget of 0 disables thinking; -1 = automatic (server decides).
 _GOOGLE_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
-    "none": {"generation_config": {"thinking_config": {"thinking_budget": 0}}},
-    "low": {"generation_config": {"thinking_config": {"thinking_budget": 1024}}},
-    "medium": {"generation_config": {"thinking_config": {"thinking_budget": 8192}}},
-    "high": {"generation_config": {"thinking_config": {"thinking_budget": 24576}}},
+    "none": {"thinking_config": {"thinking_budget": 0}},
+    "low": {"thinking_config": {"thinking_budget": 1024}},
+    "medium": {"thinking_config": {"thinking_budget": 8192}},
+    "high": {"thinking_config": {"thinking_budget": 24576}},
 }
 
 _EFFORT_MAPS: dict[ModelProvider, dict[ReasoningEffort, dict[str, object]]] = {

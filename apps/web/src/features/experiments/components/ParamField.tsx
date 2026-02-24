@@ -55,24 +55,22 @@ export function ParamField({
 
   const labelRow = (
     <div className="mb-1 flex items-center gap-1.5">
-      <label className="text-[11px] font-medium text-slate-600">
+      <label className="text-xs font-medium text-muted-foreground">
         {label}
-        <span className="ml-1 font-normal text-slate-400">({spec.name})</span>
+        <span className="ml-1 font-normal text-muted-foreground">({spec.name})</span>
         {required && !isOptimizing && (
-          <span className="ml-1 text-[10px] font-semibold text-red-400">*</span>
+          <span className="ml-1 text-xs font-semibold text-red-400">*</span>
         )}
-        {isMultiPick && (
-          <span className="ml-1 text-[10px] text-indigo-500">multi-select</span>
-        )}
+        {isMultiPick && <span className="ml-1 text-xs text-primary">multi-select</span>}
       </label>
       {canOptimize && (
         <button
           type="button"
           onClick={handleToggleOptimize}
-          className={`ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+          className={`ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium transition ${
             isOptimizing
               ? "bg-amber-100 text-amber-700"
-              : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              : "text-muted-foreground hover:bg-muted hover:text-muted-foreground"
           }`}
         >
           <Target className="h-3 w-3" />
@@ -82,8 +80,8 @@ export function ParamField({
     </div>
   );
 
-  const errorBorder = hasError ? "border-red-300" : "border-slate-200";
-  const errorRing = hasError ? "focus:border-red-400" : "focus:border-slate-300";
+  const errorBorder = hasError ? "border-red-300" : "border-border";
+  const errorRing = hasError ? "focus:border-red-400" : "focus:border-input";
 
   // --- Optimize mode: numeric range ---
   if (
@@ -95,7 +93,7 @@ export function ParamField({
         {labelRow}
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <label className="mb-0.5 block text-[10px] text-slate-500">Min</label>
+            <label className="mb-0.5 block text-xs text-muted-foreground">Min</label>
             <input
               type="number"
               value={optimizeSpec.min ?? ""}
@@ -106,11 +104,11 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
             />
           </div>
           <div className="flex-1">
-            <label className="mb-0.5 block text-[10px] text-slate-500">Max</label>
+            <label className="mb-0.5 block text-xs text-muted-foreground">Max</label>
             <input
               type="number"
               value={optimizeSpec.max ?? ""}
@@ -121,11 +119,11 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
             />
           </div>
           <div className="w-20">
-            <label className="mb-0.5 block text-[10px] text-slate-500">Step</label>
+            <label className="mb-0.5 block text-xs text-muted-foreground">Step</label>
             <input
               type="number"
               value={optimizeSpec.step ?? ""}
@@ -136,11 +134,11 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-[11px] outline-none placeholder:text-slate-400 focus:border-amber-300"
+              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
             />
           </div>
         </div>
-        <div className="mt-1 text-[10px] text-amber-600">
+        <div className="mt-1 text-xs text-amber-600">
           Leave blank to use the full parameter range
         </div>
       </div>
@@ -164,27 +162,27 @@ export function ParamField({
     return (
       <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
         {labelRow}
-        <div className="mb-1 text-[10px] text-amber-600">
+        <div className="mb-1 text-xs text-amber-600">
           Select values to try (leave all unchecked to try all)
         </div>
-        <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-white">
+        <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-card">
           {vocabEntries.map((entry) => (
             <label
               key={entry.value}
-              className="flex items-center gap-2 px-2 py-1 text-[11px] text-slate-700 hover:bg-amber-50"
+              className="flex items-center gap-2 px-2 py-1 text-xs text-foreground hover:bg-amber-50"
             >
               <input
                 type="checkbox"
                 checked={selectedChoices.has(entry.value)}
                 onChange={() => toggleChoice(entry.value)}
-                className="h-3 w-3 rounded border-slate-300"
+                className="h-3 w-3 rounded border-input"
               />
               {entry.display}
             </label>
           ))}
         </div>
         {selectedChoices.size > 0 && (
-          <div className="mt-0.5 text-[10px] text-amber-600">
+          <div className="mt-0.5 text-xs text-amber-600">
             {selectedChoices.size} of {vocabEntries.length} selected
           </div>
         )}
@@ -208,29 +206,29 @@ export function ParamField({
         <div>
           {labelRow}
           <div
-            className={`max-h-40 overflow-y-auto rounded-md border bg-white ${hasError ? "border-red-300" : "border-slate-200"}`}
+            className={`max-h-40 overflow-y-auto rounded-md border bg-card ${hasError ? "border-red-300" : "border-border"}`}
           >
             {vocabEntries.map((entry) => (
               <label
                 key={entry.value}
-                className="flex items-center gap-2 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                className="flex items-center gap-2 px-2 py-1 text-xs text-foreground hover:bg-muted"
               >
                 <input
                   type="checkbox"
                   checked={selected.has(entry.value)}
                   onChange={() => toggle(entry.value)}
-                  className="h-3 w-3 rounded border-slate-300"
+                  className="h-3 w-3 rounded border-input"
                 />
                 {entry.display}
               </label>
             ))}
           </div>
           {selected.size > 0 ? (
-            <div className="mt-0.5 text-[10px] text-slate-400">
+            <div className="mt-0.5 text-xs text-muted-foreground">
               {selected.size} selected
             </div>
           ) : hasError ? (
-            <div className="mt-0.5 text-[10px] text-red-500">
+            <div className="mt-0.5 text-xs text-destructive">
               Select at least one value
             </div>
           ) : null}
@@ -244,7 +242,7 @@ export function ParamField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-md border px-3 py-1.5 text-[12px] text-slate-700 outline-none ${errorBorder} ${errorRing}`}
+          className={`w-full rounded-md border px-3 py-1.5 text-sm text-foreground outline-none ${errorBorder} ${errorRing}`}
         >
           <option value="">— select —</option>
           {vocabEntries.map((entry) => (
@@ -253,7 +251,7 @@ export function ParamField({
             </option>
           ))}
         </select>
-        {hasError && <div className="mt-0.5 text-[10px] text-red-500">Required</div>}
+        {hasError && <div className="mt-0.5 text-xs text-destructive">Required</div>}
       </div>
     );
   }
@@ -267,9 +265,9 @@ export function ParamField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Default"
-          className={`w-full rounded-md border px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 ${errorBorder} ${errorRing}`}
+          className={`w-full rounded-md border px-3 py-1.5 text-sm outline-none placeholder:text-muted-foreground ${errorBorder} ${errorRing}`}
         />
-        {hasError && <div className="mt-0.5 text-[10px] text-red-500">Required</div>}
+        {hasError && <div className="mt-0.5 text-xs text-destructive">Required</div>}
       </div>
     );
   }
@@ -286,9 +284,9 @@ export function ParamField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Default"
-        className={`w-full rounded-md border px-3 py-1.5 text-[12px] outline-none placeholder:text-slate-400 ${errorBorder} ${errorRing}`}
+        className={`w-full rounded-md border px-3 py-1.5 text-sm outline-none placeholder:text-muted-foreground ${errorBorder} ${errorRing}`}
       />
-      {hasError && <div className="mt-0.5 text-[10px] text-red-500">Required</div>}
+      {hasError && <div className="mt-0.5 text-xs text-destructive">Required</div>}
     </div>
   );
 }

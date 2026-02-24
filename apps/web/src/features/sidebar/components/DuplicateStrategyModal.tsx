@@ -26,7 +26,7 @@ export function DuplicateStrategyModal({
       {duplicateModal && (
         <div className="p-4">
           <div className="mt-3 space-y-2">
-            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Name
             </label>
             <input
@@ -37,9 +37,9 @@ export function DuplicateStrategyModal({
                 )
               }
               disabled={duplicateModal.isLoading}
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-[13px] text-slate-800"
+              className="w-full rounded-md border border-border px-3 py-2 text-sm text-foreground"
             />
-            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Description
             </label>
             <textarea
@@ -51,22 +51,22 @@ export function DuplicateStrategyModal({
               }
               rows={3}
               disabled={duplicateModal.isLoading}
-              className="w-full resize-none rounded-md border border-slate-200 px-3 py-2 text-[13px] text-slate-800"
+              className="w-full resize-none rounded-md border border-border px-3 py-2 text-sm text-foreground"
             />
             {duplicateModal.isLoading && (
-              <div className="text-[11px] text-slate-500">
+              <div className="text-xs text-muted-foreground">
                 Loading strategy details...
               </div>
             )}
             {duplicateModal.error && (
-              <div className="text-[11px] text-red-600">{duplicateModal.error}</div>
+              <div className="text-xs text-destructive">{duplicateModal.error}</div>
             )}
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setDuplicateModal(null)}
-              className="rounded-md px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+              className="rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
             >
               Cancel
             </button>
@@ -96,7 +96,7 @@ export function DuplicateStrategyModal({
                 }
               }}
               disabled={duplicateModal.isSubmitting || duplicateModal.isLoading}
-              className="rounded-md bg-slate-900 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-slate-700 disabled:opacity-60"
+              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               {duplicateModal.isSubmitting ? "Duplicating..." : "Duplicate"}
             </button>

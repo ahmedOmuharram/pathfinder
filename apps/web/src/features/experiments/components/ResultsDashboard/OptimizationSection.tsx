@@ -35,29 +35,29 @@ export function OptimizationSection({ result }: OptimizationSectionProps) {
   return (
     <Section title="Parameter Optimization">
       <div className="space-y-4">
-        <div className="rounded-lg border border-slate-200 bg-white">
-          <div className="grid grid-cols-3 divide-x divide-slate-200">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="grid grid-cols-3 divide-x divide-border">
             <div className="px-5 py-3">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Best Score
               </div>
-              <div className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+              <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                 {result.bestTrial ? pct(result.bestTrial.score) : "\u2014"}
               </div>
             </div>
             <div className="px-5 py-3">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Trials
               </div>
-              <div className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+              <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                 {result.totalTrials}
               </div>
             </div>
             <div className="px-5 py-3">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Time
               </div>
-              <div className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+              <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                 {result.totalTimeSeconds.toFixed(1)}s
               </div>
             </div>
@@ -65,15 +65,15 @@ export function OptimizationSection({ result }: OptimizationSectionProps) {
         </div>
 
         {result.bestTrial && (
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-5 py-2.5 text-xs font-medium text-slate-500">
+          <div className="rounded-lg border border-border bg-card">
+            <div className="border-b border-border px-5 py-2.5 text-xs font-medium text-muted-foreground">
               Best Trial Parameters
             </div>
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-border/50">
               {Object.entries(result.bestTrial.parameters).map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between px-5 py-2">
-                  <span className="text-[13px] text-slate-600">{k}</span>
-                  <span className="font-mono text-[13px] tabular-nums text-slate-900">
+                  <span className="text-sm text-muted-foreground">{k}</span>
+                  <span className="font-mono text-sm tabular-nums text-foreground">
                     {String(v)}
                   </span>
                 </div>
@@ -83,8 +83,10 @@ export function OptimizationSection({ result }: OptimizationSectionProps) {
         )}
 
         {convergenceData.length > 1 && (
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <div className="mb-3 text-xs font-medium text-slate-500">Convergence</div>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <div className="mb-3 text-xs font-medium text-muted-foreground">
+              Convergence
+            </div>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart
                 data={convergenceData}
@@ -135,16 +137,16 @@ export function OptimizationSection({ result }: OptimizationSectionProps) {
         <button
           type="button"
           onClick={() => setShowTrials(!showTrials)}
-          className="text-xs text-slate-400 transition hover:text-slate-600"
+          className="text-xs text-muted-foreground transition hover:text-foreground"
         >
           {showTrials ? "Hide trial history" : "Show trial history"}
         </button>
 
         {showTrials && (
-          <div className="max-h-60 overflow-x-auto overflow-y-auto rounded-lg border border-slate-200 bg-white">
+          <div className="max-h-60 overflow-x-auto overflow-y-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="px-4 py-2.5 font-medium">#</th>
                   <th className="px-4 py-2.5 font-medium">Score</th>
                   <th className="px-4 py-2.5 font-medium">Recall</th>
@@ -153,32 +155,30 @@ export function OptimizationSection({ result }: OptimizationSectionProps) {
                   <th className="px-4 py-2.5 font-medium">Parameters</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border/50">
                 {result.allTrials.map((t) => (
                   <tr
                     key={t.trialNumber}
                     className={
-                      t.trialNumber === result.bestTrial?.trialNumber
-                        ? "bg-slate-50"
-                        : ""
+                      t.trialNumber === result.bestTrial?.trialNumber ? "bg-accent" : ""
                     }
                   >
-                    <td className="px-4 py-2 text-slate-500">{t.trialNumber}</td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 text-muted-foreground">{t.trialNumber}</td>
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {pct(t.score)}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {t.recall != null ? pct(t.recall) : "\u2014"}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {t.falsePositiveRate != null
                         ? pct(t.falsePositiveRate)
                         : "\u2014"}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {t.resultCount ?? "\u2014"}
                     </td>
-                    <td className="max-w-xs truncate px-4 py-2 font-mono text-[10px] text-slate-500">
+                    <td className="max-w-xs truncate px-4 py-2 font-mono text-xs text-muted-foreground">
                       {Object.entries(t.parameters)
                         .map(([k, v]) => `${k}=${v}`)
                         .join(", ")}

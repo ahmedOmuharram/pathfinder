@@ -20,6 +20,15 @@ services:
       # "mock" = fake chat (no API key needed; used by E2E). Set PATHFINDER_CHAT_PROVIDER=
       # (or any non-mock value) in .env to use real LLM chat.
       PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:-mock}
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./apps/api/src
+          target: /app/apps/api/src
+        - action: rebuild
+          path: ./apps/api/pyproject.toml
+        - action: rebuild
+          path: ./apps/api/uv.lock
 
   web:
     build:
@@ -37,6 +46,12 @@ services:
       # Runtime env read by next.config.js rewrites (standalone server re-reads
       # the config at startup) and by SSR code.
       NEXT_PUBLIC_API_URL: http://api:8000
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/web/src
+        - action: rebuild
+          path: ./apps/web/package.json
 
   db:
     image: postgres:16-alpine

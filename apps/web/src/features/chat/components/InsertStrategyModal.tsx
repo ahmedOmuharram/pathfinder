@@ -83,35 +83,35 @@ export function InsertStrategyModal({
       maxWidth="max-w-md"
     >
       <div className="flex flex-col gap-3 px-5 pb-5 pt-2">
-        <p className="text-[12px] text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Select a strategy to include as context in your conversation.
         </p>
 
         {/* Search input */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search strategies..."
-            className="w-full rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-[12px] text-slate-700 placeholder:text-slate-400"
+            className="w-full rounded-md border border-border py-1.5 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
           />
         </div>
 
         {/* Strategy list */}
-        <div className="max-h-[300px] min-h-[100px] overflow-y-auto rounded-md border border-slate-200">
+        <div className="max-h-[300px] min-h-[100px] overflow-y-auto rounded-md border border-border">
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           )}
           {error && (
-            <div className="px-3 py-4 text-center text-[12px] text-red-600">
+            <div className="px-3 py-4 text-center text-sm text-destructive">
               {error}
             </div>
           )}
           {!loading && !error && filtered.length === 0 && (
-            <div className="px-3 py-4 text-center text-[12px] text-slate-400">
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
               {query.trim()
                 ? "No strategies match your search."
                 : "No strategies with steps found."}
@@ -124,18 +124,18 @@ export function InsertStrategyModal({
                 key={s.id}
                 type="button"
                 onClick={() => handleSelect(s)}
-                className="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-slate-50"
+                className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-accent"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-medium text-slate-800">
+                  <div className="truncate text-sm font-medium text-foreground">
                     {s.name}
                   </div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-xs text-muted-foreground">
                     {s.steps.length} step{s.steps.length !== 1 ? "s" : ""}{" "}
                     {s.recordType && `· ${s.recordType}`}
                   </div>
                 </div>
-                <div className="shrink-0 text-[10px] text-slate-400">Select</div>
+                <div className="shrink-0 text-xs text-muted-foreground">Select</div>
               </button>
             ))}
         </div>

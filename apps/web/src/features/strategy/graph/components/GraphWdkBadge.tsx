@@ -11,13 +11,13 @@ export function GraphWdkBadge(props: {
   const href = wdkUrl || wdkUrlFallback || undefined;
 
   return (
-    <div className="pointer-events-auto absolute left-4 top-4 z-10 rounded-lg border border-slate-200 bg-white/90 px-2 py-1 text-[11px] text-slate-600 shadow-sm backdrop-blur">
+    <div className="pointer-events-auto absolute left-4 top-4 z-10 rounded-lg border border-border bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
       {wdkStrategyId && (
         <div className="font-medium">
           Synced{" "}
           {href ? (
             <a
-              className="font-mono text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-slate-700"
+              className="font-mono text-foreground underline decoration-border underline-offset-4 transition-colors duration-150 hover:text-muted-foreground"
               href={href}
               target="_blank"
               rel="noreferrer"
@@ -32,7 +32,7 @@ export function GraphWdkBadge(props: {
 
       {href && !wdkStrategyId && (
         <a
-          className="inline-block text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-slate-700"
+          className="inline-block text-foreground underline decoration-border underline-offset-4 transition-colors duration-150 hover:text-muted-foreground"
           href={href}
           target="_blank"
           rel="noreferrer"

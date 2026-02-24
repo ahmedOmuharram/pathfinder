@@ -8,6 +8,7 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer,
 } from "recharts";
+import { Button } from "@/lib/components/ui/Button";
 import { Section } from "./Section";
 import { pct, fmtNum } from "./utils";
 
@@ -76,21 +77,19 @@ export function MetricsOverview({ metrics }: MetricsOverviewProps) {
 
   return (
     <Section title="Classification Metrics">
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_280px] divide-x divide-slate-200 max-lg:grid-cols-1 max-lg:divide-x-0 max-lg:divide-y">
-          <div className="divide-y divide-slate-100">
+      <div className="rounded-lg border border-border bg-card shadow-xs">
+        <div className="grid grid-cols-[1fr_280px] divide-x divide-border max-lg:grid-cols-1 max-lg:divide-x-0 max-lg:divide-y">
+          <div className="divide-y divide-border">
             {primary.map((m) => (
               <div
                 key={m.label}
                 className="flex items-center justify-between px-5 py-2.5"
               >
                 <div>
-                  <span className="text-[13px] font-medium text-slate-800">
-                    {m.label}
-                  </span>
-                  <span className="ml-2 text-[11px] text-slate-400">{m.desc}</span>
+                  <span className="text-sm font-medium text-foreground">{m.label}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{m.desc}</span>
                 </div>
-                <span className="font-mono text-[13px] font-semibold tabular-nums text-slate-900">
+                <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
                   {m.raw ? fmtNum(m.value) : pct(m.value)}
                 </span>
               </div>
@@ -99,43 +98,44 @@ export function MetricsOverview({ metrics }: MetricsOverviewProps) {
               secondary.map((m) => (
                 <div
                   key={m.label}
-                  className="flex items-center justify-between bg-slate-50/50 px-5 py-2.5"
+                  className="flex items-center justify-between bg-muted/30 px-5 py-2.5"
                 >
-                  <span className="text-[13px] text-slate-600">{m.label}</span>
-                  <span className="font-mono text-[13px] tabular-nums text-slate-700">
+                  <span className="text-sm text-muted-foreground">{m.label}</span>
+                  <span className="font-mono text-sm tabular-nums text-foreground">
                     {m.raw ? fmtNum(m.value) : pct(m.value)}
                   </span>
                 </div>
               ))}
             <div className="px-5 py-2">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => setShowSecondary(!showSecondary)}
-                className="text-xs text-slate-400 transition hover:text-slate-600"
               >
                 {showSecondary ? "Show less" : "Show all metrics"}
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="flex items-center justify-center p-4 max-lg:py-6">
             <ResponsiveContainer width="100%" height={220}>
               <RadarChart data={radarData} outerRadius="75%">
-                <PolarGrid stroke="#e2e8f0" />
+                <PolarGrid stroke="hsl(var(--border))" />
                 <PolarAngleAxis
                   dataKey="metric"
-                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 1]}
-                  tick={{ fontSize: 9, fill: "#cbd5e1" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--border))" }}
                   tickCount={5}
                 />
                 <Radar
                   dataKey="value"
-                  stroke="#334155"
-                  fill="#334155"
+                  stroke="hsl(var(--foreground))"
+                  fill="hsl(var(--foreground))"
                   fillOpacity={0.12}
                   strokeWidth={1.5}
                 />

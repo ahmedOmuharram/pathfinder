@@ -466,7 +466,7 @@ export function UnifiedChatPanel({
   // Render
 
   return (
-    <div className="flex h-full flex-col bg-white text-[13px]">
+    <div className="flex h-full flex-col bg-card text-sm">
       {chatMode === "plan" && delegationDraft && (
         <DelegationDraftViewer
           delegationDraft={delegationDraft}
@@ -474,7 +474,6 @@ export function UnifiedChatPanel({
         />
       )}
 
-      {/* Messages */}
       <ChatMessageList
         isCompact={false}
         siteId={siteId}
@@ -533,10 +532,9 @@ export function UnifiedChatPanel({
         messagesEndRef={messagesEndRef}
       />
 
-      {/* Composer area */}
-      <div className="border-t border-slate-200 bg-white p-3">
+      <div className="border-t border-border bg-card p-3">
         {apiError && (
-          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {apiError}
           </div>
         )}

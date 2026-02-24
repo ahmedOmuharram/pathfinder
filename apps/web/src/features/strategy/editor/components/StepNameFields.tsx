@@ -10,25 +10,25 @@ export function StepNameFields({ oldName, name, onNameChange }: StepNameFieldsPr
   return (
     <div className="space-y-2">
       <div>
-        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Old name
         </label>
         <input
           type="text"
           value={oldName}
           disabled
-          className="w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-500"
+          className="w-full cursor-not-allowed rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
         />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           New name
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
-          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
         />
       </div>
     </div>

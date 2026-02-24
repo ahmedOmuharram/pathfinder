@@ -1,5 +1,10 @@
 import type { OptimizeSpec, ParamSpec } from "@pathfinder/shared";
-import { Info, Loader2 } from "lucide-react";
+import { Info } from "lucide-react";
+import { Label } from "@/lib/components/ui/Label";
+import { Input } from "@/lib/components/ui/Input";
+import { Button } from "@/lib/components/ui/Button";
+import { Skeleton } from "@/lib/components/ui/Skeleton";
+import { Separator } from "@/lib/components/ui/Separator";
 import { ParamField } from "../ParamField";
 
 interface ParametersStepProps {
@@ -28,26 +33,31 @@ export function ParametersStep({
   showValidation,
 }: ParametersStepProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <Label>
           Parameters for:{" "}
-          <span className="normal-case font-bold text-slate-700">{selectedSearch}</span>
-        </label>
-        {paramSpecsLoading && (
-          <div className="flex items-center gap-1 text-[10px] text-slate-400">
-            <Loader2 className="h-3 w-3 animate-spin" /> Loading...
-          </div>
-        )}
+          <span className="font-mono font-semibold text-foreground">
+            {selectedSearch}
+          </span>
+        </Label>
       </div>
 
+      {paramSpecsLoading && (
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-3/4" />
+        </div>
+      )}
+
       {!paramSpecsLoading && paramSpecs.length === 0 && (
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-center gap-2 text-[11px] text-slate-600">
-            <Info className="h-3.5 w-3.5 text-slate-400" />
+        <div className="rounded-lg border border-border bg-muted/50 p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Info className="h-4 w-4 shrink-0" />
             <span>
               {selectedSearch
-                ? "No configurable parameters found for this search, or parameters could not be loaded."
+                ? "No configurable parameters found for this search."
                 : "Select a search first to see its parameters."}
             </span>
           </div>
@@ -70,39 +80,42 @@ export function ParametersStep({
         </div>
       )}
 
-      <div className="border-t border-slate-200 pt-3">
+      <Separator />
+
+      <div>
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-            Custom parameters
-          </span>
-          <button
-            type="button"
+          <Label className="text-muted-foreground">Custom parameters</Label>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
             onClick={() => {
               const key = prompt("Parameter name:");
               if (key && !paramSpecs.some((s) => s.name === key)) {
                 onParameterChange(key, "");
               }
             }}
-            className="text-[11px] font-medium text-indigo-600"
           >
             + Add custom parameter
-          </button>
+          </Button>
         </div>
         {Object.entries(parameters)
           .filter(([key]) => !paramSpecs.some((s) => s.name === key))
           .map(([key, val]) => (
             <div key={key} className="mt-2 flex items-center gap-2">
-              <span className="w-1/3 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600">
+              <span className="w-1/3 truncate rounded-md border border-border bg-muted px-2 py-1.5 text-xs font-mono text-muted-foreground">
                 {key}
               </span>
-              <input
+              <Input
                 type="text"
                 value={val}
                 onChange={(e) => onParameterChange(key, e.target.value)}
-                className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-[12px] outline-none focus:border-slate-300"
+                className="flex-1"
               />
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
                 onClick={() =>
                   onParametersReplace((p) => {
                     const next = { ...p };
@@ -110,10 +123,9 @@ export function ParametersStep({
                     return next;
                   })
                 }
-                className="text-[11px] text-red-500 hover:text-red-700"
               >
                 Remove
-              </button>
+              </Button>
             </div>
           ))}
       </div>

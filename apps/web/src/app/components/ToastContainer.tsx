@@ -22,29 +22,31 @@ export function ToastContainer({ toasts, durationMs, onDismiss }: ToastContainer
           }
           className={`toast-animate pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-lg ${
             toast.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "border-success/20 bg-success/10 text-success"
               : toast.type === "warning"
                 ? "border-amber-200 bg-amber-50 text-amber-900"
                 : toast.type === "info"
-                  ? "border-slate-200 bg-slate-50 text-slate-900"
-                  : "border-red-200 bg-red-50 text-red-900"
+                  ? "border-border bg-muted text-foreground"
+                  : "border-destructive/30 bg-destructive/5 text-destructive"
           }`}
         >
           {toast.type === "success" && (
-            <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
+            <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" />
           )}
           {toast.type === "warning" && (
             <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
           )}
-          {toast.type === "info" && <Info className="mt-0.5 h-4 w-4 text-slate-600" />}
+          {toast.type === "info" && (
+            <Info className="mt-0.5 h-4 w-4 text-muted-foreground" />
+          )}
           {toast.type === "error" && (
-            <XCircle className="mt-0.5 h-4 w-4 text-red-600" />
+            <XCircle className="mt-0.5 h-4 w-4 text-destructive" />
           )}
           <div className="flex-1">{toast.message}</div>
           <button
             type="button"
             onClick={() => onDismiss(toast.id)}
-            className="mt-0.5 text-slate-500 hover:text-slate-700"
+            className="mt-0.5 text-muted-foreground transition-colors duration-150 hover:text-foreground"
             aria-label="Dismiss notification"
           >
             ×
@@ -52,12 +54,12 @@ export function ToastContainer({ toasts, durationMs, onDismiss }: ToastContainer
           <div
             className={`toast-progress absolute bottom-0 left-0 h-1 ${
               toast.type === "success"
-                ? "bg-emerald-400"
+                ? "bg-success"
                 : toast.type === "warning"
                   ? "bg-amber-400"
                   : toast.type === "info"
-                    ? "bg-slate-400"
-                    : "bg-red-400"
+                    ? "bg-muted-foreground"
+                    : "bg-destructive"
             }`}
           />
         </div>

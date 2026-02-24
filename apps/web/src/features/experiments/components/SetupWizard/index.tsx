@@ -1,4 +1,6 @@
-import { ArrowLeft, ArrowRight, Check, FlaskConical, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, FlaskConical, Loader2 } from "lucide-react";
+import { Button } from "@/lib/components/ui/Button";
+import { Stepper } from "@/lib/components/ui/Stepper";
 import { AiAssistantPanel } from "../AiAssistantPanel";
 import { SearchStep } from "../steps/SearchStep";
 import { ParametersStep } from "../steps/ParametersStep";
@@ -85,33 +87,14 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
   return (
     <div className="flex h-full">
       <div className="flex flex-1 flex-col p-6">
-        <div className="mb-6 flex items-center gap-2">
-          {STEPS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => i <= step && setStep(i)}
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold transition ${
-                  i < step
-                    ? "bg-emerald-100 text-emerald-700"
-                    : i === step
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-400"
-                }`}
-              >
-                {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
-              </button>
-              <span
-                className={`text-[11px] font-medium ${i === step ? "text-slate-800" : "text-slate-400"}`}
-              >
-                {label}
-              </span>
-              {i < STEPS.length - 1 && <div className="mx-1 h-px w-8 bg-slate-200" />}
-            </div>
-          ))}
-        </div>
+        <Stepper
+          steps={[...STEPS]}
+          currentStep={step}
+          onStepClick={(i) => i <= step && setStep(i)}
+          className="mb-6"
+        />
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto animate-fade-in" key={step}>
           {step === 0 && (
             <SearchStep
               recordTypes={recordTypes}
@@ -185,61 +168,36 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
         </div>
 
         {attemptedSteps.has(step) && stepValidation.message && (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {stepValidation.message}
           </div>
         )}
 
         {storeError && (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             <span className="font-semibold">Experiment failed:</span> {storeError}
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-          <button
-            type="button"
-            onClick={goBack}
-            className="flex items-center gap-1 text-[12px] font-medium text-slate-600 transition hover:text-slate-800"
-          >
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+          <Button variant="ghost" size="sm" onClick={goBack}>
             <ArrowLeft className="h-3.5 w-3.5" />
             {step === 0 ? "Back to list" : "Back"}
-          </button>
+          </Button>
           {step < STEPS.length - 1 ? (
-            <button
-              type="button"
-              onClick={goNext}
-              className={`flex items-center gap-1 rounded-md px-4 py-2 text-[12px] font-medium transition ${
-                canNext()
-                  ? "bg-slate-900 text-white hover:bg-slate-800"
-                  : "bg-slate-900/60 text-white/80 cursor-not-allowed"
-              }`}
-            >
+            <Button onClick={goNext} disabled={!canNext()}>
               Next
               <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
               onClick={runOrValidate}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-[12px] font-semibold transition ${
-                canNext() && !isRunning
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                  : "bg-indigo-600/60 text-white/80 cursor-not-allowed"
-              }`}
+              disabled={!canNext() || isRunning}
+              loading={isRunning}
             >
-              {isRunning ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Running...
-                </>
-              ) : (
-                <>
-                  <FlaskConical className="h-3.5 w-3.5" />
-                  Run Experiment
-                </>
-              )}
-            </button>
+              {!isRunning && <FlaskConical className="h-3.5 w-3.5" />}
+              {isRunning ? "Running..." : "Run Experiment"}
+            </Button>
           )}
         </div>
       </div>

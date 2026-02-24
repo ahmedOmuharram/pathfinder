@@ -122,18 +122,18 @@ export function ValidatedGeneInput({
     };
   }, []);
 
-  const chipBorder = isPositive ? "border-emerald-200" : "border-red-200";
-  const chipBg = isPositive ? "bg-emerald-50" : "bg-red-50";
+  const chipBorder = isPositive ? "border-emerald-200" : "border-destructive/30";
+  const chipBg = isPositive ? "bg-success/10" : "bg-destructive/5";
   const chipText = isPositive ? "text-emerald-800" : "text-red-800";
-  const chipHoverBg = isPositive ? "hover:bg-emerald-100" : "hover:bg-red-100";
+  const chipHoverBg = isPositive ? "hover:bg-emerald-100" : "hover:bg-destructive/10";
 
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </label>
-        <label className="flex cursor-pointer items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-200">
+        <label className="flex cursor-pointer items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground transition hover:bg-accent">
           <Upload className="h-3 w-3" />
           Upload CSV
           <input
@@ -147,7 +147,7 @@ export function ValidatedGeneInput({
 
       <div
         ref={chipContainerRef}
-        className="flex min-h-[72px] flex-wrap items-start gap-1.5 rounded-md border border-slate-200 px-2.5 py-2 focus-within:border-slate-300"
+        className="flex min-h-[72px] flex-wrap items-start gap-1.5 rounded-md border border-border px-2.5 py-2 focus-within:border-input"
         onClick={() => inputRef.current?.focus()}
       >
         {genes.map((gene) => (
@@ -166,7 +166,7 @@ export function ValidatedGeneInput({
         ))}
 
         {validating && (
-          <span className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-500">
+          <span className="flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
             Validating…
           </span>
@@ -183,7 +183,7 @@ export function ValidatedGeneInput({
             if (inputValue.trim()) validateAndAdd(inputValue);
           }}
           placeholder={genes.length === 0 ? placeholder : ""}
-          className="min-w-[120px] flex-1 border-none bg-transparent py-0.5 font-mono text-[12px] outline-none placeholder:text-slate-400"
+          className="min-w-[120px] flex-1 border-none bg-transparent py-0.5 font-mono text-sm outline-none placeholder:text-muted-foreground"
           disabled={validating}
         />
       </div>
@@ -191,7 +191,7 @@ export function ValidatedGeneInput({
       {errors.length > 0 && (
         <div className="mt-1.5 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5">
           <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
-          <div className="text-[10px] text-amber-800">
+          <div className="text-xs text-amber-800">
             <span className="font-medium">
               {errors.length === 1 ? "ID" : `${errors.length} IDs`} not recognized:
             </span>{" "}
@@ -211,11 +211,11 @@ export function ValidatedGeneInput({
       )}
 
       <div className="mt-1 flex items-center justify-between">
-        <span className="text-[10px] text-slate-400">
+        <span className="text-xs text-muted-foreground">
           {genes.length} validated gene{genes.length !== 1 ? "s" : ""}
         </span>
         {genes.length === 0 && !validating && errors.length === 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-slate-400">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Info className="h-3 w-3" />
             Enter exact IDs (e.g. PF3D7_1133400) — each is verified against the
             database. Use the search panel above to find IDs.
@@ -249,7 +249,7 @@ function GeneChip({
 }) {
   return (
     <span
-      className={`group relative inline-flex items-center gap-1 rounded-full border ${chipBorder} ${chipBg} py-0.5 pl-2 pr-1 font-mono text-[11px] ${chipText}`}
+      className={`group relative inline-flex items-center gap-1 rounded-full border ${chipBorder} ${chipBg} py-0.5 pl-2 pr-1 font-mono text-xs ${chipText}`}
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
     >
@@ -273,44 +273,44 @@ function GeneChip({
 function GenePopover({ gene }: { gene: ResolvedGene }) {
   return (
     <div
-      className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+      className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-border bg-card p-3 shadow-lg"
       onMouseEnter={() => {}}
       onMouseLeave={() => {}}
     >
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="font-mono text-[12px] font-semibold text-slate-900">
+        <span className="font-mono text-sm font-semibold text-foreground">
           {gene.geneId}
         </span>
         {gene.geneName && (
-          <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+          <span className="rounded bg-primary/5 px-1.5 py-0.5 text-xs font-medium text-primary">
             {gene.geneName}
           </span>
         )}
       </div>
 
-      <dl className="space-y-1 text-[10px]">
+      <dl className="space-y-1 text-xs">
         {gene.product && (
           <div>
-            <dt className="font-medium text-slate-500">Product</dt>
-            <dd className="text-slate-700">{gene.product}</dd>
+            <dt className="font-medium text-muted-foreground">Product</dt>
+            <dd className="text-foreground">{gene.product}</dd>
           </div>
         )}
         {gene.organism && (
           <div>
-            <dt className="font-medium text-slate-500">Organism</dt>
-            <dd className="italic text-slate-700">{gene.organism}</dd>
+            <dt className="font-medium text-muted-foreground">Organism</dt>
+            <dd className="italic text-foreground">{gene.organism}</dd>
           </div>
         )}
         {gene.geneType && (
           <div>
-            <dt className="font-medium text-slate-500">Type</dt>
-            <dd className="text-slate-700">{gene.geneType}</dd>
+            <dt className="font-medium text-muted-foreground">Type</dt>
+            <dd className="text-foreground">{gene.geneType}</dd>
           </div>
         )}
         {gene.location && (
           <div>
-            <dt className="font-medium text-slate-500">Location</dt>
-            <dd className="font-mono text-slate-700">{gene.location}</dd>
+            <dt className="font-medium text-muted-foreground">Location</dt>
+            <dd className="font-mono text-foreground">{gene.location}</dd>
           </div>
         )}
       </dl>

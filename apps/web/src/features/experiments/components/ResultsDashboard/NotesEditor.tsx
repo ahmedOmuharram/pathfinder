@@ -29,7 +29,7 @@ export function NotesEditor({ experimentId, initialNotes }: NotesEditorProps) {
       }}
       placeholder="Add notes about this experiment..."
       rows={2}
-      className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-slate-300 focus:ring-1 focus:ring-slate-200"
+      className="w-full resize-none rounded-lg border border-border bg-card px-4 py-2.5 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring"
     />
   );
 }

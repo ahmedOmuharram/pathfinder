@@ -100,14 +100,14 @@ export function AiInterpretation({ experiment, siteId }: AiInterpretationProps) 
 
   return (
     <Section title="AI Interpretation">
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="rounded-lg border border-border bg-card">
         {!hasRun ? (
           <div className="flex items-center justify-between px-5 py-4">
             <div>
-              <p className="text-[13px] text-slate-600">
+              <p className="text-sm text-muted-foreground">
                 Get an AI-generated analysis of your results with actionable next steps.
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-400">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 The AI will interpret metrics, enrichment findings, and suggest
                 improvements.
               </p>
@@ -115,7 +115,7 @@ export function AiInterpretation({ experiment, siteId }: AiInterpretationProps) 
             <button
               type="button"
               onClick={interpret}
-              className="flex shrink-0 items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-indigo-700"
+              className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Interpret Results
@@ -125,8 +125,8 @@ export function AiInterpretation({ experiment, siteId }: AiInterpretationProps) 
           <div className="px-5 py-4">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                <span className="text-xs font-semibold text-slate-700">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold text-foreground">
                   AI Analysis
                 </span>
               </div>
@@ -134,7 +134,7 @@ export function AiInterpretation({ experiment, siteId }: AiInterpretationProps) 
                 <button
                   type="button"
                   onClick={interpret}
-                  className="text-[10px] text-slate-400 transition hover:text-slate-600"
+                  className="text-xs text-muted-foreground transition hover:text-foreground"
                 >
                   Re-analyze
                 </button>
@@ -143,10 +143,10 @@ export function AiInterpretation({ experiment, siteId }: AiInterpretationProps) 
             {response ? (
               <ChatMarkdown
                 content={response}
-                className="text-[12px] leading-relaxed text-slate-700 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_p]:break-words [&_h1]:text-sm [&_h2]:text-[13px] [&_h3]:text-[12px]"
+                className="text-sm leading-relaxed text-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_p]:break-words [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm"
               />
             ) : (
-              <div className="flex items-center gap-1.5 py-4 text-[11px] text-slate-400">
+              <div className="flex items-center gap-1.5 py-4 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Analyzing experiment results...
               </div>

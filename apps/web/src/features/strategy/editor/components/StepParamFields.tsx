@@ -38,7 +38,7 @@ export function StepParamFields({
 
   if (paramSpecs.length === 0) {
     return (
-      <p className="text-[11px] text-slate-500">
+      <p className="text-xs text-muted-foreground">
         No parameter options available. Use advanced editing to view or edit raw JSON.
       </p>
     );
@@ -72,27 +72,27 @@ export function StepParamFields({
         };
         const hasFieldError = validationErrorKeys.has(paramName);
         const fieldWrapperClass = hasFieldError
-          ? "rounded-md border border-red-200 bg-red-50/40 p-2"
+          ? "rounded-md border border-destructive/20 bg-destructive/5 p-2"
           : "";
         const fieldLabelClass = hasFieldError
-          ? "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-red-600"
-          : "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500";
+          ? "mb-1 block text-xs font-semibold uppercase tracking-wide text-destructive"
+          : "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
         const fieldBorderClass = hasFieldError
-          ? "border-red-300 bg-red-50/60"
-          : "border-slate-200 bg-white";
+          ? "border-destructive/30 bg-destructive/5"
+          : "border-border bg-card";
         return (
           <div key={paramName} className={fieldWrapperClass}>
             <label className={fieldLabelClass}>
               {label}
               {spec.allowEmptyValue === false && (
-                <span className="ml-1 text-red-500">*</span>
+                <span className="ml-1 text-destructive">*</span>
               )}
             </label>
             <>
               {multi ? (
                 vocabTree ? (
                   <div
-                    className={`space-y-1 rounded-md border px-2 py-2 text-[13px] text-slate-800 ${fieldBorderClass}`}
+                    className={`space-y-1 rounded-md border px-2 py-2 text-sm text-foreground ${fieldBorderClass}`}
                   >
                     {(() => {
                       const allValues = vocabTree
@@ -158,7 +158,7 @@ export function StepParamFields({
                                   if (el) el.indeterminate = isPartial;
                                 }}
                                 onChange={() => toggleNode(node)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900"
+                                className="h-3.5 w-3.5 rounded border-input text-foreground"
                               />
                               <span>{node.label}</span>
                             </label>
@@ -171,7 +171,7 @@ export function StepParamFields({
                       return (
                         <>
                           {vocabTree.map((node) => renderNode(node))}
-                          <div className="mt-2 text-[11px] text-slate-500">
+                          <div className="mt-2 text-xs text-muted-foreground">
                             {allSelected
                               ? "All selected (WDK default)."
                               : noneSelected
@@ -183,7 +183,7 @@ export function StepParamFields({
                     })()}
                   </div>
                 ) : options.length > 0 ? (
-                  <div className="space-y-1 rounded-md border border-slate-200 bg-white px-2 py-2 text-[13px] text-slate-800">
+                  <div className="space-y-1 rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
                     {(() => {
                       const allValues = options
                         .map((opt) => opt.value)
@@ -225,7 +225,7 @@ export function StepParamFields({
                             type="checkbox"
                             checked={selectedValues.has(opt.value)}
                             onChange={() => toggleValue(opt.value)}
-                            className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900"
+                            className="h-3.5 w-3.5 rounded border-input text-foreground"
                           />
                           <span>{opt.displayLabel ?? opt.label}</span>
                         </label>
@@ -253,11 +253,11 @@ export function StepParamFields({
                           : raw,
                       }));
                     }}
-                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800"
+                    className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
                   />
                 )
               ) : vocabTree ? (
-                <div className="space-y-1 rounded-md border border-slate-200 bg-white px-2 py-2 text-[13px] text-slate-800">
+                <div className="space-y-1 rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
                   {(() => {
                     const selectedValue = normalizeValue(value)[0] || "";
                     const renderNode = (node: VocabNode, depth = 0) => (
@@ -277,7 +277,7 @@ export function StepParamFields({
                                 [paramName]: node.value,
                               }));
                             }}
-                            className="h-3.5 w-3.5 border-slate-300 text-slate-900"
+                            className="h-3.5 w-3.5 border-input text-foreground"
                           />
                           <span>{node.label}</span>
                         </label>
@@ -289,7 +289,7 @@ export function StepParamFields({
                 </div>
               ) : options.length > 0 ? (
                 <div
-                  className={`space-y-1 rounded-md border px-2 py-2 text-[13px] text-slate-800 ${fieldBorderClass}`}
+                  className={`space-y-1 rounded-md border px-2 py-2 text-sm text-foreground ${fieldBorderClass}`}
                 >
                   {options.map((opt) => (
                     <label key={opt.value} className="flex items-center gap-2">
@@ -304,7 +304,7 @@ export function StepParamFields({
                             [paramName]: opt.value,
                           }));
                         }}
-                        className="h-3.5 w-3.5 border-slate-300 text-slate-900"
+                        className="h-3.5 w-3.5 border-input text-foreground"
                       />
                       <span>{opt.displayLabel ?? opt.label}</span>
                     </label>
@@ -331,23 +331,23 @@ export function StepParamFields({
                         : raw,
                     }));
                   }}
-                  className={`w-full rounded-md border px-3 py-2 text-[13px] text-slate-800 ${fieldBorderClass}`}
+                  className={`w-full rounded-md border px-3 py-2 text-sm text-foreground ${fieldBorderClass}`}
                 />
               )}
-              <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 {dependentLoading[paramName] && <span>Loading options...</span>}
                 {dependentErrors[paramName] && (
-                  <span className="text-red-500">{dependentErrors[paramName]}</span>
+                  <span className="text-destructive">{dependentErrors[paramName]}</span>
                 )}
                 {options.length === 0 && (
-                  <span className="text-slate-400">
+                  <span className="text-muted-foreground">
                     Use advanced editing if needed.
                   </span>
                 )}
               </div>
             </>
             {spec.help && (
-              <p className="mt-1 text-[11px] text-slate-500">{spec.help}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{spec.help}</p>
             )}
           </div>
         );

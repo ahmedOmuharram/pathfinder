@@ -15,8 +15,8 @@ export function ToolIndicator({ name, active }: { name: string; active: boolean 
   const label = name.replace(/_/g, " ");
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-medium ${
-        active ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        active ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"
       }`}
     >
       <Icon className="h-2.5 w-2.5" />

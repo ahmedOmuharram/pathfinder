@@ -104,9 +104,16 @@ export function ChatMarkdown({
   tone = "default",
   className,
 }: ChatMarkdownProps) {
+  // Gemini can return content as an array of string parts; guard at runtime.
+  const safeContent =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content as unknown)
+        ? (content as unknown as string[]).join("")
+        : String(content ?? "");
   const toneClassName =
     tone === "onDark"
-      ? "text-white [&_h1]:text-white [&_h2]:text-white [&_a]:text-white [&_code]:text-white [&_code]:bg-slate-800/60"
+      ? "text-white [&_h1]:text-white [&_h2]:text-white [&_a]:text-white [&_code]:text-white [&_code]:bg-primary/60"
       : "";
 
   return (
@@ -114,7 +121,7 @@ export function ChatMarkdown({
       className={`markdown-content whitespace-normal ${toneClassName} ${className || ""}`}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {renderInlineCitationsMarkdown(renderVerbatimBlocks(content), citations)}
+        {renderInlineCitationsMarkdown(renderVerbatimBlocks(safeContent), citations)}
       </ReactMarkdown>
     </div>
   );

@@ -17,17 +17,17 @@ export function PanelSuggestionCard({
     : [];
 
   return (
-    <div className="my-1.5 rounded-md border border-indigo-200 bg-indigo-50/40 p-2">
+    <div className="my-1.5 rounded-md border border-primary/20 bg-primary/5/40 p-2">
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1">
           <div
-            className="text-[10px] font-semibold text-slate-800 line-clamp-2"
+            className="text-xs font-semibold text-foreground line-clamp-2"
             title={data.displayName}
           >
             {data.displayName}
           </div>
           <div
-            className="truncate text-[9px] font-mono text-slate-400"
+            className="truncate text-xs font-mono text-muted-foreground"
             title={`${data.searchName} · ${data.recordType}`}
           >
             {data.searchName} · {data.recordType}
@@ -37,21 +37,21 @@ export function PanelSuggestionCard({
           <button
             type="button"
             onClick={() => onApply(data)}
-            className="shrink-0 rounded px-2 py-1 text-[9px] font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
+            className="shrink-0 rounded px-2 py-1 text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition"
           >
             Use
           </button>
         )}
       </div>
       {data.rationale && (
-        <p className="mt-1 text-[9px] italic text-slate-500">{data.rationale}</p>
+        <p className="mt-1 text-xs italic text-muted-foreground">{data.rationale}</p>
       )}
       {paramEntries.length > 0 && (
         <div className="mt-1 space-y-0.5">
           {paramEntries.map(([key, val]) => (
-            <div key={key} className="text-[9px]">
-              <span className="font-mono text-slate-500">{key}:</span>{" "}
-              <span className="text-slate-700">{val}</span>
+            <div key={key} className="text-xs">
+              <span className="font-mono text-muted-foreground">{key}:</span>{" "}
+              <span className="text-foreground">{val}</span>
             </div>
           ))}
         </div>
@@ -70,23 +70,21 @@ export function PanelGeneCard({
   onAdd?: (geneId: string, role: "positive" | "negative") => void;
 }) {
   const borderColor =
-    data.role === "positive" ? "border-emerald-200" : "border-red-200";
-  const bgColor = data.role === "positive" ? "bg-emerald-50/40" : "bg-red-50/40";
+    data.role === "positive" ? "border-emerald-200" : "border-destructive/30";
+  const bgColor = data.role === "positive" ? "bg-success/10/40" : "bg-destructive/5/40";
   const badgeColor =
     data.role === "positive"
-      ? "bg-emerald-100 text-emerald-700"
-      : "bg-red-100 text-red-700";
+      ? "bg-emerald-100 text-success"
+      : "bg-red-100 text-destructive";
 
   return (
     <div className={`my-1.5 rounded-md border ${borderColor} ${bgColor} p-2`}>
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-slate-800">
-              {data.geneId}
-            </span>
+            <span className="text-xs font-semibold text-foreground">{data.geneId}</span>
             {data.geneName && (
-              <span className="text-[9px] text-slate-500">({data.geneName})</span>
+              <span className="text-xs text-muted-foreground">({data.geneName})</span>
             )}
             <span
               className={`rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${badgeColor}`}
@@ -95,7 +93,7 @@ export function PanelGeneCard({
             </span>
           </div>
           {data.product && (
-            <div className="mt-0.5 text-[9px] text-slate-500 line-clamp-1">
+            <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
               {data.product}
             </div>
           )}
@@ -104,23 +102,23 @@ export function PanelGeneCard({
           <button
             type="button"
             onClick={() => onAdd(data.geneId, data.role)}
-            className={`shrink-0 rounded px-2 py-1 text-[9px] font-semibold transition ${
+            className={`shrink-0 rounded px-2 py-1 text-xs font-semibold transition ${
               data.role === "positive"
-                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                : "bg-red-100 text-red-700 hover:bg-red-200"
+                ? "bg-emerald-100 text-success hover:bg-emerald-200"
+                : "bg-red-100 text-destructive hover:bg-red-200"
             }`}
           >
             Add
           </button>
         )}
         {isAdded && (
-          <span className="shrink-0 rounded px-2 py-1 text-[9px] font-semibold bg-slate-100 text-slate-400">
+          <span className="shrink-0 rounded px-2 py-1 text-xs font-semibold bg-muted text-muted-foreground">
             Added
           </span>
         )}
       </div>
       {data.rationale && (
-        <p className="mt-1 text-[9px] italic text-slate-500">{data.rationale}</p>
+        <p className="mt-1 text-xs italic text-muted-foreground">{data.rationale}</p>
       )}
     </div>
   );
@@ -139,14 +137,14 @@ export function PanelParamCard({
   return (
     <div className="my-1.5 rounded-md border border-violet-200 bg-violet-50/40 p-2">
       <div className="flex items-start justify-between gap-1.5">
-        <div className="text-[10px] font-semibold text-slate-800">
+        <div className="text-xs font-semibold text-foreground">
           Parameter suggestion
         </div>
         {onApply && (
           <button
             type="button"
             onClick={() => onApply(data.parameters)}
-            className="shrink-0 rounded px-2 py-1 text-[9px] font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition"
+            className="shrink-0 rounded px-2 py-1 text-xs font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 transition"
           >
             Apply
           </button>
@@ -154,14 +152,14 @@ export function PanelParamCard({
       </div>
       <div className="mt-1 space-y-0.5">
         {entries.map(([key, val]) => (
-          <div key={key} className="text-[9px]">
-            <span className="font-mono text-slate-500">{key}:</span>{" "}
-            <span className="text-slate-700">{val}</span>
+          <div key={key} className="text-xs">
+            <span className="font-mono text-muted-foreground">{key}:</span>{" "}
+            <span className="text-foreground">{val}</span>
           </div>
         ))}
       </div>
       {data.rationale && (
-        <p className="mt-1 text-[9px] italic text-slate-500">{data.rationale}</p>
+        <p className="mt-1 text-xs italic text-muted-foreground">{data.rationale}</p>
       )}
     </div>
   );
@@ -190,14 +188,12 @@ export function PanelRunConfigCard({
   return (
     <div className="my-1.5 rounded-md border border-amber-200 bg-amber-50/40 p-2">
       <div className="flex items-start justify-between gap-1.5">
-        <div className="text-[10px] font-semibold text-slate-800">
-          Run configuration
-        </div>
+        <div className="text-xs font-semibold text-foreground">Run configuration</div>
         {onApply && (
           <button
             type="button"
             onClick={() => onApply(data)}
-            className="shrink-0 rounded px-2 py-1 text-[9px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
+            className="shrink-0 rounded px-2 py-1 text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
           >
             Apply
           </button>
@@ -205,14 +201,14 @@ export function PanelRunConfigCard({
       </div>
       <div className="mt-1 space-y-0.5">
         {items.map(([label, val]) => (
-          <div key={label} className="text-[9px]">
-            <span className="font-medium text-slate-500">{label}:</span>{" "}
-            <span className="text-slate-700">{val}</span>
+          <div key={label} className="text-xs">
+            <span className="font-medium text-muted-foreground">{label}:</span>{" "}
+            <span className="text-foreground">{val}</span>
           </div>
         ))}
       </div>
       {data.rationale && (
-        <p className="mt-1 text-[9px] italic text-slate-500">{data.rationale}</p>
+        <p className="mt-1 text-xs italic text-muted-foreground">{data.rationale}</p>
       )}
     </div>
   );

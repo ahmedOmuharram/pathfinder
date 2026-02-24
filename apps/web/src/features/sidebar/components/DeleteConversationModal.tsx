@@ -22,9 +22,9 @@ export function DeleteConversationModal({
       maxWidth="max-w-sm"
     >
       <div className="px-6 pb-6 pt-4">
-        <p className="text-[13px] text-slate-600">
+        <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{" "}
-          <span className="font-semibold text-slate-900">
+          <span className="font-semibold text-foreground">
             &ldquo;{target?.title}&rdquo;
           </span>
           ? This cannot be undone.
@@ -34,7 +34,7 @@ export function DeleteConversationModal({
             type="button"
             onClick={onClose}
             disabled={isDeleting}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:opacity-60"
           >
             Cancel
           </button>
@@ -42,7 +42,7 @@ export function DeleteConversationModal({
             type="button"
             onClick={onConfirmDelete}
             disabled={isDeleting}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
           >
             {isDeleting ? "Deleting..." : "Delete"}
           </button>

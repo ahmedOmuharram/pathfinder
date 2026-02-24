@@ -6,29 +6,29 @@ import { SitePicker } from "@/features/sites/components/SitePicker";
 interface TopBarProps {
   selectedSite: string;
   onSiteChange: (siteId: string) => void;
-  /** Optional right-side actions (settings gear, etc.). */
+  /** Optional right-side actions (settings gear, nav links, etc.). */
   actions?: React.ReactNode;
 }
 
 /**
- * Application header bar with logo and site picker.
+ * Application header bar with logo, site picker, and action slots.
  */
 export function TopBar({ selectedSite, onSiteChange, actions }: TopBarProps) {
   return (
-    <div className="border-b border-slate-200 bg-white px-5 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <header className="border-b border-border bg-card shadow-xs">
+      <div className="flex items-center justify-between px-5 py-3">
         <div className="flex items-center gap-3">
           <Image src="/pathfinder.svg" alt="PathFinder" width={32} height={32} />
           <div>
-            <div className="text-base font-semibold tracking-tight text-slate-900">
+            <div className="text-sm font-semibold tracking-tight text-foreground">
               PathFinder
             </div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               VEuPathDB Strategy Builder
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           <SitePicker
             value={selectedSite}
             onChange={onSiteChange}
@@ -40,6 +40,6 @@ export function TopBar({ selectedSite, onSiteChange, actions }: TopBarProps) {
           {actions}
         </div>
       </div>
-    </div>
+    </header>
   );
 }

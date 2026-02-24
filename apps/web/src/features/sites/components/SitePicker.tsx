@@ -136,7 +136,7 @@ export function SitePicker({
     >
       {showSelect && (
         <>
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Database:
           </label>
           <div
@@ -159,10 +159,10 @@ export function SitePicker({
               }}
               disabled={loading}
               data-testid="site-select"
-              className={`appearance-none rounded-md border border-slate-200 bg-white pr-8 text-slate-800 transition-colors hover:border-slate-300 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 ${
+              className={`appearance-none rounded-md border border-border bg-card pr-8 text-foreground transition-colors hover:border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 layout === "stacked"
-                  ? "w-full px-2 py-1.5 text-[12px] truncate"
-                  : "px-3 py-2 text-[13px]"
+                  ? "w-full px-2 py-1.5 text-sm truncate"
+                  : "px-3 py-2 text-sm"
               }`}
             >
               <optgroup label="Component Sites">
@@ -186,7 +186,7 @@ export function SitePicker({
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
               <svg
-                className="h-4 w-4 text-slate-400"
+                className="h-4 w-4 text-muted-foreground"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -206,8 +206,8 @@ export function SitePicker({
         <div
           className={
             layout === "stacked"
-              ? "flex flex-wrap items-center gap-2 text-[11px]"
-              : "flex items-center gap-3 text-[11px]"
+              ? "flex flex-wrap items-center gap-2 text-xs"
+              : "flex items-center gap-3 text-xs"
           }
         >
           {showVisit && (
@@ -215,14 +215,14 @@ export function SitePicker({
               href={visitUrl || selectedSite.baseUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-500 transition-colors hover:text-slate-700"
+              className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
             >
               Visit site →
             </a>
           )}
           {showAuth && authStatus?.signedIn && (
             <>
-              <span className="text-slate-600">
+              <span className="text-muted-foreground">
                 Logged in as {authStatus?.name ? `${authStatus.name}` : ""}
               </span>
               <button
@@ -241,7 +241,7 @@ export function SitePicker({
                     setAuthBusy(false);
                   }
                 }}
-                className="text-slate-500 transition-colors hover:text-slate-700"
+                className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
               >
                 Log out
               </button>
@@ -251,7 +251,7 @@ export function SitePicker({
             <button
               type="button"
               onClick={() => setShowLoginModal(true)}
-              className="text-slate-600 transition-colors hover:text-slate-800"
+              className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
             >
               Sign in →
             </button>
@@ -266,21 +266,23 @@ export function SitePicker({
         showCloseButton
       >
         <div className="p-5">
-          <div className="text-base font-semibold text-slate-900">Sign in required</div>
-          <p className="mt-2 text-sm text-slate-600">
+          <div className="text-base font-semibold text-foreground">
+            Sign in required
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
             Please sign in to VEuPathDB to continue.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             We do not store your login information.
           </p>
           <div className="mt-4 flex items-center gap-2 text-xs">
             <button
               type="button"
               onClick={() => setAuthMode("password")}
-              className={`rounded-md px-3 py-1.5 ${
+              className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
                 authMode === "password"
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-600"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               Using username and password
@@ -288,10 +290,10 @@ export function SitePicker({
             <button
               type="button"
               onClick={() => setAuthMode("token")}
-              className={`rounded-md px-3 py-1.5 ${
+              className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
                 authMode === "token"
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-600"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               (Advanced) Using authentication token
@@ -304,14 +306,14 @@ export function SitePicker({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border px-3 py-2 text-sm"
               />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-border px-3 py-2 text-sm"
               />
             </div>
           )}
@@ -321,15 +323,17 @@ export function SitePicker({
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="Paste VEuPathDB Authorization token"
-                className="h-24 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                className="h-24 w-full rounded-md border border-border px-3 py-2 text-sm"
               />
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-muted-foreground">
                 If you prefer not to login from the UI, you can provide the
                 authentication token instead.
               </p>
             </div>
           )}
-          {authError && <div className="mt-3 text-xs text-red-600">{authError}</div>}
+          {authError && (
+            <div className="mt-3 text-xs text-destructive">{authError}</div>
+          )}
           <div className="mt-4 flex items-center justify-end gap-2">
             <button
               type="button"
@@ -361,7 +365,7 @@ export function SitePicker({
                   setAuthBusy(false);
                 }
               }}
-              className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors duration-150 disabled:opacity-60"
             >
               {authBusy ? "Signing in..." : "Sign in"}
             </button>

@@ -35,7 +35,7 @@ export function CompareView({ experimentA, experimentB }: CompareViewProps) {
 
   if (!ma || !mb) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-slate-500">
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         Both experiments must have completed metrics to compare.
       </div>
     );
@@ -48,12 +48,12 @@ export function CompareView({ experimentA, experimentB }: CompareViewProps) {
           <button
             type="button"
             onClick={clearCompare}
-            className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-400 transition hover:text-slate-600"
+            className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-muted-foreground"
           >
             <ArrowLeft className="h-3 w-3" />
             Back to results
           </button>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Experiment Comparison
           </h1>
           <div className="mt-3 grid grid-cols-2 gap-3">
@@ -85,16 +85,16 @@ function ExperimentLabel({
   experiment: Experiment;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-4 py-2.5">
+    <div className="rounded-md border border-border bg-card px-4 py-2.5">
       <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-500">
+        <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-xs font-bold text-muted-foreground">
           {label}
         </span>
-        <span className="truncate text-[13px] font-medium text-slate-800">
+        <span className="truncate text-sm font-medium text-foreground">
           {experiment.config.name}
         </span>
       </div>
-      <div className="mt-1 pl-7 text-[11px] text-slate-400">
+      <div className="mt-1 pl-7 text-xs text-muted-foreground">
         {experiment.config.searchName}
       </div>
     </div>
@@ -166,14 +166,14 @@ function MetricsComparison({
 
   return (
     <section>
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Classification Metrics
       </h2>
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="grid grid-cols-[1fr_300px] divide-x divide-slate-200 max-lg:grid-cols-1 max-lg:divide-x-0 max-lg:divide-y">
+      <div className="rounded-lg border border-border bg-card">
+        <div className="grid grid-cols-[1fr_300px] divide-x divide-border max-lg:grid-cols-1 max-lg:divide-x-0 max-lg:divide-y">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+              <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-2.5 text-left font-medium">Metric</th>
                 <th className="px-5 py-2.5 text-right font-medium">A</th>
                 <th className="px-5 py-2.5 text-right font-medium">B</th>
@@ -189,19 +189,19 @@ function MetricsComparison({
                 const worse = row.invert ? diff > 0 : diff < 0;
                 const deltaColor =
                   Math.abs(diff) < 0.001
-                    ? "text-slate-400"
+                    ? "text-muted-foreground"
                     : better
-                      ? "text-slate-900 font-semibold"
+                      ? "text-foreground font-semibold"
                       : worse
-                        ? "text-slate-400"
-                        : "text-slate-400";
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground";
                 return (
                   <tr key={row.key}>
-                    <td className="px-5 py-2 text-slate-600">{row.label}</td>
-                    <td className="px-5 py-2 text-right font-mono tabular-nums text-slate-700">
+                    <td className="px-5 py-2 text-muted-foreground">{row.label}</td>
+                    <td className="px-5 py-2 text-right font-mono tabular-nums text-foreground">
                       {pct(a)}
                     </td>
-                    <td className="px-5 py-2 text-right font-mono tabular-nums text-slate-700">
+                    <td className="px-5 py-2 text-right font-mono tabular-nums text-foreground">
                       {pct(b)}
                     </td>
                     <td
@@ -274,15 +274,17 @@ function ConfusionComparison({ a, b }: { a: Experiment; b: Experiment }) {
 
   return (
     <section>
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Confusion Matrix
       </h2>
       <div className="grid grid-cols-[1fr_1fr] gap-4 max-md:grid-cols-1">
         <MiniCM label={a.config.name} cm={cmA} tag="A" />
         <MiniCM label={b.config.name} cm={cmB} tag="B" />
       </div>
-      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
-        <div className="mb-3 text-xs font-medium text-slate-500">Count Comparison</div>
+      <div className="mt-4 rounded-lg border border-border bg-card p-5">
+        <div className="mb-3 text-xs font-medium text-muted-foreground">
+          Count Comparison
+        </div>
         <ResponsiveContainer width="100%" height={140}>
           <BarChart data={barData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -330,37 +332,37 @@ function MiniCM({
   tag: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-500">
+        <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-xs font-bold text-muted-foreground">
           {tag}
         </span>
-        <span className="truncate text-xs font-medium text-slate-700">{label}</span>
+        <span className="truncate text-xs font-medium text-foreground">{label}</span>
       </div>
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-slate-200 bg-slate-200 text-center text-[13px]">
-        <div className="bg-slate-50 px-3 py-3">
-          <div className="font-semibold tabular-nums text-slate-900">
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-border bg-border text-center text-sm">
+        <div className="bg-muted px-3 py-3">
+          <div className="font-semibold tabular-nums text-foreground">
             {cm.truePositives}
           </div>
-          <div className="mt-0.5 text-[10px] text-slate-400">TP</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">TP</div>
         </div>
-        <div className="bg-white px-3 py-3">
-          <div className="font-semibold tabular-nums text-slate-900">
+        <div className="bg-card px-3 py-3">
+          <div className="font-semibold tabular-nums text-foreground">
             {cm.falseNegatives}
           </div>
-          <div className="mt-0.5 text-[10px] text-slate-400">FN</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">FN</div>
         </div>
-        <div className="bg-white px-3 py-3">
-          <div className="font-semibold tabular-nums text-slate-900">
+        <div className="bg-card px-3 py-3">
+          <div className="font-semibold tabular-nums text-foreground">
             {cm.falsePositives}
           </div>
-          <div className="mt-0.5 text-[10px] text-slate-400">FP</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">FP</div>
         </div>
-        <div className="bg-slate-50 px-3 py-3">
-          <div className="font-semibold tabular-nums text-slate-900">
+        <div className="bg-muted px-3 py-3">
+          <div className="font-semibold tabular-nums text-foreground">
             {cm.trueNegatives}
           </div>
-          <div className="mt-0.5 text-[10px] text-slate-400">TN</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">TN</div>
         </div>
       </div>
     </div>
@@ -380,13 +382,13 @@ function ParameterDiff({ a, b }: { a: Experiment; b: Experiment }) {
 
   return (
     <section>
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Parameter Differences
       </h2>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+            <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
               <th className="px-5 py-2.5 text-left font-medium">Parameter</th>
               <th className="px-5 py-2.5 text-center font-medium">A</th>
               <th className="px-5 py-2.5 text-center font-medium">B</th>
@@ -398,12 +400,12 @@ function ParameterDiff({ a, b }: { a: Experiment; b: Experiment }) {
               const vB = String(b.config.parameters[key] ?? "\u2014");
               const isDiff = vA !== vB;
               return (
-                <tr key={key} className={isDiff ? "bg-slate-50/60" : ""}>
-                  <td className="px-5 py-2 font-medium text-slate-600">{key}</td>
-                  <td className="px-5 py-2 text-center font-mono tabular-nums text-slate-700">
+                <tr key={key} className={isDiff ? "bg-muted/60" : ""}>
+                  <td className="px-5 py-2 font-medium text-muted-foreground">{key}</td>
+                  <td className="px-5 py-2 text-center font-mono tabular-nums text-foreground">
                     {vA}
                   </td>
-                  <td className="px-5 py-2 text-center font-mono tabular-nums text-slate-700">
+                  <td className="px-5 py-2 text-center font-mono tabular-nums text-foreground">
                     {vB}
                   </td>
                 </tr>

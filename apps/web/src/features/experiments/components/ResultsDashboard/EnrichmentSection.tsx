@@ -24,8 +24,8 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
 
   return (
     <Section title="Enrichment Analysis">
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center gap-0 border-b border-slate-200 px-4">
+      <div className="rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-0 border-b border-border px-4">
           {results.map((r, i) => {
             const count = r.terms.filter((t) => t.pValue <= pThreshold).length;
             return (
@@ -35,24 +35,24 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
                 onClick={() => setActiveTab(i)}
                 className={`relative px-3 py-2.5 text-xs font-medium transition ${
                   activeTab === i
-                    ? "text-slate-900"
-                    : "text-slate-400 hover:text-slate-600"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {analysisLabels[r.analysisType] ?? r.analysisType}
-                <span className="ml-1 text-[10px] text-slate-400">{count}</span>
+                <span className="ml-1 text-xs text-muted-foreground">{count}</span>
                 {activeTab === i && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-900" />
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
                 )}
               </button>
             );
           })}
           <div className="ml-auto flex items-center gap-2 py-2">
-            <label className="text-[10px] text-slate-400">p &le;</label>
+            <label className="text-xs text-muted-foreground">p &le;</label>
             <select
               value={pThreshold}
               onChange={(e) => setPThreshold(parseFloat(e.target.value))}
-              className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 outline-none"
+              className="rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground outline-none transition-colors duration-150"
             >
               <option value={0.001}>0.001</option>
               <option value={0.01}>0.01</option>
@@ -103,7 +103,7 @@ function EnrichmentTable({ terms }: { terms: EnrichmentTerm[] }) {
 
   if (terms.length === 0) {
     return (
-      <div className="px-5 py-8 text-center text-xs text-slate-400">
+      <div className="px-5 py-8 text-center text-xs text-muted-foreground">
         No enriched terms at this threshold.
       </div>
     );
@@ -120,12 +120,12 @@ function EnrichmentTable({ terms }: { terms: EnrichmentTerm[] }) {
   return (
     <div className="max-h-72 overflow-y-auto">
       <table className="w-full text-left text-xs">
-        <thead className="sticky top-0 bg-white">
-          <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+        <thead className="sticky top-0 bg-card">
+          <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`cursor-pointer select-none px-4 py-2.5 font-medium ${col.align ?? ""}`}
+                className={`cursor-pointer select-none px-4 py-2.5 font-medium transition-colors duration-150 ${col.align ?? ""}`}
                 onClick={() => toggle(col.key)}
               >
                 <span className="inline-flex items-center gap-1">
@@ -136,25 +136,25 @@ function EnrichmentTable({ terms }: { terms: EnrichmentTerm[] }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-50">
+        <tbody className="divide-y divide-border/50">
           {sorted.map((t) => (
-            <tr key={t.termId} className="transition hover:bg-slate-50/60">
-              <td className="max-w-xs truncate px-4 py-2 text-slate-700">
-                <span className="mr-1.5 font-mono text-[10px] text-slate-400">
+            <tr key={t.termId} className="transition hover:bg-accent">
+              <td className="max-w-xs truncate px-4 py-2 text-foreground">
+                <span className="mr-1.5 font-mono text-xs text-muted-foreground">
                   {t.termId}
                 </span>
                 {t.termName}
               </td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-600">
+              <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
                 {t.geneCount}
               </td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-600">
+              <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
                 {t.foldEnrichment.toFixed(2)}
               </td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-600">
+              <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
                 {t.pValue.toExponential(2)}
               </td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-600">
+              <td className="px-4 py-2 text-right font-mono tabular-nums text-muted-foreground">
                 {t.fdr.toExponential(2)}
               </td>
             </tr>

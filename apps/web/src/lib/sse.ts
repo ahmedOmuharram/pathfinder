@@ -120,6 +120,16 @@ async function runOnce(
   }
 }
 
+function isAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === "AbortError") return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("aborted") || msg.includes("abort") || err.name === "AbortError")
+      return true;
+  }
+  return false;
+}
+
 export async function streamSSE(
   path: string,
   args: StreamSSEArgs,
@@ -134,6 +144,10 @@ export async function streamSSE(
       options.onComplete?.();
       return;
     } catch (e) {
+      if (isAbortError(e)) {
+        options.onComplete?.();
+        return;
+      }
       const err = e instanceof Error ? e : new Error(String(e));
       options.onError?.(err);
       if (attempt >= maxRetries) throw err;

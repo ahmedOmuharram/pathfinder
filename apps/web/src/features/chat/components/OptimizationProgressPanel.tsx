@@ -38,13 +38,13 @@ function SensitivityBar({ value }: { value: number }) {
   const label = value >= 0.6 ? "High" : value >= 0.3 ? "Medium" : "Low";
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-indigo-500 transition-all duration-300"
+          className="h-full rounded-full bg-primary transition-all duration-300"
           style={{ width: `${w}%` }}
         />
       </div>
-      <span className="text-[10px] text-slate-500">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -115,10 +115,10 @@ function ScoreChart({
 
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Score progression
       </div>
-      <div className="rounded border border-slate-200 bg-slate-50 px-1 py-1">
+      <div className="rounded border border-border bg-muted px-1 py-1">
         <div
           style={{
             width: "100%",
@@ -201,12 +201,12 @@ function ScoreChart({
           </ResponsiveContainer>
         </div>
       </div>
-      <div className="mt-1 flex gap-3 text-[9px] text-slate-400">
+      <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <span className="inline-block h-px w-3 bg-slate-400" /> per-trial
+          <span className="inline-block h-px w-3 bg-muted-foreground" /> per-trial
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-px w-3 bg-indigo-500" /> best so far
+          <span className="inline-block h-px w-3 bg-primary" /> best so far
         </span>
       </div>
     </div>
@@ -231,9 +231,9 @@ function TrialTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-[11px]">
+      <table className="w-full text-left text-xs">
         <thead>
-          <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500">
+          <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
             <th className="px-1.5 py-1">#</th>
             {paramNames.map((n) => (
               <th key={n} className="px-1.5 py-1 font-medium">
@@ -254,9 +254,9 @@ function TrialTable({
             return (
               <tr
                 key={t.trialNumber}
-                className={`border-b border-slate-100 last:border-0 ${isPareto ? "bg-indigo-50/50" : ""}`}
+                className={`border-b border-border last:border-0 ${isPareto ? "bg-primary/5" : ""}`}
               >
-                <td className="px-1.5 py-1 tabular-nums text-slate-500">
+                <td className="px-1.5 py-1 tabular-nums text-muted-foreground">
                   {t.trialNumber}
                 </td>
                 {paramNames.map((n) => (
@@ -322,7 +322,7 @@ function CollapsibleTrialSection({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="mb-1 flex w-full items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-700"
+        className="mb-1 flex w-full items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
         {expanded ? (
           <ChevronDown className="h-3 w-3" />
@@ -331,7 +331,7 @@ function CollapsibleTrialSection({
         )}
         <span>Recent trials</span>
         {allTrialsCount > recentTrialsCount ? (
-          <span className="ml-auto font-normal normal-case tracking-normal text-slate-400">
+          <span className="ml-auto font-normal normal-case tracking-normal text-muted-foreground">
             Showing last {recentTrialsCount} of {allTrialsCount} trials
           </span>
         ) : null}
@@ -382,17 +382,17 @@ export function OptimizationProgressPanel({
   return (
     <div className="flex animate-fade-in justify-start">
       <div data-testid="optimization-panel" className="w-[760px] max-w-full">
-        <div className="rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <div className="flex items-center gap-2">
               {isRunning ? (
-                <FlaskConical className="h-4 w-4 animate-pulse text-indigo-500" />
+                <FlaskConical className="h-4 w-4 animate-pulse text-primary" />
               ) : isComplete ? (
-                <Check className="h-4 w-4 text-emerald-500" />
+                <Check className="h-4 w-4 text-success" />
               ) : (
-                <FlaskConical className="h-4 w-4 text-slate-400" />
+                <FlaskConical className="h-4 w-4 text-muted-foreground" />
               )}
-              <span className="text-xs font-semibold text-slate-700">
+              <span className="text-xs font-semibold text-foreground">
                 {isRunning
                   ? "Parameter Optimisation"
                   : isComplete
@@ -402,7 +402,7 @@ export function OptimizationProgressPanel({
                       : "Optimisation Error"}
               </span>
               {isDone && data.totalTimeSeconds != null && (
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-muted-foreground">
                   {fmtTime(data.totalTimeSeconds)}
                 </span>
               )}
@@ -411,7 +411,7 @@ export function OptimizationProgressPanel({
               <button
                 type="button"
                 onClick={onCancel}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-destructive/30 hover:bg-destructive/5 hover:text-destructive"
                 title="Cancel optimisation"
               >
                 <X className="h-3 w-3" />
@@ -420,17 +420,17 @@ export function OptimizationProgressPanel({
             )}
           </div>
 
-          <div className="space-y-3 px-3 py-2.5 text-[12px] text-slate-700">
+          <div className="space-y-3 px-3 py-2.5 text-sm text-foreground">
             {data.searchName && (
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>
                   Search:{" "}
-                  <span className="font-medium text-slate-700">{data.searchName}</span>
+                  <span className="font-medium text-foreground">{data.searchName}</span>
                 </span>
                 {data.recordType && (
                   <span>
                     Record type:{" "}
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-foreground">
                       {data.recordType}
                     </span>
                   </span>
@@ -438,7 +438,7 @@ export function OptimizationProgressPanel({
                 {data.objective && (
                   <span>
                     Objective:{" "}
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-foreground">
                       {data.objective.toUpperCase()}
                     </span>
                   </span>
@@ -446,7 +446,7 @@ export function OptimizationProgressPanel({
                 {data.positiveControlsCount != null && (
                   <span>
                     +controls:{" "}
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-foreground">
                       {data.positiveControlsCount}
                     </span>
                   </span>
@@ -454,7 +454,7 @@ export function OptimizationProgressPanel({
                 {data.negativeControlsCount != null && (
                   <span>
                     -controls:{" "}
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-foreground">
                       {data.negativeControlsCount}
                     </span>
                   </span>
@@ -464,22 +464,22 @@ export function OptimizationProgressPanel({
 
             {(isRunning || isDone) && (
               <div>
-                <div className="mb-1 flex items-baseline justify-between text-[11px]">
-                  <span className="text-slate-500">
+                <div className="mb-1 flex items-baseline justify-between text-xs">
+                  <span className="text-muted-foreground">
                     Trial {current} of {total}
                   </span>
-                  <span className="tabular-nums text-slate-400">
+                  <span className="tabular-nums text-muted-foreground">
                     {progressPct.toFixed(0)}%
                   </span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
                       isComplete
-                        ? "bg-emerald-500"
+                        ? "bg-success"
                         : isCancelled || isError
                           ? "bg-amber-400"
-                          : "bg-indigo-500"
+                          : "bg-primary"
                     }`}
                     style={{ width: `${progressPct}%` }}
                   />
@@ -488,14 +488,14 @@ export function OptimizationProgressPanel({
             )}
 
             {data.bestTrial && (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-2.5 py-2">
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+              <div className="rounded-md border border-success/30 bg-success/10 px-2.5 py-2">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-success">
                   Best configuration (trial {data.bestTrial.trialNumber})
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   {paramNames.map((n) => (
                     <span key={n}>
-                      <span className="text-slate-500">{n}:</span>{" "}
+                      <span className="text-muted-foreground">{n}:</span>{" "}
                       <span className="font-medium tabular-nums">
                         {typeof data.bestTrial!.parameters[n] === "number"
                           ? fmt(data.bestTrial!.parameters[n] as number, 4)
@@ -504,26 +504,26 @@ export function OptimizationProgressPanel({
                     </span>
                   ))}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   <span>
-                    <span className="text-slate-500">Score:</span>{" "}
-                    <span className="font-semibold tabular-nums text-emerald-700">
+                    <span className="text-muted-foreground">Score:</span>{" "}
+                    <span className="font-semibold tabular-nums text-success">
                       {fmt(data.bestTrial.score, 4)}
                     </span>
                   </span>
                   <span>
-                    <span className="text-slate-500">Recall:</span>{" "}
+                    <span className="text-muted-foreground">Recall:</span>{" "}
                     <span className="tabular-nums">{pct(data.bestTrial.recall)}</span>
                   </span>
                   <span>
-                    <span className="text-slate-500">FPR:</span>{" "}
+                    <span className="text-muted-foreground">FPR:</span>{" "}
                     <span className="tabular-nums">
                       {pct(data.bestTrial.falsePositiveRate)}
                     </span>
                   </span>
                   {data.bestTrial.positiveHits != null && (
                     <span>
-                      <span className="text-slate-500">+Hits:</span>{" "}
+                      <span className="text-muted-foreground">+Hits:</span>{" "}
                       <span className="tabular-nums">
                         {data.bestTrial.positiveHits}/
                         {data.bestTrial.totalPositives ?? "?"}
@@ -532,7 +532,7 @@ export function OptimizationProgressPanel({
                   )}
                   {data.bestTrial.negativeHits != null && (
                     <span>
-                      <span className="text-slate-500">-Hits:</span>{" "}
+                      <span className="text-muted-foreground">-Hits:</span>{" "}
                       <span className="tabular-nums">
                         {data.bestTrial.negativeHits}/
                         {data.bestTrial.totalNegatives ?? "?"}
@@ -541,7 +541,7 @@ export function OptimizationProgressPanel({
                   )}
                   {data.bestTrial.resultCount != null && (
                     <span>
-                      <span className="text-slate-500">Results:</span>{" "}
+                      <span className="text-muted-foreground">Results:</span>{" "}
                       <span className="tabular-nums">{data.bestTrial.resultCount}</span>
                     </span>
                   )}
@@ -550,7 +550,7 @@ export function OptimizationProgressPanel({
             )}
 
             {isError && data.error && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-[11px] text-red-700">
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
                 {data.error}
               </div>
             )}
@@ -566,15 +566,17 @@ export function OptimizationProgressPanel({
 
             {isDone && data.sensitivity && Object.keys(data.sensitivity).length > 0 && (
               <div>
-                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Parameter sensitivity
                 </div>
                 <div className="space-y-1">
                   {Object.entries(data.sensitivity)
                     .sort(([, a], [, b]) => b - a)
                     .map(([name, value]) => (
-                      <div key={name} className="flex items-center gap-2 text-[11px]">
-                        <span className="w-28 truncate text-slate-600">{name}</span>
+                      <div key={name} className="flex items-center gap-2 text-xs">
+                        <span className="w-28 truncate text-muted-foreground">
+                          {name}
+                        </span>
                         <SensitivityBar value={value} />
                       </div>
                     ))}

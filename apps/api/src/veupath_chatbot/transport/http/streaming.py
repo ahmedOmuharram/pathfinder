@@ -54,15 +54,17 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         )
 
                     msg = await stream.message()
-                    if msg.content:
+                    # msg.content can be a list of parts (e.g. Gemini multipart);
+                    # msg.text always returns a joined plain string.
+                    final_text = msg.text or ""
+                    if final_text:
                         saw_assistant_message = True
-                        # If nothing streamed (or final content differs), emit the final content as a message.
                         await queue.put(
                             {
                                 "type": "assistant_message",
                                 "data": {
                                     "messageId": message_id,
-                                    "content": msg.content,
+                                    "content": final_text,
                                 },
                             }
                         )
@@ -90,7 +92,7 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
 
                 elif stream.role == ChatRole.FUNCTION:
                     msg = await stream.message()
-                    tool_result_text = msg.content
+                    tool_result_text = msg.text
                     parsed = parse_jsonish(tool_result_text)
 
                     # Normalize tool-argument validation errors into structured tool_error payloads.

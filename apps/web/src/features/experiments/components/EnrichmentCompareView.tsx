@@ -47,23 +47,23 @@ export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProp
           <button
             type="button"
             onClick={() => setView("list")}
-            className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-400 transition hover:text-slate-600"
+            className="mb-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition hover:text-muted-foreground"
           >
             <ArrowLeft className="h-3 w-3" />
             Back
           </button>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Enrichment Comparison
           </h1>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Compare enrichment significance (-log10 p-value) across experiments.
           </p>
         </header>
 
         <div className="flex gap-4">
           {/* Experiment selector */}
-          <div className="w-64 shrink-0 rounded-lg border border-slate-200 bg-white p-4">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+          <div className="w-64 shrink-0 rounded-lg border border-border bg-card p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Experiments (min 2)
             </div>
             <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -80,20 +80,18 @@ export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProp
                         else next.delete(e.id);
                         setSelected(next);
                       }}
-                      className="h-3.5 w-3.5 rounded border-slate-300"
+                      className="h-3.5 w-3.5 rounded border-input"
                     />
-                    <span className="text-[12px] text-slate-700 truncate">
-                      {e.name}
-                    </span>
+                    <span className="text-sm text-foreground truncate">{e.name}</span>
                   </label>
                 ))}
             </div>
             <div className="mt-3">
-              <div className="mb-1 text-[10px] text-slate-400">Filter by type</div>
+              <div className="mb-1 text-xs text-muted-foreground">Filter by type</div>
               <select
                 value={analysisType}
                 onChange={(e) => setAnalysisType(e.target.value)}
-                className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 outline-none"
+                className="w-full rounded border border-border px-2 py-1 text-xs text-muted-foreground outline-none"
               >
                 <option value="">All types</option>
                 {Object.entries(ANALYSIS_LABELS).map(([k, v]) => (
@@ -109,7 +107,7 @@ export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProp
           <div className="min-w-0 flex-1">
             {loading && (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
             {result && !loading && <Heatmap result={result} />}
@@ -129,27 +127,27 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
 
   if (result.rows.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white px-5 py-8 text-center text-xs text-slate-400">
+      <div className="rounded-lg border border-border bg-card px-5 py-8 text-center text-xs text-muted-foreground">
         No enrichment terms found across selected experiments.
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-auto max-h-[600px]">
+    <div className="rounded-lg border border-border bg-card overflow-auto max-h-[600px]">
       <table className="text-xs">
-        <thead className="sticky top-0 bg-white z-10">
-          <tr className="border-b border-slate-200">
-            <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-slate-400 sticky left-0 bg-white">
+        <thead className="sticky top-0 bg-card z-10">
+          <tr className="border-b border-border">
+            <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground sticky left-0 bg-card">
               Term
             </th>
-            <th className="px-2 py-2 text-center text-[10px] font-medium uppercase tracking-wider text-slate-400">
+            <th className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Type
             </th>
             {expIds.map((eid) => (
               <th
                 key={eid}
-                className="px-2 py-2 text-center text-[10px] font-medium uppercase tracking-wider text-slate-400 max-w-[80px] truncate"
+                className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground max-w-[80px] truncate"
                 title={result.experimentLabels[eid]}
               >
                 {(result.experimentLabels[eid] || eid).slice(0, 12)}
@@ -159,14 +157,14 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
         </thead>
         <tbody>
           {result.rows.map((row) => (
-            <tr key={row.termKey} className="border-b border-slate-50">
+            <tr key={row.termKey} className="border-b border-border/50">
               <td
-                className="px-3 py-1.5 text-slate-700 max-w-[200px] truncate sticky left-0 bg-white"
+                className="px-3 py-1.5 text-foreground max-w-[200px] truncate sticky left-0 bg-card"
                 title={row.termName}
               >
                 {row.termName}
               </td>
-              <td className="px-2 py-1.5 text-center text-[10px] text-slate-400">
+              <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">
                 {ANALYSIS_LABELS[row.analysisType]?.split(":")[0] || row.analysisType}
               </td>
               {expIds.map((eid) => {
@@ -180,7 +178,7 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
                 return (
                   <td
                     key={eid}
-                    className="px-2 py-1.5 text-center font-mono tabular-nums text-[10px]"
+                    className="px-2 py-1.5 text-center font-mono tabular-nums text-xs"
                     style={{ backgroundColor: bg, color }}
                     title={val != null ? `-log10(p) = ${val}` : "N/A"}
                   >
@@ -193,7 +191,7 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
         </tbody>
       </table>
       {result.totalTerms > result.rows.length && (
-        <div className="px-3 py-2 text-[11px] text-slate-400 border-t border-slate-100">
+        <div className="px-3 py-2 text-xs text-muted-foreground border-t border-border">
           Showing {result.rows.length} of {result.totalTerms} terms
         </div>
       )}

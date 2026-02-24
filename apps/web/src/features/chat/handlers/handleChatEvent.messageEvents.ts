@@ -56,7 +56,16 @@ export function handleMessageStartEvent(ctx: ChatEventContext, data: unknown) {
 }
 
 export function handleAssistantDeltaEvent(ctx: ChatEventContext, data: unknown) {
-  const { messageId, delta } = data as { messageId?: string; delta?: string };
+  const raw = data as { messageId?: string; delta?: unknown };
+  const messageId = raw.messageId;
+  const delta =
+    typeof raw.delta === "string"
+      ? raw.delta
+      : Array.isArray(raw.delta)
+        ? raw.delta.join("")
+        : raw.delta
+          ? String(raw.delta)
+          : "";
   if (!delta) return;
 
   if (
@@ -103,11 +112,16 @@ export function handleAssistantDeltaEvent(ctx: ChatEventContext, data: unknown) 
 }
 
 export function handleAssistantMessageEvent(ctx: ChatEventContext, data: unknown) {
-  const { messageId, content } = data as {
-    messageId?: string;
-    content?: string;
-  };
-  const finalContent = content || "";
+  const raw = data as { messageId?: string; content?: unknown };
+  const messageId = raw.messageId;
+  const finalContent =
+    typeof raw.content === "string"
+      ? raw.content
+      : Array.isArray(raw.content)
+        ? raw.content.join("")
+        : raw.content
+          ? String(raw.content)
+          : "";
   const subKaniActivity = snapshotSubKaniActivityFromBuffers(
     ctx.subKaniCallsBuffer,
     ctx.subKaniStatusBuffer,

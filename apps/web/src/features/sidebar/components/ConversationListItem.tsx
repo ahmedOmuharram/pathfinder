@@ -41,10 +41,10 @@ export function ConversationListItem({
     <div
       data-testid="conversation-item"
       data-conversation-id={item.id}
-      className={`group flex w-full items-start justify-between gap-2 rounded-md border px-3 py-2 text-[11px] ${
+      className={`group flex w-full items-start justify-between gap-2 rounded-md border px-3 py-2 text-xs ${
         isActive
-          ? "border-slate-300 bg-slate-100 text-slate-900"
-          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+          ? "border-input bg-muted text-foreground"
+          : "border-border bg-card text-muted-foreground hover:border-input hover:bg-muted"
       }`}
     >
       {isRenaming ? (
@@ -60,7 +60,7 @@ export function ConversationListItem({
             }
             if (e.key === "Escape") onCancelRename();
           }}
-          className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-sm font-medium text-slate-800 outline-none focus:border-slate-400"
+          className="min-w-0 flex-1 rounded border border-input bg-card px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           autoFocus
         />
       ) : (
@@ -70,17 +70,17 @@ export function ConversationListItem({
           className="min-w-0 flex-1 text-left"
         >
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-slate-800">
+            <span className="truncate text-sm font-medium text-foreground">
               {item.title}
             </span>
             {item.kind === "strategy" && si && (
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                   !si.wdkStrategyId
                     ? "bg-amber-100 text-amber-700"
                     : si.isSaved
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-200 text-slate-600"
+                      ? "bg-emerald-100 text-success"
+                      : "bg-muted text-muted-foreground"
                 }`}
               >
                 {!si.wdkStrategyId ? "Building" : si.isSaved ? "Saved" : "Draft"}
@@ -88,12 +88,12 @@ export function ConversationListItem({
             )}
             {si && graphHasValidationIssue && (
               <span
-                className="inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500"
+                className="inline-flex h-2 w-2 shrink-0 rounded-full bg-destructive/50"
                 title="Validation issues"
               />
             )}
           </div>
-          <div className="text-[10px] text-slate-500">
+          <div className="text-xs text-muted-foreground">
             {formatSidebarTime(item.updatedAt)}
           </div>
         </button>
@@ -104,7 +104,7 @@ export function ConversationListItem({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="ml-1 shrink-0 rounded-md p-1 text-slate-400 opacity-0 transition hover:text-slate-700 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+              className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
               aria-label="Conversation actions"
             >
               <MoreVertical className="h-4 w-4" aria-hidden="true" />
@@ -112,12 +112,12 @@ export function ConversationListItem({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="z-50 min-w-[160px] rounded-md border border-slate-200 bg-white p-1 text-[12px] text-slate-700 shadow-lg"
+              className="z-50 min-w-[160px] rounded-md border border-border bg-card p-1 text-sm text-foreground shadow-lg"
               sideOffset={4}
               align="end"
             >
               <DropdownMenu.Item
-                className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
+                className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
                 onSelect={() => onStartRename(item)}
               >
                 Rename
@@ -125,14 +125,14 @@ export function ConversationListItem({
               {si && (
                 <>
                   <DropdownMenu.Item
-                    className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
+                    className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
                     onSelect={() => onStartDuplicate(si)}
                   >
                     Duplicate
                   </DropdownMenu.Item>
                   {si.wdkStrategyId && (
                     <DropdownMenu.Item
-                      className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-slate-50 focus:bg-slate-50"
+                      className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
                       onSelect={() => onToggleSaved(si)}
                     >
                       {si.isSaved ? "Revert to draft" : "Mark as saved"}
@@ -140,9 +140,9 @@ export function ConversationListItem({
                   )}
                 </>
               )}
-              <DropdownMenu.Separator className="my-1 h-px bg-slate-100" />
+              <DropdownMenu.Separator className="my-1 h-px bg-muted" />
               <DropdownMenu.Item
-                className="cursor-pointer rounded px-2 py-1 text-red-600 outline-none hover:bg-red-50 focus:bg-red-50"
+                className="cursor-pointer rounded px-2 py-1 text-destructive outline-none hover:bg-destructive/5 focus:bg-destructive/5"
                 onSelect={() => onStartDelete(item)}
               >
                 Delete

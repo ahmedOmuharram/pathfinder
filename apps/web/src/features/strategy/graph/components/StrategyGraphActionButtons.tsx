@@ -22,7 +22,7 @@ export function StrategyGraphActionButtons({
   const saveIsDisabled = !canSave || isSaving;
   return (
     <div className="pointer-events-auto absolute bottom-4 right-4 z-10 flex flex-col gap-2">
-      <div className="flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur">
+      <div className="flex items-center justify-end gap-2 rounded-xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur">
         <button
           type="button"
           onClick={() => {
@@ -42,7 +42,7 @@ export function StrategyGraphActionButtons({
                   ? "Save (unsaved changes)"
                   : "Save"
           }
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 ${
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground ${
             saveIsDisabled ? "cursor-not-allowed opacity-60" : ""
           } ${isUnsaved ? "save-attention" : ""}`}
           title={

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, Send, Loader2, Wand2, ChevronDown } from "lucide-react";
 import { streamAiAssist, type WizardStep, type AiAssistMessage } from "../../api";
 import { listModels, type ModelCatalogResponse } from "@/lib/api/client";
+import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
+import { cn } from "@/lib/utils/cn";
 import { PanelMessageContent } from "./PanelMessageContent";
 import { ToolIndicator } from "./ToolIndicator";
 import { STEP_LABELS, STEP_PLACEHOLDERS, QUICK_ACTION_PROMPTS } from "./constants";
@@ -19,7 +22,7 @@ interface AiAssistantPanelProps {
 
 const contentPropsDefaults = {
   className:
-    "text-[11px] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_p]:break-words [&_code]:break-all [&_*]:max-w-full",
+    "text-xs [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_p]:break-words [&_code]:break-all [&_*]:max-w-full",
 };
 
 export function AiAssistantPanel({
@@ -154,27 +157,29 @@ export function AiAssistantPanel({
   };
 
   return (
-    <div className="flex h-full flex-col border-l border-slate-200 bg-white">
-      <div className="flex items-center border-b border-slate-200 px-3 py-2">
-        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-        <span className="ml-1.5 text-[11px] font-semibold text-slate-700">
+    <div className="flex h-full flex-col border-l border-border bg-card">
+      <div className="flex items-center border-b border-border px-3 py-2.5">
+        <Sparkles className="h-4 w-4 text-warning" />
+        <span className="ml-1.5 text-sm font-semibold text-foreground">
           AI Assistant
         </span>
-        <span className="ml-1 text-[10px] text-slate-400">— {STEP_LABELS[step]}</span>
+        <span className="ml-1.5 text-xs text-muted-foreground">
+          {STEP_LABELS[step]}
+        </span>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-1.5">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowModelPicker(!showModelPicker)}
-            className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[10px] text-slate-600 transition hover:bg-slate-50"
+            className="flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-accent-foreground"
           >
             {modelName}
-            <ChevronDown className="h-2.5 w-2.5" />
+            <ChevronDown className="h-3 w-3" />
           </button>
           {showModelPicker && modelCatalog && (
-            <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-56 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+            <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-56 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg animate-scale-in">
               {modelCatalog.models.map((m) => (
                 <button
                   key={m.id}
@@ -183,14 +188,15 @@ export function AiAssistantPanel({
                     setSelectedModel(m.id);
                     setShowModelPicker(false);
                   }}
-                  className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition hover:bg-slate-50 ${
+                  className={cn(
+                    "flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors duration-150 hover:bg-accent",
                     selectedModel === m.id
-                      ? "bg-indigo-50 font-medium text-indigo-700"
-                      : "text-slate-600"
-                  }`}
+                      ? "bg-primary/5 font-medium text-primary"
+                      : "text-popover-foreground",
+                  )}
                 >
                   {m.name}
-                  <span className="ml-auto text-[9px] text-slate-400">
+                  <span className="ml-auto text-xs text-muted-foreground">
                     {m.provider}
                   </span>
                 </button>
@@ -200,15 +206,16 @@ export function AiAssistantPanel({
         </div>
 
         {quickAction && (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => sendMessage(quickAction.prompt)}
             disabled={streaming}
-            className="flex items-center gap-1 rounded-md bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-40"
+            className="text-xs"
           >
             <Wand2 className="h-3 w-3" />
             {quickAction.label}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -217,24 +224,22 @@ export function AiAssistantPanel({
         className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-3 py-3"
       >
         {messages.length === 0 && !streaming && (
-          <div className="py-8 text-center">
-            <Sparkles className="mx-auto mb-2 h-6 w-6 text-amber-300" />
-            <div className="text-[11px] text-slate-500">
-              Ask me anything about this step.
-            </div>
-            <div className="mt-1 text-[10px] text-slate-400">
-              I can search the web, literature, and VEuPathDB catalogs.
+          <div className="py-8 text-center animate-fade-in">
+            <Sparkles className="mx-auto mb-2 h-6 w-6 text-warning/50" />
+            <div className="text-sm text-muted-foreground">
+              Context-aware guidance from literature and VEuPathDB catalogs.
             </div>
             {quickAction && (
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => sendMessage(quickAction.prompt)}
                 disabled={streaming}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-1.5 text-[11px] font-medium text-amber-700 transition hover:bg-amber-100"
+                className="mt-3"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 {quickAction.label}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -245,11 +250,11 @@ export function AiAssistantPanel({
             className={`min-w-0 ${msg.role === "user" ? "ml-6 text-right" : "mr-6"}`}
           >
             {msg.role === "user" ? (
-              <div className="inline-block max-w-full rounded-lg bg-indigo-600 px-3 py-2 text-[11px] leading-relaxed text-white">
+              <div className="inline-block max-w-full rounded-lg bg-primary px-3 py-2 text-xs leading-relaxed text-primary-foreground">
                 <div className="whitespace-pre-wrap break-words">{msg.content}</div>
               </div>
             ) : (
-              <div className="min-w-0 max-w-full rounded-lg bg-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
+              <div className="min-w-0 max-w-full rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-foreground">
                 <PanelMessageContent
                   content={msg.content}
                   step={step}
@@ -275,7 +280,7 @@ export function AiAssistantPanel({
               </div>
             )}
             {streamText ? (
-              <div className="min-w-0 max-w-full rounded-lg bg-slate-100 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
+              <div className="min-w-0 max-w-full rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-foreground">
                 <PanelMessageContent
                   content={streamText}
                   step={step}
@@ -283,7 +288,7 @@ export function AiAssistantPanel({
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Thinking...
               </div>
@@ -292,9 +297,9 @@ export function AiAssistantPanel({
         )}
       </div>
 
-      <div className="border-t border-slate-200 p-3">
+      <div className="border-t border-border p-3">
         <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -306,25 +311,16 @@ export function AiAssistantPanel({
             }}
             placeholder={STEP_PLACEHOLDERS[step]}
             disabled={streaming}
-            className="flex-1 rounded-md border border-slate-200 px-3 py-2 text-[12px] outline-none placeholder:text-slate-400 focus:border-indigo-300 disabled:opacity-50"
+            className="flex-1"
           />
           {streaming ? (
-            <button
-              type="button"
-              onClick={cancel}
-              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-600 transition hover:bg-red-100"
-            >
+            <Button variant="destructive" size="sm" onClick={cancel}>
               Stop
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              onClick={send}
-              disabled={!input.trim()}
-              className="flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-2 text-[11px] font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Send className="h-3 w-3" />
-            </button>
+            <Button size="icon" onClick={send} disabled={!input.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
           )}
         </div>
       </div>

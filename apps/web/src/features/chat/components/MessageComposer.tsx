@@ -10,6 +10,7 @@ import type {
   ReasoningEffort,
 } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
+import { Button } from "@/lib/components/ui/Button";
 import { ModelPicker } from "./ModelPicker";
 import { ReasoningToggle } from "./ReasoningToggle";
 import { MentionAutocomplete } from "./MentionAutocomplete";
@@ -189,23 +190,22 @@ export function MessageComposer({
           onSelect={handleMentionSelect}
           onDismiss={() => setMentionActive(false)}
         />
-        <div className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white focus-within:border-slate-300 focus-within:ring-1 focus-within:ring-slate-200">
-          {/* Mention chips inside the input container */}
+        <div className="min-w-0 flex-1 rounded-md border border-input bg-background transition-colors duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
           {mentions.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 border-b border-slate-100 px-2.5 py-1.5">
+            <div className="flex flex-wrap gap-1.5 border-b border-border px-2.5 py-1.5">
               {mentions.map((m, i) => {
                 const MIcon = m.type === "strategy" ? FileText : FlaskConical;
                 return (
                   <span
                     key={`${m.type}-${m.id}`}
-                    className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200"
+                    className="inline-flex items-center gap-1 rounded-md bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20"
                   >
                     <MIcon className="h-3 w-3 shrink-0" />
                     {m.displayName}
                     <button
                       type="button"
                       onClick={() => removeMention(i)}
-                      className="ml-0.5 rounded p-0.5 text-blue-400 transition hover:bg-blue-100 hover:text-blue-600"
+                      className="ml-0.5 rounded p-0.5 text-primary/50 transition-colors duration-150 hover:bg-primary/10 hover:text-primary"
                     >
                       <X className="h-2.5 w-2.5" />
                     </button>
@@ -226,32 +226,31 @@ export function MessageComposer({
             data-testid="message-input"
             placeholder={
               mentions.length > 0
-                ? "Ask about referenced items..."
-                : "Ask a question... Use @ to reference strategies or experiments"
+                ? "Continue with referenced items..."
+                : "Describe a research goal, or @ to reference a strategy"
             }
             rows={1}
-            className="min-w-0 w-full resize-none overflow-hidden border-0 bg-transparent px-3 py-2 text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-0 w-full resize-none overflow-hidden border-0 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
         {isStreaming && onStop ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={onStop}
             data-testid="stop-button"
-            className="shrink-0 rounded-md border border-slate-200 bg-white p-2 text-slate-700 transition-colors hover:bg-slate-50"
             aria-label="Stop"
-            title="Stop"
           >
             <Square className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="submit"
+            size="icon"
             disabled={disabled || !message.trim()}
             data-testid="send-button"
-            className="shrink-0 rounded-md border border-slate-200 bg-slate-900 p-2 text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Send"
-            title="Send"
           >
             <svg
               viewBox="0 0 24 24"
@@ -263,7 +262,7 @@ export function MessageComposer({
               <path d="M22 2L11 13" />
               <path d="M22 2L15 22L11 13L2 9L22 2Z" />
             </svg>
-          </button>
+          </Button>
         )}
       </form>
     </div>

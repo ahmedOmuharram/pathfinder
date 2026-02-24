@@ -13,31 +13,31 @@ export function DelegationDraftViewer({
   onBuildExecutor,
 }: DelegationDraftViewerProps) {
   return (
-    <div className="border-b border-slate-200 bg-white px-4 py-3">
+    <div className="border-b border-border bg-card px-4 py-3">
       <details
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+        className="rounded-lg border border-border bg-card px-3 py-2"
         data-testid="delegation-draft-details"
       >
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Delegation plan (draft)
         </summary>
-        <div className="mt-2 space-y-2 text-[12px] text-slate-700">
+        <div className="mt-2 space-y-2 text-sm text-foreground">
           {typeof delegationDraft.goal === "string" && delegationDraft.goal.trim() ? (
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Goal
               </div>
-              <div className="mt-1 rounded-md border border-slate-100 bg-slate-50 p-2 text-[12px] text-slate-700">
+              <div className="mt-1 rounded-md border border-border bg-muted p-2 text-sm text-foreground">
                 {delegationDraft.goal}
               </div>
             </div>
           ) : null}
           {delegationDraft.plan ? (
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Plan JSON
               </div>
-              <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-slate-100 bg-slate-50 p-2 text-[11px] text-slate-700">
+              <pre className="mt-1 max-h-64 overflow-auto rounded-md border border-border bg-muted p-2 text-xs text-foreground">
                 {JSON.stringify(delegationDraft.plan, null, 2)}
               </pre>
             </div>
@@ -46,7 +46,7 @@ export function DelegationDraftViewer({
             <button
               type="button"
               data-testid="delegation-build-executor"
-              className="rounded-md border border-slate-200 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white"
+              className="rounded-md border border-border bg-primary px-2 py-1 text-xs font-semibold uppercase tracking-wide text-primary-foreground transition-colors duration-150"
               onClick={() =>
                 onBuildExecutor(buildDelegationExecutorMessage(delegationDraft))
               }

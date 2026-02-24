@@ -24,7 +24,7 @@ export function WarningIconNode({ data }: NodeProps<WarningNodeData>) {
       aria-label={data.message}
     >
       <AlertTriangle className="h-4 w-4" />
-      <div className="pointer-events-none absolute left-6 top-0 z-50 ml-2 whitespace-nowrap rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] font-medium text-amber-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+      <div className="pointer-events-none absolute left-6 top-0 z-50 ml-2 whitespace-nowrap rounded-md border border-amber-200 bg-white px-2 py-1 text-xs font-medium text-amber-700 opacity-0 shadow-sm transition group-hover:opacity-100">
         {data.message}
       </div>
     </div>

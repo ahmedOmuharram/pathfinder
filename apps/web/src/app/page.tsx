@@ -13,6 +13,7 @@ import { ToastContainer } from "@/app/components/ToastContainer";
 import { LoginGate } from "@/app/components/LoginGate";
 import { TopBar } from "@/app/components/TopBar";
 import { Modal } from "@/lib/components/Modal";
+import { Button } from "@/lib/components/ui/Button";
 import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useBuildStrategy } from "@/features/strategy/hooks/useBuildStrategy";
@@ -56,7 +57,6 @@ export default function HomePage() {
     }
   }, [selectedSite, prevSite, setStrategyId, clearStrategy]);
 
-  /** Intercept site changes: confirm if there's an active strategy to avoid data loss. */
   const handleSiteChange = useCallback(
     (nextSite: string) => {
       if (nextSite === selectedSite) return;
@@ -76,7 +76,6 @@ export default function HomePage() {
     }
   }, [pendingSiteChange, setSelectedSite]);
 
-  // Re-derive the internal pathfinder-auth token from the live VEuPathDB session.
   const authRefreshed = useSessionStore((state) => state.authRefreshed);
   const setAuthRefreshed = useSessionStore((state) => state.setAuthRefreshed);
   useEffect(() => {
@@ -108,16 +107,14 @@ export default function HomePage() {
     addToast,
   });
 
-  // Login gate
   if (!veupathdbSignedIn) {
     return <LoginGate selectedSite={selectedSite} onSiteChange={handleSiteChange} />;
   }
 
   return (
-    <div className="flex h-full flex-col bg-slate-50 text-slate-900">
+    <div className="flex h-full flex-col bg-background text-foreground">
       <ToastContainer toasts={toasts} durationMs={durationMs} onDismiss={removeToast} />
 
-      {/* Top bar with settings gear */}
       <TopBar
         selectedSite={selectedSite}
         onSiteChange={handleSiteChange}
@@ -125,28 +122,26 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <Link
               href="/experiments"
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-xs transition-all duration-150 hover:bg-accent hover:text-accent-foreground hover:-translate-y-px active:translate-y-0"
             >
               <FlaskConical className="h-3.5 w-3.5" aria-hidden />
               Experiments
             </Link>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowSettings(true)}
-              className="rounded-md border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
               aria-label="Settings"
-              title="Settings"
             >
               <Settings className="h-4 w-4" aria-hidden />
-            </button>
+            </Button>
           </div>
         }
       />
 
       <div ref={layoutRef} className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Unified conversation sidebar */}
         <div
-          className="flex shrink-0 flex-col border-r border-slate-200 bg-white"
+          className="flex shrink-0 flex-col border-r border-border bg-card"
           style={{ width: sidebarWidth }}
         >
           <ConversationSidebar siteId={selectedSite} onToast={addToast} />
@@ -154,12 +149,10 @@ export default function HomePage() {
 
         <div
           onMouseDown={startDragging}
-          className="w-1 cursor-col-resize bg-slate-100 hover:bg-slate-200"
+          className="w-1 cursor-col-resize bg-muted transition-colors duration-150 hover:bg-primary/20"
         />
 
-        {/* Main content: unified chat + collapsible graph */}
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-          {/* Unified chat panel (always visible) */}
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
           <div className="min-h-0 flex-1">
             <UnifiedChatPanel
               siteId={selectedSite}
@@ -168,7 +161,6 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Compact strategy strip (always visible when graph exists) */}
           {hasGraph && (
             <CompactStrategyView
               strategy={strategy}
@@ -176,7 +168,6 @@ export default function HomePage() {
             />
           )}
 
-          {/* Graph editor modal (near-fullscreen) */}
           <Modal
             open={graphEditing}
             onClose={() => setGraphEditing(false)}
@@ -184,18 +175,18 @@ export default function HomePage() {
             maxWidth="max-w-[95vw]"
           >
             <div className="flex h-[90vh] flex-col overflow-hidden rounded-lg">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
-                <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Graph Editor
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setGraphEditing(false)}
-                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden />
                   Close
-                </button>
+                </Button>
               </div>
               <div className="min-h-0 flex-1">
                 <StrategyGraph
@@ -209,7 +200,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Site change confirmation modal */}
       <Modal
         open={!!pendingSiteChange}
         onClose={() => setPendingSiteChange(null)}
@@ -217,30 +207,25 @@ export default function HomePage() {
         maxWidth="max-w-sm"
       >
         <div className="px-5 pb-5 pt-2">
-          <p className="text-[13px] text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Your current strategy will be cleared when you switch sites. Are you sure
             you want to continue?
           </p>
           <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setPendingSiteChange(null)}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmSiteChange}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-slate-800"
-            >
+            </Button>
+            <Button size="sm" onClick={confirmSiteChange}>
               Switch site
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Settings modal */}
       <SettingsPage
         open={showSettings}
         onClose={() => setShowSettings(false)}

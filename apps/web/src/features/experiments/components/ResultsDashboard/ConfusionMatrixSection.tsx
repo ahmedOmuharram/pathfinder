@@ -13,69 +13,69 @@ export function ConfusionMatrixSection({ cm }: ConfusionMatrixSectionProps) {
 
   return (
     <Section title="Confusion Matrix">
-      <div className="inline-block rounded-lg border border-slate-200 bg-white">
-        <table className="text-center text-[13px]">
+      <div className="inline-block rounded-lg border border-border bg-card">
+        <table className="text-center text-sm">
           <thead>
             <tr>
               <th className="w-24" />
               <th
                 colSpan={2}
-                className="border-b border-slate-200 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400"
+                className="border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground"
               >
                 Predicted
               </th>
             </tr>
             <tr>
-              <th className="border-r border-slate-200 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <th className="border-r border-border px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Actual
               </th>
-              <th className="w-32 border-r border-b border-slate-200 px-4 py-2 text-[11px] font-medium text-slate-500">
+              <th className="w-32 border-r border-b border-border px-4 py-2 text-xs font-medium text-muted-foreground">
                 Positive
               </th>
-              <th className="w-32 border-b border-slate-200 px-4 py-2 text-[11px] font-medium text-slate-500">
+              <th className="w-32 border-b border-border px-4 py-2 text-xs font-medium text-muted-foreground">
                 Negative
               </th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="border-r border-b border-slate-200 px-4 py-2 text-[11px] font-medium text-slate-500">
+              <td className="border-r border-b border-border px-4 py-2 text-xs font-medium text-muted-foreground">
                 Positive
               </td>
-              <td className="border-r border-b border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-lg font-semibold tabular-nums text-slate-900">
+              <td className="border-r border-b border-border bg-accent px-4 py-3">
+                <div className="text-lg font-semibold tabular-nums text-foreground">
                   {cm.truePositives}
                 </div>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-xs text-muted-foreground">
                   {pctOf(cm.truePositives)} TP
                 </div>
               </td>
-              <td className="border-b border-slate-200 px-4 py-3">
-                <div className="text-lg font-semibold tabular-nums text-slate-900">
+              <td className="border-b border-border px-4 py-3">
+                <div className="text-lg font-semibold tabular-nums text-foreground">
                   {cm.falseNegatives}
                 </div>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-xs text-muted-foreground">
                   {pctOf(cm.falseNegatives)} FN
                 </div>
               </td>
             </tr>
             <tr>
-              <td className="border-r border-slate-200 px-4 py-2 text-[11px] font-medium text-slate-500">
+              <td className="border-r border-border px-4 py-2 text-xs font-medium text-muted-foreground">
                 Negative
               </td>
-              <td className="border-r border-slate-200 px-4 py-3">
-                <div className="text-lg font-semibold tabular-nums text-slate-900">
+              <td className="border-r border-border px-4 py-3">
+                <div className="text-lg font-semibold tabular-nums text-foreground">
                   {cm.falsePositives}
                 </div>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-xs text-muted-foreground">
                   {pctOf(cm.falsePositives)} FP
                 </div>
               </td>
-              <td className="bg-slate-50 px-4 py-3">
-                <div className="text-lg font-semibold tabular-nums text-slate-900">
+              <td className="bg-accent px-4 py-3">
+                <div className="text-lg font-semibold tabular-nums text-foreground">
                   {cm.trueNegatives}
                 </div>
-                <div className="text-[10px] text-slate-400">
+                <div className="text-xs text-muted-foreground">
                   {pctOf(cm.trueNegatives)} TN
                 </div>
               </td>
@@ -83,7 +83,7 @@ export function ConfusionMatrixSection({ cm }: ConfusionMatrixSectionProps) {
           </tbody>
         </table>
       </div>
-      <div className="mt-2 text-[11px] text-slate-400">
+      <div className="mt-2 text-xs text-muted-foreground">
         n = {total} &middot; {cm.truePositives + cm.falseNegatives} actual positives
         &middot; {cm.trueNegatives + cm.falsePositives} actual negatives
       </div>

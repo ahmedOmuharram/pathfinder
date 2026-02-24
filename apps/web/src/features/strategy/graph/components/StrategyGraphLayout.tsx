@@ -195,11 +195,11 @@ export function StrategyGraphLayout(props: StrategyGraphLayoutProps) {
           snapGrid={snapGrid}
           minZoom={0.1}
           maxZoom={2}
-          className="bg-slate-50"
+          className="bg-muted"
         >
           <Background color="#e2e8f0" gap={28} size={1} />
           {!isCompact && (
-            <Controls className="bg-white border-slate-200 text-slate-600" />
+            <Controls className="bg-card border-border text-muted-foreground" />
           )}
         </ReactFlow>
       </div>

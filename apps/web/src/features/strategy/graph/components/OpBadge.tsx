@@ -101,11 +101,11 @@ export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
     label: operator,
   };
 
-  const sizeClasses = size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-1 text-xs";
+  const sizeClasses = size === "sm" ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-xs";
 
   return (
     <span
-      className={`inline-flex items-center rounded-md border border-slate-200 bg-slate-50 font-mono font-semibold text-slate-700 ${sizeClasses}`}
+      className={`inline-flex items-center rounded-md border border-border bg-muted font-mono font-semibold text-foreground ${sizeClasses}`}
     >
       <VennIcon operator={operator} />
       {info.label}

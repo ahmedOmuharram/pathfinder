@@ -67,14 +67,14 @@ export function EdgeContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 min-w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+      className="fixed z-50 min-w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-card p-1 shadow-lg"
       style={{ left: x, top: y }}
       role="menu"
       aria-label="Edge actions"
     >
       {isCombineEdge && (
         <>
-          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Change operator
           </div>
           {COMBINE_OPERATORS.map((op) => (
@@ -82,26 +82,26 @@ export function EdgeContextMenu({
               key={op}
               type="button"
               role="menuitem"
-              className={`w-full rounded px-2 py-1 text-left text-xs font-medium hover:bg-slate-50 ${
+              className={`w-full rounded px-2 py-1 text-left text-xs font-medium transition-colors duration-150 hover:bg-accent ${
                 targetStep.operator === op
-                  ? "text-slate-900 font-bold"
-                  : "text-slate-700"
+                  ? "text-foreground font-bold"
+                  : "text-foreground"
               }`}
               onClick={() => onChangeOperator(edge.target, op)}
             >
               {op}
               {targetStep.operator === op && (
-                <span className="ml-1 text-slate-400">(current)</span>
+                <span className="ml-1 text-muted-foreground">(current)</span>
               )}
             </button>
           ))}
-          <div className="my-1 h-px bg-slate-100" />
+          <div className="my-1 h-px bg-border" />
         </>
       )}
       <button
         type="button"
         role="menuitem"
-        className="w-full rounded px-2 py-1 text-left text-xs font-medium text-red-700 hover:bg-red-50"
+        className="w-full rounded px-2 py-1 text-left text-xs font-medium text-destructive transition-colors duration-150 hover:bg-destructive/5"
         onClick={() => onDeleteEdge(edge)}
       >
         Delete edge

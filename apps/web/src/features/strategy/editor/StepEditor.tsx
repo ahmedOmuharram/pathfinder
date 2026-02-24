@@ -367,7 +367,7 @@ export function StepEditor({
       {/* Content */}
       <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
         {stepValidationError && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
             {stepValidationError}
           </div>
         )}

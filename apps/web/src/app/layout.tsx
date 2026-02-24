@@ -1,5 +1,18 @@
 import type { Metadata } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "PathFinder - VEuPathDB Strategy Builder",
@@ -11,14 +24,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="h-full overflow-hidden bg-slate-50 text-slate-900">
-        <div
-          className="h-[125vh] w-[125vw] origin-top-left overflow-hidden"
-          style={{ zoom: 0.8 }}
-        >
-          <main className="h-full">{children}</main>
-        </div>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="h-full overflow-hidden bg-background text-foreground font-sans antialiased">
+        <main className="h-full">{children}</main>
       </body>
     </html>
   );

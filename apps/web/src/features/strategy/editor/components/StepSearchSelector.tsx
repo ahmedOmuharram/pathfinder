@@ -64,21 +64,21 @@ export function StepSearchSelector({
   return (
     <>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Record Type
         </label>
         <input
           value={recordTypeFilter}
           onChange={(event) => onRecordTypeFilterChange(event.target.value)}
           placeholder="Filter record types..."
-          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         {filteredRecordTypes.length > 0 ? (
-          <div className="mt-2 max-h-40 w-full overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[12px]">
+          <div className="mt-2 max-h-40 w-full overflow-auto rounded-md border border-border bg-card p-2 text-sm">
             {filteredRecordTypes.map((option) => (
               <label
                 key={option.name}
-                className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-slate-50"
+                className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 transition-colors duration-150 hover:bg-accent"
               >
                 <input
                   type="radio"
@@ -86,23 +86,25 @@ export function StepSearchSelector({
                   value={option.name}
                   checked={normalizedRecordTypeValue === option.name}
                   onChange={() => onRecordTypeValueChange(option.name)}
-                  className="mt-0.5 h-3.5 w-3.5 border-slate-300 text-slate-900"
+                  className="mt-0.5 h-3.5 w-3.5 border-input text-foreground"
                 />
                 <div>
-                  <div className="font-medium text-slate-800">
+                  <div className="font-medium text-foreground">
                     {option.displayName || option.name}
                   </div>
-                  <div className="text-[10px] text-slate-400">{option.name}</div>
+                  <div className="text-xs text-muted-foreground">{option.name}</div>
                 </div>
               </label>
             ))}
           </div>
         ) : (
-          <p className="mt-2 text-[11px] text-slate-500">No record types available.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            No record types available.
+          </p>
         )}
       </div>
       <div className="relative">
-        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {stepType === "transform" ? "Transform Name" : "Search Name"}
         </label>
         <input
@@ -110,14 +112,14 @@ export function StepSearchSelector({
           onChange={(event) => onSearchNameChange(event.target.value)}
           disabled={isLoadingSearches || searchOptions.length === 0}
           placeholder="Search..."
-          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
         />
         {filteredSearchOptions.length > 0 && (
-          <div className="mt-2 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white p-2 text-[12px]">
+          <div className="mt-2 max-h-56 w-full overflow-auto rounded-md border border-border bg-card p-2 text-sm">
             {filteredSearchOptions.map((option) => (
               <label
                 key={option.name}
-                className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-slate-50"
+                className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 transition-colors duration-150 hover:bg-accent"
               >
                 <input
                   type="radio"
@@ -138,20 +140,20 @@ export function StepSearchSelector({
                       onRecordTypeValueChange(nextRecordType);
                     }
                   }}
-                  className="mt-0.5 h-3.5 w-3.5 border-slate-300 text-slate-900"
+                  className="mt-0.5 h-3.5 w-3.5 border-input text-foreground"
                 />
                 <div>
-                  <div className="font-medium text-slate-800">
+                  <div className="font-medium text-foreground">
                     {option.displayName || option.name}
                   </div>
-                  <div className="text-[10px] text-slate-400">{option.name}</div>
+                  <div className="text-xs text-muted-foreground">{option.name}</div>
                 </div>
               </label>
             ))}
           </div>
         )}
         {selectedSearch && (
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-xs text-muted-foreground">
             <div
               className="[&_img]:inline-block [&_img]:align-middle [&_img]:!m-0 [&_img]:h-[12px] [&_img]:w-[12px]"
               dangerouslySetInnerHTML={{
@@ -161,24 +163,24 @@ export function StepSearchSelector({
                 ),
               }}
             />
-            <span className="text-slate-400">ID: {selectedSearch.name}</span>
+            <span className="text-muted-foreground">ID: {selectedSearch.name}</span>
           </div>
         )}
         {!selectedSearch && searchName && !isSearchNameAvailable && (
-          <p className="mt-1 text-[11px] text-amber-600">
+          <p className="mt-1 text-xs text-amber-600">
             This search is not available for the selected record type.
           </p>
         )}
         {!selectedSearch && searchOptions.length > 0 && (
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Pick a search to see its description and parameters.
           </p>
         )}
         {searchListError && (
-          <p className="mt-1 text-[11px] text-red-500">{searchListError}</p>
+          <p className="mt-1 text-xs text-destructive">{searchListError}</p>
         )}
         {!searchListError && isLoadingSearches && (
-          <p className="mt-1 text-[11px] text-slate-500">Loading search list...</p>
+          <p className="mt-1 text-xs text-muted-foreground">Loading search list...</p>
         )}
       </div>
     </>

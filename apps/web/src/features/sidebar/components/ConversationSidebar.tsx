@@ -478,8 +478,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
 
   // Render
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 border-r border-slate-200 bg-white px-3 py-4">
-      {/* Site picker */}
+    <div className="flex h-full min-h-0 flex-col gap-4 border-r border-border bg-card px-3 py-4">
       <div>
         <SitePicker
           value={siteId}
@@ -491,9 +490,8 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         />
       </div>
 
-      {/* Header + new conversation button */}
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
         </div>
         <button
@@ -501,26 +499,24 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
           type="button"
           disabled={chatIsStreaming}
           onClick={() => void handleNewConversation()}
-          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           New Chat
         </button>
       </div>
 
-      {/* Search */}
       <input
         data-testid="conversations-search-input"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search conversations..."
-        className="w-full rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700 placeholder:text-slate-400"
+        className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
 
-      {/* Conversation list */}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="space-y-2">
+        <div className="space-y-1">
           {filtered.length === 0 && (
-            <div className="text-[11px] text-slate-500">
+            <div className="text-sm text-muted-foreground py-4 text-center">
               {query.trim()
                 ? "No conversations match your search."
                 : "No conversations yet. Click \u201cNew Chat\u201d to get started."}

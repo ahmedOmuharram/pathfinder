@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
 import { useExperimentStore } from "../store";
+import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
+import { Badge } from "@/lib/components/ui/Badge";
+import { cn } from "@/lib/utils/cn";
 import {
   Plus,
   Search,
@@ -17,16 +21,16 @@ function pct(v: number | null | undefined): string {
   return `${(v * 100).toFixed(1)}%`;
 }
 
-function statusColor(status: string): string {
+function statusVariant(status: string) {
   switch (status) {
     case "completed":
-      return "text-emerald-600 bg-emerald-50";
+      return "success" as const;
     case "running":
-      return "text-indigo-600 bg-indigo-50";
+      return "default" as const;
     case "error":
-      return "text-red-600 bg-red-50";
+      return "destructive" as const;
     default:
-      return "text-slate-500 bg-slate-50";
+      return "secondary" as const;
   }
 }
 
@@ -58,55 +62,53 @@ export function ExperimentList({ siteId }: ExperimentListProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-slate-200 p-3">
-        <button
-          type="button"
-          onClick={() => setView("setup")}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-[12px] font-medium text-white transition hover:bg-slate-800"
-        >
-          <Plus className="h-3.5 w-3.5" />
+      <div className="border-b border-border p-3">
+        <Button className="w-full" onClick={() => setView("setup")}>
+          <Plus className="h-4 w-4" />
           New Experiment
-        </button>
+        </Button>
         {experiments.filter((e) => e.status === "completed").length >= 2 && (
           <div className="mt-1.5 flex gap-1.5">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
               onClick={() => setView("overlap")}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50"
             >
-              <Layers className="h-3 w-3" />
+              <Layers className="h-3.5 w-3.5" />
               Overlap
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
               onClick={() => setView("enrichment-compare")}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-600 transition hover:bg-slate-50"
             >
-              <BarChart3 className="h-3 w-3" />
+              <BarChart3 className="h-3.5 w-3.5" />
               Enrichment
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
-      <div className="border-b border-slate-200 px-3 py-2">
+      <div className="border-b border-border px-3 py-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search experiments..."
-            className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-7 pr-3 text-[12px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-slate-300"
+            className="pl-8"
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <FlaskConical className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-2 text-[12px] text-slate-500">
+          <div className="px-4 py-8 text-center animate-fade-in">
+            <FlaskConical className="mx-auto h-8 w-8 text-muted-foreground/40" />
+            <p className="mt-2 text-sm text-muted-foreground">
               {experiments.length === 0
                 ? "No experiments yet. Create one to get started."
                 : "No experiments match your search."}
@@ -149,31 +151,34 @@ function ExperimentCard({
       onKeyDown={(e) => {
         if (e.key === "Enter") onSelect();
       }}
-      className="group relative flex w-full flex-col gap-1 rounded-md px-3 py-2 text-left transition hover:bg-slate-50"
+      className="group relative flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left transition-all duration-150 hover:bg-accent"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-[12px] font-medium text-slate-800">
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">
           {exp.name}
         </span>
-        <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase ${statusColor(exp.status)}`}
-        >
+        <Badge variant={statusVariant(exp.status)} className="shrink-0 text-xs">
           {exp.status}
-        </span>
+        </Badge>
       </div>
-      <div className="min-w-0 truncate text-[10px] text-slate-500">
+      <div className="min-w-0 truncate text-xs font-mono text-muted-foreground">
         {exp.searchName}
       </div>
-      <div className="flex items-center gap-3 text-[10px] text-slate-400">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
         {exp.f1Score != null && (
           <span>
-            F1: <span className="font-medium text-slate-600">{pct(exp.f1Score)}</span>
+            F1:{" "}
+            <span className="font-mono font-medium text-foreground">
+              {pct(exp.f1Score)}
+            </span>
           </span>
         )}
         {exp.sensitivity != null && (
           <span>
             Sens:{" "}
-            <span className="font-medium text-slate-600">{pct(exp.sensitivity)}</span>
+            <span className="font-mono font-medium text-foreground">
+              {pct(exp.sensitivity)}
+            </span>
           </span>
         )}
         <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -188,7 +193,7 @@ function ExperimentCard({
             e.stopPropagation();
             onClone();
           }}
-          className="rounded p-1 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-500"
+          className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-primary/10 hover:text-primary"
           title="Clone experiment"
         >
           <Copy className="h-3 w-3" />
@@ -199,7 +204,7 @@ function ExperimentCard({
             e.stopPropagation();
             onDelete();
           }}
-          className="rounded p-1 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+          className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
           title="Delete experiment"
         >
           <Trash2 className="h-3 w-3" />

@@ -2,6 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 
 interface ModalProps {
   /** Controls visibility. The modal renders only when `true`. */
@@ -20,12 +21,8 @@ interface ModalProps {
 /**
  * Shared modal shell built on @radix-ui/react-dialog.
  *
- * Provides:
- *  - Focus trapping
- *  - Escape key to close
- *  - Click-outside to close
- *  - Consistent overlay/backdrop
- *  - Accessible labelling
+ * Provides focus trapping, escape-to-close, click-outside-to-close,
+ * consistent backdrop, accessible labelling, and enter/exit animations.
  */
 export function Modal({
   open,
@@ -38,9 +35,15 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm data-[state=open]:animate-fade-in" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <Dialog.Content
-          className={`fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-0 shadow-xl focus:outline-none data-[state=open]:animate-fade-in ${maxWidth}`}
+          className={cn(
+            "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2",
+            "rounded-xl border border-border bg-card p-0 shadow-lg",
+            "focus:outline-none",
+            "data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out",
+            maxWidth,
+          )}
           aria-describedby={undefined}
         >
           {title && <Dialog.Title className="sr-only">{title}</Dialog.Title>}
@@ -48,7 +51,7 @@ export function Modal({
             <Dialog.Close asChild>
               <button
                 type="button"
-                className="absolute right-3 top-3 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" aria-hidden="true" />

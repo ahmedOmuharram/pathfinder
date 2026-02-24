@@ -145,7 +145,7 @@ export function ChatMessageList({
                       ))}
                     </div>
                     {hasText && (
-                      <div className="rounded-lg bg-slate-900 px-3 py-2 text-white selection:bg-white selection:text-slate-900">
+                      <div className="rounded-lg bg-primary px-3 py-2 text-primary-foreground selection:bg-primary-foreground selection:text-primary">
                         <ChatMarkdown content={decoded.message} tone="onDark" />
                       </div>
                     )}
@@ -179,7 +179,7 @@ export function ChatMessageList({
                     {message.mentions?.length ? (
                       <MentionChips mentions={message.mentions} />
                     ) : null}
-                    <div className="rounded-lg px-3 py-2 bg-slate-900 text-white selection:bg-white selection:text-slate-900">
+                    <div className="rounded-lg px-3 py-2 bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
                       <ChatMarkdown content={message.content} tone="onDark" />
                     </div>
                     <MessageTimestamp iso={message.timestamp} align="right" />
@@ -225,7 +225,7 @@ function MentionChips({ mentions }: { mentions: ChatMention[] }) {
         return (
           <span
             key={`${m.type}-${m.id}`}
-            className="inline-flex items-center gap-1 rounded-md bg-blue-900/40 px-2 py-0.5 text-[10px] font-medium text-blue-200 ring-1 ring-inset ring-blue-700/50"
+            className="inline-flex items-center gap-1 rounded-md bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-200 ring-1 ring-inset ring-blue-700/50"
           >
             <Icon className="h-2.5 w-2.5 shrink-0" />
             {m.displayName}
@@ -241,7 +241,7 @@ function MessageTimestamp({ iso, align }: { iso: string; align: "left" | "right"
   if (!text) return null;
   return (
     <span
-      className={`block text-[10px] leading-none text-slate-400 select-none ${
+      className={`block text-xs leading-none text-muted-foreground select-none ${
         align === "right" ? "text-right" : "text-left"
       }`}
     >

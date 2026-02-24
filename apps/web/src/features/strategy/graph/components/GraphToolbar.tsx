@@ -37,11 +37,11 @@ export function GraphToolbar(props: {
 
   return (
     <div className="pointer-events-auto absolute right-4 top-4 z-10 flex flex-col gap-2">
-      <div className="flex items-center justify-end gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm backdrop-blur">
+      <div className="flex items-center justify-end gap-2 rounded-xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur">
         <button
           type="button"
           onClick={onRelayout}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground"
           title="Rearrange"
           aria-label="Rearrange graph layout"
         >
@@ -50,10 +50,10 @@ export function GraphToolbar(props: {
         <button
           type="button"
           onClick={() => onSetInteractionMode("select")}
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors duration-150 ${
             interactionMode === "select"
-              ? "border-slate-400 bg-slate-900 text-white"
-              : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:border-input hover:text-foreground"
           }`}
           title="Box select"
           aria-label="Box select mode"
@@ -64,10 +64,10 @@ export function GraphToolbar(props: {
         <button
           type="button"
           onClick={() => onSetInteractionMode("pan")}
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors duration-150 ${
             interactionMode === "pan"
-              ? "border-slate-400 bg-slate-900 text-white"
-              : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:border-input hover:text-foreground"
           }`}
           title="Pan mode"
           aria-label="Pan mode"
@@ -76,13 +76,13 @@ export function GraphToolbar(props: {
           <Hand className="h-4 w-4" />
         </button>
 
-        <div className="mx-0.5 h-5 w-px bg-slate-200" aria-hidden="true" />
+        <div className="mx-0.5 h-5 w-px bg-border" aria-hidden="true" />
 
         <button
           type="button"
           onClick={onAddSelectionToChat}
           disabled={!canAddSelectionToChat}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           title={
             canAddSelectionToChat
               ? "Add selection to chat"
@@ -96,7 +96,7 @@ export function GraphToolbar(props: {
           type="button"
           onClick={canOrtholog ? onStartOrthologTransform : undefined}
           disabled={!canOrtholog}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           title={
             canOrtholog
               ? "Insert ortholog transform"
@@ -110,7 +110,7 @@ export function GraphToolbar(props: {
           type="button"
           onClick={canCombine ? onStartCombine : undefined}
           disabled={!canCombine}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           title={
             canCombine ? "Combine selected steps" : "Select exactly 2 steps to combine"
           }

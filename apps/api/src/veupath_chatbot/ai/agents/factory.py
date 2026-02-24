@@ -158,12 +158,15 @@ def _resolve_model_config(
         provider = provider_override
 
     # 3. Determine effective reasoning effort.
-    #    When no explicit effort is requested, apply the server-wide default
-    #    for reasoning-capable models.
-    effective_effort = reasoning_effort
-    if effective_effort is None:
-        resolved_entry = get_model_entry(model_override or settings.default_model_id)
-        if resolved_entry and resolved_entry.supports_reasoning:
+    #    Only reasoning-capable models receive effort hyperparams.
+    #    When no explicit effort is requested, apply the server-wide default.
+    resolved_entry = get_model_entry(model_override or settings.default_model_id)
+    supports_reasoning = resolved_entry.supports_reasoning if resolved_entry else False
+
+    effective_effort: ReasoningEffort | None = None
+    if supports_reasoning:
+        effective_effort = reasoning_effort
+        if effective_effort is None:
             effective_effort = settings.default_reasoning_effort
 
     # 4. Merge hyperparams (reasoning effort only — no per-mode base config).

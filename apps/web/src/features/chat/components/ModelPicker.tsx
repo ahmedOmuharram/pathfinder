@@ -62,40 +62,42 @@ export function ModelPicker({
         <button
           type="button"
           disabled={disabled || models.length === 0}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-foreground transition hover:border-input hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           aria-label={`Select model: ${displayName}`}
         >
           <span className="max-w-[100px] truncate">{displayName}</span>
-          <ChevronDown className="h-3 w-3 text-slate-400" aria-hidden />
+          <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden />
         </button>
       </DropdownMenu.Trigger>
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="z-50 min-w-[200px] rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+          className="z-50 min-w-[200px] rounded-md border border-border bg-card p-1 shadow-lg"
           sideOffset={4}
           align="start"
         >
           {/* Server default option */}
           <DropdownMenu.Item
             onSelect={() => onSelect("")}
-            className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded px-3 py-1.5 text-left text-[12px] outline-none transition-colors hover:bg-slate-50 focus:bg-slate-50 ${
-              !selectedModelId ? "font-semibold text-slate-900" : "text-slate-600"
+            className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded px-3 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent focus:bg-accent ${
+              !selectedModelId
+                ? "font-semibold text-foreground"
+                : "text-muted-foreground"
             }`}
           >
             <span>Server default</span>
             {serverDefaultModel && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-xs text-muted-foreground">
                 {serverDefaultModel.name}
               </span>
             )}
           </DropdownMenu.Item>
 
-          <DropdownMenu.Separator className="my-1 h-px bg-slate-100" />
+          <DropdownMenu.Separator className="my-1 h-px bg-muted" />
 
           {Object.entries(grouped).map(([provider, providerModels]) => (
             <DropdownMenu.Group key={provider}>
-              <DropdownMenu.Label className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <DropdownMenu.Label className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {PROVIDER_LABELS[provider as ModelProvider] ?? provider}
               </DropdownMenu.Label>
               {providerModels.map((m) => (
@@ -103,16 +105,16 @@ export function ModelPicker({
                   key={m.id}
                   disabled={!m.enabled}
                   onSelect={() => m.enabled && onSelect(m.id)}
-                  className={`flex w-full items-center justify-between gap-2 rounded px-3 py-1.5 text-left text-[12px] outline-none transition-colors ${
+                  className={`flex w-full items-center justify-between gap-2 rounded px-3 py-1.5 text-left text-sm outline-none transition-colors ${
                     m.enabled
-                      ? "cursor-pointer text-slate-700 hover:bg-slate-50 focus:bg-slate-50"
-                      : "cursor-not-allowed text-slate-300"
-                  } ${selectedModelId === m.id ? "bg-slate-50 font-semibold text-slate-900" : ""}`}
+                      ? "cursor-pointer text-foreground hover:bg-accent focus:bg-accent"
+                      : "cursor-not-allowed text-muted-foreground/60"
+                  } ${selectedModelId === m.id ? "bg-accent font-semibold text-foreground" : ""}`}
                 >
                   <span className="truncate">{m.name}</span>
                   {!m.enabled && (
                     <Lock
-                      className="h-3 w-3 flex-shrink-0 text-slate-300"
+                      className="h-3 w-3 flex-shrink-0 text-muted-foreground/60"
                       aria-label="API key not configured"
                     />
                   )}

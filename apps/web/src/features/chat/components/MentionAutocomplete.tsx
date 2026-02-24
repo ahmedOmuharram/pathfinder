@@ -139,16 +139,16 @@ export function MentionAutocomplete({
   return (
     <div
       ref={containerRef}
-      className="absolute z-50 w-72 rounded-md border border-slate-200 bg-white shadow-lg"
+      className="absolute z-50 w-72 rounded-md border border-border bg-card shadow-lg"
       style={{ bottom: position.top, left: position.left }}
     >
       {loadingExperiments && options.length === 0 && (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
       {!loadingExperiments && options.length === 0 && (
-        <div className="px-3 py-3 text-center text-[11px] text-slate-400">
+        <div className="px-3 py-3 text-center text-xs text-muted-foreground">
           {query ? "No matches" : "No strategies or experiments"}
         </div>
       )}
@@ -163,16 +163,16 @@ export function MentionAutocomplete({
               onSelect(opt.mention);
             }}
             onMouseEnter={() => setFocusIndex(i)}
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${
-              i === focusIndex ? "bg-slate-100" : "hover:bg-slate-50"
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+              i === focusIndex ? "bg-accent" : "hover:bg-accent"
             }`}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-slate-800">
+              <div className="truncate font-medium text-foreground">
                 {opt.mention.displayName}
               </div>
-              <div className="truncate text-[10px] text-slate-400">
+              <div className="truncate text-xs text-muted-foreground">
                 {opt.mention.type === "strategy" ? "Strategy" : "Experiment"} ·{" "}
                 {opt.subtitle}
               </div>

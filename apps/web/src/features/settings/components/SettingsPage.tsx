@@ -39,7 +39,7 @@ export function SettingsPage({
     <Modal open={open} onClose={onClose} title="Settings" maxWidth="max-w-lg">
       <div className="flex min-h-[340px] flex-col">
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 px-5">
+        <div className="flex border-b border-border px-5">
           {(
             [
               { id: "general", label: "General" },
@@ -51,10 +51,10 @@ export function SettingsPage({
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2.5 text-[12px] font-semibold transition-colors ${
+              className={`px-4 py-2.5 text-sm font-semibold transition-colors ${
                 tab === t.id
-                  ? "border-b-2 border-slate-900 text-slate-900"
-                  : "text-slate-400 hover:text-slate-600"
+                  ? "border-b-2 border-primary text-foreground"
+                  : "text-muted-foreground hover:text-muted-foreground"
               }`}
             >
               {t.label}
@@ -105,7 +105,7 @@ function GeneralTab() {
           onSelect={(id) => setDefaultModelId(id || null)}
           serverDefaultId={serverDefaultId}
         />
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 text-xs text-muted-foreground">
           Used when no per-request model is chosen.
         </p>
       </SettingsField>
@@ -117,14 +117,14 @@ function GeneralTab() {
               value={defaultReasoningEffort}
               onChange={setDefaultReasoningEffort}
             />
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               {defaultModelId
                 ? "Applied when the selected model supports reasoning."
                 : "Applied to all reasoning-capable models."}
             </p>
           </>
         ) : (
-          <p className="text-[11px] text-slate-400">
+          <p className="text-xs text-muted-foreground">
             Selected model does not support reasoning.
           </p>
         )}
@@ -202,7 +202,7 @@ function DataTab({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -258,10 +258,10 @@ function DangerAction({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
       <div>
-        <div className="text-[12px] font-medium text-slate-700">{label}</div>
-        <div className="text-[11px] text-slate-400">{description}</div>
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
       </div>
       {confirmed ? (
         <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ function DangerAction({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:opacity-60"
           >
             Cancel
           </button>
@@ -277,7 +277,7 @@ function DangerAction({
             type="button"
             onClick={onExecute}
             disabled={loading}
-            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
           >
             {loading && <Loader2 className="h-3 w-3 animate-spin" />}
             Confirm
@@ -287,7 +287,7 @@ function DangerAction({
         <button
           type="button"
           onClick={onConfirm}
-          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50"
+          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/5"
         >
           <Trash2 className="h-3 w-3" />
           {label}
@@ -332,14 +332,14 @@ function AdvancedTab() {
   return (
     <div className="space-y-5">
       <SettingsField label="Show raw tool calls in chat">
-        <label className="inline-flex cursor-pointer items-center gap-2 text-[12px]">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={showRawToolCalls}
             onChange={(e) => setShowRawToolCalls(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+            className="h-4 w-4 rounded border-input text-foreground focus:ring-slate-500"
           />
-          <span className="text-slate-600">
+          <span className="text-muted-foreground">
             Display raw JSON tool calls in the chat log
           </span>
         </label>
@@ -351,7 +351,7 @@ function AdvancedTab() {
             <div key={p.id} className="flex items-center gap-3">
               <label
                 htmlFor={`budget-${p.id}`}
-                className="w-20 text-[11px] font-medium text-slate-600"
+                className="w-20 text-xs font-medium text-muted-foreground"
               >
                 {p.label}
               </label>
@@ -364,19 +364,19 @@ function AdvancedTab() {
                 onChange={(e) =>
                   setAdvancedReasoningBudget(p.id, parseInt(e.target.value, 10) || 0)
                 }
-                className="w-24 rounded-md border border-slate-200 px-2 py-1 text-[12px] text-slate-700"
+                className="w-24 rounded-md border border-border px-2 py-1 text-sm text-foreground"
               />
-              <span className="text-[10px] text-slate-400">{p.hint}</span>
+              <span className="text-xs text-muted-foreground">{p.hint}</span>
             </div>
           ))}
         </div>
       </SettingsField>
 
-      <div className="border-t border-slate-100 pt-4">
+      <div className="border-t border-border pt-4">
         <button
           type="button"
           onClick={resetToDefaults}
-          className="rounded-md border border-slate-200 px-3 py-1.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted"
         >
           Reset all settings to defaults
         </button>
@@ -396,7 +396,7 @@ function SettingsField({
 }) {
   return (
     <div>
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
       {children}

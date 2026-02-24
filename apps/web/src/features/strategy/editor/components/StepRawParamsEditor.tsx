@@ -19,30 +19,32 @@ export function StepRawParamsEditor({
 }: StepRawParamsEditorProps) {
   return (
     <>
-      <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+      <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <input
           type="checkbox"
           checked={showRaw}
           onChange={(event) => onShowRawChange(event.target.checked)}
-          className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900"
+          className="h-3.5 w-3.5 rounded border-input text-foreground"
         />
         Advanced editing (show raw JSON)
       </label>
       {showRaw && (
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Parameters (JSON)
           </label>
           <textarea
             value={rawParams}
             onChange={(e) => onRawParamsChange(e.target.value)}
             rows={6}
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-200"
+            className="w-full rounded-md border border-border bg-card px-3 py-2 font-mono text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </div>
       )}
-      {isLoading && <p className="text-[11px] text-slate-500">Loading parameters...</p>}
-      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+      {isLoading && (
+        <p className="text-xs text-muted-foreground">Loading parameters...</p>
+      )}
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </>
   );
 }

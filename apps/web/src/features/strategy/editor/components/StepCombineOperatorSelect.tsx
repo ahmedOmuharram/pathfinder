@@ -22,7 +22,7 @@ export function StepCombineOperatorSelect({
   const showColocate = operatorValue === "COLOCATE";
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Operator
       </label>
       <div className="grid grid-cols-2 gap-2">
@@ -33,16 +33,16 @@ export function StepCombineOperatorSelect({
               key={op}
               type="button"
               onClick={() => onOperatorChange(op)}
-              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left ${
+              className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition-colors duration-150 ${
                 selected
-                  ? "border-slate-900 bg-white"
-                  : "border-slate-200 bg-white hover:border-slate-300"
+                  ? "border-foreground bg-card"
+                  : "border-border bg-card hover:border-input"
               }`}
             >
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <OpBadge operator={op} size="sm" />
-                  <span className="text-[12px] font-semibold text-slate-800">
+                  <span className="text-sm font-semibold text-foreground">
                     {CombineOperatorLabels[op]}
                   </span>
                 </div>
@@ -53,13 +53,13 @@ export function StepCombineOperatorSelect({
       </div>
 
       {showColocate && (
-        <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-white p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <div className="mt-3 space-y-2 rounded-md border border-border bg-card p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Colocation parameters
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-[12px] text-slate-700">
-              <div className="mb-1 text-[11px] text-slate-500">Upstream (bp)</div>
+            <label className="text-sm text-foreground">
+              <div className="mb-1 text-xs text-muted-foreground">Upstream (bp)</div>
               <input
                 type="number"
                 min={0}
@@ -71,11 +71,11 @@ export function StepCombineOperatorSelect({
                     strand: colocationParams?.strand ?? "both",
                   })
                 }
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800"
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
               />
             </label>
-            <label className="text-[12px] text-slate-700">
-              <div className="mb-1 text-[11px] text-slate-500">Downstream (bp)</div>
+            <label className="text-sm text-foreground">
+              <div className="mb-1 text-xs text-muted-foreground">Downstream (bp)</div>
               <input
                 type="number"
                 min={0}
@@ -87,12 +87,12 @@ export function StepCombineOperatorSelect({
                     strand: colocationParams?.strand ?? "both",
                   })
                 }
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800"
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
               />
             </label>
           </div>
-          <label className="text-[12px] text-slate-700">
-            <div className="mb-1 text-[11px] text-slate-500">Strand</div>
+          <label className="text-sm text-foreground">
+            <div className="mb-1 text-xs text-muted-foreground">Strand</div>
             <div className="grid grid-cols-3 gap-2">
               {(["both", "same", "opposite"] as const).map((strand) => {
                 const selected = (colocationParams?.strand ?? "both") === strand;
@@ -107,10 +107,10 @@ export function StepCombineOperatorSelect({
                         strand,
                       })
                     }
-                    className={`rounded-md border px-2 py-2 text-[12px] font-semibold ${
+                    className={`rounded-md border px-2 py-2 text-sm font-semibold transition-colors duration-150 ${
                       selected
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-foreground hover:border-input"
                     }`}
                   >
                     {strand.toUpperCase()}

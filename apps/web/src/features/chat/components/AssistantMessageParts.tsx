@@ -128,7 +128,7 @@ export function AssistantMessageParts({
             return (
               <div
                 key={part.key}
-                className="rounded-lg px-3 py-2 border border-slate-200 bg-slate-50 text-slate-700"
+                className="rounded-lg px-3 py-2 border border-border bg-muted text-foreground"
               >
                 <ChatMarkdown
                   content={message.content}
@@ -137,8 +137,8 @@ export function AssistantMessageParts({
                 />
                 {Array.isArray(message.planningArtifacts) &&
                   message.planningArtifacts.length > 0 && (
-                    <div className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700">
-                      <div className="mb-1 font-medium text-slate-900">
+                    <div className="mt-2 rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
+                      <div className="mb-1 font-medium text-foreground">
                         Saved planning artifacts
                       </div>
                       <ul className="list-disc space-y-1 pl-4">
@@ -150,7 +150,7 @@ export function AssistantMessageParts({
                                 <button
                                   type="button"
                                   onClick={() => onApplyPlanningArtifact(a)}
-                                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                                  className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground transition-colors duration-150 hover:bg-accent"
                                 >
                                   Apply to strategy
                                 </button>
@@ -214,16 +214,16 @@ function SourcesSection({
   const expanded = Boolean(expandedSources[messageKey]);
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-2 py-2 text-[12px] text-slate-700">
+    <div className="rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="font-medium text-slate-900">Sources</div>
+        <div className="font-medium text-foreground">Sources</div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+            className={`rounded-md border px-2 py-1 text-xs transition-colors ${
               showCitationTags
-                ? "border-slate-300 bg-slate-50 text-slate-900"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                ? "border-input bg-accent text-foreground"
+                : "border-border bg-card text-foreground hover:bg-accent"
             }`}
             onClick={() => setShowCitationTags((v) => !v)}
             aria-pressed={showCitationTags}
@@ -233,7 +233,7 @@ function SourcesSection({
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1 text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-card p-1 text-foreground transition-colors duration-150 hover:bg-accent"
             onClick={() =>
               setExpandedSources((prev) => ({
                 ...prev,
@@ -253,7 +253,7 @@ function SourcesSection({
       </div>
 
       {!expanded ? (
-        <div className="text-[11px] text-slate-500">
+        <div className="text-xs text-muted-foreground">
           {total} source{total === 1 ? "" : "s"}
         </div>
       ) : (
@@ -261,12 +261,12 @@ function SourcesSection({
           {citations.map((c, i) => (
             <li key={c.id} id={`cite-${i + 1}`}>
               {showCitationTags && c.tag ? (
-                <span className="mr-2 font-mono text-[11px] text-slate-500">
+                <span className="mr-2 font-mono text-xs text-muted-foreground">
                   [{c.tag}]{" "}
                 </span>
               ) : null}
               {Array.isArray(c.authors) && c.authors.length > 0 ? (
-                <span className="text-slate-600">
+                <span className="text-muted-foreground">
                   {`${c.authors.filter(Boolean).join(", ")} `}
                 </span>
               ) : null}
@@ -282,8 +282,12 @@ function SourcesSection({
               ) : (
                 <span>{c.title}</span>
               )}
-              {c.year ? <span className="text-slate-500"> ({c.year})</span> : null}
-              {c.doi ? <span className="text-slate-500"> · DOI: {c.doi}</span> : null}
+              {c.year ? (
+                <span className="text-muted-foreground"> ({c.year})</span>
+              ) : null}
+              {c.doi ? (
+                <span className="text-muted-foreground"> · DOI: {c.doi}</span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -298,7 +302,7 @@ function UndoButton({ onClick }: { onClick: () => void }) {
       <button
         type="button"
         onClick={onClick}
-        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-input hover:bg-accent"
         title="Undo model changes"
         aria-label="Undo model changes"
       >

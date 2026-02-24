@@ -27,13 +27,13 @@ function SummaryCell({
 }) {
   return (
     <div className="px-5 py-3">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+      <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
         {value}
       </div>
-      {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -62,15 +62,15 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
   return (
     <Section title={`Control Robustness Analysis (${cv.k} subsets)`}>
       <div className="space-y-4">
-        <p className="text-[11px] text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Your controls were split into {cv.k} random subsets and each was evaluated
           independently. Consistent metrics across subsets indicate a robust,
           representative control set. High variance suggests the controls may be too few
           or biased toward particular genes.
         </p>
 
-        <div className="rounded-lg border border-slate-200 bg-white">
-          <div className="grid grid-cols-4 divide-x divide-slate-200">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="grid grid-cols-4 divide-x divide-border">
             <SummaryCell
               label="Variance Risk"
               value={riskLabel}
@@ -107,8 +107,8 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
         </div>
 
         {cv.folds.length > 1 && (
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <div className="mb-3 text-xs font-medium text-slate-500">
+          <div className="rounded-lg border border-border bg-card p-5">
+            <div className="mb-3 text-xs font-medium text-muted-foreground">
               Per-Subset Performance (%)
             </div>
             <ResponsiveContainer width="100%" height={180}>
@@ -162,16 +162,16 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
         <button
           type="button"
           onClick={() => setShowFolds(!showFolds)}
-          className="text-xs text-slate-400 transition hover:text-slate-600"
+          className="text-xs text-muted-foreground transition hover:text-foreground"
         >
           {showFolds ? "Hide subset details" : "Show subset details"}
         </button>
 
         {showFolds && (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+                <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="px-4 py-2.5 font-medium">Subset</th>
                   <th className="px-4 py-2.5 font-medium">Sensitivity</th>
                   <th className="px-4 py-2.5 font-medium">Specificity</th>
@@ -179,20 +179,22 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
                   <th className="px-4 py-2.5 font-medium">MCC</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {cv.folds.map((fold) => (
                   <tr key={fold.foldIndex}>
-                    <td className="px-4 py-2 text-slate-500">{fold.foldIndex + 1}</td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {fold.foldIndex + 1}
+                    </td>
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {pct(fold.metrics.sensitivity)}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {pct(fold.metrics.specificity)}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {pct(fold.metrics.f1Score)}
                     </td>
-                    <td className="px-4 py-2 font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 font-mono tabular-nums text-foreground">
                       {fmtNum(fold.metrics.mcc)}
                     </td>
                   </tr>

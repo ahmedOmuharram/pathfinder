@@ -28,8 +28,8 @@ export function CombineStepModal({
       maxWidth="max-w-md"
     >
       <div className="p-4">
-        <div className="text-sm font-semibold text-slate-900">Create combine step</div>
-        <div className="mt-1 text-[12px] text-slate-500">
+        <div className="text-sm font-semibold text-foreground">Create combine step</div>
+        <div className="mt-1 text-sm text-muted-foreground">
           Choose how to combine the two selected steps.
         </div>
         <div className="mt-4 grid gap-2">
@@ -38,10 +38,10 @@ export function CombineStepModal({
               key={operator}
               type="button"
               onClick={() => onChoose(operator)}
-              className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-foreground transition-colors duration-150 hover:border-input hover:bg-accent"
             >
               <span className="font-semibold">{operator}</span>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 {pendingCombine?.sourceId} + {pendingCombine?.targetId}
               </span>
             </button>
@@ -51,7 +51,7 @@ export function CombineStepModal({
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             Cancel
           </button>

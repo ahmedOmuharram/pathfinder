@@ -1,16 +1,11 @@
-/**
- * ReasoningToggle — compact three-segment toggle for reasoning effort.
- *
- * Only visible when the selected model supports reasoning.
- */
-
 "use client";
 
 import type { ReasoningEffort } from "@pathfinder/shared";
+import { cn } from "@/lib/utils/cn";
 
 const OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "low", label: "Low" },
-  { value: "medium", label: "Med" },
+  { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
 
@@ -23,7 +18,7 @@ interface ReasoningToggleProps {
 export function ReasoningToggle({ value, onChange, disabled }: ReasoningToggleProps) {
   return (
     <div
-      className="inline-flex items-center rounded-md border border-slate-200 bg-white text-[11px]"
+      className="inline-flex items-center rounded-md border border-input bg-background text-xs"
       role="radiogroup"
       aria-label="Reasoning effort"
     >
@@ -37,11 +32,13 @@ export function ReasoningToggle({ value, onChange, disabled }: ReasoningTogglePr
             aria-checked={isActive}
             disabled={disabled}
             onClick={() => onChange(opt.value)}
-            className={`px-2 py-1 font-medium transition-colors first:rounded-l-[5px] last:rounded-r-[5px] ${
+            className={cn(
+              "px-2.5 py-1 font-medium transition-all duration-150 first:rounded-l-[5px] last:rounded-r-[5px]",
               isActive
-                ? "bg-slate-900 text-white"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-            } disabled:cursor-not-allowed disabled:opacity-50`}
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              "disabled:cursor-not-allowed disabled:opacity-50",
+            )}
           >
             {opt.label}
           </button>

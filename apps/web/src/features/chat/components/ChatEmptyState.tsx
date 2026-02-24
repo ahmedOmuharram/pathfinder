@@ -26,43 +26,33 @@ export function ChatEmptyState(props: {
   isStreaming: boolean;
   hasMessages: boolean;
 }) {
-  const {
-    isCompact,
-    siteId,
-    displayName,
-    firstName,
-    signedIn,
-    onSend,
-    isStreaming,
-    hasMessages,
-  } = props;
+  const { isCompact, siteId, displayName, onSend, isStreaming, hasMessages } = props;
 
   if (hasMessages || isStreaming) return null;
 
   const suggestions = _suggestionsForSite(suggestedQuestions, siteId);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center">
+    <div className="flex flex-col items-center justify-center h-full text-center animate-fade-in">
       <h2
-        className={`mb-2 font-semibold text-slate-900 ${
-          isCompact ? "text-sm" : "text-base"
+        className={`mb-1 font-semibold tracking-tight text-foreground ${
+          isCompact ? "text-base" : "text-lg"
         }`}
       >
-        {signedIn && firstName
-          ? `Welcome, ${firstName}. Ready to explore ${displayName}?`
-          : `Ready to explore ${displayName}?`}
+        {displayName}
       </h2>
-      <p className={`max-w-md text-slate-500 ${isCompact ? "mb-3" : "mb-6"}`}>
-        {`Describe your research question and I'll help you build a VEuPathDB search strategy for ${displayName} — from planning the approach to executing and refining the results.`}
+      <p
+        className={`max-w-md text-muted-foreground text-sm leading-relaxed ${isCompact ? "mb-4" : "mb-6"}`}
+      >
+        Build and refine multi-step VEuPathDB search strategies with guided parameter
+        selection and validation.
       </p>
-      <div className="grid max-w-lg grid-cols-1 gap-3 text-left">
+      <div className="grid max-w-lg grid-cols-1 gap-2 text-left">
         {suggestions.map((suggestion: string, i: number) => (
           <button
             key={i}
             onClick={() => onSend(suggestion)}
-            className={`rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 ${
-              isCompact ? "text-[11px]" : "text-[13px]"
-            }`}
+            className="rounded-lg border border-border bg-card px-4 py-3 text-left text-sm text-foreground shadow-xs transition-all duration-150 hover:border-ring/30 hover:shadow-sm hover:-translate-y-px active:translate-y-0"
           >
             &ldquo;{suggestion}&rdquo;
           </button>

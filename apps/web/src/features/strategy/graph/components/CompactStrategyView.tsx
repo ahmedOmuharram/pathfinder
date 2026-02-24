@@ -38,27 +38,27 @@ const KIND_COUNT: Record<string, string> = {
 function Arrow() {
   return (
     <div className="flex shrink-0 items-center px-0.5" aria-hidden>
-      <div className="h-px w-3 bg-slate-300" />
-      <div className="h-0 w-0 border-y-[2px] border-l-[3px] border-y-transparent border-l-slate-300" />
+      <div className="h-px w-3 bg-border" />
+      <div className="h-0 w-0 border-y-[2px] border-l-[3px] border-y-transparent border-l-border" />
     </div>
   );
 }
 
 /** Step pill — two tight lines: name + count. */
 function Pill({ step }: { step: CompactStep }) {
-  const border = KIND_BORDER[step.kind] ?? "border-slate-300";
-  const countCls = KIND_COUNT[step.kind] ?? "text-slate-500";
+  const border = KIND_BORDER[step.kind] ?? "border-border";
+  const countCls = KIND_COUNT[step.kind] ?? "text-muted-foreground";
 
   return (
     <div
-      className={`shrink-0 rounded border bg-white px-2 py-0.5 text-center leading-none ${border}`}
+      className={`shrink-0 rounded border bg-card px-2 py-0.5 text-center leading-none ${border}`}
       style={{ maxWidth: 140 }}
       title={`Step ${step.stepNumber}: ${step.displayName}`}
     >
-      <div className="truncate text-[10px] font-semibold text-slate-700">
+      <div className="truncate text-xs font-semibold text-foreground">
         {step.displayName}
       </div>
-      <div className={`text-[9px] ${countCls}`}>
+      <div className={`text-xs ${countCls}`}>
         {typeof step.resultCount === "number"
           ? `${step.resultCount.toLocaleString()} ${step.recordType ?? ""}`
           : "\u2026"}
@@ -102,7 +102,7 @@ function CombineSegment({
         {/* Secondary input — absolute, floating above the Venn dot */}
         <div className="absolute bottom-full left-1/2 mb-0.5 flex -translate-x-1/2 flex-col items-center">
           <Pill step={secondaryInput} />
-          <div className="h-1.5 w-px bg-slate-300" />
+          <div className="h-1.5 w-px bg-border" />
         </div>
         <InlineVenn operator={step.operator!} />
       </div>
@@ -131,7 +131,7 @@ export function CompactStrategyView({
   if (!strategy || spine.length === 0) return null;
 
   return (
-    <div className="border-t border-slate-200 bg-slate-50/80">
+    <div className="border-t border-border bg-muted">
       <div className="flex items-center gap-0">
         {/* Scrollable spine */}
         <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-4 pb-3 pt-10">
@@ -152,7 +152,7 @@ export function CompactStrategyView({
           <button
             type="button"
             onClick={onEditGraph}
-            className="mr-3 inline-flex shrink-0 items-center gap-1 self-center rounded border border-dashed border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
+            className="mr-3 inline-flex shrink-0 items-center gap-1 self-center rounded border border-dashed border-border bg-card px-2 py-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground"
           >
             <Pencil className="h-2.5 w-2.5" aria-hidden />
             Edit
