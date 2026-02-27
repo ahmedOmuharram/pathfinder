@@ -214,6 +214,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sites/{siteId}/genes/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Genes
+         * @description Search genes by text using multi-strategy gene lookup.
+         */
+        get: operations["search_genes_api_v1_sites__siteId__genes_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sites/{siteId}/genes/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Genes
+         * @description Resolve gene IDs to full records via WDK standard reporter.
+         */
+        post: operations["resolve_genes_api_v1_sites__siteId__genes_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/models": {
         parameters: {
             query?: never;
@@ -744,6 +784,420 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Experiments
+         * @description List all experiments, optionally filtered by site.
+         */
+        get: operations["list_experiments_api_v1_experiments_get"];
+        put?: never;
+        /**
+         * Create Experiment
+         * @description Create and run an experiment with SSE progress streaming.
+         */
+        post: operations["create_experiment_api_v1_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/importable-strategies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Importable Strategies
+         * @description List Pathfinder strategies available for import into experiments.
+         */
+        get: operations["list_importable_strategies_api_v1_experiments_importable_strategies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/importable-strategies/{strategy_id}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Strategy Details
+         * @description Fetch full strategy step tree for import into the multi-step builder.
+         *
+         *     The WDK ``GET /strategies/{id}`` response includes:
+         *     - ``stepTree``: recursive tree with only ``stepId`` / ``primaryInput`` / ``secondaryInput``
+         *     - ``steps``: a **map** (object keyed by string step ID) of full step data
+         *       including ``searchName``, ``searchConfig.parameters``, ``customName``, etc.
+         *
+         *     This endpoint flattens the steps map into an array and enriches the
+         *     step tree so the frontend can display search names and parameters.
+         */
+        get: operations["get_strategy_details_api_v1_experiments_importable_strategies__strategy_id__details_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment
+         * @description Get full experiment details including all results.
+         */
+        get: operations["get_experiment_api_v1_experiments__experiment_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Experiment
+         * @description Delete an experiment and clean up its WDK strategy.
+         */
+        delete: operations["delete_experiment_api_v1_experiments__experiment_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Experiment
+         * @description Update experiment metadata (e.g. notes).
+         */
+        patch: operations["update_experiment_api_v1_experiments__experiment_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/cross-validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Cv
+         * @description Run cross-validation on an existing experiment.
+         */
+        post: operations["run_cv_api_v1_experiments__experiment_id__cross_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Enrichment
+         * @description Run enrichment analysis on an existing experiment's results.
+         */
+        post: operations["run_enrichment_api_v1_experiments__experiment_id__enrich_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Batch Experiment
+         * @description Run the same search across multiple organisms with SSE progress.
+         */
+        post: operations["create_batch_experiment_api_v1_experiments_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/results/attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Attributes
+         * @description Get available attributes for an experiment's record type.
+         */
+        get: operations["get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/results/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Records
+         * @description Get paginated result records for an experiment.
+         *
+         *     Requires a persisted WDK strategy (``wdkStepId`` must be set).
+         */
+        get: operations["get_experiment_records_api_v1_experiments__experiment_id__results_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/results/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Experiment Record Detail
+         * @description Get a single record's full details by primary key.
+         *
+         *     Expects ``{"primaryKey": [{"name": "...", "value": "..."}, ...]}``
+         *     (or ``primary_key``) matching the record type's primary key structure.
+         *     If the client sends fewer PK parts than the record type requires (e.g. only
+         *     ``source_id`` for gene), missing parts such as ``project_id`` are filled
+         *     from the site so WDK accepts the request.
+         */
+        post: operations["get_experiment_record_detail_api_v1_experiments__experiment_id__results_record_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Strategy
+         * @description Get the WDK strategy tree for an experiment.
+         */
+        get: operations["get_experiment_strategy_api_v1_experiments__experiment_id__strategy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/results/distributions/{attribute_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Distribution
+         * @description Get distribution data for an attribute using filter summary.
+         */
+        get: operations["get_experiment_distribution_api_v1_experiments__experiment_id__results_distributions__attribute_name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/analyses/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Analysis Types
+         * @description List available WDK step analysis types for an experiment.
+         */
+        get: operations["get_experiment_analysis_types_api_v1_experiments__experiment_id__analyses_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/analyses/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Experiment Analysis
+         * @description Create and run a WDK step analysis on the experiment's step.
+         */
+        post: operations["run_experiment_analysis_api_v1_experiments__experiment_id__analyses_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/refine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refine Experiment
+         * @description Add a step to the experiment's strategy (combine, transform, etc.).
+         */
+        post: operations["refine_experiment_api_v1_experiments__experiment_id__refine_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/re-evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re Evaluate Experiment
+         * @description Re-run control evaluation against the (possibly modified) strategy.
+         */
+        post: operations["re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/threshold-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Threshold Sweep
+         * @description Sweep a numeric parameter across a range and compute metrics at each point.
+         */
+        post: operations["threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/step-contributions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step Contributions
+         * @description Analyse per-step contribution to overall result for multi-step experiments.
+         *
+         *     Evaluates controls against each leaf step individually to show how much
+         *     each step contributes to the final strategy result.
+         */
+        post: operations["step_contributions_api_v1_experiments__experiment_id__step_contributions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/ai-assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Assist
+         * @description AI assistant for the experiment wizard.
+         *
+         *     Streams a response with tool-use activity (web/literature search, site
+         *     catalog lookup, gene lookup) to help the user with the current wizard step.
+         */
+        post: operations["ai_assist_api_v1_experiments_ai_assist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/veupathdb/auth/login": {
         parameters: {
             query?: never;
@@ -854,6 +1308,25 @@ export type webhooks = Record<string, never>;
 export type components = {
     schemas: {
         /**
+         * AiAssistRequest
+         * @description Request for the experiment wizard AI assistant.
+         */
+        AiAssistRequest: {
+            /** Siteid */
+            siteId: string;
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "search" | "parameters" | "controls" | "run" | "results" | "analysis";
+            /** Message */
+            message: string;
+            context?: components["schemas"]["JSONObject"];
+            history?: components["schemas"]["JSONArray"];
+            /** Model */
+            model?: string | null;
+        };
+        /**
          * AuthStatusResponse
          * @description Current auth status response.
          */
@@ -874,6 +1347,33 @@ export type components = {
             success: boolean;
             /** Authtoken */
             authToken?: string | null;
+        };
+        /**
+         * BatchOrganismTargetRequest
+         * @description Per-organism override for a cross-organism batch experiment.
+         */
+        BatchOrganismTargetRequest: {
+            /** Organism */
+            organism: string;
+            /** Positivecontrols */
+            positiveControls?: string[];
+            /** Negativecontrols */
+            negativeControls?: string[];
+        };
+        /**
+         * ChatMention
+         * @description A reference to a strategy or experiment included via @-mention.
+         */
+        ChatMention: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "strategy" | "experiment";
+            /** Id */
+            id: string;
+            /** Displayname */
+            displayName: string;
         };
         /**
          * ChatRequest
@@ -902,6 +1402,8 @@ export type components = {
             reasoningEffort?: ("none" | "low" | "medium" | "high") | null;
             /** Referencestrategyid */
             referenceStrategyId?: string | null;
+            /** Mentions */
+            mentions?: components["schemas"]["ChatMention"][];
         };
         /** ColocationParams */
         ColocationParams: {
@@ -914,6 +1416,118 @@ export type components = {
              * @default both
              */
             strand: string;
+        };
+        /**
+         * CreateBatchExperimentRequest
+         * @description Request to run the same search across multiple organisms.
+         */
+        CreateBatchExperimentRequest: {
+            base: components["schemas"]["CreateExperimentRequest"];
+            /** Organismparamname */
+            organismParamName: string;
+            /** Targetorganisms */
+            targetOrganisms: components["schemas"]["BatchOrganismTargetRequest"][];
+        };
+        /**
+         * CreateExperimentRequest
+         * @description Request to create and run an experiment.
+         *
+         *     Supports three modes: ``single`` (default), ``multi-step``, and ``import``.
+         */
+        CreateExperimentRequest: {
+            /** Siteid */
+            siteId: string;
+            /** Recordtype */
+            recordType: string;
+            /**
+             * Mode
+             * @default single
+             * @enum {string}
+             */
+            mode: "single" | "multi-step" | "import";
+            /**
+             * Searchname
+             * @default
+             */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            stepTree?: components["schemas"]["JSONValue"];
+            /** Sourcestrategyid */
+            sourceStrategyId?: string | null;
+            /** Optimizationtargetstep */
+            optimizationTargetStep?: string | null;
+            /** Positivecontrols */
+            positiveControls: string[];
+            /** Negativecontrols */
+            negativeControls: string[];
+            /** Controlssearchname */
+            controlsSearchName: string;
+            /** Controlsparamname */
+            controlsParamName: string;
+            /**
+             * Controlsvalueformat
+             * @default newline
+             */
+            controlsValueFormat: string;
+            /**
+             * Enablecrossvalidation
+             * @default false
+             */
+            enableCrossValidation: boolean;
+            /**
+             * Kfolds
+             * @default 5
+             */
+            kFolds: number;
+            /** Enrichmenttypes */
+            enrichmentTypes?: ("go_function" | "go_component" | "go_process" | "pathway" | "word")[];
+            /**
+             * Name
+             * @default Untitled Experiment
+             */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Optimizationspecs */
+            optimizationSpecs?: components["schemas"]["OptimizationSpecRequest"][] | null;
+            /**
+             * Optimizationbudget
+             * @default 30
+             */
+            optimizationBudget: number;
+            /** Optimizationobjective */
+            optimizationObjective?: ("f1" | "recall" | "precision" | "specificity" | "balanced_accuracy" | "mcc" | "youdens_j" | "f_beta") | null;
+            parameterDisplayValues?: components["schemas"]["JSONObject"] | null;
+            /**
+             * Enabletreeoptimization
+             * @default false
+             */
+            enableTreeOptimization: boolean;
+            /**
+             * Treeoptimizationbudget
+             * @default 20
+             */
+            treeOptimizationBudget: number;
+            /**
+             * Optimizeoperators
+             * @default true
+             */
+            optimizeOperators: boolean;
+            /**
+             * Optimizeorthologs
+             * @default false
+             */
+            optimizeOrthologs: boolean;
+            /** Orthologorganisms */
+            orthologOrganisms?: string[] | null;
+            /**
+             * Optimizestructure
+             * @default false
+             */
+            optimizeStructure: boolean;
         };
         /**
          * CreateStrategyRequest
@@ -972,6 +1586,82 @@ export type components = {
              * Format: date-time
              */
             expiresAt: string;
+        };
+        /**
+         * GeneResolveRequest
+         * @description Request body for gene ID resolution.
+         */
+        GeneResolveRequest: {
+            /** Geneids */
+            geneIds: string[];
+        };
+        /**
+         * GeneResolveResponse
+         * @description Gene ID resolution response.
+         */
+        GeneResolveResponse: {
+            /** Resolved */
+            resolved: components["schemas"]["ResolvedGeneResponse"][];
+            /** Unresolved */
+            unresolved: string[];
+        };
+        /**
+         * GeneSearchResponse
+         * @description Paginated gene search response.
+         */
+        GeneSearchResponse: {
+            /** Results */
+            results: components["schemas"]["GeneSearchResultResponse"][];
+            /** Totalcount */
+            totalCount: number;
+            /**
+             * Suggestedorganisms
+             * @default []
+             */
+            suggestedOrganisms: string[];
+        };
+        /**
+         * GeneSearchResultResponse
+         * @description A single gene result from site-search.
+         */
+        GeneSearchResultResponse: {
+            /** Geneid */
+            geneId: string;
+            /**
+             * Displayname
+             * @default
+             */
+            displayName: string;
+            /**
+             * Organism
+             * @default
+             */
+            organism: string;
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /**
+             * Genename
+             * @default
+             */
+            geneName: string;
+            /**
+             * Genetype
+             * @default
+             */
+            geneType: string;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+            /**
+             * Matchedfields
+             * @default []
+             */
+            matchedFields: string[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1072,6 +1762,27 @@ export type components = {
             strategyId: string;
         };
         /**
+         * OptimizationSpecRequest
+         * @description Describes a single parameter to optimise.
+         */
+        OptimizationSpecRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "numeric" | "integer" | "categorical";
+            /** Min */
+            min?: number | null;
+            /** Max */
+            max?: number | null;
+            /** Step */
+            step?: number | null;
+            /** Choices */
+            choices?: string[] | null;
+        };
+        /**
          * ParamSpecResponse
          * @description Normalized parameter spec (UI-friendly).
          */
@@ -1100,7 +1811,19 @@ export type components = {
              * @default false
              */
             countOnlyLeaves: boolean;
+            initialDisplayValue?: components["schemas"]["JSONValue"] | null;
             vocabulary?: components["schemas"]["JSONValue"] | null;
+            /** Minvalue */
+            minValue?: number | null;
+            /** Maxvalue */
+            maxValue?: number | null;
+            /**
+             * Isnumber
+             * @default false
+             */
+            isNumber: boolean;
+            /** Increment */
+            increment?: number | null;
         };
         /**
          * ParamSpecsRequest
@@ -1283,6 +2006,63 @@ export type components = {
             displayName: string;
             /** Description */
             description?: string | null;
+        };
+        /**
+         * ResolvedGeneResponse
+         * @description A resolved gene record.
+         */
+        ResolvedGeneResponse: {
+            /** Geneid */
+            geneId: string;
+            /**
+             * Displayname
+             * @default
+             */
+            displayName: string;
+            /**
+             * Organism
+             * @default
+             */
+            organism: string;
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /**
+             * Genename
+             * @default
+             */
+            geneName: string;
+            /**
+             * Genetype
+             * @default
+             */
+            geneType: string;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+        };
+        /**
+         * RunCrossValidationRequest
+         * @description Request to run cross-validation on an existing experiment.
+         */
+        RunCrossValidationRequest: {
+            /**
+             * Kfolds
+             * @default 5
+             */
+            kFolds: number;
+        };
+        /**
+         * RunEnrichmentRequest
+         * @description Request to run enrichment on an existing experiment.
+         */
+        RunEnrichmentRequest: {
+            /** Enrichmenttypes */
+            enrichmentTypes: ("go_function" | "go_component" | "go_process" | "pathway" | "word")[];
         };
         /**
          * SearchDetailsResponse
@@ -1695,6 +2475,23 @@ export type components = {
             /** Updatedat */
             updatedAt?: string | null;
         };
+        /**
+         * ThresholdSweepRequest
+         * @description Request to sweep a numeric parameter across a range.
+         */
+        ThresholdSweepRequest: {
+            /** Parametername */
+            parameterName: string;
+            /** Minvalue */
+            minValue: number;
+            /** Maxvalue */
+            maxValue: number;
+            /**
+             * Steps
+             * @default 10
+             */
+            steps: number;
+        };
         /** TokenPayload */
         TokenPayload: {
             /** Token */
@@ -2097,6 +2894,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ParamSpecResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_genes_api_v1_sites__siteId__genes_search_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                organism?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_genes_api_v1_sites__siteId__genes_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneResolveResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3131,6 +3999,745 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DownloadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_experiments_api_v1_experiments_get: {
+        parameters: {
+            query?: {
+                siteId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_experiment_api_v1_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExperimentRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of experiment progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_importable_strategies_api_v1_experiments_importable_strategies_get: {
+        parameters: {
+            query: {
+                siteId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_strategy_details_api_v1_experiments_importable_strategies__strategy_id__details_get: {
+        parameters: {
+            query: {
+                siteId: string;
+            };
+            header?: never;
+            path: {
+                strategy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_api_v1_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_v1_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_experiment_api_v1_experiments__experiment_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_cv_api_v1_experiments__experiment_id__cross_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCrossValidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_enrichment_api_v1_experiments__experiment_id__enrich_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunEnrichmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_batch_experiment_api_v1_experiments_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBatchExperimentRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of batch experiment progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_records_api_v1_experiments__experiment_id__results_records_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                sort?: string | null;
+                dir?: string;
+                attributes?: string | null;
+            };
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_record_detail_api_v1_experiments__experiment_id__results_record_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_strategy_api_v1_experiments__experiment_id__strategy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_distribution_api_v1_experiments__experiment_id__results_distributions__attribute_name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+                attribute_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_analysis_types_api_v1_experiments__experiment_id__analyses_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_experiment_analysis_api_v1_experiments__experiment_id__analyses_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refine_experiment_api_v1_experiments__experiment_id__refine_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThresholdSweepRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    step_contributions_api_v1_experiments__experiment_id__step_contributions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_assist_api_v1_experiments_ai_assist_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiAssistRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of AI assistant response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
