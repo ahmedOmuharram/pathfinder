@@ -109,13 +109,20 @@ async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | Non
         return None
 
 
-async def _resolve_controls_param_type(
+async def resolve_controls_param_type(
     api: StrategyAPI,
     record_type: str,
     controls_search_name: str,
     controls_param_name: str,
 ) -> str | None:
-    """Return the WDK param type for the controls parameter, or None on failure."""
+    """Return the WDK param type for a controls parameter.
+
+    :param api: Strategy API instance.
+    :param record_type: WDK record type.
+    :param controls_search_name: Name of the controls search.
+    :param controls_param_name: Parameter name within the controls search.
+    :returns: Parameter type string (e.g. ``"input-dataset"``) or None.
+    """
     try:
         details = await api.client.get_search_details(record_type, controls_search_name)
         search_data = details.get("searchData") if isinstance(details, dict) else None
@@ -177,7 +184,7 @@ async def _run_intersection_control(
 
     # Determine whether the controls parameter is an input-dataset type.
     # If so, upload the IDs as a WDK dataset and pass the dataset ID.
-    param_type = await _resolve_controls_param_type(
+    param_type = await resolve_controls_param_type(
         api, record_type, controls_search_name, controls_param_name
     )
 

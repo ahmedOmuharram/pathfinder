@@ -10,26 +10,31 @@ import { useStrategyStore } from "@/state/useStrategyStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { refreshAuth } from "@/lib/api/client";
 import { ToastContainer } from "@/app/components/ToastContainer";
-import { LoginGate } from "@/app/components/LoginGate";
+import { LoginModal } from "@/app/components/LoginModal";
 import { TopBar } from "@/app/components/TopBar";
 import { Modal } from "@/lib/components/Modal";
 import { Button } from "@/lib/components/ui/Button";
 import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useBuildStrategy } from "@/features/strategy/hooks/useBuildStrategy";
-import { FlaskConical, Settings, X } from "lucide-react";
+import { FlaskConical, Loader2, MessageCircle, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
+import { useAuthCheck } from "@/app/hooks/useAuthCheck";
+import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 
 export default function HomePage() {
   const { selectedSite, setSelectedSite } = useSessionStore();
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
+  const setPlanSessionId = useSessionStore((state) => state.setPlanSessionId);
   const selectedSiteDisplayName = useSessionStore(
     (state) => state.selectedSiteDisplayName,
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const setAuthToken = useSessionStore((state) => state.setAuthToken);
+  const { authLoading } = useAuthCheck();
+  useSiteTheme(selectedSite);
   const strategyId = useSessionStore((state) => state.strategyId);
   const { strategy } = useStrategyStore();
   const buildPlan = useStrategyStore((state) => state.buildPlan);
@@ -53,9 +58,10 @@ export default function HomePage() {
   useEffect(() => {
     if (prevSite && prevSite !== selectedSite) {
       setStrategyId(null);
+      setPlanSessionId(null);
       clearStrategy();
     }
-  }, [selectedSite, prevSite, setStrategyId, clearStrategy]);
+  }, [selectedSite, prevSite, setStrategyId, setPlanSessionId, clearStrategy]);
 
   const handleSiteChange = useCallback(
     (nextSite: string) => {
@@ -107,26 +113,44 @@ export default function HomePage() {
     addToast,
   });
 
-  if (!veupathdbSignedIn) {
-    return <LoginGate selectedSite={selectedSite} onSiteChange={handleSiteChange} />;
+  if (authLoading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-background text-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="mt-3 text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
+      <LoginModal
+        open={!veupathdbSignedIn}
+        selectedSite={selectedSite}
+        onSiteChange={handleSiteChange}
+      />
       <ToastContainer toasts={toasts} durationMs={durationMs} onDismiss={removeToast} />
 
       <TopBar
         selectedSite={selectedSite}
         onSiteChange={handleSiteChange}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              className="pointer-events-none bg-primary/10 text-primary shadow-none"
+            >
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+              Chat
+            </Button>
             <Link
               href="/experiments"
-              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-xs transition-all duration-150 hover:bg-accent hover:text-accent-foreground hover:-translate-y-px active:translate-y-0"
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
             >
               <FlaskConical className="h-3.5 w-3.5" aria-hidden />
               Experiments
             </Link>
+            <div className="mx-1 h-5 w-px bg-border" />
             <Button
               variant="ghost"
               size="icon"
@@ -141,7 +165,7 @@ export default function HomePage() {
 
       <div ref={layoutRef} className="flex min-h-0 flex-1 overflow-hidden">
         <div
-          className="flex shrink-0 flex-col border-r border-border bg-card"
+          className="flex shrink-0 flex-col border-r border-border bg-sidebar"
           style={{ width: sidebarWidth }}
         >
           <ConversationSidebar siteId={selectedSite} onToast={addToast} />

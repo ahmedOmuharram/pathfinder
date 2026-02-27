@@ -11,6 +11,8 @@ export function useStepCounts(args: {
   setStepCounts: (counts: Record<string, number | null | undefined>) => void;
   fetchCounts: (siteId: string, plan: StrategyPlan) => Promise<StepCountsResponse>;
   debounceMs?: number;
+  /** Increment to force a re-fetch even when planHash hasn't changed. */
+  refreshKey?: number;
 }) {
   const {
     siteId,
@@ -20,6 +22,7 @@ export function useStepCounts(args: {
     setStepCounts,
     fetchCounts,
     debounceMs = 650,
+    refreshKey = 0,
   } = args;
 
   const lastRequestKeyRef = useRef<string | null>(null);
@@ -41,7 +44,7 @@ export function useStepCounts(args: {
     }
 
     const stepIdsKey = stepIds.slice().sort().join("|");
-    const requestKey = `${planHash}:${stepIdsKey}`;
+    const requestKey = `${planHash}:${stepIdsKey}:${refreshKey}`;
     if (lastRequestKeyRef.current === requestKey) return;
 
     const timeout = window.setTimeout(() => {
@@ -71,5 +74,14 @@ export function useStepCounts(args: {
     }, debounceMs);
 
     return () => window.clearTimeout(timeout);
-  }, [siteId, plan, planHash, stepIds, setStepCounts, fetchCounts, debounceMs]);
+  }, [
+    siteId,
+    plan,
+    planHash,
+    stepIds,
+    setStepCounts,
+    fetchCounts,
+    debounceMs,
+    refreshKey,
+  ]);
 }

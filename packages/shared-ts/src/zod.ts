@@ -9,8 +9,8 @@ import { z } from "zod";
 export const CombineOperatorSchema = z.enum([
   "INTERSECT",
   "UNION",
-  "MINUS_LEFT",
-  "MINUS_RIGHT",
+  "MINUS",
+  "RMINUS",
   "COLOCATE",
 ]);
 

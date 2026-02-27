@@ -13,7 +13,10 @@ from fastapi.responses import StreamingResponse
 from veupath_chatbot.platform.errors import NotFoundError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.control_tests import (
+    ControlValueFormat,
+    run_positive_negative_controls,
+)
 from veupath_chatbot.services.experiment.service import run_experiment
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
@@ -90,43 +93,7 @@ async def _sse_generator(
 )
 async def create_experiment(request: CreateExperimentRequest) -> StreamingResponse:
     """Create and run an experiment with SSE progress streaming."""
-    opt_specs = None
-    if request.optimization_specs:
-        opt_specs = [
-            OptimizationSpec(
-                name=s.name,
-                type=s.type,
-                min=s.min,
-                max=s.max,
-                step=s.step,
-                choices=s.choices,
-            )
-            for s in request.optimization_specs
-        ]
-    config = ExperimentConfig(
-        site_id=request.site_id,
-        record_type=request.record_type,
-        search_name=request.search_name,
-        parameters=request.parameters,
-        positive_controls=request.positive_controls,
-        negative_controls=request.negative_controls,
-        controls_search_name=request.controls_search_name,
-        controls_param_name=request.controls_param_name,
-        controls_value_format=request.controls_value_format,
-        enable_cross_validation=request.enable_cross_validation,
-        k_folds=request.k_folds,
-        enrichment_types=list(request.enrichment_types),
-        name=request.name,
-        description=request.description,
-        optimization_specs=opt_specs,
-        optimization_budget=request.optimization_budget,
-        optimization_objective=request.optimization_objective or "balanced_accuracy",
-        parameter_display_values=(
-            {str(k): str(v) for k, v in request.parameter_display_values.items()}
-            if request.parameter_display_values
-            else None
-        ),
-    )
+    config = _config_from_request(request)
     return StreamingResponse(
         _sse_generator(config),
         media_type="text/event-stream",
@@ -146,6 +113,132 @@ async def list_experiments(
     store = get_experiment_store()
     experiments = store.list_all(site_id=siteId)
     return [experiment_summary_to_json(e) for e in experiments]
+
+
+@router.get("/importable-strategies")
+async def list_importable_strategies(siteId: str) -> list[JSONObject]:
+    """List Pathfinder strategies available for import into experiments."""
+    from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+    from veupath_chatbot.integrations.veupathdb.strategy_api import (
+        is_internal_wdk_strategy_name,
+    )
+
+    api = get_strategy_api(siteId)
+    raw = await api.list_strategies()
+    results: list[JSONObject] = []
+    if not isinstance(raw, list):
+        return results
+    for strat in raw:
+        if not isinstance(strat, dict):
+            continue
+        name = strat.get("name")
+        if isinstance(name, str) and is_internal_wdk_strategy_name(name):
+            continue
+        results.append(
+            {
+                "wdkStrategyId": strat.get("strategyId"),
+                "name": strat.get("name", ""),
+                "recordType": strat.get("recordClassName"),
+                "stepCount": strat.get("leafAndTransformStepCount"),
+                "estimatedSize": strat.get("estimatedSize"),
+                "lastModified": strat.get("lastModified"),
+                "isSaved": strat.get("isSaved", False),
+            }
+        )
+    return results
+
+
+@router.get("/importable-strategies/{strategy_id}/details")
+async def get_strategy_details(strategy_id: int, siteId: str) -> JSONObject:
+    """Fetch full strategy step tree for import into the multi-step builder.
+
+    The WDK ``GET /strategies/{id}`` response includes:
+    - ``stepTree``: recursive tree with only ``stepId`` / ``primaryInput`` / ``secondaryInput``
+    - ``steps``: a **map** (object keyed by string step ID) of full step data
+      including ``searchName``, ``searchConfig.parameters``, ``customName``, etc.
+
+    This endpoint flattens the steps map into an array and enriches the
+    step tree so the frontend can display search names and parameters.
+    """
+    from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+
+    api = get_strategy_api(siteId)
+    raw = await api.get_strategy(strategy_id)
+    if not isinstance(raw, dict):
+        raise NotFoundError(title="Strategy not found")
+
+    step_tree = raw.get("stepTree")
+    raw_steps = raw.get("steps", {})
+    name = raw.get("name", "")
+    record_type = raw.get("recordClassName", "")
+
+    # WDK returns steps as { "stepId_string": { step_data }, ... }
+    steps_map: dict[str, JSONObject] = {}
+    if isinstance(raw_steps, dict):
+        for k, v in raw_steps.items():
+            if isinstance(v, dict):
+                steps_map[str(k)] = v
+    elif isinstance(raw_steps, list):
+        for v in raw_steps:
+            if isinstance(v, dict):
+                sid = v.get("id") or v.get("stepId")
+                if sid is not None:
+                    steps_map[str(sid)] = v
+
+    # Enrich the step tree nodes with search data from the steps map
+    def _enrich_tree(node: JSONObject) -> JSONObject:
+        if not isinstance(node, dict):
+            return node
+        sid = str(node.get("stepId", ""))
+        step_data = steps_map.get(sid, {})
+        search_config = (
+            step_data.get("searchConfig") if isinstance(step_data, dict) else {}
+        )
+        if not isinstance(search_config, dict):
+            search_config = {}
+
+        enriched: JSONObject = {
+            "stepId": node.get("stepId"),
+            "searchName": step_data.get("searchName", "")
+            if isinstance(step_data, dict)
+            else "",
+            "displayName": (
+                step_data.get("customName")
+                or step_data.get("displayName")
+                or step_data.get("searchName", "")
+            )
+            if isinstance(step_data, dict)
+            else "",
+            "parameters": search_config.get("parameters", {}),
+            "recordType": step_data.get("recordClassName", record_type)
+            if isinstance(step_data, dict)
+            else record_type,
+            "estimatedSize": step_data.get("estimatedSize")
+            if isinstance(step_data, dict)
+            else None,
+        }
+        pi = node.get("primaryInput")
+        si = node.get("secondaryInput")
+        if isinstance(pi, dict):
+            enriched["primaryInput"] = _enrich_tree(pi)
+        if isinstance(si, dict):
+            enriched["secondaryInput"] = _enrich_tree(si)
+        return enriched
+
+    enriched_tree = (
+        _enrich_tree(step_tree) if isinstance(step_tree, dict) else step_tree
+    )
+
+    # Also return a flat array of steps for convenience
+    steps_array: list[JSONObject] = list(steps_map.values())
+
+    return {
+        "wdkStrategyId": strategy_id,
+        "name": name,
+        "recordType": record_type,
+        "stepTree": enriched_tree,
+        "steps": steps_array,
+    }
 
 
 @router.get("/{experiment_id}")
@@ -278,8 +371,12 @@ def _config_from_request(req: CreateExperimentRequest) -> ExperimentConfig:
     return ExperimentConfig(
         site_id=req.site_id,
         record_type=req.record_type,
+        mode=req.mode,
         search_name=req.search_name,
         parameters=req.parameters,
+        step_tree=req.step_tree,
+        source_strategy_id=req.source_strategy_id,
+        optimization_target_step=req.optimization_target_step,
         positive_controls=req.positive_controls,
         negative_controls=req.negative_controls,
         controls_search_name=req.controls_search_name,
@@ -298,6 +395,12 @@ def _config_from_request(req: CreateExperimentRequest) -> ExperimentConfig:
             if req.parameter_display_values
             else None
         ),
+        enable_tree_optimization=req.enable_tree_optimization,
+        tree_optimization_budget=req.tree_optimization_budget,
+        optimize_operators=req.optimize_operators,
+        optimize_orthologs=req.optimize_orthologs,
+        ortholog_organisms=req.ortholog_organisms,
+        optimize_structure=req.optimize_structure,
     )
 
 
@@ -556,16 +659,22 @@ async def get_experiment_record_detail(
     """Get a single record's full details by primary key.
 
     Expects ``{"primaryKey": [{"name": "...", "value": "..."}, ...]}``
-    matching the record type's primary key structure.
+    (or ``primary_key``) matching the record type's primary key structure.
+    If the client sends fewer PK parts than the record type requires (e.g. only
+    ``source_id`` for gene), missing parts such as ``project_id`` are filled
+    from the site so WDK accepts the request.
     """
-    from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+    from veupath_chatbot.integrations.veupathdb.factory import (
+        get_site,
+        get_strategy_api,
+    )
 
     store = get_experiment_store()
     exp = store.get(experiment_id)
     if not exp:
         raise NotFoundError(title="Experiment not found")
 
-    raw_pk = request_body.get("primaryKey", [])
+    raw_pk = request_body.get("primaryKey") or request_body.get("primary_key") or []
     if not isinstance(raw_pk, list) or not raw_pk:
         raise NotFoundError(title="Invalid primary key: must be a non-empty array")
 
@@ -576,8 +685,22 @@ async def get_experiment_record_detail(
     ]
 
     api = get_strategy_api(exp.config.site_id)
-
     info = await api.get_record_type_info(exp.config.record_type)
+
+    # WDK requires all primary key columns. Step reports sometimes return only
+    # the first part (e.g. source_id). Fill missing parts (e.g. project_id).
+    pk_refs = info.get("primaryKeyColumnRefs") or info.get("primaryKey") or []
+    if isinstance(pk_refs, list) and len(pk_parts) < len(pk_refs):
+        names_sent = {p.get("name") for p in pk_parts if isinstance(p, dict)}
+        site = get_site(exp.config.site_id)
+        for col in pk_refs:
+            if not isinstance(col, str) or col in names_sent:
+                continue
+            if col == "project_id":
+                pk_parts.append({"name": "project_id", "value": site.project_id})
+                break
+            # Other missing columns left as-is; WDK will validate.
+
     attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
     attr_names: list[str] = []
     if isinstance(attrs_raw, dict):
@@ -752,6 +875,7 @@ async def refine_experiment(
             input_step_id=exp.wdk_step_id,
             transform_name=transform_name,
             parameters=t_parameters,
+            record_type=record_type,
             custom_name=f"Transform: {transform_name}",
         )
         new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
@@ -885,6 +1009,124 @@ async def threshold_sweep(
             points.append({"value": val, "metrics": None, "error": str(exc)})
 
     return {"parameter": param_name, "points": cast(JSONValue, points)}
+
+
+@router.post("/{experiment_id}/step-contributions")
+async def step_contributions(
+    experiment_id: str,
+    body: dict[str, object],
+) -> JSONObject:
+    """Analyse per-step contribution to overall result for multi-step experiments.
+
+    Evaluates controls against each leaf step individually to show how much
+    each step contributes to the final strategy result.
+    """
+    store = get_experiment_store()
+    exp = store.get(experiment_id)
+    if not exp:
+        raise NotFoundError(title="Experiment not found")
+
+    step_tree_raw = body.get("stepTree")
+    if not step_tree_raw or not isinstance(step_tree_raw, dict):
+        return {"contributions": []}
+
+    def _extract_leaves(node: dict[str, object]) -> list[dict[str, object]]:
+        leaves: list[dict[str, object]] = []
+        pi = node.get("primaryInput")
+        si = node.get("secondaryInput")
+        if isinstance(pi, dict):
+            leaves.extend(_extract_leaves(pi))
+        if isinstance(si, dict):
+            leaves.extend(_extract_leaves(si))
+        if not isinstance(pi, dict) and not isinstance(si, dict):
+            leaves.append(node)
+        return leaves
+
+    leaves = _extract_leaves(step_tree_raw)
+    contributions: list[JSONObject] = []
+
+    cvf = exp.config.controls_value_format
+    _valid_formats: set[ControlValueFormat] = {"newline", "json_list", "comma"}
+    controls_format: ControlValueFormat = (
+        cast(ControlValueFormat, cvf) if cvf in _valid_formats else "newline"
+    )
+
+    for leaf in leaves:
+        search_name = leaf.get("searchName")
+        if not isinstance(search_name, str) or not search_name:
+            continue
+        params = leaf.get("parameters")
+        if not isinstance(params, dict):
+            params = {}
+        display_name = leaf.get("displayName") or search_name
+
+        try:
+            result = await run_positive_negative_controls(
+                site_id=exp.config.site_id,
+                record_type=exp.config.record_type,
+                target_search_name=search_name,
+                target_parameters=params,
+                controls_search_name=exp.config.controls_search_name,
+                controls_param_name=exp.config.controls_param_name,
+                positive_controls=exp.config.positive_controls or None,
+                negative_controls=exp.config.negative_controls or None,
+                controls_value_format=controls_format,
+            )
+            target_data = result.get("target") or {}
+            target_dict = target_data if isinstance(target_data, dict) else {}
+            raw_count = target_dict.get("resultCount")
+            total = int(raw_count) if isinstance(raw_count, (int, float)) else 0
+
+            pos_data = result.get("positive") or {}
+            pos_dict = pos_data if isinstance(pos_data, dict) else {}
+            raw_pos_hits = pos_dict.get("intersectionCount")
+            pos_hits = (
+                int(raw_pos_hits) if isinstance(raw_pos_hits, (int, float)) else 0
+            )
+
+            neg_data = result.get("negative") or {}
+            neg_dict = neg_data if isinstance(neg_data, dict) else {}
+            raw_neg_hits = neg_dict.get("intersectionCount")
+            neg_hits = (
+                int(raw_neg_hits) if isinstance(raw_neg_hits, (int, float)) else 0
+            )
+
+            total_pos = (
+                len(exp.config.positive_controls) if exp.config.positive_controls else 0
+            )
+            total_neg = (
+                len(exp.config.negative_controls) if exp.config.negative_controls else 0
+            )
+            contributions.append(
+                {
+                    "stepName": str(display_name),
+                    "stepSearchName": search_name,
+                    "totalResults": total,
+                    "positiveControlHits": pos_hits,
+                    "negativeControlHits": neg_hits,
+                    "positiveRecall": round(pos_hits / max(total_pos, 1), 4),
+                    "negativeRecall": round(neg_hits / max(total_neg, 1), 4),
+                }
+            )
+        except Exception as exc:
+            logger.warning(
+                "Step contribution analysis failed",
+                step=search_name,
+                error=str(exc),
+            )
+            contributions.append(
+                {
+                    "stepName": str(display_name),
+                    "stepSearchName": search_name,
+                    "totalResults": 0,
+                    "positiveControlHits": 0,
+                    "negativeControlHits": 0,
+                    "positiveRecall": 0,
+                    "negativeRecall": 0,
+                }
+            )
+
+    return {"contributions": cast(JSONValue, contributions)}
 
 
 def _extract_pk(record: JSONObject) -> str | None:

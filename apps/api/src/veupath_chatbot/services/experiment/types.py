@@ -5,11 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 EnrichmentAnalysisType = Literal[
     "go_function", "go_component", "go_process", "pathway", "word"
 ]
+
+ExperimentMode = Literal["single", "multi-step", "import"]
 
 ExperimentStatus = Literal["pending", "running", "completed", "error", "cancelled"]
 
@@ -126,7 +128,14 @@ class OptimizationSpec:
 
 @dataclass(slots=True)
 class ExperimentConfig:
-    """Full configuration for an experiment run."""
+    """Full configuration for an experiment run.
+
+    Supports three modes:
+
+    * **single** (default): one search + parameters (backward compatible).
+    * **multi-step**: a recursive ``step_tree`` of search/combine/transform nodes.
+    * **import**: import an existing Pathfinder strategy by ``source_strategy_id``.
+    """
 
     site_id: str
     record_type: str
@@ -146,6 +155,16 @@ class ExperimentConfig:
     optimization_budget: int = 30
     optimization_objective: str = "balanced_accuracy"
     parameter_display_values: dict[str, str] | None = None
+    mode: ExperimentMode = "single"
+    step_tree: JSONValue = None
+    source_strategy_id: str | None = None
+    optimization_target_step: str | None = None
+    enable_tree_optimization: bool = False
+    tree_optimization_budget: int = 20
+    optimize_operators: bool = True
+    optimize_orthologs: bool = False
+    ortholog_organisms: list[str] | None = None
+    optimize_structure: bool = False
 
 
 @dataclass(slots=True)
@@ -189,6 +208,8 @@ class Experiment:
     wdk_strategy_id: int | None = None
     wdk_step_id: int | None = None
     notes: str | None = None
+    optimized_tree: JSONValue = None
+    tree_optimization_diff: JSONValue = None
 
 
 def metrics_to_json(m: ExperimentMetrics) -> JSONObject:
@@ -279,6 +300,7 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
     config: JSONObject = {
         "siteId": exp.config.site_id,
         "recordType": exp.config.record_type,
+        "mode": exp.config.mode,
         "searchName": exp.config.search_name,
         "parameters": exp.config.parameters,
         "positiveControls": list(exp.config.positive_controls),
@@ -294,6 +316,20 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         "optimizationBudget": exp.config.optimization_budget,
         "optimizationObjective": exp.config.optimization_objective,
     }
+    if exp.config.step_tree is not None:
+        config["stepTree"] = exp.config.step_tree
+    if exp.config.source_strategy_id:
+        config["sourceStrategyId"] = exp.config.source_strategy_id
+    if exp.config.optimization_target_step:
+        config["optimizationTargetStep"] = exp.config.optimization_target_step
+    if exp.config.enable_tree_optimization:
+        config["enableTreeOptimization"] = True
+        config["treeOptimizationBudget"] = exp.config.tree_optimization_budget
+        config["optimizeOperators"] = exp.config.optimize_operators
+        config["optimizeOrthologs"] = exp.config.optimize_orthologs
+        config["optimizeStructure"] = exp.config.optimize_structure
+        if exp.config.ortholog_organisms:
+            config["orthologOrganisms"] = list(exp.config.ortholog_organisms)
     if exp.config.optimization_specs:
         config["optimizationSpecs"] = [
             {
@@ -335,6 +371,8 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         "wdkStrategyId": exp.wdk_strategy_id,
         "wdkStepId": exp.wdk_step_id,
         "notes": exp.notes,
+        "optimizedTree": exp.optimized_tree,
+        "treeOptimizationDiff": exp.tree_optimization_diff,
     }
     return result
 
@@ -347,6 +385,7 @@ def experiment_summary_to_json(exp: Experiment) -> JSONObject:
         "siteId": exp.config.site_id,
         "searchName": exp.config.search_name,
         "recordType": exp.config.record_type,
+        "mode": exp.config.mode,
         "status": exp.status,
         "f1Score": round(exp.metrics.f1_score, 4) if exp.metrics else None,
         "sensitivity": round(exp.metrics.sensitivity, 4) if exp.metrics else None,

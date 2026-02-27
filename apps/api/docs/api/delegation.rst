@@ -19,7 +19,7 @@ Plan Schema
 
 .. code-block:: text
 
-   { "type": "combine", "operator": "UNION"|"INTERSECT"|"MINUS_LEFT"|"MINUS_RIGHT"|"COLOCATE",
+   { "type": "combine", "operator": "UNION"|"INTERSECT"|"MINUS"|"RMINUS"|"COLOCATE",
      "left": <node>, "right": <node> }
 
 **Rules:**

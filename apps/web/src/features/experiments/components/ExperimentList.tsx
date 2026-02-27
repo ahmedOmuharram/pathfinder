@@ -63,7 +63,7 @@ export function ExperimentList({ siteId }: ExperimentListProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border p-3">
-        <Button className="w-full" onClick={() => setView("setup")}>
+        <Button className="w-full" onClick={() => setView("mode-select")}>
           <Plus className="h-4 w-4" />
           New Experiment
         </Button>

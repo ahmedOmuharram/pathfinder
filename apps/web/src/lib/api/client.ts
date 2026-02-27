@@ -212,68 +212,31 @@ export async function deletePlanSession(
   });
 }
 
-// VEuPathDB auth bridge
+// VEuPathDB auth bridge — always authenticates against the portal
 
-export async function getVeupathdbAuthStatus(siteId: string): Promise<{
+const AUTH_SITE_ID = "veupathdb";
+
+export async function getVeupathdbAuthStatus(): Promise<{
   signedIn: boolean;
   name: string | null;
   email: string | null;
 }> {
-  return await requestJson(`/api/v1/veupathdb/auth/status`, { query: { siteId } });
+  return await requestJson(`/api/v1/veupathdb/auth/status`, {
+    query: { siteId: AUTH_SITE_ID },
+  });
 }
 
 export async function loginVeupathdb(
-  siteId: string,
   email: string,
   password: string,
-  redirectTo?: string | null,
-): Promise<{ success: boolean; authToken?: string }>;
-export async function loginVeupathdb(args: {
-  siteId: string;
-  email: string;
-  password: string;
-  redirectTo?: string | null;
-}): Promise<{ success: boolean; authToken?: string }>;
-export async function loginVeupathdb(
-  siteIdOrArgs:
-    | string
-    | { siteId: string; email: string; password: string; redirectTo?: string | null },
-  email?: string,
-  password?: string,
-  redirectTo?: string | null,
 ): Promise<{ success: boolean; authToken?: string }> {
-  const normalized =
-    typeof siteIdOrArgs === "string"
-      ? {
-          siteId: siteIdOrArgs,
-          email: email ?? "",
-          password: password ?? "",
-          redirectTo,
-        }
-      : siteIdOrArgs;
-
-  if (!normalized.email || !normalized.password) {
+  if (!email || !password) {
     throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
   return await requestJson(`/api/v1/veupathdb/auth/login`, {
     method: "POST",
-    query: {
-      siteId: normalized.siteId,
-      redirectTo: normalized.redirectTo ?? undefined,
-    },
-    body: {
-      email: normalized.email,
-      password: normalized.password,
-    },
-  });
-}
-
-export async function setVeupathdbToken(
-  token: string,
-): Promise<{ success: boolean; authToken?: string }> {
-  return await requestJson(`/api/v1/veupathdb/auth/token`, {
-    method: "POST",
-    body: { token },
+    query: { siteId: AUTH_SITE_ID },
+    body: { email, password },
   });
 }
 

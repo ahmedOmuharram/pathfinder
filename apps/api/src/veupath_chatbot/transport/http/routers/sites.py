@@ -54,6 +54,23 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
         multi_pick = bool(multi_pick_raw) if isinstance(multi_pick_raw, bool) else None
         vocabulary_raw = raw.get("vocabulary")
         initial_display_value = raw.get("initialDisplayValue")
+        min_val = raw.get("min") or raw.get("minValue") or raw.get("numberMin")
+        max_val = raw.get("max") or raw.get("maxValue") or raw.get("numberMax")
+        if min_val is not None and not isinstance(min_val, (int, float)):
+            min_val = None
+        if max_val is not None and not isinstance(max_val, (int, float)):
+            max_val = None
+        min_value = float(min_val) if min_val is not None else None
+        max_value = float(max_val) if max_val is not None else None
+
+        is_number_raw = raw.get("isNumber")
+        is_number = bool(is_number_raw) if isinstance(is_number_raw, bool) else False
+
+        increment_raw = raw.get("increment") or raw.get("step")
+        increment = (
+            float(increment_raw) if isinstance(increment_raw, (int, float)) else None
+        )
+
         results.append(
             ParamSpecResponse(
                 name=name,
@@ -67,6 +84,10 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
                 countOnlyLeaves=normalized.count_only_leaves,
                 initialDisplayValue=initial_display_value,
                 vocabulary=vocabulary_raw,
+                minValue=min_value,
+                maxValue=max_value,
+                isNumber=is_number,
+                increment=increment,
             )
         )
     results.sort(key=lambda s: s.name)

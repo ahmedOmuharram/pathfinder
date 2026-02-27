@@ -163,63 +163,67 @@ export function RunStep({
         </Card>
       )}
 
-      <Card>
-        <CardContent className="p-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={enableCV}
-              onChange={(e) => onEnableCVChange(e.target.checked)}
-              className="h-4 w-4 rounded border-input"
-            />
-            <span className="text-sm font-medium text-foreground">
-              Enable Control Robustness Analysis
-            </span>
-          </label>
-          <p className="mt-1.5 ml-6 text-xs text-muted-foreground">
-            Evaluates {kFolds} different subsets of your controls to measure
-            consistency. Takes ~{kFolds}x longer.
-          </p>
-          {enableCV && (
-            <div className="mt-2 ml-6 flex items-center gap-2">
-              <Label className="text-xs">Number of folds (k)</Label>
-              <Input
-                type="number"
-                min={2}
-                max={10}
-                value={kFoldsDraft}
-                onChange={(e) => onKFoldsDraftChange(e.target.value)}
-                onBlur={() => {
-                  const n = parseInt(kFoldsDraft);
-                  const clamped = Number.isNaN(n) ? 5 : Math.max(2, Math.min(10, n));
-                  onKFoldsChange(clamped);
-                  onKFoldsDraftChange(String(clamped));
-                }}
-                className="w-16"
+      {hasOptimization && (
+        <Card>
+          <CardContent className="p-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={enableCV}
+                onChange={(e) => onEnableCVChange(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
               />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4">
-          <Label className="mb-3 block">Enrichment Analyses</Label>
-          <div className="space-y-2">
-            {ENRICHMENT_OPTIONS.map(([type, label]) => (
-              <label key={type} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={enrichments.has(type)}
-                  onChange={() => onToggleEnrichment(type)}
-                  className="h-4 w-4 rounded border-input"
+              <span className="text-sm font-medium text-foreground">
+                Enable Control Robustness Analysis
+              </span>
+            </label>
+            <p className="mt-1.5 ml-6 text-xs text-muted-foreground">
+              Evaluates {kFolds} different subsets of your controls to measure
+              consistency. Takes ~{kFolds}x longer.
+            </p>
+            {enableCV && (
+              <div className="mt-2 ml-6 flex items-center gap-2">
+                <Label className="text-xs">Number of folds (k)</Label>
+                <Input
+                  type="number"
+                  min={2}
+                  max={10}
+                  value={kFoldsDraft}
+                  onChange={(e) => onKFoldsDraftChange(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(kFoldsDraft);
+                    const clamped = Number.isNaN(n) ? 5 : Math.max(2, Math.min(10, n));
+                    onKFoldsChange(clamped);
+                    onKFoldsDraftChange(String(clamped));
+                  }}
+                  className="w-16"
                 />
-                <span className="text-sm text-foreground">{label}</span>
-              </label>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {hasOptimization && (
+        <Card>
+          <CardContent className="p-4">
+            <Label className="mb-3 block">Enrichment Analyses</Label>
+            <div className="space-y-2">
+              {ENRICHMENT_OPTIONS.map(([type, label]) => (
+                <label key={type} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={enrichments.has(type)}
+                    onChange={() => onToggleEnrichment(type)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  <span className="text-sm text-foreground">{label}</span>
+                </label>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {hasBatchCapability && (
         <Card>

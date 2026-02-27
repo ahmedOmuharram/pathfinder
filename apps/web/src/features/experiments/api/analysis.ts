@@ -142,6 +142,9 @@ export interface ThresholdSweepResult {
   points: ThresholdSweepPoint[];
 }
 
+/** Default timeout for threshold-sweep (5 min). Sweep runs many WDK steps and can be slow. */
+const THRESHOLD_SWEEP_TIMEOUT_MS = 5 * 60 * 1000;
+
 export async function runThresholdSweep(
   experimentId: string,
   parameterName: string,
@@ -149,11 +152,21 @@ export async function runThresholdSweep(
   maxValue: number,
   steps: number = 10,
 ): Promise<ThresholdSweepResult> {
-  return await requestJson<ThresholdSweepResult>(
-    `/api/v1/experiments/${experimentId}/threshold-sweep`,
-    {
-      method: "POST",
-      body: { parameterName, minValue, maxValue, steps },
-    },
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    THRESHOLD_SWEEP_TIMEOUT_MS,
   );
+  try {
+    return await requestJson<ThresholdSweepResult>(
+      `/api/v1/experiments/${experimentId}/threshold-sweep`,
+      {
+        method: "POST",
+        body: { parameterName, minValue, maxValue, steps },
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }

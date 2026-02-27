@@ -46,6 +46,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        sidebar: "hsl(var(--sidebar))",
         // Legacy palette kept for gradual migration of graph/domain-specific styles
         ocean: {
           50: "#e6f4f8",

@@ -34,6 +34,7 @@ export function createExperimentStream(
         body: JSON.stringify({
           siteId: config.siteId,
           recordType: config.recordType,
+          mode: config.mode ?? "single",
           searchName: config.searchName,
           parameters: config.parameters,
           positiveControls: config.positiveControls,
@@ -46,6 +47,13 @@ export function createExperimentStream(
           enrichmentTypes: config.enrichmentTypes,
           name: config.name ?? "Untitled Experiment",
           description: config.description ?? "",
+          ...(config.stepTree ? { stepTree: config.stepTree } : {}),
+          ...(config.sourceStrategyId
+            ? { sourceStrategyId: config.sourceStrategyId }
+            : {}),
+          ...(config.optimizationTargetStep
+            ? { optimizationTargetStep: config.optimizationTargetStep }
+            : {}),
           ...(config.optimizationSpecs && config.optimizationSpecs.length > 0
             ? {
                 optimizationSpecs: config.optimizationSpecs,
@@ -58,6 +66,20 @@ export function createExperimentStream(
             : {}),
           ...(config.parentExperimentId
             ? { parentExperimentId: config.parentExperimentId }
+            : {}),
+          ...(config.enableTreeOptimization
+            ? {
+                enableTreeOptimization: true,
+                treeOptimizationBudget: config.treeOptimizationBudget ?? 20,
+                optimizeOperators: config.optimizeOperators ?? true,
+                optimizeOrthologs: config.optimizeOrthologs ?? false,
+                optimizeStructure: config.optimizeStructure ?? false,
+                ...(config.orthologOrganisms
+                  ? { orthologOrganisms: config.orthologOrganisms }
+                  : {}),
+                optimizationObjective:
+                  config.optimizationObjective ?? "balanced_accuracy",
+              }
             : {}),
         }),
         signal: controller.signal,

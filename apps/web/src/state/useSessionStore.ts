@@ -34,6 +34,8 @@ interface SessionState {
 
   /** Whether the VEuPathDB auth token has been refreshed in this session. */
   authRefreshed: boolean;
+  /** True after the first auth status check has completed. Used to avoid showing sign-in UI before we know. */
+  authStatusKnown: boolean;
 
   setSelectedSite: (siteId: string) => void;
   setSelectedSiteInfo: (siteId: string, displayName: string) => void;
@@ -51,6 +53,7 @@ interface SessionState {
   setPendingAskNode: (payload: Record<string, unknown> | null) => void;
   setComposerPrefill: (payload: { mode: ChatMode; message: string } | null) => void;
   setAuthRefreshed: (value: boolean) => void;
+  setAuthStatusKnown: (value: boolean) => void;
 }
 
 const AUTH_TOKEN_STORAGE_KEY = "pathfinder-auth-token";
@@ -88,10 +91,29 @@ export const useSessionStore = create<SessionState>()((set) => ({
   pendingAskNode: null,
   composerPrefill: null,
   authRefreshed: false,
+  authStatusKnown: false,
 
-  setSelectedSite: (siteId) => set({ selectedSite: siteId }),
+  setSelectedSite: (siteId) =>
+    set((s) =>
+      s.selectedSite === siteId
+        ? { selectedSite: siteId }
+        : {
+            selectedSite: siteId,
+            strategyId: null,
+            planSessionId: null,
+          },
+    ),
   setSelectedSiteInfo: (siteId, displayName) =>
-    set({ selectedSite: siteId, selectedSiteDisplayName: displayName }),
+    set((s) =>
+      s.selectedSite === siteId
+        ? { selectedSite: siteId, selectedSiteDisplayName: displayName }
+        : {
+            selectedSite: siteId,
+            selectedSiteDisplayName: displayName,
+            strategyId: null,
+            planSessionId: null,
+          },
+    ),
   setStrategyId: (id) => set({ strategyId: id }),
   setPlanSessionId: (id) => set({ planSessionId: id }),
   setAuthToken: (token) => {
@@ -123,6 +145,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
   setPendingAskNode: (payload) => set({ pendingAskNode: payload }),
   setComposerPrefill: (payload) => set({ composerPrefill: payload }),
   setAuthRefreshed: (value) => set({ authRefreshed: value }),
+  setAuthStatusKnown: (value) => set({ authStatusKnown: value }),
 }));
 
 // Inject token getter for transport-layer helpers (keeps `lib/api/*` independent of `state/*`).

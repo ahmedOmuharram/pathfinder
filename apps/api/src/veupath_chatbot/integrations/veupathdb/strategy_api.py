@@ -5,6 +5,7 @@ This implements the WDK REST pattern:
 2. Compose a tree via POST /users/current/strategies with stepTree
 """
 
+import asyncio
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
@@ -108,6 +109,7 @@ class StrategyAPI:
         self.user_id = user_id
         self._session_initialized = False
         self._boolean_search_cache: dict[str, str] = {}
+        self._answer_param_cache: dict[str, set[str]] = {}
 
     def _normalize_param_value(self, value: JSONValue) -> str:
         """Normalize parameters to WDK-accepted string values.
@@ -127,11 +129,29 @@ class StrategyAPI:
             return json.dumps(value)
         return str(value)
 
-    def _normalize_parameters(self, parameters: JSONObject) -> dict[str, str]:
-        return {
-            key: self._normalize_param_value(value)
-            for key, value in (parameters or {}).items()
-        }
+    def _normalize_parameters(
+        self,
+        parameters: JSONObject,
+        *,
+        keep_empty: set[str] | None = None,
+    ) -> dict[str, str]:
+        """Normalize parameters to WDK string values; omit empty values.
+
+        WDK rejects params like ``hard_floor`` with value ``""`` (Cannot be empty).
+        Omitting empty params avoids 422s when a required param is left blank
+        in the UI; the caller should supply a valid value for required params.
+
+        :param parameters: Raw parameter dict.
+        :param keep_empty: Param names that must be kept even when empty
+            (e.g. AnswerParams that WDK requires as ``""``).
+        """
+        keep = keep_empty or set()
+        out: dict[str, str] = {}
+        for key, value in (parameters or {}).items():
+            s = self._normalize_param_value(value)
+            if s.strip() or key in keep:
+                out[key] = s if s.strip() else ""
+        return out
 
     async def _ensure_session(self) -> None:
         """Initialize session and resolve user id for mutation endpoints.
@@ -343,17 +363,36 @@ class StrategyAPI:
         input_step_id: int,
         transform_name: str,
         parameters: JSONObject,
+        record_type: str = "transcript",
         custom_name: str | None = None,
     ) -> JSONObject:
         """Create a transform step.
 
-        :param input_step_id: ID of the input step.
+        WDK requires that ``input-step`` (AnswerParam) parameters are set to
+        the empty string ``""`` when creating new steps — the actual input
+        wiring happens via the ``stepTree`` at strategy creation time.
+
+        This method fetches the search metadata to discover AnswerParam names,
+        strips any stale values, and forces them to ``""``.
+
+        :param input_step_id: ID of the input step (for logging; wiring
+            happens in the strategy ``stepTree``).
         :param transform_name: Name of the transform question.
         :param parameters: Transform parameters.
+        :param record_type: WDK record type for the search details lookup.
         :param custom_name: Optional custom name.
         :returns: Created step data.
         """
-        normalized_params = self._normalize_parameters(parameters)
+        answer_param_names = await self._get_answer_param_names(
+            record_type, transform_name
+        )
+        clean_params = dict(parameters or {})
+        for ap_name in answer_param_names:
+            clean_params[ap_name] = ""
+
+        normalized_params = self._normalize_parameters(
+            clean_params, keep_empty=answer_param_names
+        )
         payload: JSONObject = {
             "searchName": transform_name,
             "searchConfig": {
@@ -382,6 +421,46 @@ class StrategyAPI:
                 json=payload,
             ),
         )
+
+    async def _get_answer_param_names(
+        self,
+        record_type: str,
+        search_name: str,
+    ) -> set[str]:
+        """Return the set of ``input-step`` (AnswerParam) names for a search.
+
+        Results are cached per ``record_type/search_name`` pair.
+
+        :param record_type: WDK record type.
+        :param search_name: Search/question URL segment.
+        :returns: Set of parameter names whose type is ``input-step``.
+        """
+        cache_key = f"{record_type}/{search_name}"
+        if cache_key in self._answer_param_cache:
+            return self._answer_param_cache[cache_key]
+
+        try:
+            details = await self.client.get_search_details(record_type, search_name)
+            search_data = details.get("searchData", details)
+            if not isinstance(search_data, dict):
+                return set()
+            params = search_data.get("parameters", [])
+            if not isinstance(params, list):
+                return set()
+            names = {
+                str(p["name"])
+                for p in params
+                if isinstance(p, dict) and p.get("type") == "input-step"
+            }
+            self._answer_param_cache[cache_key] = names
+            return names
+        except Exception:
+            logger.debug(
+                "Could not resolve AnswerParam names for %s/%s",
+                record_type,
+                search_name,
+            )
+            return set()
 
     async def set_step_filter(
         self, step_id: int, filter_name: str, value: JSONValue, disabled: bool = False
@@ -424,16 +503,97 @@ class StrategyAPI:
         analysis_type: str,
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
+        poll_interval: float = 2.0,
+        max_wait: float = 300.0,
     ) -> JSONObject:
-        """Create a new analysis instance for a step."""
+        """Create, run, and wait for a WDK step analysis to complete.
+
+        WDK step analysis is a multi-phase process:
+
+        1. ``POST .../analyses`` -- create instance (returns ``analysisId``)
+        2. ``POST .../analyses/{id}/result`` -- kick off execution
+        3. ``GET  .../analyses/{id}/result/status`` -- poll until COMPLETE
+        4. ``GET  .../analyses/{id}/result`` -- retrieve results
+
+        :param step_id: WDK step ID (must be part of a strategy).
+        :param analysis_type: Analysis plugin name (e.g. ``gene-go-enrichment``).
+        :param parameters: Analysis parameters.
+        :param custom_name: Optional display name.
+        :param poll_interval: Seconds between status polls.
+        :param max_wait: Maximum seconds to wait before giving up.
+        :returns: Analysis result JSON.
+        :raises InternalError: If the analysis fails or times out.
+        """
         await self._ensure_session()
+
+        # Phase 1: Create the analysis instance
         payload: JSONObject = {
             "analysisName": analysis_type,
             "parameters": parameters or {},
         }
         if custom_name:
             payload["displayName"] = custom_name
-        return await self.client.create_step_analysis(self.user_id, step_id, payload)
+
+        instance = await self.client.create_step_analysis(
+            self.user_id, step_id, payload
+        )
+        analysis_id = instance.get("analysisId") if isinstance(instance, dict) else None
+        if not isinstance(analysis_id, int):
+            raise InternalError(
+                title="Step analysis creation failed",
+                detail=f"No analysisId in response: {instance!r}",
+            )
+
+        logger.info(
+            "Created step analysis instance",
+            step_id=step_id,
+            analysis_type=analysis_type,
+            analysis_id=analysis_id,
+        )
+
+        # Phase 2: Kick off execution
+        await self.client.run_analysis_instance(self.user_id, step_id, analysis_id)
+
+        # Phase 3: Poll for completion
+        elapsed = 0.0
+        while elapsed < max_wait:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+            status_resp = await self.client.get_analysis_status(
+                self.user_id, step_id, analysis_id
+            )
+            status = (
+                str(status_resp.get("status", ""))
+                if isinstance(status_resp, dict)
+                else ""
+            )
+            logger.debug(
+                "Analysis status poll",
+                analysis_id=analysis_id,
+                status=status,
+                elapsed=elapsed,
+            )
+
+            if status == "COMPLETE":
+                break
+            if status in ("ERROR", "EXPIRED", "INTERRUPTED", "OUT_OF_DATE"):
+                raise InternalError(
+                    title="Step analysis failed",
+                    detail=f"Analysis {analysis_id} ended with status: {status}",
+                )
+
+        if elapsed >= max_wait:
+            raise InternalError(
+                title="Step analysis timed out",
+                detail=f"Analysis {analysis_id} did not complete within {max_wait}s",
+            )
+
+        # Phase 4: Retrieve results
+        result = await self.client.get_analysis_result(
+            self.user_id, step_id, analysis_id
+        )
+        return result if isinstance(result, dict) else {}
 
     async def run_step_report(
         self, step_id: int, report_name: str, config: JSONObject | None = None

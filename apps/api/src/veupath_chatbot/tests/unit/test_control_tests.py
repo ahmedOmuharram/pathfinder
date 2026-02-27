@@ -5,7 +5,7 @@ All WDK calls are mocked. These tests validate:
 - get_step_count uses POST /reports/standard
 - _get_total_count_for_step wraps get_step_count correctly
 - _run_intersection_control wires steps, creates strategy, fetches answer
-- _resolve_controls_param_type correctly detects input-dataset params
+- resolve_controls_param_type correctly detects input-dataset params
 - _extract_record_ids extracts IDs from WDK answer records
 - _encode_id_list formats correctly
 - run_positive_negative_controls composes results
@@ -25,8 +25,8 @@ from veupath_chatbot.services.control_tests import (
     _encode_id_list,
     _extract_record_ids,
     _get_total_count_for_step,
-    _resolve_controls_param_type,
     _run_intersection_control,
+    resolve_controls_param_type,
     run_positive_negative_controls,
 )
 
@@ -206,7 +206,7 @@ class TestResolveControlsParamType:
     @pytest.mark.asyncio
     async def test_detects_input_dataset(self) -> None:
         api = _make_mock_api()
-        result = await _resolve_controls_param_type(
+        result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "ds_gene_ids"
         )
         assert result == "input-dataset"
@@ -214,7 +214,7 @@ class TestResolveControlsParamType:
     @pytest.mark.asyncio
     async def test_detects_string_param(self) -> None:
         api = _make_mock_api()
-        result = await _resolve_controls_param_type(
+        result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "other_param"
         )
         assert result == "string"
@@ -222,7 +222,7 @@ class TestResolveControlsParamType:
     @pytest.mark.asyncio
     async def test_returns_none_for_unknown_param(self) -> None:
         api = _make_mock_api()
-        result = await _resolve_controls_param_type(
+        result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "nonexistent"
         )
         assert result is None
@@ -233,7 +233,7 @@ class TestResolveControlsParamType:
         api.client.get_search_details = AsyncMock(
             side_effect=Exception("network error")
         )
-        result = await _resolve_controls_param_type(
+        result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "ds_gene_ids"
         )
         assert result is None
@@ -241,7 +241,7 @@ class TestResolveControlsParamType:
     @pytest.mark.asyncio
     async def test_returns_none_on_malformed_response(self) -> None:
         api = _make_mock_api(search_details={"unexpected": "format"})
-        result = await _resolve_controls_param_type(
+        result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "ds_gene_ids"
         )
         assert result is None

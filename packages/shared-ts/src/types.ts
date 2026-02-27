@@ -7,8 +7,8 @@
 export const CombineOperator = {
   INTERSECT: "INTERSECT",
   UNION: "UNION",
-  MINUS_LEFT: "MINUS_LEFT",
-  MINUS_RIGHT: "MINUS_RIGHT",
+  MINUS: "MINUS",
+  RMINUS: "RMINUS",
   COLOCATE: "COLOCATE",
 } as const;
 
@@ -18,8 +18,8 @@ export type CombineOperator =
 export const CombineOperatorLabels: Record<CombineOperator, string> = {
   INTERSECT: "IDs in common (AND)",
   UNION: "Combined (OR)",
-  MINUS_LEFT: "Not in right",
-  MINUS_RIGHT: "Not in left",
+  MINUS: "Not in right",
+  RMINUS: "Not in left",
   COLOCATE: "Genomic colocation",
 };
 
@@ -514,6 +514,22 @@ export interface ParamSpec {
   /** WDK default value for this parameter. */
   initialDisplayValue?: unknown;
   vocabulary?: unknown;
+  /**
+   * Range for number/number-range params.  WDK emits ``min`` / ``max`` /
+   * ``increment``; the aliases ``minValue`` / ``maxValue`` are kept for
+   * backward compat.
+   */
+  min?: number | null;
+  max?: number | null;
+  increment?: number | null;
+  minValue?: number | null;
+  maxValue?: number | null;
+  /**
+   * ``true`` when the WDK marks a string-typed param as numeric
+   * (``isNumber: true``).  Used to detect params like ``fold_change``
+   * that have ``type: "string"`` but accept numeric input.
+   */
+  isNumber?: boolean;
   [key: string]: unknown;
 }
 
@@ -672,6 +688,8 @@ export interface DownloadResponse {
 
 // Experiment Lab Types
 
+export type ExperimentMode = "single" | "multi-step" | "import";
+
 export type EnrichmentAnalysisType =
   | "go_function"
   | "go_component"
@@ -774,8 +792,25 @@ export interface OptimizeSpec {
 export interface ExperimentConfig {
   siteId: string;
   recordType: string;
+
+  /** Experiment mode: single search, multi-step graph, or import from strategy. */
+  mode?: ExperimentMode;
+
+  /** Search name for single-step mode (backward compatible). */
   searchName: string;
+  /** Parameters for single-step mode (backward compatible). */
   parameters: Record<string, unknown>;
+
+  /**
+   * Step tree for multi-step or import mode.
+   * Each node follows the ``PlanStepNode`` shape (recursive).
+   */
+  stepTree?: PlanStepNode | null;
+  /** Pathfinder strategy ID to import (import mode). */
+  sourceStrategyId?: string | null;
+  /** Which step node ID in the tree to optimise (multi-step mode). */
+  optimizationTargetStep?: string | null;
+
   positiveControls: string[];
   negativeControls: string[];
   controlsSearchName: string;
@@ -791,6 +826,60 @@ export interface ExperimentConfig {
   optimizationBudget?: number;
   optimizationObjective?: string;
   parentExperimentId?: string | null;
+  enableTreeOptimization?: boolean;
+  treeOptimizationBudget?: number;
+  optimizeOperators?: boolean;
+  optimizeOrthologs?: boolean;
+  orthologOrganisms?: string[] | null;
+  optimizeStructure?: boolean;
+}
+
+export interface StructuralEdit {
+  kind:
+    | "ortholog_insert"
+    | "branch_prune"
+    | "input_swap"
+    | "step_add"
+    | "step_replace";
+  targetNodeId: string;
+  organism?: string | null;
+  searchName?: string | null;
+  parameters?: Record<string, unknown> | null;
+  operator?: string | null;
+  description?: string | null;
+}
+
+export interface StructuralVariant {
+  name: string;
+  edits: StructuralEdit[];
+  rationale: string;
+}
+
+export interface TreeMutation {
+  nodeId: string;
+  kind:
+    | "param"
+    | "operator"
+    | "ortholog_insert"
+    | "branch_prune"
+    | "input_swap"
+    | "step_add"
+    | "step_replace";
+  fieldName: string;
+  originalValue: string;
+  newValue: string;
+}
+
+export interface TreeOptimizationDiff {
+  bestTree: PlanStepNode | null;
+  bestScore: number;
+  baselineScore: number;
+  improvement: number;
+  baselineMetrics: ExperimentMetrics | null;
+  bestMetrics: ExperimentMetrics | null;
+  mutations: TreeMutation[];
+  totalTrials: number;
+  successfulTrials: number;
 }
 
 export interface OptimizationTrialResult {
@@ -834,6 +923,8 @@ export interface Experiment {
   completedAt: string | null;
   wdkStrategyId: number | null;
   wdkStepId: number | null;
+  optimizedTree: PlanStepNode | null;
+  treeOptimizationDiff: TreeOptimizationDiff | null;
 }
 
 export interface ExperimentSummary {

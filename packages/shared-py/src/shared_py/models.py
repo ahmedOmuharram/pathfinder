@@ -15,16 +15,16 @@ class CombineOperator(str, Enum):
 
     INTERSECT = "INTERSECT"
     UNION = "UNION"
-    MINUS_LEFT = "MINUS_LEFT"
-    MINUS_RIGHT = "MINUS_RIGHT"
+    MINUS = "MINUS"
+    RMINUS = "RMINUS"
     COLOCATE = "COLOCATE"
 
 
 COMBINE_OPERATOR_LABELS: dict[CombineOperator, str] = {
     CombineOperator.INTERSECT: "IDs in common (AND)",
     CombineOperator.UNION: "Combined (OR)",
-    CombineOperator.MINUS_LEFT: "Not in right",
-    CombineOperator.MINUS_RIGHT: "Not in left",
+    CombineOperator.MINUS: "Not in right",
+    CombineOperator.RMINUS: "Not in left",
     CombineOperator.COLOCATE: "Genomic colocation",
 }
 

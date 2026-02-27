@@ -56,6 +56,7 @@ export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig
   const config: ExperimentConfig = {
     siteId,
     recordType: selectedRecordType,
+    mode: "single",
     searchName: selectedSearch,
     parameters: fixedParams,
     positiveControls,

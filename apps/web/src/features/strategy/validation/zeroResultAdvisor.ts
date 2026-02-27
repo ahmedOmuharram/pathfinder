@@ -19,9 +19,9 @@ export function getZeroResultSuggestions(step: StrategyStep): string[] {
       suggestions.push(
         "If you expected results from either branch, change INTERSECT (AND) to UNION (OR).",
       );
-    } else if (op === "MINUS_LEFT" || op === "MINUS_RIGHT") {
+    } else if (op === "MINUS" || op === "RMINUS") {
       suggestions.push(
-        "If you expected to remove the other branch, verify MINUS direction (swap MINUS_LEFT vs MINUS_RIGHT).",
+        "If you expected to remove the other branch, verify MINUS direction (swap MINUS vs RMINUS).",
       );
     } else if (op === "COLOCATE") {
       suggestions.push(

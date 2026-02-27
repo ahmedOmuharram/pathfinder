@@ -13,7 +13,7 @@ import {
   getParamSpecs,
   type ResolvedGene,
 } from "@/lib/api/client";
-import { isParamRequired, isParamEmpty } from "../paramUtils";
+import { isParamRequired, isParamEmpty, buildAutoOptimizeSpecs } from "../paramUtils";
 import type { WizardStep as AiWizardStep } from "../../api";
 import type { SearchSuggestion, RunConfigSuggestion } from "../../suggestionParser";
 import { GENE_RECORD_TYPES } from "./constants";
@@ -31,6 +31,7 @@ export function useSetupWizard(siteId: string) {
     error: storeError,
     clearError,
     cloneConfig,
+    cloneWithOptimize,
     clearClone,
   } = useExperimentStore();
 
@@ -105,6 +106,7 @@ export function useSetupWizard(siteId: string) {
 
   const pendingCloneParams = useRef<Record<string, unknown> | null>(null);
   const pendingSuggestedParams = useRef<Record<string, string> | null>(null);
+  const pendingAutoOptimize = useRef(false);
 
   useEffect(() => {
     if (!cloneConfig) return;
@@ -119,8 +121,17 @@ export function useSetupWizard(siteId: string) {
       setPositiveGenes,
       setNegativeGenes,
     });
+    if (cloneWithOptimize) {
+      pendingAutoOptimize.current = true;
+      queueMicrotask(() => {
+        if (cloneConfig.optimizationBudget)
+          setOptimizationBudget(cloneConfig.optimizationBudget);
+        if (cloneConfig.optimizationObjective)
+          setOptimizationObjective(cloneConfig.optimizationObjective);
+      });
+    }
     clearClone();
-  }, [cloneConfig, clearClone]);
+  }, [cloneConfig, cloneWithOptimize, clearClone]);
 
   useEffect(() => {
     getRecordTypes(siteId)
@@ -149,6 +160,12 @@ export function useSetupWizard(siteId: string) {
         pendingSuggestedParams.current = null;
         const initial = buildInitialParamsFromSpecs(specs, cloned, suggested);
         setParameters(initial);
+
+        if (pendingAutoOptimize.current) {
+          pendingAutoOptimize.current = false;
+          const visible = specs.filter((s) => s.type !== "input-step");
+          setOptimizeSpecs(buildAutoOptimizeSpecs(visible));
+        }
       })
       .catch(() => setParamSpecs([]))
       .finally(() => setParamSpecsLoading(false));
@@ -387,7 +404,7 @@ export function useSetupWizard(siteId: string) {
   ]);
 
   const goBack = useCallback(() => {
-    if (step === 0) setView("list");
+    if (step === 0) setView("mode-select");
     else setStep((s) => s - 1);
   }, [step, setView]);
 

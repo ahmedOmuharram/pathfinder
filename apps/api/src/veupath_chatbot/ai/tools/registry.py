@@ -337,7 +337,7 @@ class AgentToolRegistryMixin(ResearchToolsMixin):
         operator: Annotated[
             str | None,
             AIParam(
-                desc="Set operator for binary steps (e.g. UNION, INTERSECT, MINUS_LEFT)"
+                desc="Set operator for binary steps (e.g. UNION, INTERSECT, MINUS)"
             ),
         ] = None,
         display_name: Annotated[

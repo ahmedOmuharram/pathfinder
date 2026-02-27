@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  getVeupathdbAuthStatus,
-  listSites,
-  loginVeupathdb,
-  setVeupathdbToken,
-  logoutVeupathdb,
-} from "@/lib/api/client";
+import { getVeupathdbAuthStatus, listSites, logoutVeupathdb } from "@/lib/api/client";
 import type { VEuPathDBSite as Site } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
+import { SignInForm } from "@/features/sites/components/SignInForm";
+import type { HeaderTextVariant } from "@/features/sites/siteBanners";
+import { cn } from "@/lib/utils/cn";
 
 interface SitePickerProps {
   value: string;
@@ -19,6 +16,10 @@ interface SitePickerProps {
   showAuth?: boolean;
   showVisit?: boolean;
   layout?: "inline" | "stacked";
+  /** When "inline", show sign-in form directly. When "button", show "Sign in →" that opens a modal. */
+  authDisplay?: "button" | "inline";
+  /** When in header with banner, use "light" for white text + shadow or "dark" for default. */
+  headerTextVariant?: HeaderTextVariant;
 }
 
 const FALLBACK_SITES: Site[] = [
@@ -56,6 +57,9 @@ const FALLBACK_SITES: Site[] = [
   },
 ];
 
+const headerLightClasses =
+  "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] [&_a]:text-white/95 [&_a:hover]:!text-primary [&_a:hover]:drop-shadow-none [&_button]:text-white/95 [&_button:hover]:!text-primary [&_button:hover]:drop-shadow-none [&_span]:text-white/95 [&_span]:drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]";
+
 export function SitePicker({
   value,
   onChange,
@@ -63,7 +67,10 @@ export function SitePicker({
   showAuth = true,
   showVisit = true,
   layout = "inline",
+  authDisplay = "button",
+  headerTextVariant,
 }: SitePickerProps) {
+  const headerClass = headerTextVariant === "light" ? headerLightClasses : "";
   const [sites, setSites] = useState<Site[]>(FALLBACK_SITES);
   const [loading, setLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState<{
@@ -71,15 +78,16 @@ export function SitePicker({
     name?: string | null;
   } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"password" | "token">("password");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
-  const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
+  const veupathdbName = useSessionStore((state) => state.veupathdbName);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
   const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
+
+  const displaySignedIn = veupathdbSignedIn || !!authStatus?.signedIn;
+  const displayName = veupathdbName ?? authStatus?.name ?? "";
 
   useEffect(() => {
     listSites()
@@ -94,7 +102,7 @@ export function SitePicker({
   useEffect(() => {
     if (!value) return;
     setAuthError(null);
-    getVeupathdbAuthStatus(value)
+    getVeupathdbAuthStatus()
       .then((status) => {
         setAuthStatus(status);
         setVeupathdbAuth(status.signedIn, status.name ?? null);
@@ -130,13 +138,21 @@ export function SitePicker({
   return (
     <div
       data-testid="site-picker"
-      className={
-        layout === "stacked" ? "flex w-full flex-col gap-2" : "flex items-center gap-3"
-      }
+      className={cn(
+        layout === "stacked" ? "flex w-full flex-col gap-2" : "flex items-center gap-3",
+        headerClass,
+      )}
     >
       {showSelect && (
         <>
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <label
+            className={cn(
+              "text-xs font-medium uppercase tracking-wide",
+              headerTextVariant === "light"
+                ? "text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                : "text-muted-foreground",
+            )}
+          >
             Database:
           </label>
           <div
@@ -159,11 +175,15 @@ export function SitePicker({
               }}
               disabled={loading}
               data-testid="site-select"
-              className={`appearance-none rounded-md border border-border bg-card pr-8 text-foreground transition-colors hover:border-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={cn(
+                "appearance-none rounded-md border pr-8 shadow-xs transition-colors focus:outline-none focus:ring-2",
                 layout === "stacked"
                   ? "w-full px-2 py-1.5 text-sm truncate"
-                  : "px-3 py-2 text-sm"
-              }`}
+                  : "px-3 py-1.5 text-sm",
+                headerTextVariant === "light"
+                  ? "border-white/40 bg-white/15 text-white focus:border-white/60 focus:ring-white/30 [&_option]:bg-background [&_option]:text-foreground"
+                  : "border-border bg-background text-foreground hover:border-input focus:border-primary focus:ring-primary/20",
+              )}
             >
               <optgroup label="Component Sites">
                 {sites
@@ -186,7 +206,12 @@ export function SitePicker({
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
               <svg
-                className="h-4 w-4 text-muted-foreground"
+                className={cn(
+                  "h-4 w-4",
+                  headerTextVariant === "light"
+                    ? "text-white/80"
+                    : "text-muted-foreground",
+                )}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -220,10 +245,16 @@ export function SitePicker({
               Visit site →
             </a>
           )}
-          {showAuth && authStatus?.signedIn && (
+          {showAuth && displaySignedIn && (
             <>
-              <span className="text-muted-foreground">
-                Logged in as {authStatus?.name ? `${authStatus.name}` : ""}
+              <span
+                className={
+                  headerTextVariant === "light"
+                    ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                    : "text-muted-foreground"
+                }
+              >
+                Logged in as {displayName || "—"}
               </span>
               <button
                 type="button"
@@ -241,21 +272,34 @@ export function SitePicker({
                     setAuthBusy(false);
                   }
                 }}
-                className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                className={
+                  headerTextVariant === "light"
+                    ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none"
+                    : "text-muted-foreground transition-colors duration-150 hover:text-foreground"
+                }
               >
                 Log out
               </button>
             </>
           )}
-          {showAuth && !authStatus?.signedIn && (
+          {showAuth && authDisplay === "button" && !displaySignedIn && (
             <button
               type="button"
               onClick={() => setShowLoginModal(true)}
-              className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
+              className={
+                headerTextVariant === "light"
+                  ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none"
+                  : "text-muted-foreground transition-colors duration-150 hover:text-foreground"
+              }
             >
               Sign in →
             </button>
           )}
+        </div>
+      )}
+      {showAuth && authDisplay === "inline" && !displaySignedIn && (
+        <div className="mt-4">
+          <SignInForm onSuccess={() => setAuthStatus({ signedIn: true })} />
         </div>
       )}
       <Modal
@@ -266,110 +310,12 @@ export function SitePicker({
         showCloseButton
       >
         <div className="p-5">
-          <div className="text-base font-semibold text-foreground">
-            Sign in required
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please sign in to VEuPathDB to continue.
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            We do not store your login information.
-          </p>
-          <div className="mt-4 flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setAuthMode("password")}
-              className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
-                authMode === "password"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              Using username and password
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode("token")}
-              className={`rounded-md px-3 py-1.5 transition-colors duration-150 ${
-                authMode === "token"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              (Advanced) Using authentication token
-            </button>
-          </div>
-          {authMode === "password" && (
-            <div className="mt-4 space-y-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="w-full rounded-md border border-border px-3 py-2 text-sm"
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full rounded-md border border-border px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-          {authMode === "token" && (
-            <div className="mt-4">
-              <textarea
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Paste VEuPathDB Authorization token"
-                className="h-24 w-full rounded-md border border-border px-3 py-2 text-sm"
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                If you prefer not to login from the UI, you can provide the
-                authentication token instead.
-              </p>
-            </div>
-          )}
-          {authError && (
-            <div className="mt-3 text-xs text-destructive">{authError}</div>
-          )}
-          <div className="mt-4 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              disabled={authBusy}
-              onClick={async () => {
-                setAuthError(null);
-                setAuthBusy(true);
-                try {
-                  let result: { success: boolean; authToken?: string };
-                  if (authMode === "password") {
-                    result = await loginVeupathdb(value, email, password);
-                  } else {
-                    result = await setVeupathdbToken(token);
-                  }
-                  if (result.authToken) {
-                    setAuthToken(result.authToken);
-                  }
-                  const status = await getVeupathdbAuthStatus(value);
-                  setAuthStatus(status);
-                  setVeupathdbAuth(status.signedIn, status.name ?? null);
-                  if (status.signedIn) {
-                    setShowLoginModal(false);
-                  } else {
-                    setAuthError("Login failed. Please try again.");
-                  }
-                } catch {
-                  setAuthError("Login failed. Please try again.");
-                } finally {
-                  setAuthBusy(false);
-                }
-              }}
-              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors duration-150 disabled:opacity-60"
-            >
-              {authBusy ? "Signing in..." : "Sign in"}
-            </button>
-          </div>
+          <SignInForm
+            onSuccess={() => {
+              setShowLoginModal(false);
+              setAuthStatus({ signedIn: true });
+            }}
+          />
         </div>
       </Modal>
     </div>

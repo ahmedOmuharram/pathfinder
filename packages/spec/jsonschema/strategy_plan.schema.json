@@ -66,7 +66,7 @@
     },
     "CombineOperator": {
       "type": "string",
-      "enum": ["INTERSECT", "UNION", "MINUS_LEFT", "MINUS_RIGHT", "COLOCATE"],
+      "enum": ["INTERSECT", "UNION", "MINUS", "RMINUS", "COLOCATE"],
       "description": "Set operation for combining two steps"
     },
     "ColocationParams": {

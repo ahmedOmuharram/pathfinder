@@ -9,6 +9,48 @@ import {
   isParamEmpty,
 } from "./paramUtils";
 
+/** Detect whether a ParamSpec represents a numeric input. */
+function isNumericParam(spec: ParamSpec): boolean {
+  const t = spec.type?.toLowerCase() ?? "";
+  if (t === "number" || t === "number-range" || t === "integer" || t === "float")
+    return true;
+  if (spec.isNumber === true) return true;
+  return false;
+}
+
+/**
+ * Infer a reasonable min/max for a numeric parameter when the API doesn't
+ * provide explicit bounds.  Uses ``initialDisplayValue`` as a center-point
+ * heuristic.
+ */
+function inferNumericRange(spec: ParamSpec): {
+  min: number;
+  max: number;
+  step?: number;
+} {
+  const explicitMin = spec.min ?? spec.minValue;
+  const explicitMax = spec.max ?? spec.maxValue;
+  if (explicitMin != null && explicitMax != null) {
+    return { min: explicitMin, max: explicitMax, step: spec.increment ?? undefined };
+  }
+  const initial =
+    typeof spec.initialDisplayValue === "string"
+      ? parseFloat(spec.initialDisplayValue)
+      : typeof spec.initialDisplayValue === "number"
+        ? spec.initialDisplayValue
+        : NaN;
+  if (!isNaN(initial) && initial > 0) {
+    const lo = explicitMin ?? 0;
+    const hi = explicitMax ?? Math.max(initial * 10, initial + 10);
+    return { min: lo, max: hi, step: spec.increment ?? undefined };
+  }
+  return {
+    min: explicitMin ?? 0,
+    max: explicitMax ?? 100,
+    step: spec.increment ?? undefined,
+  };
+}
+
 interface ParamFieldProps {
   spec: ParamSpec;
   value: string;
@@ -36,7 +78,7 @@ export function ParamField({
 
   const canOptimize = isOptimizable(spec);
   const isOptimizing = optimizeSpec !== null;
-  const isNumeric = spec.type === "number" || spec.type === "number-range";
+  const isNumeric = isNumericParam(spec);
   const required = isParamRequired(spec);
   const empty = isParamEmpty(spec, value);
   const hasError = showValidation && required && empty && !isOptimizing;
@@ -45,11 +87,22 @@ export function ParamField({
     if (isOptimizing) {
       onOptimizeChange(null);
     } else if (isNumeric) {
-      onOptimizeChange({ name: spec.name, type: "numeric" });
+      const range = inferNumericRange(spec);
+      onOptimizeChange({
+        name: spec.name,
+        type: spec.type === "integer" ? "integer" : "numeric",
+        min: range.min,
+        max: range.max,
+        step: range.step,
+      });
     } else if (vocabEntries.length > 0) {
-      onOptimizeChange({ name: spec.name, type: "categorical" });
+      onOptimizeChange({
+        name: spec.name,
+        type: "categorical",
+        choices: vocabEntries.map((e) => e.value),
+      });
     } else {
-      onOptimizeChange({ name: spec.name, type: "numeric" });
+      onOptimizeChange({ name: spec.name, type: "numeric", min: 0, max: 100 });
     }
   };
 
@@ -139,7 +192,7 @@ export function ParamField({
           </div>
         </div>
         <div className="mt-1 text-xs text-amber-600">
-          Leave blank to use the full parameter range
+          Full range by default; change min/max to narrow.
         </div>
       </div>
     );
@@ -147,7 +200,10 @@ export function ParamField({
 
   // --- Optimize mode: categorical choices ---
   if (isOptimizing && vocabEntries.length > 0) {
-    const selectedChoices = new Set(optimizeSpec.choices ?? []);
+    const allValues = vocabEntries.map((e) => e.value);
+    const selectedChoices = new Set(
+      optimizeSpec.choices?.length ? optimizeSpec.choices : allValues,
+    );
     const toggleChoice = (v: string) => {
       const next = new Set(selectedChoices);
       if (next.has(v)) next.delete(v);
@@ -155,7 +211,7 @@ export function ParamField({
       const choices = Array.from(next);
       onOptimizeChange({
         ...optimizeSpec,
-        choices: choices.length > 0 ? choices : undefined,
+        choices: choices.length > 0 ? choices : allValues,
       });
     };
 
@@ -163,7 +219,7 @@ export function ParamField({
       <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
         {labelRow}
         <div className="mb-1 text-xs text-amber-600">
-          Select values to try (leave all unchecked to try all)
+          All values selected by default; uncheck to exclude from the search.
         </div>
         <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-card">
           {vocabEntries.map((entry) => (
@@ -257,6 +313,9 @@ export function ParamField({
   }
 
   if (isNumeric) {
+    const numMin = spec.min ?? spec.minValue;
+    const numMax = spec.max ?? spec.maxValue;
+    const numStep = spec.increment;
     return (
       <div>
         {labelRow}
@@ -264,9 +323,20 @@ export function ParamField({
           type="number"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Default"
+          min={numMin ?? undefined}
+          max={numMax ?? undefined}
+          step={numStep ?? undefined}
+          placeholder={
+            numMin != null && numMax != null ? `${numMin} – ${numMax}` : "Default"
+          }
           className={`w-full rounded-md border px-3 py-1.5 text-sm outline-none placeholder:text-muted-foreground ${errorBorder} ${errorRing}`}
         />
+        {numMin != null && numMax != null && (
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Range: {numMin} – {numMax}
+            {numStep != null && ` (step ${numStep})`}
+          </div>
+        )}
         {hasError && <div className="mt-0.5 text-xs text-destructive">Required</div>}
       </div>
     );

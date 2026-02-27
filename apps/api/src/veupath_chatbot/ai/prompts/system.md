@@ -123,7 +123,7 @@ You must pass a **single nested plan tree** as `plan`. Since any node can have a
 
 - **Combine node** (created by the orchestrator, not a sub-agent):
   - Shape:
-    - `{ "type": "combine", "operator": "INTERSECT|UNION|MINUS_LEFT|MINUS_RIGHT|COLOCATE", "left": <child>, "right": <child>, "displayName": "<optional>" }`
+    - `{ "type": "combine", "operator": "INTERSECT|UNION|MINUS|RMINUS|COLOCATE", "left": <child>, "right": <child>, "displayName": "<optional>" }`
 
 Rules:
 
@@ -146,7 +146,7 @@ Tool call (arguments must be exactly `{ "goal": ..., "plan": ... }`):
     "displayName": "Pf male-enriched ∩ (Pb→Pf orthologs minus Pf female-enriched)",
     "left": {
       "type": "combine",
-      "operator": "MINUS_LEFT",
+      "operator": "MINUS",
       "displayName": "Pb→Pf orthologs minus Pf female-enriched",
       "left": {
         "type": "task",

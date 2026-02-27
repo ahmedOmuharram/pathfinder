@@ -1,41 +1,52 @@
-"""AI tools for deep experiment result analysis.
+"""AI tools for deep experiment result analysis and strategy refinement.
 
 Provides function-calling tools that let the AI assistant access
 experiment data: paginate through records, look up individual genes,
-get attribute distributions, and compare gene groups.
+get attribute distributions, compare gene groups, and refine the
+experiment strategy with new search steps or gene ID lists.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import Annotated, cast
 
 from kani import AIParam, ChatMessage, ai_function
 from kani.engines.base import BaseEngine
 
-if TYPE_CHECKING:
-    from veupath_chatbot.ai.stubs.kani import Kani
-else:
-    from kani import Kani
-
-from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
-from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
+from veupath_chatbot.ai.agents.experiment import ExperimentAssistantAgent
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.strategy_api import (
+    StepTreeNode,
+    StrategyAPI,
+)
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.control_tests import resolve_controls_param_type
+from veupath_chatbot.services.experiment.ai_analysis_helpers import (
+    classify_gene,
+    collect_all_result_ids,
+    extract_pk,
+    fetch_group_records,
+    record_matches,
+)
+from veupath_chatbot.services.experiment.metrics import (
+    compute_confusion_matrix,
+    compute_metrics,
+)
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import Experiment
-from veupath_chatbot.services.gene_lookup import lookup_genes_by_text
-from veupath_chatbot.services.research import (
-    LiteratureSearchService,
-    WebSearchService,
+from veupath_chatbot.services.experiment.types import (
+    Experiment,
+    GeneInfo,
+    metrics_to_json,
 )
 
 
-class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
-    """AI agent with data-access tools for experiment result analysis.
+class ExperimentAnalysisAgent(ExperimentAssistantAgent):
+    """AI agent with data-access and strategy-refinement tools.
 
-    Extends the base wizard tools with functions to browse records,
-    look up gene details, compute attribute distributions, and
-    compare gene subsets.
+    Extends :class:`ExperimentAssistantAgent` (which provides catalog
+    tools, gene lookup, and research tools) with functions to browse
+    records, look up gene details, compute attribute distributions,
+    compare gene subsets, and refine the experiment strategy.
     """
 
     def __init__(
@@ -46,25 +57,19 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
         system_prompt: str,
         chat_history: list[ChatMessage] | None = None,
     ) -> None:
-        self.site_id = site_id
         self.experiment_id = experiment_id
-        self._catalog = CatalogTools()
-        self.web_search_service = WebSearchService()
-        self.literature_search_service = LiteratureSearchService()
-
-        self.strategy_session = type(
-            "_Stub", (), {"get_graph": staticmethod(lambda: None)}
-        )()
-
         super().__init__(
             engine=engine,
+            site_id=site_id,
             system_prompt=system_prompt,
-            chat_history=chat_history or [],
+            chat_history=chat_history,
         )
 
     def _get_experiment(self) -> Experiment | None:
         store = get_experiment_store()
         return store.get(self.experiment_id)
+
+    # -- Data access tools ------------------------------------------------
 
     @ai_function()
     async def fetch_result_records(
@@ -108,17 +113,8 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
             for rec in records:
                 if not isinstance(rec, dict):
                     continue
-                gene_id = _extract_pk(rec)
-                classification = None
-                if gene_id:
-                    if gene_id in tp_ids:
-                        classification = "TP"
-                    elif gene_id in fp_ids:
-                        classification = "FP"
-                    elif gene_id in fn_ids:
-                        classification = "FN"
-                    elif gene_id in tn_ids:
-                        classification = "TN"
+                gene_id = extract_pk(rec)
+                classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
                 attrs = rec.get("attributes", {})
                 classified.append(
                     {
@@ -159,19 +155,11 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
                 record_type=exp.config.record_type,
                 primary_key=pk_parts,
             )
-            classification = None
             tp_ids = {g.id for g in exp.true_positive_genes}
             fp_ids = {g.id for g in exp.false_positive_genes}
             fn_ids = {g.id for g in exp.false_negative_genes}
             tn_ids = {g.id for g in exp.true_negative_genes}
-            if gene_id in tp_ids:
-                classification = "TP"
-            elif gene_id in fp_ids:
-                classification = "FP"
-            elif gene_id in fn_ids:
-                classification = "FN"
-            elif gene_id in tn_ids:
-                classification = "TN"
+            classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
             return {
                 "geneId": gene_id,
                 "classification": classification,
@@ -197,7 +185,10 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
 
         api = get_strategy_api(self.site_id)
         try:
-            return await api.get_filter_summary(exp.wdk_step_id, attribute_name)
+            return cast(
+                JSONObject,
+                await api.get_filter_summary(exp.wdk_step_id, attribute_name),
+            )
         except Exception as exc:
             return {"error": str(exc), "attribute": attribute_name}
 
@@ -216,44 +207,12 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
             return {"error": "Experiment has no WDK strategy"}
 
         api = get_strategy_api(self.site_id)
-        group_a_attrs: list[JSONObject] = []
-        group_b_attrs: list[JSONObject] = []
-
-        for gene_id in group_a_ids[:20]:
-            try:
-                rec = await api.get_single_record(
-                    record_type=exp.config.record_type,
-                    primary_key=cast(
-                        list[JSONObject], [{"name": "source_id", "value": gene_id}]
-                    ),
-                )
-                if isinstance(rec, dict):
-                    group_a_attrs.append(
-                        {
-                            "geneId": gene_id,
-                            "attributes": rec.get("attributes", {}),
-                        }
-                    )
-            except Exception:
-                continue
-
-        for gene_id in group_b_ids[:20]:
-            try:
-                rec = await api.get_single_record(
-                    record_type=exp.config.record_type,
-                    primary_key=cast(
-                        list[JSONObject], [{"name": "source_id", "value": gene_id}]
-                    ),
-                )
-                if isinstance(rec, dict):
-                    group_b_attrs.append(
-                        {
-                            "geneId": gene_id,
-                            "attributes": rec.get("attributes", {}),
-                        }
-                    )
-            except Exception:
-                continue
+        group_a_attrs = await fetch_group_records(
+            api, exp.config.record_type, group_a_ids
+        )
+        group_b_attrs = await fetch_group_records(
+            api, exp.config.record_type, group_b_ids
+        )
 
         return cast(
             JSONObject,
@@ -286,6 +245,7 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
         api = get_strategy_api(self.site_id)
         matches: list[JSONObject] = []
         query_lower = query.lower()
+        total_scanned = 0
 
         for page_offset in range(0, 500, 100):
             answer = await api.get_step_records(
@@ -295,6 +255,7 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
             records = answer.get("records", [])
             if not isinstance(records, list) or not records:
                 break
+            total_scanned = page_offset + len(records)
 
             for rec in records:
                 if not isinstance(rec, dict):
@@ -303,65 +264,217 @@ class ExperimentAnalysisAgent(ResearchToolsMixin, Kani):
                 if not isinstance(attrs, dict):
                     continue
 
-                found = False
-                if attribute:
-                    val = attrs.get(attribute)
-                    if isinstance(val, str) and query_lower in val.lower():
-                        found = True
-                else:
-                    for val in attrs.values():
-                        if isinstance(val, str) and query_lower in val.lower():
-                            found = True
-                            break
-
-                if found:
-                    gene_id = _extract_pk(rec)
-                    matches.append(
-                        {
-                            "geneId": gene_id,
-                            "attributes": attrs,
-                        }
-                    )
+                if record_matches(attrs, query_lower, attribute):
+                    gene_id = extract_pk(rec)
+                    matches.append({"geneId": gene_id, "attributes": attrs})
                     if len(matches) >= 20:
                         return cast(
                             JSONObject,
-                            {"matches": matches, "totalScanned": page_offset + 100},
+                            {
+                                "matches": matches,
+                                "totalScanned": total_scanned,
+                            },
                         )
+
+        return cast(JSONObject, {"matches": matches, "totalScanned": total_scanned})
+
+    # -- Strategy refinement tools ----------------------------------------
+
+    @ai_function()
+    async def refine_with_search(
+        self,
+        search_name: Annotated[str, AIParam(desc="WDK search name for the new step")],
+        parameters: Annotated[
+            dict[str, str], AIParam(desc="Search parameters as key-value pairs")
+        ],
+        operator: Annotated[
+            str,
+            AIParam(desc="Boolean operator: INTERSECT, UNION, or MINUS"),
+        ] = "INTERSECT",
+    ) -> JSONObject:
+        """Add a new search step and combine it with current experiment results.
+
+        Creates a WDK search step, then combines it with the experiment's
+        current results using the specified boolean operator. The experiment
+        strategy is updated so subsequent queries reflect the refined results.
+        Call re_evaluate_controls afterwards to see the impact on metrics.
+        """
+        exp = self._get_experiment()
+        if not exp or not exp.wdk_strategy_id or not exp.wdk_step_id:
+            return {"error": "Experiment has no WDK strategy"}
+
+        api = get_strategy_api(self.site_id)
+        record_type = exp.config.record_type
+
+        new_step = await api.create_step(
+            record_type=record_type,
+            search_name=search_name,
+            parameters=parameters,
+            custom_name=f"AI refinement: {search_name}",
+        )
+        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
+        if not isinstance(new_step_id, int):
+            return {"error": "Failed to create new search step"}
+
+        return await self._combine_and_update(exp, api, new_step_id, operator)
+
+    @ai_function()
+    async def refine_with_gene_ids(
+        self,
+        gene_ids: Annotated[
+            list[str],
+            AIParam(desc="List of gene IDs to filter/combine with"),
+        ],
+        operator: Annotated[
+            str,
+            AIParam(desc="Boolean operator: INTERSECT, UNION, or MINUS"),
+        ] = "INTERSECT",
+    ) -> JSONObject:
+        """Combine experiment results with a gene ID list.
+
+        Creates a gene ID search step using the experiment's controls search
+        configuration, then combines it with the current results. Use
+        INTERSECT to filter results to only these genes, UNION to add them,
+        or MINUS to exclude them.
+        Call re_evaluate_controls afterwards to see the impact on metrics.
+        """
+        exp = self._get_experiment()
+        if not exp or not exp.wdk_strategy_id or not exp.wdk_step_id:
+            return {"error": "Experiment has no WDK strategy"}
+
+        api = get_strategy_api(self.site_id)
+        record_type = exp.config.record_type
+        controls_search = exp.config.controls_search_name
+        controls_param = exp.config.controls_param_name
+
+        param_type = await resolve_controls_param_type(
+            api, record_type, controls_search, controls_param
+        )
+
+        params: JSONObject = {}
+        if param_type == "input-dataset":
+            dataset_id = await api.create_dataset(gene_ids)
+            params[controls_param] = str(dataset_id)
+        else:
+            params[controls_param] = "\n".join(gene_ids)
+
+        new_step = await api.create_step(
+            record_type=record_type,
+            search_name=controls_search,
+            parameters=params,
+            custom_name=f"AI gene list ({len(gene_ids)} genes)",
+        )
+        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
+        if not isinstance(new_step_id, int):
+            return {"error": "Failed to create gene list step"}
+
+        result = await self._combine_and_update(exp, api, new_step_id, operator)
+        result["geneCount"] = len(gene_ids)
+        return result
+
+    @ai_function()
+    async def re_evaluate_controls(self) -> JSONObject:
+        """Re-run control evaluation against the current (possibly refined) strategy.
+
+        Computes updated classification metrics by checking which positive
+        and negative control genes appear in the current result set.
+        Use this after refining the strategy to see the impact on performance.
+        """
+        exp = self._get_experiment()
+        if not exp or not exp.wdk_step_id:
+            return {"error": "Experiment has no WDK strategy"}
+
+        api = get_strategy_api(self.site_id)
+
+        result_ids = await collect_all_result_ids(api, exp.wdk_step_id)
+
+        pos_controls = set(exp.config.positive_controls)
+        neg_controls = set(exp.config.negative_controls)
+
+        tp_ids = pos_controls & result_ids
+        fn_ids = pos_controls - result_ids
+        fp_ids = neg_controls & result_ids
+        tn_ids = neg_controls - result_ids
+
+        cm = compute_confusion_matrix(
+            positive_hits=len(tp_ids),
+            total_positives=len(pos_controls),
+            negative_hits=len(fp_ids),
+            total_negatives=len(neg_controls),
+        )
+        metrics = compute_metrics(cm, total_results=len(result_ids))
+
+        exp.metrics = metrics
+        exp.true_positive_genes = [GeneInfo(id=g) for g in sorted(tp_ids)]
+        exp.false_negative_genes = [GeneInfo(id=g) for g in sorted(fn_ids)]
+        exp.false_positive_genes = [GeneInfo(id=g) for g in sorted(fp_ids)]
+        exp.true_negative_genes = [GeneInfo(id=g) for g in sorted(tn_ids)]
+
+        store = get_experiment_store()
+        store.save(exp)
 
         return cast(
             JSONObject,
-            {"matches": matches, "totalScanned": min(page_offset + 100, 500)},
+            {
+                "success": True,
+                "totalResults": len(result_ids),
+                "metrics": metrics_to_json(metrics),
+            },
         )
 
-    @ai_function()
-    async def lookup_genes(
+    # -- Internal helpers -------------------------------------------------
+
+    async def _combine_and_update(
         self,
-        query: Annotated[
-            str,
-            AIParam(desc="Free-text query — gene name, symbol, or description"),
-        ],
-        organism: Annotated[
-            str | None,
-            AIParam(desc="Optional organism name to filter results"),
-        ] = None,
-        limit: Annotated[int, AIParam(desc="Max results (1-30)")] = 10,
+        exp: Experiment,
+        api: StrategyAPI,
+        new_step_id: int,
+        operator: str,
     ) -> JSONObject:
-        """Search for gene records on the current VEuPathDB site."""
-        return await lookup_genes_by_text(
-            self.site_id,
-            query,
-            organism=organism,
-            limit=min(limit, 30),
+        """Create a boolean combine step and update the experiment strategy.
+
+        :param exp: Current experiment.
+        :param api: Strategy API instance.
+        :param new_step_id: ID of the new step to combine with.
+        :param operator: Boolean operator (INTERSECT, UNION, MINUS).
+        :returns: Result dict with success status and new step info.
+        """
+        assert exp.wdk_strategy_id is not None
+        assert exp.wdk_step_id is not None
+
+        combined = await api.create_combined_step(
+            primary_step_id=exp.wdk_step_id,
+            secondary_step_id=new_step_id,
+            boolean_operator=operator,
+            record_type=exp.config.record_type,
+            custom_name=f"AI {operator} refinement",
         )
+        combined_id = combined.get("id") if isinstance(combined, dict) else None
+        if not isinstance(combined_id, int):
+            return {"error": "Failed to create combined step"}
 
+        new_tree = StepTreeNode(
+            combined_id,
+            primary_input=StepTreeNode(exp.wdk_step_id),
+            secondary_input=StepTreeNode(new_step_id),
+        )
+        await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
 
-def _extract_pk(record: JSONObject) -> str | None:
-    """Extract primary key string from a WDK record."""
-    pk = record.get("id")
-    if isinstance(pk, list) and pk:
-        first = pk[0]
-        if isinstance(first, dict):
-            val = first.get("value")
-            if isinstance(val, str):
-                return val.strip()
-    return None
+        exp.wdk_step_id = combined_id
+        store = get_experiment_store()
+        store.save(exp)
+
+        try:
+            count = await api.get_step_count(combined_id)
+        except Exception:
+            count = None
+
+        return cast(
+            JSONObject,
+            {
+                "success": True,
+                "newStepId": combined_id,
+                "operator": operator,
+                "resultCount": count,
+            },
+        )

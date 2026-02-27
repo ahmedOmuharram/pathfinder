@@ -15,16 +15,29 @@ import {
 
 type ExperimentView =
   | "list"
+  | "mode-select"
   | "setup"
+  | "multi-step-setup"
   | "results"
   | "compare"
   | "overlap"
   | "enrichment-compare";
 
+export interface TrialMutation {
+  nodeId: string;
+  param?: string;
+  value?: unknown;
+  operator?: string;
+}
+
 export interface TrialHistoryEntry {
   trialNumber: number;
   score: number;
   bestScore: number;
+  isNewBest?: boolean;
+  paramMutations?: TrialMutation[];
+  operatorMutations?: TrialMutation[];
+  structuralVariant?: string | null;
 }
 
 interface ExperimentState {
@@ -35,9 +48,12 @@ interface ExperimentState {
   progress: ExperimentProgressData | null;
   trialHistory: TrialHistoryEntry[];
   isRunning: boolean;
+  hasOptimization: boolean;
   error: string | null;
   abortController: AbortController | null;
   cloneConfig: ExperimentConfig | null;
+  cloneWithOptimize: boolean;
+  runningConfig: ExperimentConfig | null;
 
   setView: (view: ExperimentView) => void;
   fetchExperiments: (siteId: string) => Promise<void>;
@@ -60,6 +76,7 @@ interface ExperimentState {
   cloneExperiment: (id: string) => Promise<void>;
   setClone: (config: ExperimentConfig) => void;
   clearClone: () => void;
+  optimizeFromEvaluation: (experimentId: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -69,17 +86,48 @@ function _accumulateTrial(
   progressData: any,
 ): TrialHistoryEntry[] {
   const tp = progressData?.trialProgress;
-  if (!tp?.trial) return existing;
-  const { trialNumber, score } = tp.trial;
-  if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
-  return [
-    ...existing,
-    {
+  if (!tp) return existing;
+
+  // Tree optimization trial_result (check FIRST -- also has trial.trialNumber)
+  if (tp.phase === "trial_result" && tp.trial) {
+    const {
       trialNumber,
       score,
-      bestScore: tp.bestTrial?.score ?? score,
-    },
-  ];
+      isNewBest,
+      paramMutations,
+      operatorMutations,
+      structuralVariant,
+    } = tp.trial;
+    if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
+    return [
+      ...existing,
+      {
+        trialNumber,
+        score,
+        bestScore: tp.bestScore ?? score,
+        isNewBest,
+        paramMutations: paramMutations ?? [],
+        operatorMutations: operatorMutations ?? [],
+        structuralVariant: structuralVariant ?? null,
+      },
+    ];
+  }
+
+  // Single-step optimization
+  if (tp.trial?.trialNumber != null) {
+    const { trialNumber, score } = tp.trial;
+    if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
+    return [
+      ...existing,
+      {
+        trialNumber,
+        score,
+        bestScore: tp.bestTrial?.score ?? score,
+      },
+    ];
+  }
+
+  return existing;
 }
 
 export const useExperimentStore = create<ExperimentState>((set, get) => ({
@@ -90,9 +138,12 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
   progress: null,
   trialHistory: [],
   isRunning: false,
+  hasOptimization: false,
   error: null,
   abortController: null,
   cloneConfig: null,
+  cloneWithOptimize: false,
+  runningConfig: null,
 
   setView: (view) => set({ view }),
 
@@ -142,7 +193,17 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     const prev = get().abortController;
     prev?.abort();
 
-    set({ isRunning: true, progress: null, trialHistory: [], error: null });
+    const hasOpt =
+      (config.optimizationSpecs?.length ?? 0) > 0 ||
+      config.enableTreeOptimization === true;
+    set({
+      isRunning: true,
+      hasOptimization: hasOpt,
+      progress: null,
+      trialHistory: [],
+      error: null,
+      runningConfig: config,
+    });
 
     const controller = createExperimentStream(config, {
       onProgress: (data) => {
@@ -157,11 +218,12 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
           isRunning: false,
           view: "results",
           abortController: null,
+          runningConfig: null,
         });
         get().fetchExperiments(config.siteId);
       },
       onError: (error) => {
-        set({ error, isRunning: false, abortController: null });
+        set({ error, isRunning: false, abortController: null, runningConfig: null });
       },
     });
 
@@ -172,7 +234,13 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     const prev = get().abortController;
     prev?.abort();
 
-    set({ isRunning: true, progress: null, trialHistory: [], error: null });
+    set({
+      isRunning: true,
+      progress: null,
+      trialHistory: [],
+      error: null,
+      runningConfig: config,
+    });
 
     const controller = createBatchExperimentStream(config, organismParamName, targets, {
       onProgress: (data) => {
@@ -188,11 +256,12 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
           isRunning: false,
           view: first ? "results" : "list",
           abortController: null,
+          runningConfig: null,
         });
         get().fetchExperiments(config.siteId);
       },
       onError: (error) => {
-        set({ error, isRunning: false, abortController: null });
+        set({ error, isRunning: false, abortController: null, runningConfig: null });
       },
     });
 
@@ -202,7 +271,7 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
   cancelExperiment: () => {
     const controller = get().abortController;
     controller?.abort();
-    set({ isRunning: false, abortController: null });
+    set({ isRunning: false, abortController: null, runningConfig: null });
   },
 
   clearError: () => set({ error: null }),
@@ -217,7 +286,34 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
   },
 
   setClone: (config) => set({ cloneConfig: config, view: "setup" }),
-  clearClone: () => set({ cloneConfig: null }),
+  clearClone: () => set({ cloneConfig: null, cloneWithOptimize: false }),
+
+  optimizeFromEvaluation: async (experimentId) => {
+    try {
+      const experiment = await getExperiment(experimentId);
+      const config = { ...experiment.config, parentExperimentId: experimentId };
+      const isMultiStep = config.mode === "multi-step" || config.mode === "import";
+
+      if (isMultiStep) {
+        config.enableTreeOptimization = true;
+        config.treeOptimizationBudget = config.treeOptimizationBudget ?? 20;
+        config.optimizeOperators = config.optimizeOperators ?? true;
+        set({
+          cloneConfig: config,
+          cloneWithOptimize: true,
+          view: "multi-step-setup",
+        });
+      } else {
+        set({
+          cloneConfig: config,
+          cloneWithOptimize: true,
+          view: "setup",
+        });
+      }
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
 
   reset: () =>
     set({
@@ -227,8 +323,11 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
       progress: null,
       trialHistory: [],
       isRunning: false,
+      hasOptimization: false,
       error: null,
       abortController: null,
       cloneConfig: null,
+      cloneWithOptimize: false,
+      runningConfig: null,
     }),
 }));

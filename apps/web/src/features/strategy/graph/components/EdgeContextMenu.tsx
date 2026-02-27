@@ -9,8 +9,8 @@ import { inferStepKind } from "@/lib/strategyGraph";
 const COMBINE_OPERATORS: readonly CombineOperator[] = [
   CombineOperator.INTERSECT,
   CombineOperator.UNION,
-  CombineOperator.MINUS_LEFT,
-  CombineOperator.MINUS_RIGHT,
+  CombineOperator.MINUS,
+  CombineOperator.RMINUS,
 ];
 
 interface EdgeContextMenuProps {

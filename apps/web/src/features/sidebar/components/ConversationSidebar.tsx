@@ -24,7 +24,6 @@ import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyListStore } from "@/state/useStrategyListStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
-import { SitePicker } from "@/features/sites/components/SitePicker";
 import type { StrategyListItem } from "@/features/sidebar/utils/strategyItems";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 import {
@@ -56,7 +55,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const setPlanSessionId = useSessionStore((s) => s.setPlanSessionId);
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
-  const setSelectedSite = useSessionStore((s) => s.setSelectedSite);
+
   const authToken = useSessionStore((s) => s.authToken);
   const setAuthToken = useSessionStore((s) => s.setAuthToken);
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
@@ -478,18 +477,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
 
   // Render
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 border-r border-border bg-card px-3 py-4">
-      <div>
-        <SitePicker
-          value={siteId}
-          onChange={setSelectedSite}
-          showSelect
-          showAuth={false}
-          showVisit
-          layout="stacked"
-        />
-      </div>
-
+    <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-4">
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
@@ -510,7 +498,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search conversations..."
-        className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">

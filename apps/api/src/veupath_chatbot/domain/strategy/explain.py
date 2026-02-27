@@ -18,11 +18,11 @@ def explain_operation(op: CombineOp) -> str:
             "Returns records that appear in **either** input set. "
             "Use this to combine results from different searches."
         ),
-        CombineOp.MINUS_LEFT: (
+        CombineOp.MINUS: (
             "Returns records from the **left** set that are **not** in the right set. "
             "Use this to exclude certain records from your results."
         ),
-        CombineOp.MINUS_RIGHT: (
+        CombineOp.RMINUS: (
             "Returns records from the **right** set that are **not** in the left set. "
             "The opposite of left minus."
         ),

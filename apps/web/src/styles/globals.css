@@ -2,8 +2,8 @@
 @config "../../tailwind.config.ts";
 
 :root {
-  /* ── Semantic colors (shadcn-compatible) ── */
-  --background: 0 0% 98%;
+  /* ── Semantic colors (ocean-based, shadcn-compatible) ── */
+  --background: 200 20% 97%;
   --foreground: 222 47% 11%;
 
   --card: 0 0% 100%;
@@ -12,19 +12,19 @@
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
 
-  --primary: 222 47% 11%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 193 68% 42%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 210 40% 96%;
+  --secondary: 200 25% 95%;
   --secondary-foreground: 222 47% 11%;
 
-  --muted: 210 40% 96%;
+  --muted: 200 20% 95%;
   --muted-foreground: 215 16% 47%;
 
-  --accent: 210 40% 96%;
+  --accent: 200 25% 93%;
   --accent-foreground: 222 47% 11%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 9 100% 54%;
   --destructive-foreground: 0 0% 100%;
 
   --success: 142 71% 45%;
@@ -33,18 +33,20 @@
   --warning: 38 92% 50%;
   --warning-foreground: 0 0% 100%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 222 47% 11%;
+  --border: 200 20% 89%;
+  --input: 200 20% 85%;
+  --ring: 193 68% 42%;
+
+  --sidebar: 200 25% 95%;
 
   /* ── Radius ── */
   --radius: 0.5rem;
 
   /* ── Shadows ── */
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
   /* ── Motion ── */
   --duration-fast: 150ms;
@@ -424,13 +426,14 @@
 }
 
 .markdown-content a {
-  color: hsl(var(--foreground));
+  color: hsl(var(--primary));
   @apply underline underline-offset-4;
-  text-decoration-color: hsl(var(--border));
+  text-decoration-color: hsl(var(--primary) / 0.3);
 }
 
 .markdown-content a:hover {
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--primary) / 0.8);
+  text-decoration-color: hsl(var(--primary) / 0.6);
 }
 
 .markdown-content p {

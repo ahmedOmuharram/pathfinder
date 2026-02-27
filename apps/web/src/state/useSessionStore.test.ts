@@ -53,6 +53,17 @@ describe("state/useSessionStore", () => {
     expect(store.getState().selectedSiteDisplayName).toBe("TrypDB");
   });
 
+  it("changing selected site clears strategyId and planSessionId", async () => {
+    const mod = await import("./useSessionStore");
+    const store = mod.useSessionStore;
+    store.getState().setStrategyId("s1");
+    store.getState().setPlanSessionId("p1");
+    store.getState().setSelectedSite("toxodb");
+    expect(store.getState().selectedSite).toBe("toxodb");
+    expect(store.getState().strategyId).toBeNull();
+    expect(store.getState().planSessionId).toBeNull();
+  });
+
   it("setStrategyId updates strategy id", async () => {
     const mod = await import("./useSessionStore");
     const store = mod.useSessionStore;

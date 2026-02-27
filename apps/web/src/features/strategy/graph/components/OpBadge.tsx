@@ -8,8 +8,8 @@ interface OpBadgeProps {
 const OP_INFO: Record<string, { label: string }> = {
   INTERSECT: { label: "AND (INTERSECT)" },
   UNION: { label: "OR (UNION)" },
-  MINUS_LEFT: { label: "NOT (MINUS LEFT)" },
-  MINUS_RIGHT: { label: "NOT (MINUS RIGHT)" },
+  MINUS: { label: "NOT (MINUS LEFT)" },
+  RMINUS: { label: "NOT (MINUS RIGHT)" },
   COLOCATE: { label: "NEAR (COLOCATE)" },
 };
 
@@ -41,14 +41,14 @@ export function VennIcon({ operator }: { operator: string }) {
       {operator === "INTERSECT" && (
         <path d={overlapPath} fill={highlight} fillOpacity="0.9" />
       )}
-      {operator === "MINUS_LEFT" && (
+      {operator === "MINUS" && (
         <>
           <circle cx="14" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
           {/* Punch out the overlap so it's truly "left only" */}
           <path d={overlapPath} fill={bg} />
         </>
       )}
-      {operator === "MINUS_RIGHT" && (
+      {operator === "RMINUS" && (
         <>
           <circle cx="22" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
           {/* Punch out the overlap so it's truly "right only" */}

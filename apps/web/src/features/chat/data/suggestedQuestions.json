@@ -1,27 +1,27 @@
 {
   "plasmodb": [
-    "Build a strategy to find orthologous genes upregulated in P. berghei gametocytes in either Otto et al 2014 or Yeoh et al 2017 (male + female samples). Map this combination to P. falciparum 3D7 orthologs, and keep only orthologs that are also upregulated in Lasonder et al 2016 male gametocytes.",
-    "Help me find Plasmodium falciparum genes involved in gametocyte development — plan the steps, identify candidate searches and parameters, and build the strategy.",
-    "Combine results across multiple RNA-seq studies (male + female gametocytes) and then map to orthologs. Ask me only the minimum questions needed."
+    "Build a strategy to find P. falciparum genes upregulated in gametocytes using RNA-seq and then map results to orthologs in another species.",
+    "Find Plasmodium falciparum genes involved in gametocyte development. Plan the steps, pick the right searches and parameters, and build the strategy.",
+    "Combine results from multiple RNA-seq studies (e.g. male and female gametocytes), then map to orthologs. Ask only the minimum questions needed."
   ],
   "toxodb": [
-    "Find apicoplast-targeted Toxoplasma gondii genes and filter to those with orthologs in Plasmodium falciparum. Propose validation checks for the result.",
-    "Find Toxoplasma gondii genes that are bradyzoite-upregulated and likely secreted (signal peptide / secretion-related filters).",
+    "Find apicoplast-targeted Toxoplasma gondii genes and filter to those with orthologs in Plasmodium falciparum. Suggest validation checks for the result.",
+    "Find Toxoplasma gondii genes that are bradyzoite-upregulated and likely secreted (signal peptide or secretion-related filters).",
     "Find Toxoplasma gondii genes annotated with microneme proteins and intersect with genes expressed in tachyzoites."
   ],
   "cryptodb": [
     "Find Cryptosporidium hominis genes with orthologs in Plasmodium falciparum but not in Toxoplasma gondii.",
-    "Find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins; suggest sanity checks to avoid over-filtering.",
+    "Find Cryptosporidium genes with signal peptides and intersect with genes annotated as secreted proteins. Suggest sanity checks to avoid over-filtering.",
     "Find Cryptosporidium genes highly expressed in oocysts and enriched for membrane proteins (e.g. transmembrane domains)."
   ],
   "piroplasmadb": [
-    "Find predicted surface proteins (TM domains + annotation filters) for Theileria/Babesia. Propose the steps and operators to use.",
+    "Find predicted surface proteins (TM domains and annotation filters) for Theileria or Babesia. Propose the steps and combine operators to use.",
     "Find Babesia genes with predicted secretion signals and blood-stage expression.",
     "Find PiroplasmaDB genes with orthologs in Plasmodium falciparum and keep only those with known domains."
   ],
   "giardiadb": [
     "Find Giardia genes with orthologs in Cryptosporidium but not in Toxoplasma.",
-    "Find Giardia genes with signal peptides and intersect with cyst wall protein annotations; include any parameter choices you recommend.",
+    "Find Giardia genes with signal peptides and intersect with cyst wall protein annotations. Include any parameter choices you recommend.",
     "Find Giardia genes expressed in trophozoites and likely on the cell surface."
   ],
   "amoebadb": [
@@ -30,38 +30,38 @@
     "Find AmoebaDB genes with orthologs in Giardia and filter for transmembrane domains."
   ],
   "microsporidiadb": [
-    "Find Microsporidia genes likely involved in host interaction (signal peptides / secreted annotations) and highly expressed in spores.",
-    "Intersect secreted-protein annotations with predicted membrane proteins for Microsporidia, and suggest a validation step.",
+    "Find Microsporidia genes likely involved in host interaction (signal peptides or secreted annotations) and highly expressed in spores.",
+    "Intersect secreted-protein annotations with predicted membrane proteins for Microsporidia and suggest a validation step.",
     "Find Microsporidia genes with orthologs in fungi and filter for conserved domains."
   ],
   "tritrypdb": [
-    "Find Leishmania surface proteins expressed in promastigotes; suggest the best combination operators and checks.",
+    "Find Leishmania surface proteins expressed in promastigotes. Suggest the best combination operators and checks.",
     "Find Trypanosoma brucei genes upregulated in bloodstream forms and likely secreted.",
     "Find TriTrypDB genes with orthologs in Trypanosoma cruzi and filter for transmembrane domains."
   ],
   "fungidb": [
-    "Find fungal genes upregulated during hyphal growth and intersect with membrane features; propose parameter defaults.",
-    "Find fungal cell wall proteins (annotation + signal peptide) and build a reusable strategy.",
+    "Find fungal genes upregulated during hyphal growth and intersect with membrane features. Propose parameter defaults.",
+    "Find fungal cell wall proteins (annotation and signal peptide) and build a reusable strategy.",
     "Find FungiDB genes with orthologs in Candida and filter for transcription factors."
   ],
   "hostdb": [
     "Find host immune genes upregulated during Plasmodium infection in blood. Suggest how to select the right studies and contrasts.",
-    "Find cytokine-activity genes expressed in macrophages, and propose checks to avoid zero-result strategies.",
+    "Find cytokine-activity genes expressed in macrophages and propose checks to avoid zero-result strategies.",
     "Find HostDB genes with orthologs across mammals and filter for signal peptides."
   ],
   "vectorbase": [
     "Find Anopheles genes induced after blood feeding and likely secreted or membrane-associated.",
-    "Find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut; suggest the best searches and parameters.",
+    "Find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut. Suggest the best searches and parameters.",
     "Find VectorBase genes with orthologs in Aedes and filter for transmembrane domains."
   ],
   "orthomcl": [
-    "Find ortholog groups present in Plasmodium but absent in Cryptosporidium; propose the step structure.",
-    "Find OrthoMCL groups shared between two species sets, and include how to validate the result.",
+    "Find ortholog groups present in Plasmodium but absent in Cryptosporidium. Propose the step structure.",
+    "Find OrthoMCL groups shared between two species sets and include how to validate the result.",
     "Find OrthoMCL groups that contain Plasmodium falciparum and Toxoplasma gondii orthologs."
   ],
   "veupathdb": [
     "Translate an epidemiology-style question into a concrete query strategy on VEuPathDB.",
-    "Find studies about malaria transmission-blocking vaccines — plan what to query for (keywords, filters, outputs) and build the strategy.",
+    "Find studies about malaria transmission-blocking vaccines. Plan what to query for (keywords, filters, outputs) and build the strategy.",
     "Find host transcriptomics studies involving Plasmodium falciparum and gametocytes."
   ]
 }

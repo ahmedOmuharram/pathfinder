@@ -375,6 +375,52 @@ class VEuPathDBClient:
             await self.post(f"/users/{user_id}/steps/{step_id}/analyses", json=payload),
         )
 
+    async def run_analysis_instance(
+        self, user_id: str, step_id: int, analysis_id: int
+    ) -> JSONObject:
+        """Kick off execution of a step analysis instance.
+
+        WDK step analyses are created first, then explicitly run.
+        ``POST /users/{userId}/steps/{stepId}/analyses/{analysisId}/result``
+        returns ``{"status": "RUNNING"|...}``.
+        """
+        return cast(
+            JSONObject,
+            await self.post(
+                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
+            ),
+        )
+
+    async def get_analysis_status(
+        self, user_id: str, step_id: int, analysis_id: int
+    ) -> JSONObject:
+        """Poll execution status of a step analysis instance.
+
+        ``GET .../analyses/{analysisId}/result/status`` returns
+        ``{"status": "RUNNING"|"COMPLETE"|"ERROR"|...}``.
+        """
+        return cast(
+            JSONObject,
+            await self.get(
+                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result/status"
+            ),
+        )
+
+    async def get_analysis_result(
+        self, user_id: str, step_id: int, analysis_id: int
+    ) -> JSONObject:
+        """Get the result of a completed step analysis instance.
+
+        ``GET .../analyses/{analysisId}/result`` returns the analysis result
+        JSON.  Returns 204 No Content if not yet complete.
+        """
+        return cast(
+            JSONObject,
+            await self.get(
+                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
+            ),
+        )
+
     async def run_step_report(
         self,
         user_id: str,

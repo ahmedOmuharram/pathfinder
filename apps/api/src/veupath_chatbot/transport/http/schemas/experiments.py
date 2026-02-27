@@ -6,9 +6,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
-WizardStepLiteral = Literal["search", "parameters", "controls", "run"]
+ExperimentModeLiteral = Literal["single", "multi-step", "import"]
+
+WizardStepLiteral = Literal[
+    "search", "parameters", "controls", "run", "results", "analysis"
+]
 
 EnrichmentAnalysisType = Literal[
     "go_function", "go_component", "go_process", "pathway", "word"
@@ -39,12 +43,21 @@ class OptimizationSpecRequest(BaseModel):
 
 
 class CreateExperimentRequest(BaseModel):
-    """Request to create and run an experiment."""
+    """Request to create and run an experiment.
+
+    Supports three modes: ``single`` (default), ``multi-step``, and ``import``.
+    """
 
     site_id: str = Field(alias="siteId")
     record_type: str = Field(alias="recordType")
-    search_name: str = Field(alias="searchName")
+    mode: ExperimentModeLiteral = Field(default="single")
+    search_name: str = Field(default="", alias="searchName")
     parameters: JSONObject = Field(default_factory=dict)
+    step_tree: JSONValue = Field(default=None, alias="stepTree")
+    source_strategy_id: str | None = Field(default=None, alias="sourceStrategyId")
+    optimization_target_step: str | None = Field(
+        default=None, alias="optimizationTargetStep"
+    )
     positive_controls: list[str] = Field(alias="positiveControls")
     negative_controls: list[str] = Field(alias="negativeControls")
     controls_search_name: str = Field(alias="controlsSearchName")
@@ -69,6 +82,18 @@ class CreateExperimentRequest(BaseModel):
     parameter_display_values: JSONObject | None = Field(
         default=None, alias="parameterDisplayValues"
     )
+    enable_tree_optimization: bool = Field(
+        default=False, alias="enableTreeOptimization"
+    )
+    tree_optimization_budget: int = Field(
+        default=20, alias="treeOptimizationBudget", ge=5, le=100
+    )
+    optimize_operators: bool = Field(default=True, alias="optimizeOperators")
+    optimize_orthologs: bool = Field(default=False, alias="optimizeOrthologs")
+    ortholog_organisms: list[str] | None = Field(
+        default=None, alias="orthologOrganisms"
+    )
+    optimize_structure: bool = Field(default=False, alias="optimizeStructure")
 
     model_config = {"populate_by_name": True}
 

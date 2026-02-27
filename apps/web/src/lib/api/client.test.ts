@@ -29,7 +29,6 @@ import {
   normalizePlan,
   openPlanSession,
   openStrategy,
-  setVeupathdbToken,
   syncWdkStrategies,
   updatePlanSession,
   updateStrategy,
@@ -59,9 +58,7 @@ describe("lib/api/client", () => {
   });
 
   it("loginVeupathdb validates required inputs before making a request", async () => {
-    await expect(
-      loginVeupathdb({ siteId: "plasmodb", email: "", password: "" }),
-    ).rejects.toBeInstanceOf(Error);
+    await expect(loginVeupathdb("", "")).rejects.toBeInstanceOf(Error);
     expect(requestJsonMock).not.toHaveBeenCalled();
   });
 
@@ -226,30 +223,23 @@ describe("lib/api/client", () => {
     });
   });
 
-  it("auth bridge endpoints include query + body as expected", async () => {
+  it("auth bridge endpoints always use veupathdb portal site ID", async () => {
     requestJsonMock.mockResolvedValueOnce({
       signedIn: false,
       name: null,
       email: null,
     } as any);
-    await getVeupathdbAuthStatus("plasmodb");
+    await getVeupathdbAuthStatus();
     expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/veupathdb/auth/status", {
-      query: { siteId: "plasmodb" },
+      query: { siteId: "veupathdb" },
     });
 
     requestJsonMock.mockResolvedValueOnce({ success: true } as any);
-    await loginVeupathdb("plasmodb", "a@b.com", "pw", null);
+    await loginVeupathdb("a@b.com", "pw");
     expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/veupathdb/auth/login", {
       method: "POST",
-      query: { siteId: "plasmodb", redirectTo: undefined },
+      query: { siteId: "veupathdb" },
       body: { email: "a@b.com", password: "pw" },
-    });
-
-    requestJsonMock.mockResolvedValueOnce({ success: true } as any);
-    await setVeupathdbToken("tok");
-    expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/veupathdb/auth/token", {
-      method: "POST",
-      body: { token: "tok" },
     });
 
     requestJsonMock.mockResolvedValueOnce({ success: true } as any);

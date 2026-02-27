@@ -15,10 +15,10 @@ class CombineOp(StrEnum):
     UNION = "UNION"
 
     # Left minus right - IDs in left but not in right
-    MINUS_LEFT = "MINUS_LEFT"
+    MINUS = "MINUS"
 
     # Right minus left - IDs in right but not in left
-    MINUS_RIGHT = "MINUS_RIGHT"
+    RMINUS = "RMINUS"
 
     # Genomic colocation - genes near each other
     COLOCATE = "COLOCATE"
@@ -28,18 +28,9 @@ class CombineOp(StrEnum):
 OP_LABELS: dict[CombineOp, str] = {
     CombineOp.INTERSECT: "IDs in common (AND)",
     CombineOp.UNION: "Combined (OR)",
-    CombineOp.MINUS_LEFT: "In left, not in right",
-    CombineOp.MINUS_RIGHT: "In right, not in left",
+    CombineOp.MINUS: "In left, not in right",
+    CombineOp.RMINUS: "In right, not in left",
     CombineOp.COLOCATE: "Genomic colocation",
-}
-
-# Map to WDK boolean operator names
-WDK_BOOLEAN_OPS: dict[CombineOp, str] = {
-    CombineOp.INTERSECT: "INTERSECT",
-    CombineOp.UNION: "UNION",
-    CombineOp.MINUS_LEFT: "MINUS",  # Left minus (LMINUS rejected by WDK)
-    CombineOp.MINUS_RIGHT: "RMINUS",  # Right minus
-    # COLOCATE uses a different mechanism in WDK
 }
 
 
@@ -75,13 +66,16 @@ def get_op_label(op: CombineOp) -> str:
 def get_wdk_operator(op: CombineOp) -> str:
     """Get WDK boolean operator name.
 
+    Since enum values now match WDK values directly, this simply returns
+    ``op.value`` (with a guard for COLOCATE which is not a boolean operator).
+
     :param op: Combine operator.
     :returns: WDK boolean operator name.
     :raises ValueError: If op is COLOCATE.
     """
     if op == CombineOp.COLOCATE:
         raise ValueError("COLOCATE requires special handling, not boolean operator")
-    return WDK_BOOLEAN_OPS[op]
+    return op.value
 
 
 def parse_op(value: str) -> CombineOp:
@@ -104,19 +98,17 @@ def parse_op(value: str) -> CombineOp:
         "PLUS": CombineOp.UNION,
         "UNION": CombineOp.UNION,
         "INTERSECT": CombineOp.INTERSECT,
-        # Default MINUS to left-minus semantics (WDK boolean op name).
-        "MINUS": CombineOp.MINUS_LEFT,
-        "NOT": CombineOp.MINUS_LEFT,
-        "MINUS_LEFT": CombineOp.MINUS_LEFT,
-        "MINUS_RIGHT": CombineOp.MINUS_RIGHT,
-        "LEFT_MINUS": CombineOp.MINUS_LEFT,
-        "RIGHT_MINUS": CombineOp.MINUS_RIGHT,
-        "LMINUS": CombineOp.MINUS_LEFT,
-        "RMINUS": CombineOp.MINUS_RIGHT,
-        # WDK BooleanOperator enum values for "only" variants
-        # (semantically identical to minus: LONLY = left - right, RONLY = right - left)
-        "LONLY": CombineOp.MINUS_LEFT,
-        "RONLY": CombineOp.MINUS_RIGHT,
+        "MINUS": CombineOp.MINUS,
+        "NOT": CombineOp.MINUS,
+        "RMINUS": CombineOp.RMINUS,
+        "LEFT_MINUS": CombineOp.MINUS,
+        "RIGHT_MINUS": CombineOp.RMINUS,
+        "LMINUS": CombineOp.MINUS,
+        "LONLY": CombineOp.MINUS,
+        "RONLY": CombineOp.RMINUS,
+        # Back-compat: old internal names
+        "MINUS_LEFT": CombineOp.MINUS,
+        "MINUS_RIGHT": CombineOp.RMINUS,
         "COLOCATE": CombineOp.COLOCATE,
     }
     if norm in aliases:

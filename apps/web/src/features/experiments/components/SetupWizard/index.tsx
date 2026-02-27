@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, FlaskConical, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, FlaskConical, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Stepper } from "@/lib/components/ui/Stepper";
 import { AiAssistantPanel } from "../AiAssistantPanel";
@@ -83,6 +83,8 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
     organismParamName,
     organismOptions,
   } = wizard;
+
+  const hasOptimization = optimizeSpecs.size > 0;
 
   return (
     <div className="flex h-full">
@@ -195,8 +197,19 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
               disabled={!canNext() || isRunning}
               loading={isRunning}
             >
-              {!isRunning && <FlaskConical className="h-3.5 w-3.5" />}
-              {isRunning ? "Running..." : "Run Experiment"}
+              {!isRunning &&
+                (hasOptimization ? (
+                  <FlaskConical className="h-3.5 w-3.5" />
+                ) : (
+                  <BarChart3 className="h-3.5 w-3.5" />
+                ))}
+              {isRunning
+                ? hasOptimization
+                  ? "Optimizing..."
+                  : "Evaluating..."
+                : hasOptimization
+                  ? "Run Experiment"
+                  : "Evaluate Strategy"}
             </Button>
           )}
         </div>

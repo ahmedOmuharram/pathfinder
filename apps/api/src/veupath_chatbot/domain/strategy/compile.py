@@ -246,7 +246,7 @@ class StrategyCompiler:
 
         if step.operator == CombineOp.COLOCATE:
             result = await self._compile_colocation(
-                step, left_tree.step_id, right_tree.step_id
+                step, left_tree.step_id, right_tree.step_id, record_type
             )
         else:
             wdk_op = get_wdk_operator(step.operator)
@@ -273,7 +273,11 @@ class StrategyCompiler:
         )
 
     async def _compile_colocation(
-        self, step: PlanStepNode, left_step_id: int, right_step_id: int
+        self,
+        step: PlanStepNode,
+        left_step_id: int,
+        right_step_id: int,
+        record_type: str,
     ) -> JSONObject:
         """Compile a colocation operation."""
         params: JSONObject = {
@@ -288,6 +292,7 @@ class StrategyCompiler:
             input_step_id=left_step_id,
             transform_name="GenesByLocation",
             parameters=params,
+            record_type=record_type,
             custom_name=step.display_name or "Genomic colocation",
         )
 
@@ -310,6 +315,7 @@ class StrategyCompiler:
             input_step_id=input_tree.step_id,
             transform_name=step.search_name,
             parameters=parameters,
+            record_type=record_type,
             custom_name=step.display_name,
         )
         wdk_step_id_value = result.get("id")

@@ -9,6 +9,7 @@ import {
   GitBranch,
   GitCompare,
   RotateCcw,
+  Sparkles,
   Settings,
   SlidersHorizontal,
   Table,
@@ -33,6 +34,8 @@ import { ResultsTable } from "./ResultsTable";
 import { DistributionExplorer } from "./DistributionExplorer";
 import { StepAnalysisPanel } from "./StepAnalysisPanel";
 import { StrategyGraph } from "./StrategyGraph";
+import { StepContributionPanel } from "./StepContributionPanel";
+import { TreeOptimizationSection } from "./TreeOptimizationSection";
 
 class TabErrorBoundary extends Component<
   { children: ReactNode; onReset?: () => void },
@@ -181,6 +184,12 @@ const ANALYSIS_TABS = [
     icon: FlaskConical,
     requiresStep: true,
   },
+  {
+    id: "step-contribution",
+    label: "Step Contribution",
+    icon: GitBranch,
+    requiresMultiStep: true,
+  },
 ] as const;
 
 type AnalysisTabId = (typeof ANALYSIS_TABS)[number]["id"];
@@ -188,13 +197,16 @@ type AnalysisTabId = (typeof ANALYSIS_TABS)[number]["id"];
 function AnalysesTabs({ experiment }: { experiment: Experiment }) {
   const [activeSubTab, setActiveSubTab] = useState<AnalysisTabId>("sweep");
   const hasStep = !!experiment.wdkStepId;
+  const isMultiStep =
+    experiment.config.mode === "multi-step" || experiment.config.mode === "import";
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-1.5">
         {ANALYSIS_TABS.map(({ id, label, icon: Icon, ...rest }) => {
           const needsStep = "requiresStep" in rest && rest.requiresStep;
-          const disabled = needsStep && !hasStep;
+          const needsMultiStep = "requiresMultiStep" in rest && rest.requiresMultiStep;
+          const disabled = (needsStep && !hasStep) || (needsMultiStep && !isMultiStep);
           const active = activeSubTab === id;
           return (
             <button
@@ -209,7 +221,13 @@ function AnalysesTabs({ experiment }: { experiment: Experiment }) {
                     ? "cursor-not-allowed border-border bg-muted/30 text-muted-foreground/50"
                     : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
-              title={disabled ? "Requires a persisted WDK strategy" : undefined}
+              title={
+                disabled
+                  ? needsMultiStep
+                    ? "Only available for multi-step experiments"
+                    : "Requires a persisted WDK strategy"
+                  : undefined
+              }
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -235,14 +253,25 @@ function AnalysesTabs({ experiment }: { experiment: Experiment }) {
           ) : (
             <NoStrategyNotice label="Step analyses require a persisted WDK strategy." />
           ))}
+        {activeSubTab === "step-contribution" && (
+          <StepContributionPanel
+            experimentId={experiment.id}
+            stepTree={experiment.config.stepTree}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) {
-  const { setView, loadCompareExperiment, loadExperiment, experiments } =
-    useExperimentStore();
+  const {
+    setView,
+    loadCompareExperiment,
+    loadExperiment,
+    experiments,
+    optimizeFromEvaluation,
+  } = useExperimentStore();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   const metrics = experiment.metrics;
@@ -250,6 +279,9 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
   const parentName = parentId
     ? (experiments.find((e) => e.id === parentId)?.name ?? parentId)
     : null;
+
+  const wasOptimized =
+    !!experiment.optimizationResult || !!experiment.treeOptimizationDiff;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -269,6 +301,15 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
                 {experiment.config.name}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge
+                  className={`text-xs font-semibold ${
+                    wasOptimized
+                      ? "border-purple-300 bg-purple-100 text-purple-900 dark:border-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                      : "border-blue-300 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                  }`}
+                >
+                  {wasOptimized ? "Optimized" : "Evaluation"}
+                </Badge>
                 <Badge variant="outline" className="font-mono text-xs">
                   {experiment.config.searchName}
                 </Badge>
@@ -325,6 +366,12 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
                   Compare
                 </Button>
               )}
+              {!wasOptimized && (
+                <Button size="sm" onClick={() => optimizeFromEvaluation(experiment.id)}>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Optimize This
+                </Button>
+              )}
             </div>
           </div>
         </header>
@@ -357,14 +404,41 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
               {metrics && <MetricsOverview metrics={metrics} />}
               {metrics && <ConfusionMatrixSection cm={metrics.confusionMatrix} />}
               <GeneListsSection experiment={experiment} />
-              {experiment.crossValidation && (
-                <CrossValidationSection cv={experiment.crossValidation} />
+              {wasOptimized && (
+                <>
+                  {experiment.crossValidation && (
+                    <CrossValidationSection cv={experiment.crossValidation} />
+                  )}
+                  {experiment.enrichmentResults.length > 0 && (
+                    <EnrichmentSection results={experiment.enrichmentResults} />
+                  )}
+                  {experiment.optimizationResult && (
+                    <OptimizationSection result={experiment.optimizationResult} />
+                  )}
+                  {experiment.treeOptimizationDiff && (
+                    <TreeOptimizationSection diff={experiment.treeOptimizationDiff} />
+                  )}
+                </>
               )}
-              {experiment.enrichmentResults.length > 0 && (
-                <EnrichmentSection results={experiment.enrichmentResults} />
-              )}
-              {experiment.optimizationResult && (
-                <OptimizationSection result={experiment.optimizationResult} />
+              {!wasOptimized && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 text-center">
+                  <Sparkles className="mx-auto mb-3 h-6 w-6 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Optimize This Strategy
+                  </h3>
+                  <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
+                    Want to improve these results? Run optimization to automatically
+                    tune parameters and find a better-performing configuration.
+                  </p>
+                  <Button
+                    className="mt-4"
+                    size="sm"
+                    onClick={() => optimizeFromEvaluation(experiment.id)}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Optimize This Strategy
+                  </Button>
+                </div>
               )}
             </>
           )}
