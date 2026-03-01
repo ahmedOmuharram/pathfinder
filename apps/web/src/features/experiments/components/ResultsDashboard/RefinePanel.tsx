@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { CombineOperator } from "@pathfinder/shared";
 import { Combine, RefreshCw, Plus, Minus, Loader2, Check } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
@@ -6,7 +7,7 @@ import { refineExperiment, reEvaluateExperiment } from "../../api";
 import { useExperimentStore } from "../../store";
 import { Section } from "./Section";
 
-type CombineAction = "INTERSECT" | "UNION" | "MINUS";
+type CombineAction = Exclude<CombineOperator, "RMINUS" | "COLOCATE">;
 
 interface ParameterRow {
   key: string;
@@ -23,11 +24,13 @@ interface RefinePanelProps {
   siteId: string;
 }
 
-const COMBINE_ACTIONS: { value: CombineAction; label: string }[] = [
-  { value: "INTERSECT", label: "Intersect" },
-  { value: "UNION", label: "Union" },
-  { value: "MINUS", label: "Minus" },
-];
+const COMBINE_ACTIONS: { value: CombineAction; label: string }[] = (
+  [
+    CombineOperator.INTERSECT,
+    CombineOperator.UNION,
+    CombineOperator.MINUS,
+  ] as CombineAction[]
+).map((op) => ({ value: op, label: op.charAt(0) + op.slice(1).toLowerCase() }));
 
 export function RefinePanel({ experimentId }: RefinePanelProps) {
   const updateStore = useCallback(

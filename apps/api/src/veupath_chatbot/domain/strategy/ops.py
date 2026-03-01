@@ -1,28 +1,44 @@
-"""Combine operations for strategy building."""
+"""Combine operations for strategy building.
+
+Canonical set (matches WDK BooleanOperator): INTERSECT, MINUS, RMINUS, LONLY,
+RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
+(same as RMINUS); we keep both for round-trip fidelity with WDK.
+"""
 
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
+# Order matches WDK; use this tuple for iteration / descriptions
+COMBINE_OP_ORDER = (
+    "INTERSECT",
+    "MINUS",
+    "RMINUS",
+    "LONLY",
+    "RONLY",
+    "COLOCATE",
+    "UNION",
+)
+
 
 class CombineOp(StrEnum):
     """Set operations for combining two step results."""
 
-    # IDs in common (AND) - intersection
     INTERSECT = "INTERSECT"
-
-    # Combined (OR) - union
+    MINUS = "MINUS"
+    RMINUS = "RMINUS"
+    LONLY = "LONLY"
+    RONLY = "RONLY"
+    COLOCATE = "COLOCATE"
     UNION = "UNION"
 
-    # Left minus right - IDs in left but not in right
-    MINUS = "MINUS"
 
-    # Right minus left - IDs in right but not in left
-    RMINUS = "RMINUS"
+DEFAULT_COMBINE_OPERATOR = CombineOp.INTERSECT
 
-    # Genomic colocation - genes near each other
-    COLOCATE = "COLOCATE"
-
+# For AI param descriptions
+BOOLEAN_OPERATOR_OPTIONS_DESC = ", ".join(
+    o.value for o in (CombineOp.INTERSECT, CombineOp.UNION, CombineOp.MINUS)
+)
 
 # User-friendly labels for operators
 OP_LABELS: dict[CombineOp, str] = {
@@ -30,6 +46,8 @@ OP_LABELS: dict[CombineOp, str] = {
     CombineOp.UNION: "Combined (OR)",
     CombineOp.MINUS: "In left, not in right",
     CombineOp.RMINUS: "In right, not in left",
+    CombineOp.LONLY: "Left only",
+    CombineOp.RONLY: "Right only",
     CombineOp.COLOCATE: "Genomic colocation",
 }
 
@@ -101,12 +119,11 @@ def parse_op(value: str) -> CombineOp:
         "MINUS": CombineOp.MINUS,
         "NOT": CombineOp.MINUS,
         "RMINUS": CombineOp.RMINUS,
+        "LONLY": CombineOp.LONLY,
+        "RONLY": CombineOp.RONLY,
         "LEFT_MINUS": CombineOp.MINUS,
         "RIGHT_MINUS": CombineOp.RMINUS,
         "LMINUS": CombineOp.MINUS,
-        "LONLY": CombineOp.MINUS,
-        "RONLY": CombineOp.RMINUS,
-        # Back-compat: old internal names
         "MINUS_LEFT": CombineOp.MINUS,
         "MINUS_RIGHT": CombineOp.RMINUS,
         "COLOCATE": CombineOp.COLOCATE,

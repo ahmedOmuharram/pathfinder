@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
 import { toUserMessage } from "@/lib/api/errors";
+import type { SortDir } from "../constants";
 import { useExperimentStore } from "../store";
 import { computeOverlap, type OverlapResult } from "../api";
 import { ArrowLeft, ArrowUpDown, Loader2 } from "lucide-react";
@@ -222,7 +223,7 @@ function SharedGenesTable({
   data: OverlapResult["geneMembership"];
   totalExperiments: number;
 }) {
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const sorted = useMemo(() => {
     const copy = [...data];

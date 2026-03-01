@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -28,8 +28,7 @@ from veupath_chatbot.platform.errors import (
     WDKError,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.strategies.serialization import count_steps_in_plan
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.wdk_snapshot import (
     _attach_counts_from_wdk_strategy,
     _build_snapshot_from_wdk,
@@ -41,17 +40,19 @@ from veupath_chatbot.transport.http.deps import (
 )
 from veupath_chatbot.transport.http.routers._authz import get_owned_strategy_or_404
 from veupath_chatbot.transport.http.schemas import (
-    MessageResponse,
     OpenStrategyRequest,
     OpenStrategyResponse,
-    StepResponse,
     StrategyResponse,
     StrategySummaryResponse,
-    ThinkingResponse,
     WdkStrategySummaryResponse,
 )
 
-from ._shared import build_step_response
+from ._shared import (
+    build_strategy_response,
+    build_summary_response,
+    cleanup_internal_control_test_strategies,
+    extract_wdk_is_saved,
+)
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 logger = get_logger(__name__)
@@ -75,11 +76,17 @@ async def _sync_single_wdk_strategy(
     ast, steps_data = _build_snapshot_from_wdk(wdk_strategy)
     _attach_counts_from_wdk_strategy(steps_data, wdk_strategy)
 
-    # Read isSaved from the WDK payload so we mirror draft/saved state locally.
-    is_saved_raw = (
-        wdk_strategy.get("isSaved") if isinstance(wdk_strategy, dict) else None
-    )
-    is_saved = bool(is_saved_raw) if isinstance(is_saved_raw, bool) else False
+    # Normalize parameters so all sync paths produce consistent representations.
+    try:
+        await _normalize_synced_parameters(ast, steps_data, api)
+    except Exception as exc:
+        logger.warning(
+            "Parameter normalization failed during sync, storing raw values",
+            wdk_id=wdk_id,
+            error=str(exc),
+        )
+
+    is_saved = extract_wdk_is_saved(wdk_strategy)
 
     existing = await strategy_repo.get_by_wdk_strategy_id(user_id, wdk_id)
     if existing:
@@ -97,6 +104,8 @@ async def _sync_single_wdk_strategy(
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
             )
+        # Refresh to get server-side updated_at for correct sidebar sort order.
+        await strategy_repo.refresh(updated)
         return updated
     else:
         return await strategy_repo.create(
@@ -131,40 +140,6 @@ def _is_internal_control_test_name(name: str | None) -> bool:
     if not is_internal_wdk_strategy_name(name):
         return False
     return strip_internal_wdk_strategy_name(name).startswith("Pathfinder control test")
-
-
-async def _cleanup_internal_control_test_strategies(
-    *,
-    api: StrategyAPI,
-    site_id: str,
-    wdk_items: JSONArray,
-) -> None:
-    """Delete leaked internal control-test strategies from the user's WDK workspace."""
-    if not isinstance(wdk_items, list):
-        return
-    for item in wdk_items:
-        if not isinstance(item, dict):
-            continue
-        name = item.get("name")
-        if not _is_internal_control_test_name(name if isinstance(name, str) else None):
-            continue
-        wdk_id = _parse_wdk_strategy_id(item)
-        if wdk_id is None:
-            continue
-        try:
-            await api.delete_strategy(wdk_id)
-            logger.info(
-                "Deleted leaked internal control-test WDK strategy",
-                site_id=site_id,
-                wdk_strategy_id=wdk_id,
-            )
-        except Exception as e:
-            logger.warning(
-                "Failed to delete leaked internal control-test strategy",
-                site_id=site_id,
-                wdk_strategy_id=wdk_id,
-                error=str(e),
-            )
 
 
 @router.post("/open", response_model=OpenStrategyResponse)
@@ -247,7 +222,7 @@ async def list_wdk_strategies(
 ) -> list[WdkStrategySummaryResponse]:
     """List strategies from VEuPathDB WDK."""
     sites = [get_site(site_id)] if site_id else list_sites()
-    results: JSONArray = []
+    results: list[WdkStrategySummaryResponse] = []
 
     for site in sites:
         try:
@@ -263,11 +238,7 @@ async def list_wdk_strategies(
                 root_step_id: int | None = (
                     root_step_id_raw if isinstance(root_step_id_raw, int) else None
                 )
-                # WDK emits JsonKeys.IS_SAVED = "isSaved" as a boolean.
-                is_saved_raw = item.get("isSaved")
-                is_saved: bool | None = (
-                    bool(is_saved_raw) if isinstance(is_saved_raw, bool) else None
-                )
+                is_saved = extract_wdk_is_saved(item)
                 name_raw = item.get("name")
                 name = (
                     name_raw
@@ -277,44 +248,22 @@ async def list_wdk_strategies(
                 is_internal = is_internal_wdk_strategy_name(name)
                 if is_internal:
                     name = strip_internal_wdk_strategy_name(name)
-                from veupath_chatbot.transport.http.schemas import (
-                    WdkStrategySummaryResponse,
-                )
 
                 results.append(
-                    cast(
-                        JSONValue,
-                        WdkStrategySummaryResponse(
-                            wdkStrategyId=wdk_id_int,
-                            name=name,
-                            siteId=site.id,
-                            wdkUrl=site.strategy_url(wdk_id_int, root_step_id),
-                            rootStepId=root_step_id,
-                            isSaved=is_saved,
-                            isInternal=is_internal,
-                        ).model_dump(),
+                    WdkStrategySummaryResponse(
+                        wdkStrategyId=wdk_id_int,
+                        name=name,
+                        siteId=site.id,
+                        wdkUrl=site.strategy_url(wdk_id_int, root_step_id),
+                        rootStepId=root_step_id,
+                        isSaved=is_saved,
+                        isInternal=is_internal,
                     )
                 )
         except Exception as e:
             logger.warning("WDK strategy list failed", site_id=site.id, error=str(e))
 
-    from veupath_chatbot.transport.http.schemas import WdkStrategySummaryResponse
-
-    return [
-        WdkStrategySummaryResponse.model_validate(r)
-        if isinstance(r, dict)
-        else WdkStrategySummaryResponse(
-            wdkStrategyId=0,
-            name="",
-            siteId="",
-            wdkUrl="",
-            rootStepId=None,
-            isSaved=None,
-            isInternal=False,
-        )
-        for r in results
-        if isinstance(r, dict)
-    ]
+    return results
 
 
 @router.post("/sync-wdk", response_model=list[StrategySummaryResponse])
@@ -329,19 +278,16 @@ async def sync_all_wdk_strategies(
     a local copy. Returns the complete list of local strategies for this site
     (including non-WDK drafts).
     """
-    from datetime import UTC, datetime
-
     site = get_site(site_id)
     try:
         api = get_strategy_api(site.id)
         wdk_items = await api.list_strategies()
-        await _cleanup_internal_control_test_strategies(
-            api=api, site_id=site.id, wdk_items=wdk_items
-        )
+        await cleanup_internal_control_test_strategies(api, wdk_items, site_id=site.id)
     except Exception as e:
         logger.warning("WDK list failed during sync", site_id=site.id, error=str(e))
         wdk_items = []
 
+    synced_wdk_ids: set[int] = set()
     for item in wdk_items:
         if not isinstance(item, dict):
             continue
@@ -352,6 +298,7 @@ async def sync_all_wdk_strategies(
         name = name_raw if isinstance(name_raw, str) else ""
         if is_internal_wdk_strategy_name(name):
             continue
+        synced_wdk_ids.add(wdk_id)
         try:
             await _sync_single_wdk_strategy(
                 wdk_id=wdk_id,
@@ -368,27 +315,29 @@ async def sync_all_wdk_strategies(
                 error=str(e),
             )
 
+    # Tombstone: remove local strategies whose WDK counterparts no longer exist.
+    # Only prune if we successfully fetched from WDK (wdk_items is non-empty).
+    if wdk_items:
+        try:
+            pruned = await strategy_repo.prune_wdk_orphans(
+                user_id, site.id, synced_wdk_ids
+            )
+            if pruned:
+                logger.info(
+                    "Pruned orphaned local strategies",
+                    site_id=site.id,
+                    pruned_count=pruned,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to prune orphaned strategies",
+                site_id=site.id,
+                error=str(e),
+            )
+
     # Return the full local list (now includes all synced WDK strategies).
     strategies = await strategy_repo.list_by_user(user_id, site_id)
-    return [
-        StrategySummaryResponse(
-            id=s.id,
-            name=s.name,
-            title=s.title,
-            siteId=s.site_id,
-            recordType=s.record_type,
-            stepCount=(
-                count_steps_in_plan(s.plan or {})
-                or (len(s.steps or []) if s.steps else 0)
-            ),
-            resultCount=s.result_count,
-            wdkStrategyId=s.wdk_strategy_id,
-            isSaved=s.is_saved,
-            createdAt=s.created_at or datetime.now(UTC),
-            updatedAt=s.updated_at or datetime.now(UTC),
-        )
-        for s in strategies
-    ]
+    return [build_summary_response(s) for s in strategies]
 
 
 @router.delete("/wdk/{wdkStrategyId}", status_code=204, response_class=Response)
@@ -413,83 +362,60 @@ async def import_wdk_strategy(
     strategy_repo: StrategyRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
-    """Import a WDK strategy as a local snapshot."""
+    """Import a WDK strategy as a local snapshot.
+
+    Upserts: if a local row already exists for this WDK strategy ID
+    (e.g. from a previous sync or double-click), it is updated rather
+    than creating a duplicate.
+    """
     try:
         api = get_strategy_api(siteId)
         wdk_strategy = await api.get_strategy(wdkStrategyId)
 
         ast, steps_data = _build_snapshot_from_wdk(wdk_strategy)
+        is_saved = extract_wdk_is_saved(wdk_strategy)
 
-        # Mirror isSaved from the WDK payload.
-        is_saved_raw = (
-            wdk_strategy.get("isSaved") if isinstance(wdk_strategy, dict) else None
-        )
-        is_saved = bool(is_saved_raw) if isinstance(is_saved_raw, bool) else False
-
-        created = await strategy_repo.create(
-            user_id=user_id,
-            name=ast.name or f"WDK Strategy {wdkStrategyId}",
-            title=ast.name or f"WDK Strategy {wdkStrategyId}",
-            site_id=siteId,
-            record_type=ast.record_type,
-            plan=ast.to_dict(),
-            wdk_strategy_id=wdkStrategyId,
-            is_saved=is_saved,
-        )
+        # Upsert: check if we already have a local copy.
+        existing = await strategy_repo.get_by_wdk_strategy_id(user_id, wdkStrategyId)
+        if existing:
+            created = await strategy_repo.update(
+                strategy_id=existing.id,
+                name=ast.name or existing.name,
+                plan=ast.to_dict(),
+                record_type=ast.record_type,
+                wdk_strategy_id=wdkStrategyId,
+                wdk_strategy_id_set=True,
+                is_saved=is_saved,
+                is_saved_set=True,
+            )
+            if not created:
+                raise NotFoundError(
+                    code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+                )
+            await strategy_repo.refresh(created)
+        else:
+            created = await strategy_repo.create(
+                user_id=user_id,
+                name=ast.name or f"WDK Strategy {wdkStrategyId}",
+                title=ast.name or f"WDK Strategy {wdkStrategyId}",
+                site_id=siteId,
+                record_type=ast.record_type,
+                plan=ast.to_dict(),
+                wdk_strategy_id=wdkStrategyId,
+                is_saved=is_saved,
+            )
 
         plan_dict: JSONObject = created.plan if isinstance(created.plan, dict) else {}
-        metadata_raw = plan_dict.get("metadata")
-        metadata: JSONObject = metadata_raw if isinstance(metadata_raw, dict) else {}
-        description_raw = metadata.get("description")
-        description: str | None = (
-            description_raw if isinstance(description_raw, str) else None
-        )
 
-        steps_responses: list[StepResponse] = []
-        for s in steps_data:
-            if isinstance(s, dict):
-                steps_responses.append(build_step_response(s))
-
-        from veupath_chatbot.transport.http.schemas import (
-            MessageResponse,
-            ThinkingResponse,
-        )
-
-        messages_list: list[MessageResponse] | None = None
-        if created.messages:
-            messages_list = [
-                MessageResponse.model_validate(m)
-                if isinstance(m, dict)
-                else MessageResponse(role="user", content="")
-                for m in created.messages
-                if isinstance(m, dict)
-            ]
-
-        thinking_obj: ThinkingResponse | None = None
-        if isinstance(created.thinking, dict):
-            thinking_obj = ThinkingResponse.model_validate(created.thinking)
-
-        return StrategyResponse(
-            id=created.id,
-            name=created.name,
-            title=created.title,
-            description=description,
-            siteId=created.site_id,
-            recordType=created.record_type,
-            steps=steps_responses,
-            rootStepId=ast.root.id,
-            wdkStrategyId=created.wdk_strategy_id,
-            isSaved=created.is_saved,
-            messages=messages_list,
-            thinking=thinking_obj,
-            modelId=created.model_id,
-            createdAt=created.created_at,
-            updatedAt=created.updated_at,
+        return build_strategy_response(
+            created,
+            plan=plan_dict,
+            steps_data=steps_data,
+            root_step_id=ast.root.id,
         )
     except AppError:
         raise
     except WDKError as e:
-        # Preserve upstream status/detail for debugging (e.g. permission denied).
         logger.error("WDK import failed", error=str(e))
         raise
     except Exception as e:
@@ -529,11 +455,7 @@ async def sync_strategy_from_wdk(
         _attach_counts_from_wdk_strategy(steps_data, wdk_strategy)
         ast.name = ast.name or strategy.name
 
-        # Mirror isSaved from the WDK payload.
-        is_saved_raw = (
-            wdk_strategy.get("isSaved") if isinstance(wdk_strategy, dict) else None
-        )
-        is_saved = bool(is_saved_raw) if isinstance(is_saved_raw, bool) else False
+        is_saved = extract_wdk_is_saved(wdk_strategy)
 
         updated = await strategy_repo.update(
             strategy_id=strategyId,
@@ -548,31 +470,12 @@ async def sync_strategy_from_wdk(
             )
 
         plan_dict: JSONObject = updated.plan if isinstance(updated.plan, dict) else {}
-        metadata_raw = plan_dict.get("metadata")
-        metadata: JSONObject = metadata_raw if isinstance(metadata_raw, dict) else {}
-        description_raw = metadata.get("description")
-        description: str | None = (
-            description_raw if isinstance(description_raw, str) else None
-        )
 
-        steps_responses: list[StepResponse] = []
-        for s in steps_data:
-            if isinstance(s, dict):
-                steps_responses.append(build_step_response(s))
-
-        return StrategyResponse(
-            id=updated.id,
-            name=updated.name,
-            description=description,
-            siteId=updated.site_id,
-            recordType=updated.record_type,
-            steps=steps_responses,
-            rootStepId=ast.root.id,
-            wdkStrategyId=updated.wdk_strategy_id,
-            isSaved=updated.is_saved,
-            modelId=updated.model_id,
-            createdAt=updated.created_at,
-            updatedAt=updated.updated_at,
+        return build_strategy_response(
+            updated,
+            plan=plan_dict,
+            steps_data=steps_data,
+            root_step_id=ast.root.id,
         )
     except AppError:
         raise

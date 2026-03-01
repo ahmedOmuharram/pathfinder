@@ -30,11 +30,12 @@ def score_gene_relevance(query: str, result: JSONObject) -> float:
     product = str(result.get("product", ""))
     matched_fields = result.get("matchedFields")
     mf_list = matched_fields if isinstance(matched_fields, list) else []
+    mf_list_str: list[str] = [x for x in mf_list if isinstance(x, str)]
 
     score = 0.0
     score += _W_GENE_ID * score_text_match(query, gene_id)
     score += _W_GENE_NAME * score_text_match(query, gene_name)
     score += _W_ORGANISM * score_organism_match(query, organism)
     score += _W_PRODUCT * score_text_match(query, product)
-    score += _W_FIELD_QUALITY * score_field_quality(mf_list)
+    score += _W_FIELD_QUALITY * score_field_quality(mf_list_str)
     return score

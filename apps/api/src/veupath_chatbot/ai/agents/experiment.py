@@ -7,7 +7,7 @@ parameter configuration, control gene discovery, run configuration).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 from kani import AIParam, ChatMessage, ai_function
 from kani.engines.base import BaseEngine
@@ -97,8 +97,11 @@ class ExperimentAssistantAgent(ResearchToolsMixin, Kani):
         search_name: Annotated[str, AIParam(desc="WDK search name")],
     ) -> JSONObject:
         """Get parameter specifications for a WDK search."""
-        return await self._catalog.get_search_parameters(
-            self.site_id, record_type, search_name
+        return cast(
+            JSONObject,
+            await self._catalog.get_search_parameters(
+                self.site_id, record_type, search_name
+            ),
         )
 
     # -- Gene lookup ---------------------------------------------------

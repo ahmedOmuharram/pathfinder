@@ -9,11 +9,12 @@ not under the WDK service prefix (e.g. https://plasmodb.org/plasmo/service).
 from __future__ import annotations
 
 import re
+from typing import cast
 from urllib.parse import urlparse
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,7 @@ async def query_site_search(
     if document_type:
         payload["documentTypeFilter"] = {"documentType": document_type}
     if organisms:
-        payload["restrictSearchToOrganisms"] = organisms
+        payload["restrictSearchToOrganisms"] = cast(JSONValue, organisms)
 
     import httpx
 

@@ -3,7 +3,17 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
@@ -118,6 +128,13 @@ class Strategy(Base):
     __table_args__ = (
         Index("ix_strategies_user_id", "user_id"),
         Index("ix_strategies_site_id", "site_id"),
+        Index(
+            "ix_strategies_user_wdk",
+            "user_id",
+            "wdk_strategy_id",
+            unique=True,
+            postgresql_where="wdk_strategy_id IS NOT NULL",
+        ),
     )
 
 
@@ -173,4 +190,57 @@ class PlanSession(Base):
     __table_args__ = (
         Index("ix_plan_sessions_user_id", "user_id"),
         Index("ix_plan_sessions_site_id", "site_id"),
+    )
+
+
+class ControlSet(Base):
+    """Reusable control gene set with provenance metadata."""
+
+    __tablename__ = "control_sets"
+
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    site_id: Mapped[str] = mapped_column(String(100))
+    record_type: Mapped[str] = mapped_column(String(100))
+    positive_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)
+    negative_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)
+    source: Mapped[str | None] = mapped_column(String(50))
+    tags: Mapped[JSONArray] = mapped_column(JSON, default=list)
+    provenance_notes: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_control_sets_site_id", "site_id"),
+        Index("ix_control_sets_user_id", "user_id"),
+    )
+
+
+class ExperimentRow(Base):
+    """Persisted experiment with full JSON blob."""
+
+    __tablename__ = "experiments"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    site_id: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    data: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+    batch_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    benchmark_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(50), default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_experiments_site_id", "site_id"),
+        Index("ix_experiments_batch_id", "batch_id"),
+        Index("ix_experiments_benchmark_id", "benchmark_id"),
     )

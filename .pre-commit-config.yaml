@@ -3,19 +3,19 @@ repos:
     hooks:
       - id: ruff-format-api
         name: ruff format (api)
-        entry: uv run --project apps/api ruff format apps/api/src
+        entry: /Users/ahmedmuharram/.local/bin/uv run --project apps/api ruff format apps/api/src
         language: system
         pass_filenames: false
         types: [python]
       - id: ruff-check-api
         name: ruff check (api)
-        entry: uv run --project apps/api ruff check apps/api/src
+        entry: /Users/ahmedmuharram/.local/bin/uv run --project apps/api ruff check apps/api/src
         language: system
         pass_filenames: false
         types: [python]
       - id: mypy-api
         name: mypy (api)
-        entry: bash -c "cd apps/api && uv run --project . mypy src"
+        entry: bash -c "cd apps/api && /Users/ahmedmuharram/.local/bin/uv run --project . mypy src"
         language: system
         pass_filenames: false
         types: [python]
@@ -47,7 +47,7 @@ repos:
         stages: [pre-push]
       - id: openapi-generate-api
         name: openapi spec regenerate (api)
-        entry: bash -c "cd apps/api && uv run python -m veupath_chatbot.devtools.openapi generate"
+        entry: bash -c "cd apps/api && /Users/ahmedmuharram/.local/bin/uv run python -m veupath_chatbot.devtools.openapi generate"
         language: system
         pass_filenames: false
         types: [python]

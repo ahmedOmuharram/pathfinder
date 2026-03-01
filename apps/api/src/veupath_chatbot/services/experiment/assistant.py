@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from typing import Literal
 
 from kani import ChatMessage, ChatRole, Kani
 
@@ -16,9 +15,8 @@ from veupath_chatbot.ai.agents.experiment import ExperimentAssistantAgent
 from veupath_chatbot.ai.agents.factory import create_engine
 from veupath_chatbot.ai.models.catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.experiment.types import WizardStep
 from veupath_chatbot.transport.http.streaming import stream_chat
-
-WizardStep = Literal["search", "parameters", "controls", "run", "results", "analysis"]
 
 _BASE_PERSONA = """\
 You are a scientific research assistant embedded in the VEuPathDB Experiment Lab wizard.

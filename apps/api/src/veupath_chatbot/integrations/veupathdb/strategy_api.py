@@ -111,23 +111,18 @@ class StrategyAPI:
         self._boolean_search_cache: dict[str, str] = {}
         self._answer_param_cache: dict[str, set[str]] = {}
 
-    def _normalize_param_value(self, value: JSONValue) -> str:
+    @staticmethod
+    def _normalize_param_value(value: JSONValue) -> str:
         """Normalize parameters to WDK-accepted string values.
 
         :param value: Value to process.
-
+        :returns: WDK-compatible string representation.
         """
-        if value is None:
-            return ""
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        if isinstance(value, (int, float)):
-            return str(value)
-        if isinstance(value, (list, dict)):
-            import json
+        from veupath_chatbot.integrations.veupathdb.param_utils import (
+            normalize_param_value,
+        )
 
-            return json.dumps(value)
-        return str(value)
+        return normalize_param_value(value)
 
     def _normalize_parameters(
         self,
@@ -317,7 +312,7 @@ class StrategyAPI:
 
         :param primary_step_id: ID of the primary (left) step.
         :param secondary_step_id: ID of the secondary (right) step.
-        :param boolean_operator: One of INTERSECT, UNION, MINUS, LMINUS, RMINUS.
+        :param boolean_operator: One of INTERSECT, UNION, MINUS, RMINUS, LONLY, RONLY.
         :param record_type: WDK record type.
         :param custom_name: Optional custom name.
         :returns: Created step data.

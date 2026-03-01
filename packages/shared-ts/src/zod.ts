@@ -8,10 +8,12 @@ import { z } from "zod";
 
 export const CombineOperatorSchema = z.enum([
   "INTERSECT",
-  "UNION",
   "MINUS",
   "RMINUS",
+  "LONLY",
+  "RONLY",
   "COLOCATE",
+  "UNION",
 ]);
 
 // Strategy Plan DSL (AST)

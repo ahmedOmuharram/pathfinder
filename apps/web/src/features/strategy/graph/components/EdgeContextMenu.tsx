@@ -6,12 +6,10 @@ import { CombineOperator } from "@pathfinder/shared";
 import type { StrategyStep } from "@/features/strategy/types";
 import { inferStepKind } from "@/lib/strategyGraph";
 
-const COMBINE_OPERATORS: readonly CombineOperator[] = [
-  CombineOperator.INTERSECT,
-  CombineOperator.UNION,
-  CombineOperator.MINUS,
-  CombineOperator.RMINUS,
-];
+/** Boolean combine operators only (excludes COLOCATE). */
+const COMBINE_OPERATORS: readonly CombineOperator[] = (
+  Object.values(CombineOperator) as CombineOperator[]
+).filter((op) => op !== CombineOperator.COLOCATE);
 
 interface EdgeContextMenuProps {
   edge: Edge;

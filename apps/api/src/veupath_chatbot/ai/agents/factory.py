@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Literal, cast
+from typing import cast
 from uuid import UUID
 
 from kani import ChatMessage
@@ -11,6 +11,7 @@ from kani.engines.base import BaseEngine
 from kani.engines.openai import OpenAIEngine
 
 from veupath_chatbot.ai.models.catalog import (
+    ChatMode,
     ModelProvider,
     ReasoningEffort,
     build_reasoning_hyperparams,
@@ -21,8 +22,6 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 from .executor import PathfinderAgent
 from .planner import PathfinderPlannerAgent
-
-ChatMode = Literal["execute", "plan"]
 
 
 def _create_openai_engine(

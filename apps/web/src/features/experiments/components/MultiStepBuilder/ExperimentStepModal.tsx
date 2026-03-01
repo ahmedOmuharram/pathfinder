@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
-import type { ParamSpec } from "@pathfinder/shared";
+import { DEFAULT_COMBINE_OPERATOR, type ParamSpec } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/client";
 import type { StrategyStep } from "@/features/strategy/types";
 import { StepParamFields } from "@/features/strategy/editor/components/StepParamFields";
@@ -108,8 +108,8 @@ export function ExperimentStepModal({
 
         {!loading && isCombineStep && (
           <p className="py-4 text-sm text-muted-foreground">
-            This is a combine step ({step.operator || "INTERSECT"}). It combines results
-            from two input steps and has no searchable parameters.
+            This is a combine step ({step.operator || DEFAULT_COMBINE_OPERATOR}). It
+            combines results from two input steps and has no searchable parameters.
           </p>
         )}
 

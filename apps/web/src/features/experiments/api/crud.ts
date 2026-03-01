@@ -1,4 +1,4 @@
-import type { Experiment, ExperimentSummary } from "@pathfinder/shared";
+import type { Classification, Experiment, ExperimentSummary } from "@pathfinder/shared";
 import { buildUrl, requestJson } from "@/lib/api/http";
 
 export interface RecordAttribute {
@@ -7,12 +7,14 @@ export interface RecordAttribute {
   help?: string | null;
   type?: string | null;
   isDisplayable?: boolean;
+  isSortable?: boolean;
+  isSuggested?: boolean;
 }
 
 export interface WdkRecord {
   id: { name: string; value: string }[];
   attributes: Record<string, string | null>;
-  _classification?: "TP" | "FP" | "FN" | "TN" | null;
+  _classification?: Classification | null;
 }
 
 export interface RecordsResponse {
@@ -94,6 +96,14 @@ export async function getExperimentAttributes(
   experimentId: string,
 ): Promise<{ attributes: RecordAttribute[]; recordType: string }> {
   return await requestJson(`/api/v1/experiments/${experimentId}/results/attributes`);
+}
+
+export async function getSortableAttributes(
+  experimentId: string,
+): Promise<{ sortableAttributes: RecordAttribute[]; recordType: string }> {
+  return await requestJson(
+    `/api/v1/experiments/${experimentId}/results/sortable-attributes`,
+  );
 }
 
 export async function getExperimentRecords(

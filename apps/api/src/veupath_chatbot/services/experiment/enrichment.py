@@ -169,6 +169,61 @@ async def run_enrichment_analysis(
                 )
 
 
+async def run_enrichment_on_step(
+    *,
+    site_id: str,
+    step_id: int,
+    analysis_type: EnrichmentAnalysisType,
+) -> EnrichmentResult:
+    """Run enrichment on an already-persisted WDK step.
+
+    Used for multi-step experiments where the strategy already exists.
+
+    :param site_id: VEuPathDB site ID.
+    :param step_id: Existing WDK step ID (part of a saved strategy).
+    :param analysis_type: Which enrichment to run.
+    :returns: Parsed enrichment results.
+    """
+    api = get_strategy_api(site_id)
+
+    wdk_analysis_type = _ANALYSIS_TYPE_MAP.get(analysis_type)
+    if not wdk_analysis_type:
+        return EnrichmentResult(
+            analysis_type=analysis_type,
+            terms=[],
+            total_genes_analyzed=0,
+            background_size=0,
+        )
+
+    analysis_params: JSONObject = {}
+    if analysis_type in _GO_ONTOLOGY_MAP:
+        analysis_params["ontology"] = _GO_ONTOLOGY_MAP[analysis_type]
+
+    result = await api.run_step_analysis(
+        step_id=step_id,
+        analysis_type=wdk_analysis_type,
+        parameters=analysis_params,
+    )
+
+    rows = _extract_analysis_rows(result)
+    terms = _parse_enrichment_terms(rows)
+
+    total_analyzed = 0
+    bg_size = 0
+    if isinstance(result, dict):
+        total_analyzed = _safe_int(
+            result.get("resultSize", result.get("totalResults", 0))
+        )
+        bg_size = _safe_int(result.get("backgroundSize", result.get("bgdSize", 0)))
+
+    return EnrichmentResult(
+        analysis_type=analysis_type,
+        terms=terms,
+        total_genes_analyzed=total_analyzed,
+        background_size=bg_size,
+    )
+
+
 def _extract_step_id(payload: JSONObject | None) -> int:
     if isinstance(payload, dict):
         raw = payload.get("id")

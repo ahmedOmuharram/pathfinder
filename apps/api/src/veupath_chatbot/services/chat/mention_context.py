@@ -130,7 +130,7 @@ async def _build_strategy_context(
 async def _build_experiment_context(experiment_id: str) -> str | None:
     """Load an experiment and format a rich context block."""
     store = get_experiment_store()
-    experiment = await store.get(experiment_id)
+    experiment = await store.aget(experiment_id)
     if not experiment:
         logger.warning("Mentioned experiment not found", experiment_id=experiment_id)
         return None

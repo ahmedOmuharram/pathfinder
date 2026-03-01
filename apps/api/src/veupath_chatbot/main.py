@@ -26,6 +26,7 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.platform.logging import get_logger, setup_logging
 from veupath_chatbot.transport.http.routers import (
     chat,
+    control_sets,
     experiments,
     health,
     models,
@@ -141,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(steps.router)
     app.include_router(results.router)
     app.include_router(experiments.router)
+    app.include_router(control_sets.router)
     app.include_router(veupathdb_auth.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).

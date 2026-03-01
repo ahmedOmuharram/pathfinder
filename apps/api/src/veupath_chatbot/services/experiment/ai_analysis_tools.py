@@ -14,6 +14,10 @@ from kani import AIParam, ChatMessage, ai_function
 from kani.engines.base import BaseEngine
 
 from veupath_chatbot.ai.agents.experiment import ExperimentAssistantAgent
+from veupath_chatbot.domain.strategy.ops import (
+    BOOLEAN_OPERATOR_OPTIONS_DESC,
+    DEFAULT_COMBINE_OPERATOR,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
@@ -185,10 +189,7 @@ class ExperimentAnalysisAgent(ExperimentAssistantAgent):
 
         api = get_strategy_api(self.site_id)
         try:
-            return cast(
-                JSONObject,
-                await api.get_filter_summary(exp.wdk_step_id, attribute_name),
-            )
+            return await api.get_filter_summary(exp.wdk_step_id, attribute_name)
         except Exception as exc:
             return {"error": str(exc), "attribute": attribute_name}
 
@@ -289,8 +290,8 @@ class ExperimentAnalysisAgent(ExperimentAssistantAgent):
         ],
         operator: Annotated[
             str,
-            AIParam(desc="Boolean operator: INTERSECT, UNION, or MINUS"),
-        ] = "INTERSECT",
+            AIParam(desc=f"Boolean operator: {BOOLEAN_OPERATOR_OPTIONS_DESC}"),
+        ] = DEFAULT_COMBINE_OPERATOR.value,
     ) -> JSONObject:
         """Add a new search step and combine it with current experiment results.
 
@@ -309,7 +310,7 @@ class ExperimentAnalysisAgent(ExperimentAssistantAgent):
         new_step = await api.create_step(
             record_type=record_type,
             search_name=search_name,
-            parameters=parameters,
+            parameters=cast(JSONObject, parameters),
             custom_name=f"AI refinement: {search_name}",
         )
         new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
@@ -327,8 +328,8 @@ class ExperimentAnalysisAgent(ExperimentAssistantAgent):
         ],
         operator: Annotated[
             str,
-            AIParam(desc="Boolean operator: INTERSECT, UNION, or MINUS"),
-        ] = "INTERSECT",
+            AIParam(desc=f"Boolean operator: {BOOLEAN_OPERATOR_OPTIONS_DESC}"),
+        ] = DEFAULT_COMBINE_OPERATOR.value,
     ) -> JSONObject:
         """Combine experiment results with a gene ID list.
 

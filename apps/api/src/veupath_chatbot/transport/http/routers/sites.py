@@ -438,12 +438,17 @@ async def search_genes(
         raw_results = []
     total = data_dict.get("totalCount", 0)
     suggested_raw = data_dict.get("suggestedOrganisms")
-    suggested = suggested_raw if isinstance(suggested_raw, list) else []
+    suggested_list = suggested_raw if isinstance(suggested_raw, list) else []
+    suggested: list[str] = [str(s) for s in suggested_list]
 
     results: list[GeneSearchResultResponse] = []
     for r in raw_results:
         if not isinstance(r, dict):
             continue
+        raw_matched = r.get("matchedFields")
+        matched_list = raw_matched if isinstance(raw_matched, list) else []
+        matched_str_list: list[str] = [x for x in matched_list if isinstance(x, str)]
+
         results.append(
             GeneSearchResultResponse(
                 geneId=str(r.get("geneId", "")),
@@ -453,7 +458,7 @@ async def search_genes(
                 geneName=str(r.get("geneName", "")),
                 geneType=str(r.get("geneType", "")),
                 location=str(r.get("location", "")),
-                matchedFields=r.get("matchedFields", []),
+                matchedFields=matched_str_list,
             )
         )
 

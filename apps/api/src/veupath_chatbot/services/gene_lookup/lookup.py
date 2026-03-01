@@ -305,7 +305,7 @@ async def batch_lookup_genes_by_text(
                     "totalCount": result_dict.get("totalCount", len(results_list)),
                 },
             )
-            combined.extend(results_list)
+            combined.extend(r for r in results_list if isinstance(r, dict))
 
         query_results.append(entry)
 

@@ -4,6 +4,10 @@ import type {
   ExperimentSummary,
   ExperimentProgressData,
   ExperimentConfig,
+  StepEvaluation,
+  OperatorComparison,
+  StepContribution,
+  ParameterSensitivity,
 } from "@pathfinder/shared";
 import {
   listExperiments,
@@ -11,7 +15,9 @@ import {
   deleteExperiment as deleteExperimentApi,
   createExperimentStream,
   createBatchExperimentStream,
+  createBenchmarkStream,
 } from "./api";
+import type { BenchmarkControlSetInput } from "./api";
 
 type ExperimentView =
   | "list"
@@ -21,32 +27,38 @@ type ExperimentView =
   | "results"
   | "compare"
   | "overlap"
-  | "enrichment-compare";
-
-export interface TrialMutation {
-  nodeId: string;
-  param?: string;
-  value?: unknown;
-  operator?: string;
-}
+  | "enrichment-compare"
+  | "benchmark-results";
 
 export interface TrialHistoryEntry {
   trialNumber: number;
   score: number;
   bestScore: number;
-  isNewBest?: boolean;
-  paramMutations?: TrialMutation[];
-  operatorMutations?: TrialMutation[];
-  structuralVariant?: string | null;
 }
+
+export interface StepAnalysisLiveItems {
+  evaluations: StepEvaluation[];
+  operators: OperatorComparison[];
+  contributions: StepContribution[];
+  sensitivities: ParameterSensitivity[];
+}
+
+const EMPTY_LIVE_ITEMS: StepAnalysisLiveItems = {
+  evaluations: [],
+  operators: [],
+  contributions: [],
+  sensitivities: [],
+};
 
 interface ExperimentState {
   view: ExperimentView;
   experiments: ExperimentSummary[];
   currentExperiment: Experiment | null;
   compareExperiment: Experiment | null;
+  benchmarkExperiments: Experiment[];
   progress: ExperimentProgressData | null;
   trialHistory: TrialHistoryEntry[];
+  stepAnalysisItems: StepAnalysisLiveItems;
   isRunning: boolean;
   hasOptimization: boolean;
   error: string | null;
@@ -71,6 +83,10 @@ interface ExperimentState {
       negativeControls: string[];
     }[],
   ) => void;
+  runBenchmark: (
+    config: ExperimentConfig,
+    controlSets: BenchmarkControlSetInput[],
+  ) => void;
   cancelExperiment: () => void;
   clearError: () => void;
   cloneExperiment: (id: string) => Promise<void>;
@@ -88,32 +104,6 @@ function _accumulateTrial(
   const tp = progressData?.trialProgress;
   if (!tp) return existing;
 
-  // Tree optimization trial_result (check FIRST -- also has trial.trialNumber)
-  if (tp.phase === "trial_result" && tp.trial) {
-    const {
-      trialNumber,
-      score,
-      isNewBest,
-      paramMutations,
-      operatorMutations,
-      structuralVariant,
-    } = tp.trial;
-    if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
-    return [
-      ...existing,
-      {
-        trialNumber,
-        score,
-        bestScore: tp.bestScore ?? score,
-        isNewBest,
-        paramMutations: paramMutations ?? [],
-        operatorMutations: operatorMutations ?? [],
-        structuralVariant: structuralVariant ?? null,
-      },
-    ];
-  }
-
-  // Single-step optimization
   if (tp.trial?.trialNumber != null) {
     const { trialNumber, score } = tp.trial;
     if (existing.some((e) => e.trialNumber === trialNumber)) return existing;
@@ -130,13 +120,71 @@ function _accumulateTrial(
   return existing;
 }
 
+function _accumulateStepAnalysis(
+  existing: StepAnalysisLiveItems,
+  data: ExperimentProgressData,
+): StepAnalysisLiveItems {
+  const sa = data.stepAnalysisProgress;
+  if (!sa) return existing;
+
+  if (sa.stepEvaluation) {
+    const dup = existing.evaluations.some(
+      (e) => e.stepId === sa.stepEvaluation!.stepId,
+    );
+    if (!dup) {
+      return {
+        ...existing,
+        evaluations: [...existing.evaluations, sa.stepEvaluation],
+      };
+    }
+  }
+  if (sa.operatorComparison) {
+    const dup = existing.operators.some(
+      (o) => o.combineNodeId === sa.operatorComparison!.combineNodeId,
+    );
+    if (!dup) {
+      return {
+        ...existing,
+        operators: [...existing.operators, sa.operatorComparison],
+      };
+    }
+  }
+  if (sa.stepContribution) {
+    const dup = existing.contributions.some(
+      (c) => c.stepId === sa.stepContribution!.stepId,
+    );
+    if (!dup) {
+      return {
+        ...existing,
+        contributions: [...existing.contributions, sa.stepContribution],
+      };
+    }
+  }
+  if (sa.parameterSensitivity) {
+    const key = `${sa.parameterSensitivity.stepId}:${sa.parameterSensitivity.paramName}`;
+    const dup = existing.sensitivities.some(
+      (s) => `${s.stepId}:${s.paramName}` === key,
+    );
+    if (!dup) {
+      return {
+        ...existing,
+        sensitivities: [...existing.sensitivities, sa.parameterSensitivity],
+      };
+    }
+  }
+
+  return existing;
+}
+
 export const useExperimentStore = create<ExperimentState>((set, get) => ({
   view: "list",
   experiments: [],
   currentExperiment: null,
   compareExperiment: null,
+  benchmarkExperiments: [],
   progress: null,
   trialHistory: [],
+  stepAnalysisItems: EMPTY_LIVE_ITEMS,
   isRunning: false,
   hasOptimization: false,
   error: null,
@@ -193,85 +241,153 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     const prev = get().abortController;
     prev?.abort();
 
+    const controller = new AbortController();
     const hasOpt =
-      (config.optimizationSpecs?.length ?? 0) > 0 ||
-      config.enableTreeOptimization === true;
+      (config.optimizationSpecs?.length ?? 0) > 0 || config.enableStepAnalysis === true;
     set({
       isRunning: true,
       hasOptimization: hasOpt,
       progress: null,
       trialHistory: [],
+      stepAnalysisItems: EMPTY_LIVE_ITEMS,
       error: null,
       runningConfig: config,
+      abortController: controller,
     });
 
-    const controller = createExperimentStream(config, {
-      onProgress: (data) => {
-        set({
-          progress: data,
-          trialHistory: _accumulateTrial(get().trialHistory, data),
-        });
+    createExperimentStream(
+      config,
+      {
+        onProgress: (data) => {
+          set((s) => ({
+            progress: data,
+            trialHistory: _accumulateTrial(s.trialHistory, data),
+            stepAnalysisItems: _accumulateStepAnalysis(s.stepAnalysisItems, data),
+          }));
+        },
+        onComplete: (experiment) => {
+          set({
+            currentExperiment: experiment,
+            isRunning: false,
+            view: "results",
+            abortController: null,
+            runningConfig: null,
+          });
+          get().fetchExperiments(config.siteId);
+        },
+        onError: (error) => {
+          set({ error, isRunning: false, abortController: null, runningConfig: null });
+        },
       },
-      onComplete: (experiment) => {
-        set({
-          currentExperiment: experiment,
-          isRunning: false,
-          view: "results",
-          abortController: null,
-          runningConfig: null,
-        });
-        get().fetchExperiments(config.siteId);
-      },
-      onError: (error) => {
-        set({ error, isRunning: false, abortController: null, runningConfig: null });
-      },
-    });
-
-    set({ abortController: controller });
+      controller,
+    );
   },
 
   runBatchExperiment: (config, organismParamName, targets) => {
     const prev = get().abortController;
     prev?.abort();
 
+    const controller = new AbortController();
     set({
       isRunning: true,
+      hasOptimization: false,
       progress: null,
       trialHistory: [],
+      stepAnalysisItems: EMPTY_LIVE_ITEMS,
       error: null,
       runningConfig: config,
+      abortController: controller,
     });
 
-    const controller = createBatchExperimentStream(config, organismParamName, targets, {
-      onProgress: (data) => {
-        set({
-          progress: data,
-          trialHistory: _accumulateTrial(get().trialHistory, data),
-        });
+    createBatchExperimentStream(
+      config,
+      organismParamName,
+      targets,
+      {
+        onProgress: (data) => {
+          set((s) => ({
+            progress: data,
+            trialHistory: _accumulateTrial(s.trialHistory, data),
+            stepAnalysisItems: _accumulateStepAnalysis(s.stepAnalysisItems, data),
+          }));
+        },
+        onComplete: (experiments, _batchId) => {
+          const first = experiments[0] ?? null;
+          set({
+            currentExperiment: first,
+            isRunning: false,
+            view: first ? "results" : "list",
+            abortController: null,
+            runningConfig: null,
+          });
+          get().fetchExperiments(config.siteId);
+        },
+        onError: (error) => {
+          set({ error, isRunning: false, abortController: null, runningConfig: null });
+        },
       },
-      onComplete: (experiments, _batchId) => {
-        const first = experiments[0] ?? null;
-        set({
-          currentExperiment: first,
-          isRunning: false,
-          view: first ? "results" : "list",
-          abortController: null,
-          runningConfig: null,
-        });
-        get().fetchExperiments(config.siteId);
-      },
-      onError: (error) => {
-        set({ error, isRunning: false, abortController: null, runningConfig: null });
-      },
+      controller,
+    );
+  },
+
+  runBenchmark: (config, controlSets) => {
+    const prev = get().abortController;
+    prev?.abort();
+
+    const controller = new AbortController();
+    set({
+      isRunning: true,
+      hasOptimization: false,
+      progress: null,
+      trialHistory: [],
+      stepAnalysisItems: EMPTY_LIVE_ITEMS,
+      error: null,
+      benchmarkExperiments: [],
+      runningConfig: config,
+      abortController: controller,
     });
 
-    set({ abortController: controller });
+    createBenchmarkStream(
+      config,
+      controlSets,
+      {
+        onProgress: (data) => {
+          set((s) => ({
+            progress: data,
+            trialHistory: _accumulateTrial(s.trialHistory, data),
+            stepAnalysisItems: _accumulateStepAnalysis(s.stepAnalysisItems, data),
+          }));
+        },
+        onComplete: (experiments, _benchmarkId) => {
+          const primary =
+            experiments.find((e) => e.isPrimaryBenchmark) ?? experiments[0] ?? null;
+          set({
+            currentExperiment: primary,
+            benchmarkExperiments: experiments,
+            isRunning: false,
+            view: "benchmark-results",
+            abortController: null,
+            runningConfig: null,
+          });
+          get().fetchExperiments(config.siteId);
+        },
+        onError: (error) => {
+          set({ error, isRunning: false, abortController: null, runningConfig: null });
+        },
+      },
+      controller,
+    );
   },
 
   cancelExperiment: () => {
     const controller = get().abortController;
     controller?.abort();
-    set({ isRunning: false, abortController: null, runningConfig: null });
+    set({
+      isRunning: false,
+      hasOptimization: false,
+      abortController: null,
+      runningConfig: null,
+    });
   },
 
   clearError: () => set({ error: null }),
@@ -295,9 +411,7 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
       const isMultiStep = config.mode === "multi-step" || config.mode === "import";
 
       if (isMultiStep) {
-        config.enableTreeOptimization = true;
-        config.treeOptimizationBudget = config.treeOptimizationBudget ?? 20;
-        config.optimizeOperators = config.optimizeOperators ?? true;
+        config.enableStepAnalysis = true;
         set({
           cloneConfig: config,
           cloneWithOptimize: true,
@@ -315,13 +429,16 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
     }
   },
 
-  reset: () =>
+  reset: () => {
+    get().abortController?.abort();
     set({
       view: "list",
       currentExperiment: null,
       compareExperiment: null,
+      benchmarkExperiments: [],
       progress: null,
       trialHistory: [],
+      stepAnalysisItems: EMPTY_LIVE_ITEMS,
       isRunning: false,
       hasOptimization: false,
       error: null,
@@ -329,5 +446,6 @@ export const useExperimentStore = create<ExperimentState>((set, get) => ({
       cloneConfig: null,
       cloneWithOptimize: false,
       runningConfig: null,
-    }),
+    });
+  },
 }));

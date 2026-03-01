@@ -37,18 +37,16 @@ class TestOperationParsing:
     def test_parse_wdk_operator_values(self) -> None:
         """Test parsing the exact values WDK stores in bq_operator.
 
-        These come from the WDK BooleanOperator Java enum's getBaseOperator():
-        UNION, INTERSECT, MINUS (left), RMINUS (right), LONLY, RONLY.
-
-
+        WDK BooleanOperator: INTERSECT, UNION, MINUS, RMINUS, LONLY, RONLY.
+        LMINUS is alias for MINUS.
         """
         assert parse_op("INTERSECT") == CombineOp.INTERSECT
         assert parse_op("UNION") == CombineOp.UNION
         assert parse_op("MINUS") == CombineOp.MINUS
         assert parse_op("RMINUS") == CombineOp.RMINUS
         assert parse_op("LMINUS") == CombineOp.MINUS
-        assert parse_op("LONLY") == CombineOp.MINUS
-        assert parse_op("RONLY") == CombineOp.RMINUS
+        assert parse_op("LONLY") == CombineOp.LONLY
+        assert parse_op("RONLY") == CombineOp.RONLY
 
     def test_parse_with_separators(self) -> None:
         """Test parsing with different separators."""
@@ -79,6 +77,8 @@ class TestOperationParsing:
         assert get_wdk_operator(CombineOp.UNION) == "UNION"
         assert get_wdk_operator(CombineOp.MINUS) == "MINUS"
         assert get_wdk_operator(CombineOp.RMINUS) == "RMINUS"
+        assert get_wdk_operator(CombineOp.LONLY) == "LONLY"
+        assert get_wdk_operator(CombineOp.RONLY) == "RONLY"
 
     def test_colocate_not_boolean(self) -> None:
         """Test that COLOCATE raises when treated as boolean op."""

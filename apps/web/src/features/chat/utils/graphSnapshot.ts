@@ -1,4 +1,5 @@
 import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import { isFallbackDisplayName } from "@/lib/strategyGraph";
 
 export interface GraphSnapshotStepInput {
   id: string;
@@ -22,36 +23,6 @@ export interface GraphSnapshotInput {
   rootStepId?: string | null;
   steps?: GraphSnapshotStepInput[];
 }
-
-const isUrlLike = (value: string | null | undefined) =>
-  typeof value === "string" &&
-  (value.startsWith("http://") || value.startsWith("https://"));
-
-const normalizeName = (value: string | null | undefined) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
-
-const isFallbackDisplayName = (
-  name: string | null | undefined,
-  step: {
-    kind?: string;
-    searchName?: string;
-    operator?: string;
-  },
-) => {
-  if (!name) return true;
-  if (isUrlLike(name)) return true;
-  const normalized = normalizeName(name);
-  const candidates = new Set<string>([
-    normalizeName(step.searchName),
-    normalizeName(step.kind),
-  ]);
-  if (step.operator) {
-    const op = normalizeName(step.operator);
-    candidates.add(op);
-    candidates.add(`${op} combine`);
-  }
-  return candidates.has(normalized);
-};
 
 const toStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];

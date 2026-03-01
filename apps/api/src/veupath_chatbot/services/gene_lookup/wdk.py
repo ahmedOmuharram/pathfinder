@@ -37,7 +37,7 @@ class WdkTextResult:
     total_count: int
 
 
-def _parse_wdk_record(rec: dict) -> JSONObject | None:  # type: ignore[type-arg]
+def _parse_wdk_record(rec: dict[str, object]) -> JSONObject | None:
     """Parse a WDK record into a standard gene result dict."""
     rec_attrs = rec.get("attributes")
     if not isinstance(rec_attrs, dict):

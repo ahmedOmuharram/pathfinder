@@ -18,9 +18,11 @@ import optuna
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import (
+from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
-    run_positive_negative_controls,
+    OptimizationObjective,
+    ParameterType,
 )
 
 logger = get_logger(__name__)
@@ -35,18 +37,6 @@ CancelCheck = Callable[[], bool]
 """Returns True when the optimisation should stop early."""
 
 OptimizationMethod = Literal["bayesian", "grid", "random"]
-OptimizationObjective = Literal[
-    "f1",
-    "f_beta",
-    "recall",
-    "precision",
-    "specificity",
-    "balanced_accuracy",
-    "mcc",
-    "youdens_j",
-    "custom",
-]
-ParameterType = Literal["numeric", "integer", "categorical"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,11 +124,20 @@ def _compute_score(
     cfg: OptimizationConfig,
     *,
     result_count: int | None = None,
+    positive_hits: int | None = None,
+    negative_hits: int | None = None,
 ) -> float:
     r = recall if recall is not None else 0.0
     raw_fpr = fpr if fpr is not None else 0.0
-    precision = 1.0 - raw_fpr
     specificity = 1.0 - raw_fpr
+
+    # True precision (PPV) = TP / (TP + FP). We approximate it from
+    # intersection counts when available, falling back to specificity.
+    if positive_hits is not None and negative_hits is not None:
+        tp_fp = positive_hits + negative_hits
+        precision = positive_hits / tp_fp if tp_fp > 0 else 0.0
+    else:
+        precision = specificity
 
     match cfg.objective:
         case "recall":
@@ -658,7 +657,14 @@ async def optimize_search_parameters(
                 positive_hits = _to_int(positive_hits_val)
                 negative_hits = _to_int(negative_hits_val)
 
-                score = _compute_score(recall, fpr, cfg, result_count=result_count)
+                score = _compute_score(
+                    recall,
+                    fpr,
+                    cfg,
+                    result_count=result_count,
+                    positive_hits=positive_hits,
+                    negative_hits=negative_hits,
+                )
 
                 grid_exhausted = False
                 try:

@@ -5,6 +5,7 @@ export {
   updateExperimentNotes,
   exportExperiment,
   getExperimentAttributes,
+  getSortableAttributes,
   getExperimentRecords,
   getExperimentRecordDetail,
   getExperimentStrategy,
@@ -43,13 +44,23 @@ export type {
 export {
   createExperimentStream,
   createBatchExperimentStream,
+  createBenchmarkStream,
   streamAiAssist,
 } from "./streaming";
 
 export type {
   ExperimentSSEHandler,
+  BenchmarkControlSetInput,
   BatchOrganismTarget,
   WizardStep,
   AiAssistMessage,
   AiAssistHandlers,
 } from "./streaming";
+
+export {
+  listControlSets,
+  getControlSet,
+  createControlSet,
+  deleteControlSet,
+  getExperimentReport,
+} from "./controlSets";

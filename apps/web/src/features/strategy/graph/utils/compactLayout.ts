@@ -8,6 +8,7 @@
  */
 
 import type { Step, StepKind } from "@pathfinder/shared";
+import { inferStepKind } from "@/lib/strategyGraph";
 
 // Public types
 
@@ -37,18 +38,11 @@ export interface SpineSegment {
 
 // Helpers
 
-function inferKind(step: Step): StepKind {
-  if (step.kind) return step.kind;
-  if (step.primaryInputStepId && step.secondaryInputStepId) return "combine";
-  if (step.primaryInputStepId) return "transform";
-  return "search";
-}
-
 function toCompact(step: Step, stepNumber: number): CompactStep {
   return {
     id: step.id,
     displayName: step.displayName,
-    kind: inferKind(step),
+    kind: inferStepKind(step),
     resultCount: step.resultCount,
     recordType: step.recordType,
     operator: step.operator,
@@ -105,7 +99,7 @@ export function buildSpineLayout(
   // Build segments
   return spine.map((step): SpineSegment => {
     const compact = toCompact(step, stepNumbers.get(step.id) ?? 0);
-    const kind = inferKind(step);
+    const kind = inferStepKind(step);
 
     if (kind === "combine" && step.secondaryInputStepId) {
       const sec = byId.get(step.secondaryInputStepId);

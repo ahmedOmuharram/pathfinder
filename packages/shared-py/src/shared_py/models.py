@@ -11,21 +11,29 @@ from pydantic import BaseModel, Field
 
 
 class CombineOperator(str, Enum):
-    """Set operations for combining two steps."""
+    """Set operations for combining two steps.
+
+    Canonical set (matches WDK BooleanOperator): INTERSECT, MINUS, RMINUS,
+    LONLY, RONLY, COLOCATE, UNION.
+    """
 
     INTERSECT = "INTERSECT"
-    UNION = "UNION"
     MINUS = "MINUS"
     RMINUS = "RMINUS"
+    LONLY = "LONLY"
+    RONLY = "RONLY"
     COLOCATE = "COLOCATE"
+    UNION = "UNION"
 
 
 COMBINE_OPERATOR_LABELS: dict[CombineOperator, str] = {
     CombineOperator.INTERSECT: "IDs in common (AND)",
-    CombineOperator.UNION: "Combined (OR)",
-    CombineOperator.MINUS: "Not in right",
-    CombineOperator.RMINUS: "Not in left",
+    CombineOperator.MINUS: "In left, not in right",
+    CombineOperator.RMINUS: "In right, not in left",
+    CombineOperator.LONLY: "Left only",
+    CombineOperator.RONLY: "Right only",
     CombineOperator.COLOCATE: "Genomic colocation",
+    CombineOperator.UNION: "Combined (OR)",
 }
 
 

@@ -154,7 +154,7 @@ export function MultiStepBuilder({ siteId }: MultiStepBuilderProps) {
   );
 
   return (
-    <div className="flex h-full">
+    <div data-testid="multistep-builder" className="flex h-full">
       {/* Left: Graph Panel */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Toolbar */}
@@ -181,6 +181,7 @@ export function MultiStepBuilder({ siteId }: MultiStepBuilderProps) {
           <div className="mx-1 h-5 w-px bg-border" />
 
           <Button
+            data-testid="add-step-btn"
             variant="outline"
             size="sm"
             onClick={() => setShowSearchPicker(!showSearchPicker)}
@@ -215,8 +216,8 @@ export function MultiStepBuilder({ siteId }: MultiStepBuilderProps) {
 
           <span className="text-xs text-muted-foreground">
             {steps.length} step{steps.length !== 1 ? "s" : ""}
-            {builder.treeOpt.enabled && (
-              <span className="ml-1 text-primary">(tree opt on)</span>
+            {builder.stepAnalysis.enabled && (
+              <span className="ml-1 text-primary">(analysis on)</span>
             )}
           </span>
         </div>
@@ -360,8 +361,23 @@ export function MultiStepBuilder({ siteId }: MultiStepBuilderProps) {
           onKFoldsDraftChange={builder.setKFoldsDraft}
           enrichments={builder.enrichments}
           onToggleEnrichment={builder.toggleEnrichment}
-          treeOpt={builder.treeOpt}
-          onTreeOptChange={builder.setTreeOpt}
+          stepAnalysis={builder.stepAnalysis}
+          onStepAnalysisChange={builder.setStepAnalysis}
+          thresholdKnobs={builder.thresholdKnobs}
+          onThresholdKnobsChange={builder.setThresholdKnobs}
+          operatorKnobs={builder.operatorKnobs}
+          onOperatorKnobsChange={builder.setOperatorKnobs}
+          treeOptObjective={builder.treeOptObjective}
+          onTreeOptObjectiveChange={builder.setTreeOptObjective}
+          sortAttribute={builder.sortAttribute}
+          onSortAttributeChange={builder.setSortAttribute}
+          sortDirection={builder.sortDirection}
+          onSortDirectionChange={builder.setSortDirection}
+          sortableAttributes={builder.sortableAttributes}
+          benchmarkMode={builder.benchmarkMode}
+          onBenchmarkModeChange={builder.setBenchmarkMode}
+          benchmarkControlSets={builder.benchmarkControlSets}
+          onBenchmarkControlSetsChange={builder.setBenchmarkControlSets}
           warnings={builder.warnings}
           canRun={builder.canRun}
           isRunning={builder.isRunning}

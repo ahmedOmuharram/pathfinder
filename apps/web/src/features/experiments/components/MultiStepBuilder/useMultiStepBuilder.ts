@@ -3,12 +3,15 @@ import type {
   CombineOperator,
   EnrichmentAnalysisType,
   ExperimentConfig,
+  OperatorKnob,
   PlanStepNode,
   RecordType,
   Search,
+  StepAnalysisPhase,
   StrategyPlan,
+  ThresholdKnob,
 } from "@pathfinder/shared";
-import type { TreeOptimizationConfig } from "./ConfigPanel";
+import type { StepAnalysisConfig } from "./ConfigPanel";
 import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
 import { useExperimentStore } from "../../store";
 import { getRecordTypes, getSearches, computeStepCounts } from "@/lib/api/client";
@@ -41,13 +44,14 @@ function buildLocalStrategy(
   };
 }
 
-const DEFAULT_TREE_OPT: TreeOptimizationConfig = {
+const DEFAULT_STEP_ANALYSIS: StepAnalysisConfig = {
   enabled: false,
-  budget: 20,
-  objective: "balanced_accuracy",
-  optimizeOperators: true,
-  optimizeOrthologs: false,
-  optimizeStructure: false,
+  phases: new Set<StepAnalysisPhase>([
+    "step_evaluation",
+    "operator_comparison",
+    "contribution",
+    "sensitivity",
+  ]),
 };
 
 function flattenPlanStepNode(node: PlanStepNode, recordType: string): StrategyStep[] {
@@ -100,7 +104,7 @@ function applyMultiStepClone(
     setKFoldsDraft: (v: string) => void;
     setEnrichments: (v: Set<EnrichmentAnalysisType>) => void;
     loadImportedSteps: (steps: StrategyStep[], rt?: string) => void;
-    setTreeOpt: (v: TreeOptimizationConfig) => void;
+    setStepAnalysis: (v: StepAnalysisConfig) => void;
   },
   enableOptimize: boolean,
 ) {
@@ -129,20 +133,24 @@ function applyMultiStepClone(
     setters.loadImportedSteps(steps, config.recordType);
   }
 
-  const shouldEnableOpt = enableOptimize || config.enableTreeOptimization === true;
-  setters.setTreeOpt({
-    enabled: shouldEnableOpt,
-    budget: config.treeOptimizationBudget ?? 20,
-    objective: config.optimizationObjective ?? "balanced_accuracy",
-    optimizeOperators: config.optimizeOperators ?? true,
-    optimizeOrthologs: config.optimizeOrthologs ?? false,
-    optimizeStructure: config.optimizeStructure ?? false,
+  const shouldEnableAnalysis = enableOptimize || config.enableStepAnalysis === true;
+  setters.setStepAnalysis({
+    enabled: shouldEnableAnalysis,
+    phases: new Set<StepAnalysisPhase>(
+      config.stepAnalysisPhases ?? [
+        "step_evaluation",
+        "operator_comparison",
+        "contribution",
+        "sensitivity",
+      ],
+    ),
   });
 }
 
 export function useMultiStepBuilder(siteId: string) {
   const {
     runExperiment,
+    runBenchmark,
     setView,
     isRunning,
     error: storeError,
@@ -171,7 +179,26 @@ export function useMultiStepBuilder(siteId: string) {
   const [enrichments, setEnrichments] = useState<Set<EnrichmentAnalysisType>>(
     new Set(),
   );
-  const [treeOpt, setTreeOpt] = useState<TreeOptimizationConfig>(DEFAULT_TREE_OPT);
+  const [stepAnalysis, setStepAnalysis] =
+    useState<StepAnalysisConfig>(DEFAULT_STEP_ANALYSIS);
+  const [thresholdKnobs, setThresholdKnobs] = useState<ThresholdKnob[]>([]);
+  const [operatorKnobs, setOperatorKnobs] = useState<OperatorKnob[]>([]);
+  const [treeOptObjective, setTreeOptObjective] = useState("precision_at_50");
+  const [sortAttribute, setSortAttribute] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"ASC" | "DESC">("ASC");
+  const [sortableAttributes, setSortableAttributes] = useState<
+    { name: string; displayName: string; isSuggested?: boolean }[]
+  >([]);
+  const [benchmarkMode, setBenchmarkMode] = useState(false);
+  const [benchmarkControlSets, setBenchmarkControlSets] = useState<
+    {
+      label: string;
+      positiveControls: string[];
+      negativeControls: string[];
+      controlSetId?: string | null;
+      isPrimary: boolean;
+    }[]
+  >([]);
   const controlsSearchName = "GeneByLocusTag";
   const controlsParamName = "ds_gene_ids";
 
@@ -314,18 +341,51 @@ export function useMultiStepBuilder(siteId: string) {
     setStepsById((prev) => {
       const next = { ...prev };
       delete next[stepId];
-      for (const [id, step] of Object.entries(next)) {
-        if (
-          step.primaryInputStepId === stepId ||
-          step.secondaryInputStepId === stepId
-        ) {
-          const patch: Partial<StrategyStep> = {};
-          if (step.primaryInputStepId === stepId) patch.primaryInputStepId = undefined;
-          if (step.secondaryInputStepId === stepId)
-            patch.secondaryInputStepId = undefined;
-          next[id] = { ...step, ...patch };
+
+      // For combine steps that referenced the deleted step: if one input
+      // remains, promote the remaining input to the parent's slot so the
+      // tree doesn't end up with a dangling combine node.
+      const combineIds = Object.keys(next).filter(
+        (id) =>
+          next[id].primaryInputStepId === stepId ||
+          next[id].secondaryInputStepId === stepId,
+      );
+
+      for (const id of combineIds) {
+        const step = next[id];
+        const losePrimary = step.primaryInputStepId === stepId;
+        const loseSecondary = step.secondaryInputStepId === stepId;
+
+        if (losePrimary && loseSecondary) {
+          // Both inputs removed — remove the combine step too
+          delete next[id];
+        } else if (losePrimary && step.secondaryInputStepId) {
+          // Promote secondary to take the combine step's place
+          const remaining = step.secondaryInputStepId;
+          delete next[id];
+          // Re-parent: any step that pointed to `id` should now point to `remaining`
+          for (const [otherId, otherStep] of Object.entries(next)) {
+            if (otherStep.primaryInputStepId === id)
+              next[otherId] = { ...otherStep, primaryInputStepId: remaining };
+            if (otherStep.secondaryInputStepId === id)
+              next[otherId] = { ...otherStep, secondaryInputStepId: remaining };
+          }
+        } else if (loseSecondary && step.primaryInputStepId) {
+          // Promote primary to take the combine step's place
+          const remaining = step.primaryInputStepId;
+          delete next[id];
+          for (const [otherId, otherStep] of Object.entries(next)) {
+            if (otherStep.primaryInputStepId === id)
+              next[otherId] = { ...otherStep, primaryInputStepId: remaining };
+            if (otherStep.secondaryInputStepId === id)
+              next[otherId] = { ...otherStep, secondaryInputStepId: remaining };
+          }
+        } else {
+          // No remaining input — remove the combine step
+          delete next[id];
         }
       }
+
       return next;
     });
     setSelectedStepId((prev) => (prev === stepId ? null : prev));
@@ -361,7 +421,7 @@ export function useMultiStepBuilder(siteId: string) {
         setKFoldsDraft,
         setEnrichments,
         loadImportedSteps,
-        setTreeOpt,
+        setStepAnalysis,
       },
       cloneWithOptimize,
     );
@@ -389,10 +449,25 @@ export function useMultiStepBuilder(siteId: string) {
 
   const canRun = useMemo(() => {
     if (steps.length === 0) return false;
-    if (positiveControls.length === 0 && negativeControls.length === 0) return false;
     if (!planResult) return false;
+    if (benchmarkMode) {
+      return (
+        benchmarkControlSets.length > 0 &&
+        benchmarkControlSets.some(
+          (cs) => cs.positiveControls.length > 0 || cs.negativeControls.length > 0,
+        )
+      );
+    }
+    if (positiveControls.length === 0 && negativeControls.length === 0) return false;
     return true;
-  }, [steps.length, positiveControls.length, negativeControls.length, planResult]);
+  }, [
+    steps.length,
+    positiveControls.length,
+    negativeControls.length,
+    planResult,
+    benchmarkMode,
+    benchmarkControlSets,
+  ]);
 
   const refreshCounts = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -404,6 +479,9 @@ export function useMultiStepBuilder(siteId: string) {
 
     const rootStep = steps.find((s) => s.id === strategy?.rootStepId);
 
+    // Sanitize gene IDs: strip whitespace, remove blanks
+    const cleanIds = (ids: string[]) => ids.map((s) => s.trim()).filter(Boolean);
+
     const config = {
       siteId,
       recordType: selectedRecordType,
@@ -411,24 +489,33 @@ export function useMultiStepBuilder(siteId: string) {
       searchName: rootStep?.searchName ?? steps[0]?.searchName ?? "",
       parameters: rootStep?.parameters ?? {},
       stepTree,
-      positiveControls,
-      negativeControls,
+      positiveControls: cleanIds(positiveControls),
+      negativeControls: cleanIds(negativeControls),
       controlsSearchName,
       controlsParamName,
       controlsValueFormat: "newline",
       enableCrossValidation: enableCV,
-      kFolds,
+      kFolds: Math.max(2, Math.min(10, kFolds)),
       enrichmentTypes: Array.from(enrichments) as EnrichmentAnalysisType[],
       name: name || "Multi-step experiment",
-      enableTreeOptimization: treeOpt.enabled,
-      treeOptimizationBudget: treeOpt.enabled ? treeOpt.budget : undefined,
-      optimizeOperators: treeOpt.optimizeOperators,
-      optimizeOrthologs: treeOpt.optimizeOrthologs,
-      optimizeStructure: treeOpt.optimizeStructure,
-      optimizationObjective: treeOpt.enabled ? treeOpt.objective : undefined,
+      enableStepAnalysis: stepAnalysis.enabled,
+      stepAnalysisPhases: stepAnalysis.enabled
+        ? Array.from(stepAnalysis.phases)
+        : undefined,
+      ...(sortAttribute ? { sortAttribute, sortDirection } : {}),
     };
 
-    runExperiment(config);
+    if (benchmarkMode && benchmarkControlSets.length > 0) {
+      // Sanitize benchmark control set gene IDs
+      const cleanedSets = benchmarkControlSets.map((cs) => ({
+        ...cs,
+        positiveControls: cleanIds(cs.positiveControls),
+        negativeControls: cleanIds(cs.negativeControls),
+      }));
+      runBenchmark(config, cleanedSets);
+    } else {
+      runExperiment(config);
+    }
   }, [
     canRun,
     stepTree,
@@ -442,8 +529,13 @@ export function useMultiStepBuilder(siteId: string) {
     kFolds,
     enrichments,
     name,
-    treeOpt,
+    stepAnalysis,
+    sortAttribute,
+    sortDirection,
+    benchmarkMode,
+    benchmarkControlSets,
     runExperiment,
+    runBenchmark,
     clearError,
   ]);
 
@@ -503,8 +595,25 @@ export function useMultiStepBuilder(siteId: string) {
     setKFoldsDraft,
     enrichments,
     toggleEnrichment,
-    treeOpt,
-    setTreeOpt,
+    stepAnalysis,
+    setStepAnalysis,
+    thresholdKnobs,
+    setThresholdKnobs,
+    operatorKnobs,
+    setOperatorKnobs,
+    treeOptObjective,
+    setTreeOptObjective,
+    sortAttribute,
+    setSortAttribute,
+    sortDirection,
+    setSortDirection,
+    sortableAttributes,
+    setSortableAttributes,
+
+    benchmarkMode,
+    setBenchmarkMode,
+    benchmarkControlSets,
+    setBenchmarkControlSets,
 
     selectedStepId,
     setSelectedStepId,

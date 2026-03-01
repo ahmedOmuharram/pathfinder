@@ -2,15 +2,33 @@ Architecture Overview
 =====================
 
 This document describes the Pathfinder API architecture: how Kani drives the
-agent, the two chat modes (plan vs execute), sub-kani orchestration, delegation
-plans, and the end-to-end request flow.
+agent, the two chat modes (plan vs execute), the **Experiment Lab** (separate
+from chat), sub-kani orchestration, delegation plans, and the end-to-end
+request flow.
 
-High-Level Flow
----------------
+Application Areas
+-----------------
+
+Pathfinder has two main user-facing areas:
+
+1. **Chat** (home page) — Plan and Execute modes for building/editing strategy
+   graphs via natural language. Uses ``POST /api/v1/chat`` with ``mode``
+   ``"plan"`` or ``"execute"``. Supports **@-mentions** of strategies and
+   experiments (see :ref:`overview-mentions`).
+
+2. **Experiment Lab** (``/experiments`` page) — Evaluate search/strategy
+   performance with control sets, metrics, cross-validation, enrichment, and
+   step analysis. Not a chat mode; it has its own setup flows and endpoints.
+   Experiment **modes** are: **single** (one search), **multi-step** (strategy
+   graph), **import** (existing WDK strategy). See :doc:`experiments` for
+   endpoints and flows.
+
+High-Level Chat Flow
+--------------------
 
 ::
 
-  HTTP Request
+  HTTP Request (POST /api/v1/chat)
        │
        ▼
   Chat Orchestrator (start_chat_stream)
@@ -132,9 +150,23 @@ The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.
 - ``optimization_progress`` — Parameter optimization updates.
 - ``message_end`` — Turn complete.
 
+.. _overview-mentions:
+
+@-Mentions (Chat)
+-----------------
+
+Chat requests can include **mentions**: references to a strategy or an
+experiment. The backend loads the referenced entity and injects a rich context
+block into the prompt so the agent can reason about "this strategy" or "this
+experiment". See :py:mod:`veupath_chatbot.services.chat.mention_context`:
+``build_mention_context(mentions, strategy_repo)``. Mention types are
+``"strategy"`` and ``"experiment"``; each mention has ``type``, ``id``, and
+``displayName``.
+
 See Also
 --------
 
+- :doc:`experiments` — Experiment Lab: modes, execution, analysis, control sets
 - :doc:`agents` — PathfinderAgent, PathfinderPlannerAgent, SubtaskAgent
 - :doc:`subkani` — Sub-kani orchestrator and scheduler
 - :doc:`delegation` — Delegation plan schema and validation

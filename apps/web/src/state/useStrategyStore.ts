@@ -9,31 +9,8 @@ import {
   getRootSteps,
   getRootStepId,
   serializeStrategyPlan,
+  isFallbackDisplayName,
 } from "@/lib/strategyGraph";
-import { inferStepKind } from "@/lib/strategyGraph";
-
-const isUrlLike = (value: string | null | undefined) =>
-  typeof value === "string" &&
-  (value.startsWith("http://") || value.startsWith("https://"));
-
-const normalizeName = (value: string | null | undefined) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
-
-const isFallbackDisplayName = (name: string | null | undefined, step: StrategyStep) => {
-  if (!name) return true;
-  if (isUrlLike(name)) return true;
-  const normalized = normalizeName(name);
-  const candidates = new Set<string>([
-    normalizeName(step.searchName),
-    normalizeName(inferStepKind(step)),
-  ]);
-  if (step.operator) {
-    const op = normalizeName(step.operator);
-    candidates.add(op);
-    candidates.add(`${op} combine`);
-  }
-  return candidates.has(normalized);
-};
 
 const MAX_HISTORY = 50;
 

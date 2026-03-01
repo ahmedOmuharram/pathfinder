@@ -1,13 +1,16 @@
 import { Component, useState, type ReactNode } from "react";
-import type { Experiment, ExperimentMetrics } from "@pathfinder/shared";
+import type { Experiment, ExperimentMetrics, RankMetrics } from "@pathfinder/shared";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpDown,
   BarChart3,
   Download,
+  FileText,
   FlaskConical,
   GitBranch,
   GitCompare,
+  Info,
   RotateCcw,
   Sparkles,
   Settings,
@@ -35,7 +38,9 @@ import { DistributionExplorer } from "./DistributionExplorer";
 import { StepAnalysisPanel } from "./StepAnalysisPanel";
 import { StrategyGraph } from "./StrategyGraph";
 import { StepContributionPanel } from "./StepContributionPanel";
-import { TreeOptimizationSection } from "./TreeOptimizationSection";
+import { StepDecompositionSection } from "./StepDecompositionSection";
+import { RankMetricsSection } from "./RankMetricsSection";
+import { RobustnessSection } from "./RobustnessSection";
 
 class TabErrorBoundary extends Component<
   { children: ReactNode; onReset?: () => void },
@@ -90,9 +95,36 @@ interface ResultsDashboardProps {
   siteId: string;
 }
 
-function getVerdict(metrics: ExperimentMetrics) {
-  const { f1Score, sensitivity, precision } = metrics;
+function getVerdict(metrics: ExperimentMetrics, rankMetrics?: RankMetrics | null) {
+  const p50 = rankMetrics?.precisionAtK["50"] ?? null;
+  const e50 = rankMetrics?.enrichmentAtK["50"] ?? null;
 
+  if (p50 != null && e50 != null) {
+    if (e50 > 5 && p50 > 0.3) {
+      return {
+        level: "excellent" as const,
+        sentence: `Strong enrichment — ${e50.toFixed(1)}x at K=50, P@50 ${(p50 * 100).toFixed(0)}%`,
+      };
+    }
+    if (e50 > 2) {
+      return {
+        level: "good" as const,
+        sentence: `Good enrichment — ${e50.toFixed(1)}x at K=50, P@50 ${(p50 * 100).toFixed(0)}%`,
+      };
+    }
+    if (e50 > 1) {
+      return {
+        level: "moderate" as const,
+        sentence: `Modest enrichment — ${e50.toFixed(1)}x at K=50, results slightly better than random`,
+      };
+    }
+    return {
+      level: "poor" as const,
+      sentence: `No enrichment at K=50 (${e50.toFixed(1)}x) — results not better than random`,
+    };
+  }
+
+  const { f1Score, sensitivity, precision } = metrics;
   if (f1Score > 0.8) {
     return {
       level: "excellent" as const,
@@ -143,12 +175,14 @@ const VERDICT_BADGE_STYLES = {
 
 function SummaryVerdict({
   metrics,
+  rankMetrics,
 }: {
   metrics: ExperimentMetrics | null | undefined;
+  rankMetrics?: RankMetrics | null;
 }) {
   if (!metrics) return null;
 
-  const { level, sentence } = getVerdict(metrics);
+  const { level, sentence } = getVerdict(metrics, rankMetrics);
 
   return (
     <div
@@ -170,6 +204,34 @@ function NoStrategyNotice({ label }: { label?: string } = {}) {
       <AlertCircle className="mx-auto mb-2 h-5 w-5" />
       {label ??
         "This feature requires a persisted WDK strategy. Re-run the experiment to enable result browsing."}
+    </div>
+  );
+}
+
+function RankingStatusBanner({ config }: { config: Experiment["config"] }) {
+  const isRanked = !!config.sortAttribute;
+
+  if (isRanked) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
+        <ArrowUpDown className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+        <span className="text-sm text-blue-800 dark:text-blue-300">
+          <span className="font-medium">Ranked by:</span> {config.sortAttribute}{" "}
+          <span className="text-blue-600 dark:text-blue-400">
+            ({config.sortDirection ?? "ASC"})
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
+      <Info className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+      <span className="text-sm text-amber-800 dark:text-amber-300">
+        This strategy produces an unordered set. Top-K metrics reflect arbitrary
+        ordering and are hidden unless you enable ranking.
+      </span>
     </div>
   );
 }
@@ -280,11 +342,11 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
     ? (experiments.find((e) => e.id === parentId)?.name ?? parentId)
     : null;
 
-  const wasOptimized =
-    !!experiment.optimizationResult || !!experiment.treeOptimizationDiff;
+  const wasOptimized = !!experiment.optimizationResult;
+  const hasStepAnalysis = !!experiment.stepAnalysis;
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div data-testid="results-dashboard" className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-8 py-6 animate-fade-in">
         <header>
           <button
@@ -347,9 +409,28 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
                 onClick={() => exportExperiment(experiment.id, experiment.config.name)}
               >
                 <Download className="h-3.5 w-3.5" />
-                Export
+                Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setView("setup")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const { getExperimentReport } = await import("../../api/controlSets");
+                  await getExperimentReport(experiment.id);
+                }}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                HTML Report
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const mode = experiment.config.mode;
+                  const isMultiStep = mode === "multi-step" || mode === "import";
+                  setView(isMultiStep ? "multi-step-setup" : "setup");
+                }}
+              >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Re-run
               </Button>
@@ -399,9 +480,22 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
         <div className="mt-8 space-y-8">
           {activeTab === "overview" && (
             <>
-              <SummaryVerdict metrics={metrics} />
+              <SummaryVerdict metrics={metrics} rankMetrics={experiment.rankMetrics} />
+              <RankingStatusBanner config={experiment.config} />
               <AiInterpretation experiment={experiment} siteId={siteId} />
-              {metrics && <MetricsOverview metrics={metrics} />}
+              {metrics && (
+                <MetricsOverview
+                  metrics={metrics}
+                  rankMetrics={experiment.rankMetrics}
+                  robustness={experiment.robustness}
+                />
+              )}
+              {experiment.rankMetrics && (
+                <RankMetricsSection rankMetrics={experiment.rankMetrics} />
+              )}
+              {experiment.robustness && (
+                <RobustnessSection robustness={experiment.robustness} />
+              )}
               {metrics && <ConfusionMatrixSection cm={metrics.confusionMatrix} />}
               <GeneListsSection experiment={experiment} />
               {wasOptimized && (
@@ -409,34 +503,34 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
                   {experiment.crossValidation && (
                     <CrossValidationSection cv={experiment.crossValidation} />
                   )}
-                  {experiment.enrichmentResults.length > 0 && (
+                  {(experiment.enrichmentResults ?? []).length > 0 && (
                     <EnrichmentSection results={experiment.enrichmentResults} />
                   )}
                   {experiment.optimizationResult && (
                     <OptimizationSection result={experiment.optimizationResult} />
                   )}
-                  {experiment.treeOptimizationDiff && (
-                    <TreeOptimizationSection diff={experiment.treeOptimizationDiff} />
-                  )}
                 </>
               )}
-              {!wasOptimized && (
+              {hasStepAnalysis && experiment.stepAnalysis && (
+                <StepDecompositionSection stepAnalysis={experiment.stepAnalysis} />
+              )}
+              {!wasOptimized && !hasStepAnalysis && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 text-center">
                   <Sparkles className="mx-auto mb-3 h-6 w-6 text-primary" />
                   <h3 className="text-sm font-semibold text-foreground">
-                    Optimize This Strategy
+                    Analyze This Strategy
                   </h3>
                   <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
-                    Want to improve these results? Run optimization to automatically
-                    tune parameters and find a better-performing configuration.
+                    Want to understand these results? Run step analysis to evaluate each
+                    step, compare operators, and find the best parameter settings.
                   </p>
                   <Button
                     className="mt-4"
                     size="sm"
                     onClick={() => optimizeFromEvaluation(experiment.id)}
                   >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Optimize This Strategy
+                    <FlaskConical className="h-3.5 w-3.5" />
+                    Analyze This Strategy
                   </Button>
                 </div>
               )}

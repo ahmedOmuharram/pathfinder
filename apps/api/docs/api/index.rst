@@ -15,6 +15,7 @@ alphabetical index of all documented objects.
    :maxdepth: 1
 
    overview
+   experiments
    agents
    subkani
    delegation

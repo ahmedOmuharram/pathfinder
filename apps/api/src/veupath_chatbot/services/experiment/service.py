@@ -9,21 +9,27 @@ from __future__ import annotations
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
+from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
     StrategyAPI,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, as_json_object
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.experiment.cross_validation import run_cross_validation
+from veupath_chatbot.services.experiment.cross_validation import (
+    run_cross_validation,
+    run_cross_validation_tree,
+)
 from veupath_chatbot.services.experiment.enrichment import run_enrichment_analysis
 from veupath_chatbot.services.experiment.metrics import metrics_from_control_result
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
+    ControlValueFormat,
     Experiment,
     ExperimentConfig,
     ExperimentProgressPhase,
@@ -70,7 +76,7 @@ async def run_experiment(
                 "data": {
                     "experimentId": experiment_id,
                     "phase": phase,
-                    **dict(extra),
+                    **cast(JSONObject, dict(extra)),
                 },
             }
             await progress_callback(event)
@@ -86,16 +92,12 @@ async def run_experiment(
         await _emit("evaluating", message="Running control tests...")
 
         if is_tree_mode:
-            from veupath_chatbot.services.control_tests import ControlValueFormat
-            from veupath_chatbot.services.experiment.tree_optimization import (
-                TreeOptimizationConfig,
-                optimize_strategy_tree,
+            from veupath_chatbot.services.experiment.step_analysis import (
                 run_controls_against_tree,
-                tree_optimization_result_to_json,
             )
 
-            tree_dict: JSONObject = config.step_tree  # type: ignore[assignment]
-            cvf: ControlValueFormat = config.controls_value_format  # type: ignore[assignment]
+            tree_dict: JSONObject = cast(JSONObject, config.step_tree)
+            cvf: ControlValueFormat = config.controls_value_format
 
             result = await run_controls_against_tree(
                 site_id=config.site_id,
@@ -104,8 +106,8 @@ async def run_experiment(
                 controls_search_name=config.controls_search_name,
                 controls_param_name=config.controls_param_name,
                 controls_value_format=cvf,
-                positive_controls=config.positive_controls or None,
-                negative_controls=config.negative_controls or None,
+                positive_controls=config.positive_controls or [],
+                negative_controls=config.negative_controls or [],
             )
         else:
             result = await run_positive_negative_controls(
@@ -147,51 +149,43 @@ async def run_experiment(
             metrics=metrics_to_json(metrics),
         )
 
-        # --- Phase 1b: Tree-level optimisation (multi-step / import) ---
+        # --- Phase 1b: Step Analysis (multi-step / import) ---
         final_tree = tree_dict if is_tree_mode else None
-        if is_tree_mode and config.enable_tree_optimization:
-            await _emit("optimizing", message="Running tree optimisation...")
 
-            async def _tree_opt_progress(event: JSONObject) -> None:
+        if is_tree_mode and config.enable_step_analysis:
+            from veupath_chatbot.services.experiment.step_analysis import (
+                run_step_analysis,
+            )
+
+            await _emit(
+                "step_analysis", message="Running step decomposition analysis..."
+            )
+
+            async def _step_analysis_progress(event: JSONObject) -> None:
                 data = event.get("data", {})
                 msg = data.get("message", "") if isinstance(data, dict) else ""
-                await _emit("optimizing", message=str(msg), trialProgress=data)
+                await _emit(
+                    "step_analysis", message=str(msg), stepAnalysisProgress=data
+                )
 
-            tree_opt_result = await optimize_strategy_tree(
+            step_analysis_result = await run_step_analysis(
                 site_id=config.site_id,
                 record_type=config.record_type,
                 tree=tree_dict,
                 controls_search_name=config.controls_search_name,
                 controls_param_name=config.controls_param_name,
                 controls_value_format=cvf,
-                positive_controls=config.positive_controls or None,
-                negative_controls=config.negative_controls or None,
-                config=TreeOptimizationConfig(
-                    budget=config.tree_optimization_budget,
-                    objective=config.optimization_objective or "balanced_accuracy",
-                    optimize_operators=config.optimize_operators,
-                    optimize_orthologs=config.optimize_orthologs,
-                    ortholog_organisms=config.ortholog_organisms or [],
-                    optimize_structure=config.optimize_structure,
-                ),
-                progress_callback=_tree_opt_progress,
+                positive_controls=config.positive_controls or [],
+                negative_controls=config.negative_controls or [],
+                baseline_result=result,
+                phases=config.step_analysis_phases,
+                progress_callback=_step_analysis_progress,
             )
-
-            experiment.optimized_tree = tree_opt_result.best_tree
-            experiment.tree_optimization_diff = tree_optimization_result_to_json(
-                tree_opt_result
-            )
-
-            if tree_opt_result.best_metrics:
-                metrics = tree_opt_result.best_metrics
-                experiment.metrics = metrics
-
-            if isinstance(tree_opt_result.best_tree, dict):
-                final_tree = tree_opt_result.best_tree
+            experiment.step_analysis = step_analysis_result
 
             await _emit(
-                "evaluating",
-                message="Tree optimisation complete",
+                "step_analysis",
+                message="Step analysis complete",
                 metrics=metrics_to_json(metrics),
             )
 
@@ -213,6 +207,71 @@ async def run_experiment(
                 experiment_id=experiment_id,
                 error=str(exc),
             )
+
+        # --- Phase 1c: Rank-based metrics (only when ranking is configured) ---
+        is_ranked = config.sort_attribute is not None
+        ordered_ids: list[str] = []
+        if is_ranked and experiment.wdk_step_id is not None:
+            try:
+                await _emit("evaluating", message="Computing rank-based metrics...")
+                from veupath_chatbot.services.experiment.rank_metrics import (
+                    compute_rank_metrics,
+                    fetch_ordered_result_ids,
+                )
+
+                ordered_ids = await fetch_ordered_result_ids(
+                    site_id=config.site_id,
+                    step_id=experiment.wdk_step_id,
+                    sort_attribute=config.sort_attribute,
+                    sort_direction=config.sort_direction,
+                )
+                if ordered_ids:
+                    pos_set = set(config.positive_controls or [])
+                    neg_set = set(config.negative_controls or [])
+                    experiment.rank_metrics = compute_rank_metrics(
+                        result_ids=ordered_ids,
+                        positive_ids=pos_set,
+                        negative_ids=neg_set,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Rank metrics computation failed",
+                    experiment_id=experiment_id,
+                    error=str(exc),
+                )
+
+        # --- Phase 1d: Robustness / bootstrap CIs ---
+        if experiment.wdk_step_id is not None:
+            try:
+                await _emit("evaluating", message="Computing robustness estimates...")
+                from veupath_chatbot.services.experiment.robustness import (
+                    compute_robustness,
+                )
+
+                if not ordered_ids:
+                    from veupath_chatbot.services.experiment.rank_metrics import (
+                        fetch_ordered_result_ids as _fetch_ids,
+                    )
+
+                    ordered_ids = await _fetch_ids(
+                        site_id=config.site_id,
+                        step_id=experiment.wdk_step_id,
+                    )
+
+                if ordered_ids:
+                    experiment.robustness = compute_robustness(
+                        result_ids=ordered_ids,
+                        positive_ids=config.positive_controls or [],
+                        negative_ids=config.negative_controls or [],
+                        n_bootstrap=200,
+                        include_rank_metrics=is_ranked,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Robustness computation failed",
+                    experiment_id=experiment_id,
+                    error=str(exc),
+                )
 
         # --- Phase 1b (single-step): Parameter optimization ---
         if (
@@ -251,7 +310,7 @@ async def run_experiment(
                 opt_param_space = [
                     OptParamSpec(
                         name=s.name,
-                        param_type=s.type,  # type: ignore[arg-type]
+                        param_type=s.type,
                         min_value=s.min,
                         max_value=s.max,
                         step=s.step,
@@ -292,7 +351,7 @@ async def run_experiment(
                     controls_value_format=config.controls_value_format,
                     config=OptimizationConfig(
                         budget=config.optimization_budget,
-                        objective=config.optimization_objective,  # type: ignore[arg-type]
+                        objective=config.optimization_objective,
                     ),
                     progress_callback=_opt_progress,
                 )
@@ -321,6 +380,61 @@ async def run_experiment(
                     )
                     metrics = metrics_from_control_result(result)
                     experiment.metrics = metrics
+                    experiment.true_positive_genes = _extract_gene_list(
+                        result, "positive", "intersectionIds"
+                    )
+                    experiment.false_negative_genes = _extract_gene_list(
+                        result, "positive", "missingIdsSample"
+                    )
+                    experiment.false_positive_genes = _extract_gene_list(
+                        result, "negative", "intersectionIds"
+                    )
+                    experiment.true_negative_genes = _extract_gene_list(
+                        result,
+                        "negative",
+                        "missingIdsSample",
+                        fallback_from_controls=True,
+                        all_controls=config.negative_controls,
+                        hit_ids=_extract_id_set(result, "negative", "intersectionIds"),
+                    )
+
+        # --- Phase 1e: Tree-knob optimization (multi-step) ---
+        has_tree_knobs = bool(config.threshold_knobs or config.operator_knobs)
+        if is_tree_mode and has_tree_knobs and tree_dict is not None:
+            try:
+                await _emit("optimizing", message="Optimizing strategy tree knobs...")
+                from veupath_chatbot.services.experiment.tree_knobs import (
+                    optimize_tree_knobs,
+                )
+
+                tree_opt_result = await optimize_tree_knobs(
+                    site_id=config.site_id,
+                    record_type=config.record_type,
+                    base_tree=tree_dict,
+                    threshold_knobs=config.threshold_knobs or [],
+                    operator_knobs=config.operator_knobs or [],
+                    positive_controls=config.positive_controls or [],
+                    negative_controls=config.negative_controls or [],
+                    controls_search_name=config.controls_search_name,
+                    controls_param_name=config.controls_param_name,
+                    controls_value_format=cvf,
+                    objective=config.tree_optimization_objective,
+                    budget=config.tree_optimization_budget,
+                    max_list_size=config.max_list_size,
+                )
+                experiment.tree_optimization = tree_opt_result
+                await _emit(
+                    "optimizing",
+                    message=f"Tree optimization complete — best score: {tree_opt_result.best_trial.score:.4f}"
+                    if tree_opt_result.best_trial
+                    else "Tree optimization complete — no improving trial found",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Tree knob optimization failed",
+                    experiment_id=experiment_id,
+                    error=str(exc),
+                )
 
         # --- Phase 2: Cross-validation (optional) ---
         if (
@@ -341,23 +455,40 @@ async def run_experiment(
                     cvTotalFolds=total,
                 )
 
-            cv_result = await run_cross_validation(
-                site_id=config.site_id,
-                record_type=config.record_type,
-                search_name=config.search_name,
-                parameters=config.parameters,
-                controls_search_name=config.controls_search_name,
-                controls_param_name=config.controls_param_name,
-                positive_controls=config.positive_controls,
-                negative_controls=config.negative_controls,
-                controls_value_format=config.controls_value_format,
-                k=config.k_folds,
-                full_metrics=metrics,
-                progress_callback=cv_progress,
-            )
+            if is_tree_mode and final_tree is not None:
+                cv_result = await run_cross_validation_tree(
+                    site_id=config.site_id,
+                    record_type=config.record_type,
+                    tree=final_tree,
+                    controls_search_name=config.controls_search_name,
+                    controls_param_name=config.controls_param_name,
+                    controls_value_format=cvf,
+                    positive_controls=config.positive_controls,
+                    negative_controls=config.negative_controls,
+                    k=config.k_folds,
+                    full_metrics=metrics,
+                    progress_callback=cv_progress,
+                )
+            else:
+                cv_result = await run_cross_validation(
+                    site_id=config.site_id,
+                    record_type=config.record_type,
+                    search_name=config.search_name,
+                    parameters=config.parameters,
+                    controls_search_name=config.controls_search_name,
+                    controls_param_name=config.controls_param_name,
+                    positive_controls=config.positive_controls,
+                    negative_controls=config.negative_controls,
+                    controls_value_format=config.controls_value_format,
+                    k=config.k_folds,
+                    full_metrics=metrics,
+                    progress_callback=cv_progress,
+                )
             experiment.cross_validation = cv_result
 
         # --- Phase 3: Enrichment analysis (optional) ---
+        enrich_search = config.search_name
+        enrich_params = config.parameters
         for enrich_type in config.enrichment_types:
             await _emit(
                 "enriching",
@@ -365,13 +496,24 @@ async def run_experiment(
                 enrichmentType=enrich_type,
             )
             try:
-                enrich_result = await run_enrichment_analysis(
-                    site_id=config.site_id,
-                    record_type=config.record_type,
-                    search_name=config.search_name,
-                    parameters=config.parameters,
-                    analysis_type=enrich_type,
-                )
+                if is_tree_mode and experiment.wdk_step_id is not None:
+                    from veupath_chatbot.services.experiment.enrichment import (
+                        run_enrichment_on_step,
+                    )
+
+                    enrich_result = await run_enrichment_on_step(
+                        site_id=config.site_id,
+                        step_id=experiment.wdk_step_id,
+                        analysis_type=enrich_type,
+                    )
+                else:
+                    enrich_result = await run_enrichment_analysis(
+                        site_id=config.site_id,
+                        record_type=config.record_type,
+                        search_name=enrich_search,
+                        parameters=enrich_params,
+                        analysis_type=enrich_type,
+                    )
                 experiment.enrichment_results.append(enrich_result)
             except Exception as exc:
                 logger.warning(
@@ -478,7 +620,7 @@ async def _materialize_step_tree(
     display_name = str(node.get("displayName", search_name))
 
     if primary_tree is not None and secondary_tree is not None:
-        operator = str(node.get("operator", "INTERSECT"))
+        operator = str(node.get("operator", DEFAULT_COMBINE_OPERATOR.value))
         step = await api.create_combined_step(
             primary_step_id=primary_tree.step_id,
             secondary_step_id=secondary_tree.step_id,
@@ -603,7 +745,7 @@ async def _persist_import_strategy(
     if not isinstance(dup_resp, dict) or "stepTree" not in dup_resp:
         raise ValueError(f"Failed to duplicate step tree from strategy {source_id}")
 
-    raw_tree: JSONObject = dup_resp["stepTree"]  # type: ignore[assignment]
+    raw_tree = as_json_object(dup_resp["stepTree"])
 
     # The duplicated tree already has real WDK step IDs, so we can
     # directly wrap it in a StepTreeNode.

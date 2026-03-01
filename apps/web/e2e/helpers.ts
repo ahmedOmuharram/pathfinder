@@ -10,15 +10,14 @@ import { expect, type Page } from "@playwright/test";
  * 3. Intercepts VEuPathDB auth-refresh requests so the on-load refresh
  *    succeeds without a real VEuPathDB session.
  */
-async function setupAuth(page: Page) {
-  const apiBase = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
-
+export async function setupAuth(page: Page) {
   // 1. Obtain a valid auth token from the dev-only endpoint (with retry).
-  let resp = await page.request.post(`${apiBase}/api/v1/dev/login`);
+  // Uses relative URL so Playwright applies baseURL from config automatically.
+  let resp = await page.request.post("/api/v1/dev/login");
   if (!resp.ok()) {
     // Parallel workers can race on user creation — retry once.
     await page.waitForTimeout(500);
-    resp = await page.request.post(`${apiBase}/api/v1/dev/login`);
+    resp = await page.request.post("/api/v1/dev/login");
   }
   expect(resp.ok()).toBeTruthy();
   const { authToken } = (await resp.json()) as { authToken: string };
@@ -73,9 +72,8 @@ export async function gotoHome(page: Page) {
 export async function gotoHomeWithStrategy(page: Page) {
   await setupAuth(page);
 
-  const apiBase = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
   const uniqueName = `E2E Strategy ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const createResp = await page.request.post(`${apiBase}/api/v1/strategies`, {
+  const createResp = await page.request.post("/api/v1/strategies", {
     data: {
       name: uniqueName,
       siteId: "plasmodb",

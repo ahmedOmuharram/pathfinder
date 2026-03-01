@@ -434,10 +434,9 @@ class TestRunIntersectionControl:
             controls_extra_parameters=None,
         )
 
-        # One stale internal control-test strategy + the newly created temp strategy.
-        assert api.delete_strategy.await_count == 2
-        deleted_ids = [c.args[0] for c in api.delete_strategy.await_args_list]
-        assert 123 in deleted_ids
+        # _run_intersection_control only cleans up its own temp strategy.
+        # Stale cleanup happens in run_positive_negative_controls (higher-level).
+        assert api.delete_strategy.await_count == 1
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")

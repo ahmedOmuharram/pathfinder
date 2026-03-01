@@ -22,6 +22,7 @@ from veupath_chatbot.services.experiment.metrics import (
 )
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
+    ControlValueFormat,
     CrossValidationResult,
     ExperimentMetrics,
     FoldMetrics,
@@ -88,19 +89,37 @@ def _std_metrics(
     if n < 2:
         return {}
 
-    fields = [
-        ("sensitivity", lambda m: m.sensitivity),
-        ("specificity", lambda m: m.specificity),
-        ("precision", lambda m: m.precision),
-        ("f1Score", lambda m: m.f1_score),
-        ("mcc", lambda m: m.mcc),
-        ("balancedAccuracy", lambda m: m.balanced_accuracy),
+    def _get_sensitivity(m: ExperimentMetrics) -> float:
+        return m.sensitivity
+
+    def _get_specificity(m: ExperimentMetrics) -> float:
+        return m.specificity
+
+    def _get_precision(m: ExperimentMetrics) -> float:
+        return m.precision
+
+    def _get_f1_score(m: ExperimentMetrics) -> float:
+        return m.f1_score
+
+    def _get_mcc(m: ExperimentMetrics) -> float:
+        return m.mcc
+
+    def _get_balanced_accuracy(m: ExperimentMetrics) -> float:
+        return m.balanced_accuracy
+
+    fields: list[tuple[str, Callable[[ExperimentMetrics], float]]] = [
+        ("sensitivity", _get_sensitivity),
+        ("specificity", _get_specificity),
+        ("precision", _get_precision),
+        ("f1Score", _get_f1_score),
+        ("mcc", _get_mcc),
+        ("balancedAccuracy", _get_balanced_accuracy),
     ]
 
     result: dict[str, float] = {}
     for name, getter in fields:
         mean_val = getter(mean)
-        variance = sum((getter(m) - mean_val) ** 2 for m in fold_metrics_list) / n
+        variance = sum((getter(m) - mean_val) ** 2 for m in fold_metrics_list) / (n - 1)
         result[name] = math.sqrt(variance)
     return result
 
@@ -138,7 +157,7 @@ async def run_cross_validation(
     controls_param_name: str,
     positive_controls: list[str],
     negative_controls: list[str],
-    controls_value_format: str = "newline",
+    controls_value_format: ControlValueFormat = "newline",
     k: int = 5,
     full_metrics: ExperimentMetrics | None = None,
     progress_callback: ProgressCallback | None = None,
@@ -159,7 +178,11 @@ async def run_cross_validation(
     :param progress_callback: Optional progress reporter.
     :returns: Cross-validation result with per-fold and aggregate metrics.
     """
-    k = max(2, min(k, len(positive_controls), len(negative_controls)))
+    # k must be at most the size of the smallest non-empty control set,
+    # but at least 2.  If either set has fewer than 2 items, skip it
+    # in the min() so we can still cross-validate the other set.
+    size_caps = [len(s) for s in (positive_controls, negative_controls) if len(s) >= 2]
+    k = max(2, min(k, *size_caps)) if size_caps else 2
 
     pos_folds = _stratified_kfold(positive_controls, k)
     neg_folds = _stratified_kfold(negative_controls, k)
@@ -188,6 +211,96 @@ async def run_cross_validation(
             fold_metrics = metrics_from_control_result(result)
         except Exception as exc:
             logger.warning("Fold %d failed: %s", fold_idx, exc)
+            cm = compute_confusion_matrix(
+                positive_hits=0,
+                total_positives=len(holdout_pos),
+                negative_hits=0,
+                total_negatives=len(holdout_neg),
+            )
+            fold_metrics = compute_metrics(cm)
+
+        fold_results.append(
+            FoldMetrics(
+                fold_index=fold_idx,
+                metrics=fold_metrics,
+                positive_control_ids=holdout_pos,
+                negative_control_ids=holdout_neg,
+            )
+        )
+
+    metrics_list = [f.metrics for f in fold_results]
+    mean = _average_metrics(metrics_list)
+    std = _std_metrics(metrics_list, mean)
+
+    if full_metrics is not None:
+        ov_score, ov_level = _compute_overfitting_score(full_metrics, mean)
+    else:
+        ov_score, ov_level = 0.0, "low"
+
+    return CrossValidationResult(
+        k=k,
+        folds=fold_results,
+        mean_metrics=mean,
+        std_metrics=std,
+        overfitting_score=ov_score,
+        overfitting_level=ov_level,
+    )
+
+
+async def run_cross_validation_tree(
+    *,
+    site_id: str,
+    record_type: str,
+    tree: JSONObject,
+    controls_search_name: str,
+    controls_param_name: str,
+    controls_value_format: ControlValueFormat,
+    positive_controls: list[str],
+    negative_controls: list[str],
+    k: int = 5,
+    full_metrics: ExperimentMetrics | None = None,
+    progress_callback: ProgressCallback | None = None,
+) -> CrossValidationResult:
+    """Tree-aware k-fold cross-validation.
+
+    Like :func:`run_cross_validation` but materialises a full
+    ``PlanStepNode`` tree instead of a single search step.
+
+    :param tree: ``PlanStepNode``-shaped dict (the strategy tree).
+    """
+    from veupath_chatbot.services.experiment.step_analysis import (
+        run_controls_against_tree,
+    )
+
+    size_caps = [len(s) for s in (positive_controls, negative_controls) if len(s) >= 2]
+    k = max(2, min(k, *size_caps)) if size_caps else 2
+
+    pos_folds = _stratified_kfold(positive_controls, k)
+    neg_folds = _stratified_kfold(negative_controls, k)
+
+    fold_results: list[FoldMetrics] = []
+
+    for fold_idx in range(k):
+        holdout_pos = pos_folds[fold_idx]
+        holdout_neg = neg_folds[fold_idx]
+
+        if progress_callback:
+            await progress_callback(fold_idx, k)
+
+        try:
+            result = await run_controls_against_tree(
+                site_id=site_id,
+                record_type=record_type,
+                tree=tree,
+                controls_search_name=controls_search_name,
+                controls_param_name=controls_param_name,
+                controls_value_format=controls_value_format,
+                positive_controls=holdout_pos if holdout_pos else None,
+                negative_controls=holdout_neg if holdout_neg else None,
+            )
+            fold_metrics = metrics_from_control_result(result)
+        except Exception as exc:
+            logger.warning("Tree fold %d failed: %s", fold_idx, exc)
             cm = compute_confusion_matrix(
                 positive_hits=0,
                 total_positives=len(holdout_pos),

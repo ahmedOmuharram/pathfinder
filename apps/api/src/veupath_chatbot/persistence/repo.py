@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.persistence.models import (
+    ControlSet,
     PlanSession,
     Strategy,
     StrategyHistory,
@@ -232,6 +233,35 @@ class StrategyRepository:
         await self.session.delete(strategy)
         return True
 
+    async def prune_wdk_orphans(
+        self,
+        user_id: UUID,
+        site_id: str,
+        live_wdk_ids: set[int],
+    ) -> int:
+        """Delete local strategies whose WDK counterpart no longer exists.
+
+        :param user_id: Owner.
+        :param site_id: Site to scope the pruning.
+        :param live_wdk_ids: Set of WDK strategy IDs that still exist.
+        :returns: Number of pruned rows.
+        """
+        # Find local strategies linked to WDK but not in the live set.
+        stmt = select(Strategy).where(
+            Strategy.user_id == user_id,
+            Strategy.site_id == site_id,
+            Strategy.wdk_strategy_id.isnot(None),
+        )
+        result = await self.session.execute(stmt)
+        orphans = [
+            s
+            for s in result.scalars().all()
+            if s.wdk_strategy_id is not None and s.wdk_strategy_id not in live_wdk_ids
+        ]
+        for orphan in orphans:
+            await self.session.delete(orphan)
+        return len(orphans)
+
     async def add_message(
         self, strategy_id: UUID, message: JSONObject
     ) -> Strategy | None:
@@ -417,3 +447,89 @@ class PlanSessionRepository:
         # Ensure server-side fields (e.g. updated_at) are populated and not expired.
         await self.session.refresh(ps)
         return ps
+
+
+class ControlSetRepository:
+    """Control set CRUD operations."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def get_by_id(self, control_set_id: UUID) -> ControlSet | None:
+        """Get control set by ID."""
+        return await self.session.get(ControlSet, control_set_id)
+
+    async def list_by_site(
+        self,
+        site_id: str,
+        user_id: UUID | None = None,
+        tags: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[ControlSet]:
+        """List control sets for a site, including public ones and user-owned."""
+        from sqlalchemy import or_
+
+        conditions = [ControlSet.site_id == site_id]
+        if user_id is not None:
+            conditions.append(
+                or_(ControlSet.is_public.is_(True), ControlSet.user_id == user_id)
+            )
+        else:
+            conditions.append(ControlSet.is_public.is_(True))
+
+        stmt = (
+            select(ControlSet)
+            .where(*conditions)
+            .order_by(ControlSet.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = list(result.scalars().all())
+
+        if tags:
+            tag_set = set(tags)
+            rows = [
+                r
+                for r in rows
+                if tag_set.intersection(r.tags if isinstance(r.tags, list) else [])
+            ]
+        return rows
+
+    async def create(
+        self,
+        *,
+        name: str,
+        site_id: str,
+        record_type: str,
+        positive_ids: list[str],
+        negative_ids: list[str],
+        source: str | None = None,
+        tags: list[str] | None = None,
+        provenance_notes: str | None = None,
+        is_public: bool = False,
+        user_id: UUID | None = None,
+    ) -> ControlSet:
+        """Create a new control set."""
+        cs = ControlSet(
+            name=name,
+            site_id=site_id,
+            record_type=record_type,
+            positive_ids=positive_ids,
+            negative_ids=negative_ids,
+            source=source,
+            tags=tags or [],
+            provenance_notes=provenance_notes,
+            is_public=is_public,
+            user_id=user_id,
+        )
+        self.session.add(cs)
+        await self.session.flush()
+        return cs
+
+    async def delete(self, control_set_id: UUID) -> bool:
+        """Delete a control set."""
+        cs = await self.get_by_id(control_set_id)
+        if cs is None:
+            return False
+        await self.session.delete(cs)
+        return True

@@ -11,7 +11,7 @@ import { ModelPicker } from "@/features/chat/components/ModelPicker";
 import { ReasoningToggle } from "@/features/chat/components/ReasoningToggle";
 import { listStrategies, deleteStrategy, deletePlanSession } from "@/lib/api/client";
 import type { ReasoningEffort } from "@pathfinder/shared";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, FlaskConical } from "lucide-react";
 
 type Tab = "general" | "data" | "advanced";
 
@@ -72,7 +72,7 @@ export function SettingsPage({
               onStrategiesCleared={onStrategiesCleared}
             />
           )}
-          {tab === "advanced" && <AdvancedTab />}
+          {tab === "advanced" && <AdvancedTab siteId={siteId} />}
         </div>
       </div>
     </Modal>
@@ -299,7 +299,7 @@ function DangerAction({
 
 // Advanced tab
 
-function AdvancedTab() {
+function AdvancedTab({ siteId }: { siteId: string }) {
   const showRawToolCalls = useSettingsStore((s) => s.showRawToolCalls);
   const setShowRawToolCalls = useSettingsStore((s) => s.setShowRawToolCalls);
   const advancedReasoningBudgets = useSettingsStore((s) => s.advancedReasoningBudgets);
@@ -307,6 +307,53 @@ function AdvancedTab() {
     (s) => s.setAdvancedReasoningBudget,
   );
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
+
+  const [seeding, setSeeding] = useState(false);
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
+
+  const handleSeedExperiments = useCallback(async () => {
+    setSeeding(true);
+    setSeedStatus("Starting...");
+    try {
+      const response = await fetch("/api/v1/experiments/seed", {
+        method: "POST",
+        headers: { Accept: "text/event-stream" },
+        credentials: "include",
+      });
+      if (!response.ok || !response.body) {
+        setSeedStatus(`Failed: HTTP ${response.status}`);
+        setSeeding(false);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          try {
+            const data = JSON.parse(line.slice(5).trim());
+            if (data.message) setSeedStatus(data.message);
+          } catch {
+            /* skip malformed */
+          }
+        }
+      }
+    } catch (err) {
+      setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setSeeding(false);
+    }
+  }, []);
 
   const providers = [
     {
@@ -370,6 +417,32 @@ function AdvancedTab() {
             </div>
           ))}
         </div>
+      </SettingsField>
+
+      <SettingsField label="Seed demo strategies">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={seeding}
+            onClick={() => void handleSeedExperiments()}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {seeding ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FlaskConical className="h-3.5 w-3.5" />
+            )}
+            {seeding ? "Seeding..." : "Seed Strategies"}
+          </button>
+          {seedStatus && (
+            <span className="text-xs text-muted-foreground">{seedStatus}</span>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Seeds demo strategies and control sets across PlasmoDB, ToxoDB, CryptoDB, and
+          TriTrypDB. Strategies appear in the sidebar; control sets are available in the
+          Experiments tab.
+        </p>
       </SettingsField>
 
       <div className="border-t border-border pt-4">

@@ -1,5 +1,6 @@
 import type { StrategyStep } from "@/features/strategy/types";
 import { inferStepKind } from "@/lib/strategyGraph";
+import { CombineOperator } from "@pathfinder/shared";
 
 export function getZeroResultSuggestions(step: StrategyStep): string[] {
   const suggestions: string[] = [];
@@ -15,15 +16,20 @@ export function getZeroResultSuggestions(step: StrategyStep): string[] {
   const kind = inferStepKind(step);
   if (kind === "combine") {
     const op = step.operator;
-    if (op === "INTERSECT") {
+    if (op === CombineOperator.INTERSECT) {
       suggestions.push(
         "If you expected results from either branch, change INTERSECT (AND) to UNION (OR).",
       );
-    } else if (op === "MINUS" || op === "RMINUS") {
+    } else if (
+      op === CombineOperator.MINUS ||
+      op === CombineOperator.LONLY ||
+      op === CombineOperator.RMINUS ||
+      op === CombineOperator.RONLY
+    ) {
       suggestions.push(
         "If you expected to remove the other branch, verify MINUS direction (swap MINUS vs RMINUS).",
       );
-    } else if (op === "COLOCATE") {
+    } else if (op === CombineOperator.COLOCATE) {
       suggestions.push(
         "For COLOCATE/NEAR, increase upstream/downstream distance and verify feature types.",
       );

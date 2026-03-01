@@ -1,17 +1,15 @@
 "use client";
 
+import { CombineOperator, CombineOperatorBadgeLabels } from "@pathfinder/shared";
+
 interface OpBadgeProps {
   operator: string;
   size?: "sm" | "md";
 }
 
-const OP_INFO: Record<string, { label: string }> = {
-  INTERSECT: { label: "AND (INTERSECT)" },
-  UNION: { label: "OR (UNION)" },
-  MINUS: { label: "NOT (MINUS LEFT)" },
-  RMINUS: { label: "NOT (MINUS RIGHT)" },
-  COLOCATE: { label: "NEAR (COLOCATE)" },
-};
+function getOpBadgeLabel(op: string): string {
+  return (CombineOperatorBadgeLabels as Record<string, string>)[op] ?? op;
+}
 
 export function VennIcon({ operator }: { operator: string }) {
   const stroke = "#64748b"; // slate-500
@@ -32,30 +30,30 @@ export function VennIcon({ operator }: { operator: string }) {
       className="mr-1.5"
     >
       {/* Highlight selected region(s) */}
-      {operator === "UNION" && (
+      {operator === CombineOperator.UNION && (
         <>
           <circle cx="14" cy="12" r="8" fill={highlight} fillOpacity="0.35" />
           <circle cx="22" cy="12" r="8" fill={highlight} fillOpacity="0.35" />
         </>
       )}
-      {operator === "INTERSECT" && (
+      {operator === CombineOperator.INTERSECT && (
         <path d={overlapPath} fill={highlight} fillOpacity="0.9" />
       )}
-      {operator === "MINUS" && (
+      {(operator === CombineOperator.MINUS || operator === CombineOperator.LONLY) && (
         <>
           <circle cx="14" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
           {/* Punch out the overlap so it's truly "left only" */}
           <path d={overlapPath} fill={bg} />
         </>
       )}
-      {operator === "RMINUS" && (
+      {(operator === CombineOperator.RMINUS || operator === CombineOperator.RONLY) && (
         <>
           <circle cx="22" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
           {/* Punch out the overlap so it's truly "right only" */}
           <path d={overlapPath} fill={bg} />
         </>
       )}
-      {operator === "COLOCATE" && (
+      {operator === CombineOperator.COLOCATE && (
         <>
           {/* Not a set operator; show "near" as two separated sets + distance arrow */}
           <circle cx="12" cy="12" r="7" fill={highlight} fillOpacity="0.25" />
@@ -81,7 +79,7 @@ export function VennIcon({ operator }: { operator: string }) {
         </>
       )}
       {/* outlines */}
-      {operator === "COLOCATE" ? (
+      {operator === CombineOperator.COLOCATE ? (
         <>
           <circle cx="12" cy="12" r="7" fill="none" stroke={stroke} strokeWidth="1.5" />
           <circle cx="24" cy="12" r="7" fill="none" stroke={stroke} strokeWidth="1.5" />
@@ -97,9 +95,7 @@ export function VennIcon({ operator }: { operator: string }) {
 }
 
 export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
-  const info = OP_INFO[operator] || {
-    label: operator,
-  };
+  const label = getOpBadgeLabel(operator);
 
   const sizeClasses = size === "sm" ? "px-1.5 py-0.5 text-xs" : "px-2 py-1 text-xs";
 
@@ -108,7 +104,7 @@ export function OpBadge({ operator, size = "md" }: OpBadgeProps) {
       className={`inline-flex items-center rounded-md border border-border bg-muted font-mono font-semibold text-foreground ${sizeClasses}`}
     >
       <VennIcon operator={operator} />
-      {info.label}
+      {label}
     </span>
   );
 }

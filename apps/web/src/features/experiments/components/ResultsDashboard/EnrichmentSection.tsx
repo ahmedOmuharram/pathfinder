@@ -1,26 +1,31 @@
 import { useState, useMemo } from "react";
 import type { EnrichmentResult, EnrichmentTerm } from "@pathfinder/shared";
 import { ArrowUpDown } from "lucide-react";
+import {
+  ENRICHMENT_ANALYSIS_LABELS,
+  type SortDir,
+} from "@/features/experiments/constants";
 import { Section } from "./Section";
 
 type SortKey = "termName" | "geneCount" | "foldEnrichment" | "pValue" | "fdr";
-type SortDir = "asc" | "desc";
 
 interface EnrichmentSectionProps {
   results: EnrichmentResult[];
 }
 
-const analysisLabels: Record<string, string> = {
-  go_function: "GO: Molecular Function",
-  go_component: "GO: Cellular Component",
-  go_process: "GO: Biological Process",
-  pathway: "Metabolic Pathway",
-  word: "Word Enrichment",
-};
+const analysisLabels = ENRICHMENT_ANALYSIS_LABELS;
 
 export function EnrichmentSection({ results }: EnrichmentSectionProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [pThreshold, setPThreshold] = useState(0.05);
+  const [prevResults, setPrevResults] = useState(results);
+
+  // Reset tab index when results change (e.g., switching experiments).
+  // Uses render-time state adjustment instead of useEffect.
+  if (results !== prevResults) {
+    setPrevResults(results);
+    setActiveTab(0);
+  }
 
   return (
     <Section title="Enrichment Analysis">
@@ -97,7 +102,7 @@ function EnrichmentTable({ terms }: { terms: EnrichmentTerm[] }) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortKey(key);
-      setSortDir(key === "termName" ? "asc" : "asc");
+      setSortDir(key === "termName" ? "asc" : "desc");
     }
   };
 

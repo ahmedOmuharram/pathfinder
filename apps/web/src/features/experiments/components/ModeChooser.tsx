@@ -44,6 +44,7 @@ export function ModeChooser() {
         {MODES.map((mode) => (
           <button
             key={mode.id}
+            data-testid={`mode-${mode.id === "multi-step" ? "multistep" : mode.id}`}
             onClick={() => setView(mode.view)}
             className="group flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-6 text-left transition-all hover:border-primary/40 hover:shadow-md"
           >

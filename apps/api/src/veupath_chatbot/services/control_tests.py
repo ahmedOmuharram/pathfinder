@@ -6,22 +6,38 @@ positive controls are returned and known negative controls are excluded.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TypedDict
 
+from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StepTreeNode,
     StrategyAPI,
-    is_internal_wdk_strategy_name,
-    strip_internal_wdk_strategy_name,
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
+from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.transport.http.routers.strategies._shared import (
+    cleanup_internal_control_test_strategies,
+)
 
 logger = get_logger(__name__)
 
-ControlValueFormat = Literal["newline", "json_list", "comma"]
+
+class _IntersectionKwargs(TypedDict):
+    """Common kwargs shared between positive and negative control runs."""
+
+    site_id: str
+    record_type: str
+    target_search_name: str
+    target_parameters: JSONObject
+    controls_search_name: str
+    controls_param_name: str
+    controls_value_format: ControlValueFormat
+    controls_extra_parameters: JSONObject | None
+    boolean_operator: str
+    id_field: str | None
 
 
 def _encode_id_list(ids: list[str], fmt: ControlValueFormat) -> str:
@@ -155,7 +171,7 @@ async def _run_intersection_control(
     controls_ids: list[str],
     controls_value_format: ControlValueFormat,
     controls_extra_parameters: JSONObject | None,
-    boolean_operator: str = "INTERSECT",
+    boolean_operator: str = DEFAULT_COMBINE_OPERATOR.value,
     fetch_ids_limit: int = 500,
     id_field: str | None = None,
 ) -> JSONObject:
@@ -167,7 +183,6 @@ async def _run_intersection_control(
     ``"<stepId> is not a valid step ID"``.
     """
     api = get_strategy_api(site_id)
-    await _cleanup_internal_control_test_strategies(api)
 
     target_step = await api.create_step(
         record_type=record_type,
@@ -299,32 +314,7 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
         strategies = await api.list_strategies()
     except Exception:
         return
-    if not isinstance(strategies, list):
-        return
-
-    for strategy in strategies:
-        if not isinstance(strategy, dict):
-            continue
-        name_raw = strategy.get("name")
-        if not isinstance(name_raw, str):
-            continue
-        if not is_internal_wdk_strategy_name(name_raw):
-            continue
-        display_name = strip_internal_wdk_strategy_name(name_raw)
-        if not display_name.startswith("Pathfinder control test"):
-            continue
-
-        strategy_id_raw = strategy.get("strategyId")
-        if not isinstance(strategy_id_raw, int):
-            continue
-        try:
-            await api.delete_strategy(strategy_id_raw)
-        except Exception as e:
-            logger.warning(
-                "Failed to delete stale internal control-test strategy",
-                strategy_id=strategy_id_raw,
-                error=str(e),
-            )
+    await cleanup_internal_control_test_strategies(api, strategies)
 
 
 async def run_positive_negative_controls(
@@ -348,8 +338,13 @@ async def run_positive_negative_controls(
     strategy is deleted, so a shared target step would be invalidated after
     the first control run's cleanup.
     """
+    # Best-effort cleanup of any stale control-test strategies (once per call,
+    # not per intersection, to avoid racing concurrent experiments).
+    cleanup_api = get_strategy_api(site_id)
+    await _cleanup_internal_control_test_strategies(cleanup_api)
+
     # Common kwargs passed to _run_intersection_control for both control sets.
-    common_kwargs: JSONObject = {
+    common_kwargs: _IntersectionKwargs = {
         "site_id": site_id,
         "record_type": record_type,
         "target_search_name": target_search_name,
@@ -358,7 +353,7 @@ async def run_positive_negative_controls(
         "controls_param_name": controls_param_name,
         "controls_value_format": controls_value_format,
         "controls_extra_parameters": controls_extra_parameters,
-        "boolean_operator": "INTERSECT",
+        "boolean_operator": DEFAULT_COMBINE_OPERATOR.value,
         "id_field": id_field,
     }
 
@@ -380,7 +375,7 @@ async def run_positive_negative_controls(
 
     if pos:
         pos_payload = await _run_intersection_control(
-            **common_kwargs,  # type: ignore[arg-type]
+            **common_kwargs,
             controls_ids=pos,
         )
         # Capture target info from the first successful run.
@@ -409,7 +404,10 @@ async def run_positive_negative_controls(
                 str(x) for x in intersection_ids_value if x is not None
             ]
         found_ids = set(pos_intersection_ids_list)
-        missing = [x for x in pos if found_ids and x not in found_ids]
+        # When intersectionIds is None (>500 controls), found_ids is empty
+        # and we can't enumerate missing IDs.  intersectionCount is still
+        # authoritative for metrics.
+        missing = [x for x in pos if x not in found_ids] if found_ids else []
         missing_ids_sample: JSONValue = list(missing[:50]) if missing else []
         result["positive"] = {
             **pos_payload,
@@ -419,7 +417,7 @@ async def run_positive_negative_controls(
 
     if neg:
         neg_payload = await _run_intersection_control(
-            **common_kwargs,  # type: ignore[arg-type]
+            **common_kwargs,
             controls_ids=neg,
         )
         # Fill target info if not set yet (e.g. no positive controls).

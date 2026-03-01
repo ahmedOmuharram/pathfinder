@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from veupath_chatbot.integrations.veupathdb.site_search import (
     query_site_search,
     strip_html_tags,
@@ -94,7 +96,7 @@ async def fetch_site_search_genes(
     docs = sr.get("documents")
     doc_list = docs if isinstance(docs, list) else []
 
-    results = parse_site_search_docs(doc_list)
+    results = parse_site_search_docs(cast(list[object], doc_list))
 
     org_counts = data_dict.get("organismCounts")
     orgs = sorted(org_counts.keys()) if isinstance(org_counts, dict) else []

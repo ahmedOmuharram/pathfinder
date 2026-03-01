@@ -499,23 +499,21 @@ async def validate_search_params(
     }
 
 
-def _normalize_param_value(value: object) -> str:
+def _normalize_param_value(value: JSONValue) -> str:
     """Normalize a parameter value to a string representation.
 
+    Delegates to the shared :func:`normalize_param_value` which uses
+    ``json.dumps`` for list/dict values (WDK multi-pick params expect JSON
+    array strings per ``AbstractEnumParam.getExternalStableValue``).
+
     :param value: Raw parameter value.
-    :returns: String representation for WDK.
+    :returns: WDK-compatible string representation.
     """
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return str(value)
-    if isinstance(value, list):
-        return ",".join(str(item) for item in value if item is not None)
-    if isinstance(value, dict):
-        return str(value)
-    return str(value)
+    from veupath_chatbot.integrations.veupathdb.param_utils import (
+        normalize_param_value,
+    )
+
+    return normalize_param_value(value)
 
 
 def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONObject:

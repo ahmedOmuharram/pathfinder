@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+ChatMode = Literal["execute", "plan"]
 ModelProvider = Literal["openai", "anthropic", "google"]
 ReasoningEffort = Literal["none", "low", "medium", "high"]
 

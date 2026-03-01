@@ -5,6 +5,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { Import, Loader2 } from "lucide-react";
 import type { StrategyStep } from "@/features/strategy/types";
 import type { CombineOperator } from "@pathfinder/shared";
+import { wdkOperatorToCombine } from "@pathfinder/shared";
 
 interface ImportableStrategy {
   wdkStrategyId: number;
@@ -22,16 +23,6 @@ interface StrategyImportModalProps {
   onImport: (steps: StrategyStep[], name: string, recordType: string) => void;
   onClose: () => void;
 }
-
-const WDK_OPERATOR_MAP: Record<string, CombineOperator> = {
-  INTERSECT: "INTERSECT",
-  UNION: "UNION",
-  MINUS: "MINUS",
-  LMINUS: "MINUS",
-  RMINUS: "RMINUS",
-  LONLY: "MINUS",
-  RONLY: "RMINUS",
-};
 
 /**
  * Recursively walk the enriched WDK stepTree and extract flat StrategyStep
@@ -70,11 +61,9 @@ function flattenEnrichedTree(
   const estimatedSize = node.estimatedSize;
 
   const isCombine = Boolean(primaryInput && secondaryInput);
-  let operator: CombineOperator | undefined;
-  if (isCombine) {
-    const wdkOp = (parameters.bq_operator ?? "").toString().toUpperCase();
-    operator = WDK_OPERATOR_MAP[wdkOp] ?? "INTERSECT";
-  }
+  const operator: CombineOperator | undefined = isCombine
+    ? wdkOperatorToCombine(parameters.bq_operator)
+    : undefined;
 
   const step: StrategyStep = {
     id: `imported_${stepId}`,

@@ -13,12 +13,8 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
-from veupath_chatbot.ai.agents.factory import (
-    ChatMode,
-    create_agent,
-    resolve_effective_model_id,
-)
-from veupath_chatbot.ai.models.catalog import ModelProvider, ReasoningEffort
+from veupath_chatbot.ai.agents.factory import create_agent, resolve_effective_model_id
+from veupath_chatbot.ai.models.catalog import ChatMode, ModelProvider, ReasoningEffort
 from veupath_chatbot.persistence.repo import (
     PlanSessionRepository,
     StrategyRepository,

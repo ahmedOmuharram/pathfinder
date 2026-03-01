@@ -53,19 +53,22 @@ export function buildExperimentConfig(input: BuildConfigInput): ExperimentConfig
     }
   }
 
+  // Sanitize gene IDs: strip whitespace, remove blanks
+  const cleanIds = (ids: string[]) => ids.map((s) => s.trim()).filter(Boolean);
+
   const config: ExperimentConfig = {
     siteId,
     recordType: selectedRecordType,
     mode: "single",
     searchName: selectedSearch,
     parameters: fixedParams,
-    positiveControls,
-    negativeControls,
+    positiveControls: cleanIds(positiveControls),
+    negativeControls: cleanIds(negativeControls),
     controlsSearchName,
     controlsParamName,
     controlsValueFormat: "newline",
     enableCrossValidation: enableCV,
-    kFolds,
+    kFolds: Math.max(2, Math.min(10, kFolds)),
     enrichmentTypes: Array.from(enrichments) as EnrichmentAnalysisType[],
     name: name || `${selectedSearch} experiment`,
     parameterDisplayValues: buildDisplayMap(parameters, paramSpecs),

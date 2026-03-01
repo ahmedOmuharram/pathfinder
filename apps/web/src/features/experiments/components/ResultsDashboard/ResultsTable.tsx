@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { Classification } from "@pathfinder/shared";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
+import type { WdkSortDir } from "@/features/experiments/constants";
 import {
   getExperimentRecords,
   getExperimentAttributes,
@@ -21,9 +23,6 @@ import type { RecordAttribute, WdkRecord, RecordsResponse } from "../../api";
 interface ResultsTableProps {
   experimentId: string;
 }
-
-type SortDir = "ASC" | "DESC";
-type Classification = "TP" | "FP" | "FN" | "TN";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -63,7 +62,7 @@ export function ResultsTable({ experimentId }: ResultsTableProps) {
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("ASC");
+  const [sortDir, setSortDir] = useState<WdkSortDir>("ASC");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +110,8 @@ export function ResultsTable({ experimentId }: ResultsTableProps) {
 
   useEffect(() => {
     if (visibleColumns.size > 0) fetchRecords();
-  }, [fetchRecords, visibleColumns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchRecords already depends on visibleColumns
+  }, [fetchRecords]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -450,6 +450,47 @@ function stripHtml(html: string): string {
   return doc.body.textContent ?? "";
 }
 
+/** Allow only safe inline tags; strip everything else. */
+function sanitizeHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const ALLOWED_TAGS = new Set([
+    "a",
+    "b",
+    "i",
+    "em",
+    "strong",
+    "span",
+    "br",
+    "sub",
+    "sup",
+  ]);
+  function walk(node: Node) {
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as Element;
+        if (!ALLOWED_TAGS.has(el.tagName.toLowerCase())) {
+          el.replaceWith(...Array.from(el.childNodes));
+        } else {
+          // Remove event handler attributes
+          for (const attr of Array.from(el.attributes)) {
+            if (attr.name.startsWith("on") || attr.name === "style") {
+              el.removeAttribute(attr.name);
+            }
+          }
+          if (el.tagName === "A") {
+            el.setAttribute("target", "_blank");
+            el.setAttribute("rel", "noopener noreferrer");
+          }
+          walk(el);
+        }
+      }
+    }
+  }
+  walk(doc.body);
+  return doc.body.innerHTML;
+}
+
 function tryParseJsonLink(raw: string): { text: string; url: string } | null {
   if (!raw.startsWith("{")) return null;
   try {
@@ -510,10 +551,12 @@ function AttributeValueRich({ value }: { value: unknown }) {
   }
 
   if (HTML_TAG_RE.test(str)) {
+    // sanitizeHtml strips scripts, event handlers, and unsafe tags;
+    // only allows a, b, i, em, strong, span, br, sub, sup.
     return (
       <span
         className="[&_a]:text-primary [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: str }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(str) }}
       />
     );
   }

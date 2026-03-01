@@ -1,15 +1,20 @@
 /**
  * Shared TypeScript types for Pathfinder - VEuPathDB Strategy Builder
+ *
+ * Canonical combine operators (matches WDK BooleanOperator): INTERSECT, MINUS,
+ * RMINUS, LONLY, RONLY, COLOCATE, UNION.
  */
 
 // Combine Operations
 
 export const CombineOperator = {
   INTERSECT: "INTERSECT",
-  UNION: "UNION",
   MINUS: "MINUS",
   RMINUS: "RMINUS",
+  LONLY: "LONLY",
+  RONLY: "RONLY",
   COLOCATE: "COLOCATE",
+  UNION: "UNION",
 } as const;
 
 export type CombineOperator =
@@ -17,11 +22,68 @@ export type CombineOperator =
 
 export const CombineOperatorLabels: Record<CombineOperator, string> = {
   INTERSECT: "IDs in common (AND)",
-  UNION: "Combined (OR)",
-  MINUS: "Not in right",
-  RMINUS: "Not in left",
+  MINUS: "In left, not in right",
+  RMINUS: "In right, not in left",
+  LONLY: "Left only",
+  RONLY: "Right only",
   COLOCATE: "Genomic colocation",
+  UNION: "Combined (OR)",
 };
+
+/** Short display labels for operator badges (e.g. "AND (INTERSECT)"). */
+export const CombineOperatorBadgeLabels: Record<CombineOperator, string> = {
+  INTERSECT: "AND (INTERSECT)",
+  MINUS: "NOT (MINUS LEFT)",
+  RMINUS: "NOT (MINUS RIGHT)",
+  LONLY: "LEFT ONLY",
+  RONLY: "RIGHT ONLY",
+  COLOCATE: "NEAR (COLOCATE)",
+  UNION: "OR (UNION)",
+};
+
+/**
+ * Maps WDK bq_operator values to canonical CombineOperator.
+ * WDK uses INTERSECT, UNION, MINUS, RMINUS, LMINUS, LONLY, RONLY.
+ */
+export const WDK_OPERATOR_TO_COMBINE: Record<string, CombineOperator> = {
+  INTERSECT: CombineOperator.INTERSECT,
+  UNION: CombineOperator.UNION,
+  MINUS: CombineOperator.MINUS,
+  LMINUS: CombineOperator.MINUS,
+  RMINUS: CombineOperator.RMINUS,
+  LONLY: CombineOperator.LONLY,
+  RONLY: CombineOperator.RONLY,
+};
+
+export const CombineOperatorShortLabels: Record<CombineOperator, string> = {
+  INTERSECT: "Intersect",
+  MINUS: "Minus",
+  RMINUS: "Minus",
+  LONLY: "Left only",
+  RONLY: "Right only",
+  COLOCATE: "Colocate",
+  UNION: "Union",
+};
+
+export const DEFAULT_COMBINE_OPERATOR: CombineOperator = "INTERSECT";
+
+/** WDK-specific short labels when operator comes from bq_operator. */
+export const WDK_OPERATOR_SHORT_LABELS: Record<string, string> = {
+  ...CombineOperatorShortLabels,
+  LMINUS: "Minus",
+};
+
+export function getOperatorDisplayLabel(wdkOperator: string | null | undefined): string {
+  if (!wdkOperator) return "";
+  const norm = String(wdkOperator).toUpperCase();
+  return WDK_OPERATOR_SHORT_LABELS[norm] ?? norm;
+}
+
+export function wdkOperatorToCombine(wdkOperator: string | null | undefined): CombineOperator {
+  if (!wdkOperator) return DEFAULT_COMBINE_OPERATOR;
+  const norm = String(wdkOperator).toUpperCase();
+  return WDK_OPERATOR_TO_COMBINE[norm] ?? DEFAULT_COMBINE_OPERATOR;
+}
 
 // Strategy Plan DSL (AST)
 
@@ -710,6 +772,7 @@ export type ExperimentProgressPhase =
   | "evaluating"
   | "cross_validating"
   | "enriching"
+  | "step_analysis"
   | "completed"
   | "error";
 
@@ -789,6 +852,95 @@ export interface OptimizeSpec {
   choices?: string[];
 }
 
+// Rank-based evaluation types
+
+export type ControlSetSource = "paper" | "curation" | "db_build" | "other";
+
+export interface ControlSetSummary {
+  id: string;
+  name: string;
+  source: ControlSetSource;
+  tags: string[];
+  positiveCount: number;
+  negativeCount: number;
+}
+
+export interface ControlSet {
+  id: string;
+  name: string;
+  siteId: string;
+  recordType: string;
+  positiveIds: string[];
+  negativeIds: string[];
+  source: ControlSetSource;
+  tags: string[];
+  provenanceNotes: string;
+  version: number;
+  isPublic: boolean;
+  userId?: string | null;
+  createdAt: string;
+}
+
+export interface RankMetrics {
+  precisionAtK: Record<string, number>;
+  recallAtK: Record<string, number>;
+  enrichmentAtK: Record<string, number>;
+  prCurve: [number, number][];
+  listSizeVsRecall: [number, number][];
+  totalResults: number;
+}
+
+export interface ConfidenceInterval {
+  lower: number;
+  mean: number;
+  upper: number;
+  std: number;
+}
+
+export interface NegativeSetVariant {
+  label: string;
+  negativeCount: number;
+  rankMetrics: RankMetrics;
+}
+
+export interface BootstrapResult {
+  nIterations: number;
+  metricCis: Record<string, ConfidenceInterval>;
+  rankMetricCis: Record<string, ConfidenceInterval>;
+  topKStability: number;
+  negativeSetSensitivity: NegativeSetVariant[];
+}
+
+// Tree optimization knob types
+
+export interface ThresholdKnob {
+  stepId: string;
+  paramName: string;
+  minVal: number;
+  maxVal: number;
+  stepSize?: number | null;
+}
+
+export interface OperatorKnob {
+  combineNodeId: string;
+  options: string[];
+}
+
+export interface TreeOptimizationTrial {
+  trialNumber: number;
+  parameters: Record<string, number | string>;
+  score: number;
+  rankMetrics: RankMetrics | null;
+  listSize: number;
+}
+
+export interface TreeOptimizationResult {
+  bestTrial: TreeOptimizationTrial | null;
+  allTrials: TreeOptimizationTrial[];
+  totalTimeSeconds: number;
+  objective: string;
+}
+
 export interface ExperimentConfig {
   siteId: string;
   recordType: string;
@@ -826,60 +978,16 @@ export interface ExperimentConfig {
   optimizationBudget?: number;
   optimizationObjective?: string;
   parentExperimentId?: string | null;
-  enableTreeOptimization?: boolean;
+  enableStepAnalysis?: boolean;
+  stepAnalysisPhases?: StepAnalysisPhase[];
+  controlSetId?: string | null;
+  thresholdKnobs?: ThresholdKnob[];
+  operatorKnobs?: OperatorKnob[];
+  treeOptimizationObjective?: string;
   treeOptimizationBudget?: number;
-  optimizeOperators?: boolean;
-  optimizeOrthologs?: boolean;
-  orthologOrganisms?: string[] | null;
-  optimizeStructure?: boolean;
-}
-
-export interface StructuralEdit {
-  kind:
-    | "ortholog_insert"
-    | "branch_prune"
-    | "input_swap"
-    | "step_add"
-    | "step_replace";
-  targetNodeId: string;
-  organism?: string | null;
-  searchName?: string | null;
-  parameters?: Record<string, unknown> | null;
-  operator?: string | null;
-  description?: string | null;
-}
-
-export interface StructuralVariant {
-  name: string;
-  edits: StructuralEdit[];
-  rationale: string;
-}
-
-export interface TreeMutation {
-  nodeId: string;
-  kind:
-    | "param"
-    | "operator"
-    | "ortholog_insert"
-    | "branch_prune"
-    | "input_swap"
-    | "step_add"
-    | "step_replace";
-  fieldName: string;
-  originalValue: string;
-  newValue: string;
-}
-
-export interface TreeOptimizationDiff {
-  bestTree: PlanStepNode | null;
-  bestScore: number;
-  baselineScore: number;
-  improvement: number;
-  baselineMetrics: ExperimentMetrics | null;
-  bestMetrics: ExperimentMetrics | null;
-  mutations: TreeMutation[];
-  totalTrials: number;
-  successfulTrials: number;
+  maxListSize?: number | null;
+  sortAttribute?: string | null;
+  sortDirection?: "ASC" | "DESC";
 }
 
 export interface OptimizationTrialResult {
@@ -903,6 +1011,93 @@ export interface OptimizationResult {
   errorMessage: string | null;
 }
 
+// Step Analysis Types (deterministic decomposition)
+
+export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "harmful";
+
+export interface StepEvaluation {
+  stepId: string;
+  searchName: string;
+  displayName: string;
+  resultCount: number;
+  positiveHits: number;
+  positiveTotal: number;
+  negativeHits: number;
+  negativeTotal: number;
+  recall: number;
+  falsePositiveRate: number;
+  capturedPositiveIds: string[];
+  capturedNegativeIds: string[];
+  tpMovement: number;
+  fpMovement: number;
+  fnMovement: number;
+}
+
+export interface OperatorVariant {
+  operator: string;
+  positiveHits: number;
+  negativeHits: number;
+  totalResults: number;
+  recall: number;
+  falsePositiveRate: number;
+  f1Score: number;
+}
+
+export interface OperatorComparison {
+  combineNodeId: string;
+  currentOperator: string;
+  variants: OperatorVariant[];
+  recommendation: string;
+  recommendedOperator: string;
+  precisionAtKDelta: Record<string, number>;
+}
+
+export interface StepContribution {
+  stepId: string;
+  searchName: string;
+  baselineRecall: number;
+  ablatedRecall: number;
+  recallDelta: number;
+  baselineFpr: number;
+  ablatedFpr: number;
+  fprDelta: number;
+  verdict: StepContributionVerdict;
+  enrichmentDelta: number;
+  narrative: string;
+}
+
+export interface ParameterSweepPoint {
+  value: number;
+  positiveHits: number;
+  negativeHits: number;
+  totalResults: number;
+  recall: number;
+  fpr: number;
+  f1: number;
+}
+
+export interface ParameterSensitivity {
+  stepId: string;
+  paramName: string;
+  currentValue: number;
+  sweepPoints: ParameterSweepPoint[];
+  recommendedValue: number;
+  recommendation: string;
+}
+
+export interface StepAnalysisResult {
+  stepEvaluations: StepEvaluation[];
+  operatorComparisons: OperatorComparison[];
+  stepContributions: StepContribution[];
+  parameterSensitivities: ParameterSensitivity[];
+}
+
+export type StepAnalysisPhase =
+  | "step_evaluation"
+  | "operator_comparison"
+  | "contribution"
+  | "sensitivity";
+
 export interface Experiment {
   id: string;
   config: ExperimentConfig;
@@ -917,14 +1112,19 @@ export interface Experiment {
   optimizationResult: OptimizationResult | null;
   notes: string | null;
   batchId: string | null;
+  benchmarkId: string | null;
+  controlSetLabel: string | null;
+  isPrimaryBenchmark: boolean;
   error: string | null;
   totalTimeSeconds: number | null;
   createdAt: string;
   completedAt: string | null;
   wdkStrategyId: number | null;
   wdkStepId: number | null;
-  optimizedTree: PlanStepNode | null;
-  treeOptimizationDiff: TreeOptimizationDiff | null;
+  stepAnalysis: StepAnalysisResult | null;
+  rankMetrics: RankMetrics | null;
+  robustness: BootstrapResult | null;
+  treeOptimization: TreeOptimizationResult | null;
 }
 
 export interface ExperimentSummary {
@@ -933,6 +1133,7 @@ export interface ExperimentSummary {
   siteId: string;
   searchName: string;
   recordType: string;
+  mode?: ExperimentMode;
   status: ExperimentStatus;
   f1Score: number | null;
   sensitivity: number | null;
@@ -941,6 +1142,9 @@ export interface ExperimentSummary {
   totalNegatives: number;
   createdAt: string;
   batchId: string | null;
+  benchmarkId: string | null;
+  controlSetLabel: string | null;
+  isPrimaryBenchmark: boolean;
 }
 
 export interface TrialProgressData {
@@ -965,6 +1169,17 @@ export interface TrialProgressData {
   }[];
 }
 
+export interface StepAnalysisProgressData {
+  phase: StepAnalysisPhase;
+  message: string;
+  current?: number;
+  total?: number;
+  stepEvaluation?: StepEvaluation;
+  operatorComparison?: OperatorComparison;
+  stepContribution?: StepContribution;
+  parameterSensitivity?: ParameterSensitivity;
+}
+
 export interface ExperimentProgressData {
   experimentId: string;
   phase: ExperimentProgressPhase;
@@ -974,8 +1189,12 @@ export interface ExperimentProgressData {
   cvTotalFolds?: number;
   enrichmentType?: EnrichmentAnalysisType;
   trialProgress?: TrialProgressData;
+  stepAnalysisProgress?: StepAnalysisProgressData;
   error?: string;
 }
+
+// Classification for control test results
+export type Classification = "TP" | "FP" | "FN" | "TN";
 
 // Chat @-Mention References
 

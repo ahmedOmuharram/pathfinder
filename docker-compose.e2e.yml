@@ -1,0 +1,24 @@
+# E2E testing override.
+#
+# Forces mock chat provider so the dev-login endpoint is available,
+# and maps the DB to port 5433 to avoid conflicts with local PostgreSQL.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+#   cd apps/web && npm run test:e2e
+
+services:
+  api:
+    environment:
+      PATHFINDER_CHAT_PROVIDER: mock
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  db:
+    ports:
+      - "5433:5432"

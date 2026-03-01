@@ -3,22 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.ai.models.catalog import ChatMode, ModelProvider, ReasoningEffort
 from veupath_chatbot.platform.types import JSONArray, JSONObject
-
-ChatMode = Literal["execute", "plan"]
-ModelProvider = Literal["openai", "anthropic", "google"]
-ReasoningEffort = Literal["none", "low", "medium", "high"]
+from veupath_chatbot.services.chat.mention_context import MentionType
 
 
 class ChatMention(BaseModel):
     """A reference to a strategy or experiment included via @-mention."""
 
-    type: Literal["strategy", "experiment"]
+    type: MentionType
     id: str
     display_name: str = Field(alias="displayName")
 

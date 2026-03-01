@@ -1,29 +1,18 @@
 import type { EnrichmentAnalysisType, OptimizeSpec } from "@pathfinder/shared";
 import { Globe, Target } from "lucide-react";
+import {
+  ENRICHMENT_ANALYSIS_LABELS,
+  OBJECTIVE_OPTIONS,
+} from "@/features/experiments/constants";
 import { Label } from "@/lib/components/ui/Label";
 import { Input } from "@/lib/components/ui/Input";
 import { Card, CardContent } from "@/lib/components/ui/Card";
 import { Badge } from "@/lib/components/ui/Badge";
 import { cn } from "@/lib/utils/cn";
 
-const ENRICHMENT_OPTIONS: [EnrichmentAnalysisType, string][] = [
-  ["go_function", "GO: Molecular Function"],
-  ["go_component", "GO: Cellular Component"],
-  ["go_process", "GO: Biological Process"],
-  ["pathway", "Metabolic Pathway Enrichment"],
-  ["word", "Word Enrichment (Product Descriptions)"],
-];
-
-const OBJECTIVE_OPTIONS: [string, string, string][] = [
-  ["balanced_accuracy", "Balanced Accuracy", "(TPR + TNR) / 2"],
-  ["f1", "F1 Score", "Harmonic mean of precision & recall"],
-  ["recall", "Recall (Sensitivity)", "TP / (TP + FN)"],
-  ["precision", "Precision", "TP / (TP + FP)"],
-  ["specificity", "Specificity", "TN / (TN + FP)"],
-  ["mcc", "MCC", "Matthews Correlation Coefficient"],
-  ["youdens_j", "Youden's J", "Sensitivity + Specificity - 1"],
-  ["f_beta", "F-beta", "Weighted F-measure"],
-];
+const ENRICHMENT_OPTIONS: [EnrichmentAnalysisType, string][] = Object.entries(
+  ENRICHMENT_ANALYSIS_LABELS,
+) as [EnrichmentAnalysisType, string][];
 
 interface RunStepProps {
   name: string;
@@ -148,16 +137,19 @@ export function RunStep({
                   onChange={(e) => onObjectiveChange(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  {OBJECTIVE_OPTIONS.map(([value, label, desc]) => (
-                    <option key={value} value={value} title={desc}>
-                      {label}
+                  {OBJECTIVE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} title={opt.description}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {OBJECTIVE_OPTIONS.find(([v]) => v === optimizationObjective)?.[2]}
+              {
+                OBJECTIVE_OPTIONS.find((o) => o.value === optimizationObjective)
+                  ?.description
+              }
             </p>
           </CardContent>
         </Card>

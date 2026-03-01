@@ -14,6 +14,7 @@ import { ModeChooser } from "@/features/experiments/components/ModeChooser";
 import { SetupWizard } from "@/features/experiments/components/SetupWizard";
 import { MultiStepBuilder } from "@/features/experiments/components/MultiStepBuilder";
 import { ResultsDashboard } from "@/features/experiments/components/ResultsDashboard";
+import { BenchmarkDashboard } from "@/features/experiments/components/ResultsDashboard/BenchmarkDashboard";
 import { CompareView } from "@/features/experiments/components/CompareView";
 import { OverlapView } from "@/features/experiments/components/OverlapView";
 import { EnrichmentCompareView } from "@/features/experiments/components/EnrichmentCompareView";
@@ -32,8 +33,14 @@ export default function ExperimentsPage() {
   const authRefreshed = useSessionStore((s) => s.authRefreshed);
   const setAuthRefreshed = useSessionStore((s) => s.setAuthRefreshed);
 
-  const { view, currentExperiment, compareExperiment, isRunning, experiments } =
-    useExperimentStore();
+  const {
+    view,
+    currentExperiment,
+    compareExperiment,
+    benchmarkExperiments,
+    isRunning,
+    experiments,
+  } = useExperimentStore();
 
   const handleSiteChange = useCallback(
     (nextSite: string) => {
@@ -117,6 +124,11 @@ export default function ExperimentsPage() {
             <SetupWizard siteId={selectedSite} />
           ) : view === "multi-step-setup" ? (
             <MultiStepBuilder siteId={selectedSite} />
+          ) : view === "benchmark-results" && benchmarkExperiments.length > 0 ? (
+            <BenchmarkDashboard
+              experiments={benchmarkExperiments}
+              siteId={selectedSite}
+            />
           ) : view === "results" && currentExperiment ? (
             <ResultsDashboard experiment={currentExperiment} siteId={selectedSite} />
           ) : view === "compare" && currentExperiment && compareExperiment ? (

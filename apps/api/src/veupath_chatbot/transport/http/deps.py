@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.integrations.veupathdb.factory import SiteInfo, get_site
 from veupath_chatbot.persistence.repo import (
+    ControlSetRepository,
     PlanSessionRepository,
     StrategyRepository,
     UserRepository,
@@ -37,9 +38,15 @@ async def get_plan_session_repo(session: DBSession) -> PlanSessionRepository:
     return PlanSessionRepository(session)
 
 
+async def get_control_set_repo(session: DBSession) -> ControlSetRepository:
+    """Get control set repository."""
+    return ControlSetRepository(session)
+
+
 UserRepo = Annotated[UserRepository, Depends(get_user_repo)]
 StrategyRepo = Annotated[StrategyRepository, Depends(get_strategy_repo)]
 PlanSessionRepo = Annotated[PlanSessionRepository, Depends(get_plan_session_repo)]
+ControlSetRepo = Annotated[ControlSetRepository, Depends(get_control_set_repo)]
 
 
 async def get_current_user_with_db_row(

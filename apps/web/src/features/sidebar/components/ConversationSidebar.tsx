@@ -6,7 +6,15 @@
  * PlansSidebar + StrategySidebar + sidebar tabs.
  */
 
-import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from "react";
+import { RefreshCw } from "lucide-react";
 import {
   APIError,
   createStrategy,
@@ -80,6 +88,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState | null>(
     null,
   );
+  const [isSyncing, setIsSyncing] = useState(false);
   /** ID of the conversation item currently being renamed inline. */
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -139,7 +148,12 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     }
   }, [authToken, handlePlanError, planSessionId, siteId]);
 
+  // Guard against concurrent sync calls (e.g. two useEffects firing on mount).
+  const syncInFlight = useRef(false);
+
   const refreshStrategies = useCallback(() => {
+    if (syncInFlight.current) return Promise.resolve();
+    syncInFlight.current = true;
     return syncWdkStrategies(siteId)
       .then((strategies) => {
         const now = new Date().toISOString();
@@ -155,8 +169,20 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to sync strategies:", err);
+      })
+      .finally(() => {
+        syncInFlight.current = false;
       });
   }, [siteId]);
+
+  const handleManualRefresh = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([refreshPlans(), refreshStrategies()]);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [refreshPlans, refreshStrategies]);
 
   // Refresh both on mount / auth / site change
   useEffect(() => {
@@ -482,15 +508,27 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
         </div>
-        <button
-          data-testid="conversations-new-button"
-          type="button"
-          disabled={chatIsStreaming}
-          onClick={() => void handleNewConversation()}
-          className="rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          New Chat
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            data-testid="conversations-refresh-button"
+            type="button"
+            disabled={chatIsStreaming || isSyncing}
+            onClick={() => void handleManualRefresh()}
+            className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            title="Refresh conversations & strategies"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            data-testid="conversations-new-button"
+            type="button"
+            disabled={chatIsStreaming}
+            onClick={() => void handleNewConversation()}
+            className="rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            New Chat
+          </button>
+        </div>
       </div>
 
       <input

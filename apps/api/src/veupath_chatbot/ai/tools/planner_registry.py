@@ -28,9 +28,10 @@ from veupath_chatbot.ai.tools.query_validation import (
 )
 from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import (
+from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
-    run_positive_negative_controls,
+    OptimizationObjective,
 )
 from veupath_chatbot.services.gene_lookup import (
     lookup_genes_by_text,
@@ -38,6 +39,7 @@ from veupath_chatbot.services.gene_lookup import (
 )
 from veupath_chatbot.services.parameter_optimization import (
     OptimizationConfig,
+    OptimizationMethod,
     ParameterSpec,
 )
 from veupath_chatbot.services.parameter_optimization import (
@@ -590,7 +592,7 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
         return await lookup_genes_by_text(
             self.site_id,
             query,
-            record_type=record_type,
+            organism=record_type,
             limit=max(1, min(limit, 50)),
         )
 
@@ -934,9 +936,9 @@ class PlannerToolRegistryMixin(ResearchToolsMixin):
 
         config = OptimizationConfig(
             budget=budget,
-            objective=objective,  # type: ignore[arg-type]
+            objective=cast(OptimizationObjective, objective),
             beta=beta,
-            method=method,  # type: ignore[arg-type]
+            method=cast(OptimizationMethod, method),
             result_count_penalty=max(0.0, result_count_penalty),
         )
 

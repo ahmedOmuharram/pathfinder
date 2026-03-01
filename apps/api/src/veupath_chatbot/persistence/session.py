@@ -53,11 +53,45 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Initialize database (create tables if needed)."""
+    """Initialize database (create tables if needed).
+
+    Also applies additive schema changes (indexes, columns) that
+    ``create_all`` skips on existing tables.
+    """
+    from sqlalchemy import text
+
     from veupath_chatbot.persistence.models import Base
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Additive migrations — safe to re-run (IF NOT EXISTS).
+
+        # Deduplicate rows before creating the unique index.
+        # Keeps the most recently updated row for each (user_id, wdk_strategy_id) pair.
+        await conn.execute(
+            text(
+                "DELETE FROM strategies "
+                "WHERE id IN ("
+                "  SELECT id FROM ("
+                "    SELECT id, ROW_NUMBER() OVER ("
+                "      PARTITION BY user_id, wdk_strategy_id "
+                "      ORDER BY updated_at DESC"
+                "    ) AS rn"
+                "    FROM strategies"
+                "    WHERE wdk_strategy_id IS NOT NULL"
+                "  ) sub WHERE rn > 1"
+                ")"
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_strategies_user_wdk "
+                "ON strategies (user_id, wdk_strategy_id) "
+                "WHERE wdk_strategy_id IS NOT NULL"
+            )
+        )
 
 
 async def close_db() -> None:

@@ -12,6 +12,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from veupath_chatbot.ai.models.catalog import ReasoningEffort
+
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
     """Load settings from a TOML config file."""
@@ -137,7 +139,7 @@ class Settings(BaseSettings):
 
     # Unified model defaults (applies to both planning and execution modes)
     default_model_id: str = "openai/gpt-5"
-    default_reasoning_effort: Literal["none", "low", "medium", "high"] = "medium"
+    default_reasoning_effort: ReasoningEffort = "medium"
 
     # VEuPathDB
     veupathdb_default_site: str = "plasmodb"

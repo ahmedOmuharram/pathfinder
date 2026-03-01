@@ -1,20 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
-import { useExperimentStore } from "../store";
-import { compareEnrichment, type EnrichmentCompareResult } from "../api";
+import { useExperimentStore } from "@/features/experiments/store";
+import { ENRICHMENT_ANALYSIS_LABELS } from "@/features/experiments/constants";
+import {
+  compareEnrichment,
+  type EnrichmentCompareResult,
+} from "@/features/experiments/api";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 interface EnrichmentCompareViewProps {
   experiments: ExperimentSummary[];
 }
 
-const ANALYSIS_LABELS: Record<string, string> = {
-  go_function: "GO: Molecular Function",
-  go_component: "GO: Cellular Component",
-  go_process: "GO: Biological Process",
-  pathway: "Metabolic Pathway",
-  word: "Word Enrichment",
-};
+const ANALYSIS_LABELS: Record<string, string> = ENRICHMENT_ANALYSIS_LABELS;
 
 export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProps) {
   const { setView } = useExperimentStore();
@@ -118,10 +116,12 @@ export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProp
   );
 }
 
+type CompareRow = EnrichmentCompareResult["rows"][number];
+
 function Heatmap({ result }: { result: EnrichmentCompareResult }) {
   const expIds = result.experimentIds;
   const maxVal = useMemo(
-    () => Math.max(...result.rows.map((r) => r.maxScore), 1),
+    () => Math.max(...result.rows.map((r: CompareRow) => r.maxScore), 1),
     [result.rows],
   );
 
@@ -144,7 +144,7 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
             <th className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Type
             </th>
-            {expIds.map((eid) => (
+            {expIds.map((eid: string) => (
               <th
                 key={eid}
                 className="px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground max-w-[80px] truncate"
@@ -156,7 +156,7 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
           </tr>
         </thead>
         <tbody>
-          {result.rows.map((row) => (
+          {result.rows.map((row: CompareRow) => (
             <tr key={row.termKey} className="border-b border-border/50">
               <td
                 className="px-3 py-1.5 text-foreground max-w-[200px] truncate sticky left-0 bg-card"
@@ -167,7 +167,7 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
               <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">
                 {ANALYSIS_LABELS[row.analysisType]?.split(":")[0] || row.analysisType}
               </td>
-              {expIds.map((eid) => {
+              {expIds.map((eid: string) => {
                 const val = row.scores[eid];
                 const intensity = val != null ? Math.min(val / maxVal, 1) : 0;
                 const bg =
