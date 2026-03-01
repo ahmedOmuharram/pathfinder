@@ -711,7 +711,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateStrategyRequest'
+              $ref: '#/components/schemas/veupath_chatbot__transport__http__schemas__strategies__CreateStrategyRequest'
       responses:
         '201':
           description: Successful Response
@@ -1001,7 +1001,14 @@ paths:
       tags:
       - strategies
       summary: Import Wdk Strategy
-      description: Import a WDK strategy as a local snapshot.
+      description: 'Import a WDK strategy as a local snapshot.
+
+
+        Upserts: if a local row already exists for this WDK strategy ID
+
+        (e.g. from a previous sync or double-click), it is updated rather
+
+        than creating a duplicate.'
       operationId: import_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__import_post
       security:
       - APIKeyCookie: []
@@ -1516,13 +1523,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments:
+  /api/v1/experiments/:
     post:
       tags:
       - experiments
       summary: Create Experiment
       description: Create and run an experiment with SSE progress streaming.
-      operationId: create_experiment_api_v1_experiments_post
+      operationId: create_experiment_api_v1_experiments__post
       requestBody:
         required: true
         content:
@@ -1547,7 +1554,7 @@ paths:
       - experiments
       summary: List Experiments
       description: List all experiments, optionally filtered by site.
-      operationId: list_experiments_api_v1_experiments_get
+      operationId: list_experiments_api_v1_experiments__get
       parameters:
       - name: siteId
         in: query
@@ -1566,7 +1573,396 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/JSONObject'
-                title: Response List Experiments Api V1 Experiments Get
+                title: Response List Experiments Api V1 Experiments  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/batch:
+    post:
+      tags:
+      - experiments
+      summary: Create Batch Experiment
+      description: Run the same search across multiple organisms with SSE progress.
+      operationId: create_batch_experiment_api_v1_experiments_batch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchExperimentRequest'
+        required: true
+      responses:
+        '200':
+          description: SSE stream of batch experiment progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/benchmark:
+    post:
+      tags:
+      - experiments
+      summary: Create Benchmark
+      description: Run the same strategy against multiple control sets in parallel with SSE.
+      operationId: create_benchmark_api_v1_experiments_benchmark_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBenchmarkRequest'
+        required: true
+      responses:
+        '200':
+          description: SSE stream of benchmark suite progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/seed:
+    post:
+      tags:
+      - experiments
+      summary: Seed Strategies
+      description: Seed demo strategies and control sets across multiple VEuPathDB sites.
+      operationId: seed_strategies_api_v1_experiments_seed_post
+      responses:
+        '200':
+          description: SSE stream of seed strategy/control-set progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+      security:
+      - APIKeyCookie: []
+  /api/v1/experiments/overlap:
+    post:
+      tags:
+      - experiments
+      summary: Compute Overlap
+      description: 'Compute pairwise gene set overlap between experiments.
+
+
+        For each experiment the result gene set is the union of TP and FP genes.
+
+        Returns Jaccard similarity, shared/unique genes, and membership counts.'
+      operationId: compute_overlap_api_v1_experiments_overlap_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverlapRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/enrichment-compare:
+    post:
+      tags:
+      - experiments
+      summary: Compare Enrichment
+      description: 'Compare enrichment results across experiments.
+
+
+        Builds a term-by-experiment matrix of fold-enrichment scores.
+
+        Optionally filters to a single analysis type.'
+      operationId: compare_enrichment_api_v1_experiments_enrichment_compare_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrichmentCompareRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/ai-assist:
+    post:
+      tags:
+      - experiments
+      summary: Ai Assist
+      description: 'AI assistant for the experiment wizard.
+
+
+        Streams a response with tool-use activity (web/literature search, site
+
+        catalog lookup, gene lookup) to help the user with the current wizard step.'
+      operationId: ai_assist_api_v1_experiments_ai_assist_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiAssistRequest'
+        required: true
+      responses:
+        '200':
+          description: SSE stream of AI assistant response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/cross-validate:
+    post:
+      tags:
+      - experiments
+      summary: Run Cv
+      description: Run cross-validation on an existing experiment.
+      operationId: run_cv_api_v1_experiments__experiment_id__cross_validate_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunCrossValidationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/enrich:
+    post:
+      tags:
+      - experiments
+      summary: Run Enrichment
+      description: Run enrichment analysis on an existing experiment's results.
+      operationId: run_enrichment_api_v1_experiments__experiment_id__enrich_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunEnrichmentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JSONObject'
+                title: Response Run Enrichment Api V1 Experiments  Experiment Id  Enrich Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/re-evaluate:
+    post:
+      tags:
+      - experiments
+      summary: Re Evaluate Experiment
+      description: Re-run control evaluation against the (possibly modified) strategy.
+      operationId: re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/custom-enrich:
+    post:
+      tags:
+      - experiments
+      summary: Custom Enrichment
+      description: Test enrichment of a custom gene set against the experiment results.
+      operationId: custom_enrichment_api_v1_experiments__experiment_id__custom_enrich_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomEnrichRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/threshold-sweep:
+    post:
+      tags:
+      - experiments
+      summary: Threshold Sweep
+      description: Sweep a numeric parameter across a range and compute metrics at each point.
+      operationId: threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThresholdSweepRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/step-contributions:
+    post:
+      tags:
+      - experiments
+      summary: Step Contributions
+      description: 'Analyse per-step contribution to overall result for multi-step experiments.
+
+
+        Evaluates controls against each leaf step individually to show how much
+
+        each step contributes to the final strategy result.'
+      operationId: step_contributions_api_v1_experiments__experiment_id__step_contributions_post
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/{experiment_id}/report:
+    get:
+      tags:
+      - experiments
+      summary: Get Experiment Report
+      description: Generate and return a self-contained HTML report for an experiment.
+      operationId: get_experiment_report_api_v1_experiments__experiment_id__report_get
+      parameters:
+      - name: experiment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Experiment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1597,6 +1993,37 @@ paths:
                 items:
                   $ref: '#/components/schemas/JSONObject'
                 title: Response List Importable Strategies Api V1 Experiments Importable Strategies Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/experiments/create-strategy:
+    post:
+      tags:
+      - experiments
+      summary: Create Strategy
+      description: 'Create a WDK strategy from a step tree definition.
+
+
+        Materialises the step tree (creates WDK steps and a strategy) and returns
+
+        the WDK strategy ID so it can be used with ``mode="import"`` experiments.'
+      operationId: create_strategy_api_v1_experiments_create_strategy_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/veupath_chatbot__transport__http__routers__experiments__crud__CreateStrategyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
         '422':
           description: Validation Error
           content:
@@ -1727,13 +2154,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/cross-validate:
-    post:
+  /api/v1/experiments/{experiment_id}/results/attributes:
+    get:
       tags:
       - experiments
-      summary: Run Cv
-      description: Run cross-validation on an existing experiment.
-      operationId: run_cv_api_v1_experiments__experiment_id__cross_validate_post
+      summary: Get Experiment Attributes
+      description: Get available attributes for an experiment's record type.
+      operationId: get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get
       parameters:
       - name: experiment_id
         in: path
@@ -1741,12 +2168,6 @@ paths:
         schema:
           type: string
           title: Experiment Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RunCrossValidationRequest'
       responses:
         '200':
           description: Successful Response
@@ -1760,75 +2181,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/enrich:
-    post:
-      tags:
-      - experiments
-      summary: Run Enrichment
-      description: Run enrichment analysis on an existing experiment's results.
-      operationId: run_enrichment_api_v1_experiments__experiment_id__enrich_post
-      parameters:
-      - name: experiment_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Experiment Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RunEnrichmentRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/JSONObject'
-                title: Response Run Enrichment Api V1 Experiments  Experiment Id  Enrich Post
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/batch:
-    post:
-      tags:
-      - experiments
-      summary: Create Batch Experiment
-      description: Run the same search across multiple organisms with SSE progress.
-      operationId: create_batch_experiment_api_v1_experiments_batch_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateBatchExperimentRequest'
-        required: true
-      responses:
-        '200':
-          description: SSE stream of batch experiment progress
-          content:
-            text/event-stream:
-              schema:
-                type: string
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/results/attributes:
+  /api/v1/experiments/{experiment_id}/results/sortable-attributes:
     get:
       tags:
       - experiments
-      summary: Get Experiment Attributes
-      description: Get available attributes for an experiment's record type.
-      operationId: get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get
+      summary: Get Sortable Attributes
+      description: Return only sortable (numeric) attributes, with suggestions for known score columns.
+      operationId: get_sortable_attributes_api_v1_experiments__experiment_id__results_sortable_attributes_get
       parameters:
       - name: experiment_id
         in: path
@@ -2068,9 +2427,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              title: Request Body
+              $ref: '#/components/schemas/RunAnalysisRequest'
       responses:
         '200':
           description: Successful Response
@@ -2103,9 +2460,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              title: Request Body
+              $ref: '#/components/schemas/RefineRequest'
       responses:
         '200':
           description: Successful Response
@@ -2119,131 +2474,122 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/re-evaluate:
-    post:
+  /api/v1/control-sets:
+    get:
       tags:
-      - experiments
-      summary: Re Evaluate Experiment
-      description: Re-run control evaluation against the (possibly modified) strategy.
-      operationId: re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post
+      - control-sets
+      summary: List Control Sets
+      description: List control sets visible to the current user.
+      operationId: list_control_sets_api_v1_control_sets_get
+      security:
+      - APIKeyCookie: []
       parameters:
-      - name: experiment_id
-        in: path
-        required: true
+      - name: siteId
+        in: query
+        required: false
         schema:
-          type: string
-          title: Experiment Id
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+      - name: tags
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tags
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ControlSetResponse'
+                title: Response List Control Sets Api V1 Control Sets Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/threshold-sweep:
     post:
       tags:
-      - experiments
-      summary: Threshold Sweep
-      description: Sweep a numeric parameter across a range and compute metrics at each point.
-      operationId: threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post
-      parameters:
-      - name: experiment_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Experiment Id
+      - control-sets
+      summary: Create Control Set
+      description: Create a new control set.
+      operationId: create_control_set_api_v1_control_sets_post
+      security:
+      - APIKeyCookie: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ThresholdSweepRequest'
+              $ref: '#/components/schemas/CreateControlSetRequest'
       responses:
-        '200':
+        '201':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/ControlSetResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/step-contributions:
-    post:
+  /api/v1/control-sets/{control_set_id}:
+    get:
       tags:
-      - experiments
-      summary: Step Contributions
-      description: 'Analyse per-step contribution to overall result for multi-step experiments.
-
-
-        Evaluates controls against each leaf step individually to show how much
-
-        each step contributes to the final strategy result.'
-      operationId: step_contributions_api_v1_experiments__experiment_id__step_contributions_post
+      - control-sets
+      summary: Get Control Set
+      description: Get a single control set by ID.
+      operationId: get_control_set_api_v1_control_sets__control_set_id__get
+      security:
+      - APIKeyCookie: []
       parameters:
-      - name: experiment_id
+      - name: control_set_id
         in: path
         required: true
         schema:
           type: string
-          title: Experiment Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              title: Body
+          title: Control Set Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/ControlSetResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/ai-assist:
-    post:
+    delete:
       tags:
-      - experiments
-      summary: Ai Assist
-      description: 'AI assistant for the experiment wizard.
-
-
-        Streams a response with tool-use activity (web/literature search, site
-
-        catalog lookup, gene lookup) to help the user with the current wizard step.'
-      operationId: ai_assist_api_v1_experiments_ai_assist_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AiAssistRequest'
+      - control-sets
+      summary: Delete Control Set
+      description: Delete a control set.
+      operationId: delete_control_set_api_v1_control_sets__control_set_id__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: control_set_id
+        in: path
         required: true
+        schema:
+          type: string
+          title: Control Set Id
       responses:
-        '200':
-          description: SSE stream of AI assistant response
-          content:
-            text/event-stream:
-              schema:
-                type: string
+        '204':
+          description: Successful Response
         '422':
           description: Validation Error
           content:
@@ -2474,6 +2820,38 @@ components:
       - organism
       title: BatchOrganismTargetRequest
       description: Per-organism override for a cross-organism batch experiment.
+    BenchmarkControlSet:
+      properties:
+        label:
+          type: string
+          minLength: 1
+          title: Label
+        positiveControls:
+          items:
+            type: string
+          type: array
+          title: Positivecontrols
+        negativeControls:
+          items:
+            type: string
+          type: array
+          title: Negativecontrols
+        controlSetId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Controlsetid
+        isPrimary:
+          type: boolean
+          title: Isprimary
+          default: false
+      type: object
+      required:
+      - label
+      - positiveControls
+      - negativeControls
+      title: BenchmarkControlSet
+      description: A single control set within a benchmark suite.
     ChatMention:
       properties:
         type:
@@ -2584,6 +2962,73 @@ components:
       - upstream
       - downstream
       title: ColocationParams
+    ControlSetResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          type: string
+          title: Recordtype
+        positiveIds:
+          items:
+            type: string
+          type: array
+          title: Positiveids
+        negativeIds:
+          items:
+            type: string
+          type: array
+          title: Negativeids
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        provenanceNotes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provenancenotes
+        version:
+          type: integer
+          title: Version
+        isPublic:
+          type: boolean
+          title: Ispublic
+        userId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Userid
+        createdAt:
+          type: string
+          title: Createdat
+      type: object
+      required:
+      - id
+      - name
+      - siteId
+      - recordType
+      - positiveIds
+      - negativeIds
+      - tags
+      - version
+      - isPublic
+      - createdAt
+      title: ControlSetResponse
+      description: Serialized control set returned to the client.
     CreateBatchExperimentRequest:
       properties:
         base:
@@ -2604,6 +3049,69 @@ components:
       - targetOrganisms
       title: CreateBatchExperimentRequest
       description: Request to run the same search across multiple organisms.
+    CreateBenchmarkRequest:
+      properties:
+        base:
+          $ref: '#/components/schemas/CreateExperimentRequest'
+        controlSets:
+          items:
+            $ref: '#/components/schemas/BenchmarkControlSet'
+          type: array
+          minItems: 1
+          title: Controlsets
+      type: object
+      required:
+      - base
+      - controlSets
+      title: CreateBenchmarkRequest
+      description: Request to run a benchmark suite across multiple control sets.
+    CreateControlSetRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          type: string
+          title: Recordtype
+        positiveIds:
+          items:
+            type: string
+          type: array
+          title: Positiveids
+        negativeIds:
+          items:
+            type: string
+          type: array
+          title: Negativeids
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        provenanceNotes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Provenancenotes
+        isPublic:
+          type: boolean
+          title: Ispublic
+          default: false
+      type: object
+      required:
+      - name
+      - siteId
+      - recordType
+      title: CreateControlSetRequest
+      description: Payload for creating a new control set.
     CreateExperimentRequest:
       properties:
         siteId:
@@ -2656,6 +3164,10 @@ components:
           title: Controlsparamname
         controlsValueFormat:
           type: string
+          enum:
+          - newline
+          - json_list
+          - comma
           title: Controlsvalueformat
           default: newline
         enableCrossValidation:
@@ -2707,48 +3219,82 @@ components:
           - type: string
             enum:
             - f1
+            - f_beta
             - recall
             - precision
             - specificity
             - balanced_accuracy
             - mcc
             - youdens_j
-            - f_beta
+            - custom
           - type: 'null'
           title: Optimizationobjective
         parameterDisplayValues:
           anyOf:
           - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-        enableTreeOptimization:
+        enableStepAnalysis:
           type: boolean
-          title: Enabletreeoptimization
+          title: Enablestepanalysis
           default: false
-        treeOptimizationBudget:
-          type: integer
-          maximum: 100.0
-          minimum: 5.0
-          title: Treeoptimizationbudget
-          default: 20
-        optimizeOperators:
-          type: boolean
-          title: Optimizeoperators
-          default: true
-        optimizeOrthologs:
-          type: boolean
-          title: Optimizeorthologs
-          default: false
-        orthologOrganisms:
+        stepAnalysisPhases:
           anyOf:
           - items:
               type: string
             type: array
           - type: 'null'
-          title: Orthologorganisms
-        optimizeStructure:
-          type: boolean
-          title: Optimizestructure
-          default: false
+          title: Stepanalysisphases
+        controlSetId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Controlsetid
+        thresholdKnobs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ThresholdKnobRequest'
+            type: array
+          - type: 'null'
+          title: Thresholdknobs
+        operatorKnobs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/OperatorKnobRequest'
+            type: array
+          - type: 'null'
+          title: Operatorknobs
+        treeOptimizationObjective:
+          type: string
+          title: Treeoptimizationobjective
+          default: precision_at_50
+        treeOptimizationBudget:
+          type: integer
+          maximum: 200.0
+          minimum: 5.0
+          title: Treeoptimizationbudget
+          default: 50
+        maxListSize:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Maxlistsize
+        sortAttribute:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sortattribute
+        sortDirection:
+          type: string
+          enum:
+          - ASC
+          - DESC
+          title: Sortdirection
+          default: ASC
+        parentExperimentId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parentexperimentid
       type: object
       required:
       - siteId
@@ -2762,25 +3308,24 @@ components:
 
 
         Supports three modes: ``single`` (default), ``multi-step``, and ``import``.'
-    CreateStrategyRequest:
+    CustomEnrichRequest:
       properties:
-        name:
+        geneSetName:
           type: string
-          maxLength: 255
           minLength: 1
-          title: Name
-        siteId:
-          type: string
-          title: Siteid
-        plan:
-          $ref: '#/components/schemas/StrategyPlan-Input'
+          title: Genesetname
+        geneIds:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Geneids
       type: object
       required:
-      - name
-      - siteId
-      - plan
-      title: CreateStrategyRequest
-      description: Request to create a strategy.
+      - geneSetName
+      - geneIds
+      title: CustomEnrichRequest
+      description: Request to run a custom gene-set enrichment test.
     DependentParamsRequest:
       properties:
         parameterName:
@@ -2838,6 +3383,24 @@ components:
       - expiresAt
       title: DownloadResponse
       description: Download response with URL.
+    EnrichmentCompareRequest:
+      properties:
+        experimentIds:
+          items:
+            type: string
+          type: array
+          minItems: 2
+          title: Experimentids
+        analysisType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysistype
+      type: object
+      required:
+      - experimentIds
+      title: EnrichmentCompareRequest
+      description: Request to compare enrichment results across experiments.
     GeneResolveRequest:
       properties:
         geneIds:
@@ -3098,6 +3661,21 @@ components:
       - strategyId
       title: OpenStrategyResponse
       description: Open strategy response.
+    OperatorKnobRequest:
+      properties:
+        combineNodeId:
+          type: string
+          title: Combinenodeid
+        options:
+          items:
+            type: string
+          type: array
+          title: Options
+      type: object
+      required:
+      - combineNodeId
+      title: OperatorKnobRequest
+      description: A boolean-operator knob for tree optimization.
     OptimizationSpecRequest:
       properties:
         name:
@@ -3138,6 +3716,19 @@ components:
       - type
       title: OptimizationSpecRequest
       description: Describes a single parameter to optimise.
+    OverlapRequest:
+      properties:
+        experimentIds:
+          items:
+            type: string
+          type: array
+          minItems: 2
+          title: Experimentids
+      type: object
+      required:
+      - experimentIds
+      title: OverlapRequest
+      description: Request to compute pairwise gene set overlap between experiments.
     ParamSpecResponse:
       properties:
         name:
@@ -3542,6 +4133,33 @@ components:
       - displayName
       title: RecordTypeResponse
       description: Record type information.
+    RefineRequest:
+      properties:
+        action:
+          type: string
+          enum:
+          - combine
+          - transform
+          title: Action
+        searchName:
+          type: string
+          title: Searchname
+          default: ''
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+        operator:
+          type: string
+          title: Operator
+          default: INTERSECT
+        transformName:
+          type: string
+          title: Transformname
+          default: ''
+      type: object
+      required:
+      - action
+      title: RefineRequest
+      description: Request to refine an experiment's strategy.
     ResolvedGeneResponse:
       properties:
         geneId:
@@ -3576,6 +4194,19 @@ components:
       - geneId
       title: ResolvedGeneResponse
       description: A resolved gene record.
+    RunAnalysisRequest:
+      properties:
+        analysisName:
+          type: string
+          minLength: 1
+          title: Analysisname
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+      type: object
+      required:
+      - analysisName
+      title: RunAnalysisRequest
+      description: Request to run a WDK step analysis.
     RunCrossValidationRequest:
       properties:
         kFolds:
@@ -4275,6 +4906,33 @@ components:
       type: object
       title: ThinkingResponse
       description: In-progress tool call state.
+    ThresholdKnobRequest:
+      properties:
+        stepId:
+          type: string
+          title: Stepid
+        paramName:
+          type: string
+          title: Paramname
+        minVal:
+          type: number
+          title: Minval
+          default: 0
+        maxVal:
+          type: number
+          title: Maxval
+          default: 1
+        stepSize:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Stepsize
+      type: object
+      required:
+      - stepId
+      - paramName
+      title: ThresholdKnobRequest
+      description: A numeric parameter knob for tree optimization.
     ThresholdSweepRequest:
       properties:
         parameterName:
@@ -4428,6 +5086,52 @@ components:
       - siteId
       title: WdkStrategySummaryResponse
       description: WDK strategy summary for list views.
+    veupath_chatbot__transport__http__routers__experiments__crud__CreateStrategyRequest:
+      properties:
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          type: string
+          title: Recordtype
+          default: transcript
+        stepTree:
+          $ref: '#/components/schemas/JSONValue'
+        name:
+          type: string
+          maxLength: 200
+          title: Name
+          default: Seed strategy
+        description:
+          type: string
+          maxLength: 2000
+          title: Description
+          default: ''
+      type: object
+      required:
+      - siteId
+      - stepTree
+      title: CreateStrategyRequest
+      description: Request to create a WDK strategy from a step tree.
+    veupath_chatbot__transport__http__schemas__strategies__CreateStrategyRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        plan:
+          $ref: '#/components/schemas/StrategyPlan-Input'
+      type: object
+      required:
+      - name
+      - siteId
+      - plan
+      title: CreateStrategyRequest
+      description: Request to create a strategy.
   securitySchemes:
     APIKeyCookie:
       type: apiKey

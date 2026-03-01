@@ -543,6 +543,10 @@ export type paths = {
         /**
          * Import Wdk Strategy
          * @description Import a WDK strategy as a local snapshot.
+         *
+         *     Upserts: if a local row already exists for this WDK strategy ID
+         *     (e.g. from a previous sync or double-click), it is updated rather
+         *     than creating a duplicate.
          */
         post: operations["import_wdk_strategy_api_v1_strategies_wdk__wdkStrategyId__import_post"];
         delete?: never;
@@ -784,7 +788,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments": {
+    "/api/v1/experiments/": {
         parameters: {
             query?: never;
             header?: never;
@@ -795,13 +799,285 @@ export type paths = {
          * List Experiments
          * @description List all experiments, optionally filtered by site.
          */
-        get: operations["list_experiments_api_v1_experiments_get"];
+        get: operations["list_experiments_api_v1_experiments__get"];
         put?: never;
         /**
          * Create Experiment
          * @description Create and run an experiment with SSE progress streaming.
          */
-        post: operations["create_experiment_api_v1_experiments_post"];
+        post: operations["create_experiment_api_v1_experiments__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Batch Experiment
+         * @description Run the same search across multiple organisms with SSE progress.
+         */
+        post: operations["create_batch_experiment_api_v1_experiments_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Benchmark
+         * @description Run the same strategy against multiple control sets in parallel with SSE.
+         */
+        post: operations["create_benchmark_api_v1_experiments_benchmark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Strategies
+         * @description Seed demo strategies and control sets across multiple VEuPathDB sites.
+         */
+        post: operations["seed_strategies_api_v1_experiments_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/overlap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute Overlap
+         * @description Compute pairwise gene set overlap between experiments.
+         *
+         *     For each experiment the result gene set is the union of TP and FP genes.
+         *     Returns Jaccard similarity, shared/unique genes, and membership counts.
+         */
+        post: operations["compute_overlap_api_v1_experiments_overlap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/enrichment-compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare Enrichment
+         * @description Compare enrichment results across experiments.
+         *
+         *     Builds a term-by-experiment matrix of fold-enrichment scores.
+         *     Optionally filters to a single analysis type.
+         */
+        post: operations["compare_enrichment_api_v1_experiments_enrichment_compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/ai-assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Assist
+         * @description AI assistant for the experiment wizard.
+         *
+         *     Streams a response with tool-use activity (web/literature search, site
+         *     catalog lookup, gene lookup) to help the user with the current wizard step.
+         */
+        post: operations["ai_assist_api_v1_experiments_ai_assist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/cross-validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Cv
+         * @description Run cross-validation on an existing experiment.
+         */
+        post: operations["run_cv_api_v1_experiments__experiment_id__cross_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Enrichment
+         * @description Run enrichment analysis on an existing experiment's results.
+         */
+        post: operations["run_enrichment_api_v1_experiments__experiment_id__enrich_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/re-evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re Evaluate Experiment
+         * @description Re-run control evaluation against the (possibly modified) strategy.
+         */
+        post: operations["re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/custom-enrich": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Custom Enrichment
+         * @description Test enrichment of a custom gene set against the experiment results.
+         */
+        post: operations["custom_enrichment_api_v1_experiments__experiment_id__custom_enrich_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/threshold-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Threshold Sweep
+         * @description Sweep a numeric parameter across a range and compute metrics at each point.
+         */
+        post: operations["threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/step-contributions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step Contributions
+         * @description Analyse per-step contribution to overall result for multi-step experiments.
+         *
+         *     Evaluates controls against each leaf step individually to show how much
+         *     each step contributes to the final strategy result.
+         */
+        post: operations["step_contributions_api_v1_experiments__experiment_id__step_contributions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Experiment Report
+         * @description Generate and return a self-contained HTML report for an experiment.
+         */
+        get: operations["get_experiment_report_api_v1_experiments__experiment_id__report_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -822,6 +1098,29 @@ export type paths = {
         get: operations["list_importable_strategies_api_v1_experiments_importable_strategies_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/create-strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Strategy
+         * @description Create a WDK strategy from a step tree definition.
+         *
+         *     Materialises the step tree (creates WDK steps and a strategy) and returns
+         *     the WDK strategy ID so it can be used with ``mode="import"`` experiments.
+         */
+        post: operations["create_strategy_api_v1_experiments_create_strategy_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -884,66 +1183,6 @@ export type paths = {
         patch: operations["update_experiment_api_v1_experiments__experiment_id__patch"];
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/cross-validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Cv
-         * @description Run cross-validation on an existing experiment.
-         */
-        post: operations["run_cv_api_v1_experiments__experiment_id__cross_validate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{experiment_id}/enrich": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Enrichment
-         * @description Run enrichment analysis on an existing experiment's results.
-         */
-        post: operations["run_enrichment_api_v1_experiments__experiment_id__enrich_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Batch Experiment
-         * @description Run the same search across multiple organisms with SSE progress.
-         */
-        post: operations["create_batch_experiment_api_v1_experiments_batch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/experiments/{experiment_id}/results/attributes": {
         parameters: {
             query?: never;
@@ -956,6 +1195,26 @@ export type paths = {
          * @description Get available attributes for an experiment's record type.
          */
         get: operations["get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/results/sortable-attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sortable Attributes
+         * @description Return only sortable (numeric) attributes, with suggestions for known score columns.
+         */
+        get: operations["get_sortable_attributes_api_v1_experiments__experiment_id__results_sortable_attributes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1112,87 +1371,49 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/re-evaluate": {
+    "/api/v1/control-sets": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Control Sets
+         * @description List control sets visible to the current user.
+         */
+        get: operations["list_control_sets_api_v1_control_sets_get"];
         put?: never;
         /**
-         * Re Evaluate Experiment
-         * @description Re-run control evaluation against the (possibly modified) strategy.
+         * Create Control Set
+         * @description Create a new control set.
          */
-        post: operations["re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post"];
+        post: operations["create_control_set_api_v1_control_sets_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/threshold-sweep": {
+    "/api/v1/control-sets/{control_set_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Threshold Sweep
-         * @description Sweep a numeric parameter across a range and compute metrics at each point.
+         * Get Control Set
+         * @description Get a single control set by ID.
          */
-        post: operations["threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{experiment_id}/step-contributions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
+        get: operations["get_control_set_api_v1_control_sets__control_set_id__get"];
         put?: never;
+        post?: never;
         /**
-         * Step Contributions
-         * @description Analyse per-step contribution to overall result for multi-step experiments.
-         *
-         *     Evaluates controls against each leaf step individually to show how much
-         *     each step contributes to the final strategy result.
+         * Delete Control Set
+         * @description Delete a control set.
          */
-        post: operations["step_contributions_api_v1_experiments__experiment_id__step_contributions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/ai-assist": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Ai Assist
-         * @description AI assistant for the experiment wizard.
-         *
-         *     Streams a response with tool-use activity (web/literature search, site
-         *     catalog lookup, gene lookup) to help the user with the current wizard step.
-         */
-        post: operations["ai_assist_api_v1_experiments_ai_assist_post"];
-        delete?: never;
+        delete: operations["delete_control_set_api_v1_control_sets__control_set_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1361,6 +1582,25 @@ export type components = {
             negativeControls?: string[];
         };
         /**
+         * BenchmarkControlSet
+         * @description A single control set within a benchmark suite.
+         */
+        BenchmarkControlSet: {
+            /** Label */
+            label: string;
+            /** Positivecontrols */
+            positiveControls: string[];
+            /** Negativecontrols */
+            negativeControls: string[];
+            /** Controlsetid */
+            controlSetId?: string | null;
+            /**
+             * Isprimary
+             * @default false
+             */
+            isPrimary: boolean;
+        };
+        /**
          * ChatMention
          * @description A reference to a strategy or experiment included via @-mention.
          */
@@ -1418,6 +1658,38 @@ export type components = {
             strand: string;
         };
         /**
+         * ControlSetResponse
+         * @description Serialized control set returned to the client.
+         */
+        ControlSetResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Siteid */
+            siteId: string;
+            /** Recordtype */
+            recordType: string;
+            /** Positiveids */
+            positiveIds: string[];
+            /** Negativeids */
+            negativeIds: string[];
+            /** Source */
+            source?: string | null;
+            /** Tags */
+            tags: string[];
+            /** Provenancenotes */
+            provenanceNotes?: string | null;
+            /** Version */
+            version: number;
+            /** Ispublic */
+            isPublic: boolean;
+            /** Userid */
+            userId?: string | null;
+            /** Createdat */
+            createdAt: string;
+        };
+        /**
          * CreateBatchExperimentRequest
          * @description Request to run the same search across multiple organisms.
          */
@@ -1427,6 +1699,42 @@ export type components = {
             organismParamName: string;
             /** Targetorganisms */
             targetOrganisms: components["schemas"]["BatchOrganismTargetRequest"][];
+        };
+        /**
+         * CreateBenchmarkRequest
+         * @description Request to run a benchmark suite across multiple control sets.
+         */
+        CreateBenchmarkRequest: {
+            base: components["schemas"]["CreateExperimentRequest"];
+            /** Controlsets */
+            controlSets: components["schemas"]["BenchmarkControlSet"][];
+        };
+        /**
+         * CreateControlSetRequest
+         * @description Payload for creating a new control set.
+         */
+        CreateControlSetRequest: {
+            /** Name */
+            name: string;
+            /** Siteid */
+            siteId: string;
+            /** Recordtype */
+            recordType: string;
+            /** Positiveids */
+            positiveIds?: string[];
+            /** Negativeids */
+            negativeIds?: string[];
+            /** Source */
+            source?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Provenancenotes */
+            provenanceNotes?: string | null;
+            /**
+             * Ispublic
+             * @default false
+             */
+            isPublic: boolean;
         };
         /**
          * CreateExperimentRequest
@@ -1467,8 +1775,9 @@ export type components = {
             /**
              * Controlsvalueformat
              * @default newline
+             * @enum {string}
              */
-            controlsValueFormat: string;
+            controlsValueFormat: "newline" | "json_list" | "comma";
             /**
              * Enablecrossvalidation
              * @default false
@@ -1499,46 +1808,53 @@ export type components = {
              */
             optimizationBudget: number;
             /** Optimizationobjective */
-            optimizationObjective?: ("f1" | "recall" | "precision" | "specificity" | "balanced_accuracy" | "mcc" | "youdens_j" | "f_beta") | null;
+            optimizationObjective?: ("f1" | "f_beta" | "recall" | "precision" | "specificity" | "balanced_accuracy" | "mcc" | "youdens_j" | "custom") | null;
             parameterDisplayValues?: components["schemas"]["JSONObject"] | null;
             /**
-             * Enabletreeoptimization
+             * Enablestepanalysis
              * @default false
              */
-            enableTreeOptimization: boolean;
+            enableStepAnalysis: boolean;
+            /** Stepanalysisphases */
+            stepAnalysisPhases?: string[] | null;
+            /** Controlsetid */
+            controlSetId?: string | null;
+            /** Thresholdknobs */
+            thresholdKnobs?: components["schemas"]["ThresholdKnobRequest"][] | null;
+            /** Operatorknobs */
+            operatorKnobs?: components["schemas"]["OperatorKnobRequest"][] | null;
+            /**
+             * Treeoptimizationobjective
+             * @default precision_at_50
+             */
+            treeOptimizationObjective: string;
             /**
              * Treeoptimizationbudget
-             * @default 20
+             * @default 50
              */
             treeOptimizationBudget: number;
+            /** Maxlistsize */
+            maxListSize?: number | null;
+            /** Sortattribute */
+            sortAttribute?: string | null;
             /**
-             * Optimizeoperators
-             * @default true
+             * Sortdirection
+             * @default ASC
+             * @enum {string}
              */
-            optimizeOperators: boolean;
-            /**
-             * Optimizeorthologs
-             * @default false
-             */
-            optimizeOrthologs: boolean;
-            /** Orthologorganisms */
-            orthologOrganisms?: string[] | null;
-            /**
-             * Optimizestructure
-             * @default false
-             */
-            optimizeStructure: boolean;
+            sortDirection: "ASC" | "DESC";
+            /** Parentexperimentid */
+            parentExperimentId?: string | null;
         };
         /**
-         * CreateStrategyRequest
-         * @description Request to create a strategy.
+         * CustomEnrichRequest
+         * @description Request to run a custom gene-set enrichment test.
          */
-        CreateStrategyRequest: {
-            /** Name */
-            name: string;
-            /** Siteid */
-            siteId: string;
-            plan: components["schemas"]["StrategyPlan-Input"];
+        CustomEnrichRequest: {
+            /** Genesetname */
+            geneSetName: string;
+            /** Geneids */
+            geneIds: string[];
         };
         /**
          * DependentParamsRequest
@@ -1586,6 +1902,16 @@ export type components = {
              * Format: date-time
              */
             expiresAt: string;
+        };
+        /**
+         * EnrichmentCompareRequest
+         * @description Request to compare enrichment results across experiments.
+         */
+        EnrichmentCompareRequest: {
+            /** Experimentids */
+            experimentIds: string[];
+            /** Analysistype */
+            analysisType?: string | null;
         };
         /**
          * GeneResolveRequest
@@ -1762,6 +2088,16 @@ export type components = {
             strategyId: string;
         };
         /**
+         * OperatorKnobRequest
+         * @description A boolean-operator knob for tree optimization.
+         */
+        OperatorKnobRequest: {
+            /** Combinenodeid */
+            combineNodeId: string;
+            /** Options */
+            options?: string[];
+        };
+        /**
          * OptimizationSpecRequest
          * @description Describes a single parameter to optimise.
          */
@@ -1781,6 +2117,14 @@ export type components = {
             step?: number | null;
             /** Choices */
             choices?: string[] | null;
+        };
+        /**
+         * OverlapRequest
+         * @description Request to compute pairwise gene set overlap between experiments.
+         */
+        OverlapRequest: {
+            /** Experimentids */
+            experimentIds: string[];
         };
         /**
          * ParamSpecResponse
@@ -2008,6 +2352,33 @@ export type components = {
             description?: string | null;
         };
         /**
+         * RefineRequest
+         * @description Request to refine an experiment's strategy.
+         */
+        RefineRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "combine" | "transform";
+            /**
+             * Searchname
+             * @default
+             */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            /**
+             * Operator
+             * @default INTERSECT
+             */
+            operator: string;
+            /**
+             * Transformname
+             * @default
+             */
+            transformName: string;
+        };
+        /**
          * ResolvedGeneResponse
          * @description A resolved gene record.
          */
@@ -2044,6 +2415,15 @@ export type components = {
              * @default
              */
             location: string;
+        };
+        /**
+         * RunAnalysisRequest
+         * @description Request to run a WDK step analysis.
+         */
+        RunAnalysisRequest: {
+            /** Analysisname */
+            analysisName: string;
+            parameters?: components["schemas"]["JSONObject"];
         };
         /**
          * RunCrossValidationRequest
@@ -2476,6 +2856,28 @@ export type components = {
             updatedAt?: string | null;
         };
         /**
+         * ThresholdKnobRequest
+         * @description A numeric parameter knob for tree optimization.
+         */
+        ThresholdKnobRequest: {
+            /** Stepid */
+            stepId: string;
+            /** Paramname */
+            paramName: string;
+            /**
+             * Minval
+             * @default 0
+             */
+            minVal: number;
+            /**
+             * Maxval
+             * @default 1
+             */
+            maxVal: number;
+            /** Stepsize */
+            stepSize?: number | null;
+        };
+        /**
          * ThresholdSweepRequest
          * @description Request to sweep a numeric parameter across a range.
          */
@@ -2563,6 +2965,41 @@ export type components = {
              * @default false
              */
             isInternal: boolean;
+        };
+        /**
+         * CreateStrategyRequest
+         * @description Request to create a WDK strategy from a step tree.
+         */
+        veupath_chatbot__transport__http__routers__experiments__crud__CreateStrategyRequest: {
+            /** Siteid */
+            siteId: string;
+            /**
+             * Recordtype
+             * @default transcript
+             */
+            recordType: string;
+            stepTree: components["schemas"]["JSONValue"];
+            /**
+             * Name
+             * @default Seed strategy
+             */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+        };
+        /**
+         * CreateStrategyRequest
+         * @description Request to create a strategy.
+         */
+        veupath_chatbot__transport__http__schemas__strategies__CreateStrategyRequest: {
+            /** Name */
+            name: string;
+            /** Siteid */
+            siteId: string;
+            plan: components["schemas"]["StrategyPlan-Input"];
         };
     };
     responses: never;
@@ -3236,7 +3673,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateStrategyRequest"];
+                "application/json": components["schemas"]["veupath_chatbot__transport__http__schemas__strategies__CreateStrategyRequest"];
             };
         };
         responses: {
@@ -4012,7 +4449,7 @@ export interface operations {
             };
         };
     };
-    list_experiments_api_v1_experiments_get: {
+    list_experiments_api_v1_experiments__get: {
         parameters: {
             query?: {
                 siteId?: string | null;
@@ -4043,7 +4480,7 @@ export interface operations {
             };
         };
     };
-    create_experiment_api_v1_experiments_post: {
+    create_experiment_api_v1_experiments__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4076,6 +4513,430 @@ export interface operations {
             };
         };
     };
+    create_batch_experiment_api_v1_experiments_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBatchExperimentRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of batch experiment progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_benchmark_api_v1_experiments_benchmark_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBenchmarkRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of benchmark suite progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    seed_strategies_api_v1_experiments_seed_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of seed strategy/control-set progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+        };
+    };
+    compute_overlap_api_v1_experiments_overlap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverlapRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_enrichment_api_v1_experiments_enrichment_compare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrichmentCompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_assist_api_v1_experiments_ai_assist_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiAssistRequest"];
+            };
+        };
+        responses: {
+            /** @description SSE stream of AI assistant response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_cv_api_v1_experiments__experiment_id__cross_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunCrossValidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_enrichment_api_v1_experiments__experiment_id__enrich_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunEnrichmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    custom_enrichment_api_v1_experiments__experiment_id__custom_enrich_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomEnrichRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThresholdSweepRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    step_contributions_api_v1_experiments__experiment_id__step_contributions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_experiment_report_api_v1_experiments__experiment_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_importable_strategies_api_v1_experiments_importable_strategies_get: {
         parameters: {
             query: {
@@ -4094,6 +4955,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JSONObject"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_strategy_api_v1_experiments_create_strategy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["veupath_chatbot__transport__http__routers__experiments__crud__CreateStrategyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
                 };
             };
             /** @description Validation Error */
@@ -4239,7 +5133,7 @@ export interface operations {
             };
         };
     };
-    run_cv_api_v1_experiments__experiment_id__cross_validate_post: {
+    get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4248,11 +5142,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunCrossValidationRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4274,75 +5164,7 @@ export interface operations {
             };
         };
     };
-    run_enrichment_api_v1_experiments__experiment_id__enrich_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunEnrichmentRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_batch_experiment_api_v1_experiments_batch_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateBatchExperimentRequest"];
-            };
-        };
-        responses: {
-            /** @description SSE stream of batch experiment progress */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_experiment_attributes_api_v1_experiments__experiment_id__results_attributes_get: {
+    get_sortable_attributes_api_v1_experiments__experiment_id__results_sortable_attributes_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4552,9 +5374,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["RunAnalysisRequest"];
             };
         };
         responses: {
@@ -4589,9 +5409,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["RefineRequest"];
             };
         };
         responses: {
@@ -4615,12 +5433,77 @@ export interface operations {
             };
         };
     };
-    re_evaluate_experiment_api_v1_experiments__experiment_id__re_evaluate_post: {
+    list_control_sets_api_v1_control_sets_get: {
+        parameters: {
+            query?: {
+                siteId?: string | null;
+                tags?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlSetResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_control_set_api_v1_control_sets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateControlSetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlSetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_control_set_api_v1_control_sets__control_set_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                experiment_id: string;
+                control_set_id: string;
             };
             cookie?: never;
         };
@@ -4632,7 +5515,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JSONObject"];
+                    "application/json": components["schemas"]["ControlSetResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4646,99 +5529,23 @@ export interface operations {
             };
         };
     };
-    threshold_sweep_api_v1_experiments__experiment_id__threshold_sweep_post: {
+    delete_control_set_api_v1_control_sets__control_set_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                experiment_id: string;
+                control_set_id: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThresholdSweepRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    step_contributions_api_v1_experiments__experiment_id__step_contributions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ai_assist_api_v1_experiments_ai_assist_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AiAssistRequest"];
-            };
-        };
-        responses: {
-            /** @description SSE stream of AI assistant response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
