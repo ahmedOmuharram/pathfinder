@@ -1,9 +1,5 @@
-import type { Step, Strategy } from "@pathfinder/shared";
-
-export type StrategyStep = Step & {
-  validationError?: string;
-};
-
-export type StrategyWithMeta = Strategy & {
-  wdkUrl?: string | null;
-};
+/**
+ * Re-exports from @pathfinder/shared for backward compatibility.
+ * New code should import directly from "@pathfinder/shared".
+ */
+export type { StrategyStep, StrategyWithMeta } from "@pathfinder/shared";

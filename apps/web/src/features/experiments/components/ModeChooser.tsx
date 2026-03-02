@@ -1,6 +1,6 @@
 import { ArrowLeft, FlaskConical, GitBranch, Import } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
-import { useExperimentStore } from "../store";
+import { useExperimentViewStore } from "../store";
 
 const MODES = [
   {
@@ -30,7 +30,7 @@ const MODES = [
 ] as const;
 
 export function ModeChooser() {
-  const setView = useExperimentStore((s) => s.setView);
+  const setView = useExperimentViewStore((s) => s.setView);
 
   return (
     <div className="flex h-full flex-col items-center justify-center p-8">

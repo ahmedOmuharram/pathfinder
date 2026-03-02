@@ -173,9 +173,9 @@ class TestGetResultCount:
                             wdk_step_id = list(step_ids.values())[0]
 
         if wdk_step_id is None:
-            pytest.skip("Could not extract WDK step ID from build_strategy result")
+            pytest.xfail("Could not extract WDK step ID from build_strategy result")
         if not isinstance(wdk_step_id, (int, float, str)):
-            pytest.skip("wdk_step_id is not int-able")
+            pytest.xfail("wdk_step_id is not int-able")
 
         # Phase 2: get result count
         count_turns = [
@@ -380,7 +380,6 @@ class TestGeneLookupAndResolve:
                 authed_client,
                 message="Tell me about Pfs25",
                 site_id="plasmodb",
-                mode="plan",
                 timeout=120.0,
             )
 

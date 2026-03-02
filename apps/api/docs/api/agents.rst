@@ -1,46 +1,29 @@
 Agents
 ======
 
-Pathfinder uses three Kani-based agents: the main executor, the planner, and
-sub-agents for delegated tasks. All extend `Kani <https://github.com/zhudotexe/kani>`_
+Pathfinder uses two Kani-based agents: the main unified agent and
+sub-agents for delegated tasks. Both extend `Kani <https://github.com/zhudotexe/kani>`_
 with tools and prompts tailored to VEuPathDB strategy building.
 
-PathfinderAgent (Execute Mode)
-------------------------------
+PathfinderAgent (Unified)
+-------------------------
 
-**Purpose:** The main agent when a strategy is attached. Builds and edits the
-strategy graph via tools. For multi-step builds, delegates to sub-kanis.
+**Purpose:** The single agent for all conversations. Handles research (catalog
+exploration, literature search, control tests, optimization) and execution
+(graph building, strategy composition) in a unified tool set. The model
+decides per-turn which capabilities to use. For multi-step builds, delegates
+to sub-kanis.
 
-**Inherits:** :py:class:`veupath_chatbot.ai.tools.registry.AgentToolRegistryMixin`, ``Kani``
+**Inherits:** :py:class:`veupath_chatbot.ai.tools.unified_registry.UnifiedToolRegistryMixin`, ``Kani``
 
 **Tools:** Catalog (list_sites, get_record_types, search_for_searches, etc.),
 strategy tools (create_step, list_current_steps, build_strategy, delete_step,
 update_step, etc.), conversation tools (save_strategy, load_strategy),
-research (web_search, literature_search), and **delegate_strategy_subtasks**.
+research (web_search, literature_search), validation (run_control_tests,
+optimize_search_parameters, lookup_gene_records), artifacts
+(save_planning_artifact), and **delegate_strategy_subtasks**.
 
-**When to use:** ``mode="execute"`` — user has a strategy and wants to build/edit it.
-
-.. automodule:: veupath_chatbot.ai.agent_runtime
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-PathfinderPlannerAgent (Plan Mode)
-----------------------------------
-
-**Purpose:** Agent when no strategy is attached. Explores the catalog, runs
-control tests, optimizes parameters, saves planning artifacts and delegation
-drafts. When confident, calls ``request_executor_build`` to hand off to the executor.
-
-**Inherits:** :py:class:`veupath_chatbot.ai.tools.planner_registry.PlannerToolRegistryMixin`, ``Kani``
-
-**Tools:** Catalog exploration, ``save_planning_artifact``, ``save_delegation_plan_draft``,
-``request_executor_build``, ``run_control_tests``, ``optimize_search_parameters``,
-``lookup_gene_records``, research. No graph-building tools (create_step, etc.).
-
-**When to use:** ``mode="plan"`` — user is exploring, planning, or validating.
-
-.. automodule:: veupath_chatbot.ai.planner_runtime
+.. automodule:: veupath_chatbot.ai.agents.executor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -56,10 +39,10 @@ Each sub-kani creates exactly one step (or edits one) and returns the result.
 
 **Tools:** Same as PathfinderAgent minus ``delegate_strategy_subtasks``.
 
-**When used:** Internally by :py:func:`veupath_chatbot.ai.subkani.orchestrator.delegate_strategy_subtasks` for each
+**When used:** Internally by :py:func:`veupath_chatbot.ai.orchestration.subkani.orchestrator.delegate_strategy_subtasks` for each
 task node in the delegation plan.
 
-.. automodule:: veupath_chatbot.ai.subtask_agent
+.. automodule:: veupath_chatbot.ai.agents.subtask
    :members:
    :undoc-members:
    :show-inheritance:
@@ -67,7 +50,7 @@ task node in the delegation plan.
 Agent Factory
 -------------
 
-**Purpose:** Build the correct agent (planner or executor) with the right engine
-and model. Resolves model ID from override, persisted state, or server default.
+**Purpose:** Build the agent with the right engine and model. Resolves model ID
+from override, persisted state, or server default.
 
 See :doc:`ai` for full reference.

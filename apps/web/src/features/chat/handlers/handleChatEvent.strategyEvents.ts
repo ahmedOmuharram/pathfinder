@@ -1,4 +1,4 @@
-import type { StrategyStep } from "@/features/strategy/types";
+import type { StrategyStep } from "@pathfinder/shared";
 import type { ChatEventContext } from "./handleChatEvent.types";
 
 export function handleStrategyUpdateEvent(ctx: ChatEventContext, data: unknown) {
@@ -90,7 +90,9 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: unknown) {
     ctx
       .getStrategy(targetGraphId)
       .then((full) => ctx.addExecutedStrategy(full))
-      .catch(() => {});
+      .catch((err) =>
+        console.error("[handleStrategyLinkEvent] Failed to fetch strategy:", err),
+      );
   }
 }
 

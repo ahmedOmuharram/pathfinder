@@ -174,8 +174,8 @@ export function MiniTreeView({ tree, mutatedNodeIds }: MiniTreeProps) {
                   cx={ln.x + NODE_W - 4}
                   cy={ln.y + 4}
                   r={3.5}
-                  fill="#f59e0b"
-                  stroke="#fff"
+                  fill="hsl(var(--chart-3))"
+                  stroke="hsl(var(--card))"
                   strokeWidth={1}
                 />
               )}
@@ -197,8 +197,8 @@ export function MiniTreeView({ tree, mutatedNodeIds }: MiniTreeProps) {
                     width={40}
                     height={12}
                     rx={4}
-                    fill={OP_FILL[op] ?? "#f1f5f9"}
-                    stroke={OP_TEXT[op] ?? "#64748b"}
+                    fill={OP_FILL[op] ?? "hsl(var(--muted))"}
+                    stroke={OP_TEXT[op] ?? "hsl(var(--muted-foreground))"}
                     strokeWidth={0.8}
                   />
                   <text
@@ -206,7 +206,7 @@ export function MiniTreeView({ tree, mutatedNodeIds }: MiniTreeProps) {
                     y={ln.y + NODE_H - 6.5}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill={OP_TEXT[op] ?? "#64748b"}
+                    fill={OP_TEXT[op] ?? "hsl(var(--muted-foreground))"}
                     style={{ fontSize: 7.5, fontWeight: 700, fontFamily: "monospace" }}
                   >
                     {op}

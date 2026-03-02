@@ -12,9 +12,9 @@ function getOpBadgeLabel(op: string): string {
 }
 
 export function VennIcon({ operator }: { operator: string }) {
-  const stroke = "#64748b"; // slate-500
-  const highlight = "#00e676"; // vibrant green (A400-ish)
-  const bg = "#f8fafc"; // slate-50 (matches badge bg)
+  const stroke = "hsl(var(--muted-foreground))";
+  const highlight = "hsl(var(--success))";
+  const bg = "hsl(var(--card))";
 
   // Standard venn: centers (14,12) and (22,12), r=8.
   // Intersection points are (18, 12 ± sqrt(64-16)) = (18, 12 ± 6.9282)

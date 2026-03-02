@@ -5,8 +5,8 @@ import type {
   OptimizationTrial,
   PlanningArtifact,
   ToolCall,
+  StrategyWithMeta,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { ChatEventContext } from "./handleChatEvent.types";
 
 export function snapshotSubKaniActivityFromBuffers(

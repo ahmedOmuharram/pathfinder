@@ -4,6 +4,10 @@ import { gotoHome, sendMessage, openGraphEditor } from "./helpers";
 test("plan → delegation draft → build in executor → sub-kani activity → graph view", async ({
   page,
 }) => {
+  // This test exercises a multi-step flow (plan → delegate → execute → graph)
+  // and can be slow under parallel test load.
+  test.slow();
+
   await gotoHome(page);
 
   // Trigger deterministic delegation draft from mock provider (plan mode).
@@ -42,9 +46,9 @@ test("plan → delegation draft → build in executor → sub-kani activity → 
     .locator("summary")
     .filter({ hasText: "Sub-kani Activity" })
     .first();
-  await expect(subKani).toBeVisible({ timeout: 20_000 });
+  await expect(subKani).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("delegate:build-strategy").first()).toBeVisible({
-    timeout: 20_000,
+    timeout: 10_000,
   });
 
   // Open graph editor modal and verify the delegated graph exists.

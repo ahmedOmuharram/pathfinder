@@ -2,7 +2,7 @@
 
 import { Handle, Position } from "reactflow";
 import type { NodeProps } from "reactflow";
-import type { StrategyStep } from "@/features/strategy/types";
+import type { StrategyStep } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { OpBadge } from "./OpBadge";
 import { AlertTriangle, MessageSquarePlus } from "lucide-react";

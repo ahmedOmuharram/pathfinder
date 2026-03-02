@@ -109,12 +109,12 @@ async function boxSelectAllNodes(page: Page) {
     await page.mouse.down();
     await page.mouse.move(endX, endY, { steps: 10 });
     await page.mouse.up();
-    await page.waitForTimeout(300);
 
-    const isSelected = await addSelectionBtn.isEnabled().catch(() => false);
+    // Wait for ReactFlow to process the selection
+    const isSelected = await addSelectionBtn
+      .isEnabled({ timeout: 2_000 })
+      .catch(() => false);
     if (isSelected) return;
-
-    await page.waitForTimeout(500);
   }
 }
 
@@ -155,7 +155,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
 
   // 2) Multi-select via box-select and add selection to chat.
   await page.getByRole("button", { name: "fit view" }).click();
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("rf-node-mock_search_1")).toBeVisible();
   await boxSelectAllNodes(page);
 
   const addSelection = page.getByRole("button", {
@@ -190,7 +190,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
 
   // 4) Combine the two disconnected roots via box-select + toolbar.
   await page.getByRole("button", { name: "fit view" }).click();
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("rf-node-mock_search_1")).toBeVisible();
   await boxSelectAllNodes(page);
 
   const combineBtn = page.getByRole("button", {
@@ -228,7 +228,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
   // 7) Delete a node: click to select (opens StepEditor), close via Cancel
   //    (not Escape — Escape also deselects in ReactFlow), then Backspace.
   await page.getByRole("button", { name: "fit view" }).click();
-  await page.waitForTimeout(500);
+  await expect(page.getByTestId("rf-node-mock_search_1")).toBeVisible();
 
   const searchNode = page.getByTestId("rf-node-mock_search_1");
   await searchNode.click();
@@ -243,7 +243,7 @@ test("graph: add-to-chat, edge delete, combine, undo, reconnect, node delete", a
 
   // Focus the ReactFlow canvas and delete the selected node.
   await page.locator(".react-flow").first().focus();
-  await page.waitForTimeout(100);
+  await page.locator(".react-flow").first().waitFor({ state: "visible" });
   await page.keyboard.press("Backspace");
   await expect(page.getByTestId("rf-node-mock_search_1")).toHaveCount(0, {
     timeout: 10_000,

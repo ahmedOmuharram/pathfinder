@@ -49,7 +49,7 @@ const errors = [];
 
 // Rule 2: core must not import transport
 {
-  const dir = path.join(ROOT, "src", "core", "strategyGraph");
+  const dir = path.join(ROOT, "src", "lib", "strategyGraph");
   const files = walk(dir).filter(isTsLike);
   for (const f of files) {
     const text = read(f);

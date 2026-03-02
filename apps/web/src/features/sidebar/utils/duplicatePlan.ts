@@ -1,5 +1,4 @@
-import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyPlan, StrategyWithMeta } from "@pathfinder/shared";
 import { serializeStrategyPlan } from "@/lib/strategyGraph";
 import { AppError } from "@/lib/errors/AppError";
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from typing import cast
 from uuid import UUID
 
@@ -11,17 +10,15 @@ from kani.engines.base import BaseEngine
 from kani.engines.openai import OpenAIEngine
 
 from veupath_chatbot.ai.models.catalog import (
-    ChatMode,
     ModelProvider,
     ReasoningEffort,
     build_reasoning_hyperparams,
     get_model_entry,
 )
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 
 from .executor import PathfinderAgent
-from .planner import PathfinderPlannerAgent
 
 
 def _create_openai_engine(
@@ -216,30 +213,22 @@ def create_agent(
     chat_history: list[ChatMessage] | None = None,
     strategy_graph: JSONObject | None = None,
     selected_nodes: JSONObject | None = None,
-    delegation_draft_artifact: JSONObject | None = None,
-    plan_session_id: UUID | None = None,
-    get_plan_session_artifacts: Callable[[], Awaitable[JSONArray]] | None = None,
-    mode: ChatMode = "execute",
     *,
     provider_override: ModelProvider | None = None,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
     mentioned_context: str | None = None,
-) -> PathfinderAgent | PathfinderPlannerAgent:
-    """Create a new Pathfinder agent instance (executor or planner).
+) -> PathfinderAgent:
+    """Create a unified Pathfinder agent instance.
 
-    *mode* determines the agent **type** (executor vs planner), but does
-    **not** influence model selection — any model works with any mode.
+    The agent combines research, planning, and execution capabilities.
+    The model decides per-turn whether to research/plan or build/execute.
 
     :param site_id: VEuPathDB site identifier.
     :param user_id: User ID (default: None).
     :param chat_history: Chat history (default: None).
     :param strategy_graph: Strategy graph payload (default: None).
     :param selected_nodes: Selected nodes (default: None).
-    :param delegation_draft_artifact: Delegation draft (default: None).
-    :param plan_session_id: Plan session ID (default: None).
-    :param get_plan_session_artifacts: Async callable to fetch plan artifacts (default: None).
-    :param mode: Chat mode (default: "execute").
     :param provider_override: Model provider override (default: None).
     :param model_override: Model ID override (default: None).
     :param reasoning_effort: Reasoning effort (default: None).
@@ -251,19 +240,6 @@ def create_agent(
         model_override=model_override,
         reasoning_effort=reasoning_effort,
     )
-    if mode == "plan":
-        return PathfinderPlannerAgent(
-            engine=engine,
-            site_id=site_id,
-            user_id=user_id,
-            chat_history=chat_history,
-            strategy_graph=strategy_graph,
-            selected_nodes=selected_nodes,
-            delegation_draft_artifact=delegation_draft_artifact,
-            plan_session_id=plan_session_id,
-            get_plan_session_artifacts=get_plan_session_artifacts,
-            mentioned_context=mentioned_context,
-        )
     return PathfinderAgent(
         engine=engine,
         site_id=site_id,

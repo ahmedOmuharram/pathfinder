@@ -5,7 +5,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { GeneLookupPanel } from "../GeneLookupPanel";
 import { ValidatedGeneInput } from "../ValidatedGeneInput";
 import { AiAssistantPanel } from "../AiAssistantPanel";
-import type { ResolvedGene } from "@/lib/api/client";
+import type { ResolvedGene } from "@pathfinder/shared";
 
 interface ControlsModalProps {
   open: boolean;

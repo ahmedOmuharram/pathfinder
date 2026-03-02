@@ -65,3 +65,68 @@ domain plan. Used when pushing to VEuPathDB or creating strategies.
    :members:
    :undoc-members:
    :show-inheritance:
+
+Auto Push
+---------
+
+**Purpose:** Best-effort auto-push: sync a local strategy back to VEuPathDB
+WDK after mutations. Runs as a background task with per-strategy locking.
+
+.. automodule:: veupath_chatbot.services.strategies.auto_push
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Session Factory
+---------------
+
+**Purpose:** Create and restore strategy sessions. Loads strategy state
+from the database for chat context.
+
+.. automodule:: veupath_chatbot.services.strategies.session_factory
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Step Builders
+-------------
+
+**Purpose:** Build WDK step payloads from the strategy plan AST. Creates
+the correct step structure for WDK API calls.
+
+.. automodule:: veupath_chatbot.services.strategies.step_builders
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+WDK Counts
+----------
+
+**Purpose:** Fetch step result counts from WDK. Used to populate the
+strategy graph UI with result counts per step.
+
+.. automodule:: veupath_chatbot.services.strategies.wdk_counts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Strategy Engine
+---------------
+
+**Purpose:** Core strategy execution engine. Graph integrity checks,
+step ordering, and execution helpers.
+
+.. automodule:: veupath_chatbot.services.strategies.engine.base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.graph_integrity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:

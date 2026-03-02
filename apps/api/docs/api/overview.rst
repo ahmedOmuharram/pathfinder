@@ -2,19 +2,20 @@ Architecture Overview
 =====================
 
 This document describes the Pathfinder API architecture: how Kani drives the
-agent, the two chat modes (plan vs execute), the **Experiment Lab** (separate
-from chat), sub-kani orchestration, delegation plans, and the end-to-end
-request flow.
+unified agent, the **Experiment Lab** (separate from chat), sub-kani
+orchestration, delegation plans, and the end-to-end request flow.
 
 Application Areas
 -----------------
 
 Pathfinder has two main user-facing areas:
 
-1. **Chat** (home page) — Plan and Execute modes for building/editing strategy
-   graphs via natural language. Uses ``POST /api/v1/chat`` with ``mode``
-   ``"plan"`` or ``"execute"``. Supports **@-mentions** of strategies and
-   experiments (see :ref:`overview-mentions`).
+1. **Chat** (home page) — A single unified agent for building/editing strategy
+   graphs via natural language. Every conversation is backed by a strategy.
+   Uses ``POST /api/v1/chat``. The agent decides when to research (explore
+   the catalog, search literature, run control tests) versus execute
+   (build steps, compose strategies). Supports **@-mentions** of strategies
+   and experiments (see :ref:`overview-mentions`).
 
 2. **Experiment Lab** (``/experiments`` page) — Evaluate search/strategy
    performance with control sets, metrics, cross-validation, enrichment, and
@@ -33,20 +34,19 @@ High-Level Chat Flow
        ▼
   Chat Orchestrator (start_chat_stream)
        │
-       ├── mode: "plan"  ──► PathfinderPlannerAgent  ──► Planner tools (catalog, artifacts, executor handoff)
+       ▼
+  PathfinderAgent (unified)  ──► All tools (catalog, research, graph building, artifacts, optimization)
        │
-       └── mode: "execute" ──► PathfinderAgent  ──► Executor tools (catalog + graph building)
-                                    │
-                                    │  when multi-step build
-                                    ▼
-                              delegate_strategy_subtasks
-                                    │
-                                    ▼
-                              Sub-kani Orchestrator
-                                    │
-                                    ├── Spawn SubtaskAgent(s) for each task node
-                                    ├── Run with dependency order (left before right, etc.)
-                                    └── Emit subkani_task_start/end, tool_call events
+       │  when multi-step build
+       ▼
+  delegate_strategy_subtasks
+       │
+       ▼
+  Sub-kani Orchestrator
+       │
+       ├── Spawn SubtaskAgent(s) for each task node
+       ├── Run with dependency order (left before right, etc.)
+       └── Emit subkani_task_start/end, tool_call events
 
 What Kani Does
 --------------
@@ -65,40 +65,38 @@ What Kani Does
 
 Pathfinder extends Kani with:
 
-- :py:class:`veupath_chatbot.ai.agent_runtime.PathfinderAgent` — Execute mode; builds strategies with tools.
-- :py:class:`veupath_chatbot.ai.planner_runtime.PathfinderPlannerAgent` — Plan mode; explores catalog, saves artifacts,
-  requests executor handoff.
-- :py:class:`veupath_chatbot.ai.subtask_agent.SubtaskAgent` — Sub-agent for delegated tasks; same tools as main
+- :py:class:`veupath_chatbot.ai.agents.executor.PathfinderAgent` — Unified agent; handles research, planning, and
+  strategy building with a single tool set.
+- :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent` — Sub-agent for delegated tasks; same tools as main
   agent minus delegation.
 
-Planning vs Execution
----------------------
+Unified Agent
+-------------
 
-**Planning mode** (``mode="plan"``)
+There is a single ``PathfinderAgent`` that handles every conversation. The
+model decides per-turn whether to research (explore the catalog, search
+literature, run control tests, optimize parameters) or execute (build steps,
+compose strategies). Every conversation is backed by a strategy.
 
-- No strategy attached. User explores data, asks questions, refines a plan.
-- Planner tools: ``list_sites``, ``search_for_searches``, ``get_search_parameters``,
-  ``save_planning_artifact``, ``save_delegation_plan_draft``, ``request_executor_build``,
-  ``run_control_tests``, ``optimize_search_parameters``, ``lookup_gene_records``.
-- Planner saves artifacts and delegation drafts. When ready, calls
-  ``request_executor_build`` to hand off to the executor.
-- Plan session is persisted (plan_session_id). Messages and artifacts are
-  stored per session.
+**Tools available to the unified agent:**
 
-**Execution mode** (``mode="execute"``)
+- **Catalog / discovery:** ``list_sites``, ``search_for_searches``,
+  ``get_search_parameters``, ``get_dependent_vocab``, etc.
+- **Graph building / editing:** ``create_step``, ``list_current_steps``,
+  ``build_strategy``, ``delete_step``, ``update_step``, etc.
+- **Research / validation:** ``web_search``, ``literature_search``,
+  ``run_control_tests``, ``optimize_search_parameters``,
+  ``lookup_gene_records``, ``save_planning_artifact``.
+- **Delegation:** ``delegate_strategy_subtasks`` for multi-step builds.
 
-- Strategy attached. User builds and edits the strategy graph.
-- Executor tools: all catalog tools plus graph-building
-  (``create_step``, ``list_current_steps``, ``build_strategy``, ``delete_step``, etc.)
-  and ``delegate_strategy_subtasks``.
-- For **single-step** builds, the executor calls tools directly.
-- For **multi-step** builds (2+ steps, combines, transforms), the executor
-  calls ``delegate_strategy_subtasks(goal, plan)``, which spawns sub-kanis.
+For **single-step** builds, the agent calls tools directly.
+For **multi-step** builds (2+ steps, combines, transforms), the agent
+calls ``delegate_strategy_subtasks(goal, plan)``, which spawns sub-kanis.
 
 Sub-kani Orchestration
 ----------------------
 
-When the executor receives a multi-step build request, it delegates to
+When the agent receives a multi-step build request, it delegates to
 **sub-kanis** — smaller Kani agents that each handle one task (e.g. "find
 gametocyte gene search", "create step with fold_change=2").
 
@@ -106,8 +104,8 @@ gametocyte gene search", "create step with fold_change=2").
 
 1. Main agent calls ``delegate_strategy_subtasks(goal, plan)``.
 2. Orchestrator validates and normalizes the ``plan`` into a
-   :py:class:`veupath_chatbot.ai.delegation_plan.DelegationPlan` (tasks + combines + dependencies).
-3. For each task node (in dependency order), spawn a :py:class:`veupath_chatbot.ai.subtask_agent.SubtaskAgent`.
+   :py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan` (tasks + combines + dependencies).
+3. For each task node (in dependency order), spawn a :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent`.
 4. Sub-agent receives task description, dependency context (results from
    upstream tasks), and runs tools to create the step.
 5. Orchestrator creates any combine/transform steps that link sub-agent
@@ -131,17 +129,17 @@ A **delegation plan** is a nested binary tree that mirrors the final strategy:
 - **Combine node** — ``{ "type": "combine", "operator": "UNION"|"INTERSECT"|..., "left": <node>, "right": <node> }``
   The orchestrator creates the combine step after both children complete.
 
-The planner produces delegation plans when it has a concrete build approach.
-The executor consumes them via ``delegate_strategy_subtasks(goal, plan)``.
-:py:func:`veupath_chatbot.ai.delegation_plan.build_delegation_plan` normalizes and validates the plan into
-:py:class:`veupath_chatbot.ai.delegation_plan.DelegationPlan`.
+The agent produces delegation plans when it has a concrete build approach
+and consumes them via ``delegate_strategy_subtasks(goal, plan)``.
+:py:func:`veupath_chatbot.ai.orchestration.delegation.build_delegation_plan` normalizes and validates the plan into
+:py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan`.
 
 SSE Event Contract
 ------------------
 
 The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.http.streaming`):
 
-- ``message_start`` — New turn; includes strategy/plan session snapshot.
+- ``message_start`` — New turn; includes strategy snapshot.
 - ``tool_call_start`` / ``tool_call_end`` — Main agent tool execution.
 - ``subkani_task_start`` / ``subkani_tool_call_start`` / ``subkani_tool_call_end`` / ``subkani_task_end`` — Sub-kani activity.
 - ``strategy_update`` — Graph changed (new step, update, delete).
@@ -167,7 +165,7 @@ See Also
 --------
 
 - :doc:`experiments` — Experiment Lab: modes, execution, analysis, control sets
-- :doc:`agents` — PathfinderAgent, PathfinderPlannerAgent, SubtaskAgent
+- :doc:`agents` — PathfinderAgent (unified), SubtaskAgent
 - :doc:`subkani` — Sub-kani orchestrator and scheduler
 - :doc:`delegation` — Delegation plan schema and validation
-- :doc:`ai_functions` — Full AI function reference by mode
+- :doc:`ai_functions` — Full AI function reference

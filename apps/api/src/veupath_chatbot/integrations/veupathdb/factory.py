@@ -36,7 +36,6 @@ __all__ = [
     "DiscoveryService",
     "SiteInfo",
     "close_all_clients",
-    "get_discovery",
     "get_discovery_service",
     "get_results_api",
     "get_site",
@@ -68,16 +67,6 @@ def get_results_api(site_id: str) -> TemporaryResultsAPI:
 
     """
     return TemporaryResultsAPI(get_wdk_client(site_id))
-
-
-def get_discovery(site_id: str | None = None) -> DiscoveryService:
-    """Get the shared discovery service (site_id reserved for future use).
-
-    :param site_id: Site ID (default: None).
-
-    """
-    del site_id
-    return get_discovery_service()
 
 
 async def close_all_clients() -> None:

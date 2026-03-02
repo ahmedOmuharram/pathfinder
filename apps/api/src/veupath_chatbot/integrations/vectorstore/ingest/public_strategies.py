@@ -10,19 +10,25 @@ from pathlib import Path
 from typing import cast
 
 import httpx
-
 from veupath_chatbot.integrations.embeddings.openai_embeddings import (
     OpenAIEmbeddings,
     embed_one,
 )
 from veupath_chatbot.integrations.vectorstore.collections import EXAMPLE_PLANS_V1
+from veupath_chatbot.integrations.vectorstore.ingest.public_fetch import (
+    _delete_strategy,
+    _duplicate_strategy,
+    _fetch_public_strategy_summaries,
+    _get_strategy_details,
+)
+from veupath_chatbot.integrations.vectorstore.ingest.public_index import _flush_batch
 from veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers import (
-    EMBED_TEXT_MAX_CHARS,
-    backoff_delay_seconds,
     embedding_text_for_example,
     full_strategy_payload,
     simplify_strategy_details,
-    truncate,
+)
+from veupath_chatbot.integrations.vectorstore.ingest.public_transform import (
+    _generate_name_and_description,
 )
 from veupath_chatbot.integrations.vectorstore.ingest.utils import existing_point_ids
 from veupath_chatbot.integrations.vectorstore.qdrant_store import (
@@ -47,143 +53,6 @@ def _write_jsonl(path: Path, obj: JSONObject) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
-
-
-async def _sleep_backoff(attempt: int) -> None:
-    await asyncio.sleep(backoff_delay_seconds(attempt))
-
-
-async def _generate_name_and_description(
-    *, strategy_compact: JSONObject, model: str
-) -> tuple[str, str]:
-    settings = get_settings()
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=settings.openai_api_key or None)
-    compact_json = json.dumps(strategy_compact, ensure_ascii=False)
-    prompt = f"""You are generating metadata for a public strategy example.
-
-Return STRICT JSON with keys:
-- name: short, human-friendly title (max 80 chars)
-- description: 3-8 sentences. Must be descriptive but MUST NOT be a step-by-step recipe.
-  It MUST explicitly include the requirements/criteria represented in the strategy, including:
-  - all searches used (searchName)
-  - all parameter constraints used for each step (parameters key/value pairs)
-  - boolean operators (INTERSECT/UNION/MINUS/RMINUS/COLOCATE) when present
-
-Do not write "Step 1", "Step 2" or numbered steps.
-Do not include markdown.
-
-Strategy (compact JSON):
-{compact_json}
-"""
-
-    resp = await client.chat.completions.create(
-        model=model,
-        temperature=0.0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": "Return JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    text = (resp.choices[0].message.content or "").strip()
-    if not text:
-        raise RuntimeError("Empty LLM response")
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end > start:
-            data = json.loads(text[start : end + 1])
-        else:
-            raise
-    name = str(data.get("name") or "").strip()
-    desc = str(data.get("description") or "").strip()
-    if not name or not desc:
-        raise RuntimeError("LLM returned empty name/description")
-    return name, desc
-
-
-async def _fetch_public_strategy_summaries(
-    client: httpx.AsyncClient,
-) -> JSONArray:
-    resp = await client.get("/strategy-lists/public")
-    resp.raise_for_status()
-    data = resp.json()
-    if not isinstance(data, list):
-        return []
-    return [x for x in data if isinstance(x, dict)]
-
-
-async def _duplicate_strategy(client: httpx.AsyncClient, signature: str) -> int:
-    last_exc: Exception | None = None
-    for attempt in range(1, 6):
-        try:
-            resp = await client.post(
-                "/users/current/strategies",
-                json={"sourceStrategySignature": signature},
-                timeout=httpx.Timeout(90.0),
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if not isinstance(data, dict) or "id" not in data:
-                raise RuntimeError("Unexpected duplicateStrategy response")
-            return int(data["id"])
-        except (
-            httpx.ReadTimeout,
-            httpx.ConnectError,
-            httpx.RemoteProtocolError,
-        ) as exc:
-            last_exc = exc
-            await _sleep_backoff(attempt)
-        except httpx.HTTPStatusError as exc:
-            last_exc = exc
-            status = exc.response.status_code
-            if status in (429, 500, 502, 503, 504):
-                await _sleep_backoff(attempt)
-            else:
-                raise
-    raise RuntimeError(f"duplicate_strategy failed after retries: {last_exc!r}")
-
-
-async def _get_strategy_details(
-    client: httpx.AsyncClient, strategy_id: int
-) -> JSONObject:
-    last_exc: Exception | None = None
-    for attempt in range(1, 6):
-        try:
-            resp = await client.get(
-                f"/users/current/strategies/{strategy_id}",
-                timeout=httpx.Timeout(180.0),
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if not isinstance(data, dict):
-                raise RuntimeError("Unexpected strategy details response")
-            return data
-        except (
-            httpx.ReadTimeout,
-            httpx.ConnectError,
-            httpx.RemoteProtocolError,
-        ) as exc:
-            last_exc = exc
-            await _sleep_backoff(attempt)
-        except httpx.HTTPStatusError as exc:
-            last_exc = exc
-            status = exc.response.status_code
-            if status in (429, 500, 502, 503, 504):
-                await _sleep_backoff(attempt)
-            else:
-                raise
-    raise RuntimeError(f"get_strategy_details failed after retries: {last_exc!r}")
-
-
-async def _delete_strategy(client: httpx.AsyncClient, strategy_id: int) -> None:
-    resp = await client.delete(f"/users/current/strategies/{strategy_id}")
-    if resp.status_code >= 400:
-        return
 
 
 async def ingest_site(
@@ -239,7 +108,6 @@ async def ingest_site(
             candidates = candidates[: max(0, int(max_strategies))]
 
         if skip_existing and candidates:
-            # Filter candidates whose point already exists in Qdrant.
             from qdrant_client import AsyncQdrantClient
 
             timeout_int: int | None = (
@@ -439,43 +307,6 @@ async def ingest_site(
                     "failed": failed,
                 },
             )
-
-
-async def _flush_batch(
-    *,
-    store: QdrantStore,
-    embedder: OpenAIEmbeddings,
-    points: JSONArray,
-    texts: list[str],
-) -> None:
-    if not points:
-        return
-    safe_texts = [truncate(t, max_chars=EMBED_TEXT_MAX_CHARS) for t in texts]
-    try:
-        vectors = await embedder.embed_texts(safe_texts)
-    except Exception:
-        vectors = []
-        for t in safe_texts:
-            tt = truncate(t, max_chars=10_000)
-            vectors.append((await embedder.embed_texts([tt]))[0])
-    upsert_points: JSONArray = []
-    for p, v in zip(points, vectors, strict=True):
-        if not isinstance(p, dict):
-            continue
-        id_raw = p.get("id")
-        payload_raw = p.get("payload")
-        point_dict: JSONObject = {
-            "id": id_raw,
-            "vector": cast(JSONValue, v),
-            "payload": payload_raw,
-        }
-        upsert_points.append(cast(JSONValue, point_dict))
-    await store.upsert(
-        collection=EXAMPLE_PLANS_V1,
-        points=upsert_points,
-    )
-    points.clear()
-    texts.clear()
 
 
 async def ingest_public_strategies(

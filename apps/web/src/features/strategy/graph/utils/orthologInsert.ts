@@ -1,5 +1,4 @@
-import type { Search } from "@pathfinder/shared";
-import type { StrategyStep } from "@/features/strategy/types";
+import type { Search, StrategyStep } from "@pathfinder/shared";
 import { resolveRecordType } from "@/lib/strategyGraph";
 
 export type OrthologInsertResult = {

@@ -102,7 +102,8 @@ async function runOnce(
     ]);
 
     if ("timedOut" in result && result.timedOut) {
-      reader.cancel().catch(() => {});
+      // Reader.cancel() can throw if the stream is already closed/errored — benign.
+      reader.cancel().catch((err) => console.debug("[sse] reader.cancel()", err));
       throw new AppError(
         `No data received for ${Math.round(readTimeout / 1000)}s — connection appears hung.`,
         "TIMEOUT",
@@ -154,4 +155,31 @@ export async function streamSSE(
       await sleep(retryDelay);
     }
   }
+}
+
+/**
+ * Convenience wrapper around {@link streamSSE} that automatically parses
+ * each event's data as JSON before invoking the callback.
+ *
+ * Use this for SSE streams where every `data:` payload is valid JSON
+ * (e.g. experiment progress events).
+ */
+export async function streamSSEParsed<T = unknown>(
+  path: string,
+  args: StreamSSEArgs,
+  options: Omit<StreamSSEOptions, "onEvent"> & {
+    onFrame: (frame: { event: string; data: T }) => void;
+  },
+): Promise<void> {
+  const { onFrame, ...rest } = options;
+  return streamSSE(path, args, {
+    ...rest,
+    onEvent: (raw) => {
+      try {
+        onFrame({ event: raw.type, data: JSON.parse(raw.data) as T });
+      } catch {
+        /* ignore parse errors for non-JSON payloads */
+      }
+    },
+  });
 }

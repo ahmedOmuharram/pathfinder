@@ -15,18 +15,12 @@ def sse_message_start(
     *,
     strategy_id: str | None = None,
     strategy: JSONObject | None = None,
-    plan_session_id: str | None = None,
-    plan_session: JSONObject | None = None,
 ) -> str:
     data: JSONObject = {}
     if strategy_id is not None:
         data["strategyId"] = strategy_id
     if strategy is not None:
         data["strategy"] = strategy
-    if plan_session_id is not None:
-        data["planSessionId"] = plan_session_id
-    if plan_session is not None:
-        data["planSession"] = plan_session
     return sse_event("message_start", data)
 
 

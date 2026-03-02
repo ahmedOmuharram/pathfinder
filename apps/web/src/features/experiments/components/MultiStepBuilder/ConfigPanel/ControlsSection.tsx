@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { ControlSet } from "@pathfinder/shared";
-import type { ResolvedGene } from "@/lib/api/client";
+import type { ControlSet, ResolvedGene } from "@pathfinder/shared";
 import type { BenchmarkControlSetInput } from "../../../api/streaming";
 import { listControlSets } from "../../../api/controlSets";
 import { Button } from "@/lib/components/ui/Button";
@@ -263,7 +262,7 @@ export function ControlsSection({
     if (benchmarkMode && siteId) {
       listControlSets(siteId)
         .then(setSavedControlSets)
-        .catch(() => {});
+        .catch((err) => console.error("[ControlsSection.listControlSets]", err));
     }
   }, [benchmarkMode, siteId]);
 

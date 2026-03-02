@@ -3,11 +3,17 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from veupath_chatbot import __version__
+from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.health import check_database, check_qdrant
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.transport.http.schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
+logger = get_logger(__name__)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -21,12 +27,40 @@ async def health_check() -> HealthResponse:
 
 
 @router.get("/health/ready", response_model=HealthResponse)
-async def readiness_check() -> HealthResponse:
+async def readiness_check() -> HealthResponse | JSONResponse:
     """Readiness check - is the service ready to accept requests?
 
-    In production, this should check database and cache connectivity.
+    Checks database connectivity and Qdrant availability (if RAG is enabled).
+    Returns 503 if any dependency is unreachable.
     """
-    # TODO: Add actual health checks for DB, Redis, etc.
+    settings = get_settings()
+    failures: list[str] = []
+
+    try:
+        async with async_session_factory() as session:
+            await check_database(session)
+    except Exception as e:
+        logger.error("Readiness check: database unreachable", error=str(e))
+        failures.append("database")
+
+    if settings.rag_enabled:
+        try:
+            await check_qdrant()
+        except Exception as e:
+            logger.error("Readiness check: Qdrant unreachable", error=str(e))
+            failures.append("qdrant")
+
+    if failures:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "version": __version__,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "failed_checks": failures,
+            },
+        )
+
     return HealthResponse(
         status="healthy",
         version=__version__,

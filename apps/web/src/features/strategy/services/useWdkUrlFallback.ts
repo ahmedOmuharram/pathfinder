@@ -41,7 +41,8 @@ export function useWdkUrlFallback(args: {
         const url = normalizeBaseUrl(match.baseUrl);
         setFallback(`${url}/app/workspace/strategies/${wdkStrategyId}`);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[useWdkUrlFallback]", err);
         if (!isActive) return;
         setFallback(null);
       });

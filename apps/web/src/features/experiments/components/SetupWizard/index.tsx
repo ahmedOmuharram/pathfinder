@@ -187,10 +187,17 @@ export function SetupWizard({ siteId }: SetupWizardProps) {
             {step === 0 ? "Back to list" : "Back"}
           </Button>
           {step < STEPS.length - 1 ? (
-            <Button onClick={goNext} disabled={!canNext()}>
-              Next
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
+            <div className="text-right">
+              <Button onClick={goNext} disabled={!canNext()}>
+                Next
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+              {!canNext() && stepValidation.message && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {stepValidation.message}
+                </p>
+              )}
+            </div>
           ) : (
             <Button
               onClick={runOrValidate}

@@ -8,7 +8,7 @@
     />
     PathFinder
   </h1>
-  <p>An open-source tool-calling LLM agent for planning and building VEuPathDB search strategies (WDK strategy graphs).</p>
+  <p>An open-source tool-calling LLM agent for constructing VEuPathDB search strategies (WDK strategy graphs).</p>
   <p><strong><em>How Underspecified Prompts Shape Tool-Calling LLM Agents in Scientific Workflows, Chapter II</em></strong></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white" alt="Python 3.14+" />
@@ -28,7 +28,7 @@
 
 PathFinder’s goal is to make complex query/strategy construction **easier, faster, and more reliable** by combining:
 
-- **Planning-first interaction** (clarify intent, propose an executable plan, save reusable artifacts)
+- **Unified agent** (a single agent that researches, plans, and executes as needed per turn)
 - **Execution with real tools** (build/edit a real strategy graph via validated tool calls)
 - **Catalog grounding** (live WDK catalog + optional Qdrant RAG for fast discovery and examples)
 
@@ -40,12 +40,9 @@ This repo is organized as:
 
 - **`apps/api/`**: FastAPI backend (“Pathfinder API”)
   - SSE chat endpoint (`/api/v1/chat`) streams agent output and tool events.
-  - Two agent modes:
-    - **Execute mode**: build/edit strategy graphs (WDK strategy semantics).
-    - **Plan mode**: collaborative planning and “delegation plan drafts” (no graph mutation by default).
+  - A single **unified agent** that can research, plan, and execute tool calls -- the model decides which capability to use on each turn.
 - **`apps/web/`**: Next.js UI
-  - Chat UI for both **plan** and **execute** modes.
-  - Strategy graph UI + step editing + result panes (varies by features enabled).
+  - Chat UI with strategy graph visualization, step editing, and result panes.
   - Proxies API routes via Next rewrites (see `apps/web/next.config.js`).
 - **`packages/shared-ts/`**: shared TypeScript types (and OpenAPI tooling)
   - The web app imports types via TS path mapping to `packages/shared-ts/src` (see `apps/web/tsconfig.json`).
@@ -54,18 +51,13 @@ This repo is organized as:
 
 ## How it works (high level)
 
-### Two modes: plan vs execute
+### Unified agent
 
-- **Plan mode** (planner agent) is optimized for:
-  - clarifying ambiguous goals (“linguistic vagueness”)
-  - exploring the catalog (record types, searches, parameters)
-  - saving reusable **planning artifacts** (markdown summaries, assumptions, parameter choices)
-  - drafting a **delegation plan** that can be handed to the executor
+PathFinder uses a **single unified agent** that has access to all tools -- research, planning, and execution -- and decides which to invoke on each turn. There is no separate “plan mode” or “execute mode”; the model uses its judgment to:
 
-- **Execute mode** (executor agent) is optimized for:
-  - creating/updating **strategy graph steps** via tool calls
-  - validating parameter correctness against WDK search specs
-  - running multi-step builds using **delegation** (sub-agent orchestration)
+- **Research**: explore the catalog, clarify ambiguous goals, discover record types / searches / parameters
+- **Plan**: save planning artifacts (markdown summaries, assumptions, parameter choices), reason about strategy structure
+- **Execute**: create/update **strategy graph steps** via tool calls, validate parameters against WDK search specs, run multi-step builds using **delegation** (sub-agent orchestration)
 
 ### Streaming + tool events
 
@@ -80,7 +72,7 @@ Key entrypoints:
 - API app: `apps/api/src/veupath_chatbot/main.py`
 - Chat orchestration: `apps/api/src/veupath_chatbot/services/chat/orchestrator.py`
 - SSE streaming: `apps/api/src/veupath_chatbot/transport/http/streaming.py`
-- Planner tools registry: `apps/api/src/veupath_chatbot/ai/tools/planner_registry.py`
+- Unified tool registry: `apps/api/src/veupath_chatbot/ai/tools/unified_registry.py`
 - Graph step creation + validation: `apps/api/src/veupath_chatbot/ai/tools/strategy_tools/step_ops.py`
 
 ### VEuPathDB + optional RAG
@@ -129,7 +121,7 @@ Docker Compose will pick up variables from a repo-root `.env` file (if present) 
 
 - **API**
   - `API_SECRET_KEY` (32+ chars)
-  - `OPENAI_API_KEY` (required for default planning + RAG embeddings; or set `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` and change planning provider/model)
+  - `OPENAI_API_KEY` (required for the default agent model + RAG embeddings; or set `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` and change provider/model in config)
 - **Web**
   - `NEXT_PUBLIC_API_URL=http://localhost:8000`
 - **Optional / common**
@@ -272,7 +264,7 @@ If you’re looking for “good first PRs”, adding CI (pytest/ruff/mypy + web 
 
 PathFinder is built around the idea that ambiguous or underspecified requests are normal when humans describe complex strategies. The system therefore emphasizes:
 
-- **planning as a first-class mode** (artifacts, drafts, structured delegation plans)
+- **integrated planning** (artifacts, structured reasoning, and delegation -- all within a single agent rather than a separate mode)
 - **catalog grounding** (reduce hallucinated tool names/parameters)
 - **validation and error shaping** (turn tool failures into actionable, structured feedback)
 - **decomposition + delegation** (break complex goals into smaller strategy subproblems)

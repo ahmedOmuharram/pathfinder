@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
-import { DEFAULT_COMBINE_OPERATOR, type ParamSpec } from "@pathfinder/shared";
+import {
+  DEFAULT_COMBINE_OPERATOR,
+  type ParamSpec,
+  type StrategyStep,
+} from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/client";
-import type { StrategyStep } from "@/features/strategy/types";
 import { StepParamFields } from "@/features/strategy/editor/components/StepParamFields";
 import {
   extractSpecVocabulary,
@@ -47,7 +50,8 @@ export function ExperimentStepModal({
             setLoading(false);
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[ExperimentStepModal.loadParamSpecs]", err);
           if (!cancelled) {
             setParamSpecs([]);
             setLoading(false);

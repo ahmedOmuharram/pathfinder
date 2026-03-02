@@ -12,8 +12,7 @@ import {
 import "reactflow/dist/style.css";
 import ReactFlow, { Background, Controls, MiniMap, Panel } from "reactflow";
 import { ArrowLeft, GitBranch, Import, Plus, RefreshCw, Search } from "lucide-react";
-import { CombineOperator } from "@pathfinder/shared";
-import type { StrategyStep } from "@/features/strategy/types";
+import { CombineOperator, type StrategyStep } from "@pathfinder/shared";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
 import { CombineStepModal } from "@/features/strategy/graph/components/CombineStepModal";
 import type { PendingCombine } from "@/features/strategy/graph/components/CombineStepModal";

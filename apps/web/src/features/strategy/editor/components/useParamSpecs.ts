@@ -73,7 +73,8 @@ export function useParamSpecs({
           if (!isActive) return;
           setParamSpecs(details || []);
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[useParamSpecs]", err);
           if (!isActive) return;
           setParamSpecs([]);
         })

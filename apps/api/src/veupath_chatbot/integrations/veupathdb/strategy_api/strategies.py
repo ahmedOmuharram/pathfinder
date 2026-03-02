@@ -1,0 +1,120 @@
+"""Strategy CRUD methods for the Strategy API.
+
+Provides :class:`StrategiesMixin` with methods to create, read, update,
+and delete WDK strategies.
+"""
+
+from __future__ import annotations
+
+from typing import cast
+
+from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
+    StepTreeNode,
+    tag_internal_wdk_strategy_name,
+)
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+
+logger = get_logger(__name__)
+
+
+class StrategiesMixin(StrategyAPIBase):
+    """Mixin providing strategy CRUD methods."""
+
+    async def create_strategy(
+        self,
+        step_tree: StepTreeNode,
+        name: str,
+        description: str | None = None,
+        is_public: bool = False,
+        is_saved: bool = False,
+        is_internal: bool = False,
+    ) -> JSONObject:
+        """Create a strategy from a step tree.
+
+        :param step_tree: Root of the step tree.
+        :param name: Strategy name.
+        :param description: Optional description.
+        :param is_public: Whether the strategy is public.
+        :param is_saved: Whether the strategy is saved.
+        :param is_internal: Whether to tag as internal (Pathfinder helper).
+        :returns: Created strategy data.
+        """
+        if is_internal:
+            name = tag_internal_wdk_strategy_name(name)
+            is_public = False
+            is_saved = False
+
+        payload: JSONObject = {
+            "name": name,
+            "isPublic": is_public,
+            "isSaved": is_saved,
+            "stepTree": step_tree.to_dict(),
+        }
+        if description:
+            payload["description"] = description
+
+        logger.info("Creating WDK strategy", name=name)
+
+        await self._ensure_session()
+        return cast(
+            JSONObject,
+            await self.client.post(
+                f"/users/{self.user_id}/strategies",
+                json=payload,
+            ),
+        )
+
+    async def get_strategy(self, strategy_id: int) -> JSONObject:
+        """Get a strategy by ID."""
+        await self._ensure_session()
+        return cast(
+            JSONObject,
+            await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}"),
+        )
+
+    async def list_strategies(self) -> JSONArray:
+        """List strategies for the current user."""
+        await self._ensure_session()
+        return cast(
+            JSONArray,
+            await self.client.get(f"/users/{self.user_id}/strategies"),
+        )
+
+    async def update_strategy(
+        self,
+        strategy_id: int,
+        step_tree: StepTreeNode | None = None,
+        name: str | None = None,
+    ) -> JSONObject:
+        """Update a strategy."""
+        await self._ensure_session()
+
+        if step_tree is not None:
+            await self.client.put(
+                f"/users/{self.user_id}/strategies/{strategy_id}/step-tree",
+                json={"stepTree": step_tree.to_dict()},
+            )
+
+        if name:
+            await self.client.patch(
+                f"/users/{self.user_id}/strategies/{strategy_id}",
+                json={"name": name},
+            )
+
+        # Return the updated strategy payload (best-effort).
+        return await self.get_strategy(strategy_id)
+
+    async def set_saved(self, strategy_id: int, is_saved: bool) -> None:
+        """Set the isSaved flag on a WDK strategy (draft vs saved)."""
+        await self._ensure_session()
+        await self.client.patch(
+            f"/users/{self.user_id}/strategies/{strategy_id}",
+            json={"isSaved": is_saved},
+        )
+
+    async def delete_strategy(self, strategy_id: int) -> None:
+        """Delete a strategy."""
+        await self._ensure_session()
+        await self.client.delete(f"/users/{self.user_id}/strategies/{strategy_id}")

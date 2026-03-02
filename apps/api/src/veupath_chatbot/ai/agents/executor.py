@@ -21,8 +21,9 @@ from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
 from veupath_chatbot.ai.tools.example_plans_rag_tools import ExamplePlansRagTools
 from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
-from veupath_chatbot.ai.tools.registry import AgentToolRegistryMixin
+from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
+from veupath_chatbot.ai.tools.unified_registry import UnifiedToolRegistryMixin
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.research import (
@@ -34,8 +35,14 @@ from veupath_chatbot.services.strategies.session_factory import build_strategy_s
 logger = get_logger(__name__)
 
 
-class PathfinderAgent(AgentToolRegistryMixin, Kani):
-    """VEuPathDB Strategy Builder Agent with Kani tools."""
+class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
+    """Unified VEuPathDB Strategy Agent — research, planning, and execution.
+
+    Combines executor (graph building, delegation, WDK execution) and
+    planner (gene lookup, control tests, parameter optimization, artifacts)
+    capabilities in a single agent. The model decides per-turn whether to
+    research/plan or build/execute.
+    """
 
     def __init__(
         self,
@@ -57,6 +64,7 @@ class PathfinderAgent(AgentToolRegistryMixin, Kani):
         self.example_plans_rag_tools = ExamplePlansRagTools(site_id=site_id)
         self.strategy_tools = StrategyTools(self.strategy_session)
         self.execution_tools = ExecutionTools(self.strategy_session)
+        self.result_tools = ResultTools(self.strategy_session)
         self.conversation_tools = ConversationTools(self.strategy_session, user_id)
         self.web_search_service = WebSearchService()
         self.literature_search_service = LiteratureSearchService()
@@ -73,6 +81,9 @@ class PathfinderAgent(AgentToolRegistryMixin, Kani):
             chat_history=chat_history or [],
         )
         self.event_queue: asyncio.Queue[JSONObject] | None = None
+        # Cancellation signal — set by stream_chat when the client disconnects.
+        # Required by OptimizationToolsMixin for long-running optimization runs.
+        self._cancel_event = asyncio.Event()
 
     async def _emit_event(self, event: JSONObject) -> None:
         if self.event_queue is not None:

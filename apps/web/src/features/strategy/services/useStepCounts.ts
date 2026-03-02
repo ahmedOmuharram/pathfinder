@@ -65,7 +65,8 @@ export function useStepCounts(args: {
           }
           setStepCounts(next);
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[useStepCounts]", err);
           if (requestId !== requestIdRef.current) return;
           const next: Record<string, number | null> = {};
           for (const stepId of stepIds) next[stepId] = null;

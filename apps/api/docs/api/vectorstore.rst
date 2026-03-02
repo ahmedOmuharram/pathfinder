@@ -21,7 +21,7 @@ when the agent explores the catalog or example plans.
 
 **Key methods:** Collection operations, search, point upsert
 
-.. automodule:: veupath_chatbot.services.vectorstore.qdrant_store
+.. automodule:: veupath_chatbot.integrations.vectorstore.qdrant_store
    :members:
    :undoc-members:
    :show-inheritance:
@@ -34,7 +34,56 @@ missing, runs migrations. Called when RAG is enabled and QDRANT_URL is set.
 
 **Key function:** Startup entry point
 
-.. automodule:: veupath_chatbot.services.vectorstore.bootstrap
+.. automodule:: veupath_chatbot.integrations.vectorstore.bootstrap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Collections
+-----------
+
+**Purpose:** Qdrant collection definitions and schema. Defines the
+embedding dimensions, distance metrics, and payload indices for each
+collection (catalog, example_plans).
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.collections
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Dependent Vocab Cache
+---------------------
+
+**Purpose:** Cache for dependent vocabulary lookups. Avoids repeated
+WDK calls for parameter vocabularies that depend on other parameter values.
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.dependent_vocab_cache
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Ingestion
+---------
+
+**Purpose:** Ingest data into the vectorstore. WDK catalog ingestion,
+public strategy ingestion, and shared utilities.
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.wdk_catalog
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.public_strategies
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.utils
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,84 +1,29 @@
-import { Component, useState, type ReactNode } from "react";
-import type { Experiment, ExperimentMetrics, RankMetrics } from "@pathfinder/shared";
+import { useState } from "react";
+import type { Experiment } from "@pathfinder/shared";
 import {
-  AlertCircle,
   ArrowLeft,
-  ArrowUpDown,
   BarChart3,
   Download,
   FileText,
   FlaskConical,
   GitBranch,
   GitCompare,
-  Info,
   RotateCcw,
-  Sparkles,
   Settings,
-  SlidersHorizontal,
+  Sparkles,
   Table,
-  TestTubes,
 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
 import { exportExperiment } from "../../api";
-import { useExperimentStore } from "../../store";
-import { NotesEditor } from "./NotesEditor";
-import { AiInterpretation } from "./AiInterpretation";
-import { MetricsOverview } from "./MetricsOverview";
-import { ConfusionMatrixSection } from "./ConfusionMatrixSection";
-import { GeneListsSection } from "./GeneListsSection";
-import { CrossValidationSection } from "./CrossValidationSection";
-import { EnrichmentSection } from "./EnrichmentSection";
-import { OptimizationSection } from "./OptimizationSection";
-import { ThresholdSweepSection } from "./ThresholdSweepSection";
-import { CustomEnrichmentSection } from "./CustomEnrichmentSection";
-import { ConfigSection } from "./ConfigSection";
-import { ResultsTable } from "./ResultsTable";
-import { DistributionExplorer } from "./DistributionExplorer";
-import { StepAnalysisPanel } from "./StepAnalysisPanel";
-import { StrategyGraph } from "./StrategyGraph";
-import { StepContributionPanel } from "./StepContributionPanel";
-import { StepDecompositionSection } from "./StepDecompositionSection";
-import { RankMetricsSection } from "./RankMetricsSection";
-import { RobustnessSection } from "./RobustnessSection";
-
-class TabErrorBoundary extends Component<
-  { children: ReactNode; onReset?: () => void },
-  { error: Error | null }
-> {
-  state: { error: Error | null } = { error: null };
-
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <p className="text-sm font-medium text-destructive">
-            Something went wrong loading this tab.
-          </p>
-          <p className="max-w-md text-xs text-muted-foreground">
-            {this.state.error.message}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              this.setState({ error: null });
-              this.props.onReset?.();
-            }}
-          >
-            Try again
-          </Button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { useExperimentViewStore } from "../../store";
+import { TabErrorBoundary, NoStrategyNotice } from "./shared/DashboardShared";
+import { OverviewTab } from "./OverviewTab";
+import { AnalysesTabs } from "./analysis/AnalysesTabs";
+import { NotesEditor } from "./shared/NotesEditor";
+import { ConfigSection } from "./shared/ConfigSection";
+import { ResultsTable } from "./tabs/ResultsTable";
+import { StrategyGraph } from "./shared/StrategyGraph";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -95,237 +40,6 @@ interface ResultsDashboardProps {
   siteId: string;
 }
 
-function getVerdict(metrics: ExperimentMetrics, rankMetrics?: RankMetrics | null) {
-  const p50 = rankMetrics?.precisionAtK["50"] ?? null;
-  const e50 = rankMetrics?.enrichmentAtK["50"] ?? null;
-
-  if (p50 != null && e50 != null) {
-    if (e50 > 5 && p50 > 0.3) {
-      return {
-        level: "excellent" as const,
-        sentence: `Strong enrichment — ${e50.toFixed(1)}x at K=50, P@50 ${(p50 * 100).toFixed(0)}%`,
-      };
-    }
-    if (e50 > 2) {
-      return {
-        level: "good" as const,
-        sentence: `Good enrichment — ${e50.toFixed(1)}x at K=50, P@50 ${(p50 * 100).toFixed(0)}%`,
-      };
-    }
-    if (e50 > 1) {
-      return {
-        level: "moderate" as const,
-        sentence: `Modest enrichment — ${e50.toFixed(1)}x at K=50, results slightly better than random`,
-      };
-    }
-    return {
-      level: "poor" as const,
-      sentence: `No enrichment at K=50 (${e50.toFixed(1)}x) — results not better than random`,
-    };
-  }
-
-  const { f1Score, sensitivity, precision } = metrics;
-  if (f1Score > 0.8) {
-    return {
-      level: "excellent" as const,
-      sentence: `Excellent search quality — F1 ${f1Score.toFixed(2)}, sensitivity ${sensitivity.toFixed(2)}`,
-    };
-  }
-  if (f1Score > 0.6) {
-    return {
-      level: "good" as const,
-      sentence: `Good search quality — F1 ${f1Score.toFixed(2)}, precision ${precision.toFixed(2)}`,
-    };
-  }
-  if (f1Score > 0.4) {
-    if (sensitivity > precision) {
-      return {
-        level: "moderate" as const,
-        sentence: `High recall, low precision — many false positives (F1 ${f1Score.toFixed(2)})`,
-      };
-    }
-    return {
-      level: "moderate" as const,
-      sentence: `Moderate search quality — F1 ${f1Score.toFixed(2)}, sensitivity ${sensitivity.toFixed(2)}`,
-    };
-  }
-  return {
-    level: "poor" as const,
-    sentence: `Poor search quality — F1 ${f1Score.toFixed(2)}, consider adjusting parameters`,
-  };
-}
-
-const VERDICT_STYLES = {
-  excellent:
-    "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300",
-  good: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
-  moderate:
-    "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  poor: "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300",
-} as const;
-
-const VERDICT_BADGE_STYLES = {
-  excellent:
-    "border-green-300 bg-green-100 text-green-900 dark:border-green-700 dark:bg-green-900 dark:text-green-200",
-  good: "border-blue-300 bg-blue-100 text-blue-900 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-200",
-  moderate:
-    "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-200",
-  poor: "border-red-300 bg-red-100 text-red-900 dark:border-red-700 dark:bg-red-900 dark:text-red-200",
-} as const;
-
-function SummaryVerdict({
-  metrics,
-  rankMetrics,
-}: {
-  metrics: ExperimentMetrics | null | undefined;
-  rankMetrics?: RankMetrics | null;
-}) {
-  if (!metrics) return null;
-
-  const { level, sentence } = getVerdict(metrics, rankMetrics);
-
-  return (
-    <div
-      className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${VERDICT_STYLES[level]}`}
-    >
-      <Badge
-        className={`shrink-0 text-xs font-semibold capitalize ${VERDICT_BADGE_STYLES[level]}`}
-      >
-        {level}
-      </Badge>
-      <span className="text-sm font-medium">{sentence}</span>
-    </div>
-  );
-}
-
-function NoStrategyNotice({ label }: { label?: string } = {}) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 px-5 py-8 text-center text-sm text-muted-foreground">
-      <AlertCircle className="mx-auto mb-2 h-5 w-5" />
-      {label ??
-        "This feature requires a persisted WDK strategy. Re-run the experiment to enable result browsing."}
-    </div>
-  );
-}
-
-function RankingStatusBanner({ config }: { config: Experiment["config"] }) {
-  const isRanked = !!config.sortAttribute;
-
-  if (isRanked) {
-    return (
-      <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
-        <ArrowUpDown className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-        <span className="text-sm text-blue-800 dark:text-blue-300">
-          <span className="font-medium">Ranked by:</span> {config.sortAttribute}{" "}
-          <span className="text-blue-600 dark:text-blue-400">
-            ({config.sortDirection ?? "ASC"})
-          </span>
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
-      <Info className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-      <span className="text-sm text-amber-800 dark:text-amber-300">
-        This strategy produces an unordered set. Top-K metrics reflect arbitrary
-        ordering and are hidden unless you enable ranking.
-      </span>
-    </div>
-  );
-}
-
-const ANALYSIS_TABS = [
-  { id: "sweep", label: "Threshold Sweep", icon: SlidersHorizontal },
-  { id: "custom-enrich", label: "Gene Set Enrichment", icon: TestTubes },
-  { id: "distribution", label: "Distribution", icon: BarChart3, requiresStep: true },
-  {
-    id: "step-analysis",
-    label: "Step Analyses",
-    icon: FlaskConical,
-    requiresStep: true,
-  },
-  {
-    id: "step-contribution",
-    label: "Step Contribution",
-    icon: GitBranch,
-    requiresMultiStep: true,
-  },
-] as const;
-
-type AnalysisTabId = (typeof ANALYSIS_TABS)[number]["id"];
-
-function AnalysesTabs({ experiment }: { experiment: Experiment }) {
-  const [activeSubTab, setActiveSubTab] = useState<AnalysisTabId>("sweep");
-  const hasStep = !!experiment.wdkStepId;
-  const isMultiStep =
-    experiment.config.mode === "multi-step" || experiment.config.mode === "import";
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-1.5">
-        {ANALYSIS_TABS.map(({ id, label, icon: Icon, ...rest }) => {
-          const needsStep = "requiresStep" in rest && rest.requiresStep;
-          const needsMultiStep = "requiresMultiStep" in rest && rest.requiresMultiStep;
-          const disabled = (needsStep && !hasStep) || (needsMultiStep && !isMultiStep);
-          const active = activeSubTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              disabled={disabled}
-              onClick={() => setActiveSubTab(id)}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-                active
-                  ? "border-primary bg-primary/10 text-primary"
-                  : disabled
-                    ? "cursor-not-allowed border-border bg-muted/30 text-muted-foreground/50"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
-              }`}
-              title={
-                disabled
-                  ? needsMultiStep
-                    ? "Only available for multi-step experiments"
-                    : "Requires a persisted WDK strategy"
-                  : undefined
-              }
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div>
-        {activeSubTab === "sweep" && <ThresholdSweepSection experiment={experiment} />}
-        {activeSubTab === "custom-enrich" && (
-          <CustomEnrichmentSection experimentId={experiment.id} />
-        )}
-        {activeSubTab === "distribution" &&
-          (hasStep ? (
-            <DistributionExplorer experimentId={experiment.id} />
-          ) : (
-            <NoStrategyNotice label="Distribution explorer requires a persisted WDK strategy." />
-          ))}
-        {activeSubTab === "step-analysis" &&
-          (hasStep ? (
-            <StepAnalysisPanel experimentId={experiment.id} />
-          ) : (
-            <NoStrategyNotice label="Step analyses require a persisted WDK strategy." />
-          ))}
-        {activeSubTab === "step-contribution" && (
-          <StepContributionPanel
-            experimentId={experiment.id}
-            stepTree={experiment.config.stepTree}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) {
   const {
     setView,
@@ -333,17 +47,15 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
     loadExperiment,
     experiments,
     optimizeFromEvaluation,
-  } = useExperimentStore();
+  } = useExperimentViewStore();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  const metrics = experiment.metrics;
   const parentId = experiment.config.parentExperimentId;
   const parentName = parentId
     ? (experiments.find((e) => e.id === parentId)?.name ?? parentId)
     : null;
 
   const wasOptimized = !!experiment.optimizationResult;
-  const hasStepAnalysis = !!experiment.stepAnalysis;
 
   return (
     <div data-testid="results-dashboard" className="h-full overflow-y-auto">
@@ -479,62 +191,11 @@ export function ResultsDashboard({ experiment, siteId }: ResultsDashboardProps) 
 
         <div className="mt-8 space-y-8">
           {activeTab === "overview" && (
-            <>
-              <SummaryVerdict metrics={metrics} rankMetrics={experiment.rankMetrics} />
-              <RankingStatusBanner config={experiment.config} />
-              <AiInterpretation experiment={experiment} siteId={siteId} />
-              {metrics && (
-                <MetricsOverview
-                  metrics={metrics}
-                  rankMetrics={experiment.rankMetrics}
-                  robustness={experiment.robustness}
-                />
-              )}
-              {experiment.rankMetrics && (
-                <RankMetricsSection rankMetrics={experiment.rankMetrics} />
-              )}
-              {experiment.robustness && (
-                <RobustnessSection robustness={experiment.robustness} />
-              )}
-              {metrics && <ConfusionMatrixSection cm={metrics.confusionMatrix} />}
-              <GeneListsSection experiment={experiment} />
-              {wasOptimized && (
-                <>
-                  {experiment.crossValidation && (
-                    <CrossValidationSection cv={experiment.crossValidation} />
-                  )}
-                  {(experiment.enrichmentResults ?? []).length > 0 && (
-                    <EnrichmentSection results={experiment.enrichmentResults} />
-                  )}
-                  {experiment.optimizationResult && (
-                    <OptimizationSection result={experiment.optimizationResult} />
-                  )}
-                </>
-              )}
-              {hasStepAnalysis && experiment.stepAnalysis && (
-                <StepDecompositionSection stepAnalysis={experiment.stepAnalysis} />
-              )}
-              {!wasOptimized && !hasStepAnalysis && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-6 text-center">
-                  <Sparkles className="mx-auto mb-3 h-6 w-6 text-primary" />
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Analyze This Strategy
-                  </h3>
-                  <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
-                    Want to understand these results? Run step analysis to evaluate each
-                    step, compare operators, and find the best parameter settings.
-                  </p>
-                  <Button
-                    className="mt-4"
-                    size="sm"
-                    onClick={() => optimizeFromEvaluation(experiment.id)}
-                  >
-                    <FlaskConical className="h-3.5 w-3.5" />
-                    Analyze This Strategy
-                  </Button>
-                </div>
-              )}
-            </>
+            <OverviewTab
+              experiment={experiment}
+              siteId={siteId}
+              onOptimize={() => optimizeFromEvaluation(experiment.id)}
+            />
           )}
 
           {activeTab === "results" && (

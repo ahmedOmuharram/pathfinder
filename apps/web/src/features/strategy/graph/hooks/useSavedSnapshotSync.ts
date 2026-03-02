@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyStep, StrategyWithMeta } from "@pathfinder/shared";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 
 export function useSavedSnapshotSync(args: {

@@ -160,39 +160,6 @@ class StrategyHistory(Base):
     )
 
 
-class PlanSession(Base):
-    """Planning workspace session (not tied to a strategy graph)."""
-
-    __tablename__ = "plan_sessions"
-
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("users.id", ondelete="CASCADE")
-    )
-    site_id: Mapped[str] = mapped_column(String(50))
-    title: Mapped[str] = mapped_column(String(255), default="New Conversation")
-
-    # Conversation + planner outputs
-    messages: Mapped[JSONArray] = mapped_column(JSON, default=list)
-    thinking: Mapped[JSONObject | None] = mapped_column(JSON, default=None)
-    planning_artifacts: Mapped[JSONArray] = mapped_column(JSON, default=list)
-
-    # Persisted model selection (catalog ID, e.g. "openai/gpt-5").
-    model_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    __table_args__ = (
-        Index("ix_plan_sessions_user_id", "user_id"),
-        Index("ix_plan_sessions_site_id", "site_id"),
-    )
-
-
 class ControlSet(Base):
     """Reusable control gene set with provenance metadata."""
 

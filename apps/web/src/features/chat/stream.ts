@@ -8,8 +8,6 @@ import type { ChatMention, ModelSelection } from "@pathfinder/shared";
 export interface StreamChatContext {
   strategyId?: string;
   planSessionId?: string;
-  /** Legacy — prefer ``mentions`` instead. */
-  referenceStrategyId?: string;
   /** @-mention references to strategies and experiments. */
   mentions?: ChatMention[];
 }
@@ -56,7 +54,6 @@ export async function streamChat(
           siteId,
           strategyId: context?.strategyId,
           planSessionId: context?.planSessionId,
-          referenceStrategyId: context?.referenceStrategyId,
           mentions: context?.mentions,
           mode,
           // Per-request model overrides

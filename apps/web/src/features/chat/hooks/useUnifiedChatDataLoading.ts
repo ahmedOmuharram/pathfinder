@@ -2,8 +2,12 @@ import { useEffect, startTransition } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { getPlanSession, getStrategy } from "@/lib/api/client";
 import { mergeMessages } from "@/features/chat/utils/mergeMessages";
-import type { ChatMode, Message, PlanningArtifact } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type {
+  ChatMode,
+  Message,
+  PlanningArtifact,
+  StrategyWithMeta,
+} from "@pathfinder/shared";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { usePrevious } from "@/lib/hooks/usePrevious";

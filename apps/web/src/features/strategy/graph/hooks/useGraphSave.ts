@@ -2,8 +2,7 @@ import { useCallback, useState } from "react";
 import { normalizePlan, updateStrategy } from "@/lib/api/client";
 import { APIError } from "@/lib/api/http";
 import { toUserMessage } from "@/lib/api/errors";
-import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyPlan, StrategyStep, StrategyWithMeta } from "@pathfinder/shared";
 import type { CombineMismatchGroup } from "@/lib/strategyGraph";
 import type { MutableRef } from "@/lib/types/refs";
 

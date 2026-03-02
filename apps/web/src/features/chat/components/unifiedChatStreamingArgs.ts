@@ -1,25 +1,14 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { ChatMode, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { ChatMode, Message, ToolCall, StrategyWithMeta } from "@pathfinder/shared";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 
 type ThinkingState = ReturnType<typeof useThinkingState>;
 
-type Noop = () => void;
-const noop: Noop = () => {};
-const noopPromise = () => Promise.resolve(null as never);
-
-const noopSetUndoSnapshots: Dispatch<
-  SetStateAction<Record<number, StrategyWithMeta>>
-> = () => {};
-
 interface BuildUnifiedChatStreamingArgsParams {
-  chatMode: ChatMode;
   siteId: string;
   strategyId: string | null;
-  planSessionId: string | null;
   draftSelection: Record<string, unknown> | null;
   setDraftSelection: Dispatch<SetStateAction<Record<string, unknown> | null>>;
   thinking: ThinkingState;
@@ -69,23 +58,13 @@ interface BuildUnifiedChatStreamingArgsParams {
   currentModelSelection: ReturnType<
     typeof import("@/features/chat/components/MessageComposer").buildModelSelection
   >;
-  referenceStrategyIdProp?: string | null;
-  onPlanSessionId: (id: string) => void;
-  onPlanningArtifactUpdate: (artifact: PlanningArtifact) => void;
-  onExecutorBuildRequest: (message: string) => void;
-  onConversationTitleUpdate: (title: string) => void;
-  setApiError: Dispatch<SetStateAction<string | null>>;
-  onStreamComplete: () => void;
-  onStreamError: (error: Error) => void;
   setChatIsStreaming: (value: boolean) => void;
   handleError: (error: unknown, fallback: string) => void;
 }
 
 export function useUnifiedChatStreamingArgs({
-  chatMode,
   siteId,
   strategyId,
-  planSessionId,
   draftSelection,
   setDraftSelection,
   thinking,
@@ -109,59 +88,9 @@ export function useUnifiedChatStreamingArgs({
   currentStrategy,
   attachThinkingToLastAssistant,
   currentModelSelection,
-  referenceStrategyIdProp,
-  onPlanSessionId,
-  onPlanningArtifactUpdate,
-  onExecutorBuildRequest,
-  onConversationTitleUpdate,
-  setApiError,
-  onStreamComplete,
-  onStreamError,
   setChatIsStreaming,
   handleError,
 }: BuildUnifiedChatStreamingArgsParams) {
-  if (chatMode === "plan") {
-    return {
-      siteId,
-      strategyId: null as string | null,
-      planSessionId,
-      draftSelection: null,
-      setDraftSelection: noop as Dispatch<
-        SetStateAction<Record<string, unknown> | null>
-      >,
-      thinking,
-      setMessages,
-      setUndoSnapshots: noopSetUndoSnapshots,
-      sessionRef,
-      createSession,
-      loadGraph: noop,
-      addStrategy: noop,
-      addExecutedStrategy: noop,
-      setStrategyId: noop as (id: string | null) => void,
-      setWdkInfo: noop,
-      setStrategy: noop as (s: StrategyWithMeta | null) => void,
-      setStrategyMeta: noop as (m: Record<string, unknown>) => void,
-      clearStrategy: noop,
-      addStep: noop,
-      parseToolArguments,
-      parseToolResult: () => null,
-      applyGraphSnapshot: noop,
-      getStrategy: noopPromise,
-      currentStrategy: null,
-      attachThinkingToLastAssistant: noop,
-      mode: "plan" as ChatMode,
-      modelSelection: currentModelSelection,
-      referenceStrategyId: referenceStrategyIdProp,
-      onPlanSessionId,
-      onPlanningArtifactUpdate,
-      onExecutorBuildRequest,
-      onConversationTitleUpdate,
-      onApiError: (msg: string) => setApiError(msg),
-      onStreamComplete,
-      onStreamError,
-    };
-  }
-
   return {
     siteId,
     strategyId,
@@ -189,7 +118,6 @@ export function useUnifiedChatStreamingArgs({
     attachThinkingToLastAssistant,
     mode: "execute" as ChatMode,
     modelSelection: currentModelSelection,
-    referenceStrategyId: referenceStrategyIdProp,
     onStreamComplete: () => setChatIsStreaming(false),
     onStreamError: (error: Error) => {
       setChatIsStreaming(false);

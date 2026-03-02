@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
+import { Providers } from "./components/Providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="h-full overflow-hidden bg-background text-foreground font-sans antialiased">
-        <main className="h-full">{children}</main>
+        <Providers>
+          <main className="h-full">{children}</main>
+        </Providers>
       </body>
     </html>
   );

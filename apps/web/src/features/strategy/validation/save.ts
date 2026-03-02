@@ -1,4 +1,4 @@
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyStep, StrategyWithMeta } from "@pathfinder/shared";
 import { validateSearchParams } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";

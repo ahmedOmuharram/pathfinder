@@ -47,32 +47,6 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
         sidebar: "hsl(var(--sidebar))",
-        // Legacy palette kept for gradual migration of graph/domain-specific styles
-        ocean: {
-          50: "#e6f4f8",
-          100: "#c0e4ed",
-          200: "#96d3e2",
-          300: "#6bc1d6",
-          400: "#4bb4ce",
-          500: "#2ba7c5",
-          600: "#2596b3",
-          700: "#1d8299",
-          800: "#166e80",
-          900: "#0a4d58",
-          950: "#052f36",
-        },
-        coral: {
-          50: "#fff5f2",
-          100: "#ffe6df",
-          200: "#ffc9b8",
-          300: "#ffa085",
-          400: "#ff7a5c",
-          500: "#ff5733",
-          600: "#ed3a15",
-          700: "#c72d0e",
-          800: "#a02612",
-          900: "#842315",
-        },
       },
       borderRadius: {
         lg: "calc(var(--radius) + 2px)",
@@ -94,8 +68,6 @@ const config: Config = {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
           "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
-        "ocean-gradient":
-          "linear-gradient(135deg, #0a4d58 0%, #052f36 50%, #0a0f1a 100%)",
       },
       animation: {
         "fade-in": "fade-in var(--duration-normal) var(--ease-default)",

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from veupath_chatbot.platform.errors import NotFoundError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.store import get_experiment_store
+from veupath_chatbot.transport.http.deps import ExperimentDep
 from veupath_chatbot.transport.http.schemas.experiments import (
     RefineRequest,
     RunAnalysisRequest,
@@ -68,14 +69,9 @@ def _extract_pk(record: JSONObject) -> str | None:
 
 
 @router.get("/{experiment_id}/results/attributes")
-async def get_experiment_attributes(experiment_id: str) -> JSONObject:
+async def get_experiment_attributes(exp: ExperimentDep) -> JSONObject:
     """Get available attributes for an experiment's record type."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
 
     api = get_strategy_api(exp.config.site_id)
     info = await api.get_record_type_info(exp.config.record_type)
@@ -125,9 +121,9 @@ async def get_experiment_attributes(experiment_id: str) -> JSONObject:
 
 
 @router.get("/{experiment_id}/results/sortable-attributes")
-async def get_sortable_attributes(experiment_id: str) -> JSONObject:
+async def get_sortable_attributes(exp: ExperimentDep) -> JSONObject:
     """Return only sortable (numeric) attributes, with suggestions for known score columns."""
-    full = await get_experiment_attributes(experiment_id)
+    full = await get_experiment_attributes(exp)
     all_attrs = full.get("attributes", [])
     sortable = [
         a
@@ -142,7 +138,7 @@ async def get_sortable_attributes(experiment_id: str) -> JSONObject:
 
 @router.get("/{experiment_id}/results/records")
 async def get_experiment_records(
-    experiment_id: str,
+    exp: ExperimentDep,
     offset: int = 0,
     limit: int = 50,
     sort: str | None = None,
@@ -154,11 +150,6 @@ async def get_experiment_records(
     Requires a persisted WDK strategy (``wdkStepId`` must be set).
     """
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
 
     if not exp.wdk_step_id or not exp.wdk_strategy_id:
         raise NotFoundError(
@@ -213,7 +204,7 @@ async def get_experiment_records(
 
 @router.post("/{experiment_id}/results/record")
 async def get_experiment_record_detail(
-    experiment_id: str,
+    exp: ExperimentDep,
     request_body: dict[str, object],
 ) -> JSONObject:
     """Get a single record's full details by primary key.
@@ -228,11 +219,6 @@ async def get_experiment_record_detail(
         get_site,
         get_strategy_api,
     )
-
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
 
     raw_pk = request_body.get("primaryKey") or request_body.get("primary_key") or []
     if not isinstance(raw_pk, list) or not raw_pk:
@@ -284,14 +270,10 @@ async def get_experiment_record_detail(
 
 
 @router.get("/{experiment_id}/strategy")
-async def get_experiment_strategy(experiment_id: str) -> JSONObject:
+async def get_experiment_strategy(exp: ExperimentDep) -> JSONObject:
     """Get the WDK strategy tree for an experiment."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     if not exp.wdk_strategy_id:
         raise NotFoundError(
             title="No WDK strategy",
@@ -304,16 +286,12 @@ async def get_experiment_strategy(experiment_id: str) -> JSONObject:
 
 @router.get("/{experiment_id}/results/distributions/{attribute_name}")
 async def get_experiment_distribution(
-    experiment_id: str,
+    exp: ExperimentDep,
     attribute_name: str,
 ) -> JSONObject:
     """Get distribution data for an attribute using filter summary."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     if not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
 
@@ -322,14 +300,10 @@ async def get_experiment_distribution(
 
 
 @router.get("/{experiment_id}/analyses/types")
-async def get_experiment_analysis_types(experiment_id: str) -> JSONObject:
+async def get_experiment_analysis_types(exp: ExperimentDep) -> JSONObject:
     """List available WDK step analysis types for an experiment."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     if not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
 
@@ -340,16 +314,12 @@ async def get_experiment_analysis_types(experiment_id: str) -> JSONObject:
 
 @router.post("/{experiment_id}/analyses/run")
 async def run_experiment_analysis(
-    experiment_id: str,
+    exp: ExperimentDep,
     request: RunAnalysisRequest,
 ) -> JSONObject:
     """Create and run a WDK step analysis on the experiment's step."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     if not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
 
@@ -364,22 +334,19 @@ async def run_experiment_analysis(
 
 @router.post("/{experiment_id}/refine")
 async def refine_experiment(
-    experiment_id: str,
+    exp: ExperimentDep,
     request: RefineRequest,
 ) -> JSONObject:
     """Add a step to the experiment's strategy (combine, transform, etc.)."""
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
     from veupath_chatbot.integrations.veupathdb.strategy_api import StepTreeNode
 
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     if not exp.wdk_strategy_id or not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
 
     api = get_strategy_api(exp.config.site_id)
     record_type = exp.config.record_type
+    store = get_experiment_store()
 
     if request.action == "combine":
         new_step = await api.create_step(

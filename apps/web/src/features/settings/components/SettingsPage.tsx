@@ -1,19 +1,24 @@
 "use client";
 
 /**
- * SettingsPage — modal-based settings with General, Data, and Advanced tabs.
+ * SettingsPage -- modal-based settings with General, Data, and Advanced tabs.
+ *
+ * Each tab's content is extracted into its own component under ./settings/.
  */
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Modal } from "@/lib/components/Modal";
-import { useSettingsStore } from "@/state/useSettingsStore";
-import { ModelPicker } from "@/features/chat/components/ModelPicker";
-import { ReasoningToggle } from "@/features/chat/components/ReasoningToggle";
-import { listStrategies, deleteStrategy, deletePlanSession } from "@/lib/api/client";
-import type { ReasoningEffort } from "@pathfinder/shared";
-import { Loader2, Trash2, FlaskConical } from "lucide-react";
+import { GeneralSettings } from "./settings/GeneralSettings";
+import { DataSettings } from "./settings/DataSettings";
+import { AdvancedSettings } from "./settings/AdvancedSettings";
 
 type Tab = "general" | "data" | "advanced";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "data", label: "Data" },
+  { id: "advanced", label: "Advanced" },
+];
 
 interface SettingsPageProps {
   open: boolean;
@@ -40,13 +45,7 @@ export function SettingsPage({
       <div className="flex min-h-[340px] flex-col">
         {/* Tabs */}
         <div className="flex border-b border-border px-5">
-          {(
-            [
-              { id: "general", label: "General" },
-              { id: "data", label: "Data" },
-              { id: "advanced", label: "Advanced" },
-            ] as { id: Tab; label: string }[]
-          ).map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -64,415 +63,17 @@ export function SettingsPage({
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {tab === "general" && <GeneralTab />}
+          {tab === "general" && <GeneralSettings />}
           {tab === "data" && (
-            <DataTab
+            <DataSettings
               siteId={siteId}
               onPlansCleared={onPlansCleared}
               onStrategiesCleared={onStrategiesCleared}
             />
           )}
-          {tab === "advanced" && <AdvancedTab siteId={siteId} />}
+          {tab === "advanced" && <AdvancedSettings />}
         </div>
       </div>
     </Modal>
-  );
-}
-
-// General tab
-
-function GeneralTab() {
-  const modelCatalog = useSettingsStore((s) => s.modelCatalog);
-  const catalogDefault = useSettingsStore((s) => s.catalogDefault);
-  const defaultModelId = useSettingsStore((s) => s.defaultModelId);
-  const setDefaultModelId = useSettingsStore((s) => s.setDefaultModelId);
-  const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
-  const setDefaultReasoningEffort = useSettingsStore(
-    (s) => s.setDefaultReasoningEffort,
-  );
-
-  const selectedModel = modelCatalog.find((m) => m.id === defaultModelId);
-  const supportsReasoning = selectedModel?.supportsReasoning ?? false;
-
-  const serverDefaultId = catalogDefault;
-
-  return (
-    <div className="space-y-5">
-      <SettingsField label="Default model">
-        <ModelPicker
-          models={modelCatalog}
-          selectedModelId={defaultModelId}
-          onSelect={(id) => setDefaultModelId(id || null)}
-          serverDefaultId={serverDefaultId}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Used when no per-request model is chosen.
-        </p>
-      </SettingsField>
-
-      <SettingsField label="Default reasoning effort">
-        {supportsReasoning || !defaultModelId ? (
-          <>
-            <ReasoningToggle
-              value={defaultReasoningEffort}
-              onChange={setDefaultReasoningEffort}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              {defaultModelId
-                ? "Applied when the selected model supports reasoning."
-                : "Applied to all reasoning-capable models."}
-            </p>
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Selected model does not support reasoning.
-          </p>
-        )}
-      </SettingsField>
-    </div>
-  );
-}
-
-// Data tab
-
-function DataTab({
-  siteId,
-  onPlansCleared,
-  onStrategiesCleared,
-}: {
-  siteId: string;
-  onPlansCleared?: () => void;
-  onStrategiesCleared?: () => void;
-}) {
-  const [clearing, setClearing] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
-
-  const clearStrategies = useCallback(async () => {
-    setClearing("strategies");
-    setError(null);
-    try {
-      const all = await listStrategies(siteId);
-      await Promise.allSettled(all.map((s) => deleteStrategy(s.id)));
-      onStrategiesCleared?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear strategies.");
-    } finally {
-      setClearing(null);
-      setConfirmAction(null);
-    }
-  }, [siteId, onStrategiesCleared]);
-
-  const clearPlans = useCallback(async () => {
-    setClearing("plans");
-    setError(null);
-    try {
-      // Plans are scoped to user; we need to fetch via the API.
-      // Using a batch delete approach.
-      const { requestJson } = await import("@/lib/api/http");
-      const plans = await requestJson<{ id: string }[]>(
-        `/api/v1/plans?siteId=${encodeURIComponent(siteId)}`,
-      );
-      await Promise.allSettled(plans.map((p) => deletePlanSession(p.id)));
-      onPlansCleared?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear plans.");
-    } finally {
-      setClearing(null);
-      setConfirmAction(null);
-    }
-  }, [siteId, onPlansCleared]);
-
-  const clearAll = useCallback(async () => {
-    setClearing("all");
-    setError(null);
-    try {
-      await clearStrategies();
-      await clearPlans();
-      resetToDefaults();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear all data.");
-    } finally {
-      setClearing(null);
-      setConfirmAction(null);
-    }
-  }, [clearStrategies, clearPlans, resetToDefaults]);
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      <DangerAction
-        label="Clear all plans"
-        description="Delete all planning sessions for the current site."
-        loading={clearing === "plans"}
-        confirmed={confirmAction === "plans"}
-        onConfirm={() => setConfirmAction("plans")}
-        onExecute={clearPlans}
-        onCancel={() => setConfirmAction(null)}
-      />
-
-      <DangerAction
-        label="Clear all strategies"
-        description="Delete all draft strategies for the current site."
-        loading={clearing === "strategies"}
-        confirmed={confirmAction === "strategies"}
-        onConfirm={() => setConfirmAction("strategies")}
-        onExecute={clearStrategies}
-        onCancel={() => setConfirmAction(null)}
-      />
-
-      <DangerAction
-        label="Clear all data"
-        description="Delete all plans, strategies, and reset settings."
-        loading={clearing === "all"}
-        confirmed={confirmAction === "all"}
-        onConfirm={() => setConfirmAction("all")}
-        onExecute={clearAll}
-        onCancel={() => setConfirmAction(null)}
-      />
-    </div>
-  );
-}
-
-function DangerAction({
-  label,
-  description,
-  loading,
-  confirmed,
-  onConfirm,
-  onExecute,
-  onCancel,
-}: {
-  label: string;
-  description: string;
-  loading: boolean;
-  confirmed: boolean;
-  onConfirm: () => void;
-  onExecute: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5">
-      <div>
-        <div className="text-sm font-medium text-foreground">{label}</div>
-        <div className="text-xs text-muted-foreground">{description}</div>
-      </div>
-      {confirmed ? (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onExecute}
-            disabled={loading}
-            className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
-          >
-            {loading && <Loader2 className="h-3 w-3 animate-spin" />}
-            Confirm
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/5"
-        >
-          <Trash2 className="h-3 w-3" />
-          {label}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// Advanced tab
-
-function AdvancedTab({ siteId }: { siteId: string }) {
-  const showRawToolCalls = useSettingsStore((s) => s.showRawToolCalls);
-  const setShowRawToolCalls = useSettingsStore((s) => s.setShowRawToolCalls);
-  const advancedReasoningBudgets = useSettingsStore((s) => s.advancedReasoningBudgets);
-  const setAdvancedReasoningBudget = useSettingsStore(
-    (s) => s.setAdvancedReasoningBudget,
-  );
-  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
-
-  const [seeding, setSeeding] = useState(false);
-  const [seedStatus, setSeedStatus] = useState<string | null>(null);
-
-  const handleSeedExperiments = useCallback(async () => {
-    setSeeding(true);
-    setSeedStatus("Starting...");
-    try {
-      const response = await fetch("/api/v1/experiments/seed", {
-        method: "POST",
-        headers: { Accept: "text/event-stream" },
-        credentials: "include",
-      });
-      if (!response.ok || !response.body) {
-        setSeedStatus(`Failed: HTTP ${response.status}`);
-        setSeeding(false);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const data = JSON.parse(line.slice(5).trim());
-            if (data.message) setSeedStatus(data.message);
-          } catch {
-            /* skip malformed */
-          }
-        }
-      }
-    } catch (err) {
-      setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setSeeding(false);
-    }
-  }, []);
-
-  const providers = [
-    {
-      id: "openai",
-      label: "OpenAI",
-      hint: "Budget tokens for reasoning models (o-series, gpt-5)",
-      defaultBudget: 8192,
-    },
-    {
-      id: "anthropic",
-      label: "Anthropic",
-      hint: "Budget tokens for Claude extended thinking",
-      defaultBudget: 8192,
-    },
-    {
-      id: "google",
-      label: "Google",
-      hint: "Budget tokens for Gemini thinking config",
-      defaultBudget: 8192,
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <SettingsField label="Show raw tool calls in chat">
-        <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={showRawToolCalls}
-            onChange={(e) => setShowRawToolCalls(e.target.checked)}
-            className="h-4 w-4 rounded border-input text-foreground focus:ring-slate-500"
-          />
-          <span className="text-muted-foreground">
-            Display raw JSON tool calls in the chat log
-          </span>
-        </label>
-      </SettingsField>
-
-      <SettingsField label="Per-provider reasoning token budgets">
-        <div className="space-y-2">
-          {providers.map((p) => (
-            <div key={p.id} className="flex items-center gap-3">
-              <label
-                htmlFor={`budget-${p.id}`}
-                className="w-20 text-xs font-medium text-muted-foreground"
-              >
-                {p.label}
-              </label>
-              <input
-                id={`budget-${p.id}`}
-                type="number"
-                min={0}
-                step={1024}
-                value={advancedReasoningBudgets[p.id] ?? p.defaultBudget}
-                onChange={(e) =>
-                  setAdvancedReasoningBudget(p.id, parseInt(e.target.value, 10) || 0)
-                }
-                className="w-24 rounded-md border border-border px-2 py-1 text-sm text-foreground"
-              />
-              <span className="text-xs text-muted-foreground">{p.hint}</span>
-            </div>
-          ))}
-        </div>
-      </SettingsField>
-
-      <SettingsField label="Seed demo strategies">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={seeding}
-            onClick={() => void handleSeedExperiments()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {seeding ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <FlaskConical className="h-3.5 w-3.5" />
-            )}
-            {seeding ? "Seeding..." : "Seed Strategies"}
-          </button>
-          {seedStatus && (
-            <span className="text-xs text-muted-foreground">{seedStatus}</span>
-          )}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Seeds demo strategies and control sets across PlasmoDB, ToxoDB, CryptoDB, and
-          TriTrypDB. Strategies appear in the sidebar; control sets are available in the
-          Experiments tab.
-        </p>
-      </SettingsField>
-
-      <div className="border-t border-border pt-4">
-        <button
-          type="button"
-          onClick={resetToDefaults}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted"
-        >
-          Reset all settings to defaults
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Shared layout
-
-function SettingsField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      {children}
-    </div>
   );
 }

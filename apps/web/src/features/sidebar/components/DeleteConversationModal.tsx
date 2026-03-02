@@ -42,7 +42,7 @@ export function DeleteConversationModal({
             type="button"
             onClick={onConfirmDelete}
             disabled={isDeleting}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+            className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-60"
           >
             {isDeleting ? "Deleting..." : "Delete"}
           </button>

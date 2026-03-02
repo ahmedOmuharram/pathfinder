@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Message } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { Message, StrategyWithMeta } from "@pathfinder/shared";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 
 export function useResetOnStrategyChange(args: {
@@ -13,6 +12,7 @@ export function useResetOnStrategyChange(args: {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setUndoSnapshots: Dispatch<SetStateAction<Record<number, StrategyWithMeta>>>;
   sessionRef: { current: StreamingSession | null };
+  stopStreaming?: () => void;
 }) {
   const {
     strategyId,
@@ -23,6 +23,7 @@ export function useResetOnStrategyChange(args: {
     setMessages,
     setUndoSnapshots,
     sessionRef,
+    stopStreaming,
   } = args;
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export function useResetOnStrategyChange(args: {
     }
 
     if (strategyId && previousStrategyId && previousStrategyId !== strategyId) {
+      if (isStreaming && stopStreaming) {
+        stopStreaming();
+      }
+      setIsStreaming(false);
       setMessages([]);
       setUndoSnapshots({});
       if (sessionRef.current) {
@@ -47,5 +52,6 @@ export function useResetOnStrategyChange(args: {
     setMessages,
     setUndoSnapshots,
     sessionRef,
+    stopStreaming,
   ]);
 }

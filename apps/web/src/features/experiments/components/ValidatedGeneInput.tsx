@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { X, Loader2, AlertCircle, Upload, Info } from "lucide-react";
-import { resolveGeneIds, type ResolvedGene } from "@/lib/api/client";
+import type { ResolvedGene } from "@pathfinder/shared";
+import { resolveGeneIds } from "@/lib/api/client";
 
 interface ValidatedGeneInputProps {
   siteId: string;
@@ -122,10 +123,10 @@ export function ValidatedGeneInput({
     };
   }, []);
 
-  const chipBorder = isPositive ? "border-emerald-200" : "border-destructive/30";
+  const chipBorder = isPositive ? "border-success/30" : "border-destructive/30";
   const chipBg = isPositive ? "bg-success/10" : "bg-destructive/5";
-  const chipText = isPositive ? "text-emerald-800" : "text-red-800";
-  const chipHoverBg = isPositive ? "hover:bg-emerald-100" : "hover:bg-destructive/10";
+  const chipText = isPositive ? "text-success" : "text-destructive";
+  const chipHoverBg = isPositive ? "hover:bg-success/15" : "hover:bg-destructive/10";
 
   return (
     <div>
@@ -189,21 +190,21 @@ export function ValidatedGeneInput({
       </div>
 
       {errors.length > 0 && (
-        <div className="mt-1.5 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5">
-          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
-          <div className="text-xs text-amber-800">
+        <div className="mt-1.5 flex items-start gap-1.5 rounded border border-warning/20 bg-warning/5 px-2.5 py-1.5">
+          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-warning" />
+          <div className="text-xs text-warning">
             <span className="font-medium">
               {errors.length === 1 ? "ID" : `${errors.length} IDs`} not recognized:
             </span>{" "}
             <span className="font-mono">{errors.join(", ")}</span>
-            <span className="ml-1 text-amber-600">
+            <span className="ml-1 opacity-80">
               — only exact gene IDs from the database are accepted.
             </span>
           </div>
           <button
             type="button"
             onClick={() => setErrors([])}
-            className="ml-auto shrink-0 rounded p-0.5 text-amber-400 hover:bg-amber-100 hover:text-amber-600"
+            className="ml-auto shrink-0 rounded p-0.5 text-warning/50 hover:bg-warning/10 hover:text-warning"
           >
             <X className="h-3 w-3" />
           </button>

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ChatMarkdown } from "@/features/chat/components/ChatMarkdown";
+import { ChatMarkdown } from "@/features/chat/components/message/ChatMarkdown";
 import {
   parseSuggestions,
   type SuggestionSegment,

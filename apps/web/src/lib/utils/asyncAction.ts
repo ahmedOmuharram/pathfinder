@@ -1,0 +1,100 @@
+import { useState, useCallback } from "react";
+
+/**
+ * Extract a human-readable error message from an unknown thrown value.
+ */
+export function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return String(err);
+}
+
+// ---------------------------------------------------------------------------
+// Hook: useAsyncAction
+// ---------------------------------------------------------------------------
+
+export interface AsyncActionState {
+  /** Run an async function with automatic loading/error state management. */
+  run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
+  /** The last error message, or null if no error. */
+  error: string | null;
+  /** Whether a run is currently in progress. */
+  loading: boolean;
+  /** Clear the current error. */
+  clearError: () => void;
+}
+
+/**
+ * Shared async action hook that replaces repeated try/catch + setError patterns
+ * across React components.
+ *
+ * @example
+ * ```tsx
+ * const { run, error, loading, clearError } = useAsyncAction();
+ *
+ * const handleClick = () => {
+ *   run(async () => {
+ *     const data = await fetchSomething();
+ *     setSomeState(data);
+ *   });
+ * };
+ * ```
+ */
+export function useAsyncAction(): AsyncActionState {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = useCallback(async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fn();
+      return result;
+    } catch (err) {
+      const msg = toErrorMessage(err);
+      setError(msg);
+      return undefined;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  return { run, error, loading, clearError };
+}
+
+// ---------------------------------------------------------------------------
+// Standalone: loggedCatch
+// ---------------------------------------------------------------------------
+
+/**
+ * Replacement for `.catch(() => {})` — ensures errors are at least logged to
+ * console.  Use this for fire-and-forget promises where you don't want to
+ * crash but need visibility into failures.
+ *
+ * @param context A label for the log message (e.g. "refreshAuth" or "loadModels").
+ *
+ * @example
+ * ```ts
+ * refreshAuth().catch(loggedCatch("refreshAuth"));
+ * ```
+ */
+export function loggedCatch(context: string) {
+  return (err: unknown) => {
+    console.error(`[${context}]`, err);
+  };
+}
+
+/**
+ * Fire-and-forget helper that logs errors instead of swallowing them.
+ * Useful for `void` promise calls in effects or callbacks.
+ *
+ * @example
+ * ```ts
+ * fireAndForget("loadRecordTypes", () => getRecordTypes(siteId).then(setAllRecordTypes));
+ * ```
+ */
+export function fireAndForget(context: string, fn: () => Promise<unknown>): void {
+  fn().catch(loggedCatch(context));
+}

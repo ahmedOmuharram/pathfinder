@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
+from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.platform.errors import WDKError
 
 
@@ -32,7 +32,7 @@ class _FakeStrategyAPI:
 
 @pytest.mark.asyncio
 async def test_get_sample_records_validates_limit_range() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
 
     result = await tools.get_sample_records(wdk_step_id=123, limit=0)
 
@@ -43,7 +43,7 @@ async def test_get_sample_records_validates_limit_range() -> None:
 
 @pytest.mark.asyncio
 async def test_get_sample_records_validates_step_id() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
 
     result = await tools.get_sample_records(wdk_step_id=0, limit=5)
 
@@ -54,7 +54,7 @@ async def test_get_sample_records_validates_step_id() -> None:
 
 @pytest.mark.asyncio
 async def test_get_sample_records_maps_wdk_404_to_actionable_error() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
     fake_api = _FakeStrategyAPI(
         error=WDKError("GET /users/current/steps/1 -> HTTP 404", 404)
     )
@@ -71,7 +71,7 @@ async def test_get_sample_records_maps_wdk_404_to_actionable_error() -> None:
 
 @pytest.mark.asyncio
 async def test_get_sample_records_returns_records_total_and_attributes() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
     fake_api = _FakeStrategyAPI(
         response={
             "records": [{"record_primary_key": "A", "display_name": "alpha"}],

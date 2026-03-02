@@ -3,97 +3,7 @@ import type {
   ExperimentConfig,
   ExperimentProgressData,
 } from "@pathfinder/shared";
-import { buildUrl, getAuthHeaders } from "@/lib/api/http";
-
-/* ── Shared SSE reader ───────────────────────────────────────────── */
-
-type SSEFrame = { event: string; data: unknown };
-
-/**
- * Open a POST SSE stream and dispatch parsed frames to `onFrame`.
- *
- * Handles fetch, chunked decoding, SSE frame parsing, abort, and HTTP
- * errors in one place so each stream function only needs to provide the
- * URL, body, and event-type-specific dispatch logic.
- */
-function openSSEStream(opts: {
-  url: string;
-  body: unknown;
-  signal: AbortSignal;
-  onFrame: (frame: SSEFrame) => void;
-  onError: (error: string) => void;
-}): void {
-  const { url, body, signal, onFrame, onError } = opts;
-
-  (async () => {
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(undefined, {
-            accept: "text/event-stream",
-            contentType: "application/json",
-          }),
-        },
-        body: JSON.stringify(body),
-        signal,
-        credentials: "include",
-      });
-
-      if (!resp.ok || !resp.body) {
-        let detail = resp.statusText;
-        try {
-          const body = await resp.json();
-          if (body?.detail)
-            detail =
-              typeof body.detail === "string"
-                ? body.detail
-                : JSON.stringify(body.detail);
-          else if (body?.error) detail = body.error;
-        } catch {
-          /* body not JSON */
-        }
-        onError(`HTTP ${resp.status}: ${detail}`);
-        return;
-      }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let eventType = "";
-      let dataStr = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            dataStr = line.slice(6);
-          } else if (line === "" && dataStr) {
-            try {
-              onFrame({ event: eventType, data: JSON.parse(dataStr) });
-            } catch {
-              /* ignore parse errors */
-            }
-            eventType = "";
-            dataStr = "";
-          }
-        }
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        onError(String(err));
-      }
-    }
-  })();
-}
+import { streamSSEParsed } from "@/lib/sse";
 
 /* ── Config serialization ────────────────────────────────────────── */
 
@@ -196,22 +106,23 @@ export function createExperimentStream(
 ): AbortController {
   controller ??= new AbortController();
 
-  openSSEStream({
-    url: buildUrl("/api/v1/experiments"),
-    body: serializeExperimentConfig(config),
-    signal: controller.signal,
-    onError: (err) => handlers.onError?.(err),
-    onFrame: ({ event, data }) => {
-      const d = data as Record<string, unknown>;
-      if (event === "experiment_complete") {
-        handlers.onComplete?.(d as unknown as Experiment);
-      } else if (event === "experiment_error") {
-        handlers.onError?.((d.error as string) ?? "Unknown error");
-      } else if (event === "experiment_progress" || event === "experiment_end") {
-        handlers.onProgress?.(d as unknown as ExperimentProgressData);
-      }
+  streamSSEParsed(
+    "/api/v1/experiments",
+    { body: serializeExperimentConfig(config), signal: controller.signal },
+    {
+      onError: (err) => handlers.onError?.(err.message),
+      onFrame: ({ event, data }) => {
+        const d = data as Record<string, unknown>;
+        if (event === "experiment_complete") {
+          handlers.onComplete?.(d as unknown as Experiment);
+        } else if (event === "experiment_error") {
+          handlers.onError?.((d.error as string) ?? "Unknown error");
+        } else if (event === "experiment_progress" || event === "experiment_end") {
+          handlers.onProgress?.(d as unknown as ExperimentProgressData);
+        }
+      },
     },
-  });
+  ).catch((err) => console.error("[experiment.stream]", err));
 
   return controller;
 }
@@ -237,25 +148,33 @@ export function createBatchExperimentStream(
 ): AbortController {
   controller ??= new AbortController();
 
-  openSSEStream({
-    url: buildUrl("/api/v1/experiments/batch"),
-    body: { base: serializeExperimentConfig(base), organismParamName, targetOrganisms },
-    signal: controller.signal,
-    onError: (err) => handlers.onError?.(err),
-    onFrame: ({ event, data }) => {
-      const d = data as Record<string, unknown>;
-      if (event === "batch_complete") {
-        handlers.onComplete?.(
-          (d.experiments as Experiment[]) ?? [],
-          (d.batchId as string) ?? "",
-        );
-      } else if (event === "batch_error") {
-        handlers.onError?.((d.error as string) ?? "Unknown error");
-      } else if (event === "experiment_progress") {
-        handlers.onProgress?.(d as unknown as ExperimentProgressData);
-      }
+  streamSSEParsed(
+    "/api/v1/experiments/batch",
+    {
+      body: {
+        base: serializeExperimentConfig(base),
+        organismParamName,
+        targetOrganisms,
+      },
+      signal: controller.signal,
     },
-  });
+    {
+      onError: (err) => handlers.onError?.(err.message),
+      onFrame: ({ event, data }) => {
+        const d = data as Record<string, unknown>;
+        if (event === "batch_complete") {
+          handlers.onComplete?.(
+            (d.experiments as Experiment[]) ?? [],
+            (d.batchId as string) ?? "",
+          );
+        } else if (event === "batch_error") {
+          handlers.onError?.((d.error as string) ?? "Unknown error");
+        } else if (event === "experiment_progress") {
+          handlers.onProgress?.(d as unknown as ExperimentProgressData);
+        }
+      },
+    },
+  ).catch((err) => console.error("[experiment.stream]", err));
 
   return controller;
 }
@@ -282,25 +201,29 @@ export function createBenchmarkStream(
 ): AbortController {
   controller ??= new AbortController();
 
-  openSSEStream({
-    url: buildUrl("/api/v1/experiments/benchmark"),
-    body: { base: serializeExperimentConfig(base), controlSets },
-    signal: controller.signal,
-    onError: (err) => handlers.onError?.(err),
-    onFrame: ({ event, data }) => {
-      const d = data as Record<string, unknown>;
-      if (event === "benchmark_complete") {
-        handlers.onComplete?.(
-          (d.experiments as Experiment[]) ?? [],
-          (d.benchmarkId as string) ?? "",
-        );
-      } else if (event === "benchmark_error") {
-        handlers.onError?.((d.error as string) ?? "Unknown error");
-      } else if (event === "experiment_progress") {
-        handlers.onProgress?.(d as unknown as ExperimentProgressData);
-      }
+  streamSSEParsed(
+    "/api/v1/experiments/benchmark",
+    {
+      body: { base: serializeExperimentConfig(base), controlSets },
+      signal: controller.signal,
     },
-  });
+    {
+      onError: (err) => handlers.onError?.(err.message),
+      onFrame: ({ event, data }) => {
+        const d = data as Record<string, unknown>;
+        if (event === "benchmark_complete") {
+          handlers.onComplete?.(
+            (d.experiments as Experiment[]) ?? [],
+            (d.benchmarkId as string) ?? "",
+          );
+        } else if (event === "benchmark_error") {
+          handlers.onError?.((d.error as string) ?? "Unknown error");
+        } else if (event === "experiment_progress") {
+          handlers.onProgress?.(d as unknown as ExperimentProgressData);
+        }
+      },
+    },
+  ).catch((err) => console.error("[experiment.stream]", err));
 
   return controller;
 }
@@ -342,43 +265,47 @@ export function streamAiAssist(
   let fullText = "";
   let completed = false;
 
-  openSSEStream({
-    url: buildUrl("/api/v1/experiments/ai-assist"),
-    body: {
-      siteId: params.siteId,
-      step: params.step,
-      message: params.message,
-      context: params.context,
-      history: params.history,
-      model: params.model ?? null,
+  streamSSEParsed(
+    "/api/v1/experiments/ai-assist",
+    {
+      body: {
+        siteId: params.siteId,
+        step: params.step,
+        message: params.message,
+        context: params.context,
+        history: params.history,
+        model: params.model ?? null,
+      },
+      signal: controller.signal,
     },
-    signal: controller.signal,
-    onError: (err) => handlers.onError?.(err),
-    onFrame: ({ event, data }) => {
-      const d = data as Record<string, unknown>;
-      if (event === "assistant_delta") {
-        const delta = (d.delta as string) ?? "";
-        fullText += delta;
-        handlers.onDelta?.(delta);
-      } else if (event === "assistant_message") {
-        const content = (d.content as string) ?? "";
-        if (content && content !== fullText) {
-          const missing = content.slice(fullText.length);
-          if (missing) handlers.onDelta?.(missing);
-          fullText = content;
+    {
+      onError: (err) => handlers.onError?.(err.message),
+      onFrame: ({ event, data }) => {
+        const d = data as Record<string, unknown>;
+        if (event === "assistant_delta") {
+          const delta = (d.delta as string) ?? "";
+          fullText += delta;
+          handlers.onDelta?.(delta);
+        } else if (event === "assistant_message") {
+          const content = (d.content as string) ?? "";
+          if (content && content !== fullText) {
+            const missing = content.slice(fullText.length);
+            if (missing) handlers.onDelta?.(missing);
+            fullText = content;
+          }
+        } else if (event === "tool_call_start") {
+          handlers.onToolCall?.((d.name as string) ?? "tool", "start");
+        } else if (event === "tool_call_end") {
+          handlers.onToolCall?.((d.name as string) ?? "tool", "end");
+        } else if (event === "error") {
+          handlers.onError?.((d.error as string) ?? "Unknown error");
+        } else if (event === "message_end" && !completed) {
+          completed = true;
+          handlers.onComplete?.(fullText);
         }
-      } else if (event === "tool_call_start") {
-        handlers.onToolCall?.((d.name as string) ?? "tool", "start");
-      } else if (event === "tool_call_end") {
-        handlers.onToolCall?.((d.name as string) ?? "tool", "end");
-      } else if (event === "error") {
-        handlers.onError?.((d.error as string) ?? "Unknown error");
-      } else if (event === "message_end" && !completed) {
-        completed = true;
-        handlers.onComplete?.(fullText);
-      }
+      },
     },
-  });
+  ).catch((err) => console.error("[experiment.stream]", err));
 
   return controller;
 }

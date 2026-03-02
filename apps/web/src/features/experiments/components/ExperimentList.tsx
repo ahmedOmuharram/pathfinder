@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
-import { useExperimentStore } from "../store";
+import { useExperimentViewStore } from "../store";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { Badge } from "@/lib/components/ui/Badge";
@@ -46,7 +46,7 @@ export function ExperimentList({ siteId }: ExperimentListProps) {
     deleteExperiment,
     cloneExperiment,
     setView,
-  } = useExperimentStore();
+  } = useExperimentViewStore();
   const [search, setSearch] = useState("");
 
   useEffect(() => {

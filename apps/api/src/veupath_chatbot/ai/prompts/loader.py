@@ -4,28 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# All .md prompt files live alongside this module.
+_PROMPTS_DIR = Path(__file__).parent
+
 
 def load_system_prompt() -> str:
-    """Load and combine system prompts."""
-    prompts_dir = Path(__file__).parent / "prompts"
-
+    """Load and combine the unified system prompt."""
     parts: list[str] = []
-    for filename in ["system.md", "safety.md", "site_hints.md"]:
-        prompt_file = prompts_dir / filename
+    for filename in ("system.md", "safety.md", "site_hints.md"):
+        prompt_file = _PROMPTS_DIR / filename
         if prompt_file.exists():
             parts.append(prompt_file.read_text())
-
-    return "\n\n---\n\n".join(parts)
-
-
-def load_planner_prompt() -> str:
-    """Load and combine system prompts for planning mode."""
-    prompts_dir = Path(__file__).parent / "prompts"
-
-    parts: list[str] = []
-    for filename in ["planner.md", "safety.md", "site_hints.md"]:
-        prompt_file = prompts_dir / filename
-        if prompt_file.exists():
-            parts.append(prompt_file.read_text())
-
     return "\n\n---\n\n".join(parts)

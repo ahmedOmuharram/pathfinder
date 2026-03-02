@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/lib/components/ui/Card";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
 import { Progress } from "@/lib/components/ui/Progress";
-import { useExperimentStore } from "../../store";
+import { useExperimentRunStore } from "../../store";
 import type { PlanStepNode } from "@pathfinder/shared";
 import { PHASE_LABELS, STEP_ANALYSIS_PHASE_LABELS } from "./constants";
 import { MiniTreeView } from "./MiniTreeView";
@@ -18,7 +18,7 @@ export function RunningPanel() {
     cancelExperiment,
     runningConfig,
     stepAnalysisItems,
-  } = useExperimentStore();
+  } = useExperimentRunStore();
 
   const tp = progress?.trialProgress;
 

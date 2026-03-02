@@ -42,7 +42,8 @@ class BasePlanNode(BaseModel):
     analyses: list[StepAnalysisSpec] | None = None
     reports: list[StepReportSpec] | None = None
 
-    # Keep permissive for forward-compat with WDK payload quirks.
+    # Allow extra fields so the AI agent can store arbitrary WDK-originated
+    # keys (e.g. ``wdkStepId``, ``estimatedSize``) without schema breakage.
     model_config = {"extra": "allow"}
 
 

@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from typing import TypeVar
 
 from qdrant_client import AsyncQdrantClient
-
 from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)

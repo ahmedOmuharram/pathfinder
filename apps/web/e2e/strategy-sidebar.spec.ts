@@ -24,14 +24,20 @@ test("conversation sidebar: create and filter conversations", async ({ page }) =
   await sendMessage(page, "hello from sidebar test");
   await expect(page.getByText("[mock:plan]").first()).toBeVisible();
 
-  // Filter the list by typing something — just verify filtering works.
+  // Capture total count before filtering.
+  const totalCount = await items.count();
+
+  // Filter the list — verify it actually reduces the item count.
   await search.fill("New Conversation");
+  await expect
+    .poll(async () => items.count(), { timeout: 10_000 })
+    .toBeLessThanOrEqual(totalCount);
   const filteredCount = await items.count();
-  expect(filteredCount).toBeGreaterThanOrEqual(0);
+  expect(filteredCount).toBeGreaterThan(0);
 
   // Clear filter — should restore full list (more items than filtered view).
   await search.fill("");
   await expect
     .poll(async () => items.count(), { timeout: 10_000 })
-    .toBeGreaterThan(filteredCount);
+    .toBeGreaterThanOrEqual(totalCount);
 });

@@ -1,5 +1,5 @@
 import type { StrategyListItem } from "@/features/sidebar/utils/strategyItems";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyWithMeta } from "@pathfinder/shared";
 
 export type DuplicateModalState = {
   item: StrategyListItem;

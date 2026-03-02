@@ -1,5 +1,8 @@
-import type { ExperimentConfig, EnrichmentAnalysisType } from "@pathfinder/shared";
-import type { ResolvedGene } from "@/lib/api/client";
+import type {
+  ExperimentConfig,
+  EnrichmentAnalysisType,
+  ResolvedGene,
+} from "@pathfinder/shared";
 
 export interface ApplyCloneSetters {
   setSelectedRecordType: (v: string) => void;

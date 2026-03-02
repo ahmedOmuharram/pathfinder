@@ -6,8 +6,7 @@ import {
   updateStrategy,
 } from "@/lib/api/client";
 import { toUserMessage } from "@/lib/api/errors";
-import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyPlan, StrategyWithMeta } from "@pathfinder/shared";
 
 interface UseBuildStrategyArgs {
   selectedSite: string;

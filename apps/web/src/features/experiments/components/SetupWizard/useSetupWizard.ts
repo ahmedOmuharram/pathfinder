@@ -1,488 +1,199 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  EnrichmentAnalysisType,
-  OptimizeSpec,
-  ParamSpec,
-  RecordType,
-  Search,
-} from "@pathfinder/shared";
-import { useExperimentStore } from "../../store";
-import {
-  getRecordTypes,
-  getSearches,
-  getParamSpecs,
-  type ResolvedGene,
-} from "@/lib/api/client";
-import { isParamRequired, isParamEmpty, buildAutoOptimizeSpecs } from "../paramUtils";
-import type { WizardStep as AiWizardStep } from "../../api";
-import type { SearchSuggestion, RunConfigSuggestion } from "../../suggestionParser";
-import { GENE_RECORD_TYPES } from "./constants";
+import { useCallback } from "react";
+import { useExperimentRunStore } from "../../store";
+import { useSetupWizardParams } from "./useSetupWizardParams";
+import { useSetupWizardValidation } from "./useSetupWizardValidation";
+import { useSetupWizardNavigation } from "./useSetupWizardNavigation";
 import { buildExperimentConfig } from "./buildExperimentConfig";
-import { computeStepValidation } from "./stepValidation";
-import { buildInitialParamsFromSpecs } from "./paramInitialState";
-import { applyCloneConfig } from "./applyCloneConfig";
+
+const controlsSearchName = "GeneByLocusTag";
+const controlsParamName = "ds_gene_ids";
 
 export function useSetupWizard(siteId: string) {
   const {
     runExperiment,
     runBatchExperiment,
-    setView,
     isRunning,
     error: storeError,
     clearError,
-    cloneConfig,
-    cloneWithOptimize,
-    clearClone,
-  } = useExperimentStore();
+  } = useExperimentRunStore();
 
-  const [step, setStep] = useState(0);
-  const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(new Set());
+  const nav = useSetupWizardNavigation();
+  const params = useSetupWizardParams(siteId);
 
-  const [allRecordTypes, setAllRecordTypes] = useState<RecordType[]>([]);
-  const [searches, setSearches] = useState<Search[]>([]);
-  const [selectedRecordType, setSelectedRecordType] = useState("gene");
-  const [selectedSearch, setSelectedSearch] = useState("");
-  const [searchFilter, setSearchFilter] = useState("");
+  const validation = useSetupWizardValidation({
+    step: nav.step,
+    selectedSearch: params.selectedSearch,
+    selectedRecordType: params.selectedRecordType,
+    paramSpecs: params.paramSpecs,
+    paramSpecsLoading: params.paramSpecsLoading,
+    parameters: params.parameters,
+    positiveGenes: params.positiveGenes,
+    negativeGenes: params.negativeGenes,
+  });
 
-  const recordTypes = useMemo(
-    () => allRecordTypes.filter((rt) => GENE_RECORD_TYPES.has(rt.name)),
-    [allRecordTypes],
+  // --- Bridge: canNext, goNext, runOrValidate depend on both nav and validation ---
+
+  const canNext = useCallback(
+    () => validation.stepValidation.valid,
+    [validation.stepValidation],
   );
 
-  const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
-  const [paramSpecsLoading, setParamSpecsLoading] = useState(false);
-  const [parameters, setParameters] = useState<Record<string, string>>({});
-
-  const [positiveGenes, setPositiveGenes] = useState<ResolvedGene[]>([]);
-  const [negativeGenes, setNegativeGenes] = useState<ResolvedGene[]>([]);
-  const controlsSearchName = "GeneByLocusTag";
-  const controlsParamName = "ds_gene_ids";
-  const [showGeneLookup, setShowGeneLookup] = useState(false);
-
-  const AI_STEP_MAP: AiWizardStep[] = ["search", "parameters", "controls", "run"];
-  const currentAiStep = AI_STEP_MAP[step];
-
-  const [name, setName] = useState("");
-  const [enableCV, setEnableCV] = useState(false);
-  const [kFolds, setKFolds] = useState(5);
-  const [kFoldsDraft, setKFoldsDraft] = useState("5");
-  const [enrichments, setEnrichments] = useState<Set<EnrichmentAnalysisType>>(
-    new Set(),
-  );
-
-  const [optimizeSpecs, setOptimizeSpecs] = useState<Map<string, OptimizeSpec>>(
-    new Map(),
-  );
-  const [optimizationBudget, setOptimizationBudget] = useState(30);
-  const [optimizationBudgetDraft, setOptimizationBudgetDraft] = useState("30");
-  const [optimizationObjective, setOptimizationObjective] =
-    useState<string>("balanced_accuracy");
-
-  const [batchMode, setBatchMode] = useState(false);
-  const [batchOrganisms, setBatchOrganisms] = useState<string[]>([]);
-  const [batchOrganismControls, setBatchOrganismControls] = useState<
-    Record<string, { positive: string; negative: string }>
-  >({});
-
-  const { organismParamName, organismOptions } = useMemo(() => {
-    const orgSpec = paramSpecs.find(
-      (s) => s.name === "organism" || s.name === "organisms",
-    );
-    if (!orgSpec || !orgSpec.vocabulary)
-      return { organismParamName: "", organismOptions: [] as string[] };
-    const entries = Array.isArray(orgSpec.vocabulary)
-      ? orgSpec.vocabulary
-      : typeof orgSpec.vocabulary === "object"
-        ? Object.entries(orgSpec.vocabulary).map(([k, v]) => ({
-            value: String(k),
-            display: String(v),
-          }))
-        : [];
-    return {
-      organismParamName: orgSpec.name,
-      organismOptions: entries.map((e: { value: string }) => e.value),
-    };
-  }, [paramSpecs]);
-
-  const pendingCloneParams = useRef<Record<string, unknown> | null>(null);
-  const pendingSuggestedParams = useRef<Record<string, string> | null>(null);
-  const pendingAutoOptimize = useRef(false);
-
-  useEffect(() => {
-    if (!cloneConfig) return;
-    pendingCloneParams.current = applyCloneConfig(cloneConfig, {
-      setSelectedRecordType,
-      setSelectedSearch,
-      setName,
-      setEnableCV,
-      setKFolds,
-      setKFoldsDraft,
-      setEnrichments,
-      setPositiveGenes,
-      setNegativeGenes,
-    });
-    if (cloneWithOptimize) {
-      pendingAutoOptimize.current = true;
-      queueMicrotask(() => {
-        if (cloneConfig.optimizationBudget)
-          setOptimizationBudget(cloneConfig.optimizationBudget);
-        if (cloneConfig.optimizationObjective)
-          setOptimizationObjective(cloneConfig.optimizationObjective);
-      });
-    }
-    clearClone();
-  }, [cloneConfig, cloneWithOptimize, clearClone]);
-
-  useEffect(() => {
-    getRecordTypes(siteId)
-      .then(setAllRecordTypes)
-      .catch(() => {});
-  }, [siteId]);
-
-  useEffect(() => {
-    getSearches(siteId, selectedRecordType)
-      .then(setSearches)
-      .catch(() => {});
-  }, [siteId, selectedRecordType]);
-
-  useEffect(() => {
-    if (!selectedSearch || !selectedRecordType) {
-      queueMicrotask(() => setParamSpecs([]));
-      return;
-    }
-    queueMicrotask(() => setParamSpecsLoading(true));
-    getParamSpecs(siteId, selectedRecordType, selectedSearch)
-      .then((specs) => {
-        setParamSpecs(specs);
-        const cloned = pendingCloneParams.current;
-        pendingCloneParams.current = null;
-        const suggested = pendingSuggestedParams.current;
-        pendingSuggestedParams.current = null;
-        const initial = buildInitialParamsFromSpecs(specs, cloned, suggested);
-        setParameters(initial);
-
-        if (pendingAutoOptimize.current) {
-          pendingAutoOptimize.current = false;
-          const visible = specs.filter((s) => s.type !== "input-step");
-          setOptimizeSpecs(buildAutoOptimizeSpecs(visible));
-        }
-      })
-      .catch(() => setParamSpecs([]))
-      .finally(() => setParamSpecsLoading(false));
-  }, [siteId, selectedRecordType, selectedSearch]);
-
-  const filteredSearches = useMemo(
-    () =>
-      searches.filter(
-        (s) =>
-          !searchFilter ||
-          s.displayName.toLowerCase().includes(searchFilter.toLowerCase()) ||
-          s.name.toLowerCase().includes(searchFilter.toLowerCase()),
-      ),
-    [searches, searchFilter],
-  );
-
-  const positiveControls = useMemo(
-    () => positiveGenes.map((g) => g.geneId),
-    [positiveGenes],
-  );
-  const negativeControls = useMemo(
-    () => negativeGenes.map((g) => g.geneId),
-    [negativeGenes],
-  );
-
-  const isTransformSearch = useMemo(
-    () => paramSpecs.some((s) => s.type === "input-step"),
-    [paramSpecs],
-  );
-
-  const visibleParamSpecs = useMemo(
-    () => paramSpecs.filter((s) => s.type !== "input-step"),
-    [paramSpecs],
-  );
-
-  const aiContext = useMemo(
-    () => ({
-      recordType: selectedRecordType,
-      searchName: selectedSearch,
-      parameters,
-      positiveControls,
-      negativeControls,
-    }),
-    [
-      selectedRecordType,
-      selectedSearch,
-      parameters,
-      positiveControls,
-      negativeControls,
-    ],
-  );
-
-  const emptyRequiredParams = useMemo(
-    () =>
-      visibleParamSpecs.filter(
-        (spec) =>
-          isParamRequired(spec) && isParamEmpty(spec, parameters[spec.name] ?? ""),
-      ),
-    [visibleParamSpecs, parameters],
-  );
-
-  const stepValidation = useMemo(
-    () =>
-      computeStepValidation({
-        step,
-        selectedSearch,
-        paramSpecsLoading,
-        emptyRequiredParams,
-        positiveControls,
-        negativeControls,
-      }),
-    [
-      step,
-      selectedSearch,
-      paramSpecsLoading,
-      emptyRequiredParams,
-      positiveControls,
-      negativeControls,
-    ],
-  );
-
-  const canNext = useCallback(() => stepValidation.valid, [stepValidation]);
-
-  const handleRecordTypeChange = useCallback((rt: string) => {
-    setSelectedRecordType(rt);
-    setSelectedSearch("");
-  }, []);
-
-  const handleSuggestionApply = useCallback(
-    (suggestion: SearchSuggestion) => {
-      if (suggestion.recordType && suggestion.recordType !== selectedRecordType) {
-        setSelectedRecordType(suggestion.recordType);
-      }
-      if (suggestion.suggestedParameters) {
-        pendingSuggestedParams.current = suggestion.suggestedParameters;
-      }
-      setSelectedSearch(suggestion.searchName);
-    },
-    [selectedRecordType],
-  );
-
-  const handleGeneAdd = useCallback((geneId: string, role: "positive" | "negative") => {
-    const gene: ResolvedGene = {
-      geneId,
-      displayName: geneId,
-      organism: "",
-      product: "",
-      geneName: "",
-      geneType: "",
-      location: "",
-    };
-    if (role === "positive") {
-      setPositiveGenes((prev) =>
-        prev.some((g) => g.geneId === geneId) ? prev : [...prev, gene],
-      );
-    } else {
-      setNegativeGenes((prev) =>
-        prev.some((g) => g.geneId === geneId) ? prev : [...prev, gene],
-      );
-    }
-  }, []);
-
-  const handleParamsApply = useCallback(
-    (params: Record<string, string>) =>
-      setParameters((prev) => ({ ...prev, ...params })),
-    [],
-  );
-
-  const handleRunConfigApply = useCallback((config: RunConfigSuggestion) => {
-    if (config.name) setName(config.name);
-    if (config.enableCrossValidation !== undefined)
-      setEnableCV(config.enableCrossValidation);
-    if (config.kFolds !== undefined) {
-      setKFolds(config.kFolds);
-      setKFoldsDraft(String(config.kFolds));
-    }
-    if (config.enrichmentTypes) {
-      setEnrichments(new Set(config.enrichmentTypes as EnrichmentAnalysisType[]));
-    }
-  }, []);
-
-  const handleParameterChange = useCallback(
-    (pName: string, value: string) => setParameters((p) => ({ ...p, [pName]: value })),
-    [],
-  );
-
-  const toggleEnrichment = useCallback((type: EnrichmentAnalysisType) => {
-    setEnrichments((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
-  }, []);
-
-  const handleOptimizeChange = useCallback(
-    (paramName: string, spec: OptimizeSpec | null) => {
-      setOptimizeSpecs((prev) => {
-        const next = new Map(prev);
-        if (spec) next.set(paramName, spec);
-        else next.delete(paramName);
-        return next;
-      });
-    },
-    [],
-  );
+  const goNext = useCallback(() => {
+    nav.markStepAttempted();
+    if (validation.stepValidation.valid) nav.advanceStep();
+  }, [nav, validation.stepValidation]);
 
   const handleRun = useCallback(() => {
     clearError();
     const config = buildExperimentConfig({
       siteId,
-      selectedRecordType,
-      selectedSearch,
-      parameters,
-      paramSpecs,
-      positiveControls,
-      negativeControls,
-      enableCV,
-      kFolds,
-      enrichments,
-      name,
+      selectedRecordType: params.selectedRecordType,
+      selectedSearch: params.selectedSearch,
+      parameters: params.parameters,
+      paramSpecs: params.paramSpecs,
+      positiveControls: validation.positiveControls,
+      negativeControls: validation.negativeControls,
+      enableCV: params.enableCV,
+      kFolds: params.kFolds,
+      enrichments: params.enrichments,
+      name: params.name,
       controlsSearchName,
       controlsParamName,
-      optimizeSpecs,
-      optimizationBudget,
-      optimizationObjective,
+      optimizeSpecs: params.optimizeSpecs,
+      optimizationBudget: params.optimizationBudget,
+      optimizationObjective: params.optimizationObjective,
     });
 
-    if (batchMode && batchOrganisms.length > 0 && organismParamName) {
-      const targets = batchOrganisms.map((org) => {
-        const overrides = batchOrganismControls[org];
+    if (
+      params.batchMode &&
+      params.batchOrganisms.length > 0 &&
+      params.organismParamName
+    ) {
+      const targets = params.batchOrganisms.map((org) => {
+        const overrides = params.batchOrganismControls[org];
         const orgPos = overrides?.positive.trim()
           ? overrides.positive
               .split(",")
               .map((s) => s.trim())
               .filter(Boolean)
-          : positiveControls;
+          : validation.positiveControls;
         const orgNeg = overrides?.negative.trim()
           ? overrides.negative
               .split(",")
               .map((s) => s.trim())
               .filter(Boolean)
-          : negativeControls;
+          : validation.negativeControls;
         return {
           organism: org,
           positiveControls: orgPos,
           negativeControls: orgNeg,
         };
       });
-      runBatchExperiment(config, organismParamName, targets);
+      runBatchExperiment(config, params.organismParamName, targets);
     } else {
       runExperiment(config);
     }
   }, [
     siteId,
-    selectedRecordType,
-    selectedSearch,
-    parameters,
-    paramSpecs,
-    positiveControls,
-    negativeControls,
-    enableCV,
-    kFolds,
-    enrichments,
-    name,
-    optimizeSpecs,
-    optimizationBudget,
-    optimizationObjective,
-    batchMode,
-    batchOrganisms,
-    batchOrganismControls,
-    organismParamName,
+    params.selectedRecordType,
+    params.selectedSearch,
+    params.parameters,
+    params.paramSpecs,
+    validation.positiveControls,
+    validation.negativeControls,
+    params.enableCV,
+    params.kFolds,
+    params.enrichments,
+    params.name,
+    params.optimizeSpecs,
+    params.optimizationBudget,
+    params.optimizationObjective,
+    params.batchMode,
+    params.batchOrganisms,
+    params.batchOrganismControls,
+    params.organismParamName,
     runExperiment,
     runBatchExperiment,
     clearError,
   ]);
 
-  const goBack = useCallback(() => {
-    if (step === 0) setView("mode-select");
-    else setStep((s) => s - 1);
-  }, [step, setView]);
-
-  const goNext = useCallback(() => {
-    setAttemptedSteps((prev) => new Set(prev).add(step));
-    if (canNext()) setStep((s) => s + 1);
-  }, [step, canNext]);
-
   const runOrValidate = useCallback(() => {
-    setAttemptedSteps((prev) => new Set(prev).add(step));
-    if (canNext() && !isRunning) handleRun();
-  }, [step, canNext, isRunning, handleRun]);
+    nav.markStepAttempted();
+    if (validation.stepValidation.valid && !isRunning) handleRun();
+  }, [nav, validation.stepValidation, isRunning, handleRun]);
 
   return {
-    step,
-    setStep,
-    attemptedSteps,
-    recordTypes,
-    selectedRecordType,
-    filteredSearches,
-    searchFilter,
-    setSearchFilter,
-    selectedSearch,
-    setSelectedSearch,
-    paramSpecs,
-    paramSpecsLoading,
-    parameters,
-    setParameters,
-    visibleParamSpecs,
-    positiveGenes,
-    setPositiveGenes,
-    negativeGenes,
-    setNegativeGenes,
-    showGeneLookup,
-    setShowGeneLookup,
-    currentAiStep,
-    aiContext,
-    name,
-    setName,
-    enableCV,
-    setEnableCV,
-    kFolds,
-    kFoldsDraft,
-    setKFolds,
-    setKFoldsDraft,
-    enrichments,
-    positiveControls,
-    negativeControls,
-    isTransformSearch,
-    stepValidation,
-    storeError,
-    isRunning,
-    handleRecordTypeChange,
-    handleSuggestionApply,
-    handleGeneAdd,
-    handleParamsApply,
-    handleRunConfigApply,
-    handleParameterChange,
-    handleOptimizeChange,
-    toggleEnrichment,
-    goBack,
+    // Navigation
+    step: nav.step,
+    setStep: nav.setStep,
+    attemptedSteps: nav.attemptedSteps,
+    currentAiStep: nav.currentAiStep,
+    goBack: nav.goBack,
     goNext,
-    runOrValidate,
     canNext,
-    optimizeSpecs,
-    optimizationBudget,
-    optimizationBudgetDraft,
-    setOptimizationBudget,
-    setOptimizationBudgetDraft,
-    optimizationObjective,
-    setOptimizationObjective,
-    batchMode,
-    setBatchMode,
-    batchOrganisms,
-    setBatchOrganisms,
-    batchOrganismControls,
-    setBatchOrganismControls,
-    organismParamName,
-    organismOptions,
+    runOrValidate,
+    isRunning,
+    storeError,
+
+    // Params / state
+    recordTypes: params.recordTypes,
+    selectedRecordType: params.selectedRecordType,
+    filteredSearches: params.filteredSearches,
+    searchFilter: params.searchFilter,
+    setSearchFilter: params.setSearchFilter,
+    selectedSearch: params.selectedSearch,
+    setSelectedSearch: params.setSelectedSearch,
+    paramSpecs: params.paramSpecs,
+    paramSpecsLoading: params.paramSpecsLoading,
+    parameters: params.parameters,
+    setParameters: params.setParameters,
+    positiveGenes: params.positiveGenes,
+    setPositiveGenes: params.setPositiveGenes,
+    negativeGenes: params.negativeGenes,
+    setNegativeGenes: params.setNegativeGenes,
+    showGeneLookup: params.showGeneLookup,
+    setShowGeneLookup: params.setShowGeneLookup,
+    name: params.name,
+    setName: params.setName,
+    enableCV: params.enableCV,
+    setEnableCV: params.setEnableCV,
+    kFolds: params.kFolds,
+    kFoldsDraft: params.kFoldsDraft,
+    setKFolds: params.setKFolds,
+    setKFoldsDraft: params.setKFoldsDraft,
+    enrichments: params.enrichments,
+    optimizeSpecs: params.optimizeSpecs,
+    optimizationBudget: params.optimizationBudget,
+    optimizationBudgetDraft: params.optimizationBudgetDraft,
+    setOptimizationBudget: params.setOptimizationBudget,
+    setOptimizationBudgetDraft: params.setOptimizationBudgetDraft,
+    optimizationObjective: params.optimizationObjective,
+    setOptimizationObjective: params.setOptimizationObjective,
+    batchMode: params.batchMode,
+    setBatchMode: params.setBatchMode,
+    batchOrganisms: params.batchOrganisms,
+    setBatchOrganisms: params.setBatchOrganisms,
+    batchOrganismControls: params.batchOrganismControls,
+    setBatchOrganismControls: params.setBatchOrganismControls,
+    organismParamName: params.organismParamName,
+    organismOptions: params.organismOptions,
+
+    // Handlers
+    handleRecordTypeChange: params.handleRecordTypeChange,
+    handleSuggestionApply: params.handleSuggestionApply,
+    handleGeneAdd: params.handleGeneAdd,
+    handleParamsApply: params.handleParamsApply,
+    handleRunConfigApply: params.handleRunConfigApply,
+    handleParameterChange: params.handleParameterChange,
+    handleOptimizeChange: params.handleOptimizeChange,
+    toggleEnrichment: params.toggleEnrichment,
+
+    // Validation / derived
+    visibleParamSpecs: validation.visibleParamSpecs,
+    positiveControls: validation.positiveControls,
+    negativeControls: validation.negativeControls,
+    isTransformSearch: validation.isTransformSearch,
+    stepValidation: validation.stepValidation,
+    aiContext: validation.aiContext,
   };
 }

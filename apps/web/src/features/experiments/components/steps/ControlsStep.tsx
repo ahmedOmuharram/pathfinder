@@ -3,7 +3,7 @@ import { AlertTriangle, Search as SearchIcon } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { GeneLookupPanel } from "../GeneLookupPanel";
 import { ValidatedGeneInput } from "../ValidatedGeneInput";
-import type { ResolvedGene } from "@/lib/api/client";
+import type { ResolvedGene } from "@pathfinder/shared";
 
 interface ControlsStepProps {
   siteId: string;

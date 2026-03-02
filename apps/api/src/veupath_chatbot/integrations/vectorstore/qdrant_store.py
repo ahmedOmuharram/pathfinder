@@ -6,7 +6,6 @@ import uuid
 from dataclasses import dataclass
 
 from qdrant_client import AsyncQdrantClient
-
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
@@ -130,7 +129,6 @@ class QdrantStore:
     ) -> None:
         """Upsert points.\n\n        Each point dict: {\"id\": str|int, \"vector\": list[float], \"payload\": dict}\n"""
         from qdrant_client.models import PointStruct
-
         from veupath_chatbot.platform.types import as_json_object
 
         client = self._client()
@@ -282,7 +280,6 @@ class QdrantStore:
         must_not: JSONArray | None = None,
     ) -> JSONArray:
         from qdrant_client.models import FieldCondition, Filter, MatchValue
-
         from veupath_chatbot.platform.types import as_json_object
 
         def _cond(item_value: JSONValue) -> FieldCondition:

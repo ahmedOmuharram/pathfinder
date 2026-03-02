@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
+from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject
@@ -63,7 +63,7 @@ class _CaptureClient:
 
 @pytest.mark.asyncio
 async def test_get_download_url_validates_format() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
 
     result = await tools.get_download_url(wdk_step_id=123, format="xlsx")
 
@@ -74,7 +74,7 @@ async def test_get_download_url_validates_format() -> None:
 
 @pytest.mark.asyncio
 async def test_get_download_url_maps_report_name_payload_error() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
     fake_api = _FakeResultsAPI(
         error=WDKError(
             'POST /temporary-results -> HTTP 400: JSONObject["reportName"] not found.',
@@ -97,7 +97,7 @@ async def test_get_download_url_maps_report_name_payload_error() -> None:
 
 @pytest.mark.asyncio
 async def test_get_download_url_returns_url_on_success() -> None:
-    tools = ExecutionTools(_FakeSession())
+    tools = ResultTools(_FakeSession())
     fake_api = _FakeResultsAPI(url="https://example/download.csv")
     tools._get_results_api = lambda: fake_api
 

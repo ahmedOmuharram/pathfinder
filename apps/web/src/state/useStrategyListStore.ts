@@ -3,8 +3,7 @@
  */
 
 import { create } from "zustand";
-import type { StrategySummary } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategySummary, StrategyWithMeta } from "@pathfinder/shared";
 
 interface StrategyListState {
   strategies: StrategySummary[];

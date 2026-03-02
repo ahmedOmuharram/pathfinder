@@ -3,8 +3,7 @@
  */
 
 import { create } from "zustand";
-import type { StrategyPlan } from "@pathfinder/shared";
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyPlan, StrategyStep, StrategyWithMeta } from "@pathfinder/shared";
 import {
   getRootSteps,
   getRootStepId,
@@ -190,7 +189,7 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
 
   setStrategy: (strategy) => {
     if (!strategy) {
-      set({ strategy: null, stepsById: {} });
+      set({ strategy: null, stepsById: {}, history: [], historyIndex: -1 });
       return;
     }
     const existingSteps = get().stepsById;

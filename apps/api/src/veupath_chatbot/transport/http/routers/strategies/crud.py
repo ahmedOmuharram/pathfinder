@@ -155,7 +155,7 @@ async def update_strategy(
 
     # Best-effort auto-push to WDK (fire-and-forget).
     if strategy.wdk_strategy_id and not is_saved_set:
-        asyncio.create_task(try_auto_push_to_wdk(strategyId, strategy_repo))
+        asyncio.create_task(try_auto_push_to_wdk(strategyId))
 
     return build_strategy_response(
         strategy,

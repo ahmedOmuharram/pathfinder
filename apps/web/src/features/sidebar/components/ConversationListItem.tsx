@@ -77,9 +77,9 @@ export function ConversationListItem({
               <span
                 className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                   !si.wdkStrategyId
-                    ? "bg-amber-100 text-amber-700"
+                    ? "bg-warning/10 text-warning"
                     : si.isSaved
-                      ? "bg-emerald-100 text-success"
+                      ? "bg-success/10 text-success"
                       : "bg-muted text-muted-foreground"
                 }`}
               >
@@ -104,7 +104,7 @@ export function ConversationListItem({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+              className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Conversation actions"
             >
               <MoreVertical className="h-4 w-4" aria-hidden="true" />

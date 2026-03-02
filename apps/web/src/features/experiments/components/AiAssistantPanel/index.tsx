@@ -5,6 +5,7 @@ import { listModels, type ModelCatalogResponse } from "@/lib/api/client";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { cn } from "@/lib/utils/cn";
+import { loggedCatch } from "@/lib/utils/asyncAction";
 import { PanelMessageContent } from "./PanelMessageContent";
 import { ToolIndicator } from "./ToolIndicator";
 import {
@@ -64,7 +65,7 @@ export function AiAssistantPanel({
   useEffect(() => {
     listModels()
       .then(setModelCatalog)
-      .catch(() => {});
+      .catch(loggedCatch("AiAssistantPanel.listModels"));
   }, []);
 
   useEffect(() => {

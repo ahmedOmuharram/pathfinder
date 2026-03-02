@@ -140,6 +140,10 @@ jobs:
         working-directory: apps/web
         run: npm run typecheck
 
+      - name: Check architectural boundaries
+        working-directory: apps/web
+        run: npm run check:boundaries
+
   check-shared-ts:
     name: Check shared TS types
     runs-on: ubuntu-latest

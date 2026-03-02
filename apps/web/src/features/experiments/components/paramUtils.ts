@@ -66,8 +66,8 @@ function inferNumericRange(spec: ParamSpec): {
   max: number;
   step?: number;
 } {
-  const explicitMin = spec.min ?? spec.minValue;
-  const explicitMax = spec.max ?? spec.maxValue;
+  const explicitMin = spec.min;
+  const explicitMax = spec.max;
   if (explicitMin != null && explicitMax != null) {
     return { min: explicitMin, max: explicitMax, step: spec.increment ?? undefined };
   }

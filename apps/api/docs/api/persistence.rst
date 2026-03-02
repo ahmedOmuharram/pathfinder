@@ -2,25 +2,23 @@ Persistence
 ===========
 
 Database layer: SQLAlchemy models, session management, and repositories
-for strategies, plan sessions, and users. Used by the HTTP layer and
-background jobs.
+for strategies and users. Used by the HTTP layer and background jobs.
 
 Overview
 --------
 
-- **ORM Models** — Strategy, PlanSession, User, StrategyHistory. Map to
-  PostgreSQL tables.
+- **ORM Models** — Strategy, User, StrategyHistory. Map to PostgreSQL tables.
 - **Session** — Async engine, session factory, init/close lifecycle.
-- **Repositories** — StrategyRepository, PlanSessionRepository, UserRepository.
+- **Repositories** — StrategyRepository, UserRepository.
   Encapsulate queries and CRUD.
 
 ORM Models
 ----------
 
-**Purpose:** SQLAlchemy models for strategies, plan sessions, users, and
-strategy history. Define the schema and relationships.
+**Purpose:** SQLAlchemy models for strategies, users, and strategy history.
+Define the schema and relationships.
 
-**Key classes:** :py:class:`Strategy`, :py:class:`PlanSession`, :py:class:`User`
+**Key classes:** :py:class:`Strategy`, :py:class:`User`
 
 .. automodule:: veupath_chatbot.persistence.models
    :members:
@@ -44,10 +42,10 @@ Repositories
 ------------
 
 **Purpose:** Data access layer. Encapsulates queries and CRUD operations.
-StrategyRepository: get, create, update, delete strategies. PlanSessionRepository:
-plan sessions. UserRepository: users.
+StrategyRepository: get, create, update, delete strategies.
+UserRepository: users.
 
-**Key classes:** :py:class:`StrategyRepository`, :py:class:`PlanSessionRepository`
+**Key classes:** :py:class:`StrategyRepository`
 
 .. automodule:: veupath_chatbot.persistence.repo
    :members:

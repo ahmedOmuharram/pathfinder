@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
-import { useExperimentStore } from "@/features/experiments/store";
+import { useExperimentViewStore } from "@/features/experiments/store";
 import { ENRICHMENT_ANALYSIS_LABELS } from "@/features/experiments/constants";
 import {
   compareEnrichment,
   type EnrichmentCompareResult,
 } from "@/features/experiments/api";
+import { loggedCatch } from "@/lib/utils/asyncAction";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 interface EnrichmentCompareViewProps {
@@ -15,7 +16,7 @@ interface EnrichmentCompareViewProps {
 const ANALYSIS_LABELS: Record<string, string> = ENRICHMENT_ANALYSIS_LABELS;
 
 export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProps) {
-  const { setView } = useExperimentStore();
+  const { setView } = useExperimentViewStore();
   const [selected, setSelected] = useState<Set<string>>(() => {
     const first = experiments.filter((e) => e.status === "completed").slice(0, 3);
     return new Set(first.map((e) => e.id));
@@ -34,7 +35,7 @@ export function EnrichmentCompareView({ experiments }: EnrichmentCompareViewProp
     queueMicrotask(() => setLoading(true));
     compareEnrichment(selectedIds, analysisType || undefined)
       .then(setResult)
-      .catch(() => {})
+      .catch(loggedCatch("EnrichmentCompareView.compareEnrichment"))
       .finally(() => setLoading(false));
   }, [selectedIds, analysisType]);
 
@@ -172,9 +173,12 @@ function Heatmap({ result }: { result: EnrichmentCompareResult }) {
                 const intensity = val != null ? Math.min(val / maxVal, 1) : 0;
                 const bg =
                   val != null
-                    ? `rgba(30, 41, 59, ${intensity * 0.8 + 0.05})`
-                    : "#f8fafc";
-                const color = val != null && intensity > 0.5 ? "#f8fafc" : "#334155";
+                    ? `hsl(var(--foreground) / ${intensity * 0.8 + 0.05})`
+                    : "hsl(var(--muted))";
+                const color =
+                  val != null && intensity > 0.5
+                    ? "hsl(var(--muted))"
+                    : "hsl(var(--foreground))";
                 return (
                   <td
                     key={eid}

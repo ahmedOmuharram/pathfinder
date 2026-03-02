@@ -1463,66 +1463,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/results/preview:
-    post:
-      tags:
-      - results
-      summary: Preview Results
-      description: 'Preview step results.
-
-
-        Returns a sample of records and total count for the specified step.
-
-        The strategy must have been pushed to WDK first.'
-      operationId: preview_results_api_v1_results_preview_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PreviewRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PreviewResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/results/download:
-    post:
-      tags:
-      - results
-      summary: Download Results
-      description: 'Get download URL for step results.
-
-
-        Creates a temporary result on VEuPathDB and returns a download URL.'
-      operationId: download_results_api_v1_results_download_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DownloadRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DownloadResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/experiments/:
     post:
       tags:
@@ -2926,12 +2866,6 @@ components:
             - high
           - type: 'null'
           title: Reasoningeffort
-        referenceStrategyId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: Referencestrategyid
         mentions:
           items:
             $ref: '#/components/schemas/ChatMention'
@@ -3342,47 +3276,6 @@ components:
       $ref: '#/components/schemas/JSONArray'
       title: DependentParamsResponse
       description: Dependent parameter values response.
-    DownloadRequest:
-      properties:
-        strategyId:
-          type: string
-          format: uuid
-          title: Strategyid
-        stepId:
-          type: string
-          title: Stepid
-        format:
-          type: string
-          title: Format
-          default: csv
-        attributes:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Attributes
-      type: object
-      required:
-      - strategyId
-      - stepId
-      title: DownloadRequest
-      description: Request to download results.
-    DownloadResponse:
-      properties:
-        downloadUrl:
-          type: string
-          title: Downloadurl
-        expiresAt:
-          type: string
-          format: date-time
-          title: Expiresat
-      type: object
-      required:
-      - downloadUrl
-      - expiresAt
-      title: DownloadResponse
-      description: Download response with URL.
     EnrichmentCompareRequest:
       properties:
         experimentIds:
@@ -3778,16 +3671,16 @@ components:
           anyOf:
           - $ref: '#/components/schemas/JSONValue'
           - type: 'null'
-        minValue:
+        min:
           anyOf:
           - type: number
           - type: 'null'
-          title: Minvalue
-        maxValue:
+          title: Min
+        max:
           anyOf:
           - type: number
           - type: 'null'
-          title: Maxvalue
+          title: Max
         isNumber:
           type: boolean
           title: Isnumber
@@ -4074,46 +3967,6 @@ components:
       - updatedAt
       - createdAt
       title: PlanSessionSummaryResponse
-    PreviewRequest:
-      properties:
-        strategyId:
-          type: string
-          format: uuid
-          title: Strategyid
-        stepId:
-          type: string
-          title: Stepid
-        limit:
-          type: integer
-          maximum: 1000.0
-          minimum: 1.0
-          title: Limit
-          default: 100
-      type: object
-      required:
-      - strategyId
-      - stepId
-      title: PreviewRequest
-      description: Request to preview results.
-    PreviewResponse:
-      properties:
-        totalCount:
-          type: integer
-          title: Totalcount
-        records:
-          $ref: '#/components/schemas/JSONArray'
-        columns:
-          items:
-            type: string
-          type: array
-          title: Columns
-      type: object
-      required:
-      - totalCount
-      - records
-      - columns
-      title: PreviewResponse
-      description: Preview results response.
     RecordTypeResponse:
       properties:
         name:

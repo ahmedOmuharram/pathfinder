@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyStep, StrategyWithMeta } from "@pathfinder/shared";
 
 export function useSaveValidation(args: {
   steps: StrategyStep[];

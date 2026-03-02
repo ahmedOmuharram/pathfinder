@@ -11,7 +11,6 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
-
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import WDKError
@@ -162,6 +161,9 @@ class VEuPathDBClient:
                 or self.auth_token
                 or settings.veupathdb_auth_token
             )
+            # WDK authenticates via an ``Authorization`` cookie (not a header).
+            # The VEuPathDB login endpoint sets this cookie on successful auth;
+            # we forward it on every WDK request.
             extra_cookies = {"Authorization": auth_token} if auth_token else None
             httpx_params = _convert_params_for_httpx(params)
             response = await client.request(

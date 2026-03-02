@@ -1,3 +1,14 @@
+/**
+ * Lightweight SVG sparkline for the running-panel sidebar.
+ *
+ * This is intentionally separate from the Recharts-based
+ * `features/chat/components/optimization/OptimizationChart.tsx` which renders a
+ * full interactive chart with tooltips, early-stop reference areas, and a
+ * responsive container. The two components share the same conceptual data
+ * (optimization trial scores) but differ fundamentally in rendering approach
+ * (raw SVG vs Recharts), size budget, and interactivity requirements -- merging
+ * them would add more complexity than it removes.
+ */
 import type { TrialHistoryEntry } from "../../store";
 
 export function OptimizationChart({ trials }: { trials: TrialHistoryEntry[] }) {

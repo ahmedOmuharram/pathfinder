@@ -8,6 +8,8 @@ import type {
   ModelSelection,
   PlanningArtifact,
   OptimizationProgressData,
+  StrategyStep,
+  StrategyWithMeta,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/features/chat/sse_events";
 import { streamChat } from "@/features/chat/stream";
@@ -15,7 +17,7 @@ import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
 import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
-import type { StrategyStep, StrategyWithMeta } from "@/features/strategy/types";
+import { useSessionStore } from "@/state/useSessionStore";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -58,9 +60,6 @@ interface UseChatStreamingArgs {
   mode?: ChatMode;
   /** Per-request model/provider/reasoning selection. */
   modelSelection?: ModelSelection | null;
-  /** Reference strategy ID to inject into plan-mode context. */
-  referenceStrategyId?: string | null;
-
   /** Optional conversation callbacks. */
   onPlanSessionId?: (id: string) => void;
   onPlanningArtifactUpdate?: (artifact: PlanningArtifact) => void;
@@ -101,7 +100,6 @@ export function useChatStreaming({
   attachThinkingToLastAssistant,
   mode = "execute",
   modelSelection,
-  referenceStrategyId,
   onPlanSessionId,
   onPlanningArtifactUpdate,
   onExecutorBuildRequest,
@@ -133,7 +131,6 @@ export function useChatStreaming({
       streamContext: {
         strategyId?: string;
         planSessionId?: string;
-        referenceStrategyId?: string;
         mentions?: ChatMention[];
       },
     ) => {
@@ -259,6 +256,10 @@ export function useChatStreaming({
             if (effectiveStrategyId && !session.snapshotApplied) {
               getStrategy(effectiveStrategyId)
                 .then((full) => {
+                  // Guard against race: only apply if the user hasn't
+                  // switched to a different strategy while awaiting.
+                  const currentId = useSessionStore.getState().strategyId;
+                  if (currentId !== effectiveStrategyId) return;
                   setStrategy(full);
                   setStrategyMeta({
                     name: full.name,
@@ -266,7 +267,12 @@ export function useChatStreaming({
                     siteId: full.siteId,
                   });
                 })
-                .catch(() => {});
+                .catch((err) =>
+                  console.error(
+                    "[useChatStreaming] Failed to refresh strategy after stream:",
+                    err,
+                  ),
+                );
             }
             onStreamComplete?.();
           },
@@ -341,36 +347,19 @@ export function useChatStreaming({
         setDraftSelection(null);
       }
 
-      const streamContext =
-        mode === "plan"
-          ? {
-              planSessionId: planSessionId ?? undefined,
-              referenceStrategyId: referenceStrategyId ?? undefined,
-              mentions,
-            }
-          : {
-              strategyId: strategyId ?? undefined,
-              referenceStrategyId: referenceStrategyId ?? undefined,
-              mentions,
-            };
+      const streamContext = {
+        strategyId: strategyId ?? undefined,
+        mentions,
+      };
 
       await executeStream(finalContent, mode, streamContext);
     },
-    [
-      draftSelection,
-      planSessionId,
-      setMessages,
-      setDraftSelection,
-      strategyId,
-      mode,
-      referenceStrategyId,
-      executeStream,
-    ],
+    [draftSelection, setMessages, setDraftSelection, strategyId, mode, executeStream],
   );
 
   /**
    * System-initiated execution — sends the prompt to the model without
-   * adding a visible user message.  Used for the plan→execute auto-handoff.
+   * adding a visible user message.  Used for auto-handoff scenarios.
    */
   const handleAutoExecute = useCallback(
     async (prompt: string, targetStrategyId: string) => {

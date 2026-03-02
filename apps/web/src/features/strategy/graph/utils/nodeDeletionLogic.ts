@@ -1,4 +1,4 @@
-import type { StrategyStep } from "@/features/strategy/types";
+import type { StrategyStep } from "@pathfinder/shared";
 
 export type NodeDeletionResult = {
   removeIds: string[];

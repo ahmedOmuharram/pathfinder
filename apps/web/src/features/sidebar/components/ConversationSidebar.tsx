@@ -4,50 +4,21 @@
  * ConversationSidebar — unified sidebar that merges plan sessions and strategies
  * into a single chronologically sorted list. Replaces the old separate
  * PlansSidebar + StrategySidebar + sidebar tabs.
+ *
+ * Composed from:
+ * - `useConversationSidebarData` — data fetching, merging, filtering
+ * - `useConversationSidebarActions` — selection, rename, delete, duplicate
+ * - `ConversationList` — list rendering
  */
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  startTransition,
-} from "react";
+import { useCallback } from "react";
 import { RefreshCw } from "lucide-react";
-import {
-  APIError,
-  createStrategy,
-  deletePlanSession,
-  deleteStrategy,
-  getPlanSession,
-  getStrategy,
-  listPlans,
-  openPlanSession,
-  syncWdkStrategies,
-  updatePlanSession,
-  updateStrategy as updateStrategyApi,
-} from "@/lib/api/client";
-import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useStrategyListStore } from "@/state/useStrategyListStore";
-import { useStrategyStore } from "@/state/useStrategyStore";
-import type { StrategyListItem } from "@/features/sidebar/utils/strategyItems";
-import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
-import {
-  type DuplicateModalState,
-  applyDuplicateLoadFailure,
-  applyDuplicateLoadSuccess,
-  initDuplicateModal,
-} from "@/features/sidebar/utils/duplicateModalState";
-import { runDeleteStrategyWorkflow } from "@/features/sidebar/services/strategySidebarWorkflows";
-import type { PlanSessionSummary } from "@pathfinder/shared";
-import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import { ConversationListItem } from "@/features/sidebar/components/ConversationListItem";
+import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
+import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
+import { ConversationList } from "@/features/sidebar/components/ConversationList";
 import { DeleteConversationModal } from "@/features/sidebar/components/DeleteConversationModal";
 import { DuplicateStrategyModal } from "@/features/sidebar/components/DuplicateStrategyModal";
-
-// Props
 
 interface ConversationSidebarProps {
   siteId: string;
@@ -58,452 +29,27 @@ interface ConversationSidebarProps {
 }
 
 export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProps) {
-  // Global state
-  const planSessionId = useSessionStore((s) => s.planSessionId);
-  const setPlanSessionId = useSessionStore((s) => s.setPlanSessionId);
-  const strategyId = useSessionStore((s) => s.strategyId);
-  const setStrategyId = useSessionStore((s) => s.setStrategyId);
-
-  const authToken = useSessionStore((s) => s.authToken);
-  const setAuthToken = useSessionStore((s) => s.setAuthToken);
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
-  const linkedConversations = useSessionStore((s) => s.linkedConversations);
-  const planListVersion = useSessionStore((s) => s.planListVersion);
-  const bumpPlanListVersion = useSessionStore((s) => s.bumpPlanListVersion);
 
-  const graphValidationStatus = useStrategyListStore((s) => s.graphValidationStatus);
-  const removeStrategy = useStrategyListStore((s) => s.removeStrategy);
-
-  const draftStrategy = useStrategyStore((s) => s.strategy);
-  const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
-  const setStrategy = useStrategyStore((s) => s.setStrategy);
-  const clearStrategy = useStrategyStore((s) => s.clear);
-
-  // Local state
-  const [planItems, setPlanItems] = useState<PlanSessionSummary[]>([]);
-  const [strategyItems, setStrategyItems] = useState<StrategyListItem[]>([]);
-  const [query, setQuery] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<ConversationItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState | null>(
-    null,
-  );
-  const [isSyncing, setIsSyncing] = useState(false);
-  /** ID of the conversation item currently being renamed inline. */
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-
-  // Error helpers
   const reportError = useCallback(
     (message: string) => onToast?.({ type: "error", message }),
     [onToast],
   );
-  const handlePlanError = useCallback(
-    (error: unknown, fallback: string) => {
-      if (error instanceof APIError && error.status === 401) {
-        if (!authToken) {
-          setPlanItems([]);
-          return;
-        }
-        setAuthToken(null);
-        setPlanSessionId(null);
-        setPlanItems([]);
-        reportError("Session expired. Refresh to start a new plan.");
-        return;
-      }
-      reportError(toUserMessage(error, fallback));
-    },
-    [authToken, reportError, setAuthToken, setPlanSessionId],
-  );
 
-  // Data fetching
-  const refreshPlans = useCallback(async () => {
-    if (!authToken) {
-      setPlanItems([]);
-      return;
-    }
-    try {
-      const sessions = await listPlans(siteId);
-      // Include the active plan even if server hides empty plans
-      if (planSessionId && !sessions.some((p) => p.id === planSessionId)) {
-        const active = await getPlanSession(planSessionId).catch(() => null);
-        if (active) {
-          setPlanItems([
-            {
-              id: active.id,
-              siteId: active.siteId,
-              title: active.title || "New Conversation",
-              createdAt: active.createdAt,
-              updatedAt: active.updatedAt,
-            },
-            ...sessions,
-          ]);
-          return;
-        }
-      }
-      setPlanItems(sessions);
-    } catch (error) {
-      setPlanItems([]);
-      handlePlanError(error, "Failed to load plans.");
-    }
-  }, [authToken, handlePlanError, planSessionId, siteId]);
-
-  // Guard against concurrent sync calls (e.g. two useEffects firing on mount).
-  const syncInFlight = useRef(false);
-
-  const refreshStrategies = useCallback(() => {
-    if (syncInFlight.current) return Promise.resolve();
-    syncInFlight.current = true;
-    return syncWdkStrategies(siteId)
-      .then((strategies) => {
-        const now = new Date().toISOString();
-        const items: StrategyListItem[] = strategies.map((s) => ({
-          id: s.id,
-          name: s.name,
-          updatedAt: s.updatedAt ?? now,
-          siteId: s.siteId,
-          wdkStrategyId: s.wdkStrategyId,
-          isSaved: s.isSaved ?? false,
-        }));
-        setStrategyItems(items);
-      })
-      .catch((err) => {
-        console.warn("[ConversationSidebar] Failed to sync strategies:", err);
-      })
-      .finally(() => {
-        syncInFlight.current = false;
-      });
-  }, [siteId]);
-
-  const handleManualRefresh = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      await Promise.all([refreshPlans(), refreshStrategies()]);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [refreshPlans, refreshStrategies]);
-
-  // Refresh both on mount / auth / site change
-  useEffect(() => {
-    startTransition(() => {
-      void refreshPlans();
-      void refreshStrategies();
-    });
-  }, [refreshPlans, refreshStrategies]);
-
-  // Re-fetch plans when planListVersion bumps (after new plan creation / title change)
-  useEffect(() => {
-    if (planListVersion > 0) void refreshPlans();
-  }, [planListVersion, refreshPlans]);
-
-  // Re-fetch strategies when draft strategy changes
-  useEffect(() => {
-    void refreshStrategies();
-  }, [draftStrategy?.id, draftStrategy?.updatedAt, refreshStrategies]);
-
-  // Ensure there's always an active plan session
-  const ensureActivePlan = useCallback(async () => {
-    if (!authToken) return;
-    if (planSessionId) return;
-    // Don't create a new plan if a strategy is currently selected
-    if (strategyId) return;
-    const existing = await listPlans(siteId).catch((error) => {
-      handlePlanError(error, "Failed to load plans.");
-      return [];
-    });
-    if (existing.length > 0) {
-      setPlanItems(existing);
-      setPlanSessionId(existing[0].id);
-      return;
-    }
-    try {
-      const res = await openPlanSession({ siteId, title: "New Conversation" });
-      setPlanSessionId(res.planSessionId);
-      await refreshPlans();
-    } catch (error) {
-      handlePlanError(error, "Failed to open a new plan.");
-    }
-  }, [
-    authToken,
-    handlePlanError,
-    planSessionId,
-    strategyId,
-    refreshPlans,
-    setPlanSessionId,
+  const data = useConversationSidebarData({ siteId, reportError });
+  const actions = useConversationSidebarActions({
     siteId,
-  ]);
-
-  useEffect(() => {
-    startTransition(() => {
-      ensureActivePlan();
-    });
-  }, [ensureActivePlan]);
-
-  // Build merged conversation list
-  const linkedStrategyIds = useMemo(
-    () => new Set(Object.values(linkedConversations)),
-    [linkedConversations],
-  );
-  const linkedPlanIds = useMemo(
-    () => new Set(Object.keys(linkedConversations)),
-    [linkedConversations],
-  );
-
-  const conversations: ConversationItem[] = useMemo(() => {
-    // Plans that haven't graduated (i.e. aren't linked to a strategy)
-    const plans: ConversationItem[] = planItems
-      .filter((p) => !linkedPlanIds.has(p.id))
-      .map((p) => ({
-        id: p.id,
-        kind: "plan" as const,
-        title: p.title || "New Conversation",
-        updatedAt: p.updatedAt,
-        siteId: p.siteId,
-      }));
-
-    // Also show the current active plan optimistically if not yet in the list
-    if (planSessionId && !linkedPlanIds.has(planSessionId)) {
-      const exists = plans.some((p) => p.id === planSessionId);
-      if (!exists) {
-        const now = new Date().toISOString();
-        plans.unshift({
-          id: planSessionId,
-          kind: "plan",
-          title: "New Conversation",
-          updatedAt: now,
-          siteId,
-        });
-      }
-    }
-
-    const strategies: ConversationItem[] = strategyItems.map((s) => ({
-      id: s.id,
-      kind: "strategy" as const,
-      title: s.name,
-      updatedAt: s.updatedAt,
-      siteId: s.siteId,
-      strategyItem: s,
-    }));
-
-    // Merge and sort by updatedAt descending
-    return [...plans, ...strategies].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    );
-  }, [planItems, strategyItems, linkedPlanIds, planSessionId, siteId]);
-
-  // Filter
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter((c) => c.title.toLowerCase().includes(q));
-  }, [conversations, query]);
-
-  // Selection logic
-  const activeId = strategyId || planSessionId || null;
-
-  const handleSelect = useCallback(
-    (item: ConversationItem) => {
-      if (item.kind === "plan") {
-        setStrategyId(null); // clears strategyId so the panel switches to plan mode
-        clearStrategy();
-        setPlanSessionId(item.id);
-      } else {
-        // Strategy — directly hydrate by local strategyId.
-        // The sidebar is populated from the sync response, so the strategy
-        // is guaranteed to exist in the DB.  If it somehow doesn't (race /
-        // DB reset mid-session), just refresh.
-        const si = item.strategyItem;
-        if (!si) return;
-        setStrategyId(si.id);
-        clearStrategy();
-        getStrategy(si.id)
-          .then((full) => {
-            setStrategy(full);
-            setStrategyMeta({
-              name: full.name,
-              recordType: full.recordType ?? undefined,
-              siteId: full.siteId,
-            });
-          })
-          .catch((err) => {
-            setStrategyId(null);
-            reportError(toUserMessage(err, "Couldn't load strategy. Refreshing list."));
-            void refreshStrategies();
-          });
-      }
-    },
-    [
-      clearStrategy,
-      setPlanSessionId,
-      setStrategyId,
-      setStrategy,
-      setStrategyMeta,
-      reportError,
-      refreshStrategies,
-    ],
-  );
-
-  // New conversation
-  const handleNewConversation = useCallback(async () => {
-    try {
-      const res = await openPlanSession({ siteId, title: "New Conversation" });
-      setStrategyId(null);
-      clearStrategy();
-      setPlanSessionId(res.planSessionId);
-      const now = new Date().toISOString();
-      setPlanItems((prev) => [
-        {
-          id: res.planSessionId,
-          siteId,
-          title: "New Conversation",
-          createdAt: now,
-          updatedAt: now,
-        },
-        ...prev.filter((p) => p.id !== res.planSessionId),
-      ]);
-      void refreshPlans();
-    } catch (error) {
-      handlePlanError(error, "Failed to open a new conversation.");
-    }
-  }, [
-    siteId,
-    setStrategyId,
-    clearStrategy,
-    setPlanSessionId,
-    refreshPlans,
-    handlePlanError,
-  ]);
-
-  // Delete conversation
-  const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      if (deleteTarget.kind === "plan") {
-        await deletePlanSession(deleteTarget.id).catch((error) => {
-          handlePlanError(error, "Failed to delete conversation.");
-        });
-        const wasActive = planSessionId === deleteTarget.id;
-        if (wasActive) setPlanSessionId(null);
-        await refreshPlans();
-        if (wasActive) {
-          try {
-            const res = await openPlanSession({ siteId, title: "New Conversation" });
-            setPlanSessionId(res.planSessionId);
-            await refreshPlans();
-          } catch (error) {
-            handlePlanError(error, "Failed to open a new conversation.");
-          }
-        }
-      } else {
-        // Strategy delete
-        const si = deleteTarget.strategyItem;
-        if (si) {
-          await runDeleteStrategyWorkflow({
-            item: si,
-            currentStrategyId: strategyId || null,
-            setStrategyItems,
-            clearStrategy,
-            removeStrategy,
-            setStrategyId,
-            setDeleteError: () => {},
-            deleteStrategyApi: deleteStrategy,
-            refreshStrategies,
-            reportError: (msg) => reportError(msg),
-          });
-        }
-      }
-    } finally {
-      setIsDeleting(false);
-      setDeleteTarget(null);
-    }
-  }, [
-    deleteTarget,
-    planSessionId,
-    strategyId,
-    siteId,
-    handlePlanError,
-    setPlanSessionId,
-    setStrategyId,
-    clearStrategy,
-    removeStrategy,
-    refreshPlans,
-    refreshStrategies,
     reportError,
-  ]);
+    handlePlanError: data.handlePlanError,
+    refreshPlans: data.refreshPlans,
+    refreshStrategies: data.refreshStrategies,
+    setPlanItems: data.setPlanItems,
+    setStrategyItems: data.setStrategyItems,
+  });
 
-  // Strategy-specific actions
-
-  const startRename = useCallback((item: ConversationItem) => {
-    setRenamingId(item.id);
-    setRenameValue(item.title);
-  }, []);
-
-  const commitRename = useCallback(
-    async (item: ConversationItem) => {
-      const next = renameValue.trim();
-      if (!next || next === item.title) {
-        setRenamingId(null);
-        return;
-      }
-      try {
-        if (item.kind === "plan") {
-          await updatePlanSession(item.id, { title: next });
-          bumpPlanListVersion();
-          void refreshPlans();
-        } else {
-          await updateStrategyApi(item.id, { name: next });
-          void refreshStrategies();
-        }
-      } catch (err) {
-        reportError(toUserMessage(err, "Failed to rename."));
-      }
-      setRenamingId(null);
-    },
-    [renameValue, bumpPlanListVersion, refreshPlans, refreshStrategies, reportError],
-  );
-
-  const handleDuplicate = useCallback(
-    async (strategyIdToDuplicate: string, name: string, description: string) => {
-      const baseStrategy = await getStrategy(strategyIdToDuplicate);
-      const plan = buildDuplicatePlan({ baseStrategy, name, description });
-      await createStrategy({
-        name,
-        siteId: baseStrategy.siteId,
-        plan,
-      });
-      void refreshStrategies();
-    },
-    [refreshStrategies],
-  );
-
-  const handleToggleSaved = useCallback(
-    async (si: StrategyListItem) => {
-      const nextSaved = !si.isSaved;
-      try {
-        await updateStrategyApi(si.id, { isSaved: nextSaved });
-        // Optimistically update the item in the list.
-        setStrategyItems((items) =>
-          items.map((item) =>
-            item.id === si.id ? { ...item, isSaved: nextSaved } : item,
-          ),
-        );
-      } catch (err) {
-        reportError(
-          toUserMessage(
-            err,
-            nextSaved ? "Failed to save strategy." : "Failed to revert to draft.",
-          ),
-        );
-      }
-    },
-    [reportError],
-  );
-
-  // Render
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-4">
+      {/* Header: title + action buttons */}
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
@@ -512,18 +58,21 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
           <button
             data-testid="conversations-refresh-button"
             type="button"
-            disabled={chatIsStreaming || isSyncing}
-            onClick={() => void handleManualRefresh()}
+            disabled={chatIsStreaming || data.isSyncing}
+            onClick={() => void data.handleManualRefresh()}
             className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             title="Refresh conversations & strategies"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${data.isSyncing ? "animate-spin" : ""}`}
+            />
           </button>
           <button
             data-testid="conversations-new-button"
             type="button"
             disabled={chatIsStreaming}
-            onClick={() => void handleNewConversation()}
+            onClick={() => void actions.handleNewConversation()}
+            aria-label="New chat"
             className="rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             New Chat
@@ -531,77 +80,57 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         </div>
       </div>
 
+      {/* Search */}
       <input
         data-testid="conversations-search-input"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        value={data.query}
+        onChange={(e) => data.setQuery(e.target.value)}
         placeholder="Search conversations..."
+        aria-label="Search conversations"
         className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="space-y-1">
-          {filtered.length === 0 && (
-            <div className="text-sm text-muted-foreground py-4 text-center">
-              {query.trim()
-                ? "No conversations match your search."
-                : "No conversations yet. Click \u201cNew Chat\u201d to get started."}
-            </div>
-          )}
-          {filtered.map((item) => {
-            const si = item.strategyItem;
-            return (
-              <ConversationListItem
-                key={item.id}
-                item={item}
-                isActive={activeId === item.id}
-                isRenaming={renamingId === item.id}
-                renameValue={renameValue}
-                graphHasValidationIssue={Boolean(si && graphValidationStatus[si.id])}
-                onRenameValueChange={setRenameValue}
-                onCommitRename={(target) => {
-                  void commitRename(target);
-                }}
-                onCancelRename={() => setRenamingId(null)}
-                onSelect={handleSelect}
-                onStartRename={startRename}
-                onStartDelete={setDeleteTarget}
-                onStartDuplicate={(strategy) => {
-                  setDuplicateModal(initDuplicateModal(strategy));
-                  getStrategy(strategy.id)
-                    .then((loadedStrategy) => {
-                      setDuplicateModal((prev) =>
-                        prev ? applyDuplicateLoadSuccess(prev, loadedStrategy) : prev,
-                      );
-                    })
-                    .catch(() => {
-                      setDuplicateModal((prev) =>
-                        prev ? applyDuplicateLoadFailure(prev) : prev,
-                      );
-                    });
-                }}
-                onToggleSaved={(strategy) => {
-                  void handleToggleSaved(strategy);
-                }}
-              />
-            );
-          })}
+      {/* Loading skeleton */}
+      {data.isSyncing && data.filtered.length === 0 && (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div
+              key={i}
+              className="h-14 animate-pulse rounded-md border border-border bg-muted/50"
+            />
+          ))}
         </div>
-      </div>
+      )}
 
+      {/* Conversation list */}
+      <ConversationList
+        items={data.filtered}
+        query={data.query}
+        activeId={actions.activeId}
+        renamingId={actions.renamingId}
+        renameValue={actions.renameValue}
+        onRenameValueChange={actions.setRenameValue}
+        onCommitRename={(target) => void actions.commitRename(target)}
+        onCancelRename={actions.cancelRename}
+        onSelect={actions.handleSelect}
+        onStartRename={actions.startRename}
+        onStartDelete={actions.setDeleteTarget}
+        onStartDuplicate={actions.startDuplicate}
+        onToggleSaved={(si) => void actions.handleToggleSaved(si)}
+      />
+
+      {/* Modals */}
       <DeleteConversationModal
-        target={deleteTarget}
-        isDeleting={isDeleting}
-        onClose={() => setDeleteTarget(null)}
-        onConfirmDelete={() => {
-          void confirmDelete();
-        }}
+        target={actions.deleteTarget}
+        isDeleting={actions.isDeleting}
+        onClose={() => actions.setDeleteTarget(null)}
+        onConfirmDelete={() => void actions.confirmDelete()}
       />
 
       <DuplicateStrategyModal
-        duplicateModal={duplicateModal}
-        setDuplicateModal={setDuplicateModal}
-        onDuplicate={handleDuplicate}
+        duplicateModal={actions.duplicateModal}
+        setDuplicateModal={actions.setDuplicateModal}
+        onDuplicate={actions.handleDuplicate}
       />
     </div>
   );

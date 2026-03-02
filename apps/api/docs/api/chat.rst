@@ -16,7 +16,7 @@ Chat Bootstrap
 --------------
 
 **Purpose:** Bootstrap the chat session. Load existing messages from the
-strategy or plan session, attach thinking state, set up streaming. Used by
+strategy conversation, attach thinking state, set up streaming. Used by
 the chat HTTP endpoint before starting the stream.
 
 **Key functions:** Session loading, message merge, thinking state init
@@ -37,6 +37,40 @@ Coordinates between the agent and the strategy store.
 **Key functions:** Main orchestration entry point, tool result handling
 
 .. automodule:: veupath_chatbot.services.chat.orchestrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Chat Stream Processor
+---------------------
+
+**Purpose:** Process SSE events from the agent stream. Handles strategy
+updates, tool calls, assistant messages, and sub-kani activity. Persists
+state to the strategy conversation.
+
+.. automodule:: veupath_chatbot.services.chat.processor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Mention Context
+---------------
+
+**Purpose:** Build rich context from @-mentions (strategies and experiments).
+Loads referenced entities and formats them for the agent's system prompt.
+
+.. automodule:: veupath_chatbot.services.chat.mention_context
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Chat Utils
+----------
+
+**Purpose:** Shared utilities for chat processing: node selection parsing,
+message formatting, and stream helpers.
+
+.. automodule:: veupath_chatbot.services.chat.utils
    :members:
    :undoc-members:
    :show-inheritance:

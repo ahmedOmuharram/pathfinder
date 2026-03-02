@@ -2,20 +2,20 @@ import { useState } from "react";
 import { FileText, FlaskConical } from "lucide-react";
 import type {
   ChatMention,
+  ChatMode,
   Message,
   ToolCall,
   PlanningArtifact,
   OptimizationProgressData,
+  StrategyWithMeta,
 } from "@pathfinder/shared";
-import type { ChatMode } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
 import { decodeNodeSelection } from "@/features/chat/node_selection";
 import { ChatEmptyState } from "@/features/chat/components/ChatEmptyState";
-import { NodeCard } from "@/features/chat/components/NodeCard";
-import { ChatMarkdown } from "@/features/chat/components/ChatMarkdown";
-import { ThinkingPanel } from "@/features/chat/components/ThinkingPanel";
-import { OptimizationProgressPanel } from "@/features/chat/components/OptimizationProgressPanel";
-import { AssistantMessageParts } from "@/features/chat/components/AssistantMessageParts";
+import { NodeCard } from "@/features/chat/components/delegation/NodeCard";
+import { ChatMarkdown } from "@/features/chat/components/message/ChatMarkdown";
+import { ThinkingPanel } from "@/features/chat/components/thinking/ThinkingPanel";
+import { OptimizationProgressPanel } from "@/features/chat/components/optimization/OptimizationProgressPanel";
+import { AssistantMessageParts } from "@/features/chat/components/message/AssistantMessageParts";
 import { formatMessageTime } from "@/lib/formatTime";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +27,6 @@ interface ChatMessageListProps {
   siteId: string;
   displayName: string;
   firstName?: string;
-  signedIn: boolean;
   mode?: ChatMode;
   isStreaming: boolean;
   messages: Message[];
@@ -52,7 +51,6 @@ export function ChatMessageList({
   siteId,
   displayName,
   firstName,
-  signedIn,
   mode = "execute",
   isStreaming,
   messages,
@@ -97,7 +95,6 @@ export function ChatMessageList({
           siteId={siteId}
           displayName={displayName}
           firstName={firstName}
-          signedIn={signedIn}
           onSend={onSend}
           isStreaming={isStreaming}
           hasMessages={messages.length > 0}
@@ -225,7 +222,7 @@ function MentionChips({ mentions }: { mentions: ChatMention[] }) {
         return (
           <span
             key={`${m.type}-${m.id}`}
-            className="inline-flex items-center gap-1 rounded-md bg-blue-900/40 px-2 py-0.5 text-xs font-medium text-blue-200 ring-1 ring-inset ring-blue-700/50"
+            className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary-foreground ring-1 ring-inset ring-primary/30"
           >
             <Icon className="h-2.5 w-2.5 shrink-0" />
             {m.displayName}

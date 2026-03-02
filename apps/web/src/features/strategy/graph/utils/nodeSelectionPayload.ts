@@ -1,4 +1,4 @@
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyWithMeta } from "@pathfinder/shared";
 import type { NodeSelection } from "@/features/chat/node_selection";
 import { inferStepKind } from "@/lib/strategyGraph";
 

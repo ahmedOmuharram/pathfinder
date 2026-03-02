@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { Pencil } from "lucide-react";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { StrategyWithMeta } from "@pathfinder/shared";
 import {
   buildSpineLayout,
   type CompactStep,
@@ -21,15 +21,15 @@ import { VennIcon } from "@/features/strategy/graph/components/OpBadge";
 // Style helpers
 
 const KIND_BORDER: Record<string, string> = {
-  search: "border-emerald-400/70",
-  combine: "border-sky-400/70",
-  transform: "border-violet-400/70",
+  search: "border-[hsl(var(--kind-leaf)/0.7)]",
+  combine: "border-[hsl(var(--kind-combine)/0.7)]",
+  transform: "border-[hsl(var(--kind-transform)/0.7)]",
 };
 
 const KIND_COUNT: Record<string, string> = {
-  search: "text-emerald-600",
-  combine: "text-sky-600",
-  transform: "text-violet-600",
+  search: "text-[hsl(var(--kind-leaf))]",
+  combine: "text-[hsl(var(--kind-combine))]",
+  transform: "text-[hsl(var(--kind-transform))]",
 };
 
 // Primitives

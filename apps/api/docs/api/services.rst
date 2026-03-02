@@ -20,7 +20,7 @@ Gene Lookup
 -----------
 
 **Purpose:** Resolve gene names and IDs via VEuPathDB site-search and the WDK
-stateless reporter. Used by the planner to validate gene references from
+stateless reporter. Used by the agent to validate gene references from
 literature or user input.
 
 **Key functions:**
@@ -29,6 +29,41 @@ literature or user input.
 - :py:func:`resolve_gene_ids` — Resolve a list of known IDs to full records via WDK
 
 .. automodule:: veupath_chatbot.services.gene_lookup
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.lookup
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.enrich
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.organism
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.result
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.scoring
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.site_search
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.gene_lookup.wdk
    :members:
    :undoc-members:
    :show-inheritance:
@@ -43,6 +78,21 @@ trial runs a temporary WDK strategy and scores the result.
 **Key types:** ``ParameterSpec``, ``OptimizationConfig``, ``OptimizationResult``
 
 .. automodule:: veupath_chatbot.services.parameter_optimization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.core
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.scoring
    :members:
    :undoc-members:
    :show-inheritance:
@@ -100,7 +150,7 @@ Strategy Session
 **Purpose:** Load and merge strategy state with conversation messages. Used
 when switching strategies or restoring sessions.
 
-.. automodule:: veupath_chatbot.services.strategy_session
+.. automodule:: veupath_chatbot.domain.strategy.session
    :members:
    :undoc-members:
    :show-inheritance:

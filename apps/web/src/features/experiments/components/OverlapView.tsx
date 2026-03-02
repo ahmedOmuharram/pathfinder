@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import type { ExperimentSummary } from "@pathfinder/shared";
 import { toUserMessage } from "@/lib/api/errors";
 import type { SortDir } from "../constants";
-import { useExperimentStore } from "../store";
+import { useExperimentViewStore } from "../store";
 import { computeOverlap, type OverlapResult } from "../api";
 import { ArrowLeft, ArrowUpDown, Loader2 } from "lucide-react";
 
@@ -11,7 +11,7 @@ interface OverlapViewProps {
 }
 
 export function OverlapView({ experiments }: OverlapViewProps) {
-  const { setView } = useExperimentStore();
+  const { setView } = useExperimentViewStore();
   const [selected, setSelected] = useState<Set<string>>(() => {
     const first2 = experiments.filter((e) => e.status === "completed").slice(0, 2);
     return new Set(first2.map((e) => e.id));

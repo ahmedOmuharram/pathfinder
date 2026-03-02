@@ -48,9 +48,6 @@ def _get_push_lock(strategy_id: UUID) -> asyncio.Lock:
 
 async def try_auto_push_to_wdk(
     strategy_id: UUID,
-    # strategy_repo is accepted for API compat but NOT used — we create
-    # our own session to avoid sharing the request-scoped connection.
-    strategy_repo: StrategyRepository | None = None,
 ) -> None:
     """Push a strategy to WDK if it has a ``wdk_strategy_id``.
 

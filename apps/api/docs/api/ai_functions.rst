@@ -1,11 +1,11 @@
 AI Functions Reference
 ======================
 
-Complete list of tools (``@ai_function()``) exposed to the LLM, grouped by
-mode and purpose. The LLM sees these as callable functions with schemas.
+Complete list of tools (``@ai_function()``) exposed to the LLM. The unified
+agent has access to all tools and decides per-turn which to use.
 
-Execute Mode (PathfinderAgent)
-------------------------------
+PathfinderAgent (Unified)
+-------------------------
 
 **Catalog / Discovery**
 
@@ -57,40 +57,20 @@ Execute Mode (PathfinderAgent)
 - ``web_search`` — DuckDuckGo web search
 - ``literature_search`` — Scientific literature search
 
-Plan Mode (PathfinderPlannerAgent)
-----------------------------------
-
-**Catalog (live only in plan mode)**
-
-- ``list_sites``
-- ``get_record_types``
-- ``list_searches``
-- ``search_for_searches``
-- ``get_search_parameters``
-
-**Planning Artifacts**
-
-- ``save_planning_artifact`` — Save artifact (title, summary, parameters, proposed_strategy_plan)
-- ``save_delegation_plan_draft`` — Save/update delegation draft
-- ``request_executor_build`` — Hand off to executor with goal and optional plan
-- ``list_saved_planning_artifacts`` — List saved artifacts
-- ``get_saved_planning_artifact`` — Get one artifact by ID
-
-**Validation & Research**
+**Validation & Optimization**
 
 - ``run_control_tests`` — Run positive/negative control gene lists
 - ``optimize_search_parameters`` — Optimize parameters (Bayesian, grid, random)
 - ``lookup_gene_records`` — Look up genes by text
 - ``resolve_gene_ids_to_records`` — Resolve gene IDs to records
 
-**Research**
+**Artifacts**
 
-- ``web_search``
-- ``literature_search``
+- ``save_planning_artifact`` — Save artifact (title, summary, parameters, proposed_strategy_plan)
 
 **Session**
 
-- ``set_conversation_title`` — Set plan session title
+- ``set_conversation_title`` — Set conversation title
 - ``report_reasoning`` — Report reasoning to the user
 
 SubtaskAgent (Sub-kani)
@@ -103,5 +83,5 @@ but cannot delegate further.
 Detailed Tool Docs
 ------------------
 
-See :doc:`tools` for full module reference (registry, planner_registry,
+See :doc:`tools` for full module reference (unified_registry, registry,
 research_registry, execution_tools).

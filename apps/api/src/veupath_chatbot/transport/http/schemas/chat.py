@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from veupath_chatbot.ai.models.catalog import ChatMode, ModelProvider, ReasoningEffort
+from veupath_chatbot.ai.models.catalog import ModelProvider, ReasoningEffort
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.mention_context import MentionType
 
@@ -26,21 +26,14 @@ class ChatRequest(BaseModel):
     """Request to send a chat message."""
 
     strategy_id: UUID | None = Field(default=None, alias="strategyId")
-    plan_session_id: UUID | None = Field(default=None, alias="planSessionId")
     site_id: str = Field(alias="siteId")
     message: str = Field(min_length=1, max_length=200_000)
-    mode: ChatMode = Field(default="execute")
 
     # Per-request model overrides (optional; falls back to server defaults).
     provider: ModelProvider | None = Field(default=None)
     model_id: str | None = Field(default=None, alias="model")
     reasoning_effort: ReasoningEffort | None = Field(
         default=None, alias="reasoningEffort"
-    )
-
-    # Optional reference strategy for plan-mode context injection (legacy).
-    reference_strategy_id: UUID | None = Field(
-        default=None, alias="referenceStrategyId"
     )
 
     # @-mention references to strategies and experiments.
@@ -91,7 +84,7 @@ class MessageResponse(BaseModel):
     sub_kani_activity: SubKaniActivityResponse | None = Field(
         default=None, alias="subKaniActivity"
     )
-    mode: ChatMode | None = Field(default=None)
+    mode: str | None = Field(default=None)
     citations: JSONArray | None = None
     planning_artifacts: JSONArray | None = Field(
         default=None, alias="planningArtifacts"

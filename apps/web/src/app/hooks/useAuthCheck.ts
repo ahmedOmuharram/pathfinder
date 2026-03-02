@@ -27,7 +27,8 @@ export function useAuthCheck(): { authLoading: boolean } {
           setAuthStatusKnown(true);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[useAuthCheck]", err);
         if (!cancelled) {
           setVeupathdbAuth(false, null);
           setAuthStatusKnown(true);

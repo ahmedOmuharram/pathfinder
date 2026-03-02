@@ -23,6 +23,18 @@ from veupath_chatbot.tests.fixtures.scripted_engine import (
     ScriptedTurn,
 )
 
+# Auto-skip live_wdk tests unless LIVE_WDK_TESTS=1 is set.
+_skip_live_wdk = pytest.mark.skipif(
+    os.environ.get("LIVE_WDK_TESTS") != "1",
+    reason="Live WDK tests disabled (set LIVE_WDK_TESTS=1 to run)",
+)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        if item.get_closest_marker("live_wdk") is not None:
+            item.add_marker(_skip_live_wdk)
+
 
 async def _probe_connection(url: str) -> bool:
     """Try connecting to the given URL. Returns False if role does not exist."""
@@ -180,7 +192,7 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "strategy_history, strategies, plan_sessions, users "
+            "strategy_history, strategies, users "
             "RESTART IDENTITY CASCADE"
         )
 

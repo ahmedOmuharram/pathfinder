@@ -32,7 +32,7 @@ export const NODE_STYLES: Record<
   transform: { fill: "#f5f3ff", stroke: "#c4b5fd", textFill: "#5b21b6" },
 };
 
-export const MUTATED_STROKE = "#f59e0b";
+export const MUTATED_STROKE = "hsl(var(--chart-3))";
 
 export const OP_FILL: Record<string, string> = {
   [CombineOperator.INTERSECT]: "#dbeafe",

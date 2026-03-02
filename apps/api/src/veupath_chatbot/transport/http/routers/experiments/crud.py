@@ -14,6 +14,7 @@ from veupath_chatbot.services.experiment.types import (
     experiment_summary_to_json,
     experiment_to_json,
 )
+from veupath_chatbot.transport.http.deps import ExperimentDep
 
 router = APIRouter()
 
@@ -74,7 +75,9 @@ async def create_strategy(request: CreateStrategyRequest) -> JSONObject:
     the WDK strategy ID so it can be used with ``mode="import"`` experiments.
     """
     from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-    from veupath_chatbot.services.experiment.service import _materialize_step_tree
+    from veupath_chatbot.services.experiment.materialization import (
+        _materialize_step_tree,
+    )
 
     if not isinstance(request.step_tree, dict):
         raise NotFoundError(title="stepTree must be a JSON object")
@@ -208,46 +211,36 @@ async def list_experiments(
 
 
 @router.get("/{experiment_id}")
-async def get_experiment(experiment_id: str) -> JSONObject:
+async def get_experiment(exp: ExperimentDep) -> JSONObject:
     """Get full experiment details including all results."""
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
     return experiment_to_json(exp)
 
 
 @router.patch("/{experiment_id}")
 async def update_experiment(
-    experiment_id: str,
+    exp: ExperimentDep,
     request_body: dict[str, object],
 ) -> JSONObject:
     """Update experiment metadata (e.g. notes)."""
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
-
     if "notes" in request_body:
         exp.notes = (
             str(request_body["notes"]) if request_body["notes"] is not None else None
         )
 
+    store = get_experiment_store()
     store.save(exp)
     return experiment_to_json(exp)
 
 
 @router.delete("/{experiment_id}")
-async def delete_experiment(experiment_id: str) -> JSONObject:
+async def delete_experiment(exp: ExperimentDep) -> JSONObject:
     """Delete an experiment and clean up its WDK strategy."""
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
-
-    from veupath_chatbot.services.experiment.service import cleanup_experiment_strategy
+    from veupath_chatbot.services.experiment.materialization import (
+        cleanup_experiment_strategy,
+    )
 
     await cleanup_experiment_strategy(exp)
 
-    await store.adelete(experiment_id)
+    store = get_experiment_store()
+    await store.adelete(exp.id)
     return {"success": True}

@@ -11,9 +11,10 @@ import type {
 } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Button } from "@/lib/components/ui/Button";
-import { ModelPicker } from "./ModelPicker";
-import { ReasoningToggle } from "./ReasoningToggle";
-import { MentionAutocomplete } from "./MentionAutocomplete";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
+import { ModelPicker } from "./thinking/ModelPicker";
+import { ReasoningToggle } from "./message/ReasoningToggle";
+import { MentionAutocomplete } from "./message/MentionAutocomplete";
 
 interface MessageComposerProps {
   onSend: (message: string, mentions?: ChatMention[]) => void;
@@ -161,22 +162,38 @@ export function MessageComposer({
       <div className="flex flex-wrap items-center gap-2">
         {/* Model picker */}
         {models.length > 0 && onModelChange && (
-          <ModelPicker
-            models={models}
-            selectedModelId={selectedModelId}
-            onSelect={(id) => onModelChange(id || null)}
-            disabled={isStreaming}
-            serverDefaultId={serverDefaultModelId}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <ModelPicker
+                  models={models}
+                  selectedModelId={selectedModelId}
+                  onSelect={(id) => onModelChange(id || null)}
+                  disabled={isStreaming}
+                  serverDefaultId={serverDefaultModelId}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Choose the AI model for this message</TooltipContent>
+          </Tooltip>
         )}
 
         {/* Reasoning effort toggle */}
         {supportsReasoning && onReasoningChange && (
-          <ReasoningToggle
-            value={reasoningEffort}
-            onChange={onReasoningChange}
-            disabled={isStreaming}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <ReasoningToggle
+                  value={reasoningEffort}
+                  onChange={onReasoningChange}
+                  disabled={isStreaming}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              Higher effort produces more detailed analysis
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
 
@@ -205,9 +222,10 @@ export function MessageComposer({
                     <button
                       type="button"
                       onClick={() => removeMention(i)}
+                      aria-label={`Remove mention: ${m.displayName}`}
                       className="ml-0.5 rounded p-0.5 text-primary/50 transition-colors duration-150 hover:bg-primary/10 hover:text-primary"
                     >
-                      <X className="h-2.5 w-2.5" />
+                      <X className="h-2.5 w-2.5" aria-hidden />
                     </button>
                   </span>
                 );

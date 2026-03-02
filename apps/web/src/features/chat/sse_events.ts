@@ -4,8 +4,8 @@ import type {
   Citation,
   PlanningArtifact,
   OptimizationProgressData,
+  StrategyWithMeta,
 } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
 import type { RawSSEEvent } from "@/lib/sse";
 import { isRecord } from "@/lib/utils/isRecord";
 

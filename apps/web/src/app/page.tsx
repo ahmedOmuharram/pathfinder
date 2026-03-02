@@ -92,7 +92,8 @@ export default function HomePage() {
       .then((result) => {
         if (result.authToken) setAuthToken(result.authToken);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[refreshAuth]", err);
         setAuthToken(null);
       });
   }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, setAuthToken]);
@@ -136,15 +137,16 @@ export default function HomePage() {
         onSiteChange={handleSiteChange}
         actions={
           <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              className="pointer-events-none bg-primary/10 text-primary shadow-none"
+            <span
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+              aria-current="page"
             >
               <MessageCircle className="h-3.5 w-3.5" aria-hidden />
               Chat
-            </Button>
+            </span>
             <Link
               href="/experiments"
+              aria-label="Go to Experiments"
               className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
             >
               <FlaskConical className="h-3.5 w-3.5" aria-hidden />
@@ -172,6 +174,9 @@ export default function HomePage() {
         </div>
 
         <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
           onMouseDown={startDragging}
           className="w-1 cursor-col-resize bg-muted transition-colors duration-150 hover:bg-primary/20"
         />

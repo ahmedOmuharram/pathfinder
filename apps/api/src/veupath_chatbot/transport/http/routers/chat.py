@@ -6,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from veupath_chatbot.services.chat.orchestrator import start_chat_stream
 from veupath_chatbot.transport.http.deps import (
     CurrentUser,
-    PlanSessionRepo,
     StrategyRepo,
     UserRepo,
 )
@@ -31,7 +30,6 @@ async def chat(
     request: ChatRequest,
     user_repo: UserRepo,
     strategy_repo: StrategyRepo,
-    plan_repo: PlanSessionRepo,
     user_id: CurrentUser,
 ) -> StreamingResponse:
     """Send a chat message and receive streaming response.
@@ -42,16 +40,12 @@ async def chat(
         message=request.message,
         site_id=request.site_id,
         strategy_id=request.strategy_id,
-        plan_session_id=request.plan_session_id,
-        mode=request.mode,
         user_id=user_id,
         user_repo=user_repo,
         strategy_repo=strategy_repo,
-        plan_repo=plan_repo,
         provider_override=request.provider,
         model_override=request.model_id,
         reasoning_effort=request.reasoning_effort,
-        reference_strategy_id=request.reference_strategy_id,
         mentions=[m.model_dump(by_alias=True) for m in request.mentions]
         if request.mentions
         else None,

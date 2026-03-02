@@ -126,8 +126,8 @@ class ParamSpecResponse(BaseModel):
         default=None, alias="initialDisplayValue"
     )
     vocabulary: JSONValue | None = None
-    min_value: float | None = Field(default=None, alias="minValue")
-    max_value: float | None = Field(default=None, alias="maxValue")
+    min_value: float | None = Field(default=None, alias="min")
+    max_value: float | None = Field(default=None, alias="max")
     is_number: bool = Field(default=False, alias="isNumber")
     increment: float | None = None
 

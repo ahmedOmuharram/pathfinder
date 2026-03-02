@@ -7,9 +7,12 @@ list (StepData dicts) from various inputs (AST, graph snapshots, etc.).
 from __future__ import annotations
 
 from veupath_chatbot.domain.strategy.ast import from_dict
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 from .step_builders import build_steps_data_from_ast
+
+logger = get_logger(__name__)
 
 
 def build_steps_data_from_plan(plan: JSONObject) -> JSONArray:
@@ -20,8 +23,8 @@ def build_steps_data_from_plan(plan: JSONObject) -> JSONArray:
     """
     try:
         ast = from_dict(plan)
-    except Exception:
-        # Treat empty/invalid plans as “no steps” for read paths.
+    except ValueError, KeyError, TypeError:
+        logger.debug("Could not parse plan into AST for step extraction", exc_info=True)
         return []
     return build_steps_data_from_ast(ast)
 
@@ -34,7 +37,8 @@ def count_steps_in_plan(plan: JSONObject) -> int:
     """
     try:
         ast = from_dict(plan)
-    except Exception:
+    except ValueError, KeyError, TypeError:
+        logger.debug("Could not parse plan into AST for step count", exc_info=True)
         return 0
     return len(ast.get_all_steps())
 

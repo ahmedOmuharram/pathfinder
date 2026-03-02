@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.persistence.models import ControlSet
+from veupath_chatbot.platform.errors import NotFoundError
+from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.transport.http.deps import ControlSetRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
@@ -88,8 +90,9 @@ async def list_control_sets(
     """List control sets visible to the current user."""
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
     if not site_id:
-        raise HTTPException(
-            status_code=400, detail="siteId query parameter is required"
+        raise CoreValidationError(
+            title="Missing required parameter",
+            detail="siteId query parameter is required",
         )
     rows = await repo.list_by_site(
         site_id=site_id,
@@ -108,7 +111,7 @@ async def get_control_set(
     """Get a single control set by ID."""
     cs = await repo.get_by_id(UUID(control_set_id))
     if cs is None:
-        raise HTTPException(status_code=404, detail="Control set not found")
+        raise NotFoundError(title="Control set not found")
     return _serialize(cs)
 
 
@@ -143,4 +146,4 @@ async def delete_control_set(
     """Delete a control set."""
     deleted = await repo.delete(UUID(control_set_id))
     if not deleted:
-        raise HTTPException(status_code=404, detail="Control set not found")
+        raise NotFoundError(title="Control set not found")

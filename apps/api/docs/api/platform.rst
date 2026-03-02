@@ -75,3 +75,14 @@ JSON/structlog output. Used by all modules.
    :members:
    :undoc-members:
    :show-inheritance:
+
+Context
+-------
+
+**Purpose:** Context variables for request-scoped state. Auth tokens,
+user IDs, and other per-request data propagated via contextvars.
+
+.. automodule:: veupath_chatbot.platform.context
+   :members:
+   :undoc-members:
+   :show-inheritance:

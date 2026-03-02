@@ -122,9 +122,7 @@ async def collect_chat_stream(
     *,
     message: str,
     site_id: str = "plasmodb",
-    mode: str = "execute",
     strategy_id: str | None = None,
-    plan_session_id: str | None = None,
     timeout: float = 120.0,
 ) -> ChatStreamResult:
     """Send a chat request and collect all SSE events.
@@ -135,21 +133,16 @@ async def collect_chat_stream(
     :param client: HTTP client for the request.
     :param message: Chat message to send.
     :param site_id: VEuPathDB site identifier (default ``"plasmodb"``).
-    :param mode: Chat mode (e.g. ``"execute"``).
     :param strategy_id: Optional strategy ID.
-    :param plan_session_id: Optional plan session ID.
     :param timeout: Request timeout in seconds.
     :returns: Collected SSE events and HTTP status.
     """
     payload: JSONObject = {
         "siteId": site_id,
         "message": message,
-        "mode": mode,
     }
     if strategy_id:
         payload["strategyId"] = strategy_id
-    if plan_session_id:
-        payload["planSessionId"] = plan_session_id
 
     result = ChatStreamResult()
     collected = ""

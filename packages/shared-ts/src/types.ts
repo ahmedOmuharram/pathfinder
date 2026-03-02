@@ -292,6 +292,40 @@ export interface Search {
   recordType: string;
 }
 
+// Gene Search / Resolve Types
+
+export interface GeneSearchResult {
+  geneId: string;
+  displayName: string;
+  organism: string;
+  product: string;
+  matchedFields: string[];
+  geneName?: string;
+  geneType?: string;
+  location?: string;
+}
+
+export interface GeneSearchResponse {
+  results: GeneSearchResult[];
+  totalCount: number;
+  suggestedOrganisms?: string[];
+}
+
+export interface ResolvedGene {
+  geneId: string;
+  displayName: string;
+  organism: string;
+  product: string;
+  geneName: string;
+  geneType: string;
+  location: string;
+}
+
+export interface GeneResolveResponse {
+  resolved: ResolvedGene[];
+  unresolved: string[];
+}
+
 // Strategy Types
 
 export type StepKind = "search" | "transform" | "combine";
@@ -372,6 +406,14 @@ export interface StrategySummary {
   createdAt: string;
   updatedAt: string;
 }
+
+export type StrategyStep = Step & {
+  validationError?: string;
+};
+
+export type StrategyWithMeta = Strategy & {
+  wdkUrl?: string | null;
+};
 
 // Chat Types
 
@@ -576,16 +618,10 @@ export interface ParamSpec {
   /** WDK default value for this parameter. */
   initialDisplayValue?: unknown;
   vocabulary?: unknown;
-  /**
-   * Range for number/number-range params.  WDK emits ``min`` / ``max`` /
-   * ``increment``; the aliases ``minValue`` / ``maxValue`` are kept for
-   * backward compat.
-   */
+  /** Range for number/number-range params. */
   min?: number | null;
   max?: number | null;
   increment?: number | null;
-  minValue?: number | null;
-  maxValue?: number | null;
   /**
    * ``true`` when the WDK marks a string-typed param as numeric
    * (``isNumber: true``).  Used to detect params like ``fold_change``
@@ -948,9 +984,9 @@ export interface ExperimentConfig {
   /** Experiment mode: single search, multi-step graph, or import from strategy. */
   mode?: ExperimentMode;
 
-  /** Search name for single-step mode (backward compatible). */
+  /** Search name for single-step mode. */
   searchName: string;
-  /** Parameters for single-step mode (backward compatible). */
+  /** Parameters for single-step mode. */
   parameters: Record<string, unknown>;
 
   /**

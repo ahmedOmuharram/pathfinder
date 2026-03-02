@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import cast
 
 import yaml
-
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError

@@ -2,7 +2,7 @@ Domain Logic
 ============
 
 Strategy plan AST, operations, and validation. Pure domain logic with no
-I/O or framework dependencies. Used by the planner, serialization, and tools.
+I/O or framework dependencies. Used by the agent, serialization, and tools.
 
 Overview
 --------
@@ -17,7 +17,7 @@ Strategy AST
 ------------
 
 **Purpose:** AST types for strategy plans. ``PlanStepNode`` is recursive (search,
-transform, combine). ``StrategyPlan`` wraps root + metadata. Used by the planner
+transform, combine). ``StrategyPlan`` wraps root + metadata. Used by the agent
 and serialization layer.
 
 **Key types:** :py:class:`PlanStepNode`, :py:class:`StrategyPlan`
@@ -75,6 +75,54 @@ flattening, canonicalization, and value decoding. Used by catalog and tools.
    :show-inheritance:
 
 .. automodule:: veupath_chatbot.domain.parameters.canonicalize
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.parameters._decode_values
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.parameters.validation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.parameters.vocab_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Strategy — Additional Modules
+------------------------------
+
+.. automodule:: veupath_chatbot.domain.strategy.compile
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.strategy.explain
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.strategy.metadata
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.domain.strategy.session
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Research (Domain)
+-----------------
+
+**Purpose:** Citation formatting and research output processing.
+
+.. automodule:: veupath_chatbot.domain.research.citations
    :members:
    :undoc-members:
    :show-inheritance:

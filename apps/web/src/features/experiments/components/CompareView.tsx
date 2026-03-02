@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Experiment, ExperimentMetrics } from "@pathfinder/shared";
-import { useExperimentStore } from "../store";
+import { useExperimentViewStore } from "../store";
 import { ArrowLeft } from "lucide-react";
 import {
   RadarChart,
@@ -17,6 +17,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { CHART_COLORS } from "@/lib/utils/chartTheme";
 
 function pct(v: number | null | undefined): string {
   if (v == null) return "\u2014";
@@ -29,7 +30,7 @@ interface CompareViewProps {
 }
 
 export function CompareView({ experimentA, experimentB }: CompareViewProps) {
-  const { clearCompare } = useExperimentStore();
+  const { clearCompare } = useExperimentViewStore();
   const ma = experimentA.metrics;
   const mb = experimentB.metrics;
 
@@ -219,36 +220,36 @@ function MetricsComparison({
           <div className="flex items-center justify-center p-4 max-lg:py-6">
             <ResponsiveContainer width="100%" height={260}>
               <RadarChart data={radarData} outerRadius="72%">
-                <PolarGrid stroke="#e2e8f0" />
+                <PolarGrid stroke="hsl(var(--border))" />
                 <PolarAngleAxis
                   dataKey="metric"
-                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
-                  tick={{ fontSize: 9, fill: "#cbd5e1" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--border))" }}
                   tickCount={5}
                 />
                 <Radar
                   name="A"
                   dataKey="A"
-                  stroke="#1e293b"
-                  fill="#1e293b"
+                  stroke={CHART_COLORS.primary}
+                  fill={CHART_COLORS.primary}
                   fillOpacity={0.08}
                   strokeWidth={1.5}
                 />
                 <Radar
                   name="B"
                   dataKey="B"
-                  stroke="#94a3b8"
-                  fill="#94a3b8"
+                  stroke="hsl(var(--muted-foreground))"
+                  fill="hsl(var(--muted-foreground))"
                   fillOpacity={0.06}
                   strokeWidth={1.5}
                   strokeDasharray="4 3"
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: 10, color: "#64748b" }}
+                  wrapperStyle={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }}
                   iconSize={8}
                 />
               </RadarChart>
@@ -287,29 +288,46 @@ function ConfusionComparison({ a, b }: { a: Experiment; b: Experiment }) {
         </div>
         <ResponsiveContainer width="100%" height={140}>
           <BarChart data={barData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="hsl(var(--muted))"
+              vertical={false}
+            />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11, fill: "#64748b" }}
-              axisLine={{ stroke: "#e2e8f0" }}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={{ stroke: "hsl(var(--border))" }}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               axisLine={false}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
                 fontSize: 11,
-                border: "1px solid #e2e8f0",
+                border: "1px solid hsl(var(--border))",
                 borderRadius: 6,
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
               }}
             />
-            <Bar dataKey="A" fill="#1e293b" radius={[2, 2, 0, 0]} barSize={20} />
-            <Bar dataKey="B" fill="#94a3b8" radius={[2, 2, 0, 0]} barSize={20} />
-            <Legend wrapperStyle={{ fontSize: 10, color: "#64748b" }} iconSize={8} />
+            <Bar
+              dataKey="A"
+              fill={CHART_COLORS.primary}
+              radius={[2, 2, 0, 0]}
+              barSize={20}
+            />
+            <Bar
+              dataKey="B"
+              fill="hsl(var(--muted-foreground))"
+              radius={[2, 2, 0, 0]}
+              barSize={20}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }}
+              iconSize={8}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

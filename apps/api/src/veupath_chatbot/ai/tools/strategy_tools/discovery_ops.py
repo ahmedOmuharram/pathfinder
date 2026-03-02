@@ -5,18 +5,22 @@ from __future__ import annotations
 import re
 from typing import Annotated
 
+import httpx
 from kani import AIParam, ai_function
 
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
     JSONArray,
     JSONObject,
     JSONValue,
 )
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
+
+logger = get_logger(__name__)
 
 
 class StrategyDiscoveryOps(StrategyToolsHelpers):
@@ -80,7 +84,12 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
         for rt_name in record_types:
             try:
                 searches = await discovery.get_searches(self.session.site_id, rt_name)
-            except Exception:
+            except httpx.HTTPError, KeyError:
+                logger.warning(
+                    "Failed to fetch searches for record type %s",
+                    rt_name,
+                    exc_info=True,
+                )
                 continue
             from veupath_chatbot.platform.types import as_json_object
 

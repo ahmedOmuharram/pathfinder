@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Edge } from "reactflow";
-import { CombineOperator } from "@pathfinder/shared";
-import type { StrategyStep } from "@/features/strategy/types";
+import { CombineOperator, type StrategyStep } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 
 /** Boolean combine operators only (excludes COLOCATE). */

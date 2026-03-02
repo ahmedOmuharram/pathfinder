@@ -3,9 +3,12 @@ import { requestJson } from "@/lib/api/http";
 import { Modal } from "@/lib/components/Modal";
 import { Button } from "@/lib/components/ui/Button";
 import { Import, Loader2 } from "lucide-react";
-import type { StrategyStep } from "@/features/strategy/types";
-import type { CombineOperator } from "@pathfinder/shared";
-import { wdkOperatorToCombine } from "@pathfinder/shared";
+import {
+  wdkOperatorToCombine,
+  type CombineOperator,
+  type StrategyStep,
+} from "@pathfinder/shared";
+import { useAsyncAction } from "@/lib/utils/asyncAction";
 
 interface ImportableStrategy {
   wdkStrategyId: number;
@@ -91,26 +94,23 @@ export function StrategyImportModal({
   onClose,
 }: StrategyImportModalProps) {
   const [strategies, setStrategies] = useState<ImportableStrategy[]>([]);
-  const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { run: loadStrategies, loading, error: loadError } = useAsyncAction();
+  const { run, error } = useAsyncAction();
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    setError(null);
-    requestJson<ImportableStrategy[]>(
-      `/api/v1/experiments/importable-strategies?siteId=${encodeURIComponent(siteId)}`,
-    )
-      .then(setStrategies)
-      .catch((err) => setError(String(err)))
-      .finally(() => setLoading(false));
-  }, [open, siteId]);
+    void loadStrategies(async () => {
+      const result = await requestJson<ImportableStrategy[]>(
+        `/api/v1/experiments/importable-strategies?siteId=${encodeURIComponent(siteId)}`,
+      );
+      setStrategies(result);
+    });
+  }, [open, siteId, loadStrategies]);
 
   const handleImport = async (strategyId: number) => {
     setImporting(strategyId);
-    setError(null);
-    try {
+    await run(async () => {
       const detail = await requestJson<{
         name: string;
         recordType: string;
@@ -126,8 +126,7 @@ export function StrategyImportModal({
       );
 
       if (imported.length === 0) {
-        setError("Strategy has no steps to import.");
-        return;
+        throw new Error("Strategy has no steps to import.");
       }
 
       onImport(
@@ -135,11 +134,8 @@ export function StrategyImportModal({
         detail.name || "Imported strategy",
         detail.recordType || "gene",
       );
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setImporting(null);
-    }
+    });
+    setImporting(null);
   };
 
   return (
@@ -151,9 +147,9 @@ export function StrategyImportModal({
           </div>
         )}
 
-        {error && (
+        {(error ?? loadError) && (
           <div className="mb-3 rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
+            {error ?? loadError}
           </div>
         )}
 

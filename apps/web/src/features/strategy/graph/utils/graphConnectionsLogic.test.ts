@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Connection, Edge } from "reactflow";
-import type { StrategyStep } from "@/features/strategy/types";
+import type { StrategyStep } from "@pathfinder/shared";
 import {
   buildGraphIndices,
   edgeToInputPatch,

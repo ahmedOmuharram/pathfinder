@@ -11,12 +11,12 @@ import { expect, type Page } from "@playwright/test";
  *    succeeds without a real VEuPathDB session.
  */
 export async function setupAuth(page: Page) {
-  // 1. Obtain a valid auth token from the dev-only endpoint (with retry).
+  // 1. Obtain a valid auth token from the dev-only endpoint.
   // Uses relative URL so Playwright applies baseURL from config automatically.
+  // The endpoint is idempotent (get_or_create), so retries are safe.
   let resp = await page.request.post("/api/v1/dev/login");
   if (!resp.ok()) {
-    // Parallel workers can race on user creation — retry once.
-    await page.waitForTimeout(500);
+    // Parallel workers may race on DB init — retry immediately.
     resp = await page.request.post("/api/v1/dev/login");
   }
   expect(resp.ok()).toBeTruthy();

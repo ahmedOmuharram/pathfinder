@@ -28,9 +28,12 @@ export default defineConfig({
         "src/features/sidebar/utils/**/*.{ts,tsx}",
         "src/features/sidebar/services/**/*.{ts,tsx}",
         "src/state/**/*.{ts,tsx}",
+        // Experiment store logic.
+        "src/features/experiments/store/**/*.{ts,tsx}",
+        "src/features/experiments/utils/**/*.{ts,tsx}",
         "src/shared/**/*.{ts,tsx}",
         // Pure strategy graph logic (unit-tested).
-        "src/core/strategyGraph/{kind,serialize,validate,types,deserialize}.ts",
+        "src/lib/strategyGraph/{kind,serialize,validate,types,deserialize}.ts",
       ],
       exclude: [
         // UI rendering is primarily covered by Playwright E2E.

@@ -9,25 +9,25 @@ vi.mock("@/features/chat/components/ChatEmptyState", () => ({
   ChatEmptyState: () => null,
 }));
 
-vi.mock("@/features/chat/components/NodeCard", () => ({
+vi.mock("@/features/chat/components/delegation/NodeCard", () => ({
   NodeCard: () => null,
 }));
 
-vi.mock("@/features/chat/components/ChatMarkdown", () => ({
+vi.mock("@/features/chat/components/message/ChatMarkdown", () => ({
   ChatMarkdown: ({ content }: { content: string }) => <span>{content}</span>,
 }));
 
-vi.mock("@/features/chat/components/ThinkingPanel", () => ({
+vi.mock("@/features/chat/components/thinking/ThinkingPanel", () => ({
   ThinkingPanel: () => <div data-testid="floating-thinking">Thinking</div>,
 }));
 
-vi.mock("@/features/chat/components/OptimizationProgressPanel", () => ({
+vi.mock("@/features/chat/components/optimization/OptimizationProgressPanel", () => ({
   OptimizationProgressPanel: ({ data }: { data: OptimizationProgressData }) => (
     <div data-testid="floating-optimization">{data.status}</div>
   ),
 }));
 
-vi.mock("@/features/chat/components/AssistantMessageParts", () => ({
+vi.mock("@/features/chat/components/message/AssistantMessageParts", () => ({
   AssistantMessageParts: ({
     index,
     message,
@@ -80,7 +80,6 @@ describe("ChatMessageList UI ownership", () => {
     isCompact: false,
     siteId: "PlasmoDB",
     displayName: "PlasmoDB",
-    signedIn: false,
     mode: "execute" as const,
     undoSnapshots: {},
     onSend: vi.fn(),

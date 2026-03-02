@@ -2,14 +2,14 @@ import type {
   EnrichmentAnalysisType,
   ThresholdKnob,
   OperatorKnob,
+  ResolvedGene,
 } from "@pathfinder/shared";
-import type { ResolvedGene } from "@/lib/api/client";
 import type { RecordAttribute } from "../../../api/crud";
 import type { BenchmarkControlSetInput } from "../../../api/streaming";
 import { Button } from "@/lib/components/ui/Button";
 import { AlertTriangle, BarChart3, FlaskConical } from "lucide-react";
 import { ControlsSection } from "./ControlsSection";
-import { EnrichmentSection } from "./EnrichmentSection";
+import { EnrichmentConfigSection } from "./EnrichmentConfigSection";
 import { OptimizationSection } from "./OptimizationSection";
 import { StepAnalysisSection, type StepAnalysisConfig } from "./StepAnalysisSection";
 import { SortingSection } from "./SortingSection";
@@ -185,7 +185,7 @@ export function ConfigPanel(props: ConfigPanelProps) {
         </div>
 
         {/* Enrichment */}
-        <EnrichmentSection
+        <EnrichmentConfigSection
           enrichments={enrichments}
           onToggleEnrichment={onToggleEnrichment}
         />

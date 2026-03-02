@@ -112,3 +112,244 @@ Control Sets
 Reusable positive/negative gene sets are managed at **/api/v1/control-sets**
 (CRUD). They can be referenced when creating experiments (e.g.
 control_set_id). See :py:class:`veupath_chatbot.persistence.models.ControlSet`.
+
+Service Layer
+-------------
+
+Core experiment service, orchestration, and store.
+
+.. automodule:: veupath_chatbot.services.experiment.service
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.store
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment._deserialize
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.materialization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Metrics and Evaluation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Classification metrics, rank metrics, and statistical utilities.
+
+.. automodule:: veupath_chatbot.services.experiment.metrics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.rank_metrics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.stats
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Analysis Features
+~~~~~~~~~~~~~~~~~
+
+Cross-validation, enrichment, overlap, comparison, robustness, and reporting.
+
+.. automodule:: veupath_chatbot.services.experiment.cross_validation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.enrichment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.custom_enrichment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.enrichment_compare
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.overlap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.robustness
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.report
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.export
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.tree_knobs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+AI Analysis
+~~~~~~~~~~~
+
+AI-powered analysis helpers and tool definitions.
+
+.. automodule:: veupath_chatbot.services.experiment.ai_analysis_helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.ai_analysis_tools
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.assistant
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Step Analysis
+~~~~~~~~~~~~~
+
+Multi-step strategy analysis: per-step evaluation, operator comparison,
+contribution analysis, and parameter sensitivity.
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis.orchestrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_step_eval
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_operators
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_contribution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_sensitivity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis._evaluation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.step_analysis._tree_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Types
+~~~~~
+
+Pydantic models for experiment configuration, metrics, enrichment, and results.
+
+.. automodule:: veupath_chatbot.services.experiment.types
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.experiment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.core
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.metrics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.enrichment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.optimization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.rank
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.step_analysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.types.serialization
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Seed Data
+~~~~~~~~~
+
+Demo experiment seeding (strategies, control sets, gene lists).
+
+.. automodule:: veupath_chatbot.services.experiment.seed
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.seed.definitions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.seed.gene_lists
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.experiment.seed.runner
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -83,8 +83,8 @@ class Settings(BaseSettings):
 
     # Database
     #
-    # PathFinder uses SQL persistence for users/strategies/plan sessions. We default to
-    # PostgreSQL even for local development so behavior matches Docker/production.
+    # PathFinder uses SQL persistence for users, strategies, and control sets.
+    # We default to PostgreSQL even for local development so behavior matches Docker/production.
     database_url: str = (
         "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder"
     )
@@ -147,6 +147,9 @@ class Settings(BaseSettings):
     veupathdb_auth_token: str | None = None
     veupathdb_oauth_url: str | None = None
     veupathdb_oauth_client_id: str | None = None
+
+    # Chat provider (set to "mock" for deterministic offline E2E testing)
+    chat_provider: str = Field(default="default", alias="PATHFINDER_CHAT_PROVIDER")
 
     # Logging
     log_level: str = "INFO"

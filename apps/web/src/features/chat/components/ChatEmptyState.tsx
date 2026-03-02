@@ -21,7 +21,6 @@ export function ChatEmptyState(props: {
   siteId: string;
   displayName: string;
   firstName: string | undefined;
-  signedIn: boolean;
   onSend: (message: string) => void;
   isStreaming: boolean;
   hasMessages: boolean;

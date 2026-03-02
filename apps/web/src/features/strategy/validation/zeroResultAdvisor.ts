@@ -1,4 +1,4 @@
-import type { StrategyStep } from "@/features/strategy/types";
+import type { StrategyStep } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { CombineOperator } from "@pathfinder/shared";
 

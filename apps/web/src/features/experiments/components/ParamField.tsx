@@ -28,8 +28,8 @@ function inferNumericRange(spec: ParamSpec): {
   max: number;
   step?: number;
 } {
-  const explicitMin = spec.min ?? spec.minValue;
-  const explicitMax = spec.max ?? spec.maxValue;
+  const explicitMin = spec.min;
+  const explicitMax = spec.max;
   if (explicitMin != null && explicitMax != null) {
     return { min: explicitMin, max: explicitMax, step: spec.increment ?? undefined };
   }
@@ -112,7 +112,7 @@ export function ParamField({
         {label}
         <span className="ml-1 font-normal text-muted-foreground">({spec.name})</span>
         {required && !isOptimizing && (
-          <span className="ml-1 text-xs font-semibold text-red-400">*</span>
+          <span className="ml-1 text-xs font-semibold text-destructive">*</span>
         )}
         {isMultiPick && <span className="ml-1 text-xs text-primary">multi-select</span>}
       </label>
@@ -122,7 +122,7 @@ export function ParamField({
           onClick={handleToggleOptimize}
           className={`ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium transition ${
             isOptimizing
-              ? "bg-amber-100 text-amber-700"
+              ? "bg-warning/10 text-warning"
               : "text-muted-foreground hover:bg-muted hover:text-muted-foreground"
           }`}
         >
@@ -133,8 +133,8 @@ export function ParamField({
     </div>
   );
 
-  const errorBorder = hasError ? "border-red-300" : "border-border";
-  const errorRing = hasError ? "focus:border-red-400" : "focus:border-input";
+  const errorBorder = hasError ? "border-destructive/30" : "border-border";
+  const errorRing = hasError ? "focus:border-destructive/50" : "focus:border-input";
 
   // --- Optimize mode: numeric range ---
   if (
@@ -142,7 +142,7 @@ export function ParamField({
     (optimizeSpec.type === "numeric" || optimizeSpec.type === "integer")
   ) {
     return (
-      <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
+      <div className="rounded-md border border-warning/20 bg-warning/5 p-2">
         {labelRow}
         <div className="flex items-center gap-2">
           <div className="flex-1">
@@ -157,7 +157,7 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
+              className="w-full rounded border border-warning/20 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-warning/30"
             />
           </div>
           <div className="flex-1">
@@ -172,7 +172,7 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
+              className="w-full rounded border border-warning/20 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-warning/30"
             />
           </div>
           <div className="w-20">
@@ -187,11 +187,11 @@ export function ParamField({
                 })
               }
               placeholder="Auto"
-              className="w-full rounded border border-amber-200 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-amber-300"
+              className="w-full rounded border border-warning/20 bg-card px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:border-warning/30"
             />
           </div>
         </div>
-        <div className="mt-1 text-xs text-amber-600">
+        <div className="mt-1 text-xs text-warning">
           Full range by default; change min/max to narrow.
         </div>
       </div>
@@ -216,16 +216,16 @@ export function ParamField({
     };
 
     return (
-      <div className="rounded-md border border-amber-200 bg-amber-50/50 p-2">
+      <div className="rounded-md border border-warning/20 bg-warning/5 p-2">
         {labelRow}
-        <div className="mb-1 text-xs text-amber-600">
+        <div className="mb-1 text-xs text-warning">
           All values selected by default; uncheck to exclude from the search.
         </div>
-        <div className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-card">
+        <div className="max-h-40 overflow-y-auto rounded-md border border-warning/20 bg-card">
           {vocabEntries.map((entry) => (
             <label
               key={entry.value}
-              className="flex items-center gap-2 px-2 py-1 text-xs text-foreground hover:bg-amber-50"
+              className="flex items-center gap-2 px-2 py-1 text-xs text-foreground hover:bg-warning/5"
             >
               <input
                 type="checkbox"
@@ -238,7 +238,7 @@ export function ParamField({
           ))}
         </div>
         {selectedChoices.size > 0 && (
-          <div className="mt-0.5 text-xs text-amber-600">
+          <div className="mt-0.5 text-xs text-warning">
             {selectedChoices.size} of {vocabEntries.length} selected
           </div>
         )}
@@ -262,7 +262,7 @@ export function ParamField({
         <div>
           {labelRow}
           <div
-            className={`max-h-40 overflow-y-auto rounded-md border bg-card ${hasError ? "border-red-300" : "border-border"}`}
+            className={`max-h-40 overflow-y-auto rounded-md border bg-card ${hasError ? "border-destructive/30" : "border-border"}`}
           >
             {vocabEntries.map((entry) => (
               <label
@@ -313,8 +313,8 @@ export function ParamField({
   }
 
   if (isNumeric) {
-    const numMin = spec.min ?? spec.minValue;
-    const numMax = spec.max ?? spec.maxValue;
+    const numMin = spec.min;
+    const numMax = spec.max;
     const numStep = spec.increment;
     return (
       <div>

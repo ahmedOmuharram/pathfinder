@@ -1,5 +1,4 @@
-import type { Step } from "@pathfinder/shared";
-import type { StrategyWithMeta } from "@/features/strategy/types";
+import type { Step, StrategyWithMeta } from "@pathfinder/shared";
 import type { StrategyNode, StrategyResponse } from "../api/crud";
 
 /**

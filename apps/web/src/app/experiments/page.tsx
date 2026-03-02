@@ -8,13 +8,16 @@ import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
 import { refreshAuth } from "@/lib/api/client";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
-import { useExperimentStore } from "@/features/experiments/store";
+import {
+  useExperimentViewStore,
+  useExperimentRunStore,
+} from "@/features/experiments/store";
 import { ExperimentList } from "@/features/experiments/components/ExperimentList";
 import { ModeChooser } from "@/features/experiments/components/ModeChooser";
 import { SetupWizard } from "@/features/experiments/components/SetupWizard";
 import { MultiStepBuilder } from "@/features/experiments/components/MultiStepBuilder";
 import { ResultsDashboard } from "@/features/experiments/components/ResultsDashboard";
-import { BenchmarkDashboard } from "@/features/experiments/components/ResultsDashboard/BenchmarkDashboard";
+import { BenchmarkDashboard } from "@/features/experiments/components/ResultsDashboard/metrics/BenchmarkDashboard";
 import { CompareView } from "@/features/experiments/components/CompareView";
 import { OverlapView } from "@/features/experiments/components/OverlapView";
 import { EnrichmentCompareView } from "@/features/experiments/components/EnrichmentCompareView";
@@ -38,9 +41,9 @@ export default function ExperimentsPage() {
     currentExperiment,
     compareExperiment,
     benchmarkExperiments,
-    isRunning,
     experiments,
-  } = useExperimentStore();
+  } = useExperimentViewStore();
+  const isRunning = useExperimentRunStore((s) => s.isRunning);
 
   const handleSiteChange = useCallback(
     (nextSite: string) => {
@@ -56,10 +59,13 @@ export default function ExperimentsPage() {
       .then((result) => {
         if (result.authToken) setAuthToken(result.authToken);
       })
-      .catch(() => setAuthToken(null));
+      .catch((err) => {
+        console.error("[refreshAuth]", err);
+        setAuthToken(null);
+      });
   }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, setAuthToken]);
 
-  const { setView } = useExperimentStore.getState();
+  const { setView } = useExperimentViewStore.getState();
   const [showSettings, setShowSettings] = useState(false);
 
   if (authLoading) {
@@ -90,13 +96,13 @@ export default function ExperimentsPage() {
               <MessageCircle className="h-3.5 w-3.5" />
               Chat
             </Link>
-            <Button
-              size="sm"
-              className="pointer-events-none bg-primary/10 text-primary shadow-none"
+            <span
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+              aria-current="page"
             >
-              <FlaskConical className="h-3.5 w-3.5" />
+              <FlaskConical className="h-3.5 w-3.5" aria-hidden />
               Experiments
-            </Button>
+            </span>
             <div className="mx-1 h-5 w-px bg-border" />
             <Button
               variant="ghost"

@@ -15,13 +15,26 @@ class TemporaryResultsAPI:
 
     def __init__(self, client: VEuPathDBClient) -> None:
         self.client = client
+        self.user_id: str = "current"
         self._session_initialized = False
 
     async def _ensure_session(self) -> None:
-        """Initialize session cookies for the current user."""
+        """Initialize session and resolve user id for mutation endpoints.
+
+        Some WDK deployments reject POST/PUT/DELETE on ``/users/current/...``.
+        Resolve the concrete user id once and then use ``/users/{userId}/...``.
+        """
         if self._session_initialized:
             return
-        await self.client.get("/users/current")
+        me = await self.client.get("/users/current")
+        if isinstance(me, dict):
+            candidate = me.get("id")
+            if candidate is not None:
+                self.user_id = str(candidate)
+                logger.info(
+                    "Resolved WDK user id for temporary results",
+                    resolved_user_id=self.user_id,
+                )
         self._session_initialized = True
 
     async def create_temporary_result(
@@ -169,7 +182,7 @@ class TemporaryResultsAPI:
         return cast(
             JSONObject,
             await self.client.post(
-                f"/users/current/steps/{step_id}/reports/standard",
+                f"/users/{self.user_id}/steps/{step_id}/reports/standard",
                 json={"reportConfig": report_config},
             ),
         )

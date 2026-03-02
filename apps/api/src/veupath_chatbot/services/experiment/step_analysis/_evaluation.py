@@ -34,7 +34,7 @@ async def run_controls_against_tree(
     Returns the same shape as :func:`run_positive_negative_controls` so
     :func:`metrics_from_control_result` can consume it directly.
     """
-    from veupath_chatbot.services.experiment.service import (
+    from veupath_chatbot.services.experiment.materialization import (
         _coerce_step_id,
         _materialize_step_tree,
     )
