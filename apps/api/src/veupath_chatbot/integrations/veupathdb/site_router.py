@@ -225,25 +225,6 @@ class SiteRouter:
         """Get client for the portal."""
         return self.get_client("veupathdb")
 
-    def should_use_component(self, site_id: str) -> bool:
-        """Check if component site should be used.
-
-        :param site_id: VEuPathDB site identifier.
-
-        """
-        if site_id == "veupathdb":
-            return False
-        routing_raw = self._config.get("routing", {})
-        if not isinstance(routing_raw, dict):
-            return True
-        routing: JSONObject = routing_raw
-        prefer_component_raw = routing.get("prefer_component", True)
-        return (
-            bool(prefer_component_raw)
-            if isinstance(prefer_component_raw, bool)
-            else True
-        )
-
     async def close_all(self) -> None:
         """Close all HTTP clients."""
         for client in self._clients.values():

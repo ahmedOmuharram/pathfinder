@@ -103,10 +103,8 @@ sites:
 # Default site to use
 default_site: plasmodb
 
-# Routing preferences
+# Routing (timeouts for WDK client)
 routing:
-  # Use component sites when available (faster, has full tables)
-  prefer_component: true
   # Portal timeout (portal can be slow due to fan-out)
   portal_timeout: 120
   # Component site timeout

@@ -103,7 +103,6 @@ _MINIMAL_CONFIG: dict[str, Any] = {
     },
     "default_site": "plasmodb",
     "routing": {
-        "prefer_component": True,
         "portal_timeout": 120,
         "component_timeout": 30,
     },
@@ -201,34 +200,6 @@ class TestSiteRouterClientCreation:
             mock_settings.return_value = MagicMock(veupathdb_auth_token=None)
             client = router.get_portal_client()
         assert client.base_url == "https://veupathdb.org/veupathdb/service"
-
-
-class TestSiteRouterRouting:
-    """Test routing preference logic."""
-
-    def test_should_use_component_false_for_veupathdb(self) -> None:
-        router = _make_router()
-        assert router.should_use_component("veupathdb") is False
-
-    def test_should_use_component_true_for_component_site(self) -> None:
-        router = _make_router()
-        assert router.should_use_component("plasmodb") is True
-
-    def test_should_use_component_respects_config(self) -> None:
-        config = {
-            **_MINIMAL_CONFIG,
-            "routing": {"prefer_component": False},
-        }
-        router = _make_router(config)
-        assert router.should_use_component("plasmodb") is False
-
-    def test_should_use_component_defaults_true_when_routing_missing(self) -> None:
-        config = {
-            "sites": _MINIMAL_CONFIG["sites"],
-            "default_site": "plasmodb",
-        }
-        router = _make_router(config)
-        assert router.should_use_component("plasmodb") is True
 
 
 class TestSiteRouterCloseAll:
