@@ -1472,9 +1472,9 @@ export type components = {
             /** Organism */
             organism: string;
             /** Positivecontrols */
-            positiveControls?: string[];
+            positiveControls?: string[] | null;
             /** Negativecontrols */
-            negativeControls?: string[];
+            negativeControls?: string[] | null;
         };
         /**
          * BenchmarkControlSet
