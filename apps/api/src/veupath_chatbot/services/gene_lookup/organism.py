@@ -102,9 +102,9 @@ def normalize_organism(raw: str) -> str:
     s = s.strip()
     if s.startswith("[") and s.endswith("]"):
         try:
-            import json as _json
+            import json
 
-            parsed = _json.loads(s)
+            parsed = json.loads(s)
             if isinstance(parsed, list) and parsed:
                 return strip_html_tags(str(parsed[0])).strip()
         except ValueError, TypeError:

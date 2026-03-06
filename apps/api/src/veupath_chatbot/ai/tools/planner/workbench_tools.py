@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from kani import AIParam, ai_function
 
@@ -19,6 +19,7 @@ class WorkbenchToolsMixin:
     """Kani tool mixin for workbench gene set operations."""
 
     site_id: str
+    user_id: UUID | None
 
     @ai_function()
     async def create_workbench_gene_set(
@@ -77,6 +78,7 @@ class WorkbenchToolsMixin:
             site_id=self.site_id,
             gene_ids=gene_ids,
             source=source,
+            user_id=self.user_id,
             wdk_strategy_id=wdk_strategy_id,
             wdk_step_id=wdk_step_id,
             search_name=search_name,
@@ -128,7 +130,7 @@ class WorkbenchToolsMixin:
         GO terms, pathways, or word patterns in the gene set. Requires
         the gene set to have a WDK step ID or search parameters.
         """
-        from veupath_chatbot.services.experiment.types import enrichment_result_to_json
+        from veupath_chatbot.services.experiment.types import to_json
         from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
         store = get_gene_set_store()
@@ -154,7 +156,7 @@ class WorkbenchToolsMixin:
             parameters=gs.parameters,
         )
 
-        serialized = [enrichment_result_to_json(r) for r in results]
+        serialized = [to_json(r) for r in results]
         summary: JSONObject = {
             "geneSetId": gene_set_id,
             "geneSetName": gs.name,
@@ -184,7 +186,10 @@ class WorkbenchToolsMixin:
         running analyses.
         """
         store = get_gene_set_store()
-        sets = store.list_all(site_id=self.site_id)
+        if self.user_id is not None:
+            sets = store.list_for_user(self.user_id, site_id=self.site_id)
+        else:
+            sets = store.list_all(site_id=self.site_id)
         return {
             "geneSets": [
                 {

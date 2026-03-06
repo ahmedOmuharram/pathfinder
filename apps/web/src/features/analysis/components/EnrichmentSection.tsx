@@ -1,6 +1,6 @@
 import { useState, useMemo, Fragment } from "react";
 import type { EnrichmentResult, EnrichmentTerm } from "@pathfinder/shared";
-import { ArrowUpDown, ChevronRight } from "lucide-react";
+import { AlertCircle, ArrowUpDown, ChevronRight } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -60,20 +60,26 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
         {/* Tab bar */}
         <div className="flex items-center gap-0 border-b border-border px-4">
           {results.map((r, i) => {
+            const hasError = !!r.error;
             const count = r.terms.filter((t) => t.pValue <= pThreshold).length;
             return (
               <button
                 key={r.analysisType}
                 type="button"
                 onClick={() => setActiveTab(i)}
-                className={`relative px-3 py-2.5 text-xs font-medium transition ${
+                className={`relative flex items-center gap-1 px-3 py-2.5 text-xs font-medium transition ${
                   activeTab === i
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                {hasError && (
+                  <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
+                )}
                 {analysisLabels[r.analysisType] ?? r.analysisType}
-                <span className="ml-1 text-xs text-muted-foreground">{count}</span>
+                {!hasError && (
+                  <span className="text-xs text-muted-foreground">{count}</span>
+                )}
                 {activeTab === i && (
                   <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
                 )}
@@ -96,7 +102,13 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
           </div>
         </div>
 
-        {activeResult && (
+        {activeResult && activeResult.error && (
+          <div className="flex items-center gap-2 px-5 py-6 text-xs text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>Analysis failed: {activeResult.error}</span>
+          </div>
+        )}
+        {activeResult && !activeResult.error && (
           <>
             <SummaryBar result={activeResult} filteredCount={filtered.length} />
             {filtered.length > 0 && <EnrichmentDotPlot terms={filtered} />}

@@ -21,10 +21,10 @@ class RankMetrics:
 class ConfidenceInterval:
     """Bootstrap confidence interval for a single metric."""
 
-    lower: float
-    mean: float
-    upper: float
-    std: float
+    lower: float = 0.0
+    mean: float = 0.0
+    upper: float = 0.0
+    std: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,15 +32,15 @@ class NegativeSetVariant:
     """Rank metrics evaluated with an alternative negative control set."""
 
     label: str
-    negative_count: int
     rank_metrics: RankMetrics
+    negative_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
 class BootstrapResult:
     """Robustness assessment via bootstrap resampling."""
 
-    n_iterations: int
+    n_iterations: int = 0
     metric_cis: dict[str, ConfidenceInterval] = field(default_factory=dict)
     rank_metric_cis: dict[str, ConfidenceInterval] = field(default_factory=dict)
     top_k_stability: float = 0.0

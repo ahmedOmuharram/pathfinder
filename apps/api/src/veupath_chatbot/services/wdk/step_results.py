@@ -6,21 +6,16 @@ attribute listing, record browsing, distribution, and analysis logic.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
-    extract_displayable_attr_names,
     merge_analysis_params,
     order_primary_key,
 )
 
 logger = get_logger(__name__)
-
-if TYPE_CHECKING:
-    from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 
 
 class StepResultsService:
@@ -124,7 +119,7 @@ class StepResultsService:
             is_enrichment_analysis,
             parse_enrichment_from_raw,
         )
-        from veupath_chatbot.services.experiment.types import enrichment_result_to_json
+        from veupath_chatbot.services.experiment.types import to_json
 
         result, params = await self.run_analysis_raw(analysis_name, parameters)
 
@@ -132,7 +127,7 @@ class StepResultsService:
             er = parse_enrichment_from_raw(analysis_name, params, result)
             return {
                 "_resultType": "enrichment",
-                "enrichmentResults": [enrichment_result_to_json(er)],
+                "enrichmentResults": [to_json(er)],
             }
 
         return result
@@ -144,13 +139,14 @@ class StepResultsService:
     ) -> JSONObject:
         """Get a single record's full details by primary key.
 
-        Fetches record type info to reorder PK parts and discover
-        displayable attributes. Falls back to raw PK on failure.
+        Fetches record type info to reorder PK parts.  We intentionally
+        pass ``attributes=None`` (WDK default set) instead of all
+        displayable attributes — some record types have thousands of
+        attributes and requesting them all causes WDK to timeout.
         """
         from veupath_chatbot.integrations.veupathdb.factory import get_site
 
         pk_parts = primary_key
-        attr_names: list[str] = []
         try:
             info = await self._api.get_record_type_info(self._record_type)
 
@@ -164,9 +160,6 @@ class StepResultsService:
                         ref_strings,
                         pk_defaults={"project_id": site.project_id},
                     )
-
-            attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
-            attr_names = extract_displayable_attr_names(attrs_raw)
         except Exception:
             logger.warning(
                 "Failed to fetch record type info; falling back to raw PK",
@@ -178,5 +171,4 @@ class StepResultsService:
         return await self._api.get_single_record(
             record_type=self._record_type,
             primary_key=pk_parts,
-            attributes=attr_names if attr_names else None,
         )

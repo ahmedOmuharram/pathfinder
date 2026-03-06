@@ -28,7 +28,7 @@ async def run_cv(
         run_cross_validation,
         run_cross_validation_tree,
     )
-    from veupath_chatbot.services.experiment.types import cv_result_to_json
+    from veupath_chatbot.services.experiment.types import to_json
 
     is_tree_mode = exp.config.mode != "single" and isinstance(
         exp.config.step_tree, dict
@@ -75,4 +75,4 @@ async def run_cv(
 
     exp.cross_validation = cv
     get_experiment_store().save(exp)
-    return cv_result_to_json(cv)
+    return to_json(cv)

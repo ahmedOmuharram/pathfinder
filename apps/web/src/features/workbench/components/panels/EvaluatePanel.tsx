@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Target, Play, Loader2 } from "lucide-react";
 import type { Experiment } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
@@ -31,6 +31,34 @@ export function EvaluatePanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [experiment, setExperiment] = useState<Experiment | null>(null);
+
+  // Consume pending controls from gene search sidebar
+  const pendingPositive = useWorkbenchStore((s) => s.pendingPositiveControls);
+  const pendingNegative = useWorkbenchStore((s) => s.pendingNegativeControls);
+  const clearPendingControls = useWorkbenchStore((s) => s.clearPendingControls);
+
+  useEffect(() => {
+    if (pendingPositive.length === 0 && pendingNegative.length === 0) return;
+    const pos = pendingPositive;
+    const neg = pendingNegative;
+    clearPendingControls();
+    queueMicrotask(() => {
+      if (pos.length > 0) {
+        setPositiveControls((prev) => {
+          const existing = prev.trim();
+          const joined = pos.join("\n");
+          return existing ? `${existing}\n${joined}` : joined;
+        });
+      }
+      if (neg.length > 0) {
+        setNegativeControls((prev) => {
+          const existing = prev.trim();
+          const joined = neg.join("\n");
+          return existing ? `${existing}\n${joined}` : joined;
+        });
+      }
+    });
+  }, [pendingPositive, pendingNegative, clearPendingControls]);
 
   const hasSearchContext = Boolean(activeSet?.searchName && activeSet.parameters);
 

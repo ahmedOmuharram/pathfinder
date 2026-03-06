@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import html as _html
-import re as _re
+import html
+import re
 from difflib import SequenceMatcher
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -75,9 +75,9 @@ def strip_tags(text: str) -> str:
     :param text: HTML string.
     :returns: Plain text.
     """
-    cleaned = _re.sub(r"<[^>]+>", " ", text)
-    cleaned = _html.unescape(cleaned)
-    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    cleaned = html.unescape(cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
 
@@ -168,7 +168,7 @@ def norm_for_match(text: str | None) -> str:
     if not isinstance(text, str):
         return ""
     t = text.lower()
-    t = _re.sub(r"\s+", " ", t).strip()
+    t = re.sub(r"\s+", " ", t).strip()
     return t
 
 

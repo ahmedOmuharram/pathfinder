@@ -38,7 +38,6 @@ export default function HomePage() {
     (state) => state.selectedSiteDisplayName,
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
-  const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
   useSiteTheme(selectedSite);
   const strategyId = useSessionStore((state) => state.strategyId);
@@ -87,19 +86,17 @@ export default function HomePage() {
 
   const authRefreshed = useSessionStore((state) => state.authRefreshed);
   const setAuthRefreshed = useSessionStore((state) => state.setAuthRefreshed);
+  const bumpAuthVersion = useSessionStore((state) => state.bumpAuthVersion);
   useEffect(() => {
     if (!veupathdbSignedIn) return;
     if (authRefreshed) return;
     setAuthRefreshed(true);
     refreshAuth()
-      .then((result) => {
-        if (result.authToken) setAuthToken(result.authToken);
-      })
+      .then(() => bumpAuthVersion())
       .catch((err) => {
         console.error("[refreshAuth]", err);
-        setAuthToken(null);
       });
-  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, setAuthToken]);
+  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, bumpAuthVersion]);
 
   const hasGraph = !!(strategy && strategy.steps.length > 0);
 

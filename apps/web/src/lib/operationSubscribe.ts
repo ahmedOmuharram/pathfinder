@@ -61,7 +61,7 @@ export function subscribeToOperation<T = unknown>(
       );
       const resp = await fetch(url, {
         headers: {
-          ...getAuthHeaders(undefined, { accept: "text/event-stream" }),
+          ...getAuthHeaders({ accept: "text/event-stream" }),
         },
         signal: controller.signal,
         credentials: "include",

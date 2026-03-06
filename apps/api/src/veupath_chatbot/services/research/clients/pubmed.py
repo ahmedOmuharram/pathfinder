@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re as _re
+import re
 from typing import cast
 
 import httpx
@@ -81,10 +81,10 @@ class PubmedClient:
                 xml = efetch.text or ""
                 # Minimal extraction (sufficient for unit tests).
                 for pmid in pmids:
-                    m = _re.search(
-                        rf"<PMID>{_re.escape(pmid)}</PMID>.*?<Abstract>.*?<AbstractText[^>]*>(.*?)</AbstractText>",
+                    m = re.search(
+                        rf"<PMID>{re.escape(pmid)}</PMID>.*?<Abstract>.*?<AbstractText[^>]*>(.*?)</AbstractText>",
                         xml,
-                        flags=_re.IGNORECASE | _re.DOTALL,
+                        flags=re.IGNORECASE | re.DOTALL,
                     )
                     if m:
                         abstracts_by_pmid[pmid] = strip_tags(m.group(1))
@@ -98,7 +98,7 @@ class PubmedClient:
             title = str(meta.get("title") or "").strip()
             pubdate = str(meta.get("pubdate") or "")
             year = None
-            m_year = _re.search(r"(\d{4})", pubdate)
+            m_year = re.search(r"(\d{4})", pubdate)
             if m_year:
                 try:
                     year = int(m_year.group(1))

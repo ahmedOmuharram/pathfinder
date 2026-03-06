@@ -226,7 +226,7 @@ async def run_experiment_analysis(
         parse_enrichment_from_raw,
         upsert_enrichment_result,
     )
-    from veupath_chatbot.services.experiment.types import enrichment_result_to_json
+    from veupath_chatbot.services.experiment.types import to_json
 
     svc = _require_step(exp)
     raw_result, merged_params = await svc.run_analysis_raw(
@@ -239,7 +239,7 @@ async def run_experiment_analysis(
         get_experiment_store().save(exp)
         return {
             "_resultType": "enrichment",
-            "enrichmentResults": [enrichment_result_to_json(er)],
+            "enrichmentResults": [to_json(er)],
         }
 
     return raw_result

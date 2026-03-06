@@ -1,16 +1,11 @@
 """Kani agent runtime (class + subkani orchestration)."""
 
 import asyncio
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from uuid import UUID
 
-from kani import AIParam, ChatMessage, ai_function
+from kani import AIParam, ChatMessage, Kani, ai_function
 from kani.engines.base import BaseEngine
-
-if TYPE_CHECKING:
-    from veupath_chatbot.ai.stubs.kani import Kani
-else:
-    from kani import Kani
 
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
     delegate_strategy_subtasks as subkani_delegate_strategy_subtasks,
@@ -55,6 +50,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         mentioned_context: str | None = None,
     ) -> None:
         self.site_id = site_id
+        self.user_id = user_id
         self.strategy_session = build_strategy_session(
             site_id=site_id, strategy_graph=strategy_graph
         )

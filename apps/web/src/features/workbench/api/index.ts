@@ -6,11 +6,7 @@ export {
   enrichGeneSet,
 } from "./geneSets";
 
-export type {
-  CreateGeneSetRequest,
-  SetOperationRequest,
-  EnrichmentResult,
-} from "./geneSets";
+export type { CreateGeneSetRequest, SetOperationRequest } from "./geneSets";
 
 export {
   listExperiments,

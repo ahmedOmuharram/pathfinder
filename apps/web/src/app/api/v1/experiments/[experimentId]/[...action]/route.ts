@@ -17,7 +17,7 @@ function upstreamPath(
   experimentId: string,
   action: string[],
 ): string {
-  const actionPath = action.join("/");
+  const actionPath = action.map((a) => encodeURIComponent(a)).join("/");
   const base = `/api/v1/experiments/${encodeURIComponent(experimentId)}/${actionPath}`;
   const qs = new URL(req.url).searchParams.toString();
   return qs ? `${base}?${qs}` : base;

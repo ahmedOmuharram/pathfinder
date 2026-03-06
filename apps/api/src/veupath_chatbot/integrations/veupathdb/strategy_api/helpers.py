@@ -6,12 +6,8 @@ name tagging utilities, and shared constants.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.platform.types import JSONObject
-
-if TYPE_CHECKING:
-    from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 
 # Internal (Pathfinder-created) WDK strategies.
 #

@@ -98,7 +98,9 @@ async def _register_experiment_operation(operation_id: str, op_type: str) -> Non
         await session.commit()
 
 
-async def start_experiment(config: ExperimentConfig) -> str:
+async def start_experiment(
+    config: ExperimentConfig, *, user_id: str | None = None
+) -> str:
     """Launch a single experiment as a background task. Returns operation ID."""
     operation_id = f"op_{uuid4().hex[:12]}"
     await _register_experiment_operation(operation_id, "experiment")
@@ -108,6 +110,7 @@ async def start_experiment(config: ExperimentConfig) -> str:
         try:
             result = await run_experiment(
                 config,
+                user_id=user_id,
                 progress_callback=_make_progress_callback(operation_id),
             )
             await _emit_to_redis(
@@ -127,7 +130,9 @@ async def start_experiment(config: ExperimentConfig) -> str:
     return operation_id
 
 
-async def start_batch_experiment(batch_config: BatchExperimentConfig) -> str:
+async def start_batch_experiment(
+    batch_config: BatchExperimentConfig, *, user_id: str | None = None
+) -> str:
     """Launch a batch experiment as a background task. Returns operation ID."""
     from veupath_chatbot.services.experiment.store import get_experiment_store
 
@@ -183,6 +188,7 @@ async def start_batch_experiment(batch_config: BatchExperimentConfig) -> str:
                 try:
                     exp = await run_experiment(
                         org_config,
+                        user_id=user_id,
                         progress_callback=_make_progress_callback(operation_id),
                     )
                     exp.batch_id = batch_id
@@ -217,6 +223,8 @@ async def start_batch_experiment(batch_config: BatchExperimentConfig) -> str:
 async def start_benchmark(
     base_config: ExperimentConfig,
     control_sets: list[tuple[str, list[str], list[str], str | None, bool]],
+    *,
+    user_id: str | None = None,
 ) -> str:
     """Launch a benchmark suite as a background task. Returns operation ID."""
     from veupath_chatbot.services.experiment.store import get_experiment_store
@@ -245,6 +253,7 @@ async def start_benchmark(
                 try:
                     exp = await run_experiment(
                         cfg,
+                        user_id=user_id,
                         progress_callback=_make_progress_callback(operation_id),
                     )
                     exp.benchmark_id = benchmark_id

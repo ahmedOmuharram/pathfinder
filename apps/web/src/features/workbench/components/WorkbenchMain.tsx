@@ -11,7 +11,6 @@ import {
   AiInterpretationPanel,
   SweepPanel,
   ResultsTablePanel,
-  WorkbenchStepAnalysisPanel,
 } from "./panels";
 
 // ---------------------------------------------------------------------------
@@ -75,7 +74,6 @@ export function WorkbenchMain() {
         <AiInterpretationPanel />
         <SweepPanel />
         <ResultsTablePanel />
-        <WorkbenchStepAnalysisPanel />
       </div>
     </div>
   );

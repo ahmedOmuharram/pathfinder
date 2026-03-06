@@ -33,6 +33,7 @@ interface WorkbenchState {
   expandedPanels: Set<PanelId>;
   lastExperiment: Experiment | null;
   lastExperimentSetId: string | null;
+  geneSearchOpen: boolean;
 
   // Actions — gene sets
   addGeneSet: (geneSet: GeneSet) => void;
@@ -46,6 +47,17 @@ interface WorkbenchState {
   togglePanel: (panelId: PanelId) => void;
   expandPanel: (panelId: PanelId) => void;
   collapsePanel: (panelId: PanelId) => void;
+
+  // Actions — gene search sidebar
+  toggleGeneSearch: () => void;
+
+  // Actions — evaluate controls
+  appendPositiveControls: (ids: string[]) => void;
+  appendNegativeControls: (ids: string[]) => void;
+  /** Pending control IDs set by the search sidebar, consumed by EvaluatePanel. */
+  pendingPositiveControls: string[];
+  pendingNegativeControls: string[];
+  clearPendingControls: () => void;
 
   // Actions — experiment
   setLastExperiment: (experiment: Experiment | null, setId: string | null) => void;
@@ -66,6 +78,9 @@ const initialState = {
   expandedPanels: new Set<PanelId>(),
   lastExperiment: null as Experiment | null,
   lastExperimentSetId: null as string | null,
+  geneSearchOpen: true,
+  pendingPositiveControls: [] as string[],
+  pendingNegativeControls: [] as string[],
 };
 
 // ---------------------------------------------------------------------------
@@ -138,6 +153,25 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
       return { expandedPanels: next };
     }),
 
+  // -- Gene search sidebar ---------------------------------------------------
+
+  toggleGeneSearch: () => set((s) => ({ geneSearchOpen: !s.geneSearchOpen })),
+
+  // -- Evaluate controls ----------------------------------------------------
+
+  appendPositiveControls: (ids) =>
+    set((s) => ({
+      pendingPositiveControls: [...s.pendingPositiveControls, ...ids],
+    })),
+
+  appendNegativeControls: (ids) =>
+    set((s) => ({
+      pendingNegativeControls: [...s.pendingNegativeControls, ...ids],
+    })),
+
+  clearPendingControls: () =>
+    set({ pendingPositiveControls: [], pendingNegativeControls: [] }),
+
   // -- Experiment actions ----------------------------------------------------
 
   setLastExperiment: (experiment, setId) =>
@@ -155,5 +189,8 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
       expandedPanels: new Set<PanelId>(),
       lastExperiment: null,
       lastExperimentSetId: null,
+      geneSearchOpen: true,
+      pendingPositiveControls: [],
+      pendingNegativeControls: [],
     }),
 }));

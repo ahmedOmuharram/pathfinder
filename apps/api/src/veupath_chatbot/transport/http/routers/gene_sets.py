@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from veupath_chatbot.platform.errors import (
     InternalError,
@@ -13,6 +13,7 @@ from veupath_chatbot.platform.errors import (
     ValidationError,
 )
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.gene_sets.types import GeneSet
@@ -56,9 +57,9 @@ def _to_response(gs: GeneSet) -> GeneSetResponse:
     )
 
 
-def _get_gene_set_or_404(user_id: UUID, gene_set_id: str) -> GeneSet:
+async def _get_gene_set_or_404(user_id: UUID, gene_set_id: str) -> GeneSet:
     """Look up a gene set owned by user, raising 404 if missing."""
-    gs = get_gene_set_store().get(gene_set_id)
+    gs = await get_gene_set_store().aget(gene_set_id)
     if gs is None or gs.user_id != user_id:
         raise NotFoundError(title="Gene set not found")
     return gs
@@ -110,41 +111,43 @@ def _count_steps_in_tree(node: object) -> int:
 
 
 @router.post("", status_code=201)
+@limiter.limit("30/minute")
 async def create_gene_set(
-    request: CreateGeneSetRequest,
+    request: Request,
+    body: CreateGeneSetRequest,
     user_id: CurrentUser,
 ) -> GeneSetResponse:
     """Create a new gene set."""
-    gene_ids = request.gene_ids
-    wdk_step_id = request.wdk_step_id
+    gene_ids = body.gene_ids
+    wdk_step_id = body.wdk_step_id
     step_count = 1
 
     # Auto-resolve root step and fetch gene IDs when creating from a strategy
-    if not gene_ids and request.wdk_strategy_id is not None:
+    if not gene_ids and body.wdk_strategy_id is not None:
         from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 
         # Resolve the root step ID if not provided
         if wdk_step_id is None:
             try:
                 wdk_step_id = await _resolve_root_step_id(
-                    request.site_id, request.wdk_strategy_id
+                    body.site_id, body.wdk_strategy_id
                 )
                 logger.info(
                     "Resolved root step from strategy",
-                    strategy_id=request.wdk_strategy_id,
+                    strategy_id=body.wdk_strategy_id,
                     step_id=wdk_step_id,
                 )
             except Exception as exc:
                 logger.warning(
                     "Failed to resolve root step from strategy",
-                    strategy_id=request.wdk_strategy_id,
+                    strategy_id=body.wdk_strategy_id,
                     error=str(exc),
                 )
 
         # Fetch gene IDs from the step
         if wdk_step_id is not None:
             try:
-                gene_ids = await _fetch_gene_ids_from_step(request.site_id, wdk_step_id)
+                gene_ids = await _fetch_gene_ids_from_step(body.site_id, wdk_step_id)
                 logger.info(
                     "Fetched gene IDs from WDK step",
                     step_id=wdk_step_id,
@@ -159,29 +162,29 @@ async def create_gene_set(
 
         # Count steps in the strategy
         try:
-            api = get_strategy_api(request.site_id)
-            strategy = await api.get_strategy(request.wdk_strategy_id)
+            api = get_strategy_api(body.site_id)
+            strategy = await api.get_strategy(body.wdk_strategy_id)
             step_tree = strategy.get("stepTree")
             step_count = _count_steps_in_tree(step_tree)
         except Exception as exc:
             logger.warning(
                 "Failed to count strategy steps",
-                strategy_id=request.wdk_strategy_id,
+                strategy_id=body.wdk_strategy_id,
                 error=str(exc),
             )
 
     gs = GeneSet(
         id=str(uuid4()),
-        name=request.name,
-        site_id=request.site_id,
+        name=body.name,
+        site_id=body.site_id,
         gene_ids=gene_ids,
-        source=request.source,
+        source=body.source,
         user_id=user_id,
-        wdk_strategy_id=request.wdk_strategy_id,
+        wdk_strategy_id=body.wdk_strategy_id,
         wdk_step_id=wdk_step_id,
-        search_name=request.search_name,
-        record_type=request.record_type,
-        parameters=request.parameters,
+        search_name=body.search_name,
+        record_type=body.record_type,
+        parameters=body.parameters,
         step_count=step_count,
     )
     get_gene_set_store().save(gs)
@@ -197,10 +200,8 @@ async def list_gene_sets(
     site_id: str | None = Query(None, alias="siteId"),
 ) -> list[GeneSetResponse]:
     """List all gene sets for the current user, optionally filtered by site."""
-    return [
-        _to_response(gs)
-        for gs in get_gene_set_store().list_for_user(user_id, site_id=site_id)
-    ]
+    sets = await get_gene_set_store().alist_for_user(user_id, site_id=site_id)
+    return [_to_response(gs) for gs in sets]
 
 
 @router.get("/{gene_set_id}")
@@ -209,7 +210,7 @@ async def get_gene_set(
     user_id: CurrentUser,
 ) -> GeneSetResponse:
     """Get a gene set by ID."""
-    return _to_response(_get_gene_set_or_404(user_id, gene_set_id))
+    return _to_response(await _get_gene_set_or_404(user_id, gene_set_id))
 
 
 @router.delete("/{gene_set_id}")
@@ -218,6 +219,7 @@ async def delete_gene_set(
     user_id: CurrentUser,
 ) -> dict[str, bool]:
     """Delete a gene set."""
+    await _get_gene_set_or_404(user_id, gene_set_id)
     if not get_gene_set_store().delete(gene_set_id):
         raise NotFoundError(title="Gene set not found")
     logger.info("Gene set deleted", gene_set_id=gene_set_id)
@@ -230,19 +232,8 @@ async def set_operations(
     user_id: CurrentUser,
 ) -> GeneSetResponse:
     """Perform set operations (intersect, union, minus) between two gene sets."""
-    store = get_gene_set_store()
-
-    set_a = store.get(request.set_a_id)
-    if set_a is None:
-        raise NotFoundError(
-            title="Gene set not found", detail=f"Set A '{request.set_a_id}' not found"
-        )
-
-    set_b = store.get(request.set_b_id)
-    if set_b is None:
-        raise NotFoundError(
-            title="Gene set not found", detail=f"Set B '{request.set_b_id}' not found"
-        )
+    set_a = await _get_gene_set_or_404(user_id, request.set_a_id)
+    set_b = await _get_gene_set_or_404(user_id, request.set_b_id)
 
     ids_a = set(set_a.gene_ids)
     ids_b = set(set_b.gene_ids)
@@ -270,7 +261,7 @@ async def set_operations(
         parent_set_ids=[set_a.id, set_b.id],
         operation=request.operation,
     )
-    store.save(gs)
+    get_gene_set_store().save(gs)
     logger.info(
         "Gene set derived via set operation",
         gene_set_id=gs.id,
@@ -292,10 +283,10 @@ async def enrich_gene_set(
     user_id: CurrentUser,
 ) -> list[JSONObject]:
     """Run enrichment analysis on a gene set."""
-    from veupath_chatbot.services.experiment.types import enrichment_result_to_json
+    from veupath_chatbot.services.experiment.types import to_json
     from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
 
     svc = EnrichmentService()
     results, errors = await svc.run_batch(
@@ -313,7 +304,7 @@ async def enrich_gene_set(
             detail="; ".join(errors),
         )
 
-    return [enrichment_result_to_json(r) for r in results]
+    return [to_json(r) for r in results]
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +333,7 @@ async def get_gene_set_attributes(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Get available attributes for a gene set's record type."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
     return await svc.get_attributes()
 
@@ -360,7 +351,7 @@ async def get_gene_set_records(
     filter_value: str | None = Query(None, alias="filterValue"),
 ) -> JSONObject:
     """Get paginated result records for a gene set."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
 
     attr_list: list[str] | None = None
@@ -415,7 +406,7 @@ async def get_gene_set_record_detail(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Get a single record's full details by primary key."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
 
     raw_pk = request_body.get("primaryKey") or request_body.get("primary_key") or []
@@ -438,7 +429,7 @@ async def get_gene_set_distribution(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Get distribution data for an attribute using the byValue column reporter."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
     return await svc.get_distribution(attribute_name)
 
@@ -454,7 +445,7 @@ async def get_gene_set_analysis_types(
     user_id: CurrentUser,
 ) -> JSONObject:
     """List available WDK step analysis types for a gene set."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
     return await svc.list_analysis_types()
 
@@ -466,7 +457,7 @@ async def run_gene_set_analysis(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Run a WDK step analysis on a gene set."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     svc = _require_svc(gs)
     return await svc.run_analysis(request.analysis_name, dict(request.parameters))
 
@@ -477,7 +468,7 @@ async def get_gene_set_strategy(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Get the WDK strategy tree for a gene set."""
-    gs = _get_gene_set_or_404(user_id, gene_set_id)
+    gs = await _get_gene_set_or_404(user_id, gene_set_id)
     if not gs.wdk_strategy_id:
         raise NotFoundError(
             title="No WDK strategy",

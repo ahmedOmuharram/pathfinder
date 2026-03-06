@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
@@ -24,6 +25,7 @@ from veupath_chatbot.platform.errors import (
 )
 from veupath_chatbot.platform.logging import get_logger, setup_logging
 from veupath_chatbot.platform.redis import close_redis, init_redis
+from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.transport.http.routers import (
     chat,
     control_sets,
@@ -115,9 +117,18 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-VEUPATHDB-AUTH",
+            "X-VEUPATHDB-AUTHORIZATION",
+        ],
     )
+
+    # Rate limiter (slowapi)
+    app.state.limiter = limiter
 
     # Request ID middleware
     @app.middleware("http")
@@ -149,6 +160,17 @@ def create_app() -> FastAPI:
         cast(
             Callable[[StarletteRequest, Exception], Awaitable[Response]],
             http_exception_handler,
+        ),
+    )
+    app.add_exception_handler(
+        RateLimitExceeded,
+        cast(
+            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            lambda request, exc: Response(
+                content=str(exc.detail),
+                status_code=429,
+                headers={"Retry-After": "60"},
+            ),
         ),
     )
 

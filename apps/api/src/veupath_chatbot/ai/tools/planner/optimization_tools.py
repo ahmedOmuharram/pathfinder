@@ -82,7 +82,9 @@ class OptimizationToolsMixin:
             list[str] | None,
             AIParam(desc="Known-negative IDs that should NOT be returned"),
         ] = None,
-        budget: Annotated[int, AIParam(desc="Max number of trials (default 30)")] = 30,
+        budget: Annotated[
+            int, AIParam(desc="Max number of trials (default 15, max 50)")
+        ] = 15,
         objective: Annotated[
             str,
             AIParam(
@@ -189,9 +191,9 @@ class OptimizationToolsMixin:
 
         if not isinstance(budget, int) or budget < 1:
             return _err(f"budget must be a positive integer, got {budget!r}.")
-        if budget > 200:
+        if budget > 50:
             return _err(
-                f"budget={budget} exceeds the maximum of 200. "
+                f"budget={budget} exceeds the maximum of 50. "
                 "Use a smaller budget or narrow the parameter space."
             )
 

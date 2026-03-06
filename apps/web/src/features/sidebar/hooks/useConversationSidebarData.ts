@@ -51,7 +51,8 @@ export function useConversationSidebarData({
   // --- Store selectors ---
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
-  const authToken = useSessionStore((s) => s.authToken);
+  const authVersion = useSessionStore((s) => s.authVersion);
+  const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
 
   const draftStrategy = useStrategyStore((s) => s.strategy);
 
@@ -119,7 +120,7 @@ export function useConversationSidebarData({
   const ensureActiveConversation = useCallback(async () => {
     const action = resolveActiveConversation({
       strategyId,
-      hasAuth: !!authToken,
+      hasAuth: veupathdbSignedIn,
       strategyItems,
       hasFetched: hasFetched.current,
     });
@@ -162,7 +163,14 @@ export function useConversationSidebarData({
         return;
       }
     }
-  }, [authToken, strategyId, strategyItems, setStrategyId, siteId, setStrategyItems]);
+  }, [
+    veupathdbSignedIn,
+    strategyId,
+    strategyItems,
+    setStrategyId,
+    siteId,
+    setStrategyItems,
+  ]);
 
   // --- Effects ---
 
@@ -173,17 +181,15 @@ export function useConversationSidebarData({
     });
   }, [refreshStrategies]);
 
-  // Retry sync after auth token changes (e.g. refreshAuth returns a new token
-  // after the first sync failed with 401).
-  const prevAuthRef = useRef(authToken);
+  // Retry sync after auth cookie refresh (signaled by authVersion bump).
+  const prevAuthVersionRef = useRef(authVersion);
   useEffect(() => {
-    if (prevAuthRef.current === authToken) return;
-    prevAuthRef.current = authToken;
-    if (!authToken) return;
+    if (prevAuthVersionRef.current === authVersion) return;
+    prevAuthVersionRef.current = authVersion;
     // Reset the in-flight guard so the retry can proceed.
     syncInFlight.current = false;
     void refreshStrategies();
-  }, [authToken, refreshStrategies]);
+  }, [authVersion, refreshStrategies]);
 
   // Re-fetch strategies when draft strategy changes
   useEffect(() => {

@@ -22,7 +22,7 @@ from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     OperatorComparison,
     OperatorVariant,
-    operator_comparison_to_json,
+    to_json,
 )
 
 COMPARISON_OPERATORS = [
@@ -162,7 +162,7 @@ async def compare_operators(
                         ),
                         "current": ci + 1,
                         "total": len(combine_nodes),
-                        "operatorComparison": operator_comparison_to_json(oc),
+                        "operatorComparison": to_json(oc),
                     },
                 }
             )

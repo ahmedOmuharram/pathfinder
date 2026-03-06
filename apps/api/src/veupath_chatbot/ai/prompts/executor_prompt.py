@@ -41,6 +41,6 @@ def build_agent_system_prompt(
             "\n\n## Referenced Context\n"
             "The user @-mentioned the following entities. Use this information "
             "to understand their question and provide relevant answers.\n\n"
-            + mentioned_context
+            "```\n" + mentioned_context + "\n```"
         )
     return base_prompt + site_context + node_context + mention_block

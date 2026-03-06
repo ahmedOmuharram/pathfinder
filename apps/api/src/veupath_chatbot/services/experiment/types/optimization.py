@@ -59,8 +59,8 @@ class TreeOptimizationTrial:
     """One trial during tree-knob optimization."""
 
     trial_number: int
-    parameters: dict[str, float | str]
-    score: float
+    parameters: dict[str, float | str] = field(default_factory=dict)
+    score: float = 0.0
     rank_metrics: RankMetrics | None = None
     list_size: int = 0
 
@@ -71,5 +71,5 @@ class TreeOptimizationResult:
 
     best_trial: TreeOptimizationTrial | None = None
     all_trials: list[TreeOptimizationTrial] = field(default_factory=list)
-    total_time_seconds: float = 0.0
+    total_time_seconds: float = field(default=0.0, metadata={"round": 2})
     objective: str = ""

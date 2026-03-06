@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re as _re
+import re
 from typing import cast
 
 import httpx
@@ -42,27 +42,27 @@ class ArxivClient:
             xml = resp.text or ""
 
         # Minimal parser: handle empty feeds gracefully (unit tests use empty feed).
-        entries = _re.findall(
-            r"<entry>(.*?)</entry>", xml, flags=_re.IGNORECASE | _re.DOTALL
+        entries = re.findall(
+            r"<entry>(.*?)</entry>", xml, flags=re.IGNORECASE | re.DOTALL
         )
         results: JSONArray = []
         citations: list[JSONObject] = []
         for e in entries[:limit]:
             title = strip_tags(
                 "".join(
-                    _re.findall(
-                        r"<title>(.*?)</title>", e, flags=_re.IGNORECASE | _re.DOTALL
+                    re.findall(
+                        r"<title>(.*?)</title>", e, flags=re.IGNORECASE | re.DOTALL
                     )
                 )
             ).strip()
-            link_m = _re.search(r'<link[^>]+href="([^"]+)"', e, flags=_re.IGNORECASE)
+            link_m = re.search(r'<link[^>]+href="([^"]+)"', e, flags=re.IGNORECASE)
             url_item = link_m.group(1) if link_m else None
             abstract = strip_tags(
                 "".join(
-                    _re.findall(
+                    re.findall(
                         r"<summary>(.*?)</summary>",
                         e,
-                        flags=_re.IGNORECASE | _re.DOTALL,
+                        flags=re.IGNORECASE | re.DOTALL,
                     )
                 )
             ).strip()

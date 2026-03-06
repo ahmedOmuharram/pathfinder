@@ -11,8 +11,7 @@ from veupath_chatbot.services.experiment.types import (
     GeneInfo,
     RankMetrics,
     experiment_to_json,
-    metrics_to_json,
-    rank_metrics_to_json,
+    to_json,
 )
 
 
@@ -81,7 +80,7 @@ def _make_experiment(mode: str = "single") -> Experiment:
 class TestMetricsSerialization:
     def test_metrics_to_json_camel_case(self) -> None:
         m = _make_metrics()
-        j = metrics_to_json(m)
+        j = to_json(m)
         assert "confusionMatrix" in j
         assert "truePositives" in j["confusionMatrix"]
         assert j["sensitivity"] == 0.8
@@ -90,7 +89,7 @@ class TestMetricsSerialization:
 
     def test_metrics_roundtrip_values(self) -> None:
         m = _make_metrics()
-        j = metrics_to_json(m)
+        j = to_json(m)
         assert j["confusionMatrix"]["truePositives"] == 8
         assert j["confusionMatrix"]["falseNegatives"] == 2
 
@@ -105,7 +104,7 @@ class TestRankMetricsSerialization:
             list_size_vs_recall=[(10, 0.25), (50, 0.75)],
             total_results=200,
         )
-        j = rank_metrics_to_json(rm)
+        j = to_json(rm)
         # Keys should be stringified
         assert j["precisionAtK"]["10"] == 0.5
         assert j["recallAtK"]["50"] == 0.75

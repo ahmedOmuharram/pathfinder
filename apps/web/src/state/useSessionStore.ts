@@ -3,13 +3,11 @@
  */
 
 import { create } from "zustand";
-import { setAuthTokenGetter } from "@/lib/api/auth";
 
 interface SessionState {
   selectedSite: string;
   selectedSiteDisplayName: string;
   strategyId: string | null;
-  authToken: string | null;
   veupathdbSignedIn: boolean;
   veupathdbName: string | null;
   chatIsStreaming: boolean;
@@ -25,31 +23,27 @@ interface SessionState {
   authRefreshed: boolean;
   /** True after the first auth status check has completed. Used to avoid showing sign-in UI before we know. */
   authStatusKnown: boolean;
+  /** Monotonic counter; bumped on login/refresh so hooks can retry on auth changes. */
+  authVersion: number;
 
   setSelectedSite: (siteId: string) => void;
   setSelectedSiteInfo: (siteId: string, displayName: string) => void;
   setStrategyId: (id: string | null) => void;
-  setAuthToken: (token: string | null) => void;
   setVeupathdbAuth: (signedIn: boolean, name?: string | null) => void;
   setChatIsStreaming: (value: boolean) => void;
 
   // Signal setters
   bumpChatPreviewVersion: () => void;
+  bumpAuthVersion: () => void;
   setPendingAskNode: (payload: Record<string, unknown> | null) => void;
   setComposerPrefill: (payload: { message: string } | null) => void;
   setAuthRefreshed: (value: boolean) => void;
   setAuthStatusKnown: (value: boolean) => void;
 }
 
-const AUTH_TOKEN_STORAGE_KEY = "pathfinder-auth-token";
 const SELECTED_SITE_KEY = "pathfinder-selected-site";
 const SELECTED_SITE_DISPLAY_KEY = "pathfinder-selected-site-display";
 const STRATEGY_ID_KEY_PREFIX = "pathfinder-strategy-id:";
-
-const getInitialAuthToken = () => {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-};
 
 const getInitialSelectedSite = () => {
   if (typeof window === "undefined") return "plasmodb";
@@ -71,7 +65,6 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   selectedSite: getInitialSelectedSite(),
   selectedSiteDisplayName: getInitialSelectedSiteDisplayName(),
   strategyId: getInitialStrategyId(),
-  authToken: getInitialAuthToken(),
   veupathdbSignedIn: false,
   veupathdbName: null,
   chatIsStreaming: false,
@@ -82,6 +75,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   composerPrefill: null,
   authRefreshed: false,
   authStatusKnown: false,
+  authVersion: 0,
 
   setSelectedSite: (siteId) => {
     if (typeof window !== "undefined") {
@@ -128,16 +122,6 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
     set({ strategyId: id });
   },
-  setAuthToken: (token) => {
-    if (typeof window !== "undefined") {
-      if (token) {
-        window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
-      } else {
-        window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-      }
-    }
-    set({ authToken: token });
-  },
   setVeupathdbAuth: (signedIn, name = null) =>
     set({ veupathdbSignedIn: signedIn, veupathdbName: name }),
   setChatIsStreaming: (value) => set({ chatIsStreaming: value }),
@@ -145,11 +129,9 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   // Signal setters
   bumpChatPreviewVersion: () =>
     set((s) => ({ chatPreviewVersion: s.chatPreviewVersion + 1 })),
+  bumpAuthVersion: () => set((s) => ({ authVersion: s.authVersion + 1 })),
   setPendingAskNode: (payload) => set({ pendingAskNode: payload }),
   setComposerPrefill: (payload) => set({ composerPrefill: payload }),
   setAuthRefreshed: (value) => set({ authRefreshed: value }),
   setAuthStatusKnown: (value) => set({ authStatusKnown: value }),
 }));
-
-// Inject token getter for transport-layer helpers (keeps `lib/api/*` independent of `state/*`).
-setAuthTokenGetter(() => useSessionStore.getState().authToken);

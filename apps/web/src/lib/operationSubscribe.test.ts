@@ -11,7 +11,7 @@ import {
 
 vi.mock("@/lib/api/http", () => ({
   buildUrl: vi.fn((path: string) => `http://localhost${path}`),
-  getAuthHeaders: vi.fn(() => ({ Authorization: "Bearer test-token" })),
+  getAuthHeaders: vi.fn(() => ({})),
 }));
 
 // ---------------------------------------------------------------------------

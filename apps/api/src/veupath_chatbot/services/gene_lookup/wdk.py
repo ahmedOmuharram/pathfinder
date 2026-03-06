@@ -97,7 +97,7 @@ async def fetch_wdk_text_genes(
     if not expressions or not organism:
         return WdkTextResult(records=[], total_count=0)
 
-    import json as _json
+    import json
 
     fields = text_fields or WDK_TEXT_FIELDS_ID
     client = get_wdk_client(site_id)
@@ -113,8 +113,8 @@ async def fetch_wdk_text_genes(
                     "searchConfig": {
                         "parameters": {
                             "text_expression": pattern,
-                            "text_fields": _json.dumps(fields),
-                            "text_search_organism": _json.dumps([organism]),
+                            "text_fields": json.dumps(fields),
+                            "text_search_organism": json.dumps([organism]),
                             "document_type": "gene",
                         },
                     },

@@ -217,13 +217,14 @@ async def sync_all_wdk_strategies(
             continue
         synced_wdk_ids.add(wdk_id)
         try:
-            await sync_to_projection(
-                wdk_id=wdk_id,
-                site_id=site.id,
-                api=api,
-                stream_repo=stream_repo,
-                user_id=user_id,
-            )
+            async with stream_repo.session.begin_nested():
+                await sync_to_projection(
+                    wdk_id=wdk_id,
+                    site_id=site.id,
+                    api=api,
+                    stream_repo=stream_repo,
+                    user_id=user_id,
+                )
         except Exception as e:
             logger.warning(
                 "Failed to sync WDK strategy",
@@ -235,15 +236,16 @@ async def sync_all_wdk_strategies(
     # Prune orphaned streams whose WDK counterparts no longer exist.
     if wdk_items:
         try:
-            pruned = await stream_repo.prune_wdk_orphans(
-                user_id, site.id, synced_wdk_ids
-            )
-            if pruned:
-                logger.info(
-                    "Pruned orphaned streams",
-                    site_id=site.id,
-                    pruned_count=pruned,
+            async with stream_repo.session.begin_nested():
+                pruned = await stream_repo.prune_wdk_orphans(
+                    user_id, site.id, synced_wdk_ids
                 )
+                if pruned:
+                    logger.info(
+                        "Pruned orphaned streams",
+                        site_id=site.id,
+                        pruned_count=pruned,
+                    )
         except Exception as e:
             logger.warning(
                 "Failed to prune orphaned streams",

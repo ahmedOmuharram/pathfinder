@@ -33,7 +33,7 @@ from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     Experiment,
     GeneInfo,
-    metrics_to_json,
+    to_json,
 )
 
 
@@ -187,7 +187,7 @@ class RefinementToolsMixin:
             {
                 "success": True,
                 "totalResults": len(result_ids),
-                "metrics": metrics_to_json(metrics),
+                "metrics": to_json(metrics),
             },
         )
 

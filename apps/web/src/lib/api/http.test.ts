@@ -1,11 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("./auth", () => {
-  return {
-    getAuthToken: () => "test-token",
-  };
-});
-
 import { APIError, buildUrl, getAuthHeaders, requestJson } from "./http";
 
 function makeHeaders(init: Record<string, string>) {
@@ -68,16 +62,17 @@ describe("lib/api/http", () => {
     );
   });
 
-  it("getAuthHeaders includes Bearer token and optional accept/content-type", () => {
-    const headers = getAuthHeaders(undefined, {
+  it("getAuthHeaders includes optional accept/content-type", () => {
+    const headers = getAuthHeaders({
       accept: "application/json",
       contentType: "application/json",
       extra: { "x-test": "1" },
     });
-    expect(headers.Authorization).toBe("Bearer test-token");
     expect(headers.Accept).toBe("application/json");
     expect(headers["Content-Type"]).toBe("application/json");
     expect(headers["x-test"]).toBe("1");
+    // Auth is handled via httpOnly cookies — no Authorization header
+    expect(headers.Authorization).toBeUndefined();
   });
 
   it("requestJson returns parsed JSON on success", async () => {

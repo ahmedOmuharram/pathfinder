@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -12,6 +13,8 @@ from veupath_chatbot.platform.types import (
     as_json_array,
     as_json_object,
 )
+
+logger = get_logger(__name__)
 
 
 async def run_nodes_with_dependencies(
@@ -36,6 +39,9 @@ async def run_nodes_with_dependencies(
             }
         else:
             remaining_deps[node_id] = set()
+    # Detect cycles: nodes that can never become ready
+    all_scheduled: set[str] = set()
+
     ready = [node_id for node_id, deps in remaining_deps.items() if not deps]
     running: dict[asyncio.Task[JSONObject], str] = {}
     results: JSONArray = []
@@ -53,6 +59,7 @@ async def run_nodes_with_dependencies(
     while ready or running:
         while ready and len(running) < max(1, int(max_concurrency)):
             node_id = ready.pop()
+            all_scheduled.add(node_id)
             node = nodes_by_id[node_id]
             dependency_context = format_dependency_context(
                 task_id=node_id,
@@ -80,6 +87,21 @@ async def run_nodes_with_dependencies(
                 remaining_deps[child].discard(finished_id)
                 if not remaining_deps[child]:
                     ready.append(child)
+
+    # Report any nodes that were never scheduled (circular dependency)
+    unscheduled = node_ids - all_scheduled
+    if unscheduled:
+        logger.error(
+            "Circular dependency detected — nodes never scheduled",
+            unscheduled_nodes=sorted(unscheduled),
+        )
+        for node_id in unscheduled:
+            results.append(
+                tool_error(
+                    "CIRCULAR_DEPENDENCY",
+                    f"Task '{node_id}' has circular dependencies and was skipped.",
+                )
+            )
 
     return results, results_by_id
 

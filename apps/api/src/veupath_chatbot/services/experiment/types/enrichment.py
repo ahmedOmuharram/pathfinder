@@ -17,9 +17,9 @@ class EnrichmentTerm:
     background_count: int
     fold_enrichment: float
     odds_ratio: float
-    p_value: float
-    fdr: float
-    bonferroni: float
+    p_value: float = field(metadata={"round": None})
+    fdr: float = field(metadata={"round": None})
+    bonferroni: float = field(metadata={"round": None})
     genes: list[str] = field(default_factory=list)
 
 
@@ -29,5 +29,6 @@ class EnrichmentResult:
 
     analysis_type: EnrichmentAnalysisType
     terms: list[EnrichmentTerm]
-    total_genes_analyzed: int
-    background_size: int
+    total_genes_analyzed: int = 0
+    background_size: int = 0
+    error: str | None = None

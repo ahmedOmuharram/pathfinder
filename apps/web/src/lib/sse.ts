@@ -35,7 +35,7 @@ async function runOnce(
   const hasBody = args.body !== undefined;
 
   const headers: Record<string, string> = {
-    ...getAuthHeaders(undefined, {
+    ...getAuthHeaders({
       accept: "text/event-stream",
       contentType: hasBody ? "application/json" : undefined,
     }),

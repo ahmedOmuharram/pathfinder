@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import re as _re
+import re
 from typing import Literal, cast
 
 import httpx
@@ -53,10 +53,10 @@ class PreprintClient:
         # Reuse the simple result parser shape.
         results: JSONArray = []
         citations: list[JSONObject] = []
-        for m in _re.finditer(
+        for m in re.finditer(
             r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
             html,
-            flags=_re.IGNORECASE,
+            flags=re.IGNORECASE,
         ):
             if len(results) >= limit:
                 break
@@ -146,14 +146,12 @@ class PreprintClient:
             r'<meta[^>]+name=["\']twitter:description["\'][^>]+content=["\']([^"\']+)["\']',
         ]
         for pat in meta_patterns:
-            m = _re.search(pat, html, flags=_re.IGNORECASE)
+            m = re.search(pat, html, flags=re.IGNORECASE)
             if m:
                 txt = strip_tags(m.group(1))
                 return truncate_text(txt, max_chars) if txt else None
 
-        paras = _re.findall(
-            r"<p[^>]*>(.*?)</p>", html, flags=_re.IGNORECASE | _re.DOTALL
-        )
+        paras = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.IGNORECASE | re.DOTALL)
         best: str | None = None
         for p in paras:
             txt = strip_tags(p)

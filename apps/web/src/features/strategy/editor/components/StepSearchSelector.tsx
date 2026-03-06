@@ -4,6 +4,7 @@ import type { RecordType, Search } from "@pathfinder/shared";
 import type { StepKind } from "@pathfinder/shared";
 import { VEUPATHDB_SITES } from "@pathfinder/shared";
 import { normalizeRecordType } from "@/features/strategy/recordType";
+import { sanitizeHtml } from "@/lib/utils/sanitizeHtml";
 
 function rewriteRelativeAssetUrls(html: string, origin: string): string {
   if (!html) return html;
@@ -157,9 +158,11 @@ export function StepSearchSelector({
             <div
               className="[&_img]:inline-block [&_img]:align-middle [&_img]:!m-0 [&_img]:h-[12px] [&_img]:w-[12px]"
               dangerouslySetInnerHTML={{
-                __html: rewriteRelativeAssetUrls(
-                  selectedSearch.description || "No description available.",
-                  siteOrigin,
+                __html: sanitizeHtml(
+                  rewriteRelativeAssetUrls(
+                    selectedSearch.description || "No description available.",
+                    siteOrigin,
+                  ),
                 ),
               }}
             />

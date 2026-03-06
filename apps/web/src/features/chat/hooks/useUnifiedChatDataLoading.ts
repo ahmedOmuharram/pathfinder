@@ -29,11 +29,11 @@ export function useUnifiedChatDataLoading({
   loadGraph,
   onStrategyNotFound,
 }: UseUnifiedChatDataLoadingParams) {
-  const authToken = useSessionStore((s) => s.authToken);
+  const authVersion = useSessionStore((s) => s.authVersion);
 
   // Track whether the last load attempt failed (for auth retry).
   const loadFailedRef = useRef(false);
-  const prevAuthRef = useRef(authToken);
+  const prevAuthVersionRef = useRef(authVersion);
 
   const applyStrategy = useCallback(
     (strategy: Strategy, targetStrategyId: string) => {
@@ -129,16 +129,14 @@ export function useUnifiedChatDataLoading({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategyId]);
 
-  // Auth-token retry: if a previous load failed and a new auth token arrives,
-  // retry loading. This handles the case where the stored JWT expires while
-  // the user is chatting — the first load after refresh fails with 401, then
-  // refreshAuth obtains a new token but the primary effect doesn't re-run.
+  // Auth-cookie retry: if a previous load failed and the auth cookie was
+  // refreshed (signaled by authVersion bump), retry loading.
   useEffect(() => {
-    if (prevAuthRef.current === authToken) return;
-    prevAuthRef.current = authToken;
-    if (!authToken || !strategyId || !loadFailedRef.current) return;
+    if (prevAuthVersionRef.current === authVersion) return;
+    prevAuthVersionRef.current = authVersion;
+    if (!strategyId || !loadFailedRef.current) return;
 
-    console.log("[DataLoading] Retrying after auth token change", { strategyId });
+    console.log("[DataLoading] Retrying after auth refresh", { strategyId });
     loadFailedRef.current = false;
 
     let cancelled = false;
@@ -161,5 +159,5 @@ export function useUnifiedChatDataLoading({
     return () => {
       cancelled = true;
     };
-  }, [authToken, strategyId, applyStrategy, setApiError]);
+  }, [authVersion, strategyId, applyStrategy, setApiError]);
 }

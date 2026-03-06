@@ -26,7 +26,7 @@ async def run_enrichment(
     user_id: CurrentUser,
 ) -> list[JSONObject]:
     """Run enrichment analysis on an existing experiment's results."""
-    from veupath_chatbot.services.experiment.types import enrichment_result_to_json
+    from veupath_chatbot.services.experiment.types import to_json
     from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
     svc = EnrichmentService()
@@ -50,7 +50,7 @@ async def run_enrichment(
             detail="; ".join(errors),
         )
 
-    return [enrichment_result_to_json(r) for r in results]
+    return [to_json(r) for r in results]
 
 
 @router.post("/{experiment_id}/custom-enrich")

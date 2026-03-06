@@ -108,6 +108,7 @@ class Experiment:
 
     id: str
     config: ExperimentConfig
+    user_id: str | None = None
     status: ExperimentStatus = "pending"
     metrics: ExperimentMetrics | None = None
     cross_validation: CrossValidationResult | None = None
@@ -117,7 +118,7 @@ class Experiment:
     false_positive_genes: list[GeneInfo] = field(default_factory=list)
     true_negative_genes: list[GeneInfo] = field(default_factory=list)
     error: str | None = None
-    total_time_seconds: float | None = None
+    total_time_seconds: float | None = field(default=None, metadata={"round": 2})
     created_at: str = ""
     completed_at: str | None = None
     batch_id: str | None = None

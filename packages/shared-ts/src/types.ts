@@ -819,6 +819,7 @@ export interface EnrichmentResult {
   terms: EnrichmentTerm[];
   totalGenesAnalyzed: number;
   backgroundSize: number;
+  error?: string | null;
 }
 
 // Gene Set Types

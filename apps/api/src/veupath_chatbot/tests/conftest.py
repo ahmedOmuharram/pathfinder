@@ -181,8 +181,8 @@ def patch_app_db_engine(
     """
     import veupath_chatbot.persistence.session as session_module
 
-    session_module.engine = db_engine
-    session_module.async_session_factory = session_maker
+    session_module._engine = db_engine
+    session_module._session_factory = session_maker
 
 
 @pytest.fixture
@@ -192,7 +192,8 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "strategy_history, strategies, users "
+            "operations, stream_projections, streams, "
+            "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
 
@@ -225,13 +226,17 @@ async def client(
     patch_app_db_engine: None,
     db_cleaner: None,
 ) -> AsyncGenerator[httpx.AsyncClient]:
-    from veupath_chatbot.platform.redis import close_redis, init_redis
+    import fakeredis
 
-    await init_redis()
+    import veupath_chatbot.platform.redis as redis_module
+
+    fake = fakeredis.FakeAsyncRedis()
+    redis_module._redis = fake
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    await close_redis()
+    await fake.aclose()
+    redis_module._redis = None
 
 
 @pytest.fixture

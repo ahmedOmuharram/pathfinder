@@ -19,11 +19,7 @@ import json
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
 from uuid import UUID
-
-if TYPE_CHECKING:
-    from veupath_chatbot.persistence.models import StreamProjection
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs
@@ -35,6 +31,7 @@ from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.errors import AppError, WDKError
 from veupath_chatbot.platform.logging import get_logger

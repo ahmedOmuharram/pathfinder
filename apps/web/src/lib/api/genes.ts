@@ -12,6 +12,13 @@ export type {
   GeneResolveResponse,
 } from "@pathfinder/shared";
 
+export async function listOrganisms(siteId: string): Promise<string[]> {
+  const resp = await requestJson<{ organisms: string[] }>(
+    `/api/v1/sites/${encodeURIComponent(siteId)}/organisms`,
+  );
+  return resp.organisms;
+}
+
 export async function searchGenes(
   siteId: string,
   query: string,

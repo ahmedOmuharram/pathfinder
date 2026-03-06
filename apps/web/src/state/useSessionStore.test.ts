@@ -15,29 +15,6 @@ function makeLocalStorage(initial: Record<string, string> = {}) {
 }
 
 describe("state/useSessionStore", () => {
-  it("reads initial auth token from localStorage when window exists", async () => {
-    vi.stubGlobal("window", {
-      localStorage: makeLocalStorage({ "pathfinder-auth-token": "t123" }),
-    });
-
-    const mod = await import("./useSessionStore");
-    expect(mod.useSessionStore.getState().authToken).toBe("t123");
-  });
-
-  it("setAuthToken writes/removes localStorage when window exists", async () => {
-    const localStorage = makeLocalStorage();
-    vi.stubGlobal("window", { localStorage });
-
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-
-    store.getState().setAuthToken("abc");
-    expect(localStorage.getItem("pathfinder-auth-token")).toBe("abc");
-
-    store.getState().setAuthToken(null);
-    expect(localStorage.getItem("pathfinder-auth-token")).toBeNull();
-  });
-
   it("setSelectedSite updates selected site", async () => {
     const mod = await import("./useSessionStore");
     const store = mod.useSessionStore;

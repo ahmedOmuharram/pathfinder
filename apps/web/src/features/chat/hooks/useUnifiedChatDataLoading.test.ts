@@ -39,11 +39,11 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
-// Mock useSessionStore to control authToken
-let mockAuthToken: string | null = "valid-token";
+// Mock useSessionStore to control authVersion
+let mockAuthVersion = 0;
 vi.mock("@/state/useSessionStore", () => ({
-  useSessionStore: (selector: (s: { authToken: string | null }) => unknown) =>
-    selector({ authToken: mockAuthToken }),
+  useSessionStore: (selector: (s: { authVersion: number }) => unknown) =>
+    selector({ authVersion: mockAuthVersion }),
 }));
 
 function makeArgs(
@@ -74,7 +74,7 @@ function makeArgs(
 describe("useUnifiedChatDataLoading", () => {
   beforeEach(() => {
     mockGetStrategy = vi.fn();
-    mockAuthToken = "valid-token";
+    mockAuthVersion = 0;
   });
 
   afterEach(() => {
@@ -143,7 +143,7 @@ describe("useUnifiedChatDataLoading", () => {
     });
   });
 
-  it("retries loading when auth token changes after a failed load", async () => {
+  it("retries loading when authVersion bumps after a failed load", async () => {
     const { APIError } = await import("@/lib/api/client");
 
     // First two calls fail (initial + retry)
@@ -176,24 +176,24 @@ describe("useUnifiedChatDataLoading", () => {
       );
     });
 
-    // Simulate auth token refresh
-    mockAuthToken = "fresh-token";
+    // Simulate auth cookie refresh (bump version)
+    mockAuthVersion = 1;
     mockGetStrategy.mockResolvedValueOnce(mockStrategy);
 
-    // Re-render to trigger the auth token change detection
+    // Re-render to trigger the authVersion change detection
     await act(async () => {
       rerender();
     });
 
     await waitFor(() => {
-      // The hook should have retried with the new token
+      // The hook should have retried
       expect(mockGetStrategy).toHaveBeenCalledTimes(3);
       // Error should be cleared
       expect(args.setApiError).toHaveBeenCalledWith(null);
     });
   });
 
-  it("does NOT retry when auth token changes if the load succeeded", async () => {
+  it("does NOT retry when authVersion bumps if the load succeeded", async () => {
     // Successful load
     mockGetStrategy.mockResolvedValueOnce(mockStrategy);
     const args = makeArgs();
@@ -204,8 +204,8 @@ describe("useUnifiedChatDataLoading", () => {
       expect(mockGetStrategy).toHaveBeenCalledTimes(1);
     });
 
-    // Change auth token — should NOT trigger a retry since load succeeded
-    mockAuthToken = "different-token";
+    // Bump authVersion — should NOT trigger a retry since load succeeded
+    mockAuthVersion = 1;
 
     await act(async () => {
       rerender();

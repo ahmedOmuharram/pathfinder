@@ -3,15 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from kani import ChatMessage
+from kani import ChatMessage, Kani
 from kani.engines.openai import OpenAIEngine
-
-if TYPE_CHECKING:
-    from veupath_chatbot.ai.stubs.kani import Kani
-else:
-    from kani import Kani
 
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools

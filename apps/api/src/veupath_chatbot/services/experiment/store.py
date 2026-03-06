@@ -8,7 +8,8 @@ survive API restarts.
 
 from __future__ import annotations
 
-import asyncio
+from datetime import UTC, datetime
+from functools import cache
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
@@ -16,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from veupath_chatbot.persistence.models import ExperimentRow
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.tasks import spawn
 from veupath_chatbot.services.experiment._deserialize import experiment_from_json
 from veupath_chatbot.services.experiment.types import (
     Experiment,
@@ -30,17 +32,28 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _parse_created_at(iso_str: str) -> datetime:
+    """Parse an ISO datetime string to a timezone-aware datetime."""
+    if not iso_str:
+        return datetime.now(UTC)
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
+
+
 def _row_from_experiment(exp: Experiment) -> dict[str, object]:
     """Build column values for an ExperimentRow upsert."""
     return {
         "id": exp.id,
         "site_id": exp.config.site_id,
+        "user_id": exp.user_id,
         "name": exp.config.name or "",
         "status": exp.status,
         "data": experiment_to_json(exp),
         "batch_id": exp.batch_id,
         "benchmark_id": exp.benchmark_id,
-        "created_at": exp.created_at,
+        "created_at": _parse_created_at(exp.created_at),
     }
 
 
@@ -48,18 +61,21 @@ async def _persist_to_db(exp: Experiment) -> None:
     """Upsert an experiment row into the database."""
     from veupath_chatbot.persistence.session import async_session_factory
 
-    vals = _row_from_experiment(exp)
-    stmt = (
-        pg_insert(ExperimentRow)
-        .values(**vals)
-        .on_conflict_do_update(
-            index_elements=[ExperimentRow.id],
-            set_={k: v for k, v in vals.items() if k != "id"},
+    try:
+        vals = _row_from_experiment(exp)
+        stmt = (
+            pg_insert(ExperimentRow)
+            .values(**vals)
+            .on_conflict_do_update(
+                index_elements=[ExperimentRow.id],
+                set_={k: v for k, v in vals.items() if k != "id"},
+            )
         )
-    )
-    async with async_session_factory() as session:
-        await session.execute(stmt)
-        await session.commit()
+        async with async_session_factory() as session:
+            await session.execute(stmt)
+            await session.commit()
+    except Exception:
+        logger.exception("Failed to persist experiment to DB", experiment_id=exp.id)
 
 
 async def _load_from_db(experiment_id: str) -> Experiment | None:
@@ -73,13 +89,18 @@ async def _load_from_db(experiment_id: str) -> Experiment | None:
         return experiment_from_json(row.data)
 
 
-async def _list_from_db(site_id: str | None = None) -> list[Experiment]:
-    """List experiments from the database, optionally filtered by site."""
+async def _list_from_db(
+    site_id: str | None = None,
+    user_id: str | None = None,
+) -> list[Experiment]:
+    """List experiments from the database, optionally filtered by site and user."""
     from veupath_chatbot.persistence.session import async_session_factory
 
     stmt = select(ExperimentRow)
     if site_id:
         stmt = stmt.where(ExperimentRow.site_id == site_id)
+    if user_id:
+        stmt = stmt.where(ExperimentRow.user_id == user_id)
     stmt = stmt.order_by(ExperimentRow.created_at.desc())
 
     async with async_session_factory() as session:
@@ -130,21 +151,26 @@ class ExperimentStore:
     def save(self, experiment: Experiment) -> None:
         """Create or update an experiment (in-memory + schedule DB write)."""
         self._experiments[experiment.id] = experiment
+        coro = _persist_to_db(experiment)
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(_persist_to_db(experiment))
+            spawn(coro, name=f"persist-exp-{experiment.id}")
         except RuntimeError:
-            pass
+            coro.close()
+            logger.warning("No event loop for DB persist", experiment_id=experiment.id)
 
     def get(self, experiment_id: str) -> Experiment | None:
         """Get an experiment by ID from in-memory cache."""
         return self._experiments.get(experiment_id)
 
-    def list_all(self, site_id: str | None = None) -> list[Experiment]:
+    def list_all(
+        self, site_id: str | None = None, user_id: str | None = None
+    ) -> list[Experiment]:
         """List experiments from in-memory cache."""
         experiments = list(self._experiments.values())
         if site_id:
             experiments = [e for e in experiments if e.config.site_id == site_id]
+        if user_id:
+            experiments = [e for e in experiments if e.user_id == user_id]
         experiments.sort(key=lambda e: e.created_at, reverse=True)
         return experiments
 
@@ -158,11 +184,12 @@ class ExperimentStore:
         """Delete from in-memory + schedule DB delete."""
         removed = experiment_id in self._experiments
         self._experiments.pop(experiment_id, None)
+        coro = _delete_from_db(experiment_id)
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(_delete_from_db(experiment_id))
+            spawn(coro, name=f"delete-exp-{experiment_id}")
         except RuntimeError:
-            pass
+            coro.close()
+            logger.warning("No event loop for DB delete", experiment_id=experiment_id)
         return removed
 
     # -- Async interface (used by endpoint handlers) -------------------------
@@ -177,13 +204,17 @@ class ExperimentStore:
             self._experiments[experiment_id] = exp
         return exp
 
-    async def alist_all(self, site_id: str | None = None) -> list[Experiment]:
+    async def alist_all(
+        self, site_id: str | None = None, user_id: str | None = None
+    ) -> list[Experiment]:
         """List experiments: merges DB rows with in-memory (fresher) state."""
-        db_exps = await _list_from_db(site_id)
+        db_exps = await _list_from_db(site_id, user_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
         # In-memory entries override DB (running experiments have fresher state)
         for eid, exp in self._experiments.items():
             if site_id and exp.config.site_id != site_id:
+                continue
+            if user_id and exp.user_id != user_id:
                 continue
             merged[eid] = exp
         result = list(merged.values())
@@ -208,12 +239,7 @@ class ExperimentStore:
         return True
 
 
-_global_store: ExperimentStore | None = None
-
-
+@cache
 def get_experiment_store() -> ExperimentStore:
     """Get the global experiment store singleton."""
-    global _global_store
-    if _global_store is None:
-        _global_store = ExperimentStore()
-    return _global_store
+    return ExperimentStore()

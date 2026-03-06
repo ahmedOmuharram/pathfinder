@@ -1,5 +1,6 @@
 import type { Classification } from "@pathfinder/shared";
 import { Badge } from "@/lib/components/ui/Badge";
+import { sanitizeHtml } from "@/lib/utils/sanitizeHtml";
 import type { WdkRecord } from "@/features/workbench/api";
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -44,51 +45,6 @@ const HTML_TAG_RE = /<[^>]+>/;
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   return doc.body.textContent ?? "";
-}
-
-/**
- * Allow only safe inline tags; strip everything else.
- * This is a sanitization function that removes scripts, event handlers,
- * and unsafe tags. Only allows: a, b, i, em, strong, span, br, sub, sup.
- */
-function sanitizeHtml(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const ALLOWED_TAGS = new Set([
-    "a",
-    "b",
-    "i",
-    "em",
-    "strong",
-    "span",
-    "br",
-    "sub",
-    "sup",
-  ]);
-  function walk(node: Node) {
-    const children = Array.from(node.childNodes);
-    for (const child of children) {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        const el = child as Element;
-        if (!ALLOWED_TAGS.has(el.tagName.toLowerCase())) {
-          el.replaceWith(...Array.from(el.childNodes));
-        } else {
-          // Remove event handler attributes
-          for (const attr of Array.from(el.attributes)) {
-            if (attr.name.startsWith("on") || attr.name === "style") {
-              el.removeAttribute(attr.name);
-            }
-          }
-          if (el.tagName === "A") {
-            el.setAttribute("target", "_blank");
-            el.setAttribute("rel", "noopener noreferrer");
-          }
-          walk(el);
-        }
-      }
-    }
-  }
-  walk(doc.body);
-  return doc.body.innerHTML;
 }
 
 function tryParseJsonLink(raw: string): { text: string; url: string } | null {

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,16 +23,17 @@ class ExperimentMetrics:
     sensitivity: float
     specificity: float
     precision: float
-    negative_predictive_value: float
-    false_positive_rate: float
-    false_negative_rate: float
     f1_score: float
     mcc: float
     balanced_accuracy: float
-    youdens_j: float
-    total_results: int
-    total_positives: int
-    total_negatives: int
+    # Fields below may be absent in older persisted data.
+    negative_predictive_value: float = 0.0
+    false_positive_rate: float = 0.0
+    false_negative_rate: float = 0.0
+    youdens_j: float = 0.0
+    total_results: int = 0
+    total_positives: int = 0
+    total_negatives: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,8 +52,8 @@ class FoldMetrics:
 
     fold_index: int
     metrics: ExperimentMetrics
-    positive_control_ids: list[str]
-    negative_control_ids: list[str]
+    positive_control_ids: list[str] = field(default_factory=list)
+    negative_control_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +63,6 @@ class CrossValidationResult:
     k: int
     folds: list[FoldMetrics]
     mean_metrics: ExperimentMetrics
-    std_metrics: dict[str, float]
-    overfitting_score: float
-    overfitting_level: str  # "low" | "moderate" | "high"
+    std_metrics: dict[str, float] = field(default_factory=dict)
+    overfitting_score: float = 0.0
+    overfitting_level: str = "low"

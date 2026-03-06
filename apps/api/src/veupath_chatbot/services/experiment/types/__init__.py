@@ -27,6 +27,7 @@ from veupath_chatbot.services.experiment.types.experiment import (
     Experiment,
     ExperimentConfig,
 )
+from veupath_chatbot.services.experiment.types.json_codec import from_json, to_json
 from veupath_chatbot.services.experiment.types.metrics import (
     ConfusionMatrix,
     CrossValidationResult,
@@ -49,27 +50,8 @@ from veupath_chatbot.services.experiment.types.rank import (
     RankMetrics,
 )
 from veupath_chatbot.services.experiment.types.serialization import (
-    bootstrap_result_to_json,
-    confidence_interval_to_json,
-    cv_result_to_json,
-    enrichment_result_to_json,
-    enrichment_term_to_json,
     experiment_summary_to_json,
     experiment_to_json,
-    fold_metrics_to_json,
-    gene_info_to_json,
-    metrics_to_json,
-    negative_set_variant_to_json,
-    operator_comparison_to_json,
-    operator_variant_to_json,
-    parameter_sensitivity_to_json,
-    parameter_sweep_point_to_json,
-    rank_metrics_to_json,
-    step_analysis_to_json,
-    step_contribution_to_json,
-    step_evaluation_to_json,
-    tree_optimization_result_to_json,
-    tree_optimization_trial_to_json,
 )
 from veupath_chatbot.services.experiment.types.step_analysis import (
     OperatorComparison,
@@ -129,25 +111,8 @@ __all__ = [
     "Experiment",
     "ExperimentConfig",
     # Serialization
-    "bootstrap_result_to_json",
-    "confidence_interval_to_json",
-    "cv_result_to_json",
-    "enrichment_result_to_json",
-    "enrichment_term_to_json",
     "experiment_summary_to_json",
     "experiment_to_json",
-    "fold_metrics_to_json",
-    "gene_info_to_json",
-    "metrics_to_json",
-    "negative_set_variant_to_json",
-    "operator_comparison_to_json",
-    "operator_variant_to_json",
-    "parameter_sensitivity_to_json",
-    "parameter_sweep_point_to_json",
-    "rank_metrics_to_json",
-    "step_analysis_to_json",
-    "step_contribution_to_json",
-    "step_evaluation_to_json",
-    "tree_optimization_result_to_json",
-    "tree_optimization_trial_to_json",
+    "from_json",
+    "to_json",
 ]

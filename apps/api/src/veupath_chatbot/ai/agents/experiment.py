@@ -7,15 +7,10 @@ parameter configuration, control gene discovery, run configuration).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import Annotated, cast
 
-from kani import AIParam, ChatMessage, ai_function
+from kani import AIParam, ChatMessage, Kani, ai_function
 from kani.engines.base import BaseEngine
-
-if TYPE_CHECKING:
-    from veupath_chatbot.ai.stubs.kani import Kani
-else:
-    from kani import Kani
 
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin

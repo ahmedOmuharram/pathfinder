@@ -176,6 +176,14 @@ class Settings(BaseSettings):
         """Check if running in production mode."""
         return self.api_env == "production"
 
+    def model_post_init(self, __context: object) -> None:
+        """Validate settings after initialization."""
+        if self.is_production and "dev-only" in self.api_secret_key:
+            raise ValueError(
+                "API_SECRET_KEY must be set to a real secret in production. "
+                "The default development key is not allowed."
+            )
+
     @classmethod
     def settings_customise_sources(
         cls,

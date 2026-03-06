@@ -55,29 +55,53 @@ async def lookup_genes_by_text(
     :returns: Dict with ``results``, ``totalCount``, and optional ``suggestedOrganisms``.
     """
     needed = offset + limit
+    query_words = query.strip().split()
+    is_multi_word = len(query_words) >= 2
 
     # --- Strategy A: unrestricted site-search ---
     # PlasmoDB 500s when numRecords > 50, so always cap at SITE_SEARCH_FETCH_LIMIT.
     # Additional results come from WDK strategies below.
-    try:
-        (
-            primary_results,
-            available_organisms,
-            total_count,
-        ) = await fetch_site_search_genes(
-            site_id,
-            query,
-            limit=SITE_SEARCH_FETCH_LIMIT,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Gene text lookup via site-search failed; falling back to WDK strategies",
-            site_id=site_id,
-            query=query,
-            error=str(exc),
-        )
-        primary_results = []
-        available_organisms = []
+
+    # Strategy A2: phrase-quoted search — runs in parallel with A when query
+    # has 2+ words so that exact product/name matches aren't drowned out by
+    # individual-token hits (e.g. "alpha tubulin 2" matching every gene with "2").
+    async def _strategy_a_phrase() -> list[JSONObject]:
+        if not is_multi_word:
+            return []
+        try:
+            results, _, _ = await fetch_site_search_genes(
+                site_id,
+                f'"{query.strip()}"',
+                limit=SITE_SEARCH_FETCH_LIMIT,
+            )
+            return results
+        except Exception:
+            return []
+
+    async def _strategy_a() -> tuple[list[JSONObject], list[str], int]:
+        try:
+            return await fetch_site_search_genes(
+                site_id,
+                query,
+                limit=SITE_SEARCH_FETCH_LIMIT,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Gene text lookup via site-search failed; falling back to WDK strategies",
+                site_id=site_id,
+                query=query,
+                error=str(exc),
+            )
+            return [], [], 0
+
+    (
+        (primary_results, available_organisms, total_count),
+        phrase_results,
+    ) = await asyncio.gather(_strategy_a(), _strategy_a_phrase())
+
+    # Merge phrase results first — they are more precise for multi-word queries
+    if phrase_results:
+        primary_results = phrase_results + primary_results
 
     intent = analyse_query(
         query,

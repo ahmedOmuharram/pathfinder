@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from veupath_chatbot.domain.strategy.ast import from_dict as parse_plan
+from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.step_builders import build_steps_data_from_ast
@@ -15,9 +16,6 @@ from veupath_chatbot.transport.http.schemas import (
     StrategyResponse,
     ThinkingResponse,
 )
-
-if TYPE_CHECKING:
-    from veupath_chatbot.persistence.models import StreamProjection
 
 logger = get_logger(__name__)
 

@@ -54,6 +54,29 @@ class GeneResolveResponse(BaseModel):
     unresolved: list[str]
 
 
+class OrganismsResponse(BaseModel):
+    """Available organisms for a site."""
+
+    organisms: list[str]
+
+
+@router.get("/{siteId}/organisms", response_model=OrganismsResponse)
+async def list_organisms(siteId: str) -> OrganismsResponse:
+    """Return all available organism names for a site via site-search."""
+    from veupath_chatbot.integrations.veupathdb.site_search import query_site_search
+
+    data = await query_site_search(
+        siteId,
+        search_text="*",
+        document_type="gene",
+        limit=1,
+    )
+    data_dict = data if isinstance(data, dict) else {}
+    org_counts = data_dict.get("organismCounts")
+    orgs = sorted(org_counts.keys()) if isinstance(org_counts, dict) else []
+    return OrganismsResponse(organisms=orgs)
+
+
 @router.get("/{siteId}/genes/search", response_model=GeneSearchResponse)
 async def search_genes(
     siteId: str,

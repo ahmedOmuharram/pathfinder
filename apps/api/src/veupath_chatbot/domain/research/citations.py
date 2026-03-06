@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re as _re
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from string import ascii_lowercase
@@ -88,7 +88,7 @@ def _slug_token(value: str | None, *, max_len: int = 32) -> str:
     t = value.strip().lower()
     if not t:
         return ""
-    t = _re.sub(r"[^a-z0-9]+", "", t)
+    t = re.sub(r"[^a-z0-9]+", "", t)
     return t[:max_len]
 
 

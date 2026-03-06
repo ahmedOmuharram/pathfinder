@@ -176,9 +176,9 @@ async def list_experiments(
     user_id: CurrentUser,
     siteId: str | None = None,
 ) -> list[JSONObject]:
-    """List all experiments, optionally filtered by site."""
+    """List experiments owned by the current user, optionally filtered by site."""
     store = get_experiment_store()
-    experiments = await store.alist_all(site_id=siteId)
+    experiments = await store.alist_all(site_id=siteId, user_id=str(user_id))
     return [experiment_summary_to_json(e) for e in experiments]
 
 

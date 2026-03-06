@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import re as _re
+import re
 from typing import cast
 
 import httpx
@@ -149,14 +149,12 @@ class WebSearchService:
             r'<meta[^>]+name=["\']twitter:description["\'][^>]+content=["\']([^"\']+)["\']',
         ]
         for pat in meta_patterns:
-            m = _re.search(pat, html, flags=_re.IGNORECASE)
+            m = re.search(pat, html, flags=re.IGNORECASE)
             if m:
                 txt = strip_tags(m.group(1))
                 return truncate_text(txt, max_chars) if txt else None
 
-        paras = _re.findall(
-            r"<p[^>]*>(.*?)</p>", html, flags=_re.IGNORECASE | _re.DOTALL
-        )
+        paras = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.IGNORECASE | re.DOTALL)
         best: str | None = None
         for p in paras:
             txt = strip_tags(p)
@@ -187,25 +185,25 @@ class WebSearchService:
         def _parse_results(html: str) -> JSONArray:
             parsed: JSONArray = []
             # Find result links; snippets are nearby in the HTML.
-            for m in _re.finditer(
+            for m in re.finditer(
                 r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
                 html,
-                flags=_re.IGNORECASE,
+                flags=re.IGNORECASE,
             ):
                 if len(parsed) >= limit:
                     break
                 href = m.group(1)
-                title = _re.sub(r"<[^>]+>", "", m.group(2)).strip()
+                title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
                 if not title:
                     continue
                 window = html[m.end() : m.end() + 2000]
-                m_snip = _re.search(
+                m_snip = re.search(
                     r'class="result__snippet"[^>]*>(.*?)</',
                     window,
-                    flags=_re.IGNORECASE,
+                    flags=re.IGNORECASE,
                 )
                 snippet_html = m_snip.group(1) if m_snip else ""
-                snippet = _re.sub(r"<[^>]+>", "", snippet_html).strip() or None
+                snippet = re.sub(r"<[^>]+>", "", snippet_html).strip() or None
                 parsed.append(
                     {
                         "title": title,

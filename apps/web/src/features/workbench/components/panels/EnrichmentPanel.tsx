@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { Dna, Play, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { EnrichmentSection } from "@/features/analysis";
-import type { EnrichmentResult, EnrichmentAnalysisType } from "@pathfinder/shared";
+import type { EnrichmentResult } from "@pathfinder/shared";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { useWorkbenchStore } from "../../store";
 import { enrichGeneSet } from "../../api/geneSets";
@@ -14,9 +14,9 @@ import { enrichGeneSet } from "../../api/geneSets";
 // ---------------------------------------------------------------------------
 
 const ENRICHMENT_TYPES = [
-  { key: "go_bp", label: "GO:BP" },
-  { key: "go_mf", label: "GO:MF" },
-  { key: "go_cc", label: "GO:CC" },
+  { key: "go_process", label: "GO:BP" },
+  { key: "go_function", label: "GO:MF" },
+  { key: "go_component", label: "GO:CC" },
   { key: "pathway", label: "Pathway" },
   { key: "word", label: "Word" },
 ] as const;
@@ -33,7 +33,7 @@ export function EnrichmentPanel() {
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
   const [selectedTypes, setSelectedTypes] = useState<Set<EnrichmentTypeKey>>(
-    new Set(["go_bp", "pathway"]),
+    new Set(ENRICHMENT_TYPES.map((t) => t.key)),
   );
   const [results, setResults] = useState<EnrichmentResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,15 +58,8 @@ export function EnrichmentPanel() {
     setResults(null);
 
     try {
-      const raw = await enrichGeneSet(activeSet.id, [...selectedTypes]);
-      // Map the workbench API response to the shared EnrichmentResult shape
-      const mapped: EnrichmentResult[] = raw.map((r) => ({
-        analysisType: r.type as EnrichmentAnalysisType,
-        terms: r.results as EnrichmentResult["terms"],
-        totalGenesAnalyzed: 0,
-        backgroundSize: 0,
-      }));
-      setResults(mapped);
+      const results = await enrichGeneSet(activeSet.id, [...selectedTypes]);
+      setResults(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

@@ -116,7 +116,7 @@ export function ChatMessageList({
             index === lastAssistantIndex;
 
           return (
-            <div key={index} className="space-y-2">
+            <div key={messageKey} className="space-y-2">
               <div
                 className={`flex ${
                   message.role === "user" ? "justify-end" : "justify-start"

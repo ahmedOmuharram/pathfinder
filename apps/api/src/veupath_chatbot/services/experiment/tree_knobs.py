@@ -13,7 +13,7 @@ import time
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import safe_int as _safe_int
+from veupath_chatbot.services.experiment.helpers import safe_int
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     OperatorKnob,
@@ -119,7 +119,7 @@ async def optimize_tree_knobs(
 
         target = result.get("target", {})
         total_results = (
-            _safe_int(target.get("resultCount", 0)) if isinstance(target, dict) else 0
+            safe_int(target.get("resultCount", 0)) if isinstance(target, dict) else 0
         )
 
         if max_list_size is not None and total_results > max_list_size:
@@ -128,10 +128,10 @@ async def optimize_tree_knobs(
         pos = result.get("positive", {})
         neg = result.get("negative", {})
         pos_hits = (
-            _safe_int(pos.get("intersectionCount", 0)) if isinstance(pos, dict) else 0
+            safe_int(pos.get("intersectionCount", 0)) if isinstance(pos, dict) else 0
         )
         neg_hits = (
-            _safe_int(neg.get("intersectionCount", 0)) if isinstance(neg, dict) else 0
+            safe_int(neg.get("intersectionCount", 0)) if isinstance(neg, dict) else 0
         )
         total_pos = len(positive_controls)
         total_neg = len(negative_controls)

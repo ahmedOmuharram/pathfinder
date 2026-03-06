@@ -21,16 +21,12 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
   const [authBusy, setAuthBusy] = useState(false);
 
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
-  const setAuthToken = useSessionStore((state) => state.setAuthToken);
 
   const handleSubmit = async () => {
     setAuthError(null);
     setAuthBusy(true);
     try {
-      const result = await loginVeupathdb(email, password);
-      if (result.authToken) {
-        setAuthToken(result.authToken);
-      }
+      await loginVeupathdb(email, password);
       const status = await getVeupathdbAuthStatus();
       setVeupathdbAuth(status.signedIn, status.name ?? null);
       if (status.signedIn) {

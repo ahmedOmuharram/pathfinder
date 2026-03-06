@@ -58,7 +58,6 @@ export function UnifiedChatPanel({
   // --- Global state ---
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyIdGlobal = useSessionStore((s) => s.setStrategyId);
-  const setAuthToken = useSessionStore((s) => s.setAuthToken);
   const setChatIsStreaming = useSessionStore((s) => s.setChatIsStreaming);
   const selectedSiteDisplayName = useSessionStore((s) => s.selectedSiteDisplayName);
   const veupathdbName = useSessionStore((s) => s.veupathdbName);
@@ -112,7 +111,6 @@ export function UnifiedChatPanel({
           ? error.status === 401
           : error instanceof Error && /HTTP 401\b/.test(error.message);
       if (isUnauthorized) {
-        setAuthToken(null);
         setStrategyIdGlobal(null);
         setMessages([]);
         setChatIsStreaming(false);
@@ -121,7 +119,7 @@ export function UnifiedChatPanel({
       }
       setApiError(toUserMessage(error, fallback));
     },
-    [setAuthToken, setStrategyIdGlobal, setChatIsStreaming],
+    [setStrategyIdGlobal, setChatIsStreaming],
   );
 
   // --- Graph loading ---

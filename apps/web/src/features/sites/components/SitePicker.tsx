@@ -83,7 +83,6 @@ export function SitePicker({
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const veupathdbName = useSessionStore((state) => state.veupathdbName);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
-  const setAuthToken = useSessionStore((state) => state.setAuthToken);
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
 
   const displaySignedIn = veupathdbSignedIn || !!authStatus?.signedIn;
@@ -263,7 +262,6 @@ export function SitePicker({
                   setAuthError(null);
                   try {
                     await logoutVeupathdb();
-                    setAuthToken(null);
                     setAuthStatus({ signedIn: false });
                     setVeupathdbAuth(false, null);
                   } catch {

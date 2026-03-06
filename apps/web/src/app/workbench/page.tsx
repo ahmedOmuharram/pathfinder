@@ -10,6 +10,7 @@ import { refreshAuth } from "@/lib/api/client";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSidebar";
 import { WorkbenchMain } from "@/features/workbench/components/WorkbenchMain";
+import { GeneSearchSidebar } from "@/features/workbench/components/GeneSearchSidebar";
 import { listGeneSets } from "@/features/workbench/api/geneSets";
 import { useWorkbenchStore } from "@/features/workbench/store";
 import { Button } from "@/lib/components/ui/Button";
@@ -19,6 +20,7 @@ import {
   Loader2,
   MessageCircle,
   RefreshCw,
+  Search,
   Settings,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +28,6 @@ import Link from "next/link";
 export default function WorkbenchPage() {
   const { selectedSite, setSelectedSite } = useSessionStore();
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
-  const setAuthToken = useSessionStore((s) => s.setAuthToken);
   const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
   useSiteTheme(selectedSite);
   const authRefreshed = useSessionStore((s) => s.authRefreshed);
@@ -39,20 +40,20 @@ export default function WorkbenchPage() {
     [setSelectedSite],
   );
 
+  const bumpAuthVersion = useSessionStore((s) => s.bumpAuthVersion);
   useEffect(() => {
     if (!veupathdbSignedIn || authRefreshed) return;
     setAuthRefreshed(true);
     refreshAuth()
-      .then((result) => {
-        if (result.authToken) setAuthToken(result.authToken);
-      })
+      .then(() => bumpAuthVersion())
       .catch((err) => {
         console.error("[refreshAuth]", err);
-        setAuthToken(null);
       });
-  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, setAuthToken]);
+  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, bumpAuthVersion]);
 
   const [showSettings, setShowSettings] = useState(false);
+  const geneSearchOpen = useWorkbenchStore((s) => s.geneSearchOpen);
+  const toggleGeneSearch = useWorkbenchStore((s) => s.toggleGeneSearch);
 
   // Load gene sets from API on mount / site change
   const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
@@ -137,6 +138,16 @@ export default function WorkbenchPage() {
             <Button
               variant="ghost"
               size="icon"
+              onClick={toggleGeneSearch}
+              aria-label="Toggle gene search"
+              aria-pressed={geneSearchOpen}
+              className={geneSearchOpen ? "bg-white/20" : ""}
+            >
+              <Search className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowSettings(true)}
               aria-label="Settings"
             >
@@ -154,6 +165,12 @@ export default function WorkbenchPage() {
         <div className="min-h-0 min-w-0 flex-1 bg-card">
           <WorkbenchMain />
         </div>
+
+        {geneSearchOpen && (
+          <div className="w-80 shrink-0 border-l border-border bg-sidebar">
+            <GeneSearchSidebar />
+          </div>
+        )}
       </div>
 
       <SettingsPage

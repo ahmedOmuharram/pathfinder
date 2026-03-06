@@ -1,5 +1,3 @@
-import { getAuthToken } from "./auth";
-
 export class APIError extends Error {
   status: number;
   statusText: string;
@@ -51,21 +49,16 @@ export function buildUrl(
   return url.toString();
 }
 
-export function getAuthHeaders(
-  tokenOverride?: string | null,
-  opts?: { accept?: string; contentType?: string; extra?: Record<string, string> },
-): Record<string, string> {
-  const token = tokenOverride ?? getAuthToken();
-  const headers: Record<string, string> = {
+export function getAuthHeaders(opts?: {
+  accept?: string;
+  contentType?: string;
+  extra?: Record<string, string>;
+}): Record<string, string> {
+  return {
     ...(opts?.accept ? { Accept: opts.accept } : {}),
     ...(opts?.contentType ? { "Content-Type": opts.contentType } : {}),
     ...(opts?.extra ?? {}),
   };
-
-  if (token) {
-    headers.Authorization = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-  }
-  return headers;
 }
 
 async function parseResponseBody(resp: Response): Promise<unknown> {
@@ -99,7 +92,7 @@ export async function requestJson<T>(
 
   const hasBody = args && "body" in args && args.body !== undefined;
   const headers: Record<string, string> = {
-    ...getAuthHeaders(undefined, {
+    ...getAuthHeaders({
       accept: "application/json",
       contentType: hasBody ? "application/json" : undefined,
     }),
@@ -118,10 +111,26 @@ export async function requestJson<T>(
   const data = await parseResponseBody(resp);
 
   if (!resp.ok) {
-    const msg =
-      typeof data === "object" && data && "detail" in (data as Record<string, unknown>)
-        ? String((data as Record<string, unknown>).detail)
-        : `HTTP ${resp.status} ${resp.statusText}`;
+    let msg = `HTTP ${resp.status} ${resp.statusText}`;
+    if (
+      typeof data === "object" &&
+      data &&
+      "detail" in (data as Record<string, unknown>)
+    ) {
+      const detail = (data as Record<string, unknown>).detail;
+      if (typeof detail === "string") {
+        msg = detail;
+      } else if (Array.isArray(detail)) {
+        // FastAPI validation errors: [{loc, msg, type}, ...]
+        msg = detail
+          .map((e) =>
+            typeof e === "object" && e && "msg" in e ? String(e.msg) : String(e),
+          )
+          .join("; ");
+      } else {
+        msg = String(detail);
+      }
+    }
     throw new APIError(msg, {
       status: resp.status,
       statusText: resp.statusText,

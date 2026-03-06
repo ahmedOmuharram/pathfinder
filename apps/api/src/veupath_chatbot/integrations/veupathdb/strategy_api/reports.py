@@ -210,10 +210,12 @@ class ReportsMixin(StrategyAPIBase):
                             error=str(exc),
                         )
                     raise InternalError(
-                        title="Step analysis retries exhausted",
+                        title="Analysis unavailable",
                         detail=(
-                            f"Analysis {analysis_id} returned {status} "
-                            f"{retries} times (max {max_retries})"
+                            f"VEuPathDB could not complete this analysis "
+                            f"(returned {status} after {retries} attempts). "
+                            f"This typically happens when the gene set is too "
+                            f"small or lacks the required annotations."
                         ),
                     )
                 # WDK's requiresRerun flag means re-running the same instance

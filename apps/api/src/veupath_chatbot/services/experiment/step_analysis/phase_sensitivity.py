@@ -23,7 +23,7 @@ from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     ParameterSensitivity,
     ParameterSweepPoint,
-    parameter_sensitivity_to_json,
+    to_json,
 )
 
 SENSITIVITY_SWEEP_POINTS = 5
@@ -439,7 +439,7 @@ async def sweep_parameters(
                         or f"Parameter {pname}: no change recommended",
                         "current": pi + 1,
                         "total": total_params,
-                        "parameterSensitivity": parameter_sensitivity_to_json(ps),
+                        "parameterSensitivity": to_json(ps),
                     },
                 }
             )

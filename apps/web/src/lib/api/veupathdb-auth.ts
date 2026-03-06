@@ -18,7 +18,7 @@ export async function getVeupathdbAuthStatus(): Promise<{
 export async function loginVeupathdb(
   email: string,
   password: string,
-): Promise<{ success: boolean; authToken?: string }> {
+): Promise<{ success: boolean }> {
   if (!email || !password) {
     throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
@@ -37,6 +37,6 @@ export async function logoutVeupathdb(): Promise<{ success: boolean }> {
  * Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
  * Called on page load when the internal token is missing/expired.
  */
-export async function refreshAuth(): Promise<{ success: boolean; authToken?: string }> {
+export async function refreshAuth(): Promise<{ success: boolean }> {
   return await requestJson(`/api/v1/veupathdb/auth/refresh`, { method: "POST" });
 }

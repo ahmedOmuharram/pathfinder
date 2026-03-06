@@ -105,15 +105,12 @@ def _build_success_response(
     veupathdb_token: str,
     auth_token: str | None,
 ) -> JSONResponse:
-    """Build a ``JSONResponse`` that sets both cookies and carries the token.
+    """Build a ``JSONResponse`` that sets both cookies.
 
-    :param veupathdb_token: VEuPathDB auth token.
-    :param auth_token: str | None.
-
+    Auth tokens are ONLY set via httpOnly cookies — never exposed in the
+    response body — to prevent XSS-based token exfiltration.
     """
     body: dict[str, object] = {"success": True}
-    if auth_token:
-        body["authToken"] = auth_token
 
     settings = get_settings()
     secure_cookie = not settings.is_development
@@ -133,6 +130,7 @@ def _build_success_response(
             value=auth_token,
             httponly=True,
             samesite="lax",
+            secure=secure_cookie,
             path="/",
         )
     return resp
@@ -243,13 +241,16 @@ async def refresh_internal_auth(
     if not auth_token:
         raise UnauthorizedError(detail="VEuPathDB session expired or invalid")
 
-    body: dict[str, object] = {"success": True, "authToken": auth_token}
-    resp = JSONResponse(body)
+    settings = get_settings()
+    secure_cookie = not settings.is_development
+
+    resp = JSONResponse({"success": True})
     resp.set_cookie(
         key="pathfinder-auth",
         value=auth_token,
         httponly=True,
         samesite="lax",
+        secure=secure_cookie,
         path="/",
     )
     return resp

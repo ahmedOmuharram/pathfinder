@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.core.streaming import (
     start_batch_experiment,
@@ -53,13 +54,15 @@ logger = get_logger(__name__)
         }
     },
 )
+@limiter.limit("20/minute")
 async def create_experiment(
-    request: CreateExperimentRequest,
+    request: Request,
+    body: CreateExperimentRequest,
     user_id: CurrentUser,
 ) -> JSONResponse:
     """Create and run an experiment as a background task."""
-    config = config_from_request(request)
-    operation_id = await start_experiment(config)
+    config = config_from_request(body)
+    operation_id = await start_experiment(config, user_id=str(user_id))
     return JSONResponse({"operationId": operation_id}, status_code=202)
 
 
@@ -80,25 +83,27 @@ async def create_experiment(
         }
     },
 )
+@limiter.limit("10/minute")
 async def create_batch_experiment(
-    request: CreateBatchExperimentRequest,
+    request: Request,
+    body: CreateBatchExperimentRequest,
     user_id: CurrentUser,
 ) -> JSONResponse:
     """Run the same search across multiple organisms as a background task."""
-    base_config = config_from_request(request.base)
+    base_config = config_from_request(body.base)
     batch_config = BatchExperimentConfig(
         base_config=base_config,
-        organism_param_name=request.organism_param_name,
+        organism_param_name=body.organism_param_name,
         target_organisms=[
             BatchOrganismTarget(
                 organism=t.organism,
                 positive_controls=t.positive_controls,
                 negative_controls=t.negative_controls,
             )
-            for t in request.target_organisms
+            for t in body.target_organisms
         ],
     )
-    operation_id = await start_batch_experiment(batch_config)
+    operation_id = await start_batch_experiment(batch_config, user_id=str(user_id))
     return JSONResponse({"operationId": operation_id}, status_code=202)
 
 
@@ -119,12 +124,14 @@ async def create_batch_experiment(
         }
     },
 )
+@limiter.limit("10/minute")
 async def create_benchmark(
-    request: CreateBenchmarkRequest,
+    request: Request,
+    body: CreateBenchmarkRequest,
     user_id: CurrentUser,
 ) -> JSONResponse:
     """Run the same strategy against multiple control sets as a background task."""
-    base_config = config_from_request(request.base)
+    base_config = config_from_request(body.base)
     control_sets = [
         (
             cs.label,
@@ -133,9 +140,9 @@ async def create_benchmark(
             cs.control_set_id,
             cs.is_primary,
         )
-        for cs in request.control_sets
+        for cs in body.control_sets
     ]
-    has_primary = any(cs.is_primary for cs in request.control_sets)
+    has_primary = any(cs.is_primary for cs in body.control_sets)
     if not has_primary and control_sets:
         control_sets[0] = (
             control_sets[0][0],
@@ -145,7 +152,9 @@ async def create_benchmark(
             True,
         )
 
-    operation_id = await start_benchmark(base_config, control_sets)
+    operation_id = await start_benchmark(
+        base_config, control_sets, user_id=str(user_id)
+    )
     return JSONResponse({"operationId": operation_id}, status_code=202)
 
 

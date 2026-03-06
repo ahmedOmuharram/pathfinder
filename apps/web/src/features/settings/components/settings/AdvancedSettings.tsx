@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from "react";
 import { useSettingsStore } from "@/state/useSettingsStore";
+import { useSessionStore } from "@/state/useSessionStore";
 import { Loader2, FlaskConical } from "lucide-react";
 import { SettingsField } from "./SettingsField";
 
@@ -38,6 +39,7 @@ export function AdvancedSettings() {
     (s) => s.setAdvancedReasoningBudget,
   );
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
+  const bumpAuthVersion = useSessionStore((s) => s.bumpAuthVersion);
 
   const [seeding, setSeeding] = useState(false);
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
@@ -83,8 +85,9 @@ export function AdvancedSettings() {
       setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSeeding(false);
+      bumpAuthVersion();
     }
-  }, []);
+  }, [bumpAuthVersion]);
 
   return (
     <div className="space-y-5">

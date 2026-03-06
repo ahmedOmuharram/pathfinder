@@ -7,6 +7,8 @@ or AI tool.
 
 from __future__ import annotations
 
+import asyncio
+
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.enrichment import (
@@ -65,13 +67,13 @@ class EnrichmentService:
         record_type: str | None = None,
         parameters: JSONObject | None = None,
     ) -> tuple[list[EnrichmentResult], list[str]]:
-        """Run multiple enrichment analyses, collecting results and errors."""
+        """Run multiple enrichment analyses concurrently, collecting results and errors."""
         results: list[EnrichmentResult] = []
         errors: list[str] = []
 
-        for analysis_type in analysis_types:
+        async def _run_one(analysis_type: EnrichmentAnalysisType) -> EnrichmentResult:
             try:
-                result = await self.run(
+                return await self.run(
                     site_id=site_id,
                     step_id=step_id,
                     analysis_type=analysis_type,
@@ -79,14 +81,21 @@ class EnrichmentService:
                     record_type=record_type,
                     parameters=parameters,
                 )
-                results.append(result)
             except Exception as exc:
-                msg = f"{analysis_type}: {exc}"
                 logger.warning(
                     "Enrichment failed",
                     analysis_type=analysis_type,
                     error=str(exc),
                 )
-                errors.append(msg)
+                error_msg = str(exc)
+                errors.append(f"{analysis_type}: {error_msg}")
+                return EnrichmentResult(
+                    analysis_type=analysis_type,
+                    terms=[],
+                    total_genes_analyzed=0,
+                    background_size=0,
+                    error=error_msg,
+                )
 
+        results = list(await asyncio.gather(*[_run_one(at) for at in analysis_types]))
         return results, errors

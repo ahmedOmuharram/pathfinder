@@ -12,7 +12,7 @@ from veupath_chatbot.persistence.repositories import (
     UserRepository,
 )
 from veupath_chatbot.persistence.session import get_db_session
-from veupath_chatbot.platform.errors import NotFoundError
+from veupath_chatbot.platform.errors import ForbiddenError, NotFoundError
 from veupath_chatbot.platform.security import get_current_user
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import Experiment
@@ -41,18 +41,6 @@ ControlSetRepo = Annotated[ControlSetRepository, Depends(get_control_set_repo)]
 StreamRepo = Annotated[StreamRepository, Depends(get_stream_repo)]
 
 
-async def get_experiment_or_404(experiment_id: str) -> Experiment:
-    """Resolve an experiment by ID or raise 404."""
-    store = get_experiment_store()
-    exp = await store.aget(experiment_id)
-    if not exp:
-        raise NotFoundError(title="Experiment not found")
-    return exp
-
-
-ExperimentDep = Annotated[Experiment, Depends(get_experiment_or_404)]
-
-
 async def get_current_user_with_db_row(
     user_id: Annotated[UUID, Depends(get_current_user)],
     user_repo: UserRepo,
@@ -67,3 +55,20 @@ async def get_current_user_with_db_row(
 
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
+
+
+async def get_experiment_owned_by_user(
+    experiment_id: str,
+    user_id: CurrentUser,
+) -> Experiment:
+    """Resolve an experiment by ID and verify the current user owns it."""
+    store = get_experiment_store()
+    exp = await store.aget(experiment_id)
+    if not exp:
+        raise NotFoundError(title="Experiment not found")
+    if exp.user_id != str(user_id):
+        raise ForbiddenError(title="Not authorized to access this experiment")
+    return exp
+
+
+ExperimentDep = Annotated[Experiment, Depends(get_experiment_owned_by_user)]

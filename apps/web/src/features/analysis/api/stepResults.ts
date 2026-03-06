@@ -10,10 +10,9 @@ import { requestJson } from "@/lib/api/http";
 import type {
   RecordAttribute,
   RecordsResponse,
-  StrategyResponse,
 } from "@/features/workbench/api/experiments";
 
-export type { RecordAttribute, RecordsResponse, StrategyResponse };
+export type { RecordAttribute, RecordsResponse };
 
 export type EntityRef =
   | { type: "experiment"; id: string }
@@ -73,25 +72,4 @@ export function getDistribution(
   return requestJson(
     `${basePath(ref)}/results/distributions/${encodeURIComponent(attributeName)}`,
   );
-}
-
-export function getAnalysisTypes(
-  ref: EntityRef,
-): Promise<{ analysisTypes: Record<string, unknown>[] }> {
-  return requestJson(`${basePath(ref)}/analyses/types`);
-}
-
-export function runAnalysis(
-  ref: EntityRef,
-  analysisName: string,
-  parameters: Record<string, unknown> = {},
-): Promise<Record<string, unknown>> {
-  return requestJson(`${basePath(ref)}/analyses/run`, {
-    method: "POST",
-    body: { analysisName, parameters },
-  });
-}
-
-export function getStrategy(ref: EntityRef): Promise<StrategyResponse> {
-  return requestJson<StrategyResponse>(`${basePath(ref)}/strategy`);
 }

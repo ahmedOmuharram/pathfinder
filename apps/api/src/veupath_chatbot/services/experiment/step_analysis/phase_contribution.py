@@ -20,7 +20,7 @@ from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     StepContribution,
     StepContributionVerdict,
-    step_contribution_to_json,
+    to_json,
 )
 
 logger = get_logger(__name__)
@@ -144,7 +144,7 @@ async def analyze_contributions(
                         "message": f"Ablation {display}: {verdict} (recall \u0394{recall_delta:+.0%})",
                         "current": idx + 1,
                         "total": len(leaves),
-                        "stepContribution": step_contribution_to_json(sc),
+                        "stepContribution": to_json(sc),
                     },
                 }
             )
