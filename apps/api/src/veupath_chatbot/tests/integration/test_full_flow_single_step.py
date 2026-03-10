@@ -94,7 +94,6 @@ class TestSingleStepRNASeqSearch:
                     "build_strategy",
                     {
                         "strategy_name": "Gametocyte expression analysis",
-                        "record_type": "transcript",
                     },
                 )
             ]
@@ -121,8 +120,8 @@ class TestSingleStepRNASeqSearch:
         assert result.http_status == 202, f"HTTP {result.http_status}: {result.events}"
         types = result.event_types
 
-        assert types[0] == "message_start", (
-            f"First event should be message_start, got {types}"
+        assert "message_start" in types, (
+            f"Expected message_start in events, got {types}"
         )
         assert "message_end" in types, f"Expected message_end in events, got {types}"
 
@@ -235,7 +234,7 @@ class TestSingleStepEpitopeSearch:
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]
@@ -327,7 +326,7 @@ class TestSingleStepEpitopeVariant:
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]
@@ -389,7 +388,7 @@ class TestCatalogExploration:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]

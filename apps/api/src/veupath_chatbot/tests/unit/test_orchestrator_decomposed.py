@@ -176,6 +176,7 @@ class TestBuildAgentContext:
                 reasoning_effort=None,
                 mentions=mentions,
                 projection=projection,
+                stream_repo=MagicMock(),
             )
 
         mock_build.assert_called_once()

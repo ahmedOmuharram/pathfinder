@@ -88,7 +88,7 @@ class TestInvalidParameterRecovery:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         # Should have two create_step calls

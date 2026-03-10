@@ -286,7 +286,6 @@ class TestStrategyMetaPersistence:
                             "build_strategy",
                             {
                                 "strategy_name": "Epitope persistence test",
-                                "record_type": "transcript",
                             },
                         )
                     ]

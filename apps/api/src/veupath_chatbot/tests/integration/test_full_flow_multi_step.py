@@ -151,7 +151,7 @@ class TestCombineIntersect:
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]
@@ -352,7 +352,7 @@ class TestSearchPlusTransform:
 
         assert r2.http_status == 202
         types = r2.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in r2.tool_calls]

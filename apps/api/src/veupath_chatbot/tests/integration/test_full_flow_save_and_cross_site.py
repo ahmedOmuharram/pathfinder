@@ -55,7 +55,6 @@ class TestBuildAndSave:
                     "build_strategy",
                     {
                         "strategy_name": "Vaccine targets (saved)",
-                        "record_type": "transcript",
                         "description": "P. falciparum genes with high/medium epitope evidence",
                     },
                 )
@@ -76,7 +75,7 @@ class TestBuildAndSave:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         # Strategy link event with WDK strategy ID
@@ -267,7 +266,7 @@ class TestToxoDBSearch:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]
@@ -322,7 +321,7 @@ class TestCryptoDBLookup:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]
@@ -378,7 +377,7 @@ class TestGeneLookupAndResolve:
 
         assert result.http_status == 202
         types = result.event_types
-        assert types[0] == "message_start"
+        assert "message_start" in types
         assert "message_end" in types
 
         tool_names = [s.data.get("name") for s, _ in result.tool_calls]

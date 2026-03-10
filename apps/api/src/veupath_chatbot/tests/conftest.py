@@ -23,18 +23,6 @@ from veupath_chatbot.tests.fixtures.scripted_engine import (
     ScriptedTurn,
 )
 
-# Auto-skip live_wdk tests unless LIVE_WDK_TESTS=1 is set.
-_skip_live_wdk = pytest.mark.skipif(
-    os.environ.get("LIVE_WDK_TESTS") != "1",
-    reason="Live WDK tests disabled (set LIVE_WDK_TESTS=1 to run)",
-)
-
-
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    for item in items:
-        if item.get_closest_marker("live_wdk") is not None:
-            item.add_marker(_skip_live_wdk)
-
 
 async def _probe_connection(url: str) -> bool:
     """Try connecting to the given URL. Returns False if role does not exist."""
@@ -203,9 +191,15 @@ def _test_env_defaults() -> None:
     # Keep tests deterministic and avoid background ingestion/LLM calls.
     os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
     os.environ.setdefault("RAG_ENABLED", "false")
+    os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
     os.environ.setdefault("OPENAI_API_KEY", "")
     os.environ.setdefault("ANTHROPIC_API_KEY", "")
     os.environ.setdefault("GEMINI_API_KEY", "")
+
+    # Disable rate limiting so chat tests don't get 429s.
+    from veupath_chatbot.platform.security import limiter
+
+    limiter.enabled = False
 
 
 @pytest.fixture
@@ -214,6 +208,13 @@ def app() -> FastAPI:
     from veupath_chatbot.platform.config import get_settings
 
     get_settings.cache_clear()
+
+    # Reset orchestrator globals so _wire_ai_dependencies() starts clean.
+    import veupath_chatbot.services.chat.orchestrator as _orch
+
+    _orch._create_agent = None
+    _orch._resolve_effective_model_id = None
+    _orch._mock_stream_fn = None
 
     from veupath_chatbot.main import create_app
 
@@ -321,6 +322,10 @@ def scripted_engine_factory() -> Callable[
             patch(
                 "veupath_chatbot.ai.agents.factory.create_engine",
                 return_value=engine,
+            ),
+            patch(
+                "veupath_chatbot.services.chat.orchestrator._mock_stream_fn",
+                None,
             ),
             patch.dict(
                 os.environ,
