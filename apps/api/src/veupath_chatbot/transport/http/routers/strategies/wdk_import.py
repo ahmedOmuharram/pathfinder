@@ -12,8 +12,12 @@ from veupath_chatbot.platform.errors import (
     WDKError,
 )
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.tasks import spawn
 from veupath_chatbot.services.control_helpers import (
     cleanup_internal_control_test_strategies,
+)
+from veupath_chatbot.services.strategies.auto_import import (
+    background_auto_import_gene_sets,
 )
 from veupath_chatbot.services.strategies.wdk_bridge import (
     parse_wdk_strategy_id,
@@ -187,6 +191,12 @@ async def sync_all_wdk_strategies(
                 error=str(e),
             )
 
-    # Return from CQRS projections.
+    # Auto-import gene sets in the background — don't block the response
+    # while WDK API calls resolve gene IDs for each eligible strategy.
+    spawn(
+        background_auto_import_gene_sets(site_id=site.id, user_id=user_id),
+        name=f"auto-import-gene-sets-{site.id}",
+    )
+
     projections = await stream_repo.list_projections(user_id, site_id)
     return [build_projection_summary(p, site_id=site_id) for p in projections]

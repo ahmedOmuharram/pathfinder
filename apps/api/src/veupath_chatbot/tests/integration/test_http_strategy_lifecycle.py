@@ -170,10 +170,10 @@ async def test_update_strategy_preserves_plan_on_name_only_patch(
 # ---------------------------------------------------------------------------
 
 
-async def test_delete_wdk_linked_strategy_calls_wdk_delete(
+async def test_delete_wdk_linked_strategy_does_not_call_wdk_by_default(
     authed_client: httpx.AsyncClient, wdk_respx: respx.Router
 ) -> None:
-    """DELETE /strategies/{id} for WDK-linked strategy triggers WDK delete."""
+    """DELETE /strategies/{id} for WDK-linked strategy does NOT call WDK delete by default."""
     base = "https://plasmodb.org/plasmo/service"
 
     # Step 1: Sync to create a WDK-linked projection
@@ -192,18 +192,19 @@ async def test_delete_wdk_linked_strategy_calls_wdk_delete(
         204
     )
 
-    # Step 3: Delete the strategy
+    # Step 3: Delete the strategy (no deleteFromWdk param)
     delete_resp = await authed_client.delete(f"/api/v1/strategies/{strategy_id}")
     assert delete_resp.status_code == 204
 
-    # Verify WDK delete was called
-    assert wdk_delete_route.called, (
-        "Deleting a WDK-linked strategy should call WDK delete endpoint"
+    # Verify WDK delete was NOT called (default behavior)
+    assert not wdk_delete_route.called, (
+        "Default delete should NOT call WDK delete endpoint"
     )
 
-    # Verify strategy is gone
+    # Verify WDK-linked strategy is soft-deleted (dismissed), not hard-deleted
     get_resp = await authed_client.get(f"/api/v1/strategies/{strategy_id}")
-    assert get_resp.status_code == 404
+    assert get_resp.status_code == 200
+    assert get_resp.json()["dismissedAt"] is not None
 
 
 # ---------------------------------------------------------------------------

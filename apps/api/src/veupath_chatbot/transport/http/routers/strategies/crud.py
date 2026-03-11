@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
-from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
+from veupath_chatbot.platform.errors import ErrorCode, NotFoundError, ValidationError
 from veupath_chatbot.platform.events import read_stream_messages, read_stream_thinking
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -43,6 +43,17 @@ async def list_strategies(
 ) -> list[StrategyResponse]:
     """List user's conversation streams (projections)."""
     projections = await stream_repo.list_projections(user_id, site_id)
+    return [build_projection_summary(p, site_id=site_id or "") for p in projections]
+
+
+@router.get("/dismissed", response_model=list[StrategyResponse])
+async def list_dismissed_strategies(
+    stream_repo: StreamRepo,
+    user_id: CurrentUser,
+    site_id: Annotated[str | None, Query(alias="siteId")] = None,
+) -> list[StrategyResponse]:
+    """List user's dismissed (soft-deleted) strategies."""
+    projections = await stream_repo.list_dismissed_projections(user_id, site_id)
     return [build_projection_summary(p, site_id=site_id or "") for p in projections]
 
 
@@ -192,8 +203,17 @@ async def delete_strategy(
     strategyId: UUID,
     stream_repo: StreamRepo,
     user_id: CurrentUser,
+    delete_from_wdk: Annotated[bool, Query(alias="deleteFromWdk")] = False,
 ) -> Response:
-    """Delete a strategy: cancel ops, clean Redis stream, delete CQRS records."""
+    """Delete a strategy: cancel ops, clean Redis stream, delete CQRS records.
+
+    For WDK-linked strategies with ``deleteFromWdk=false`` (default), the
+    strategy is soft-deleted (dismissed) instead of hard-deleted. This prevents
+    WDK sync from re-importing it. Use the restore endpoint to un-dismiss.
+
+    Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
+    Non-WDK strategies are always hard-deleted.
+    """
     projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
 
     # Cancel any active operations for this stream before deleting.
@@ -203,23 +223,64 @@ async def delete_strategy(
     for op in active_ops:
         await cancel_chat_operation(op.operation_id)
 
-    # Delete WDK counterpart if linked.
-    if projection.wdk_strategy_id and projection.stream:
-        try:
-            api = get_strategy_api(projection.stream.site_id)
-            await api.delete_strategy(projection.wdk_strategy_id)
-        except Exception as e:
-            logger.warning(
-                "WDK strategy delete skipped",
-                wdk_strategy_id=projection.wdk_strategy_id,
-                error=str(e),
-            )
-
     # Clean up Redis stream.
     redis = get_redis()
     await redis.delete(f"stream:{strategyId}")
 
-    # Delete CQRS records (cascade deletes projection + operations).
-    await stream_repo.delete(strategyId)
+    is_wdk_linked = projection.wdk_strategy_id is not None
+
+    if is_wdk_linked and not delete_from_wdk:
+        # Soft-delete: dismiss the projection (hidden from list, skipped by sync).
+        await stream_repo.dismiss(strategyId)
+    else:
+        # Hard-delete: remove from WDK if requested, then delete CQRS records.
+        if delete_from_wdk and projection.wdk_strategy_id and projection.stream:
+            try:
+                api = get_strategy_api(projection.stream.site_id)
+                await api.delete_strategy(projection.wdk_strategy_id)
+            except Exception as e:
+                logger.warning(
+                    "WDK strategy delete failed",
+                    wdk_strategy_id=projection.wdk_strategy_id,
+                    error=str(e),
+                )
+        await stream_repo.delete(strategyId)
 
     return Response(status_code=204)
+
+
+@router.post("/{strategyId:uuid}/restore", response_model=StrategyResponse)
+async def restore_strategy(
+    strategyId: UUID,
+    stream_repo: StreamRepo,
+    user_id: CurrentUser,
+) -> StrategyResponse:
+    """Restore a dismissed (soft-deleted) strategy.
+
+    Clears dismissed_at, resets plan to empty (triggers lazy WDK re-fetch),
+    and wipes message history. The strategy reappears as if freshly imported.
+    """
+    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    if projection.dismissed_at is None:
+        raise ValidationError(
+            detail="Strategy is not dismissed",
+            errors=[
+                {
+                    "path": "strategyId",
+                    "message": "Not dismissed",
+                    "code": "INVALID_STATE",
+                }
+            ],
+        )
+    await stream_repo.restore(strategyId)
+
+    # Wipe Redis messages (clean slate).
+    redis = get_redis()
+    await redis.delete(f"stream:{strategyId}")
+
+    updated = await stream_repo.get_projection(strategyId)
+    if not updated:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
+    return build_projection_summary(updated)

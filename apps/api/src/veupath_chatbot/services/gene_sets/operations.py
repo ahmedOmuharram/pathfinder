@@ -110,6 +110,18 @@ class GeneSetService:
     def __init__(self, store: GeneSetStore) -> None:
         self._store = store
 
+    # -- Persistence ----------------------------------------------------------
+
+    async def flush(self, gene_set_id: str) -> None:
+        """Ensure a gene set is persisted to the database.
+
+        The default save path is fire-and-forget. Call this when you need
+        the row to exist in the DB immediately (e.g., before setting an FK).
+        """
+        entity = self._store.get(gene_set_id)
+        if entity is not None:
+            await self._store._persist(entity)
+
     # -- Lookup / ownership ---------------------------------------------------
 
     async def get_for_user(self, user_id: UUID, gene_set_id: str) -> GeneSet:

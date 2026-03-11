@@ -400,6 +400,8 @@ export interface Strategy {
   resultCount?: number | null;
   /** URL to the strategy on the WDK site. */
   wdkUrl?: string | null;
+  /** ISO datetime when strategy was dismissed (soft-deleted). null = active. */
+  dismissedAt?: string | null;
 }
 
 

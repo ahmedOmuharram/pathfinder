@@ -91,6 +91,7 @@ class StreamRepository:
             .join(Stream)
             .options(joinedload(StreamProjection.stream))
             .where(Stream.user_id == user_id)
+            .where(StreamProjection.dismissed_at.is_(None))
             .order_by(StreamProjection.updated_at.desc())
             .limit(limit)
         )
@@ -127,6 +128,9 @@ class StreamRepository:
         step_count: int | None = None,
         result_count: int | None = None,
         result_count_set: bool = False,
+        gene_set_id: str | None = None,
+        gene_set_id_set: bool = False,
+        gene_set_auto_imported: bool | None = None,
     ) -> None:
         """Dynamically update a StreamProjection based on provided kwargs.
 
@@ -148,6 +152,10 @@ class StreamRepository:
             values["step_count"] = step_count
         if result_count_set:
             values["result_count"] = result_count
+        if gene_set_id_set:
+            values["gene_set_id"] = gene_set_id
+        if gene_set_auto_imported is not None:
+            values["gene_set_auto_imported"] = gene_set_auto_imported
 
         await self.session.execute(
             update(StreamProjection)
@@ -155,6 +163,48 @@ class StreamRepository:
             .values(**values)
         )
         await self.session.flush()
+
+    async def dismiss(self, stream_id: UUID) -> None:
+        """Soft-delete: mark a projection as dismissed (hidden from main list)."""
+        await self.session.execute(
+            update(StreamProjection)
+            .where(StreamProjection.stream_id == stream_id)
+            .values(dismissed_at=datetime.now(UTC))
+        )
+        await self.session.flush()
+
+    async def restore(self, stream_id: UUID) -> None:
+        """Un-dismiss: restore a dismissed projection and reset for fresh WDK import."""
+        await self.session.execute(
+            update(StreamProjection)
+            .where(StreamProjection.stream_id == stream_id)
+            .values(
+                dismissed_at=None,
+                plan={},
+                message_count=0,
+            )
+        )
+        await self.session.flush()
+
+    async def list_dismissed_projections(
+        self,
+        user_id: UUID,
+        site_id: str | None = None,
+        limit: int = 50,
+    ) -> list[StreamProjection]:
+        stmt = (
+            select(StreamProjection)
+            .join(Stream)
+            .options(joinedload(StreamProjection.stream))
+            .where(Stream.user_id == user_id)
+            .where(StreamProjection.dismissed_at.isnot(None))
+            .order_by(StreamProjection.dismissed_at.desc())
+            .limit(limit)
+        )
+        if site_id:
+            stmt = stmt.where(Stream.site_id == site_id)
+        result = await self.session.execute(stmt)
+        return list(result.unique().scalars().all())
 
     async def prune_wdk_orphans(
         self,
@@ -174,6 +224,7 @@ class StreamRepository:
                 Stream.user_id == user_id,
                 Stream.site_id == site_id,
                 StreamProjection.wdk_strategy_id.isnot(None),
+                StreamProjection.dismissed_at.is_(None),
             )
         )
         result = await self.session.execute(stmt)

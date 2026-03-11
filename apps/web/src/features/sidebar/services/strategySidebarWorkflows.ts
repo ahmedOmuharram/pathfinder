@@ -9,8 +9,9 @@ export async function runDeleteStrategyWorkflow(args: {
   removeStrategy: (id: string) => void;
   setStrategyId: (id: string | null) => void;
   setDeleteError: (msg: string | null) => void;
-  deleteStrategyApi: (id: string) => Promise<void>;
-  refreshStrategies: () => void;
+  deleteStrategyApi: (id: string, deleteFromWdk?: boolean) => Promise<void>;
+  deleteFromWdk: boolean;
+  refetchStrategies: () => void;
   reportError: (msg: string) => void;
 }): Promise<void> {
   const {
@@ -22,7 +23,8 @@ export async function runDeleteStrategyWorkflow(args: {
     setStrategyId,
     setDeleteError,
     deleteStrategyApi,
-    refreshStrategies,
+    deleteFromWdk,
+    refetchStrategies,
     reportError,
   } = args;
 
@@ -38,10 +40,10 @@ export async function runDeleteStrategyWorkflow(args: {
 
   setDeleteError(null);
   try {
-    await deleteStrategyApi(item.id);
+    await deleteStrategyApi(item.id, deleteFromWdk);
   } catch (e) {
     reportError(toUserMessage(e, "Failed to delete strategy. Please try again."));
   } finally {
-    refreshStrategies();
+    refetchStrategies();
   }
 }

@@ -20,7 +20,7 @@ describe("strategySidebarWorkflows", () => {
     const setStrategyId = vi.fn();
     const setDeleteError = vi.fn();
     const deleteStrategyApi = vi.fn().mockResolvedValue(undefined);
-    const refreshStrategies = vi.fn();
+    const refetchStrategies = vi.fn();
     const reportError = vi.fn();
 
     await runDeleteStrategyWorkflow({
@@ -32,15 +32,16 @@ describe("strategySidebarWorkflows", () => {
       setStrategyId,
       setDeleteError,
       deleteStrategyApi,
-      refreshStrategies,
+      deleteFromWdk: false,
+      refetchStrategies,
       reportError,
     });
 
     expect(clearStrategy).toHaveBeenCalled();
     expect(removeStrategy).toHaveBeenCalledWith("s1");
     expect(setStrategyId).toHaveBeenCalledWith(null);
-    expect(deleteStrategyApi).toHaveBeenCalledWith("s1");
-    expect(refreshStrategies).toHaveBeenCalled();
+    expect(deleteStrategyApi).toHaveBeenCalledWith("s1", false);
+    expect(refetchStrategies).toHaveBeenCalled();
     expect(reportError).not.toHaveBeenCalled();
   });
 });

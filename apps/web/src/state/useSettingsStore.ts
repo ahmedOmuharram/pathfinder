@@ -19,6 +19,8 @@ export interface SettingsState {
   advancedReasoningBudgets: Record<string, number>;
   /** Show raw tool calls in chat (advanced). */
   showRawToolCalls: boolean;
+  /** Sync strategy deletion to WDK (advanced). */
+  syncDeleteToWdk: boolean;
 
   /** Cached model catalog from the API. */
   modelCatalog: ModelCatalogEntry[];
@@ -30,6 +32,7 @@ export interface SettingsState {
   setDefaultReasoningEffort: (effort: ReasoningEffort) => void;
   setAdvancedReasoningBudget: (provider: string, budget: number) => void;
   setShowRawToolCalls: (show: boolean) => void;
+  setSyncDeleteToWdk: (sync: boolean) => void;
   setModelCatalog: (models: ModelCatalogEntry[], defaultModelId: string) => void;
   resetToDefaults: () => void;
 }
@@ -55,6 +58,7 @@ function persist(partial: Partial<SettingsState>) {
     defaultReasoningEffort,
     advancedReasoningBudgets,
     showRawToolCalls,
+    syncDeleteToWdk,
   } = merged;
   window.localStorage.setItem(
     STORAGE_KEY,
@@ -63,6 +67,7 @@ function persist(partial: Partial<SettingsState>) {
       defaultReasoningEffort,
       advancedReasoningBudgets,
       showRawToolCalls,
+      syncDeleteToWdk,
     }),
   );
 }
@@ -76,6 +81,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   advancedReasoningBudgets:
     (persisted.advancedReasoningBudgets as Record<string, number>) ?? {},
   showRawToolCalls: (persisted.showRawToolCalls as boolean) ?? false,
+  syncDeleteToWdk: (persisted.syncDeleteToWdk as boolean) ?? false,
   modelCatalog: [],
   catalogDefault: null,
 
@@ -97,6 +103,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ showRawToolCalls: show });
     persist({ showRawToolCalls: show });
   },
+  setSyncDeleteToWdk: (sync) => {
+    set({ syncDeleteToWdk: sync });
+    persist({ syncDeleteToWdk: sync });
+  },
   setModelCatalog: (models, defaultModelId) =>
     set({ modelCatalog: models, catalogDefault: defaultModelId }),
   resetToDefaults: () => {
@@ -105,6 +115,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       defaultReasoningEffort: "medium" as ReasoningEffort,
       advancedReasoningBudgets: {},
       showRawToolCalls: false,
+      syncDeleteToWdk: false,
     };
     set(defaults);
     persist(defaults);

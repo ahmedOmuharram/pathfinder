@@ -192,8 +192,19 @@ class StreamProjection(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     site_id: Mapped[str] = mapped_column(String(50), default="")
+
+    # Gene set auto-import association
+    gene_set_id: Mapped[str | None] = mapped_column(
+        String(50),
+        ForeignKey("gene_sets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    gene_set_auto_imported: Mapped[bool] = mapped_column(Boolean, default=False)
 
     stream: Mapped[Stream] = relationship()
 

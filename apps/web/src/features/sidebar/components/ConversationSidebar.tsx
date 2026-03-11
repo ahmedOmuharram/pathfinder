@@ -10,8 +10,8 @@
  * - `ConversationList` — list rendering
  */
 
-import { useCallback } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { useCallback, useState } from "react";
+import { Archive, Loader2, RefreshCw } from "lucide-react";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
@@ -35,11 +35,13 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     [onToast],
   );
 
+  const [showDismissed, setShowDismissed] = useState(false);
+
   const data = useConversationSidebarData({ siteId, reportError });
   const actions = useConversationSidebarActions({
     siteId,
     reportError,
-    refreshStrategies: data.refreshStrategies,
+    refetchStrategies: data.refetchStrategies,
     setStrategyItems: data.setStrategyItems,
     setNewConversationInFlight: data.setNewConversationInFlight,
   });
@@ -112,6 +114,46 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         onStartDuplicate={actions.startDuplicate}
         onToggleSaved={(si) => void actions.handleToggleSaved(si)}
       />
+
+      {/* Dismissed strategies */}
+      {data.dismissedConversations.length > 0 && (
+        <>
+          <button
+            data-testid="dismissed-toggle"
+            type="button"
+            onClick={() => setShowDismissed((prev) => !prev)}
+            className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Archive className="h-3 w-3" />
+            <span>Dismissed ({data.dismissedConversations.length})</span>
+            <span className="ml-auto text-[10px]">
+              {showDismissed ? "\u25BC" : "\u25B6"}
+            </span>
+          </button>
+          {showDismissed && (
+            <div className="space-y-0.5 pl-1">
+              {data.dismissedConversations.map((item) => (
+                <div
+                  key={item.id}
+                  data-testid="dismissed-item"
+                  data-conversation-id={item.id}
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs text-muted-foreground"
+                >
+                  <span className="min-w-0 truncate">{item.title}</span>
+                  <button
+                    data-testid="dismissed-restore-button"
+                    type="button"
+                    onClick={() => void actions.handleRestore(item.id)}
+                    className="ml-2 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-accent"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modals */}
       <DeleteConversationModal

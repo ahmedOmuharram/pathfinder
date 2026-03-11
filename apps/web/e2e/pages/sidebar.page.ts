@@ -95,4 +95,68 @@ export class SidebarPage {
     await expect(first).toBeVisible({ timeout: 15_000 });
     return (await first.getAttribute("data-conversation-id")) ?? "";
   }
+
+  // ── Dismissed section ──────────────────────────────────────────
+
+  /** The "Dismissed (N)" toggle button. */
+  get dismissedToggle(): Locator {
+    return this.page.getByTestId("dismissed-toggle");
+  }
+
+  /** All dismissed items inside the expanded dismissed section. */
+  get dismissedItems(): Locator {
+    return this.page.getByTestId("dismissed-item");
+  }
+
+  /** A specific dismissed item by its data-conversation-id attribute. */
+  dismissedItem(conversationId: string): Locator {
+    return this.page.locator(
+      `[data-testid="dismissed-item"][data-conversation-id="${conversationId}"]`,
+    );
+  }
+
+  /** Expand the dismissed section (idempotent — no-op if already expanded). */
+  async expandDismissed() {
+    await expect(this.dismissedToggle).toBeVisible({ timeout: 15_000 });
+    // Only click if items are not already visible (prevents toggling off).
+    const alreadyExpanded = await this.dismissedItems.first().isVisible();
+    if (!alreadyExpanded) {
+      await this.dismissedToggle.click();
+    }
+    await expect(this.dismissedItems.first()).toBeVisible({ timeout: 5_000 });
+  }
+
+  /** Collapse the dismissed section (idempotent — no-op if already collapsed). */
+  async collapseDismissed() {
+    const isExpanded = await this.dismissedItems.first().isVisible();
+    if (isExpanded) {
+      await this.dismissedToggle.click();
+    }
+  }
+
+  /** Click the Restore button on a specific dismissed item. */
+  async restoreDismissed(conversationId: string) {
+    const item = this.dismissedItem(conversationId);
+    await expect(item).toBeVisible({ timeout: 10_000 });
+    await item.getByTestId("dismissed-restore-button").click();
+  }
+
+  /** Assert the dismissed toggle shows the expected count. */
+  async expectDismissedCount(count: number) {
+    await expect(this.dismissedToggle).toContainText(`Dismissed (${count})`, {
+      timeout: 15_000,
+    });
+  }
+
+  /** Assert the dismissed toggle is not visible (no dismissed items). */
+  async expectNoDismissedSection() {
+    await expect(this.dismissedToggle).not.toBeVisible({ timeout: 10_000 });
+  }
+
+  /** Assert a dismissed item is visible (section must be expanded). */
+  async expectDismissedItemVisible(conversationId: string) {
+    await expect(this.dismissedItem(conversationId)).toBeVisible({
+      timeout: 10_000,
+    });
+  }
 }

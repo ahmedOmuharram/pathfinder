@@ -115,6 +115,9 @@ async def upsert_summary_projection(
     step_count = step_count_raw if isinstance(step_count_raw, int) else 0
 
     existing = await stream_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    if existing and existing.dismissed_at is not None:
+        # Strategy was dismissed by user — don't re-import or update it.
+        return existing
     if existing:
         await stream_repo.update_projection(
             existing.stream_id,

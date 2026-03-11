@@ -14,10 +14,12 @@ import {
   deleteStrategy,
   getStrategy,
   openStrategy,
+  restoreStrategy,
   updateStrategy as updateStrategyApi,
 } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useSettingsStore } from "@/state/useSettingsStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
 import type { Strategy } from "@pathfinder/shared";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
@@ -34,7 +36,8 @@ import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 export interface UseConversationSidebarActionsArgs {
   siteId: string;
   reportError: (message: string) => void;
-  refreshStrategies: () => Promise<void>;
+  /** Lightweight re-fetch from local DB only (no WDK sync). */
+  refetchStrategies: () => Promise<void>;
   setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
   setNewConversationInFlight: (inFlight: boolean) => void;
 }
@@ -69,18 +72,23 @@ export interface ConversationSidebarActions {
 
   // Saved toggle
   handleToggleSaved: (si: Strategy) => Promise<void>;
+
+  // Restore dismissed
+  handleRestore: (strategyId: string) => Promise<void>;
 }
 
 export function useConversationSidebarActions({
   siteId,
   reportError,
-  refreshStrategies,
+  refetchStrategies,
   setStrategyItems,
   setNewConversationInFlight,
 }: UseConversationSidebarActionsArgs): ConversationSidebarActions {
   // --- Store selectors ---
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
+
+  const syncDeleteToWdk = useSettingsStore((s) => s.syncDeleteToWdk);
 
   const removeStrategy = useStrategyStore((s) => s.removeStrategyFromList);
 
@@ -119,7 +127,7 @@ export function useConversationSidebarActions({
         .catch((err) => {
           setStrategyId(null);
           reportError(toUserMessage(err, "Couldn't load strategy. Refreshing list."));
-          void refreshStrategies();
+          void refetchStrategies();
         });
     },
     [
@@ -128,7 +136,7 @@ export function useConversationSidebarActions({
       setStrategy,
       setStrategyMeta,
       reportError,
-      refreshStrategies,
+      refetchStrategies,
     ],
   );
 
@@ -159,7 +167,7 @@ export function useConversationSidebarActions({
         },
         ...prev.filter((s) => s.id !== res.strategyId),
       ]);
-      void refreshStrategies();
+      void refetchStrategies();
     } catch (error) {
       reportError(
         typeof error === "string" ? error : "Failed to start a new conversation.",
@@ -173,7 +181,7 @@ export function useConversationSidebarActions({
     clearStrategy,
     setStrategyItems,
     setNewConversationInFlight,
-    refreshStrategies,
+    refetchStrategies,
     reportError,
   ]);
 
@@ -193,7 +201,8 @@ export function useConversationSidebarActions({
           setStrategyId,
           setDeleteError: () => {},
           deleteStrategyApi: deleteStrategy,
-          refreshStrategies,
+          deleteFromWdk: syncDeleteToWdk,
+          refetchStrategies,
           reportError: (msg) => reportError(msg),
         });
       }
@@ -204,11 +213,12 @@ export function useConversationSidebarActions({
   }, [
     deleteTarget,
     strategyId,
+    syncDeleteToWdk,
     setStrategyId,
     clearStrategy,
     removeStrategy,
     setStrategyItems,
-    refreshStrategies,
+    refetchStrategies,
     reportError,
   ]);
 
@@ -227,13 +237,13 @@ export function useConversationSidebarActions({
       }
       try {
         await updateStrategyApi(item.id, { name: next });
-        void refreshStrategies();
+        void refetchStrategies();
       } catch (err) {
         reportError(toUserMessage(err, "Failed to rename."));
       }
       setRenamingId(null);
     },
-    [renameValue, refreshStrategies, reportError],
+    [renameValue, refetchStrategies, reportError],
   );
 
   const cancelRename = useCallback(() => setRenamingId(null), []);
@@ -248,9 +258,9 @@ export function useConversationSidebarActions({
         siteId: baseStrategy.siteId,
         plan,
       });
-      void refreshStrategies();
+      void refetchStrategies();
     },
-    [refreshStrategies],
+    [refetchStrategies],
   );
 
   const startDuplicate = useCallback((strategy: Strategy) => {
@@ -290,6 +300,19 @@ export function useConversationSidebarActions({
     [reportError, setStrategyItems],
   );
 
+  // --- Restore dismissed ---
+  const handleRestore = useCallback(
+    async (strategyIdToRestore: string) => {
+      try {
+        await restoreStrategy(strategyIdToRestore);
+        void refetchStrategies();
+      } catch (err) {
+        reportError(toUserMessage(err, "Failed to restore strategy."));
+      }
+    },
+    [refetchStrategies, reportError],
+  );
+
   return {
     activeId,
     handleSelect,
@@ -309,5 +332,6 @@ export function useConversationSidebarActions({
     handleDuplicate,
     startDuplicate,
     handleToggleSaved,
+    handleRestore,
   };
 }

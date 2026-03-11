@@ -110,9 +110,13 @@ export async function updateStrategy(
   )) as Strategy;
 }
 
-export async function deleteStrategy(strategyId: string): Promise<void> {
+export async function deleteStrategy(
+  strategyId: string,
+  deleteFromWdk?: boolean,
+): Promise<void> {
   await requestJson<void>(`/api/v1/strategies/${strategyId}`, {
     method: "DELETE",
+    query: deleteFromWdk ? { deleteFromWdk: "true" } : undefined,
   });
 }
 
@@ -126,6 +130,18 @@ export async function normalizePlan(
     { method: "POST", body: { siteId, plan } },
   );
   return raw as { plan: StrategyPlan; warnings?: unknown[] | null };
+}
+
+export async function restoreStrategy(strategyId: string): Promise<Strategy> {
+  return requestJson<Strategy>(`/api/v1/strategies/${strategyId}/restore`, {
+    method: "POST",
+  });
+}
+
+export async function listDismissedStrategies(siteId: string): Promise<Strategy[]> {
+  return requestJson<Strategy[]>("/api/v1/strategies/dismissed", {
+    query: { siteId },
+  });
 }
 
 export async function computeStepCounts(

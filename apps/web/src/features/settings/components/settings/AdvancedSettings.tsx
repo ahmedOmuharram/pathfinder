@@ -79,6 +79,8 @@ const PROVIDERS = [
 export function AdvancedSettings() {
   const showRawToolCalls = useSettingsStore((s) => s.showRawToolCalls);
   const setShowRawToolCalls = useSettingsStore((s) => s.setShowRawToolCalls);
+  const syncDeleteToWdk = useSettingsStore((s) => s.syncDeleteToWdk);
+  const setSyncDeleteToWdk = useSettingsStore((s) => s.setSyncDeleteToWdk);
   const advancedReasoningBudgets = useSettingsStore((s) => s.advancedReasoningBudgets);
   const setAdvancedReasoningBudget = useSettingsStore(
     (s) => s.setAdvancedReasoningBudget,
@@ -117,6 +119,21 @@ export function AdvancedSettings() {
           />
           <span className="text-muted-foreground">
             Display raw JSON tool calls in the chat log
+          </span>
+        </label>
+      </SettingsField>
+
+      <SettingsField label="Sync strategy deletion to WDK">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            data-testid="sync-delete-to-wdk-checkbox"
+            type="checkbox"
+            checked={syncDeleteToWdk}
+            onChange={(e) => setSyncDeleteToWdk(e.target.checked)}
+            className="h-4 w-4 rounded border-input text-foreground focus:ring-ring"
+          />
+          <span className="text-muted-foreground">
+            When enabled, deleting a strategy also removes it from VEuPathDB
           </span>
         </label>
       </SettingsField>

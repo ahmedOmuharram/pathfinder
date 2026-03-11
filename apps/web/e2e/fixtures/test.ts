@@ -71,7 +71,19 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       if (strategiesResp.ok()) {
         const strategies = (await strategiesResp.json()) as { id: string }[];
         await Promise.all(
-          strategies.map((s) => req.delete(`${BASE_URL}/api/v1/strategies/${s.id}`)),
+          strategies.map((s) =>
+            req.delete(`${BASE_URL}/api/v1/strategies/${s.id}?deleteFromWdk=true`),
+          ),
+        );
+      }
+      // Also purge dismissed (soft-deleted) strategies from prior runs.
+      const dismissedResp = await req.get(`${BASE_URL}/api/v1/strategies/dismissed`);
+      if (dismissedResp.ok()) {
+        const dismissed = (await dismissedResp.json()) as { id: string }[];
+        await Promise.all(
+          dismissed.map((d) =>
+            req.delete(`${BASE_URL}/api/v1/strategies/${d.id}?deleteFromWdk=true`),
+          ),
         );
       }
       const geneSetsResp = await req.get(`${BASE_URL}/api/v1/gene-sets`);
@@ -106,7 +118,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   // ── Test-scoped: auto-cleanup ─────────────────────────────────
 
-  /** Clear gene sets and strategies before each test for isolation. */
+  /** Clear gene sets, strategies, and dismissed strategies before each test. */
   _autoCleanup: [
     async ({ context }, use) => {
       const req = context.request;
@@ -117,11 +129,25 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
         );
       }
+      // Force hard-delete (deleteFromWdk=true) so WDK-linked strategies
+      // don't get soft-deleted and accumulate in the dismissed list.
       const strategiesResp = await req.get(`${BASE_URL}/api/v1/strategies`);
       if (strategiesResp.ok()) {
         const strategies = (await strategiesResp.json()) as { id: string }[];
         await Promise.all(
-          strategies.map((s) => req.delete(`${BASE_URL}/api/v1/strategies/${s.id}`)),
+          strategies.map((s) =>
+            req.delete(`${BASE_URL}/api/v1/strategies/${s.id}?deleteFromWdk=true`),
+          ),
+        );
+      }
+      // Purge dismissed (soft-deleted) strategies from prior tests/retries.
+      const dismissedResp = await req.get(`${BASE_URL}/api/v1/strategies/dismissed`);
+      if (dismissedResp.ok()) {
+        const dismissed = (await dismissedResp.json()) as { id: string }[];
+        await Promise.all(
+          dismissed.map((d) =>
+            req.delete(`${BASE_URL}/api/v1/strategies/${d.id}?deleteFromWdk=true`),
+          ),
         );
       }
       await use(undefined);

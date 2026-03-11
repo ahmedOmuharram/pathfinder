@@ -17,7 +17,12 @@ import {
   useState,
   startTransition,
 } from "react";
-import { openStrategy, syncWdkStrategies } from "@/lib/api/strategies";
+import {
+  listDismissedStrategies,
+  listStrategies,
+  openStrategy,
+  syncWdkStrategies,
+} from "@/lib/api/strategies";
 import { DEFAULT_STREAM_NAME, type Strategy } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/useStrategyStore";
@@ -40,6 +45,8 @@ export interface ConversationSidebarData {
   setQuery: (q: string) => void;
   isSyncing: boolean;
   refreshStrategies: () => Promise<void>;
+  /** Lightweight re-fetch from local DB only (no WDK sync). */
+  refetchStrategies: () => Promise<void>;
   handleManualRefresh: () => Promise<void>;
   /** Exposed for the actions hook to perform optimistic strategy-list updates. */
   strategyItems: Strategy[];
@@ -50,6 +57,8 @@ export interface ConversationSidebarData {
    * preventing it from overriding the user's explicit "New Chat" action.
    */
   setNewConversationInFlight: (inFlight: boolean) => void;
+  /** Dismissed (soft-deleted) strategies. */
+  dismissedConversations: ConversationItem[];
 }
 
 export function useConversationSidebarData({
@@ -69,6 +78,7 @@ export function useConversationSidebarData({
   const [query, setQuery] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  const [dismissedItems, setDismissedItems] = useState<Strategy[]>([]);
 
   // --- Data fetching ---
 
@@ -99,8 +109,8 @@ export function useConversationSidebarData({
     if (syncInFlight.current) return Promise.resolve();
     syncInFlight.current = true;
     const fetchSite = siteId;
-    return syncWdkStrategies(siteId)
-      .then((strategies) => {
+    return Promise.all([syncWdkStrategies(siteId), listDismissedStrategies(siteId)])
+      .then(([strategies, dismissed]) => {
         // Discard if site changed while fetch was in-flight.
         if (fetchSite !== prevSiteRef.current) return;
         hasFetched.current = true;
@@ -109,9 +119,31 @@ export function useConversationSidebarData({
         // can read the same data (single source of truth).
         useStrategyStore.getState().setStrategies(strategies);
         setStrategyItems(strategies);
+        setDismissedItems(dismissed);
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to sync strategies:", err);
+      })
+      .finally(() => {
+        syncInFlight.current = false;
+      });
+  }, [siteId]);
+
+  const refetchStrategies = useCallback(() => {
+    if (syncInFlight.current) return Promise.resolve();
+    syncInFlight.current = true;
+    const fetchSite = siteId;
+    return Promise.all([listStrategies(siteId), listDismissedStrategies(siteId)])
+      .then(([strategies, dismissed]) => {
+        if (fetchSite !== prevSiteRef.current) return;
+        hasFetched.current = true;
+        setHasInitiallyLoaded(true);
+        useStrategyStore.getState().setStrategies(strategies);
+        setStrategyItems(strategies);
+        setDismissedItems(dismissed);
+      })
+      .catch((err) => {
+        console.warn("[ConversationSidebar] Failed to fetch strategies:", err);
       })
       .finally(() => {
         syncInFlight.current = false;
@@ -214,10 +246,10 @@ export function useConversationSidebarData({
     void refreshStrategies();
   }, [authVersion, refreshStrategies]);
 
-  // Re-fetch strategies when draft strategy changes
+  // Re-fetch strategies when draft strategy changes (local DB only — no WDK sync needed).
   useEffect(() => {
-    void refreshStrategies();
-  }, [draftStrategy?.id, draftStrategy?.updatedAt, refreshStrategies]);
+    void refetchStrategies();
+  }, [draftStrategy?.id, draftStrategy?.updatedAt, refetchStrategies]);
 
   // Ensure there's always an active conversation selected
   useEffect(() => {
@@ -242,6 +274,17 @@ export function useConversationSidebarData({
     );
   }, [strategyItems]);
 
+  const dismissedConversations: ConversationItem[] = useMemo(() => {
+    return dismissedItems.map((s) => ({
+      id: s.id,
+      kind: "strategy" as const,
+      title: s.name,
+      updatedAt: s.updatedAt,
+      siteId: s.siteId,
+      strategyItem: s,
+    }));
+  }, [dismissedItems]);
+
   // Filter
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -261,9 +304,11 @@ export function useConversationSidebarData({
     setQuery,
     isSyncing,
     refreshStrategies,
+    refetchStrategies,
     handleManualRefresh,
     strategyItems,
     setStrategyItems,
     setNewConversationInFlight,
+    dismissedConversations,
   };
 }

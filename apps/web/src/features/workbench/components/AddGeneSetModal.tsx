@@ -5,34 +5,29 @@ import { Modal } from "@/lib/components/Modal";
 import { cn } from "@/lib/utils/cn";
 import { AddGeneSetPasteTab } from "./AddGeneSetPasteTab";
 import { AddGeneSetUploadTab } from "./AddGeneSetUploadTab";
-import { AddGeneSetStrategyTab } from "./AddGeneSetStrategyTab";
 
 interface AddGeneSetModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-type Tab = "paste" | "strategy" | "upload";
+type Tab = "paste" | "upload";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "paste", label: "Paste IDs" },
-  { value: "strategy", label: "From Strategy" },
   { value: "upload", label: "Upload File" },
 ];
 
 export function AddGeneSetModal({ open, onClose }: AddGeneSetModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>("paste");
-  const [error, setError] = useState<string | null>(null);
 
   const handleClose = useCallback(() => {
     setActiveTab("paste");
-    setError(null);
     onClose();
   }, [onClose]);
 
   const handleCreated = useCallback(() => {
     setActiveTab("paste");
-    setError(null);
     onClose();
   }, [onClose]);
 
@@ -56,10 +51,7 @@ export function AddGeneSetModal({ open, onClose }: AddGeneSetModalProps) {
             <button
               key={tab.value}
               type="button"
-              onClick={() => {
-                setActiveTab(tab.value);
-                setError(null);
-              }}
+              onClick={() => setActiveTab(tab.value)}
               className={cn(
                 "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150",
                 activeTab === tab.value
@@ -80,17 +72,7 @@ export function AddGeneSetModal({ open, onClose }: AddGeneSetModalProps) {
           {activeTab === "upload" && (
             <AddGeneSetUploadTab onClose={handleClose} onCreated={handleCreated} />
           )}
-          {activeTab === "strategy" && (
-            <AddGeneSetStrategyTab onCreated={handleCreated} onError={setError} />
-          )}
         </div>
-
-        {/* Strategy-tab error (paste/upload handle their own errors) */}
-        {activeTab === "strategy" && error && (
-          <p className="mt-3 text-xs text-destructive" role="alert">
-            {error}
-          </p>
-        )}
       </div>
     </Modal>
   );

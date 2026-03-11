@@ -32,4 +32,30 @@ export class SettingsPage {
       await this.expectTabVisible(tab);
     }
   }
+
+  // ── Sync delete to WDK setting ──────────────────────────────────
+
+  private get syncDeleteCheckbox() {
+    return this.page.getByTestId("sync-delete-to-wdk-checkbox");
+  }
+
+  /** Enable the "Sync strategy deletion to WDK" setting. */
+  async enableSyncDeleteToWdk() {
+    await this.open();
+    await this.openTab("Advanced");
+    if (!(await this.syncDeleteCheckbox.isChecked())) {
+      await this.syncDeleteCheckbox.check();
+    }
+    await this.close();
+  }
+
+  /** Disable the "Sync strategy deletion to WDK" setting. */
+  async disableSyncDeleteToWdk() {
+    await this.open();
+    await this.openTab("Advanced");
+    if (await this.syncDeleteCheckbox.isChecked()) {
+      await this.syncDeleteCheckbox.uncheck();
+    }
+    await this.close();
+  }
 }

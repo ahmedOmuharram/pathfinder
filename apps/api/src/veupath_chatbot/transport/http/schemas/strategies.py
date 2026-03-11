@@ -83,6 +83,7 @@ class StrategyResponse(BaseModel):
     step_count: int | None = Field(default=None, alias="stepCount")
     result_count: int | None = Field(default=None, alias="resultCount")
     wdk_url: str | None = Field(default=None, alias="wdkUrl")
+    dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
 
     model_config = {"populate_by_name": True}
 

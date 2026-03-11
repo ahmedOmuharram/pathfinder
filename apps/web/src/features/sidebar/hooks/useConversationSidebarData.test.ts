@@ -22,6 +22,8 @@ const fakeStrategy: Strategy = {
 
 let mockSyncWdkStrategies: ReturnType<typeof vi.fn>;
 let mockOpenStrategy: ReturnType<typeof vi.fn>;
+let mockListDismissedStrategies: ReturnType<typeof vi.fn>;
+let mockListStrategies: ReturnType<typeof vi.fn>;
 
 vi.mock("@/lib/api/strategies", () => ({
   get syncWdkStrategies() {
@@ -29,6 +31,12 @@ vi.mock("@/lib/api/strategies", () => ({
   },
   get openStrategy() {
     return mockOpenStrategy;
+  },
+  get listDismissedStrategies() {
+    return mockListDismissedStrategies;
+  },
+  get listStrategies() {
+    return mockListStrategies;
   },
 }));
 
@@ -68,6 +76,8 @@ describe("useConversationSidebarData", () => {
   beforeEach(() => {
     mockSyncWdkStrategies = vi.fn();
     mockOpenStrategy = vi.fn();
+    mockListDismissedStrategies = vi.fn().mockResolvedValue([]);
+    mockListStrategies = vi.fn().mockResolvedValue([]);
     mockSessionState = {
       strategyId: null,
       setStrategyId: vi.fn(),

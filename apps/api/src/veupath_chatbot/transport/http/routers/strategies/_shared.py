@@ -156,6 +156,7 @@ def build_projection_response(
         if projection.stream
         else datetime.now(UTC),
         updatedAt=projection.updated_at or datetime.now(UTC),
+        dismissedAt=projection.dismissed_at,
     )
 
 
@@ -186,4 +187,5 @@ def build_projection_summary(
         if projection.stream
         else datetime.now(UTC),
         updatedAt=projection.updated_at or datetime.now(UTC),
+        dismissedAt=projection.dismissed_at,
     )
