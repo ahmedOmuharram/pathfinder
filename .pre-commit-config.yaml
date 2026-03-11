@@ -19,7 +19,6 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
-        stages: [pre-push]
       - id: prettier-web
         name: prettier (web)
         entry: bash -c "cd apps/web && npm run format"
@@ -52,11 +51,9 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^apps/api/.*
-        stages: [pre-push]
       - id: shared-ts-openapi
         name: openapi types regenerate (shared-ts)
         entry: bash -c "cd packages/shared-ts && npm run generate:openapi"
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*
-        stages: [pre-push]

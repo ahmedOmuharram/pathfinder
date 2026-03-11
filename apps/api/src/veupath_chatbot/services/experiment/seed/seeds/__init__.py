@@ -25,7 +25,8 @@ SEED_DATABASES: list[str] = [
 def get_seeds_for_site(site_id: str) -> list[Any]:
     """Import and return SEEDS for a specific site."""
     mod = import_module(f".{site_id}", package=__name__)
-    return mod.SEEDS
+    seeds: list[Any] = mod.SEEDS
+    return seeds
 
 
 def get_all_seeds() -> list[Any]:
