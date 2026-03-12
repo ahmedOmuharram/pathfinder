@@ -82,6 +82,7 @@ test.describe("Dismissed Strategies", () => {
 
   test.beforeEach(async ({ chatPage }) => {
     await chatPage.goto();
+    await chatPage.newChat();
   });
 
   test("soft-deleted WDK strategy appears in dismissed section", async ({
@@ -183,6 +184,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
 
   test.beforeEach(async ({ chatPage }) => {
     await chatPage.goto();
+    await chatPage.newChat();
   });
 
   test("delete → restore → delete → restore round-trip", async ({
