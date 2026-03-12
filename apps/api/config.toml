@@ -47,7 +47,7 @@ subkani_max_concurrency = 6
 subkani_timeout_seconds = 120
 
 # VEuPathDB
-veupathdb_default_site = "plasmodb"
+veupathdb_default_site = "veupathdb"
 veupathdb_cache_ttl = 3600
 veupathdb_oauth_url = ""
 veupathdb_oauth_client_id = ""

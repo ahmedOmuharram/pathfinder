@@ -123,6 +123,9 @@ export function useConversationSidebarData({
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to sync strategies:", err);
+        // Unblock the sidebar even on error — otherwise it stays in
+        // loading state indefinitely until a retry succeeds.
+        setHasInitiallyLoaded(true);
       })
       .finally(() => {
         syncInFlight.current = false;
@@ -144,6 +147,7 @@ export function useConversationSidebarData({
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to fetch strategies:", err);
+        setHasInitiallyLoaded(true);
       })
       .finally(() => {
         syncInFlight.current = false;

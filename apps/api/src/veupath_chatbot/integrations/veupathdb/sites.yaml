@@ -101,7 +101,7 @@ sites:
     is_portal: false
 
 # Default site to use
-default_site: plasmodb
+default_site: veupathdb
 
 # Routing (timeouts for WDK client)
 routing:

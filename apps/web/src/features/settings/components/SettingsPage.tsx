@@ -25,16 +25,9 @@ interface SettingsPageProps {
   onClose: () => void;
   /** Site ID for scoped delete operations. */
   siteId: string;
-  /** Refresh strategy list after clearing strategies. */
-  onStrategiesCleared?: () => void;
 }
 
-export function SettingsPage({
-  open,
-  onClose,
-  siteId,
-  onStrategiesCleared,
-}: SettingsPageProps) {
+export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
   const [tab, setTab] = useState<Tab>("general");
 
   return (
@@ -61,9 +54,7 @@ export function SettingsPage({
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {tab === "general" && <GeneralSettings />}
-          {tab === "data" && (
-            <DataSettings siteId={siteId} onStrategiesCleared={onStrategiesCleared} />
-          )}
+          {tab === "data" && <DataSettings siteId={siteId} />}
           {tab === "advanced" && <AdvancedSettings />}
         </div>
       </div>

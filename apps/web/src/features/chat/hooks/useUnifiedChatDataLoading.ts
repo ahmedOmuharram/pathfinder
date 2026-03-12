@@ -95,7 +95,7 @@ export function useUnifiedChatDataLoading({
       } catch (err) {
         if (cancelled) return;
 
-        if (err instanceof APIError && err.status === 404) {
+        if (err instanceof APIError && (err.status === 404 || err.status === 403)) {
           onStrategyNotFound?.();
           setIsLoading(false);
           return;

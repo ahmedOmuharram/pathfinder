@@ -101,7 +101,7 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
   };
 
   const base = {
-    siteId: "plasmodb",
+    siteId: "veupathdb",
     strategyIdAtStart: "s1",
     toolCallsBuffer,
     citationsBuffer,

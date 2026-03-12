@@ -119,7 +119,7 @@ async def collect_chat_stream(
     client: httpx.AsyncClient,
     *,
     message: str,
-    site_id: str = "plasmodb",
+    site_id: str = "veupathdb",
     strategy_id: str | None = None,
     timeout: float = 120.0,
 ) -> ChatStreamResult:
@@ -130,7 +130,7 @@ async def collect_chat_stream(
 
     :param client: HTTP client for the request.
     :param message: Chat message to send.
-    :param site_id: VEuPathDB site identifier (default ``"plasmodb"``).
+    :param site_id: VEuPathDB site identifier (default ``"veupathdb"``).
     :param strategy_id: Optional strategy ID.
     :param timeout: Request timeout in seconds.
     :returns: Collected SSE events and HTTP status.

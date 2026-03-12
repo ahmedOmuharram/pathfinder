@@ -5,42 +5,41 @@
  */
 
 import { useState, useCallback } from "react";
-import { useSettingsStore } from "@/state/useSettingsStore";
 import { listStrategies, deleteStrategy } from "@/lib/api/strategies";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
 import { Loader2, Trash2 } from "lucide-react";
 
 interface DataSettingsProps {
   siteId: string;
-  onStrategiesCleared?: () => void;
 }
 
-export function DataSettings({ siteId, onStrategiesCleared }: DataSettingsProps) {
+export function DataSettings({ siteId }: DataSettingsProps) {
   const [clearing, setClearing] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
   const { run, error } = useAsyncAction();
-  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
 
   const clearStrategies = useCallback(async () => {
     setClearing("strategies");
     await run(async () => {
       const all = await listStrategies(siteId);
       await Promise.allSettled(all.map((s) => deleteStrategy(s.id)));
-      onStrategiesCleared?.();
+      window.location.reload();
     });
     setClearing(null);
     setConfirmAction(null);
-  }, [siteId, onStrategiesCleared, run]);
+  }, [siteId, run]);
 
   const clearAll = useCallback(async () => {
     setClearing("all");
     await run(async () => {
-      await clearStrategies();
-      resetToDefaults();
+      const all = await listStrategies(siteId);
+      await Promise.allSettled(all.map((s) => deleteStrategy(s.id)));
+      window.localStorage.clear();
+      window.location.reload();
     });
     setClearing(null);
     setConfirmAction(null);
-  }, [clearStrategies, resetToDefaults, run]);
+  }, [siteId, run]);
 
   return (
     <div className="space-y-4">

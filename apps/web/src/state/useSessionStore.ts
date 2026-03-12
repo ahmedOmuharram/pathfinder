@@ -40,6 +40,8 @@ interface SessionState {
   setComposerPrefill: (payload: { message: string } | null) => void;
   setAuthRefreshed: (value: boolean) => void;
   setAuthStatusKnown: (value: boolean) => void;
+  /** Clear all auth state — forces the login modal to appear. */
+  forceSignOut: () => void;
 }
 
 const SELECTED_SITE_KEY = "pathfinder-selected-site";
@@ -135,4 +137,10 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   setComposerPrefill: (payload) => set({ composerPrefill: payload }),
   setAuthRefreshed: (value) => set({ authRefreshed: value }),
   setAuthStatusKnown: (value) => set({ authStatusKnown: value }),
+  forceSignOut: () =>
+    set({
+      veupathdbSignedIn: false,
+      veupathdbName: null,
+      authRefreshed: false,
+    }),
 }));

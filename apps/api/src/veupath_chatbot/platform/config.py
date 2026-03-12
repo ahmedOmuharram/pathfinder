@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     default_reasoning_effort: ReasoningEffort = "medium"
 
     # VEuPathDB
-    veupathdb_default_site: str = "plasmodb"
+    veupathdb_default_site: str = "veupathdb"
     veupathdb_sites_config: str | None = Field(
         default=None,
         description="Optional path to a YAML file for site list and base URLs; defaults to bundled sites.yaml if unset.",

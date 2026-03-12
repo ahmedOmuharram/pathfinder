@@ -9,7 +9,8 @@ function _suggestionsForSite(
 ): string[] {
   if (!isRecord(all)) return [];
   const bySite =
-    (all as SuggestedQuestionsData)[siteId] ?? (all as SuggestedQuestionsData).plasmodb;
+    (all as SuggestedQuestionsData)[siteId] ??
+    (all as SuggestedQuestionsData).veupathdb;
   if (Array.isArray(bySite) && bySite.every((v) => typeof v === "string")) {
     return bySite;
   }

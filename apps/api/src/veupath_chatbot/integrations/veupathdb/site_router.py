@@ -40,7 +40,7 @@ class SitesConfig(BaseModel):
     """Top-level sites configuration parsed from YAML."""
 
     sites: dict[str, SiteConfig] = Field(default_factory=dict)
-    default_site: str = "plasmodb"
+    default_site: str = "veupathdb"
     routing: RoutingConfig = Field(default_factory=RoutingConfig)
 
 
