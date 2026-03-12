@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import { useSessionStore } from "@/state/useSessionStore";
 
 export class SchemaValidationError extends Error {
   url: string;
@@ -134,12 +133,6 @@ export async function requestJson<T>(
   const data = await parseResponseBody(resp);
 
   if (!resp.ok) {
-    // Force re-login on auth failure — clears session state so the
-    // LoginModal appears automatically.
-    if (resp.status === 401) {
-      useSessionStore.getState().forceSignOut();
-    }
-
     let msg = `HTTP ${resp.status} ${resp.statusText}`;
     if (typeof data === "object" && data !== null && "detail" in data) {
       const detail = (data as { detail: unknown }).detail;
@@ -233,9 +226,6 @@ export async function requestBlob(
   });
 
   if (!resp.ok) {
-    if (resp.status === 401) {
-      useSessionStore.getState().forceSignOut();
-    }
     throw new APIError(`HTTP ${resp.status} ${resp.statusText}`, {
       status: resp.status,
       statusText: resp.statusText,
