@@ -98,8 +98,8 @@ class TestRetryBehavior:
         )
         await client.close()
 
-    async def test_5xx_errors_are_not_retried(self) -> None:
-        """HTTPStatusError (5xx) is converted to WDKError immediately, no retries."""
+    async def test_5xx_errors_are_retried(self) -> None:
+        """HTTPStatusError (5xx) is retried up to 3 times before raising WDKError."""
         client = VEuPathDBClient("https://example.com/service")
         call_count = 0
 
@@ -115,8 +115,10 @@ class TestRetryBehavior:
             with p1, p2, pytest.raises(WDKError) as exc_info:
                 await client.get("/test")
 
-        # 5xx should have been called only once (no retries)
-        assert call_count == 1
+        assert call_count == 3, (
+            "Expected 3 calls (initial + 2 retries) because 5xx "
+            "propagates to tenacity for retry."
+        )
         assert exc_info.value.status == 503
         await client.close()
 

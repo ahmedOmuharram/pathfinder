@@ -126,7 +126,9 @@ class VEuPathDBClient:
             self._client = None
 
     @retry(
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+        retry=retry_if_exception_type(
+            (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)
+        ),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
@@ -139,8 +141,8 @@ class VEuPathDBClient:
     ) -> JSONValue:
         """Single HTTP request attempt (tenacity handles retries).
 
-        Retries on transient transport errors (timeouts, connection failures).
-        HTTP status errors (4xx/5xx) and other request errors are not retried.
+        Retries on transient errors: timeouts, connection failures, and
+        server errors (5xx).  Client errors (4xx) are not retried.
         """
         client = await self._get_client()
 
@@ -187,6 +189,10 @@ class VEuPathDBClient:
                 allow=allow,
                 response_text=e.response.text[:500],
             )
+            # 5xx: re-raise so tenacity retries (up to 3 attempts).
+            if e.response.status_code >= 500:
+                raise
+            # 4xx: not retryable — convert to domain error immediately.
             raise WDKError(
                 f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}",
                 status=e.response.status_code,
@@ -215,6 +221,9 @@ class VEuPathDBClient:
             return await self._request_attempt(method, path, params=params, json=json)
         except RetryError as e:
             last = e.last_attempt.exception()
+            status = 502
+            if isinstance(last, httpx.HTTPStatusError):
+                status = last.response.status_code
             logger.error(
                 "VEuPathDB request failed after retries",
                 method=method,
@@ -222,7 +231,7 @@ class VEuPathDBClient:
                 error=str(last),
             )
             raise WDKError(
-                f"Request failed after retries: {last}", status=502
+                f"Request failed after retries: {last}", status=status
             ) from last
 
     async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
