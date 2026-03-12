@@ -6,8 +6,8 @@ All group IDs (OG7_XXXXXXX) verified against live OrthoMCL API (Mar 2026).
 """
 
 import json
-from dataclasses import dataclass, field
-from typing import Any
+
+from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 # ---------------------------------------------------------------------------
 # Group ID lists — verified against live API
@@ -181,29 +181,6 @@ def _genome_count_params(
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class ControlSetDef:
-    """Definition for a curated control set."""
-
-    name: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    provenance_notes: str
-    tags: list[str] = field(default_factory=list)
-
-
-@dataclass
-class SeedDef:
-    """Definition for a seeded strategy + associated control set."""
-
-    name: str
-    description: str
-    site_id: str
-    step_tree: dict[str, Any]
-    control_set: ControlSetDef
-    record_type: str = "group"
-
-
 SEEDS: list[SeedDef] = [
     # -------------------------------------------------------------------
     # 1) Conserved Kinase Orthologs — kinase domain groups INTERSECT
@@ -247,6 +224,7 @@ SEEDS: list[SeedDef] = [
             ),
             tags=["kinase", "orthomcl", "seed"],
         ),
+        record_type="group",
     ),
     # -------------------------------------------------------------------
     # 2) Apicomplexan-Specific Ortholog Groups — present in Apicomplexa
@@ -278,6 +256,7 @@ SEEDS: list[SeedDef] = [
             ),
             tags=["apicomplexa", "drug-target", "orthomcl", "seed"],
         ),
+        record_type="group",
     ),
     # -------------------------------------------------------------------
     # 3) Core Metabolism Groups — highly conserved across >100 taxa,
@@ -339,6 +318,7 @@ SEEDS: list[SeedDef] = [
             ),
             tags=["metabolism", "glycolysis", "orthomcl", "seed"],
         ),
+        record_type="group",
     ),
     # -------------------------------------------------------------------
     # 4) Drug Target Discovery — protease groups MINUS universally
@@ -383,6 +363,7 @@ SEEDS: list[SeedDef] = [
             ),
             tags=["protease", "drug-target", "orthomcl", "seed"],
         ),
+        record_type="group",
     ),
     # -------------------------------------------------------------------
     # 5) Stress Response Orthologs — HSP70 UNION GTPase signaling,
@@ -426,5 +407,6 @@ SEEDS: list[SeedDef] = [
             ),
             tags=["stress", "signaling", "orthomcl", "seed"],
         ),
+        record_type="group",
     ),
 ]

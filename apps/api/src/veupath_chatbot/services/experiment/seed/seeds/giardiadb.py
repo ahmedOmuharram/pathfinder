@@ -11,8 +11,9 @@ biologically meaningful search configurations targeting:
 """
 
 import json
-from dataclasses import dataclass, field
 from typing import Any
+
+from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 # ---------------------------------------------------------------------------
 # Organism constants
@@ -902,30 +903,6 @@ def _gene_type_params(
         "geneType": json.dumps([gene_type]),
         "includePseudogenes": "No",
     }
-
-
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ControlSetDef:
-    name: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    provenance_notes: str
-    tags: list[str] = field(default_factory=list)
-
-
-@dataclass
-class SeedDef:
-    name: str
-    description: str
-    site_id: str
-    step_tree: dict[str, Any]
-    control_set: ControlSetDef
-    record_type: str = "transcript"
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,8 @@
 """Seed definitions for ToxoDB."""
 
 import json
-from dataclasses import dataclass, field
-from typing import Any
+
+from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 # ---------------------------------------------------------------------------
 # Organism constants
@@ -1810,28 +1810,6 @@ def _transmembrane(organism: str, min_tm: int = 1, max_tm: int = 99) -> dict[str
 
 
 # ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-@dataclass
-class ControlSetDef:
-    name: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    provenance_notes: str
-    tags: list[str] = field(default_factory=list)
-
-
-@dataclass
-class SeedDef:
-    name: str
-    description: str
-    site_id: str
-    step_tree: dict[str, Any]
-    control_set: ControlSetDef
-    record_type: str = "transcript"
-
-
-# ---------------------------------------------------------------------------
 # Seeds
 # ---------------------------------------------------------------------------
 SEEDS: list[SeedDef] = [
@@ -2105,7 +2083,12 @@ SEEDS: list[SeedDef] = [
         control_set=ControlSetDef(
             name="Invasion Complex Controls",
             positive_ids=MICRONEME[:28] + RHOPTRY[:40] + SRS_SURFACE_ANTIGENS[:20],
-            negative_ids=RIBOSOMAL[:50] + TRANSPORTERS[:25],
+            negative_ids=[
+                g
+                for g in RIBOSOMAL[:50] + TRANSPORTERS[:25]
+                if g
+                not in set(MICRONEME[:28] + RHOPTRY[:40] + SRS_SURFACE_ANTIGENS[:20])
+            ],
             provenance_notes=(
                 "Positive: microneme (text:'microneme'), signal-peptide "
                 "rhoptry (text:'rhoptry' intersect SignalPeptide), SRS "

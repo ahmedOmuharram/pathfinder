@@ -16,8 +16,8 @@ All gene IDs verified against live TriTrypDB API (March 2026).
 """
 
 import json
-from dataclasses import dataclass, field
-from typing import Any
+
+from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 # ---------------------------------------------------------------------------
 # Organism constants
@@ -1380,34 +1380,6 @@ def _glycosome_params() -> dict[str, str]:
         "glycosome_confidence": "High",
         "min_glycosome_score": "1.0",
     }
-
-
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ControlSetDef:
-    """Definition for a curated control set."""
-
-    name: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    provenance_notes: str
-    tags: list[str] = field(default_factory=list)
-
-
-@dataclass
-class SeedDef:
-    """Definition for a seeded strategy + associated control set."""
-
-    name: str
-    description: str
-    site_id: str
-    step_tree: dict[str, Any]
-    control_set: ControlSetDef
-    record_type: str = "transcript"
 
 
 # ---------------------------------------------------------------------------

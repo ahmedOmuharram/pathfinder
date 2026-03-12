@@ -1,8 +1,8 @@
 """Seed definitions for PlasmoDB."""
 
 import json
-from dataclasses import dataclass, field
-from typing import Any
+
+from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 # ---------------------------------------------------------------------------
 # Organism constants
@@ -1413,28 +1413,6 @@ def _metabolic_pathway(
 
 
 # ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-@dataclass
-class ControlSetDef:
-    name: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    provenance_notes: str
-    tags: list[str] = field(default_factory=list)
-
-
-@dataclass
-class SeedDef:
-    name: str
-    description: str
-    site_id: str
-    step_tree: dict[str, Any]
-    control_set: ControlSetDef
-    record_type: str = "transcript"
-
-
-# ---------------------------------------------------------------------------
 # Seeds
 # ---------------------------------------------------------------------------
 SEEDS: list[SeedDef] = [
@@ -1609,7 +1587,9 @@ SEEDS: list[SeedDef] = [
         control_set=ControlSetDef(
             name="Invasion ligands and receptors",
             positive_ids=PF_INVASION[:80],
-            negative_ids=PF_ANTIGENIC_VARIATION[:80],
+            negative_ids=[
+                g for g in PF_ANTIGENIC_VARIATION[:80] if g not in set(PF_INVASION[:80])
+            ],
             provenance_notes=(
                 "Positive set: invasion-annotated genes with signal peptide or "
                 "TM domains (surface invasion ligands like MSPs, AMA1, EBAs). "

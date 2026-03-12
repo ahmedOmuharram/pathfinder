@@ -613,6 +613,7 @@ class _FakeProjection:
     result_count: int | None = None
     last_event_id: str | None = None
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    dismissed_at: datetime | None = None
 
     @property
     def site_id(self) -> str:
