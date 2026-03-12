@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from veupath_chatbot.domain.parameters._decode_values import decode_values
-from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
+from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized, _safe_float
 from veupath_chatbot.domain.parameters.vocab_utils import match_vocab_value
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -160,16 +160,7 @@ class ParameterValueMixin:
 
     def _try_parse_float(self, value: JSONValue) -> float | None:
         """Attempt to parse a value as float, returning None on failure."""
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, (int, float)):
-            return float(value)
-        if isinstance(value, str):
-            try:
-                return float(value)
-            except ValueError:
-                return None
-        return None
+        return _safe_float(value)
 
     # -- shared dispatch chain ------------------------------------------------
 

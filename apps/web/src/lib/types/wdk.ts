@@ -28,28 +28,6 @@ export interface RecordsResponse {
   };
 }
 
-export interface StrategyNode {
-  stepId: number;
-  primaryInput?: StrategyNode;
-  secondaryInput?: StrategyNode;
-}
-
-export interface StrategyResponse {
-  strategyId: number;
-  name: string;
-  stepTree: StrategyNode;
-  steps: Record<
-    string,
-    {
-      stepId: number;
-      searchName: string;
-      customName?: string;
-      estimatedSize?: number;
-      searchConfig?: { parameters: Record<string, string> };
-    }
-  >;
-}
-
 /**
  * Full record detail returned by the `/results/record` endpoint.
  */

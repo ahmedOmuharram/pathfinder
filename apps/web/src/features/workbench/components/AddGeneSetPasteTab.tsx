@@ -6,8 +6,9 @@ import { Button } from "@/lib/components/ui/Button";
 import { parseGeneIds } from "@/lib/utils/parseGeneIds";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
-import { createGeneSet, resolveGeneIds } from "../api/geneSets";
-import type { ResolvedGene } from "../api/geneSets";
+import type { ResolvedGene } from "@pathfinder/shared";
+import { createGeneSet } from "../api/geneSets";
+import { resolveGeneIds } from "@/lib/api/genes";
 import { VerificationResults } from "./VerificationResults";
 
 /* ------------------------------------------------------------------ */

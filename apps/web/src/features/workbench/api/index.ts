@@ -18,15 +18,9 @@ export {
   reEvaluateExperiment,
 } from "./experiments";
 
-export type {
-  RecordAttribute,
-  WdkRecord,
-  RecordsResponse,
-  StrategyNode,
-  StrategyResponse,
-} from "@/lib/types/wdk";
+export type { RecordAttribute, WdkRecord, RecordsResponse } from "@/lib/types/wdk";
 
-export type { ResolvedGene, GeneResolveResult } from "./geneSets";
+export type { ResolvedGene, GeneResolveResponse } from "@pathfinder/shared";
 
 export {
   runCrossValidation,

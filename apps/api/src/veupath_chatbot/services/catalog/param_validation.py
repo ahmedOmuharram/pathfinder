@@ -246,14 +246,7 @@ async def validate_parameters(
             ],
         ) from exc
 
-    details_dict: JSONObject
-    if isinstance(details, dict):
-        search_data_raw = details.get("searchData")
-        details_dict = search_data_raw if isinstance(search_data_raw, dict) else details
-    else:
-        details_dict = {}
-
-    spec_payload = details_dict
+    spec_payload = unwrap_search_data(details) or {}
     param_specs = extract_param_specs(spec_payload)
     param_spec_map = adapt_param_specs(spec_payload)
     normalizer = ParameterNormalizer(param_spec_map)

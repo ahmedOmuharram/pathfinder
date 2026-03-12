@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, startTransition } from "react";
 import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/sites";
-import { normalizeRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 
 interface UseStepSearchArgs {
   siteId: string;

@@ -119,10 +119,7 @@ async def get_param_specs_with_context(
         search_name=searchName,
         context_values=payload.context_values or {},
     )
-    details: JSONObject
-    if isinstance(details_raw, dict):
-        search_data_raw = details_raw.get("searchData")
-        details = search_data_raw if isinstance(search_data_raw, dict) else details_raw
-    else:
-        details = {}
+    from veupath_chatbot.domain.parameters.specs import unwrap_search_data
+
+    details = unwrap_search_data(details_raw) or {}
     return _build_param_specs(details)

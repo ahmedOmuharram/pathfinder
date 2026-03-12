@@ -8,6 +8,7 @@ from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
     find_input_step_param,
+    unwrap_search_data,
 )
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -410,11 +411,8 @@ class StrategyCompiler:
                 errors=[{"searchName": search_name, "recordType": record_type}],
             ) from exc
 
-        if isinstance(details, dict):
-            search_data = details.get("searchData")
-            if isinstance(search_data, dict):
-                details = search_data
-        specs = adapt_param_specs(details if isinstance(details, dict) else {})
+        details = unwrap_search_data(details) or {}
+        specs = adapt_param_specs(details)
         normalizer = ParameterNormalizer(specs)
         try:
             normalized = normalizer.normalize(parameters or {})
@@ -433,11 +431,8 @@ class StrategyCompiler:
                 )
             except Exception as exc:
                 raise validation_exc from exc
-            if isinstance(details, dict):
-                search_data = details.get("searchData")
-                if isinstance(search_data, dict):
-                    details = search_data
-            specs = adapt_param_specs(details if isinstance(details, dict) else {})
+            details = unwrap_search_data(details) or {}
+            specs = adapt_param_specs(details)
             normalizer = ParameterNormalizer(specs)
             normalized = normalizer.normalize(parameters or {})
 

@@ -39,7 +39,7 @@ export default function HomePage() {
   useSiteTheme(selectedSite);
   useAuthRefresh();
   const strategyId = useSessionStore((state) => state.strategyId);
-  const { strategy } = useStrategyStore();
+  const strategy = useStrategyStore((state) => state.strategy);
   const buildPlan = useStrategyStore((state) => state.buildPlan);
   const clearStrategy = useStrategyStore((state) => state.clear);
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);

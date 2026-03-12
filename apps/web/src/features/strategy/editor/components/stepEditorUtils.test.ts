@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { extractSpecVocabulary, buildContextValues } from "./stepEditorUtils";
+import { extractSpecVocabulary } from "./stepEditorUtils";
+import { buildContextValues } from "@/lib/utils/buildContextValues";
 
 // ---------------------------------------------------------------------------
 // extractSpecVocabulary

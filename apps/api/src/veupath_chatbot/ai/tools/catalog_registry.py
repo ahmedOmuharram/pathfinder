@@ -190,12 +190,9 @@ class CatalogToolsMixin:
             details = await rag_svc.get_search_details(
                 record_type, search_name, expand_params=True
             )
-            search_data = (
-                details.get("searchData")
-                if isinstance(details, dict)
-                and isinstance(details.get("searchData"), dict)
-                else details
-            )
+            from veupath_chatbot.domain.parameters.specs import unwrap_search_data
+
+            search_data = unwrap_search_data(details) or details
             params = (
                 search_data.get("parameters") if isinstance(search_data, dict) else None
             )

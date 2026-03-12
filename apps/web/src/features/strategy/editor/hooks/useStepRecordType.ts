@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import type { RecordType } from "@pathfinder/shared";
 import { getRecordTypes } from "@/lib/api/sites";
-import { normalizeRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 
 interface UseStepRecordTypeArgs {
   siteId: string;

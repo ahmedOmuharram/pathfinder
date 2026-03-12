@@ -12,6 +12,7 @@ from typing import Literal, cast
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
     find_input_step_param,
+    unwrap_search_data,
 )
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
@@ -303,12 +304,7 @@ async def _validate_transform_step(
             searchName=search_name,
             detail=str(exc),
         )
-    search_data: JSONValue | None = None
-    if isinstance(details, dict):
-        search_data_raw = details.get("searchData")
-        if isinstance(search_data_raw, dict):
-            search_data = search_data_raw
-    specs = adapt_param_specs(search_data if isinstance(search_data, dict) else {})
+    specs = adapt_param_specs(unwrap_search_data(details) or {})
     input_param = find_input_step_param(specs)
     if not input_param:
         return tool_error(

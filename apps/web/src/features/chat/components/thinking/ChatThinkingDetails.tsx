@@ -1,6 +1,6 @@
 "use client";
 
-import type { ToolCall } from "@pathfinder/shared";
+import type { ToolCall, SubKaniActivity } from "@pathfinder/shared";
 import { Hourglass } from "lucide-react";
 import { ToolCallInspector } from "@/features/chat/components/message/ToolCallInspector";
 import { SubKaniStatusIcon } from "@/features/chat/components/thinking/SubKaniStatusIcon";
@@ -8,11 +8,6 @@ import type {
   DelegateSummary,
   RejectedDelegateSummary,
 } from "@/features/chat/utils/extractDelegateSummaries";
-
-export interface SubKaniActivity {
-  calls: Record<string, ToolCall[]>;
-  status?: Record<string, string>;
-}
 
 interface ChatThinkingDetailsProps {
   toolCalls?: ToolCall[];

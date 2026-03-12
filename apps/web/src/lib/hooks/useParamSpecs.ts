@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState, startTransition } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/sites";
-import { normalizeRecordType } from "@/features/strategy/recordType";
-import { buildContextValues } from "@/features/strategy/editor/components/stepEditorUtils";
+import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
+import { buildContextValues } from "@/lib/utils/buildContextValues";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 interface AdvancedOptions {

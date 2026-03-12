@@ -76,36 +76,6 @@ export function enrichGeneSet(
 }
 
 // ---------------------------------------------------------------------------
-// Gene ID resolution / verification
-// ---------------------------------------------------------------------------
-
-export interface ResolvedGene {
-  geneId: string;
-  displayName: string;
-  organism: string;
-  product: string;
-  geneName: string;
-  geneType: string;
-  location: string;
-}
-
-export interface GeneResolveResult {
-  resolved: ResolvedGene[];
-  unresolved: string[];
-}
-
-/** Resolve gene IDs against the WDK to check validity and get metadata. */
-export function resolveGeneIds(
-  siteId: string,
-  geneIds: string[],
-): Promise<GeneResolveResult> {
-  return requestJson<GeneResolveResult>(`/api/v1/sites/${siteId}/genes/resolve`, {
-    method: "POST",
-    body: { geneIds },
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Strategy-sourced gene set creation
 // ---------------------------------------------------------------------------
 

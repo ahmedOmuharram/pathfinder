@@ -1,5 +1,5 @@
 import { AlertCircle, Check } from "lucide-react";
-import type { ResolvedGene } from "../api/geneSets";
+import type { ResolvedGene } from "@pathfinder/shared";
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

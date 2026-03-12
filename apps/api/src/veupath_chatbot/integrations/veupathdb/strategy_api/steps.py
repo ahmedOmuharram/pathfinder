@@ -8,6 +8,7 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.platform.errors import InternalError
@@ -41,10 +42,7 @@ class StepsMixin(StrategyAPIBase):
         boolean_search = await self._get_boolean_search_name(record_type)
         details = await self.client.get_search_details(record_type, boolean_search)
         # WDK wraps search details under JsonKeys.SEARCH_DATA = "searchData".
-        search_data_raw = details.get("searchData")
-        search_data: JSONObject = (
-            search_data_raw if isinstance(search_data_raw, dict) else details
-        )
+        search_data = unwrap_search_data(details) or details
 
         # WDK emits JsonKeys.PARAM_NAMES = "paramNames" — a list of param name strings.
         param_names_raw = search_data.get("paramNames")
@@ -85,7 +83,7 @@ class StepsMixin(StrategyAPIBase):
 
         try:
             details = await self.client.get_search_details(record_type, search_name)
-            search_data = details.get("searchData", details)
+            search_data = unwrap_search_data(details)
             if not isinstance(search_data, dict):
                 return set()
             params = search_data.get("parameters", [])

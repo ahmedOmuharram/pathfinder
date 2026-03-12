@@ -3,7 +3,7 @@
 import type { RecordType, Search } from "@pathfinder/shared";
 import type { StepKind } from "@pathfinder/shared";
 import { VEUPATHDB_SITES } from "@pathfinder/shared";
-import { normalizeRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 import { sanitizeHtml } from "@/lib/utils/sanitizeHtml";
 
 function rewriteRelativeAssetUrls(html: string, origin: string): string {

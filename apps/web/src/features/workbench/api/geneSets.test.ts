@@ -11,14 +11,12 @@ import {
   deleteGeneSet,
   performSetOperation,
   enrichGeneSet,
-  resolveGeneIds,
   createGeneSetFromStrategy,
 } from "./geneSets";
 import type {
   CreateGeneSetRequest,
   SetOperationRequest,
   CreateFromStrategyArgs,
-  GeneResolveResult,
 } from "./geneSets";
 import { requestJson } from "@/lib/api/http";
 import type { GeneSet } from "../store";
@@ -299,84 +297,6 @@ describe("enrichGeneSet", () => {
     await expect(enrichGeneSet("gs-1", ["go_function"])).rejects.toThrow(
       "Enrichment failed",
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// resolveGeneIds
-// ---------------------------------------------------------------------------
-
-describe("resolveGeneIds", () => {
-  it("sends POST to /api/v1/sites/:siteId/genes/resolve", async () => {
-    const resolveResult: GeneResolveResult = {
-      resolved: [
-        {
-          geneId: "PF3D7_0100100",
-          displayName: "PF3D7_0100100",
-          organism: "P. falciparum",
-          product: "hypothetical protein",
-          geneName: "",
-          geneType: "protein_coding",
-          location: "chr1:1-1000",
-        },
-      ],
-      unresolved: ["INVALID_GENE"],
-    };
-    mockRequestJson.mockResolvedValue(resolveResult);
-
-    const result = await resolveGeneIds("plasmodb", ["PF3D7_0100100", "INVALID_GENE"]);
-
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      "/api/v1/sites/plasmodb/genes/resolve",
-      {
-        method: "POST",
-        body: { geneIds: ["PF3D7_0100100", "INVALID_GENE"] },
-      },
-    );
-    expect(result.resolved).toHaveLength(1);
-    expect(result.unresolved).toEqual(["INVALID_GENE"]);
-  });
-
-  it("handles all genes resolved successfully", async () => {
-    const resolveResult: GeneResolveResult = {
-      resolved: [
-        {
-          geneId: "G1",
-          displayName: "G1",
-          organism: "org",
-          product: "prod",
-          geneName: "name",
-          geneType: "type",
-          location: "loc",
-        },
-      ],
-      unresolved: [],
-    };
-    mockRequestJson.mockResolvedValue(resolveResult);
-
-    const result = await resolveGeneIds("toxodb", ["G1"]);
-
-    expect(result.resolved).toHaveLength(1);
-    expect(result.unresolved).toHaveLength(0);
-  });
-
-  it("handles all genes unresolved", async () => {
-    const resolveResult: GeneResolveResult = {
-      resolved: [],
-      unresolved: ["BAD1", "BAD2"],
-    };
-    mockRequestJson.mockResolvedValue(resolveResult);
-
-    const result = await resolveGeneIds("plasmodb", ["BAD1", "BAD2"]);
-
-    expect(result.resolved).toHaveLength(0);
-    expect(result.unresolved).toEqual(["BAD1", "BAD2"]);
-  });
-
-  it("propagates errors", async () => {
-    mockRequestJson.mockRejectedValue(new Error("Network error"));
-
-    await expect(resolveGeneIds("plasmodb", ["G1"])).rejects.toThrow("Network error");
   });
 });
 

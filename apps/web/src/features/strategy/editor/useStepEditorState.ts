@@ -5,7 +5,7 @@ import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { Step, SearchValidationResponse } from "@pathfinder/shared";
 import { validateSearchParams } from "@/lib/api/sites";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
-import { normalizeRecordType } from "@/features/strategy/recordType";
+import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 import { formatSearchValidationResponse } from "@/features/strategy/validation/format";
 import { toUserMessage } from "@/lib/api/errors";
 import { useStepMetadata } from "./hooks/useStepMetadata";
