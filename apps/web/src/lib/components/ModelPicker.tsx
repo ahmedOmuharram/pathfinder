@@ -16,6 +16,7 @@ const PROVIDER_LABELS: Record<ModelProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   google: "Google",
+  ollama: "Ollama (Local)",
 };
 
 interface ModelPickerProps {

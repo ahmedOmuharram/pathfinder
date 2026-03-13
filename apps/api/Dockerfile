@@ -20,6 +20,9 @@ COPY packages/shared-py/src packages/shared-py/src
 # Copy application code (needed because `uv sync` installs the project)
 COPY apps/api/src apps/api/src
 
+# Copy optional Ollama models config (glob avoids failure if missing)
+COPY ollama_models.yam[l] ./
+
 # Install dependencies
 WORKDIR /app/apps/api
 RUN uv sync --frozen

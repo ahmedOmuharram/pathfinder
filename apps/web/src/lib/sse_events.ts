@@ -93,6 +93,10 @@ export type ExecutorBuildRequestData = { executorBuildRequest: unknown };
  * Genuinely dynamic: the backend may include arbitrary diagnostic fields.
  */
 export type MessageEndData = RawSSEData;
+export type TokenUsagePartialData = {
+  promptTokens?: number;
+  registeredToolCount?: number;
+};
 export type ErrorData = { error: string };
 export type WorkbenchGeneSetData = {
   geneSet?: {
@@ -299,6 +303,7 @@ export type ChatSSEEvent =
   | { type: "model_selected"; data: ModelSelectedData }
   | { type: "graph_plan"; data: GraphPlanData }
   | { type: "executor_build_request"; data: ExecutorBuildRequestData }
+  | { type: "token_usage_partial"; data: TokenUsagePartialData }
   | { type: "message_end"; data: MessageEndData }
   | { type: "error"; data: ErrorData }
   | { type: "workbench_gene_set"; data: WorkbenchGeneSetData }
@@ -391,6 +396,9 @@ function narrowEventData(
 
     case "executor_build_request":
       return { type, data: data as ExecutorBuildRequestData };
+
+    case "token_usage_partial":
+      return { type, data: data as TokenUsagePartialData };
 
     case "message_end":
       return { type, data: data as MessageEndData };

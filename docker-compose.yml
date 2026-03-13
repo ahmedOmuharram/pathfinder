@@ -23,6 +23,8 @@ services:
       # "default" = real LLM chat (requires an API key).
       # Set PATHFINDER_CHAT_PROVIDER=mock in .env for fake chat (E2E / offline dev).
       PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:-default}
+      # Ollama: inside Docker, reach the host machine via host.docker.internal.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
     develop:
       watch:
         - action: sync+restart

@@ -1,6 +1,5 @@
 """Factory helpers for constructing the agent and its engine."""
 
-from collections.abc import Callable
 from typing import cast
 from uuid import UUID
 
@@ -27,6 +26,7 @@ def _create_openai_engine(
     top_p: float,
     hyperparams: JSONObject,
     seed: int | None = None,
+    max_context_size: int | None = None,
 ) -> BaseEngine:
     settings = get_settings()
     # Some OpenAI models only support default sampling params (temperature=1, top_p=1).
@@ -38,6 +38,8 @@ def _create_openai_engine(
         kwargs["top_p"] = top_p
     if seed is not None:
         kwargs["seed"] = seed
+    if max_context_size is not None:
+        kwargs["max_context_size"] = max_context_size
     return OpenAIEngine(
         api_key=settings.openai_api_key,
         model=model,
@@ -47,41 +49,74 @@ def _create_openai_engine(
 
 
 def _create_anthropic_engine(
-    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+    *,
+    model: str,
+    temperature: float,
+    top_p: float,
+    hyperparams: JSONObject,
+    max_context_size: int | None = None,
 ) -> BaseEngine:
     settings = get_settings()
-    # Lazy import so the API can still boot in minimal installs.
     from kani.engines.anthropic import AnthropicEngine
 
+    kwargs: dict[str, object] = {}
+    if max_context_size is not None:
+        kwargs["max_context_size"] = max_context_size
     return AnthropicEngine(
         api_key=settings.anthropic_api_key,
         model=model,
         temperature=temperature,
         top_p=top_p,
+        **kwargs,
         **(hyperparams or {}),
     )
 
 
 def _create_google_engine(
-    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+    *,
+    model: str,
+    temperature: float,
+    top_p: float,
+    hyperparams: JSONObject,
+    max_context_size: int | None = None,
 ) -> BaseEngine:
     settings = get_settings()
-    # Lazy import so the API can still boot in minimal installs.
     from kani.engines.google import GoogleAIEngine
 
+    kwargs: dict[str, object] = {}
+    if max_context_size is not None:
+        kwargs["max_context_size"] = max_context_size
     return GoogleAIEngine(
         api_key=settings.gemini_api_key,
         model=model,
         temperature=temperature,
         top_p=top_p,
+        **kwargs,
         **(hyperparams or {}),
     )
 
 
-_ENGINE_FACTORIES: dict[str, Callable[..., BaseEngine]] = {
-    "anthropic": _create_anthropic_engine,
-    "google": _create_google_engine,
-}
+def _create_ollama_engine(
+    *,
+    model: str,
+    temperature: float,
+    top_p: float,
+    hyperparams: JSONObject,
+    max_context_size: int | None = None,
+) -> BaseEngine:
+    settings = get_settings()
+    kwargs: dict[str, object] = {}
+    if max_context_size is not None:
+        kwargs["max_context_size"] = max_context_size
+    return OpenAIEngine(
+        api_key="ollama",
+        model=model,
+        api_base=settings.ollama_base_url,
+        temperature=temperature,
+        top_p=top_p,
+        **kwargs,
+        **(hyperparams or {}),
+    )
 
 
 def resolve_effective_model_id(
@@ -92,11 +127,6 @@ def resolve_effective_model_id(
     """Resolve effective model ID from override and persisted state.
 
     Priority: per-request override > persisted per-conversation > server default.
-    Used by the orchestrator to determine which model to persist back.
-
-    :param model_override: Model ID override (default: None).
-    :param persisted_model_id: Persisted model ID (default: None).
-    :returns: Effective model ID.
     """
     return model_override or persisted_model_id or get_settings().default_model_id
 
@@ -106,52 +136,33 @@ def _resolve_model_config(
     provider_override: ModelProvider | None = None,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
+    reasoning_budget: int | None = None,
 ) -> tuple[ModelProvider, str, float, float, JSONObject]:
-    """Resolve provider, model, and hyperparams from overrides and defaults.
-
-    Model selection is **mode-agnostic**: the same default applies to both
-    planning and execution.  If the caller passes a catalog ``id`` (e.g.
-    ``"openai/gpt-5"``) as *model_override* we resolve the native model name
-    and provider from the catalog.
-
-    :param provider_override: Provider override (default: None).
-    :param model_override: Model ID override (default: None).
-    :param reasoning_effort: Reasoning effort (default: None).
-    :returns: Tuple of (provider, model, temperature, top_p, hyperparams).
-    """
+    """Resolve provider, model, and hyperparams from overrides and defaults."""
     settings = get_settings()
 
-    # 1. Start from the unified server default.
     default_entry = get_model_entry(settings.default_model_id)
     if default_entry:
         provider: ModelProvider = default_entry.provider
         model = default_entry.model
     else:
-        # Fallback when the configured default_model_id isn't in the catalog.
         provider = "openai"
         model = settings.openai_model
 
-    # Sensible defaults — skipped by the engine constructor for
-    # sampling-restricted models (gpt-5, o1, o3, o4).
     temperature = 0.0
     top_p = 1.0
 
-    # 2. Apply per-request overrides.
     if model_override:
         entry = get_model_entry(model_override)
         if entry:
             provider = entry.provider
             model = entry.model
         else:
-            # Treat as a raw provider-native model name.
             model = model_override
 
     if provider_override:
         provider = provider_override
 
-    # 3. Determine effective reasoning effort.
-    #    Only reasoning-capable models receive effort hyperparams.
-    #    When no explicit effort is requested, apply the server-wide default.
     resolved_entry = get_model_entry(model_override or settings.default_model_id)
     supports_reasoning = resolved_entry.supports_reasoning if resolved_entry else False
 
@@ -161,12 +172,26 @@ def _resolve_model_config(
         if effective_effort is None:
             effective_effort = settings.default_reasoning_effort
 
-    # 4. Merge hyperparams (reasoning effort only — no per-mode base config).
     merged: dict[str, object] = {}
-    reasoning_hp = build_reasoning_hyperparams(provider, effective_effort)
+    reasoning_hp = build_reasoning_hyperparams(
+        provider, effective_effort, budget_override=reasoning_budget
+    )
     merged.update(reasoning_hp)
 
     return provider, model, temperature, top_p, cast(JSONObject, merged)
+
+
+def _resolve_context_size(
+    model_override: str | None,
+    context_size_override: int | None,
+) -> int | None:
+    """Resolve context size: per-request override > catalog > engine default."""
+    if context_size_override is not None and context_size_override > 0:
+        return context_size_override
+    entry = get_model_entry(model_override or get_settings().default_model_id)
+    if entry and entry.context_size > 0:
+        return entry.context_size
+    return None
 
 
 def create_engine(
@@ -176,29 +201,21 @@ def create_engine(
     reasoning_effort: ReasoningEffort | None = None,
     temperature: float | None = None,
     seed: int | None = None,
+    context_size: int | None = None,
+    reasoning_budget: int | None = None,
 ) -> BaseEngine:
-    """Create an LLM engine, optionally overridden per-request.
-
-    Model selection is mode-agnostic; the same default applies everywhere.
-
-    :param provider_override: Provider override (default: None).
-    :param model_override: Model ID override (default: None).
-    :param reasoning_effort: Reasoning effort (default: None).
-    :param temperature: Override LLM temperature (default: None = use server default).
-    :param seed: LLM seed for reproducibility (default: None).
-    :returns: Configured LLM engine instance.
-    """
+    """Create an LLM engine, optionally overridden per-request."""
     provider, model, resolved_temperature, top_p, hyperparams = _resolve_model_config(
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,
+        reasoning_budget=reasoning_budget,
     )
-    # Per-request temperature override takes precedence over the resolved default.
     effective_temperature = (
         temperature if temperature is not None else resolved_temperature
     )
+    max_ctx = _resolve_context_size(model_override, context_size)
 
-    # OpenAI engine accepts an extra `seed` parameter for reproducibility.
     if provider == "openai":
         return _create_openai_engine(
             model=model,
@@ -206,17 +223,33 @@ def create_engine(
             top_p=top_p,
             hyperparams=hyperparams,
             seed=seed,
+            max_context_size=max_ctx,
         )
-
-    factory = _ENGINE_FACTORIES.get(provider)
-    if factory is None:
-        raise ValueError(f"Unknown provider: {provider!r}")
-    return factory(
-        model=model,
-        temperature=effective_temperature,
-        top_p=top_p,
-        hyperparams=hyperparams,
-    )
+    if provider == "anthropic":
+        return _create_anthropic_engine(
+            model=model,
+            temperature=effective_temperature,
+            top_p=top_p,
+            hyperparams=hyperparams,
+            max_context_size=max_ctx,
+        )
+    if provider == "google":
+        return _create_google_engine(
+            model=model,
+            temperature=effective_temperature,
+            top_p=top_p,
+            hyperparams=hyperparams,
+            max_context_size=max_ctx,
+        )
+    if provider == "ollama":
+        return _create_ollama_engine(
+            model=model,
+            temperature=effective_temperature,
+            top_p=top_p,
+            hyperparams=hyperparams,
+            max_context_size=max_ctx,
+        )
+    raise ValueError(f"Unknown provider: {provider!r}")
 
 
 def create_agent(
@@ -233,32 +266,19 @@ def create_agent(
     disable_rag: bool = False,
     temperature: float | None = None,
     seed: int | None = None,
+    context_size: int | None = None,
+    response_tokens: int | None = None,
+    reasoning_budget: int | None = None,
 ) -> PathfinderAgent:
-    """Create a unified Pathfinder agent instance.
-
-    The agent combines research, planning, and execution capabilities.
-    The model decides per-turn whether to research/plan or build/execute.
-
-    :param site_id: VEuPathDB site identifier.
-    :param user_id: User ID (default: None).
-    :param chat_history: Chat history (default: None).
-    :param strategy_graph: Strategy graph payload (default: None).
-    :param selected_nodes: Selected nodes (default: None).
-    :param provider_override: Model provider override (default: None).
-    :param model_override: Model ID override (default: None).
-    :param reasoning_effort: Reasoning effort (default: None).
-    :param mentioned_context: Rich context from @-mentioned entities (default: None).
-    :param disable_rag: Disable RAG retrieval for ablation experiments (default: False).
-    :param temperature: Override LLM temperature (default: None = use server default).
-    :param seed: LLM seed for reproducibility (default: None).
-    :returns: Configured agent instance.
-    """
+    """Create a unified Pathfinder agent instance."""
     engine = create_engine(
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,
         temperature=temperature,
         seed=seed,
+        context_size=context_size,
+        reasoning_budget=reasoning_budget,
     )
     return PathfinderAgent(
         engine=engine,
@@ -269,4 +289,5 @@ def create_agent(
         selected_nodes=selected_nodes,
         mentioned_context=mentioned_context,
         disable_rag=disable_rag,
+        desired_response_tokens=response_tokens,
     )

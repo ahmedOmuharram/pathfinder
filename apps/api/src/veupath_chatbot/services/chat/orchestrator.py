@@ -13,10 +13,11 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from uuid import UUID, uuid4
 
-from kani import ChatMessage, ChatRole, Kani
+from kani import ChatMessage, ChatRole
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from veupath_chatbot.ai.agents.executor import PathfinderAgent
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository, UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
@@ -36,14 +37,14 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 # ── Injected AI-layer dependencies ──────────────────────────────────
 # Set once at startup via configure(). Avoids services importing from ai.
 
-_create_agent: Callable[..., Kani] | None = None
+_create_agent: Callable[..., PathfinderAgent] | None = None
 _resolve_effective_model_id: Callable[..., str] | None = None
 _mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None
 
 
 def configure(
     *,
-    create_agent_fn: Callable[..., Kani],
+    create_agent_fn: Callable[..., PathfinderAgent],
     resolve_model_id_fn: Callable[..., str],
     mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None,
 ) -> None:
@@ -120,8 +121,13 @@ async def start_chat_stream(
     mentions: list[dict[str, str]] | None = None,
     # Thesis experiment controls
     disable_rag: bool = False,
+    disabled_tools: list[str] | None = None,
     temperature: float | None = None,
     seed: int | None = None,
+    # Per-model tuning overrides
+    context_size: int | None = None,
+    response_tokens: int | None = None,
+    reasoning_budget: int | None = None,
 ) -> tuple[str, str]:
     """Start a background chat operation and return its identifiers.
 
@@ -179,8 +185,12 @@ async def start_chat_stream(
             reasoning_effort=reasoning_effort,
             mentions=mentions,
             disable_rag=disable_rag,
+            disabled_tools=disabled_tools,
             temperature=temperature,
             seed=seed,
+            context_size=context_size,
+            response_tokens=response_tokens,
+            reasoning_budget=reasoning_budget,
         )
     )
     _active_tasks[operation_id] = task
@@ -206,7 +216,11 @@ async def _build_agent_context(
     disable_rag: bool = False,
     temperature: float | None = None,
     seed: int | None = None,
-) -> tuple[Kani, str]:
+    # Per-model tuning overrides
+    context_size: int | None = None,
+    response_tokens: int | None = None,
+    reasoning_budget: int | None = None,
+) -> tuple[PathfinderAgent, str]:
     """Build the agent and resolve the effective model.
 
     Handles mention context building, chat history retrieval,
@@ -261,6 +275,9 @@ async def _build_agent_context(
         disable_rag=disable_rag,
         temperature=temperature,
         seed=seed,
+        context_size=context_size,
+        response_tokens=response_tokens,
+        reasoning_budget=reasoning_budget,
     )
 
     return agent, effective_model
@@ -404,8 +421,13 @@ async def _chat_producer(
     mentions: list[dict[str, str]] | None,
     # Thesis experiment controls
     disable_rag: bool = False,
+    disabled_tools: list[str] | None = None,
     temperature: float | None = None,
     seed: int | None = None,
+    # Per-model tuning overrides
+    context_size: int | None = None,
+    response_tokens: int | None = None,
+    reasoning_budget: int | None = None,
 ) -> None:
     """Background task: run the LLM agent and emit every event to Redis."""
     redis = get_redis()
@@ -441,7 +463,15 @@ async def _chat_producer(
             disable_rag=disable_rag,
             temperature=temperature,
             seed=seed,
+            context_size=context_size,
+            response_tokens=response_tokens,
+            reasoning_budget=reasoning_budget,
         )
+
+        # Remove user-disabled tools from the agent.
+        if disabled_tools:
+            for tool_name in disabled_tools:
+                agent.functions.pop(tool_name, None)
 
         if effective_model != projection.model_id:
             await emit(

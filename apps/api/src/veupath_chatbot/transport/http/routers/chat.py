@@ -42,8 +42,12 @@ async def chat(
         if body.mentions
         else None,
         disable_rag=body.disable_rag,
+        disabled_tools=body.disabled_tools,
         temperature=body.temperature,
         seed=body.seed,
+        context_size=body.context_size,
+        response_tokens=body.response_tokens,
+        reasoning_budget=body.reasoning_budget,
     )
     return JSONResponse(
         {"operationId": operation_id, "strategyId": strategy_id},

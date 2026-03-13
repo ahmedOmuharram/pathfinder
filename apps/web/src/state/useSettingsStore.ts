@@ -2,7 +2,7 @@
  * User settings store — persisted to localStorage.
  *
  * Stores default model/provider/reasoning preferences and
- * advanced per-provider budgets.
+ * per-model tuning overrides.
  */
 
 import { create } from "zustand";
@@ -10,15 +10,25 @@ import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
 
 const STORAGE_KEY = "pathfinder-settings";
 
+export interface ModelOverrides {
+  contextSize?: number;
+  responseTokens?: number;
+  reasoningBudget?: number;
+}
+
 export interface SettingsState {
   /** Default model catalog ID (e.g. "openai/gpt-5"). null = use server default. */
   defaultModelId: string | null;
   /** Default reasoning effort. */
   defaultReasoningEffort: ReasoningEffort;
-  /** Per-provider reasoning token budgets (advanced). */
-  advancedReasoningBudgets: Record<string, number>;
+  /** Per-model tuning overrides keyed by catalog ID (e.g. "openai/gpt-5"). */
+  modelOverrides: Record<string, ModelOverrides>;
   /** Show raw tool calls in chat (advanced). */
   showRawToolCalls: boolean;
+  /** Show token usage under messages (advanced). */
+  showTokenUsage: boolean;
+  /** Tool names the user has disabled. */
+  disabledTools: string[];
   /** Sync strategy deletion to WDK (advanced). */
   syncDeleteToWdk: boolean;
 
@@ -30,8 +40,15 @@ export interface SettingsState {
   // Actions
   setDefaultModelId: (id: string | null) => void;
   setDefaultReasoningEffort: (effort: ReasoningEffort) => void;
-  setAdvancedReasoningBudget: (provider: string, budget: number) => void;
+  setModelOverride: (
+    modelId: string,
+    field: keyof ModelOverrides,
+    value: number | undefined,
+  ) => void;
   setShowRawToolCalls: (show: boolean) => void;
+  setShowTokenUsage: (show: boolean) => void;
+  setDisabledTools: (tools: string[]) => void;
+  toggleTool: (name: string) => void;
   setSyncDeleteToWdk: (sync: boolean) => void;
   setModelCatalog: (models: ModelCatalogEntry[], defaultModelId: string) => void;
   resetToDefaults: () => void;
@@ -52,12 +69,13 @@ function persist(partial: Partial<SettingsState>) {
   if (typeof window === "undefined") return;
   const current = loadPersistedSettings();
   const merged = { ...current, ...partial };
-  // Only persist user-editable fields, not the cached catalog.
   const {
     defaultModelId,
     defaultReasoningEffort,
-    advancedReasoningBudgets,
+    modelOverrides,
     showRawToolCalls,
+    showTokenUsage,
+    disabledTools,
     syncDeleteToWdk,
   } = merged;
   window.localStorage.setItem(
@@ -65,8 +83,10 @@ function persist(partial: Partial<SettingsState>) {
     JSON.stringify({
       defaultModelId,
       defaultReasoningEffort,
-      advancedReasoningBudgets,
+      modelOverrides,
       showRawToolCalls,
+      showTokenUsage,
+      disabledTools,
       syncDeleteToWdk,
     }),
   );
@@ -78,9 +98,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   defaultModelId: (persisted.defaultModelId as string) ?? null,
   defaultReasoningEffort:
     (persisted.defaultReasoningEffort as ReasoningEffort) ?? "medium",
-  advancedReasoningBudgets:
-    (persisted.advancedReasoningBudgets as Record<string, number>) ?? {},
+  modelOverrides: (persisted.modelOverrides as Record<string, ModelOverrides>) ?? {},
   showRawToolCalls: (persisted.showRawToolCalls as boolean) ?? false,
+  showTokenUsage: (persisted.showTokenUsage as boolean) ?? false,
+  disabledTools: (persisted.disabledTools as string[]) ?? [],
   syncDeleteToWdk: (persisted.syncDeleteToWdk as boolean) ?? false,
   modelCatalog: [],
   catalogDefault: null,
@@ -93,16 +114,41 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ defaultReasoningEffort: effort });
     persist({ defaultReasoningEffort: effort });
   },
-  setAdvancedReasoningBudget: (provider, budget) =>
+  setModelOverride: (modelId, field, value) =>
     set((s) => {
-      const next = { ...s.advancedReasoningBudgets, [provider]: budget };
-      persist({ advancedReasoningBudgets: next });
-      return { advancedReasoningBudgets: next };
+      const prev = s.modelOverrides[modelId] ?? {};
+      const updated = { ...prev, [field]: value };
+      // Remove undefined fields to keep storage clean.
+      if (value === undefined) delete updated[field];
+      const next = { ...s.modelOverrides };
+      if (Object.keys(updated).length === 0) {
+        delete next[modelId];
+      } else {
+        next[modelId] = updated;
+      }
+      persist({ modelOverrides: next });
+      return { modelOverrides: next };
     }),
   setShowRawToolCalls: (show) => {
     set({ showRawToolCalls: show });
     persist({ showRawToolCalls: show });
   },
+  setShowTokenUsage: (show) => {
+    set({ showTokenUsage: show });
+    persist({ showTokenUsage: show });
+  },
+  setDisabledTools: (tools) => {
+    set({ disabledTools: tools });
+    persist({ disabledTools: tools });
+  },
+  toggleTool: (name) =>
+    set((s) => {
+      const next = s.disabledTools.includes(name)
+        ? s.disabledTools.filter((t) => t !== name)
+        : [...s.disabledTools, name];
+      persist({ disabledTools: next });
+      return { disabledTools: next };
+    }),
   setSyncDeleteToWdk: (sync) => {
     set({ syncDeleteToWdk: sync });
     persist({ syncDeleteToWdk: sync });
@@ -113,8 +159,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const defaults = {
       defaultModelId: null,
       defaultReasoningEffort: "medium" as ReasoningEffort,
-      advancedReasoningBudgets: {},
+      modelOverrides: {},
       showRawToolCalls: false,
+      showTokenUsage: false,
+      disabledTools: [] as string[],
       syncDeleteToWdk: false,
     };
     set(defaults);

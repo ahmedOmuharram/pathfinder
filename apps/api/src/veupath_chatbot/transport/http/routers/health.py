@@ -40,13 +40,15 @@ async def system_config() -> SystemConfigResponse:
         openai=bool(settings.openai_api_key),
         anthropic=bool(settings.anthropic_api_key),
         google=bool(settings.gemini_api_key),
+        ollama=bool(settings.ollama_base_url),
     )
     return SystemConfigResponse(
         chat_provider=settings.chat_provider,
         llm_configured=is_mock
         or providers.openai
         or providers.anthropic
-        or providers.google,
+        or providers.google
+        or providers.ollama,
         providers=providers,
     )
 

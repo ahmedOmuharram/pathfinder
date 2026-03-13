@@ -32,6 +32,7 @@ export function SetupRequiredScreen({ onRetry }: SetupRequiredScreenProps) {
             <li>OPENAI_API_KEY</li>
             <li>ANTHROPIC_API_KEY</li>
             <li>GEMINI_API_KEY</li>
+            <li>OLLAMA_BASE_URL (local models)</li>
           </ul>
           <p className="mt-2">
             Or set{" "}

@@ -19,6 +19,7 @@ class ProviderStatus(BaseModel):
     openai: bool
     anthropic: bool
     google: bool
+    ollama: bool
 
 
 class SystemConfigResponse(BaseModel):

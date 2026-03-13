@@ -30,6 +30,7 @@ export async function streamChat(
   context?: StreamChatContext,
   signal?: AbortSignal,
   modelSelection?: ModelSelection,
+  disabledTools?: string[],
 ): Promise<StreamChatResult> {
   // POST to start the chat operation.
   const resp = await requestJson<{ operationId: string; strategyId: string }>(
@@ -45,6 +46,12 @@ export async function streamChat(
         provider: modelSelection?.provider,
         model: modelSelection?.model,
         reasoningEffort: modelSelection?.reasoningEffort,
+        // Per-model tuning overrides
+        contextSize: modelSelection?.contextSize,
+        responseTokens: modelSelection?.responseTokens,
+        reasoningBudget: modelSelection?.reasoningBudget,
+        // Disabled tools
+        disabledTools: disabledTools?.length ? disabledTools : undefined,
       },
       signal,
     },

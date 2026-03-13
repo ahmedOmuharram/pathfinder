@@ -4,7 +4,7 @@ from typing import TypedDict
 
 from fastapi import APIRouter
 
-from veupath_chatbot.ai.models.catalog import MODEL_CATALOG
+from veupath_chatbot.ai.models.catalog import get_model_catalog
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
 
@@ -16,6 +16,8 @@ class _ModelItem(TypedDict):
     model: str
     supportsReasoning: bool
     enabled: bool
+    contextSize: int
+    defaultReasoningBudget: int
 
 
 class ModelListResponse(TypedDict):
@@ -38,6 +40,7 @@ def _provider_enabled(provider: ModelProvider) -> bool:
         "openai": settings.openai_api_key,
         "anthropic": settings.anthropic_api_key,
         "google": settings.gemini_api_key,
+        "ollama": settings.ollama_base_url,
     }
     return bool(key_map.get(provider, ""))
 
@@ -58,8 +61,10 @@ async def list_models() -> ModelListResponse:
             model=m.model,
             supportsReasoning=m.supports_reasoning,
             enabled=_provider_enabled(m.provider),
+            contextSize=m.context_size,
+            defaultReasoningBudget=m.default_reasoning_budget,
         )
-        for m in MODEL_CATALOG
+        for m in get_model_catalog()
     ]
     return {
         "models": models,

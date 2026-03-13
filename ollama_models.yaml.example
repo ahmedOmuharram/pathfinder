@@ -1,0 +1,25 @@
+# Local Ollama models available in the PathFinder model picker.
+#
+# Copy to `ollama_models.yaml` and edit to match your installed models:
+#   cp ollama_models.yaml.example ollama_models.yaml
+#
+# Fields:
+#   model:        Ollama model name (required)
+#   name:         Display name (optional, defaults to model name)
+#   thinking:     Whether model supports reasoning/thinking (optional, default false)
+#   context_size: Max context window in tokens (optional, default 4096)
+
+models:
+  - model: llama3
+    name: Llama 3
+    context_size: 8192
+  - model: mistral
+    name: Mistral 7B
+    context_size: 32768
+  - model: qwen3
+    name: Qwen 3
+    thinking: true
+    context_size: 40960
+  - model: gemma3
+    name: Gemma 3
+    context_size: 8192

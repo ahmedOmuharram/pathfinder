@@ -255,6 +255,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tools
+         * @description Return the list of AI tools registered on the agent.
+         */
+        get: operations["list_tools_api_v1_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat": {
         parameters: {
             query?: never;
@@ -1415,7 +1435,7 @@ export type components = {
             /** Message */
             message: string;
             /** Provider */
-            provider?: ("openai" | "anthropic" | "google") | null;
+            provider?: ("openai" | "anthropic" | "google" | "ollama") | null;
             /** Model */
             model?: string | null;
             /** Reasoningeffort */
@@ -1429,6 +1449,14 @@ export type components = {
             temperature?: number | null;
             /** Seed */
             seed?: number | null;
+            /** Contextsize */
+            contextSize?: number | null;
+            /** Responsetokens */
+            responseTokens?: number | null;
+            /** Reasoningbudget */
+            reasoningBudget?: number | null;
+            /** Disabledtools */
+            disabledTools?: string[];
             /** Mentions */
             mentions?: components["schemas"]["ChatMention"][];
         };
@@ -2018,6 +2046,7 @@ export type components = {
             /** Reasoning */
             reasoning?: string | null;
             optimizationProgress?: components["schemas"]["JSONObject"] | null;
+            tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
             /**
              * Timestamp
              * Format: date-time
@@ -2337,6 +2366,8 @@ export type components = {
             anthropic: boolean;
             /** Google */
             google: boolean;
+            /** Ollama */
+            ollama: boolean;
         };
         /**
          * RecordDetailRequest
@@ -2863,6 +2894,22 @@ export type components = {
             values?: string[] | null;
         };
         /**
+         * TokenUsageResponse
+         * @description Token usage statistics for a message turn.
+         */
+        TokenUsageResponse: {
+            /** Prompttokens */
+            promptTokens: number;
+            /** Completiontokens */
+            completionTokens: number;
+            /** Totaltokens */
+            totalTokens: number;
+            /** Toolcallcount */
+            toolCallCount: number;
+            /** Registeredtoolcount */
+            registeredToolCount: number;
+        };
+        /**
          * ToolCallResponse
          * @description Tool call information.
          */
@@ -2874,6 +2921,11 @@ export type components = {
             arguments: components["schemas"]["JSONObject"];
             /** Result */
             result?: string | null;
+        };
+        /** ToolListResponse */
+        ToolListResponse: {
+            /** Tools */
+            tools: components["schemas"]["_ToolItem"][];
         };
         /**
          * UpdateStrategyRequest
@@ -2908,7 +2960,7 @@ export type components = {
             /** Siteid */
             siteId: string;
             /** Provider */
-            provider?: ("openai" | "anthropic" | "google") | null;
+            provider?: ("openai" | "anthropic" | "google" | "ollama") | null;
             /** Model */
             model?: string | null;
             /** Reasoningeffort */
@@ -2931,13 +2983,24 @@ export type components = {
              * Provider
              * @enum {string}
              */
-            provider: "openai" | "anthropic" | "google";
+            provider: "openai" | "anthropic" | "google" | "ollama";
             /** Model */
             model: string;
             /** Supportsreasoning */
             supportsReasoning: boolean;
             /** Enabled */
             enabled: boolean;
+            /** Contextsize */
+            contextSize: number;
+            /** Defaultreasoningbudget */
+            defaultReasoningBudget: number;
+        };
+        /** _ToolItem */
+        _ToolItem: {
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
         };
     };
     responses: never;
@@ -3286,6 +3349,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelListResponse"];
+                };
+            };
+        };
+    };
+    list_tools_api_v1_tools_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolListResponse"];
                 };
             };
         };

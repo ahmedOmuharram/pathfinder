@@ -42,6 +42,7 @@ export function Modal({
         <Dialog.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2",
+            "max-h-[85vh] flex flex-col",
             "rounded-xl border border-border bg-card p-0 shadow-lg",
             "focus:outline-none",
             "data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out",

@@ -10,6 +10,7 @@ import type {
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { streamChat } from "@/features/chat/stream";
+import { useSettingsStore } from "@/state/useSettingsStore";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
@@ -148,6 +149,7 @@ export function useChatStreaming({
       );
 
       try {
+        const { disabledTools } = useSettingsStore.getState();
         const result = await streamChat(
           content,
           siteId,
@@ -159,6 +161,7 @@ export function useChatStreaming({
           streamContext,
           undefined,
           modelSelection ?? undefined,
+          disabledTools.length > 0 ? disabledTools : undefined,
         );
 
         lifecycle.trackOperation(result.subscription, result.operationId);

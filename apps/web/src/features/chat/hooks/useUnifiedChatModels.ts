@@ -27,6 +27,7 @@ export function useUnifiedChatModels(): UnifiedChatModels {
   const catalogDefault = useSettingsStore((s) => s.catalogDefault);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
+  const modelOverrides = useSettingsStore((s) => s.modelOverrides);
 
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -50,6 +51,7 @@ export function useUnifiedChatModels(): UnifiedChatModels {
     selectedModelId,
     reasoningEffort,
     modelCatalog,
+    selectedModelId ? modelOverrides[selectedModelId] : undefined,
   );
 
   return {

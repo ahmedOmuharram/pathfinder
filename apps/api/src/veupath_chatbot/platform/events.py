@@ -349,6 +349,29 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
                 messages.append(msg)
 
             case "message_end":
+                total = data.get("totalTokens", 0)
+                if isinstance(total, int) and total > 0:
+                    token_usage: JSONObject = {
+                        "promptTokens": data.get("promptTokens", 0),
+                        "completionTokens": data.get("completionTokens", 0),
+                        "totalTokens": total,
+                        "toolCallCount": data.get("toolCallCount", 0),
+                        "registeredToolCount": data.get("registeredToolCount", 0),
+                    }
+                    for i in range(len(messages) - 1, -1, -1):
+                        if (
+                            messages[i]["role"] == "user"
+                            and "tokenUsage" not in messages[i]
+                        ):
+                            messages[i]["tokenUsage"] = token_usage
+                            break
+                    for i in range(len(messages) - 1, -1, -1):
+                        if (
+                            messages[i]["role"] == "assistant"
+                            and "tokenUsage" not in messages[i]
+                        ):
+                            messages[i]["tokenUsage"] = token_usage
+                            break
                 _reset_turn()
 
     return messages

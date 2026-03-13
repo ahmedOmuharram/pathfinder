@@ -16,6 +16,7 @@ import type {
   PlanningArtifactData,
   ReasoningData,
   ModelSelectedData,
+  TokenUsagePartialData,
   MessageEndData,
   ErrorData,
 } from "@/lib/sse_events";
@@ -347,11 +348,69 @@ export function handleModelSelectedEvent(
   }
 }
 
-export function handleMessageEndEvent(_ctx: ChatEventContext, _data: MessageEndData) {
-  // message_end signals the end of a streaming session.
-  // The actual stream-complete cleanup is handled by the onComplete callback
-  // in the subscription layer (operationSubscribe / useChatStreaming).
-  // This handler exists to prevent the event from falling through to "unknown".
+export function handleTokenUsagePartialEvent(
+  ctx: ChatEventContext,
+  data: TokenUsagePartialData,
+) {
+  // Attach prompt tokens to the last user message immediately, before the
+  // model finishes (or even if it fails).
+  const promptTokens = typeof data.promptTokens === "number" ? data.promptTokens : 0;
+  const registeredToolCount =
+    typeof data.registeredToolCount === "number" ? data.registeredToolCount : 0;
+  if (promptTokens <= 0) return;
+
+  ctx.setMessages((prev) => {
+    const updated = [...prev];
+    for (let i = updated.length - 1; i >= 0; i--) {
+      if (updated[i].role === "user" && !updated[i].tokenUsage) {
+        updated[i] = {
+          ...updated[i],
+          tokenUsage: {
+            promptTokens,
+            completionTokens: 0,
+            totalTokens: promptTokens,
+            toolCallCount: 0,
+            registeredToolCount,
+          },
+        };
+        break;
+      }
+    }
+    return updated;
+  });
+}
+
+export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndData) {
+  // Attach token usage to the last user message (input cost) and assistant message (output cost).
+  const total = typeof data.totalTokens === "number" ? data.totalTokens : 0;
+  if (total <= 0) return;
+
+  const usage = {
+    promptTokens: (data.promptTokens as number) ?? 0,
+    completionTokens: (data.completionTokens as number) ?? 0,
+    totalTokens: total,
+    toolCallCount: (data.toolCallCount as number) ?? 0,
+    registeredToolCount: (data.registeredToolCount as number) ?? 0,
+  };
+
+  ctx.setMessages((prev) => {
+    const updated = [...prev];
+    // Update last user message (may already have partial usage from token_usage_partial).
+    for (let i = updated.length - 1; i >= 0; i--) {
+      if (updated[i].role === "user") {
+        updated[i] = { ...updated[i], tokenUsage: usage };
+        break;
+      }
+    }
+    // Update last assistant message.
+    for (let i = updated.length - 1; i >= 0; i--) {
+      if (updated[i].role === "assistant" && !updated[i].tokenUsage) {
+        updated[i] = { ...updated[i], tokenUsage: usage };
+        break;
+      }
+    }
+    return updated;
+  });
 }
 
 export function handleErrorEvent(ctx: ChatEventContext, data: ErrorData) {

@@ -8,6 +8,7 @@ export const SystemConfigResponseSchema = z
       openai: z.boolean(),
       anthropic: z.boolean(),
       google: z.boolean(),
+      ollama: z.boolean(),
     }),
   })
   .passthrough();

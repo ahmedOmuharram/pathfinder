@@ -34,6 +34,10 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
     async def _produce_events() -> None:
         try:
             saw_assistant_message = False
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+            tool_call_count = 0
+            registered_tool_count = len(getattr(agent, "functions", {}))
 
             async for stream in agent.full_round_stream(message):
                 # Assistant messages stream tokens; function calls typically do not, but are still emitted
@@ -54,6 +58,22 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         )
 
                     msg = await stream.message()
+                    completion = await stream.completion()
+                    if completion.prompt_tokens:
+                        total_prompt_tokens += completion.prompt_tokens
+                        # Emit prompt tokens early so the frontend can show
+                        # user token usage immediately, even if the model fails later.
+                        await queue.put(
+                            {
+                                "type": "token_usage_partial",
+                                "data": {
+                                    "promptTokens": total_prompt_tokens,
+                                    "registeredToolCount": registered_tool_count,
+                                },
+                            }
+                        )
+                    if completion.completion_tokens:
+                        total_completion_tokens += completion.completion_tokens
                     # msg.content can be a list of parts (e.g. Gemini multipart);
                     # msg.text always returns a joined plain string.
                     final_text = msg.text or ""
@@ -78,6 +98,7 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         )
 
                     if msg.tool_calls:
+                        tool_call_count += len(msg.tool_calls)
                         for tc in msg.tool_calls:
                             await queue.put(
                                 {
@@ -158,7 +179,18 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
             )
             await queue.put({"type": "error", "data": {"error": str(e)}})
         finally:
-            await queue.put({"type": "message_end", "data": {}})
+            await queue.put(
+                {
+                    "type": "message_end",
+                    "data": {
+                        "promptTokens": total_prompt_tokens,
+                        "completionTokens": total_completion_tokens,
+                        "totalTokens": total_prompt_tokens + total_completion_tokens,
+                        "toolCallCount": tool_call_count,
+                        "registeredToolCount": registered_tool_count,
+                    },
+                }
+            )
 
     producer = asyncio.create_task(_produce_events())
     try:

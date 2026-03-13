@@ -43,6 +43,14 @@ class ChatRequest(BaseModel):
     temperature: float | None = Field(default=None)
     seed: int | None = Field(default=None)
 
+    # Per-model tuning overrides from user settings.
+    context_size: int | None = Field(default=None, alias="contextSize")
+    response_tokens: int | None = Field(default=None, alias="responseTokens")
+    reasoning_budget: int | None = Field(default=None, alias="reasoningBudget")
+
+    # Tools the user has disabled in the UI.
+    disabled_tools: list[str] = Field(default_factory=list, alias="disabledTools")
+
     # @-mention references to strategies and experiments.
     mentions: list[ChatMention] = Field(default_factory=list)
 
@@ -82,6 +90,18 @@ class ThinkingResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TokenUsageResponse(BaseModel):
+    """Token usage statistics for a message turn."""
+
+    prompt_tokens: int = Field(alias="promptTokens")
+    completion_tokens: int = Field(alias="completionTokens")
+    total_tokens: int = Field(alias="totalTokens")
+    tool_call_count: int = Field(alias="toolCallCount")
+    registered_tool_count: int = Field(alias="registeredToolCount")
+
+    model_config = {"populate_by_name": True}
+
+
 class MessageResponse(BaseModel):
     """Chat message."""
 
@@ -99,6 +119,7 @@ class MessageResponse(BaseModel):
     optimization_progress: JSONObject | None = Field(
         default=None, alias="optimizationProgress"
     )
+    token_usage: TokenUsageResponse | None = Field(default=None, alias="tokenUsage")
     timestamp: datetime
 
     model_config = {"populate_by_name": True, "extra": "ignore"}

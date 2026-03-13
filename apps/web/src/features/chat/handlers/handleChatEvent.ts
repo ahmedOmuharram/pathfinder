@@ -11,6 +11,7 @@ import {
   handleOptimizationProgressEvent,
   handlePlanningArtifactEvent,
   handleReasoningEvent,
+  handleTokenUsagePartialEvent,
   handleUserMessageEvent,
 } from "./handleChatEvent.messageEvents";
 import {
@@ -117,6 +118,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "executor_build_request": {
       handleExecutorBuildRequestEvent(ctx, event.data);
+      break;
+    }
+    case "token_usage_partial": {
+      handleTokenUsagePartialEvent(ctx, event.data);
       break;
     }
     case "message_end": {

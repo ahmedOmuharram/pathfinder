@@ -409,7 +409,7 @@ export interface Strategy {
 
 export type MessageRole = "user" | "assistant" | "system";
 
-export type ModelProvider = "openai" | "anthropic" | "google";
+export type ModelProvider = "openai" | "anthropic" | "google" | "ollama";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
 /** Model selection passed with each chat request. */
@@ -417,6 +417,9 @@ export interface ModelSelection {
   provider?: ModelProvider;
   model?: string;
   reasoningEffort?: ReasoningEffort;
+  contextSize?: number;
+  responseTokens?: number;
+  reasoningBudget?: number;
 }
 
 /** An entry in the model catalog returned by GET /api/v1/models. */
@@ -427,6 +430,8 @@ export interface ModelCatalogEntry {
   model: string;
   supportsReasoning: boolean;
   enabled: boolean;
+  contextSize: number;
+  defaultReasoningBudget: number;
 }
 
 export type CitationSource =
@@ -511,6 +516,16 @@ export interface Message {
   reasoningEffort?: ReasoningEffort;
   /** @-mentions attached to a user message. */
   mentions?: ChatMention[];
+  /** Token usage for this assistant turn. */
+  tokenUsage?: TokenUsage;
+}
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  toolCallCount: number;
+  registeredToolCount: number;
 }
 
 export interface Conversation {

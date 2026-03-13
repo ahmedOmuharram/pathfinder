@@ -40,6 +40,7 @@ env/
 .env
 .env.local
 .env.*.local
+ollama_models.yaml
 
 # Testing
 .coverage

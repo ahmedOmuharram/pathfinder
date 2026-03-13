@@ -28,8 +28,11 @@ describe("state/useSettingsStore - defaults", () => {
 
     expect(state.defaultModelId).toBeNull();
     expect(state.defaultReasoningEffort).toBe("medium");
-    expect(state.advancedReasoningBudgets).toEqual({});
+    expect(state.modelOverrides).toEqual({});
     expect(state.showRawToolCalls).toBe(false);
+    expect(state.showTokenUsage).toBe(false);
+    expect(state.disabledTools).toEqual([]);
+    expect(state.syncDeleteToWdk).toBe(false);
     expect(state.modelCatalog).toEqual([]);
     expect(state.catalogDefault).toBeNull();
   });
@@ -105,37 +108,51 @@ describe("setDefaultReasoningEffort", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setAdvancedReasoningBudget
+// setModelOverride
 // ---------------------------------------------------------------------------
 
-describe("setAdvancedReasoningBudget", () => {
-  it("adds a budget for a new provider", async () => {
+describe("setModelOverride", () => {
+  it("adds an override for a model", async () => {
     const mod = await import("./useSettingsStore");
     const store = mod.useSettingsStore;
 
-    store.getState().setAdvancedReasoningBudget("openai", 2048);
-    expect(store.getState().advancedReasoningBudgets).toEqual({ openai: 2048 });
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", 100_000);
+    expect(store.getState().modelOverrides["openai/gpt-5"]).toEqual({
+      contextSize: 100_000,
+    });
   });
 
-  it("updates an existing provider budget", async () => {
+  it("updates an existing override field", async () => {
     const mod = await import("./useSettingsStore");
     const store = mod.useSettingsStore;
 
-    store.getState().setAdvancedReasoningBudget("openai", 1024);
-    store.getState().setAdvancedReasoningBudget("openai", 4096);
-    expect(store.getState().advancedReasoningBudgets.openai).toBe(4096);
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", 100_000);
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", 200_000);
+    expect(store.getState().modelOverrides["openai/gpt-5"]?.contextSize).toBe(200_000);
   });
 
-  it("supports multiple providers simultaneously", async () => {
+  it("supports multiple fields per model", async () => {
     const mod = await import("./useSettingsStore");
     const store = mod.useSettingsStore;
 
-    store.getState().setAdvancedReasoningBudget("openai", 1024);
-    store.getState().setAdvancedReasoningBudget("anthropic", 2048);
-    store.getState().setAdvancedReasoningBudget("google", 512);
+    store
+      .getState()
+      .setModelOverride("anthropic/claude-sonnet-4-0", "contextSize", 100_000);
+    store
+      .getState()
+      .setModelOverride("anthropic/claude-sonnet-4-0", "reasoningBudget", 16384);
 
-    const budgets = store.getState().advancedReasoningBudgets;
-    expect(budgets).toEqual({ openai: 1024, anthropic: 2048, google: 512 });
+    const overrides = store.getState().modelOverrides["anthropic/claude-sonnet-4-0"];
+    expect(overrides).toEqual({ contextSize: 100_000, reasoningBudget: 16384 });
+  });
+
+  it("removes override when set to undefined", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", 100_000);
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", undefined);
+    expect(store.getState().modelOverrides["openai/gpt-5"]).toBeUndefined();
   });
 
   it("persists to localStorage", async () => {
@@ -143,10 +160,12 @@ describe("setAdvancedReasoningBudget", () => {
     vi.stubGlobal("window", { localStorage });
 
     const mod = await import("./useSettingsStore");
-    mod.useSettingsStore.getState().setAdvancedReasoningBudget("openai", 2048);
+    mod.useSettingsStore
+      .getState()
+      .setModelOverride("openai/gpt-5", "contextSize", 50_000);
 
     const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    expect(persisted.advancedReasoningBudgets).toEqual({ openai: 2048 });
+    expect(persisted.modelOverrides["openai/gpt-5"]).toEqual({ contextSize: 50_000 });
   });
 });
 
@@ -185,6 +204,127 @@ describe("setShowRawToolCalls", () => {
 });
 
 // ---------------------------------------------------------------------------
+// setShowTokenUsage
+// ---------------------------------------------------------------------------
+
+describe("setShowTokenUsage", () => {
+  it("toggles show token usage on", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setShowTokenUsage(true);
+    expect(store.getState().showTokenUsage).toBe(true);
+  });
+
+  it("toggles show token usage off", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setShowTokenUsage(true);
+    store.getState().setShowTokenUsage(false);
+    expect(store.getState().showTokenUsage).toBe(false);
+  });
+
+  it("persists to localStorage", async () => {
+    const localStorage = makeLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    const mod = await import("./useSettingsStore");
+    mod.useSettingsStore.getState().setShowTokenUsage(true);
+
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(persisted.showTokenUsage).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setSyncDeleteToWdk
+// ---------------------------------------------------------------------------
+
+describe("setSyncDeleteToWdk", () => {
+  it("toggles sync delete on", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setSyncDeleteToWdk(true);
+    expect(store.getState().syncDeleteToWdk).toBe(true);
+  });
+
+  it("toggles sync delete off", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setSyncDeleteToWdk(true);
+    store.getState().setSyncDeleteToWdk(false);
+    expect(store.getState().syncDeleteToWdk).toBe(false);
+  });
+
+  it("persists to localStorage", async () => {
+    const localStorage = makeLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    const mod = await import("./useSettingsStore");
+    mod.useSettingsStore.getState().setSyncDeleteToWdk(true);
+
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(persisted.syncDeleteToWdk).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// disabledTools / toggleTool
+// ---------------------------------------------------------------------------
+
+describe("disabledTools", () => {
+  it("sets disabled tools list", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setDisabledTools(["tool_a", "tool_b"]);
+    expect(store.getState().disabledTools).toEqual(["tool_a", "tool_b"]);
+  });
+
+  it("toggleTool adds a tool to the disabled list", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().toggleTool("tool_x");
+    expect(store.getState().disabledTools).toEqual(["tool_x"]);
+  });
+
+  it("toggleTool removes an already-disabled tool", async () => {
+    const mod = await import("./useSettingsStore");
+    const store = mod.useSettingsStore;
+
+    store.getState().setDisabledTools(["tool_x", "tool_y"]);
+    store.getState().toggleTool("tool_x");
+    expect(store.getState().disabledTools).toEqual(["tool_y"]);
+  });
+
+  it("persists to localStorage", async () => {
+    const localStorage = makeLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    const mod = await import("./useSettingsStore");
+    mod.useSettingsStore.getState().setDisabledTools(["tool_a"]);
+
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(persisted.disabledTools).toEqual(["tool_a"]);
+  });
+
+  it("toggleTool persists to localStorage", async () => {
+    const localStorage = makeLocalStorage();
+    vi.stubGlobal("window", { localStorage });
+
+    const mod = await import("./useSettingsStore");
+    mod.useSettingsStore.getState().toggleTool("tool_z");
+
+    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    expect(persisted.disabledTools).toEqual(["tool_z"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // setModelCatalog
 // ---------------------------------------------------------------------------
 
@@ -201,6 +341,8 @@ describe("setModelCatalog", () => {
         model: "gpt-5",
         supportsReasoning: true,
         enabled: true,
+        contextSize: 400_000,
+        defaultReasoningBudget: 0,
       },
       {
         id: "anthropic/claude-4",
@@ -209,6 +351,8 @@ describe("setModelCatalog", () => {
         model: "claude-4",
         supportsReasoning: true,
         enabled: true,
+        contextSize: 200_000,
+        defaultReasoningBudget: 8192,
       },
     ];
 
@@ -232,6 +376,8 @@ describe("setModelCatalog", () => {
           model: "gpt-5",
           supportsReasoning: true,
           enabled: true,
+          contextSize: 400_000,
+          defaultReasoningBudget: 0,
         },
       ],
       "openai/gpt-5",
@@ -259,8 +405,11 @@ describe("resetToDefaults", () => {
     // Set everything to non-default values
     store.getState().setDefaultModelId("anthropic/claude-4");
     store.getState().setDefaultReasoningEffort("high");
-    store.getState().setAdvancedReasoningBudget("openai", 4096);
+    store.getState().setModelOverride("openai/gpt-5", "contextSize", 50_000);
     store.getState().setShowRawToolCalls(true);
+    store.getState().setShowTokenUsage(true);
+    store.getState().setDisabledTools(["tool_a"]);
+    store.getState().setSyncDeleteToWdk(true);
 
     // Reset
     store.getState().resetToDefaults();
@@ -268,8 +417,11 @@ describe("resetToDefaults", () => {
     const state = store.getState();
     expect(state.defaultModelId).toBeNull();
     expect(state.defaultReasoningEffort).toBe("medium");
-    expect(state.advancedReasoningBudgets).toEqual({});
+    expect(state.modelOverrides).toEqual({});
     expect(state.showRawToolCalls).toBe(false);
+    expect(state.showTokenUsage).toBe(false);
+    expect(state.disabledTools).toEqual([]);
+    expect(state.syncDeleteToWdk).toBe(false);
   });
 
   it("persists reset state to localStorage", async () => {
@@ -280,13 +432,19 @@ describe("resetToDefaults", () => {
     const store = mod.useSettingsStore;
 
     store.getState().setDefaultModelId("some-model");
+    store.getState().setShowTokenUsage(true);
+    store.getState().setSyncDeleteToWdk(true);
+    store.getState().setDisabledTools(["t"]);
     store.getState().resetToDefaults();
 
     const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
     expect(persisted.defaultModelId).toBeNull();
     expect(persisted.defaultReasoningEffort).toBe("medium");
-    expect(persisted.advancedReasoningBudgets).toEqual({});
+    expect(persisted.modelOverrides).toEqual({});
     expect(persisted.showRawToolCalls).toBe(false);
+    expect(persisted.showTokenUsage).toBe(false);
+    expect(persisted.disabledTools).toEqual([]);
+    expect(persisted.syncDeleteToWdk).toBe(false);
   });
 });
 
@@ -299,8 +457,11 @@ describe("persistence", () => {
     const stored = {
       defaultModelId: "anthropic/claude-4",
       defaultReasoningEffort: "high",
-      advancedReasoningBudgets: { openai: 2048 },
+      modelOverrides: { "openai/gpt-5": { contextSize: 50_000 } },
       showRawToolCalls: true,
+      showTokenUsage: true,
+      disabledTools: ["tool_a"],
+      syncDeleteToWdk: true,
     };
     vi.stubGlobal("window", {
       localStorage: makeLocalStorage({
@@ -313,8 +474,11 @@ describe("persistence", () => {
 
     expect(state.defaultModelId).toBe("anthropic/claude-4");
     expect(state.defaultReasoningEffort).toBe("high");
-    expect(state.advancedReasoningBudgets).toEqual({ openai: 2048 });
+    expect(state.modelOverrides).toEqual({ "openai/gpt-5": { contextSize: 50_000 } });
     expect(state.showRawToolCalls).toBe(true);
+    expect(state.showTokenUsage).toBe(true);
+    expect(state.disabledTools).toEqual(["tool_a"]);
+    expect(state.syncDeleteToWdk).toBe(true);
   });
 
   it("handles corrupted localStorage gracefully", async () => {

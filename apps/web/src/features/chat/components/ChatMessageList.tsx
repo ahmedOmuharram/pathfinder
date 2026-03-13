@@ -15,6 +15,7 @@ import { ChatMarkdown } from "@/lib/components/ChatMarkdown";
 import { ThinkingPanel } from "@/features/chat/components/thinking/ThinkingPanel";
 import { OptimizationProgressPanel } from "@/features/chat/components/optimization/OptimizationProgressPanel";
 import { AssistantMessageParts } from "@/features/chat/components/message/AssistantMessageParts";
+import { TokenUsageDisplay } from "@/features/chat/components/message/TokenUsageDisplay";
 import { formatMessageTime } from "@/lib/formatTime";
 
 // ---------------------------------------------------------------------------
@@ -149,6 +150,9 @@ export function ChatMessageList({
                         <ChatMarkdown content={decoded.message} tone="onDark" />
                       </div>
                     )}
+                    {message.tokenUsage && (
+                      <TokenUsageDisplay usage={message.tokenUsage} variant="user" />
+                    )}
                     <MessageTimestamp iso={message.timestamp} align="right" />
                   </div>
                 ) : message.role === "assistant" ? (
@@ -170,7 +174,15 @@ export function ChatMessageList({
                       onUndoSnapshot={onUndoSnapshot}
                     />
                     {!isLive && (
-                      <MessageTimestamp iso={message.timestamp} align="left" />
+                      <>
+                        {message.tokenUsage && (
+                          <TokenUsageDisplay
+                            usage={message.tokenUsage}
+                            variant="assistant"
+                          />
+                        )}
+                        <MessageTimestamp iso={message.timestamp} align="left" />
+                      </>
                     )}
                   </div>
                 ) : (
@@ -182,6 +194,9 @@ export function ChatMessageList({
                     <div className="rounded-lg px-3 py-2 bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
                       <ChatMarkdown content={message.content} tone="onDark" />
                     </div>
+                    {message.tokenUsage && (
+                      <TokenUsageDisplay usage={message.tokenUsage} variant="user" />
+                    )}
                     <MessageTimestamp iso={message.timestamp} align="right" />
                   </div>
                 )}

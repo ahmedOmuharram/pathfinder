@@ -65,12 +65,16 @@ async def ensure_rag_collections() -> None:
     known = _known_embedding_dims(settings.embeddings_model)
     if known is not None:
         dim = known
-    elif settings.openai_api_key:
+    elif (
+        settings.openai_api_key
+        or settings.embeddings_base_url
+        or settings.ollama_base_url
+    ):
         dim = await get_embedding_dim(settings.embeddings_model)
     else:
         logger.warning(
             "RAG enabled but cannot infer embedding dimension; "
-            "set OPENAI_API_KEY or use a known embeddings_model.",
+            "set OPENAI_API_KEY, EMBEDDINGS_BASE_URL, or configure Ollama.",
             embeddings_model=settings.embeddings_model,
         )
         return

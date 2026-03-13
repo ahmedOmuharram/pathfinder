@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from kani import AIParam, ChatMessage, Kani, ai_function
+from kani.ai_function import AIFunction
 from kani.engines.base import BaseEngine
 
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
@@ -39,6 +40,8 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
     research/plan or build/execute.
     """
 
+    functions: dict[str, AIFunction]
+
     def __init__(
         self,
         engine: BaseEngine,
@@ -49,6 +52,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         selected_nodes: JSONObject | None = None,
         mentioned_context: str | None = None,
         disable_rag: bool = False,
+        desired_response_tokens: int | None = None,
     ) -> None:
         self.site_id = site_id
         self.user_id = user_id
@@ -78,6 +82,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             engine=engine,
             system_prompt=system_prompt,
             chat_history=chat_history or [],
+            desired_response_tokens=desired_response_tokens,
         )
         self.event_queue: asyncio.Queue[JSONObject] | None = None
         # Cancellation signal — set by stream_chat when the client disconnects.

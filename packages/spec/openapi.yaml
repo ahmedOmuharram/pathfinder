@@ -370,6 +370,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModelListResponse'
+  /api/v1/tools:
+    get:
+      tags:
+      - tools
+      summary: List Tools
+      description: Return the list of AI tools registered on the agent.
+      operationId: list_tools_api_v1_tools_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
   /api/v1/chat:
     post:
       tags:
@@ -2506,6 +2520,7 @@ components:
             - openai
             - anthropic
             - google
+            - ollama
           - type: 'null'
           title: Provider
         model:
@@ -2537,6 +2552,26 @@ components:
           - type: integer
           - type: 'null'
           title: Seed
+        contextSize:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Contextsize
+        responseTokens:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Responsetokens
+        reasoningBudget:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Reasoningbudget
+        disabledTools:
+          items:
+            type: string
+          type: array
+          title: Disabledtools
         mentions:
           items:
             $ref: '#/components/schemas/ChatMention'
@@ -3571,6 +3606,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
+        tokenUsage:
+          anyOf:
+          - $ref: '#/components/schemas/TokenUsageResponse'
+          - type: 'null'
         timestamp:
           type: string
           format: date-time
@@ -4155,11 +4194,15 @@ components:
         google:
           type: boolean
           title: Google
+        ollama:
+          type: boolean
+          title: Ollama
       type: object
       required:
       - openai
       - anthropic
       - google
+      - ollama
       title: ProviderStatus
       description: Per-provider API-key availability.
     RecordDetailRequest:
@@ -4991,6 +5034,32 @@ components:
       - parameterName
       title: ThresholdSweepRequest
       description: Request to sweep a parameter across a range (numeric) or set of values (categorical).
+    TokenUsageResponse:
+      properties:
+        promptTokens:
+          type: integer
+          title: Prompttokens
+        completionTokens:
+          type: integer
+          title: Completiontokens
+        totalTokens:
+          type: integer
+          title: Totaltokens
+        toolCallCount:
+          type: integer
+          title: Toolcallcount
+        registeredToolCount:
+          type: integer
+          title: Registeredtoolcount
+      type: object
+      required:
+      - promptTokens
+      - completionTokens
+      - totalTokens
+      - toolCallCount
+      - registeredToolCount
+      title: TokenUsageResponse
+      description: Token usage statistics for a message turn.
     ToolCallResponse:
       properties:
         id:
@@ -5013,6 +5082,17 @@ components:
       - arguments
       title: ToolCallResponse
       description: Tool call information.
+    ToolListResponse:
+      properties:
+        tools:
+          items:
+            $ref: '#/components/schemas/_ToolItem'
+          type: array
+          title: Tools
+      type: object
+      required:
+      - tools
+      title: ToolListResponse
     UpdateStrategyRequest:
       properties:
         name:
@@ -5082,6 +5162,7 @@ components:
             - openai
             - anthropic
             - google
+            - ollama
           - type: 'null'
           title: Provider
         model:
@@ -5131,6 +5212,7 @@ components:
           - openai
           - anthropic
           - google
+          - ollama
           title: Provider
         model:
           type: string
@@ -5141,6 +5223,12 @@ components:
         enabled:
           type: boolean
           title: Enabled
+        contextSize:
+          type: integer
+          title: Contextsize
+        defaultReasoningBudget:
+          type: integer
+          title: Defaultreasoningbudget
       type: object
       required:
       - id
@@ -5149,7 +5237,22 @@ components:
       - model
       - supportsReasoning
       - enabled
+      - contextSize
+      - defaultReasoningBudget
       title: _ModelItem
+    _ToolItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+      type: object
+      required:
+      - name
+      - description
+      title: _ToolItem
   securitySchemes:
     APIKeyCookie:
       type: apiKey

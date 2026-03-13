@@ -9,10 +9,12 @@ import type {
   ReasoningEffort,
 } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
+import type { ModelOverrides } from "@/state/useSettingsStore";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
 import { ModelPicker } from "@/lib/components/ModelPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
+import { ToolPicker } from "@/lib/components/ToolPicker";
 import { useMentionState } from "@/features/chat/hooks/useMentionState";
 import { MentionBadges } from "./message/MentionBadges";
 import { MentionAutocomplete } from "./message/MentionAutocomplete";
@@ -146,6 +148,16 @@ export function MessageComposer({
           </Tooltip>
         )}
 
+        {/* Tool picker */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <ToolPicker disabled={isStreaming} />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Enable or disable AI tools</TooltipContent>
+        </Tooltip>
+
         {/* Reasoning effort toggle */}
         {supportsReasoning && onReasoningChange && (
           <Tooltip>
@@ -240,6 +252,7 @@ export function buildModelSelection(
   selectedModelId: string | null,
   reasoningEffort: ReasoningEffort,
   models: ModelCatalogEntry[],
+  overrides?: ModelOverrides,
 ): ModelSelection | undefined {
   if (!selectedModelId) return undefined;
   const entry = models.find((m) => m.id === selectedModelId);
@@ -248,5 +261,8 @@ export function buildModelSelection(
     provider: entry.provider,
     model: entry.id,
     reasoningEffort: entry.supportsReasoning ? reasoningEffort : undefined,
+    contextSize: overrides?.contextSize,
+    responseTokens: overrides?.responseTokens,
+    reasoningBudget: overrides?.reasoningBudget,
   };
 }
