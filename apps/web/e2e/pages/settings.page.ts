@@ -20,12 +20,15 @@ export class SettingsPage {
   }
 
   async openTab(tabName: SettingsTab) {
-    await this.page.getByRole("dialog").getByRole("button", { name: tabName }).click();
+    await this.page
+      .getByRole("dialog")
+      .getByRole("button", { name: tabName, exact: true })
+      .click();
   }
 
   async expectTabVisible(tabName: SettingsTab) {
     await expect(
-      this.page.getByRole("dialog").getByRole("button", { name: tabName }),
+      this.page.getByRole("dialog").getByRole("button", { name: tabName, exact: true }),
     ).toBeVisible();
   }
 
