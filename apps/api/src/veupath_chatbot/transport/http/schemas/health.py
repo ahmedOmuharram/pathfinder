@@ -11,3 +11,19 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: datetime
+
+
+class ProviderStatus(BaseModel):
+    """Per-provider API-key availability."""
+
+    openai: bool
+    anthropic: bool
+    google: bool
+
+
+class SystemConfigResponse(BaseModel):
+    """System configuration status (unauthenticated)."""
+
+    chat_provider: str
+    llm_configured: bool
+    providers: ProviderStatus

@@ -7,7 +7,7 @@ from .chat import (
     ThinkingResponse,
     ToolCallResponse,
 )
-from .health import HealthResponse
+from .health import HealthResponse, SystemConfigResponse
 from .plan import PlanNormalizeRequest, PlanNormalizeResponse, StrategyPlan
 from .sites import (
     DependentParamsRequest,
@@ -54,6 +54,7 @@ __all__ = [
     "ParamSpecsRequest",
     "ParamSpecResponse",
     "HealthResponse",
+    "SystemConfigResponse",
     "PlanNormalizeRequest",
     "PlanNormalizeResponse",
     "MessageResponse",

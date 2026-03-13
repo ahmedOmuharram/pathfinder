@@ -48,6 +48,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         strategy_graph: JSONObject | None = None,
         selected_nodes: JSONObject | None = None,
         mentioned_context: str | None = None,
+        disable_rag: bool = False,
     ) -> None:
         self.site_id = site_id
         self.user_id = user_id
@@ -56,8 +57,10 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         )
 
         self.catalog_tools = CatalogTools()
-        self.catalog_rag_tools = CatalogRagTools(site_id=site_id)
-        self.example_plans_rag_tools = ExamplePlansRagTools(site_id=site_id)
+        self.catalog_rag_tools = CatalogRagTools(site_id=site_id, disabled=disable_rag)
+        self.example_plans_rag_tools = ExamplePlansRagTools(
+            site_id=site_id, disabled=disable_rag
+        )
         self.strategy_tools = StrategyTools(self.strategy_session)
         self.execution_tools = ExecutionTools(self.strategy_session)
         self.result_tools = ResultTools(self.strategy_session)

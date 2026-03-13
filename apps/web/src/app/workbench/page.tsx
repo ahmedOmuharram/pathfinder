@@ -7,6 +7,8 @@ import { LoginModal } from "@/app/components/LoginModal";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
 import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
+import { useSystemConfig } from "@/app/hooks/useSystemConfig";
+import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSidebar";
 import { WorkbenchMain } from "@/features/workbench/components/WorkbenchMain";
@@ -31,6 +33,7 @@ export default function WorkbenchPage() {
   const { selectedSite, setSelectedSite } = useSessionStore();
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
+  const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
 
@@ -75,7 +78,7 @@ export default function WorkbenchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSite, veupathdbSignedIn, authLoading]);
 
-  if (authLoading) {
+  if (authLoading || configLoading) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background text-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -83,6 +86,8 @@ export default function WorkbenchPage() {
       </div>
     );
   }
+
+  if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
   if (apiError) {
     return (

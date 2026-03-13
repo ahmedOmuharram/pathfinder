@@ -38,6 +38,11 @@ class ChatRequest(BaseModel):
         default=None, alias="reasoningEffort"
     )
 
+    # Thesis experiment controls.
+    disable_rag: bool = Field(default=False, alias="disableRag")
+    temperature: float | None = Field(default=None)
+    seed: int | None = Field(default=None)
+
     # @-mention references to strategies and experiments.
     mentions: list[ChatMention] = Field(default_factory=list)
 

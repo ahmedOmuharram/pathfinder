@@ -1,5 +1,6 @@
 """Factory helpers for constructing the agent and its engine."""
 
+from collections.abc import Callable
 from typing import cast
 from uuid import UUID
 
@@ -20,7 +21,12 @@ from .executor import PathfinderAgent
 
 
 def _create_openai_engine(
-    *, model: str, temperature: float, top_p: float, hyperparams: JSONObject
+    *,
+    model: str,
+    temperature: float,
+    top_p: float,
+    hyperparams: JSONObject,
+    seed: int | None = None,
 ) -> BaseEngine:
     settings = get_settings()
     # Some OpenAI models only support default sampling params (temperature=1, top_p=1).
@@ -30,6 +36,8 @@ def _create_openai_engine(
     if not sampling_restricted:
         kwargs["temperature"] = temperature
         kwargs["top_p"] = top_p
+    if seed is not None:
+        kwargs["seed"] = seed
     return OpenAIEngine(
         api_key=settings.openai_api_key,
         model=model,
@@ -70,8 +78,7 @@ def _create_google_engine(
     )
 
 
-_ENGINE_FACTORIES = {
-    "openai": _create_openai_engine,
+_ENGINE_FACTORIES: dict[str, Callable[..., BaseEngine]] = {
     "anthropic": _create_anthropic_engine,
     "google": _create_google_engine,
 }
@@ -167,6 +174,8 @@ def create_engine(
     provider_override: ModelProvider | None = None,
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> BaseEngine:
     """Create an LLM engine, optionally overridden per-request.
 
@@ -175,19 +184,36 @@ def create_engine(
     :param provider_override: Provider override (default: None).
     :param model_override: Model ID override (default: None).
     :param reasoning_effort: Reasoning effort (default: None).
+    :param temperature: Override LLM temperature (default: None = use server default).
+    :param seed: LLM seed for reproducibility (default: None).
     :returns: Configured LLM engine instance.
     """
-    provider, model, temperature, top_p, hyperparams = _resolve_model_config(
+    provider, model, resolved_temperature, top_p, hyperparams = _resolve_model_config(
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,
     )
+    # Per-request temperature override takes precedence over the resolved default.
+    effective_temperature = (
+        temperature if temperature is not None else resolved_temperature
+    )
+
+    # OpenAI engine accepts an extra `seed` parameter for reproducibility.
+    if provider == "openai":
+        return _create_openai_engine(
+            model=model,
+            temperature=effective_temperature,
+            top_p=top_p,
+            hyperparams=hyperparams,
+            seed=seed,
+        )
+
     factory = _ENGINE_FACTORIES.get(provider)
     if factory is None:
         raise ValueError(f"Unknown provider: {provider!r}")
     return factory(
         model=model,
-        temperature=temperature,
+        temperature=effective_temperature,
         top_p=top_p,
         hyperparams=hyperparams,
     )
@@ -204,6 +230,9 @@ def create_agent(
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
     mentioned_context: str | None = None,
+    disable_rag: bool = False,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> PathfinderAgent:
     """Create a unified Pathfinder agent instance.
 
@@ -219,12 +248,17 @@ def create_agent(
     :param model_override: Model ID override (default: None).
     :param reasoning_effort: Reasoning effort (default: None).
     :param mentioned_context: Rich context from @-mentioned entities (default: None).
+    :param disable_rag: Disable RAG retrieval for ablation experiments (default: False).
+    :param temperature: Override LLM temperature (default: None = use server default).
+    :param seed: LLM seed for reproducibility (default: None).
     :returns: Configured agent instance.
     """
     engine = create_engine(
         provider_override=provider_override,
         model_override=model_override,
         reasoning_effort=reasoning_effort,
+        temperature=temperature,
+        seed=seed,
     )
     return PathfinderAgent(
         engine=engine,
@@ -234,4 +268,5 @@ def create_agent(
         strategy_graph=strategy_graph,
         selected_nodes=selected_nodes,
         mentioned_context=mentioned_context,
+        disable_rag=disable_rag,
     )

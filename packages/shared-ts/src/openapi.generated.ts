@@ -26,6 +26,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/health/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Config
+         * @description Report whether the system has LLM provider keys configured.
+         *
+         *     This is unauthenticated so the frontend can show a setup-required
+         *     screen before asking users to log in.
+         */
+        get: operations["system_config_health_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/ready": {
         parameters: {
             query?: never;
@@ -331,6 +354,26 @@ export type paths = {
          * @description Update a strategy (CQRS only).
          */
         patch: operations["update_strategy_api_v1_strategies__strategyId__patch"];
+        trace?: never;
+    };
+    "/api/v1/strategies/{strategyId}/ast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Strategy Ast
+         * @description Return the raw plan AST from a strategy's projection.
+         */
+        get: operations["get_strategy_ast_api_v1_strategies__strategyId__ast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/strategies/{strategyId}/restore": {
@@ -1377,6 +1420,15 @@ export type components = {
             model?: string | null;
             /** Reasoningeffort */
             reasoningEffort?: ("none" | "low" | "medium" | "high") | null;
+            /**
+             * Disablerag
+             * @default false
+             */
+            disableRag: boolean;
+            /** Temperature */
+            temperature?: number | null;
+            /** Seed */
+            seed?: number | null;
             /** Mentions */
             mentions?: components["schemas"]["ChatMention"][];
         };
@@ -2275,6 +2327,18 @@ export type components = {
             value: string;
         };
         /**
+         * ProviderStatus
+         * @description Per-provider API-key availability.
+         */
+        ProviderStatus: {
+            /** Openai */
+            openai: boolean;
+            /** Anthropic */
+            anthropic: boolean;
+            /** Google */
+            google: boolean;
+        };
+        /**
          * RecordDetailRequest
          * @description Request to fetch a single record by primary key.
          */
@@ -2719,6 +2783,17 @@ export type components = {
             };
         };
         /**
+         * SystemConfigResponse
+         * @description System configuration status (unauthenticated).
+         */
+        SystemConfigResponse: {
+            /** Chat Provider */
+            chat_provider: string;
+            /** Llm Configured */
+            llm_configured: boolean;
+            providers: components["schemas"]["ProviderStatus"];
+        };
+        /**
          * ThinkingResponse
          * @description In-progress tool call state.
          */
@@ -2891,6 +2966,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    system_config_health_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemConfigResponse"];
                 };
             };
         };
@@ -3407,6 +3502,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StrategyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_strategy_ast_api_v1_strategies__strategyId__ast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                strategyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
                 };
             };
             /** @description Validation Error */

@@ -11,7 +11,7 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - path: ./apps/api/.env
+      - path: ./.env
         required: false
     environment:
       # Container-friendly defaults; override as needed.
@@ -107,7 +107,7 @@ services:
     depends_on:
       - qdrant
     env_file:
-      - path: ./apps/api/.env
+      - path: ./.env
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder

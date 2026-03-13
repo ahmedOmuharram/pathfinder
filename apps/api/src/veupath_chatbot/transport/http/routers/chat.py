@@ -41,6 +41,9 @@ async def chat(
         mentions=[m.model_dump(by_alias=True) for m in body.mentions]
         if body.mentions
         else None,
+        disable_rag=body.disable_rag,
+        temperature=body.temperature,
+        seed=body.seed,
     )
     return JSONResponse(
         {"operationId": operation_id, "strategyId": strategy_id},

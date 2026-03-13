@@ -118,6 +118,10 @@ async def start_chat_stream(
     model_override: str | None = None,
     reasoning_effort: ReasoningEffort | None = None,
     mentions: list[dict[str, str]] | None = None,
+    # Thesis experiment controls
+    disable_rag: bool = False,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> tuple[str, str]:
     """Start a background chat operation and return its identifiers.
 
@@ -174,6 +178,9 @@ async def start_chat_stream(
             model_override=model_override,
             reasoning_effort=reasoning_effort,
             mentions=mentions,
+            disable_rag=disable_rag,
+            temperature=temperature,
+            seed=seed,
         )
     )
     _active_tasks[operation_id] = task
@@ -195,6 +202,10 @@ async def _build_agent_context(
     mentions: list[dict[str, str]] | None,
     projection: StreamProjection,
     stream_repo: StreamRepository | None = None,
+    # Thesis experiment controls
+    disable_rag: bool = False,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> tuple[Kani, str]:
     """Build the agent and resolve the effective model.
 
@@ -247,6 +258,9 @@ async def _build_agent_context(
         model_override=effective_model,
         reasoning_effort=reasoning_effort,
         mentioned_context=mentioned_context,
+        disable_rag=disable_rag,
+        temperature=temperature,
+        seed=seed,
     )
 
     return agent, effective_model
@@ -388,6 +402,10 @@ async def _chat_producer(
     model_override: str | None,
     reasoning_effort: ReasoningEffort | None,
     mentions: list[dict[str, str]] | None,
+    # Thesis experiment controls
+    disable_rag: bool = False,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> None:
     """Background task: run the LLM agent and emit every event to Redis."""
     redis = get_redis()
@@ -420,6 +438,9 @@ async def _chat_producer(
             mentions=mentions,
             projection=projection,
             stream_repo=bg_stream_repo,
+            disable_rag=disable_rag,
+            temperature=temperature,
+            seed=seed,
         )
 
         if effective_model != projection.model_id:

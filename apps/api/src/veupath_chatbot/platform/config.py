@@ -14,13 +14,16 @@ from pydantic_settings import (
 
 from veupath_chatbot.platform.types import ReasoningEffort
 
+_API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
+_REPO_ROOT = _API_DIR.parents[1]  # repo root
+
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
     """Load settings from a TOML config file."""
 
     def __init__(self, settings_cls: type[BaseSettings]) -> None:
         super().__init__(settings_cls)
-        path = (Path(__file__).resolve().parents[3] / "config.toml").resolve()
+        path = (_API_DIR / "config.toml").resolve()
 
         if not path.exists():
             self._data: dict[str, object] = {}
@@ -64,7 +67,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

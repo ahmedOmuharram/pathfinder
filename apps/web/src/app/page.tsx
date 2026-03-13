@@ -25,6 +25,8 @@ import { CompactStrategyView } from "@/features/strategy/graph/components/Compac
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
 import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
+import { useSystemConfig } from "@/app/hooks/useSystemConfig";
+import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { useStableGraph } from "@/app/hooks/useStableGraph";
 
@@ -36,6 +38,7 @@ export default function HomePage() {
   );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
+  const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
   const strategyId = useSessionStore((state) => state.strategyId);
@@ -105,7 +108,8 @@ export default function HomePage() {
     addToast,
   });
 
-  if (authLoading) return <LoadingScreen />;
+  if (authLoading || configLoading) return <LoadingScreen />;
+  if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
   if (apiError) return <ApiErrorScreen error={apiError} onRetry={retryAuth} />;
 
   return (

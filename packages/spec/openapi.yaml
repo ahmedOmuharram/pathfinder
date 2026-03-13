@@ -18,6 +18,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /health/config:
+    get:
+      tags:
+      - health
+      summary: System Config
+      description: 'Report whether the system has LLM provider keys configured.
+
+
+        This is unauthenticated so the frontend can show a setup-required
+
+        screen before asking users to log in.'
+      operationId: system_config_health_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfigResponse'
   /health/ready:
     get:
       tags:
@@ -579,6 +598,36 @@ paths:
       responses:
         '204':
           description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/ast:
+    get:
+      tags:
+      - strategies
+      summary: Get Strategy Ast
+      description: Return the raw plan AST from a strategy's projection.
+      operationId: get_strategy_ast_api_v1_strategies__strategyId__ast_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JSONObject'
         '422':
           description: Validation Error
           content:
@@ -2474,6 +2523,20 @@ components:
             - high
           - type: 'null'
           title: Reasoningeffort
+        disableRag:
+          type: boolean
+          title: Disablerag
+          default: false
+        temperature:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temperature
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
         mentions:
           items:
             $ref: '#/components/schemas/ChatMention'
@@ -4081,6 +4144,24 @@ components:
       - value
       title: PrimaryKeyPart
       description: A single part of a composite WDK primary key.
+    ProviderStatus:
+      properties:
+        openai:
+          type: boolean
+          title: Openai
+        anthropic:
+          type: boolean
+          title: Anthropic
+        google:
+          type: boolean
+          title: Google
+      type: object
+      required:
+      - openai
+      - anthropic
+      - google
+      title: ProviderStatus
+      description: Per-provider API-key availability.
     RecordDetailRequest:
       properties:
         primaryKey:
@@ -4780,6 +4861,23 @@ components:
       - status
       title: SubKaniActivityResponse
       description: Sub-kani tool call activity.
+    SystemConfigResponse:
+      properties:
+        chat_provider:
+          type: string
+          title: Chat Provider
+        llm_configured:
+          type: boolean
+          title: Llm Configured
+        providers:
+          $ref: '#/components/schemas/ProviderStatus'
+      type: object
+      required:
+      - chat_provider
+      - llm_configured
+      - providers
+      title: SystemConfigResponse
+      description: System configuration status (unauthenticated).
     ThinkingResponse:
       properties:
         toolCalls:

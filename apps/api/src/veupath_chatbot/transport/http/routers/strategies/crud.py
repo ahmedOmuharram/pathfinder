@@ -249,6 +249,23 @@ async def delete_strategy(
     return Response(status_code=204)
 
 
+@router.get("/{strategyId:uuid}/ast")
+async def get_strategy_ast(
+    strategyId: UUID,
+    stream_repo: StreamRepo,
+    user_id: CurrentUser,
+) -> JSONObject:
+    """Return the raw plan AST from a strategy's projection."""
+    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    plan = projection.plan
+    if not plan or not isinstance(plan, dict):
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND,
+            title="Strategy has no plan AST",
+        )
+    return plan
+
+
 @router.post("/{strategyId:uuid}/restore", response_model=StrategyResponse)
 async def restore_strategy(
     strategyId: UUID,
