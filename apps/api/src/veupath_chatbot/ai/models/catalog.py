@@ -314,6 +314,9 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
     with path.open() as f:
         data = yaml.safe_load(f)
 
+    if not data:
+        return ()
+
     entries: list[ModelEntry] = []
     seen: set[str] = set()
     for item in data.get("models", []):
