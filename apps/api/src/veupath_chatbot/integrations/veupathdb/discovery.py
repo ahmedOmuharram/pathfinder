@@ -1,6 +1,7 @@
 """Discovery and caching of record types, searches, and parameters."""
 
 import asyncio
+import threading
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import (
@@ -172,11 +173,9 @@ class DiscoveryService:
                 self._catalogs[site_id] = SearchCatalog(site_id)
 
         catalog = self._catalogs[site_id]
-
-        if not catalog._loaded:
-            router = get_site_router()
-            client = router.get_client(site_id)
-            await catalog.load(client)
+        router = get_site_router()
+        client = router.get_client(site_id)
+        await catalog.load(client)
 
         return catalog
 
@@ -224,11 +223,15 @@ class DiscoveryService:
 
 # Global discovery service
 _discovery: DiscoveryService | None = None
+_discovery_lock = threading.Lock()
 
 
 def get_discovery_service() -> DiscoveryService:
     """Get the global discovery service."""
     global _discovery
-    if _discovery is None:
-        _discovery = DiscoveryService()
-    return _discovery
+    if _discovery is not None:
+        return _discovery
+    with _discovery_lock:
+        if _discovery is None:
+            _discovery = DiscoveryService()
+        return _discovery

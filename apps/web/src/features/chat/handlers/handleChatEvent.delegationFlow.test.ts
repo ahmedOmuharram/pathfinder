@@ -232,6 +232,7 @@ describe("setStrategy race condition with delegation flow", () => {
       recordType: null,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -253,6 +254,7 @@ describe("setStrategy race condition with delegation flow", () => {
       recordType: null,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -330,6 +332,7 @@ describe("setStrategy race condition with delegation flow", () => {
         recordType: null,
         steps: [],
         rootStepId: null,
+        isSaved: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -361,6 +364,7 @@ describe("setStrategy race condition with delegation flow", () => {
         recordType: null,
         steps: [],
         rootStepId: null,
+        isSaved: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });

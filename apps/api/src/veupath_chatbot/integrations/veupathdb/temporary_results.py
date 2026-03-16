@@ -100,7 +100,7 @@ class TemporaryResultsAPI(StrategyAPIBase):
         result_id = str(result_id_raw)
 
         base = self.client.base_url.rstrip("/")
-        return f"{base}/temporary-results/{result_id}/result"
+        return f"{base}/temporary-results/{result_id}"
 
     async def get_step_preview(
         self,

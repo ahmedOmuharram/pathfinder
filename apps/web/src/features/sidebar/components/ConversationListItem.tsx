@@ -3,6 +3,7 @@ import { MoreVertical } from "lucide-react";
 import type { Strategy } from "@pathfinder/shared";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
+import { Input } from "@/lib/components/ui/Input";
 
 interface ConversationListItemProps {
   item: ConversationItem;
@@ -10,6 +11,8 @@ interface ConversationListItemProps {
   isRenaming: boolean;
   renameValue: string;
   graphHasValidationIssue: boolean;
+  /** True when this item is the active conversation AND a chat stream is in progress. */
+  isActiveStreaming: boolean;
   onRenameValueChange: (value: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;
@@ -26,6 +29,7 @@ export function ConversationListItem({
   isRenaming,
   renameValue,
   graphHasValidationIssue,
+  isActiveStreaming,
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
@@ -48,7 +52,7 @@ export function ConversationListItem({
       }`}
     >
       {isRenaming ? (
-        <input
+        <Input
           data-testid="conversation-rename-input"
           value={renameValue}
           onChange={(e) => onRenameValueChange(e.target.value)}
@@ -60,7 +64,7 @@ export function ConversationListItem({
             }
             if (e.key === "Escape") onCancelRename();
           }}
-          className="min-w-0 flex-1 rounded border border-input bg-card px-1.5 py-0.5 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 flex-1 bg-card px-1.5 py-0.5 font-medium"
           autoFocus
         />
       ) : (
@@ -87,14 +91,18 @@ export function ConversationListItem({
               (si.wdkStrategyId || (si.stepCount ?? 0) > 0) && (
                 <span
                   className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                    !si.wdkStrategyId
+                    isActiveStreaming && !si.wdkStrategyId
                       ? "bg-warning/10 text-warning"
                       : si.isSaved
                         ? "bg-success/10 text-success"
                         : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {!si.wdkStrategyId ? "Building" : si.isSaved ? "Saved" : "Draft"}
+                  {isActiveStreaming && !si.wdkStrategyId
+                    ? "Building"
+                    : si.isSaved
+                      ? "Saved"
+                      : "Draft"}
                 </span>
               )}
           </div>

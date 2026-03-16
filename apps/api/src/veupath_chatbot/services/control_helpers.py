@@ -45,7 +45,10 @@ async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | Non
     """Get totalCount for a step. Returns None on failure."""
     try:
         return await api.get_step_count(step_id)
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "Failed to get total count for step", step_id=step_id, error=str(exc)
+        )
         return None
 
 

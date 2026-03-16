@@ -83,6 +83,11 @@ describe("handleChatEvent — buffering & core events", () => {
     const planningArtifactsBuffer: PlanningArtifact[] = [];
     const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
     const subKaniStatusBuffer: Record<string, string> = {};
+    const subKaniModelsBuffer: Record<string, string> = {};
+    const subKaniTokenUsageBuffer: Record<
+      string,
+      import("@pathfinder/shared").SubKaniTokenUsage
+    > = {};
 
     const ctx = {
       siteId: "plasmodb",
@@ -92,11 +97,14 @@ describe("handleChatEvent — buffering & core events", () => {
       planningArtifactsBuffer,
       subKaniCallsBuffer,
       subKaniStatusBuffer,
+      subKaniModelsBuffer,
+      subKaniTokenUsageBuffer,
       thinking: {
         activeToolCalls: [],
         lastToolCalls: [],
         subKaniCalls: {},
         subKaniStatus: {},
+        subKaniModels: {},
         reasoning: null,
         subKaniActivity: undefined,
         reset: vi.fn(),
@@ -231,6 +239,7 @@ describe("handleChatEvent — buffering & core events", () => {
           recordType: null,
           steps: [],
           rootStepId: null,
+          isSaved: false,
           createdAt: "t",
           updatedAt: "t",
         },
@@ -262,7 +271,7 @@ describe("handleChatEvent — buffering & core events", () => {
       type: "subkani_task_end",
       data: { task: "t", status: "done" },
     } as ChatSSEEvent);
-    expect(thinking.subKaniTaskStart).toHaveBeenCalledWith("t");
+    expect(thinking.subKaniTaskStart).toHaveBeenCalledWith("t", undefined);
     expect(thinking.subKaniTaskEnd).toHaveBeenCalledWith("t", "done");
 
     handleChatEvent(ctx, {

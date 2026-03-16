@@ -1,7 +1,7 @@
 /**
  * AUTO-GENERATED FILE — DO NOT EDIT.
  *
- * Source: packages/spec/openapi.yaml
+ * Source: packages/spec/openapi.json
  * Generator: packages/shared-ts/scripts/generate-openapi.mjs
  */
 
@@ -1351,12 +1351,103 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/sse-schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sse Schemas
+         * @description SSE event data schemas -- for OpenAPI generation only.
+         */
+        get: operations["sse_schemas_api_v1_internal_sse_schemas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/experiment-schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Experiment Schemas
+         * @description Experiment response schemas -- for OpenAPI generation only.
+         */
+        get: operations["experiment_schemas_api_v1_internal_experiment_schemas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Purge User Data
+         * @description Purge user data from all local stores.
+         *
+         *     When ``deleteWdk=false`` (default): non-WDK streams are hard-deleted,
+         *     WDK-linked projections are **dismissed** so WDK sync won't re-import
+         *     them. The strategies remain on VEuPathDB but PathFinder ignores them.
+         *
+         *     When ``deleteWdk=true``: everything is hard-deleted locally AND all
+         *     WDK strategies are deleted from VEuPathDB.
+         *
+         *     Always deletes: gene sets, experiments, control sets, Redis streams.
+         *
+         *     Pass ``?siteId=X`` to limit to one site, or omit for everything.
+         */
+        delete: operations["purge_user_data_api_v1_user_data_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 
 export type webhooks = Record<string, never>;
 
 export type components = {
     schemas: {
+        /**
+         * AssistantDeltaEventData
+         * @description Payload for ``assistant_delta`` SSE events (streaming tokens).
+         */
+        AssistantDeltaEventData: {
+            /** Messageid */
+            messageId?: string | null;
+            /** Delta */
+            delta?: string | null;
+        };
+        /**
+         * AssistantMessageEventData
+         * @description Payload for ``assistant_message`` SSE events (complete message).
+         */
+        AssistantMessageEventData: {
+            /** Messageid */
+            messageId?: string | null;
+            /** Content */
+            content?: string | null;
+        };
         /**
          * AuthStatusResponse
          * @description Current auth status response.
@@ -1409,6 +1500,32 @@ export type components = {
             isPrimary: boolean;
         };
         /**
+         * BootstrapResultResponse
+         * @description Robustness assessment via bootstrap resampling.
+         */
+        BootstrapResultResponse: {
+            /**
+             * Niterations
+             * @default 0
+             */
+            nIterations: number;
+            /** Metriccis */
+            metricCis?: {
+                [key: string]: components["schemas"]["ConfidenceIntervalResponse"];
+            };
+            /** Rankmetriccis */
+            rankMetricCis?: {
+                [key: string]: components["schemas"]["ConfidenceIntervalResponse"];
+            };
+            /**
+             * Topkstability
+             * @default 0
+             */
+            topKStability: number;
+            /** Negativesetsensitivity */
+            negativeSetSensitivity?: components["schemas"]["NegativeSetVariantResponse"][];
+        };
+        /**
          * ChatMention
          * @description A reference to a strategy or experiment included via @-mention.
          */
@@ -1435,7 +1552,7 @@ export type components = {
             /** Message */
             message: string;
             /** Provider */
-            provider?: ("openai" | "anthropic" | "google" | "ollama") | null;
+            provider?: ("openai" | "anthropic" | "google" | "ollama" | "mock") | null;
             /** Model */
             model?: string | null;
             /** Reasoningeffort */
@@ -1460,6 +1577,42 @@ export type components = {
             /** Mentions */
             mentions?: components["schemas"]["ChatMention"][];
         };
+        /**
+         * CitationResponse
+         * @description Citation from research tools.
+         */
+        CitationResponse: {
+            /** Id */
+            id: string;
+            /** Source */
+            source: string;
+            /** Tag */
+            tag?: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+            /** Authors */
+            authors?: string[] | null;
+            /** Year */
+            year?: number | null;
+            /** Doi */
+            doi?: string | null;
+            /** Pmid */
+            pmid?: string | null;
+            /** Snippet */
+            snippet?: string | null;
+            /** Accessedat */
+            accessedAt?: string | null;
+        };
+        /**
+         * CitationsEventData
+         * @description Payload for ``citations`` SSE events.
+         */
+        CitationsEventData: {
+            /** Citations */
+            citations?: components["schemas"]["CitationResponse"][] | null;
+        };
         /** ColocationParams */
         ColocationParams: {
             /** Upstream */
@@ -1472,6 +1625,46 @@ export type components = {
              * @enum {string}
              */
             strand: "same" | "opposite" | "both";
+        };
+        /**
+         * ConfidenceIntervalResponse
+         * @description Bootstrap confidence interval for a single metric.
+         */
+        ConfidenceIntervalResponse: {
+            /**
+             * Lower
+             * @default 0
+             */
+            lower: number;
+            /**
+             * Mean
+             * @default 0
+             */
+            mean: number;
+            /**
+             * Upper
+             * @default 0
+             */
+            upper: number;
+            /**
+             * Std
+             * @default 0
+             */
+            std: number;
+        };
+        /**
+         * ConfusionMatrixResponse
+         * @description 2x2 confusion matrix counts.
+         */
+        ConfusionMatrixResponse: {
+            /** Truepositives */
+            truePositives: number;
+            /** Falsepositives */
+            falsePositives: number;
+            /** Truenegatives */
+            trueNegatives: number;
+            /** Falsenegatives */
+            falseNegatives: number;
         };
         /**
          * ControlSetResponse
@@ -1504,6 +1697,24 @@ export type components = {
             userId?: string | null;
             /** Createdat */
             createdAt: string;
+        };
+        /**
+         * ControlSetSummaryResponse
+         * @description Control set summary for listing.
+         */
+        ControlSetSummaryResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Source */
+            source: string;
+            /** Organism */
+            organism?: string | null;
+            /** Positivecount */
+            positiveCount: number;
+            /** Negativecount */
+            negativeCount: number;
         };
         /**
          * CreateBatchExperimentRequest
@@ -1706,6 +1917,31 @@ export type components = {
             plan: components["schemas"]["StrategyPlan-Input"];
         };
         /**
+         * CrossValidationResultResponse
+         * @description Aggregated cross-validation result.
+         */
+        CrossValidationResultResponse: {
+            /** K */
+            k: number;
+            /** Folds */
+            folds: components["schemas"]["FoldMetricsResponse"][];
+            meanMetrics: components["schemas"]["ExperimentMetricsResponse"];
+            /** Stdmetrics */
+            stdMetrics?: {
+                [key: string]: number;
+            };
+            /**
+             * Overfittingscore
+             * @default 0
+             */
+            overfittingScore: number;
+            /**
+             * Overfittinglevel
+             * @default low
+             */
+            overfittingLevel: string;
+        };
+        /**
          * CustomEnrichRequest
          * @description Request to run a custom gene-set enrichment test.
          */
@@ -1766,6 +2002,31 @@ export type components = {
             totalTerms: number;
         };
         /**
+         * EnrichmentResultResponse
+         * @description Results for a single enrichment analysis type.
+         */
+        EnrichmentResultResponse: {
+            /**
+             * Analysistype
+             * @enum {string}
+             */
+            analysisType: "go_function" | "go_component" | "go_process" | "pathway" | "word";
+            /** Terms */
+            terms: components["schemas"]["EnrichmentTermResponse"][];
+            /**
+             * Totalgenesanalyzed
+             * @default 0
+             */
+            totalGenesAnalyzed: number;
+            /**
+             * Backgroundsize
+             * @default 0
+             */
+            backgroundSize: number;
+            /** Error */
+            error?: string | null;
+        };
+        /**
          * EnrichmentRow
          * @description Shape of one term row in the enrichment comparison.
          */
@@ -1784,6 +2045,32 @@ export type components = {
             maxScore: number;
             /** Experimentcount */
             experimentCount: number;
+        };
+        /**
+         * EnrichmentTermResponse
+         * @description Single enriched term from WDK analysis.
+         */
+        EnrichmentTermResponse: {
+            /** Termid */
+            termId: string;
+            /** Termname */
+            termName: string;
+            /** Genecount */
+            geneCount: number;
+            /** Backgroundcount */
+            backgroundCount: number;
+            /** Foldenrichment */
+            foldEnrichment: number;
+            /** Oddsratio */
+            oddsRatio: number;
+            /** Pvalue */
+            pValue: number;
+            /** Fdr */
+            fdr: number;
+            /** Bonferroni */
+            bonferroni: number;
+            /** Genes */
+            genes?: string[];
         };
         /**
          * EnsembleScore
@@ -1810,6 +2097,363 @@ export type components = {
             geneSetIds: string[];
             /** Positivecontrols */
             positiveControls?: string[] | null;
+        };
+        /**
+         * ErrorEventData
+         * @description Payload for ``error`` SSE events.
+         */
+        ErrorEventData: {
+            /** Error */
+            error: string;
+        };
+        /**
+         * ExecutorBuildRequestEventData
+         * @description Payload for ``executor_build_request`` SSE events.
+         */
+        ExecutorBuildRequestEventData: {
+            executorBuildRequest?: components["schemas"]["JSONObject"] | null;
+        };
+        /**
+         * ExperimentConfigResponse
+         * @description Full configuration for an experiment run.
+         */
+        ExperimentConfigResponse: {
+            /** Siteid */
+            siteId: string;
+            /** Recordtype */
+            recordType: string;
+            /** Searchname */
+            searchName: string;
+            parameters: components["schemas"]["JSONObject"];
+            /** Positivecontrols */
+            positiveControls: string[];
+            /** Negativecontrols */
+            negativeControls: string[];
+            /** Controlssearchname */
+            controlsSearchName: string;
+            /** Controlsparamname */
+            controlsParamName: string;
+            /**
+             * Controlsvalueformat
+             * @default newline
+             * @enum {string}
+             */
+            controlsValueFormat: "newline" | "json_list" | "comma";
+            /**
+             * Enablecrossvalidation
+             * @default false
+             */
+            enableCrossValidation: boolean;
+            /**
+             * Kfolds
+             * @default 5
+             */
+            kFolds: number;
+            /** Enrichmenttypes */
+            enrichmentTypes?: ("go_function" | "go_component" | "go_process" | "pathway" | "word")[];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Optimizationspecs */
+            optimizationSpecs?: components["schemas"]["OptimizationSpecResponse"][] | null;
+            /**
+             * Optimizationbudget
+             * @default 30
+             */
+            optimizationBudget: number;
+            /**
+             * Optimizationobjective
+             * @default balanced_accuracy
+             * @enum {string}
+             */
+            optimizationObjective: "f1" | "f_beta" | "recall" | "precision" | "specificity" | "balanced_accuracy" | "mcc" | "youdens_j" | "custom";
+            /** Parameterdisplayvalues */
+            parameterDisplayValues?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Mode
+             * @default single
+             * @enum {string}
+             */
+            mode: "single" | "multi-step" | "import";
+            stepTree?: components["schemas"]["JSONValue"];
+            /** Sourcestrategyid */
+            sourceStrategyId?: string | null;
+            /** Optimizationtargetstep */
+            optimizationTargetStep?: string | null;
+            /**
+             * Enablestepanalysis
+             * @default false
+             */
+            enableStepAnalysis: boolean;
+            /** Stepanalysisphases */
+            stepAnalysisPhases?: string[];
+            /** Controlsetid */
+            controlSetId?: string | null;
+            /** Thresholdknobs */
+            thresholdKnobs?: components["schemas"]["ThresholdKnobResponse"][] | null;
+            /** Operatorknobs */
+            operatorKnobs?: components["schemas"]["OperatorKnobResponse"][] | null;
+            /**
+             * Treeoptimizationobjective
+             * @default precision_at_50
+             */
+            treeOptimizationObjective: string;
+            /**
+             * Treeoptimizationbudget
+             * @default 50
+             */
+            treeOptimizationBudget: number;
+            /** Maxlistsize */
+            maxListSize?: number | null;
+            /** Sortattribute */
+            sortAttribute?: string | null;
+            /**
+             * Sortdirection
+             * @default ASC
+             */
+            sortDirection: string;
+            /** Parentexperimentid */
+            parentExperimentId?: string | null;
+            /** Targetgeneids */
+            targetGeneIds?: string[] | null;
+        };
+        /**
+         * ExperimentMetricsResponse
+         * @description Full classification metrics derived from a confusion matrix.
+         */
+        ExperimentMetricsResponse: {
+            confusionMatrix: components["schemas"]["ConfusionMatrixResponse"];
+            /** Sensitivity */
+            sensitivity: number;
+            /** Specificity */
+            specificity: number;
+            /** Precision */
+            precision: number;
+            /** F1Score */
+            f1Score: number;
+            /** Mcc */
+            mcc: number;
+            /** Balancedaccuracy */
+            balancedAccuracy: number;
+            /**
+             * Negativepredictivevalue
+             * @default 0
+             */
+            negativePredictiveValue: number;
+            /**
+             * Falsepositiverate
+             * @default 0
+             */
+            falsePositiveRate: number;
+            /**
+             * Falsenegativerate
+             * @default 0
+             */
+            falseNegativeRate: number;
+            /**
+             * Youdensj
+             * @default 0
+             */
+            youdensJ: number;
+            /**
+             * Totalresults
+             * @default 0
+             */
+            totalResults: number;
+            /**
+             * Totalpositives
+             * @default 0
+             */
+            totalPositives: number;
+            /**
+             * Totalnegatives
+             * @default 0
+             */
+            totalNegatives: number;
+        };
+        /**
+         * ExperimentProgressDataResponse
+         * @description Progress data for experiment execution.
+         */
+        ExperimentProgressDataResponse: {
+            /** Phase */
+            phase: string;
+            /** Message */
+            message?: string | null;
+            trialProgress?: components["schemas"]["TrialProgressDataResponse"] | null;
+            stepAnalysisProgress?: components["schemas"]["StepAnalysisProgressDataResponse"] | null;
+        };
+        /**
+         * ExperimentResponse
+         * @description Full experiment with config and results.
+         */
+        ExperimentResponse: {
+            /** Id */
+            id: string;
+            config: components["schemas"]["ExperimentConfigResponse"];
+            /** Userid */
+            userId?: string | null;
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "running" | "completed" | "error" | "cancelled";
+            metrics?: components["schemas"]["ExperimentMetricsResponse"] | null;
+            crossValidation?: components["schemas"]["CrossValidationResultResponse"] | null;
+            /** Enrichmentresults */
+            enrichmentResults?: components["schemas"]["EnrichmentResultResponse"][];
+            /** Truepositivegenes */
+            truePositiveGenes?: components["schemas"]["GeneInfoResponse"][];
+            /** Falsenegativegenes */
+            falseNegativeGenes?: components["schemas"]["GeneInfoResponse"][];
+            /** Falsepositivegenes */
+            falsePositiveGenes?: components["schemas"]["GeneInfoResponse"][];
+            /** Truenegativegenes */
+            trueNegativeGenes?: components["schemas"]["GeneInfoResponse"][];
+            /** Error */
+            error?: string | null;
+            /** Totaltimeseconds */
+            totalTimeSeconds?: number | null;
+            /**
+             * Createdat
+             * @default
+             */
+            createdAt: string;
+            /** Completedat */
+            completedAt?: string | null;
+            /** Batchid */
+            batchId?: string | null;
+            /** Benchmarkid */
+            benchmarkId?: string | null;
+            /** Controlsetlabel */
+            controlSetLabel?: string | null;
+            /**
+             * Isprimarybenchmark
+             * @default false
+             */
+            isPrimaryBenchmark: boolean;
+            optimizationResult?: components["schemas"]["JSONObject"] | null;
+            /** Wdkstrategyid */
+            wdkStrategyId?: number | null;
+            /** Wdkstepid */
+            wdkStepId?: number | null;
+            /** Notes */
+            notes?: string | null;
+            stepAnalysis?: components["schemas"]["StepAnalysisResultResponse"] | null;
+            rankMetrics?: components["schemas"]["RankMetricsResponse"] | null;
+            robustness?: components["schemas"]["BootstrapResultResponse"] | null;
+            treeOptimization?: components["schemas"]["TreeOptimizationResultResponse"] | null;
+        };
+        /**
+         * ExperimentSchemaIndex
+         * @description Index of all experiment response schemas. Never called -- exists for OpenAPI generation.
+         */
+        ExperimentSchemaIndex: {
+            experiment?: components["schemas"]["ExperimentResponse"] | null;
+            experiment_summary?: components["schemas"]["ExperimentSummaryResponse"] | null;
+            experiment_config?: components["schemas"]["ExperimentConfigResponse"] | null;
+            confusion_matrix?: components["schemas"]["ConfusionMatrixResponse"] | null;
+            experiment_metrics?: components["schemas"]["ExperimentMetricsResponse"] | null;
+            gene_info?: components["schemas"]["GeneInfoResponse"] | null;
+            fold_metrics?: components["schemas"]["FoldMetricsResponse"] | null;
+            cross_validation_result?: components["schemas"]["CrossValidationResultResponse"] | null;
+            enrichment_term?: components["schemas"]["EnrichmentTermResponse"] | null;
+            enrichment_result?: components["schemas"]["EnrichmentResultResponse"] | null;
+            rank_metrics?: components["schemas"]["RankMetricsResponse"] | null;
+            confidence_interval?: components["schemas"]["ConfidenceIntervalResponse"] | null;
+            negative_set_variant?: components["schemas"]["NegativeSetVariantResponse"] | null;
+            bootstrap_result?: components["schemas"]["BootstrapResultResponse"] | null;
+            step_evaluation?: components["schemas"]["StepEvaluationResponse"] | null;
+            operator_variant?: components["schemas"]["OperatorVariantResponse"] | null;
+            operator_comparison?: components["schemas"]["OperatorComparisonResponse"] | null;
+            step_contribution?: components["schemas"]["StepContributionResponse"] | null;
+            parameter_sweep_point?: components["schemas"]["ParameterSweepPointResponse"] | null;
+            parameter_sensitivity?: components["schemas"]["ParameterSensitivityResponse"] | null;
+            step_analysis_result?: components["schemas"]["StepAnalysisResultResponse"] | null;
+            optimization_spec?: components["schemas"]["OptimizationSpecResponse"] | null;
+            threshold_knob?: components["schemas"]["ThresholdKnobResponse"] | null;
+            operator_knob?: components["schemas"]["OperatorKnobResponse"] | null;
+            tree_optimization_trial?: components["schemas"]["TreeOptimizationTrialResponse"] | null;
+            tree_optimization_result?: components["schemas"]["TreeOptimizationResultResponse"] | null;
+            trial_progress_data?: components["schemas"]["TrialProgressDataResponse"] | null;
+            step_analysis_progress_data?: components["schemas"]["StepAnalysisProgressDataResponse"] | null;
+            experiment_progress_data?: components["schemas"]["ExperimentProgressDataResponse"] | null;
+            optimization_result?: components["schemas"]["OptimizationResultResponse"] | null;
+            control_set_summary?: components["schemas"]["ControlSetSummaryResponse"] | null;
+            citation?: components["schemas"]["CitationResponse"] | null;
+            planning_artifact?: components["schemas"]["PlanningArtifactResponse"] | null;
+        };
+        /**
+         * ExperimentSummaryResponse
+         * @description Lightweight experiment summary for list views.
+         */
+        ExperimentSummaryResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Siteid */
+            siteId: string;
+            /** Searchname */
+            searchName: string;
+            /** Recordtype */
+            recordType: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "single" | "multi-step" | "import";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "completed" | "error" | "cancelled";
+            /** F1Score */
+            f1Score?: number | null;
+            /** Sensitivity */
+            sensitivity?: number | null;
+            /** Specificity */
+            specificity?: number | null;
+            /** Totalpositives */
+            totalPositives: number;
+            /** Totalnegatives */
+            totalNegatives: number;
+            /** Createdat */
+            createdAt: string;
+            /** Batchid */
+            batchId?: string | null;
+            /** Benchmarkid */
+            benchmarkId?: string | null;
+            /** Controlsetlabel */
+            controlSetLabel?: string | null;
+            /**
+             * Isprimarybenchmark
+             * @default false
+             */
+            isPrimaryBenchmark: boolean;
+        };
+        /**
+         * FoldMetricsResponse
+         * @description Metrics for a single cross-validation fold.
+         */
+        FoldMetricsResponse: {
+            /** Foldindex */
+            foldIndex: number;
+            metrics: components["schemas"]["ExperimentMetricsResponse"];
+            /** Positivecontrolids */
+            positiveControlIds?: string[];
+            /** Negativecontrolids */
+            negativeControlIds?: string[];
         };
         /**
          * GeneConfidenceRequest
@@ -1853,6 +2497,20 @@ export type components = {
             ensembleScore: number;
             /** Enrichmentscore */
             enrichmentScore: number;
+        };
+        /**
+         * GeneInfoResponse
+         * @description Minimal gene metadata.
+         */
+        GeneInfoResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name?: string | null;
+            /** Organism */
+            organism?: string | null;
+            /** Product */
+            product?: string | null;
         };
         /**
          * GeneMembership
@@ -1996,6 +2654,52 @@ export type components = {
              */
             stepCount: number;
         };
+        /**
+         * GeneSetSummary
+         * @description Summary of a gene set — nested model, not a top-level event.
+         */
+        GeneSetSummary: {
+            /** Id */
+            id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Genecount */
+            geneCount?: number | null;
+            /** Source */
+            source?: string | null;
+            /** Siteid */
+            siteId?: string | null;
+        };
+        /**
+         * GraphClearedEventData
+         * @description Payload for ``graph_cleared`` SSE events.
+         */
+        GraphClearedEventData: {
+            /** Graphid */
+            graphId?: string | null;
+        };
+        /**
+         * GraphPlanEventData
+         * @description Payload for ``graph_plan`` SSE events.
+         */
+        GraphPlanEventData: {
+            /** Graphid */
+            graphId?: string | null;
+            plan?: components["schemas"]["JSONObject"] | null;
+            /** Name */
+            name?: string | null;
+            /** Recordtype */
+            recordType?: string | null;
+            /** Description */
+            description?: string | null;
+        };
+        /**
+         * GraphSnapshotEventData
+         * @description Payload for ``graph_snapshot`` SSE events.
+         */
+        GraphSnapshotEventData: {
+            graphSnapshot?: components["schemas"]["JSONObject"] | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2030,6 +2734,36 @@ export type components = {
             password: string;
         };
         /**
+         * MessageEndEventData
+         * @description Payload for ``message_end`` SSE events — mirrors TokenUsageResponse.
+         */
+        MessageEndEventData: {
+            /** Modelid */
+            modelId?: string | null;
+            /** Prompttokens */
+            promptTokens?: number | null;
+            /** Completiontokens */
+            completionTokens?: number | null;
+            /** Totaltokens */
+            totalTokens?: number | null;
+            /** Cachedtokens */
+            cachedTokens?: number | null;
+            /** Toolcallcount */
+            toolCallCount?: number | null;
+            /** Registeredtoolcount */
+            registeredToolCount?: number | null;
+            /** Llmcallcount */
+            llmCallCount?: number | null;
+            /** Subkaniprompttokens */
+            subKaniPromptTokens?: number | null;
+            /** Subkanicompletiontokens */
+            subKaniCompletionTokens?: number | null;
+            /** Subkanicallcount */
+            subKaniCallCount?: number | null;
+            /** Estimatedcostusd */
+            estimatedCostUsd?: number | null;
+        };
+        /**
          * MessageResponse
          * @description Chat message.
          */
@@ -2038,14 +2772,18 @@ export type components = {
             role: string;
             /** Content */
             content: string;
+            /** Modelid */
+            modelId?: string | null;
             /** Toolcalls */
             toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
             subKaniActivity?: components["schemas"]["SubKaniActivityResponse"] | null;
-            citations?: components["schemas"]["JSONArray"] | null;
-            planningArtifacts?: components["schemas"]["JSONArray"] | null;
+            /** Citations */
+            citations?: components["schemas"]["CitationResponse"][] | null;
+            /** Planningartifacts */
+            planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
             /** Reasoning */
             reasoning?: string | null;
-            optimizationProgress?: components["schemas"]["JSONObject"] | null;
+            optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
             tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
             /**
              * Timestamp
@@ -2053,10 +2791,79 @@ export type components = {
              */
             timestamp: string;
         };
-        /** ModelListResponse */
+        /**
+         * MessageStartEventData
+         * @description Payload for ``message_start`` SSE events.
+         */
+        MessageStartEventData: {
+            /** Strategyid */
+            strategyId?: string | null;
+            strategy?: components["schemas"]["JSONObject"] | null;
+        };
+        /**
+         * ModelCatalogEntryResponse
+         * @description A single model in the catalog — for API responses.
+         */
+        ModelCatalogEntryResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "openai" | "anthropic" | "google" | "ollama" | "mock";
+            /** Model */
+            model: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Supportsreasoning
+             * @default false
+             */
+            supportsReasoning: boolean;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Contextsize
+             * @default 0
+             */
+            contextSize: number;
+            /**
+             * Defaultreasoningbudget
+             * @default 0
+             */
+            defaultReasoningBudget: number;
+            /**
+             * Inputprice
+             * @default 0
+             */
+            inputPrice: number;
+            /**
+             * Cachedinputprice
+             * @default 0
+             */
+            cachedInputPrice: number;
+            /**
+             * Outputprice
+             * @default 0
+             */
+            outputPrice: number;
+        };
+        /**
+         * ModelListResponse
+         * @description Response for the /models endpoint.
+         */
         ModelListResponse: {
             /** Models */
-            models: components["schemas"]["_ModelItem"][];
+            models: components["schemas"]["ModelCatalogEntryResponse"][];
             /** Default */
             default: string;
             /**
@@ -2064,6 +2871,28 @@ export type components = {
              * @enum {string}
              */
             defaultReasoningEffort: "none" | "low" | "medium" | "high";
+        };
+        /**
+         * ModelSelectedEventData
+         * @description Payload for ``model_selected`` SSE events.
+         */
+        ModelSelectedEventData: {
+            /** Modelid */
+            modelId: string;
+        };
+        /**
+         * NegativeSetVariantResponse
+         * @description Rank metrics evaluated with an alternative negative control set.
+         */
+        NegativeSetVariantResponse: {
+            /** Label */
+            label: string;
+            rankMetrics: components["schemas"]["RankMetricsResponse"];
+            /**
+             * Negativecount
+             * @default 0
+             */
+            negativeCount: number;
         };
         /**
          * OpenStrategyRequest
@@ -2089,6 +2918,32 @@ export type components = {
             strategyId: string;
         };
         /**
+         * OperatorComparisonResponse
+         * @description Comparison of operators at a single combine node.
+         */
+        OperatorComparisonResponse: {
+            /** Combinenodeid */
+            combineNodeId: string;
+            /** Currentoperator */
+            currentOperator: string;
+            /** Variants */
+            variants?: components["schemas"]["OperatorVariantResponse"][];
+            /**
+             * Recommendation
+             * @default
+             */
+            recommendation: string;
+            /**
+             * Recommendedoperator
+             * @default
+             */
+            recommendedOperator: string;
+            /** Precisionatkdelta */
+            precisionAtKDelta?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * OperatorKnobRequest
          * @description A boolean-operator knob for tree optimization.
          */
@@ -2097,6 +2952,126 @@ export type components = {
             combineNodeId: string;
             /** Options */
             options?: string[];
+        };
+        /**
+         * OperatorKnobResponse
+         * @description A combine-node operator that can be switched during optimization.
+         */
+        OperatorKnobResponse: {
+            /** Combinenodeid */
+            combineNodeId: string;
+            /** Options */
+            options?: string[];
+        };
+        /**
+         * OperatorVariantResponse
+         * @description Metrics for one boolean operator at a combine node.
+         */
+        OperatorVariantResponse: {
+            /** Operator */
+            operator: string;
+            /** Positivehits */
+            positiveHits: number;
+            /** Negativehits */
+            negativeHits: number;
+            /** Totalresults */
+            totalResults: number;
+            /** Recall */
+            recall: number;
+            /** Falsepositiverate */
+            falsePositiveRate: number;
+            /** F1Score */
+            f1Score: number;
+        };
+        /**
+         * OptimizationParameterSpecData
+         * @description Specification for one optimization parameter.
+         */
+        OptimizationParameterSpecData: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Minvalue */
+            minValue?: number | null;
+            /** Maxvalue */
+            maxValue?: number | null;
+            /** Logscale */
+            logScale?: boolean | null;
+            /** Choices */
+            choices?: string[] | null;
+        };
+        /**
+         * OptimizationProgressEventData
+         * @description Payload for ``optimization_progress`` SSE events.
+         */
+        OptimizationProgressEventData: {
+            /** Optimizationid */
+            optimizationId: string;
+            /**
+             * Status
+             * @default
+             */
+            status: string;
+            /** Searchname */
+            searchName?: string | null;
+            /** Recordtype */
+            recordType?: string | null;
+            /** Budget */
+            budget?: number | null;
+            /** Objective */
+            objective?: string | null;
+            /** Currenttrial */
+            currentTrial?: number | null;
+            /** Totaltrials */
+            totalTrials?: number | null;
+            /** Parameterspecs */
+            parameterSpecs?: components["schemas"]["OptimizationParameterSpecData"][] | null;
+            trial?: components["schemas"]["OptimizationTrialData"] | null;
+            bestTrial?: components["schemas"]["OptimizationTrialData"] | null;
+            /** Recenttrials */
+            recentTrials?: components["schemas"]["OptimizationTrialData"][] | null;
+            /** Alltrials */
+            allTrials?: components["schemas"]["OptimizationTrialData"][] | null;
+            /** Paretofrontier */
+            paretoFrontier?: components["schemas"]["OptimizationTrialData"][] | null;
+            /** Sensitivity */
+            sensitivity?: {
+                [key: string]: number;
+            } | null;
+            /** Totaltimeseconds */
+            totalTimeSeconds?: number | null;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * OptimizationResultResponse
+         * @description Complete optimization result.
+         */
+        OptimizationResultResponse: {
+            /** Optimizationid */
+            optimizationId: string;
+            /** Status */
+            status: string;
+            bestTrial?: components["schemas"]["OptimizationTrialData"] | null;
+            /** Alltrials */
+            allTrials?: components["schemas"]["OptimizationTrialData"][];
+            /** Paretofrontier */
+            paretoFrontier?: components["schemas"]["OptimizationTrialData"][];
+            /** Sensitivity */
+            sensitivity?: {
+                [key: string]: number;
+            };
+            /**
+             * Totaltimeseconds
+             * @default 0
+             */
+            totalTimeSeconds: number;
+            /**
+             * Totaltrials
+             * @default 0
+             */
+            totalTrials: number;
         };
         /**
          * OptimizationSpecRequest
@@ -2118,6 +3093,58 @@ export type components = {
             step?: number | null;
             /** Choices */
             choices?: string[] | null;
+        };
+        /**
+         * OptimizationSpecResponse
+         * @description Describes a single parameter to optimise.
+         */
+        OptimizationSpecResponse: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "numeric" | "integer" | "categorical";
+            /** Min */
+            min?: number | null;
+            /** Max */
+            max?: number | null;
+            /** Step */
+            step?: number | null;
+            /** Choices */
+            choices?: string[] | null;
+        };
+        /**
+         * OptimizationTrialData
+         * @description A single optimization trial result.
+         */
+        OptimizationTrialData: {
+            /** Trialnumber */
+            trialNumber: number;
+            /** Parameters */
+            parameters?: {
+                [key: string]: components["schemas"]["JSONValue"];
+            };
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /** Recall */
+            recall?: number | null;
+            /** Falsepositiverate */
+            falsePositiveRate?: number | null;
+            /** Resultcount */
+            resultCount?: number | null;
+            /** Positivehits */
+            positiveHits?: number | null;
+            /** Negativehits */
+            negativeHits?: number | null;
+            /** Totalpositives */
+            totalPositives?: number | null;
+            /** Totalnegatives */
+            totalNegatives?: number | null;
         };
         /**
          * OrganismsResponse
@@ -2238,6 +3265,50 @@ export type components = {
             contextValues?: components["schemas"]["JSONObject"];
         };
         /**
+         * ParameterSensitivityResponse
+         * @description Sensitivity sweep for one numeric parameter on one leaf step.
+         */
+        ParameterSensitivityResponse: {
+            /** Stepid */
+            stepId: string;
+            /** Paramname */
+            paramName: string;
+            /** Currentvalue */
+            currentValue: number;
+            /** Sweeppoints */
+            sweepPoints?: components["schemas"]["ParameterSweepPointResponse"][];
+            /**
+             * Recommendedvalue
+             * @default 0
+             */
+            recommendedValue: number;
+            /**
+             * Recommendation
+             * @default
+             */
+            recommendation: string;
+        };
+        /**
+         * ParameterSweepPointResponse
+         * @description One data point in a parameter sensitivity sweep.
+         */
+        ParameterSweepPointResponse: {
+            /** Value */
+            value: number;
+            /** Positivehits */
+            positiveHits: number;
+            /** Negativehits */
+            negativeHits: number;
+            /** Totalresults */
+            totalResults: number;
+            /** Recall */
+            recall: number;
+            /** Fpr */
+            fpr: number;
+            /** F1 */
+            f1: number;
+        };
+        /**
          * PatchExperimentRequest
          * @description Request body for PATCH /experiments/{experiment_id}.
          */
@@ -2346,6 +3417,34 @@ export type components = {
             warnings?: components["schemas"]["JSONArray"] | null;
         };
         /**
+         * PlanningArtifactEventData
+         * @description Payload for ``planning_artifact`` SSE events.
+         */
+        PlanningArtifactEventData: {
+            planningArtifact?: components["schemas"]["PlanningArtifactResponse"] | null;
+        };
+        /**
+         * PlanningArtifactResponse
+         * @description Strategy planning artifact.
+         */
+        PlanningArtifactResponse: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Summarymarkdown */
+            summaryMarkdown: string;
+            /** Assumptions */
+            assumptions?: string[];
+            /** Parameters */
+            parameters?: {
+                [key: string]: components["schemas"]["JSONValue"];
+            };
+            proposedStrategyPlan?: components["schemas"]["JSONObject"] | null;
+            /** Createdat */
+            createdAt: string;
+        };
+        /**
          * PrimaryKeyPart
          * @description A single part of a composite WDK primary key.
          */
@@ -2368,6 +3467,47 @@ export type components = {
             google: boolean;
             /** Ollama */
             ollama: boolean;
+        };
+        /**
+         * RankMetricsResponse
+         * @description Rank-based evaluation metrics computed over an ordered result list.
+         */
+        RankMetricsResponse: {
+            /** Precisionatk */
+            precisionAtK?: {
+                [key: string]: number;
+            };
+            /** Recallatk */
+            recallAtK?: {
+                [key: string]: number;
+            };
+            /** Enrichmentatk */
+            enrichmentAtK?: {
+                [key: string]: number;
+            };
+            /** Prcurve */
+            prCurve?: [
+                number,
+                number
+            ][];
+            /** Listsizevsrecall */
+            listSizeVsRecall?: [
+                number,
+                number
+            ][];
+            /**
+             * Totalresults
+             * @default 0
+             */
+            totalResults: number;
+        };
+        /**
+         * ReasoningEventData
+         * @description Payload for ``reasoning`` SSE events.
+         */
+        ReasoningEventData: {
+            /** Reasoning */
+            reasoning?: string | null;
         };
         /**
          * RecordDetailRequest
@@ -2508,6 +3648,41 @@ export type components = {
             enrichmentTypes: ("go_function" | "go_component" | "go_process" | "pathway" | "word")[];
         };
         /**
+         * SSESchemaIndex
+         * @description Index of all SSE event data schemas. Never called -- exists for OpenAPI generation.
+         */
+        SSESchemaIndex: {
+            message_start?: components["schemas"]["MessageStartEventData"] | null;
+            user_message?: components["schemas"]["UserMessageEventData"] | null;
+            assistant_delta?: components["schemas"]["AssistantDeltaEventData"] | null;
+            assistant_message?: components["schemas"]["AssistantMessageEventData"] | null;
+            tool_call_start?: components["schemas"]["ToolCallStartEventData"] | null;
+            tool_call_end?: components["schemas"]["ToolCallEndEventData"] | null;
+            subkani_task_start?: components["schemas"]["SubKaniTaskStartEventData"] | null;
+            subkani_tool_call_start?: components["schemas"]["SubKaniToolCallStartEventData"] | null;
+            subkani_tool_call_end?: components["schemas"]["SubKaniToolCallEndEventData"] | null;
+            subkani_task_end?: components["schemas"]["SubKaniTaskEndEventData"] | null;
+            token_usage_partial?: components["schemas"]["TokenUsagePartialEventData"] | null;
+            model_selected?: components["schemas"]["ModelSelectedEventData"] | null;
+            optimization_progress?: components["schemas"]["OptimizationProgressEventData"] | null;
+            optimization_trial?: components["schemas"]["OptimizationTrialData"] | null;
+            optimization_parameter_spec?: components["schemas"]["OptimizationParameterSpecData"] | null;
+            error?: components["schemas"]["ErrorEventData"] | null;
+            graph_snapshot?: components["schemas"]["GraphSnapshotEventData"] | null;
+            strategy_meta?: components["schemas"]["StrategyMetaEventData"] | null;
+            graph_plan?: components["schemas"]["GraphPlanEventData"] | null;
+            strategy_update?: components["schemas"]["StrategyUpdateEventData"] | null;
+            strategy_link?: components["schemas"]["StrategyLinkEventData"] | null;
+            graph_cleared?: components["schemas"]["GraphClearedEventData"] | null;
+            executor_build_request?: components["schemas"]["ExecutorBuildRequestEventData"] | null;
+            gene_set_summary?: components["schemas"]["GeneSetSummary"] | null;
+            workbench_gene_set?: components["schemas"]["WorkbenchGeneSetEventData"] | null;
+            citations?: components["schemas"]["CitationsEventData"] | null;
+            planning_artifact?: components["schemas"]["PlanningArtifactEventData"] | null;
+            reasoning?: components["schemas"]["ReasoningEventData"] | null;
+            message_end?: components["schemas"]["MessageEndEventData"] | null;
+        };
+        /**
          * SearchResponse
          * @description Search information.
          */
@@ -2587,6 +3762,24 @@ export type components = {
             isPortal: boolean;
         };
         /**
+         * StepAnalysisProgressDataResponse
+         * @description Progress data for step analysis.
+         */
+        StepAnalysisProgressDataResponse: {
+            /** Phase */
+            phase: string;
+            /** Currentstep */
+            currentStep?: number | null;
+            /** Totalsteps */
+            totalSteps?: number | null;
+            /** Stepid */
+            stepId?: string | null;
+            /** Searchname */
+            searchName?: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * StepAnalysisResponse
          * @description Analysis configuration attached to a step.
          */
@@ -2596,6 +3789,20 @@ export type components = {
             parameters?: components["schemas"]["JSONObject"];
             /** Customname */
             customName?: string | null;
+        };
+        /**
+         * StepAnalysisResultResponse
+         * @description Container for all deterministic step analysis results.
+         */
+        StepAnalysisResultResponse: {
+            /** Stepevaluations */
+            stepEvaluations?: components["schemas"]["StepEvaluationResponse"][];
+            /** Operatorcomparisons */
+            operatorComparisons?: components["schemas"]["OperatorComparisonResponse"][];
+            /** Stepcontributions */
+            stepContributions?: components["schemas"]["StepContributionResponse"][];
+            /** Parametersensitivities */
+            parameterSensitivities?: components["schemas"]["ParameterSensitivityResponse"][];
         };
         /** StepAnalysisSpec */
         "StepAnalysisSpec-Input": {
@@ -2612,6 +3819,43 @@ export type components = {
             parameters?: components["schemas"]["JSONObject"];
             /** Customname */
             customName?: string | null;
+        };
+        /**
+         * StepContributionResponse
+         * @description Ablation analysis for one leaf step.
+         */
+        StepContributionResponse: {
+            /** Stepid */
+            stepId: string;
+            /** Searchname */
+            searchName: string;
+            /** Baselinerecall */
+            baselineRecall: number;
+            /** Ablatedrecall */
+            ablatedRecall: number;
+            /** Recalldelta */
+            recallDelta: number;
+            /** Baselinefpr */
+            baselineFpr: number;
+            /** Ablatedfpr */
+            ablatedFpr: number;
+            /** Fprdelta */
+            fprDelta: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "essential" | "helpful" | "neutral" | "harmful";
+            /**
+             * Enrichmentdelta
+             * @default 0
+             */
+            enrichmentDelta: number;
+            /**
+             * Narrative
+             * @default
+             */
+            narrative: string;
         };
         /**
          * StepCountsRequest
@@ -2631,6 +3875,51 @@ export type components = {
             counts: {
                 [key: string]: number | null;
             };
+        };
+        /**
+         * StepEvaluationResponse
+         * @description Per-leaf-step evaluation against controls.
+         */
+        StepEvaluationResponse: {
+            /** Stepid */
+            stepId: string;
+            /** Searchname */
+            searchName: string;
+            /** Displayname */
+            displayName: string;
+            /** Resultcount */
+            resultCount: number;
+            /** Positivehits */
+            positiveHits: number;
+            /** Positivetotal */
+            positiveTotal: number;
+            /** Negativehits */
+            negativeHits: number;
+            /** Negativetotal */
+            negativeTotal: number;
+            /** Recall */
+            recall: number;
+            /** Falsepositiverate */
+            falsePositiveRate: number;
+            /** Capturedpositiveids */
+            capturedPositiveIds?: string[];
+            /** Capturednegativeids */
+            capturedNegativeIds?: string[];
+            /**
+             * Tpmovement
+             * @default 0
+             */
+            tpMovement: number;
+            /**
+             * Fpmovement
+             * @default 0
+             */
+            fpMovement: number;
+            /**
+             * Fnmovement
+             * @default 0
+             */
+            fnMovement: number;
         };
         /**
          * StepFilterResponse
@@ -2705,7 +3994,7 @@ export type components = {
             parameters?: components["schemas"]["JSONObject"] | null;
             /** Operator */
             operator?: string | null;
-            colocationParams?: components["schemas"]["JSONObject"] | null;
+            colocationParams?: components["schemas"]["ColocationParams"] | null;
             /** Primaryinputstepid */
             primaryInputStepId?: string | null;
             /** Secondaryinputstepid */
@@ -2722,6 +4011,40 @@ export type components = {
             reports?: components["schemas"]["StepReportResponse"][] | null;
             /** Validationerror */
             validationError?: string | null;
+        };
+        /**
+         * StrategyLinkEventData
+         * @description Payload for ``strategy_link`` SSE events.
+         */
+        StrategyLinkEventData: {
+            /** Graphid */
+            graphId?: string | null;
+            /** Wdkstrategyid */
+            wdkStrategyId?: number | null;
+            /** Wdkurl */
+            wdkUrl?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Issaved */
+            isSaved?: boolean | null;
+        };
+        /**
+         * StrategyMetaEventData
+         * @description Payload for ``strategy_meta`` SSE events.
+         */
+        StrategyMetaEventData: {
+            /** Graphid */
+            graphId?: string | null;
+            /** Graphname */
+            graphName?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Recordtype */
+            recordType?: string | null;
         };
         /** StrategyPlan */
         "StrategyPlan-Input": {
@@ -2796,8 +4119,19 @@ export type components = {
             resultCount?: number | null;
             /** Wdkurl */
             wdkUrl?: string | null;
+            /** Genesetid */
+            geneSetId?: string | null;
             /** Dismissedat */
             dismissedAt?: string | null;
+        };
+        /**
+         * StrategyUpdateEventData
+         * @description Payload for ``strategy_update`` SSE events.
+         */
+        StrategyUpdateEventData: {
+            /** Graphid */
+            graphId?: string | null;
+            step?: components["schemas"]["JSONObject"] | null;
         };
         /**
          * SubKaniActivityResponse
@@ -2812,6 +4146,90 @@ export type components = {
             status: {
                 [key: string]: string;
             };
+            /** Models */
+            models?: {
+                [key: string]: string;
+            } | null;
+            /** Tokenusage */
+            tokenUsage?: {
+                [key: string]: components["schemas"]["SubKaniTokenUsageResponse"];
+            } | null;
+        };
+        /**
+         * SubKaniTaskEndEventData
+         * @description Payload for ``subkani_task_end`` SSE events.
+         */
+        SubKaniTaskEndEventData: {
+            /** Task */
+            task?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Modelid */
+            modelId?: string | null;
+            /** Prompttokens */
+            promptTokens?: number | null;
+            /** Completiontokens */
+            completionTokens?: number | null;
+            /** Llmcallcount */
+            llmCallCount?: number | null;
+            /** Estimatedcostusd */
+            estimatedCostUsd?: number | null;
+        };
+        /**
+         * SubKaniTaskStartEventData
+         * @description Payload for ``subkani_task_start`` SSE events.
+         */
+        SubKaniTaskStartEventData: {
+            /** Task */
+            task?: string | null;
+            /** Modelid */
+            modelId?: string | null;
+        };
+        /**
+         * SubKaniTokenUsageResponse
+         * @description Token usage for a single sub-kani agent.
+         */
+        SubKaniTokenUsageResponse: {
+            /** Prompttokens */
+            promptTokens: number;
+            /** Completiontokens */
+            completionTokens: number;
+            /**
+             * Llmcallcount
+             * @default 0
+             */
+            llmCallCount: number;
+            /**
+             * Estimatedcostusd
+             * @default 0
+             */
+            estimatedCostUsd: number;
+        };
+        /**
+         * SubKaniToolCallEndEventData
+         * @description Payload for ``subkani_tool_call_end`` SSE events.
+         */
+        SubKaniToolCallEndEventData: {
+            /** Task */
+            task?: string | null;
+            /** Id */
+            id: string;
+            /** Result */
+            result?: string | null;
+        };
+        /**
+         * SubKaniToolCallStartEventData
+         * @description Payload for ``subkani_tool_call_start`` SSE events.
+         */
+        SubKaniToolCallStartEventData: {
+            /** Task */
+            task?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Arguments */
+            arguments?: string | null;
         };
         /**
          * SystemConfigResponse
@@ -2869,6 +4287,22 @@ export type components = {
             stepSize?: number | null;
         };
         /**
+         * ThresholdKnobResponse
+         * @description A numeric parameter on a leaf step that can be tuned.
+         */
+        ThresholdKnobResponse: {
+            /** Stepid */
+            stepId: string;
+            /** Paramname */
+            paramName: string;
+            /** Minval */
+            minVal: number;
+            /** Maxval */
+            maxVal: number;
+            /** Stepsize */
+            stepSize?: number | null;
+        };
+        /**
          * ThresholdSweepRequest
          * @description Request to sweep a parameter across a range (numeric) or set of values (categorical).
          */
@@ -2894,6 +4328,16 @@ export type components = {
             values?: string[] | null;
         };
         /**
+         * TokenUsagePartialEventData
+         * @description Payload for ``token_usage_partial`` SSE events.
+         */
+        TokenUsagePartialEventData: {
+            /** Prompttokens */
+            promptTokens?: number | null;
+            /** Registeredtoolcount */
+            registeredToolCount?: number | null;
+        };
+        /**
          * TokenUsageResponse
          * @description Token usage statistics for a message turn.
          */
@@ -2904,10 +4348,55 @@ export type components = {
             completionTokens: number;
             /** Totaltokens */
             totalTokens: number;
+            /**
+             * Cachedtokens
+             * @default 0
+             */
+            cachedTokens: number;
             /** Toolcallcount */
             toolCallCount: number;
             /** Registeredtoolcount */
             registeredToolCount: number;
+            /**
+             * Llmcallcount
+             * @default 0
+             */
+            llmCallCount: number;
+            /**
+             * Subkaniprompttokens
+             * @default 0
+             */
+            subKaniPromptTokens: number;
+            /**
+             * Subkanicompletiontokens
+             * @default 0
+             */
+            subKaniCompletionTokens: number;
+            /**
+             * Subkanicallcount
+             * @default 0
+             */
+            subKaniCallCount: number;
+            /**
+             * Estimatedcostusd
+             * @default 0
+             */
+            estimatedCostUsd: number;
+            /**
+             * Modelid
+             * @default
+             */
+            modelId: string;
+        };
+        /**
+         * ToolCallEndEventData
+         * @description Payload for ``tool_call_end`` SSE events.
+         */
+        ToolCallEndEventData: {
+            /** Id */
+            id: string;
+            /** Result */
+            result?: string | null;
         };
         /**
          * ToolCallResponse
@@ -2922,10 +4411,88 @@ export type components = {
             /** Result */
             result?: string | null;
         };
+        /**
+         * ToolCallStartEventData
+         * @description Payload for ``tool_call_start`` SSE events.
+         */
+        ToolCallStartEventData: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Arguments */
+            arguments?: string | null;
+        };
         /** ToolListResponse */
         ToolListResponse: {
             /** Tools */
             tools: components["schemas"]["_ToolItem"][];
+        };
+        /**
+         * TreeOptimizationResultResponse
+         * @description Result of multi-step tree-knob optimization.
+         */
+        TreeOptimizationResultResponse: {
+            bestTrial?: components["schemas"]["TreeOptimizationTrialResponse"] | null;
+            /** Alltrials */
+            allTrials?: components["schemas"]["TreeOptimizationTrialResponse"][];
+            /**
+             * Totaltimeseconds
+             * @default 0
+             */
+            totalTimeSeconds: number;
+            /**
+             * Objective
+             * @default
+             */
+            objective: string;
+        };
+        /**
+         * TreeOptimizationTrialResponse
+         * @description One trial during tree-knob optimization.
+         */
+        TreeOptimizationTrialResponse: {
+            /** Trialnumber */
+            trialNumber: number;
+            /** Parameters */
+            parameters?: {
+                [key: string]: number | string;
+            };
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            rankMetrics?: components["schemas"]["RankMetricsResponse"] | null;
+            /**
+             * Listsize
+             * @default 0
+             */
+            listSize: number;
+        };
+        /**
+         * TrialProgressDataResponse
+         * @description Progress data for a single optimization trial.
+         */
+        TrialProgressDataResponse: {
+            /** Trialnumber */
+            trialNumber: number;
+            /** Totaltrials */
+            totalTrials: number;
+            /** Status */
+            status: string;
+            /** Score */
+            score?: number | null;
+            /** Recall */
+            recall?: number | null;
+            /** Falsepositiverate */
+            falsePositiveRate?: number | null;
+            /** Resultcount */
+            resultCount?: number | null;
+            /** Parameters */
+            parameters?: {
+                [key: string]: components["schemas"]["JSONValue"];
+            } | null;
         };
         /**
          * UpdateStrategyRequest
@@ -2939,6 +4506,16 @@ export type components = {
             wdkStrategyId?: number | null;
             /** Issaved */
             isSaved?: boolean | null;
+        };
+        /**
+         * UserMessageEventData
+         * @description Payload for ``user_message`` SSE events.
+         */
+        UserMessageEventData: {
+            /** Messageid */
+            messageId?: string | null;
+            /** Content */
+            content?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2960,7 +4537,7 @@ export type components = {
             /** Siteid */
             siteId: string;
             /** Provider */
-            provider?: ("openai" | "anthropic" | "google" | "ollama") | null;
+            provider?: ("openai" | "anthropic" | "google" | "ollama" | "mock") | null;
             /** Model */
             model?: string | null;
             /** Reasoningeffort */
@@ -2973,27 +4550,12 @@ export type components = {
             /** Streamid */
             streamId: string;
         };
-        /** _ModelItem */
-        _ModelItem: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /**
-             * Provider
-             * @enum {string}
-             */
-            provider: "openai" | "anthropic" | "google" | "ollama";
-            /** Model */
-            model: string;
-            /** Supportsreasoning */
-            supportsReasoning: boolean;
-            /** Enabled */
-            enabled: boolean;
-            /** Contextsize */
-            contextSize: number;
-            /** Defaultreasoningbudget */
-            defaultReasoningBudget: number;
+        /**
+         * WorkbenchGeneSetEventData
+         * @description Payload for ``workbench_gene_set`` SSE events.
+         */
+        WorkbenchGeneSetEventData: {
+            geneSet?: components["schemas"]["GeneSetSummary"] | null;
         };
         /** _ToolItem */
         _ToolItem: {
@@ -5294,6 +6856,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeneConfidenceScoreResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sse_schemas_api_v1_internal_sse_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SSESchemaIndex"];
+                };
+            };
+        };
+    };
+    experiment_schemas_api_v1_internal_experiment_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentSchemaIndex"];
+                };
+            };
+        };
+    };
+    purge_user_data_api_v1_user_data_delete: {
+        parameters: {
+            query?: {
+                siteId?: string | null;
+                deleteWdk?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JSONObject"];
                 };
             };
             /** @description Validation Error */

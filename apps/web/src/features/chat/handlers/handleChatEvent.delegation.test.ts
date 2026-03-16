@@ -15,6 +15,7 @@ describe("handleChatEvent — realistic delegation (sub-kani) events", () => {
         recordType: "gene",
         steps: [],
         rootStepId: null,
+        isSaved: false,
         createdAt: "t",
         updatedAt: "t",
       })),
@@ -29,7 +30,10 @@ describe("handleChatEvent — realistic delegation (sub-kani) events", () => {
     expect(ctx.loadGraph).toHaveBeenCalledWith("strat-del");
 
     // ── Sub-kani lifecycle ──
-    expect(thinking.subKaniTaskStart).toHaveBeenCalledWith("delegate:build-step-1");
+    expect(thinking.subKaniTaskStart).toHaveBeenCalledWith(
+      "delegate:build-step-1",
+      undefined,
+    );
     expect(thinking.subKaniToolCallStart).toHaveBeenCalledTimes(2);
     expect(thinking.subKaniToolCallEnd).toHaveBeenCalledTimes(2);
     expect(thinking.subKaniTaskEnd).toHaveBeenCalledWith(

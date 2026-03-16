@@ -7,6 +7,7 @@ import { GeneChip, type ChipStatus } from "./GeneChip";
 import { GeneAutocomplete } from "./GeneAutocomplete";
 import { GeneSetPicker } from "./GeneSetPicker";
 import { CsvImportButton } from "./CsvImportButton";
+import { Label } from "@/lib/components/ui/Label";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -154,10 +155,9 @@ export function GeneChipInput({
     >
       {/* Label */}
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-muted-foreground">
+        <Label className="text-xs text-muted-foreground" required={required}>
           {label}
-          {required && <span className="text-destructive">*</span>}
-        </label>
+        </Label>
         {value.length > 0 && (
           <span className="text-[10px] text-muted-foreground tabular-nums">
             {value.length} gene{value.length !== 1 ? "s" : ""}

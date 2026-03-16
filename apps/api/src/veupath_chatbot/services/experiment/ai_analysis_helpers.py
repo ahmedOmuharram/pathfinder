@@ -7,8 +7,11 @@ searching records, and fetching result IDs.
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk.helpers import extract_pk
+
+logger = get_logger(__name__)
 
 
 def classify_gene(
@@ -85,8 +88,12 @@ async def build_primary_key(
                 default_val = pk_defaults.get(col)
                 if default_val:
                     pk_parts.append({"name": col, "value": default_val})
-    except Exception:
-        pass  # Fall back to source_id only
+    except Exception as exc:
+        logger.debug(
+            "Failed to build full primary key, falling back to source_id only",
+            gene_id=gene_id,
+            error=str(exc),
+        )
     return pk_parts
 
 

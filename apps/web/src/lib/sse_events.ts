@@ -3,6 +3,21 @@ import type {
   PlanningArtifact,
   OptimizationProgressData,
   Strategy,
+  // SSE event data types imported from shared (generated SSOT)
+  UserMessageData as SharedUserMessageData,
+  AssistantDeltaData as SharedAssistantDeltaData,
+  AssistantMessageData as SharedAssistantMessageData,
+  SubKaniTaskStartData as SharedSubKaniTaskStartData,
+  SubKaniTaskEndData as SharedSubKaniTaskEndData,
+  SubKaniToolCallStartData as SharedSubKaniToolCallStartData,
+  SubKaniToolCallEndData as SharedSubKaniToolCallEndData,
+  ModelSelectedData as SharedModelSelectedData,
+  TokenUsagePartialData as SharedTokenUsagePartialData,
+  StrategyMetaData as SharedStrategyMetaData,
+  StrategyLinkData as SharedStrategyLinkData,
+  GraphClearedData as SharedGraphClearedData,
+  ReasoningData as SharedReasoningData,
+  SSEErrorData,
 } from "@pathfinder/shared";
 import type { RawSSEEvent } from "@/lib/sse";
 import type { GraphSnapshotInput, StepParameters } from "@/lib/strategyGraph/types";
@@ -17,29 +32,33 @@ import { z } from "zod";
 export type RawSSEData = Record<string, unknown>;
 
 /* ── Per-event data shapes ─────────────────────────────────────────── */
+// Types imported from @pathfinder/shared (generated SSOT).
+// Re-exported under original names for downstream compatibility.
+export type UserMessageData = SharedUserMessageData;
+export type AssistantDeltaData = SharedAssistantDeltaData;
+export type AssistantMessageData = SharedAssistantMessageData;
+export type SubKaniTaskStartData = SharedSubKaniTaskStartData;
+export type SubKaniTaskEndData = SharedSubKaniTaskEndData;
+export type SubKaniToolCallStartData = SharedSubKaniToolCallStartData;
+export type SubKaniToolCallEndData = SharedSubKaniToolCallEndData;
+export type ModelSelectedData = SharedModelSelectedData;
+export type TokenUsagePartialData = SharedTokenUsagePartialData;
+export type StrategyMetaData = SharedStrategyMetaData;
+export type StrategyLinkData = SharedStrategyLinkData;
+export type GraphClearedData = SharedGraphClearedData;
+export type ReasoningData = SharedReasoningData;
 
+// Types that remain local — their local shapes differ from the generated
+// equivalents (e.g., typed strategy vs JSONObject, typed step vs JSONObject).
 export type MessageStartData = {
   strategyId?: string;
   strategy?: Strategy;
   authToken?: string;
 };
-export type UserMessageData = { messageId?: string; content?: string };
-export type AssistantDeltaData = { messageId?: string; delta?: string };
-export type AssistantMessageData = { messageId?: string; content?: string };
 export type CitationsData = { citations?: Citation[] };
 export type PlanningArtifactData = { planningArtifact?: PlanningArtifact };
-export type ReasoningData = { reasoning?: string };
 export type ToolCallStartData = { id: string; name: string; arguments?: string };
 export type ToolCallEndData = { id: string; result: string };
-export type SubKaniTaskStartData = { task?: string };
-export type SubKaniToolCallStartData = {
-  task?: string;
-  id: string;
-  name: string;
-  arguments?: string;
-};
-export type SubKaniToolCallEndData = { task?: string; id: string; result: string };
-export type SubKaniTaskEndData = { task?: string; status?: string };
 
 export type StrategyUpdateStepData = {
   stepId: string;
@@ -64,22 +83,6 @@ export type StrategyUpdateData = {
 };
 
 export type GraphSnapshotData = { graphSnapshot?: GraphSnapshotInput };
-export type StrategyLinkData = {
-  graphId?: string;
-  wdkStrategyId?: number;
-  wdkUrl?: string;
-  name?: string;
-  description?: string;
-};
-export type StrategyMetaData = {
-  graphId?: string;
-  graphName?: string;
-  name?: string;
-  description?: string;
-  recordType?: string | null;
-};
-export type GraphClearedData = { graphId?: string };
-export type ModelSelectedData = { modelId: string };
 export type GraphPlanData = {
   graphId?: string;
   plan: unknown;
@@ -93,11 +96,7 @@ export type ExecutorBuildRequestData = { executorBuildRequest: unknown };
  * Genuinely dynamic: the backend may include arbitrary diagnostic fields.
  */
 export type MessageEndData = RawSSEData;
-export type TokenUsagePartialData = {
-  promptTokens?: number;
-  registeredToolCount?: number;
-};
-export type ErrorData = { error: string };
+export type ErrorData = SSEErrorData;
 export type WorkbenchGeneSetData = {
   geneSet?: {
     id: string;
@@ -113,15 +112,15 @@ export type WorkbenchGeneSetData = {
 const OptimizationTrialSchema = z
   .object({
     trialNumber: z.number(),
-    parameters: z.record(z.string(), z.unknown()),
+    parameters: z.record(z.string(), z.unknown()).optional(),
     score: z.number(),
-    recall: z.number().nullable(),
-    falsePositiveRate: z.number().nullable(),
-    resultCount: z.number().nullable(),
-    positiveHits: z.number().nullable(),
-    negativeHits: z.number().nullable(),
-    totalPositives: z.number().nullable(),
-    totalNegatives: z.number().nullable(),
+    recall: z.number().nullable().optional(),
+    falsePositiveRate: z.number().nullable().optional(),
+    resultCount: z.number().nullable().optional(),
+    positiveHits: z.number().nullable().optional(),
+    negativeHits: z.number().nullable().optional(),
+    totalPositives: z.number().nullable().optional(),
+    totalNegatives: z.number().nullable().optional(),
   })
   .passthrough();
 
@@ -131,7 +130,7 @@ const OptimizationParameterSpecSchema = z
     type: z.enum(["numeric", "integer", "categorical"]),
     minValue: z.number().nullable().optional(),
     maxValue: z.number().nullable().optional(),
-    logScale: z.boolean().optional(),
+    logScale: z.boolean().nullable().optional(),
     choices: z.array(z.string()).nullable().optional(),
   })
   .passthrough();
@@ -178,7 +177,7 @@ export const OptimizationProgressDataSchema = z
     objective: z.string().optional(),
     positiveControlsCount: z.number().optional(),
     negativeControlsCount: z.number().optional(),
-    parameterSpace: z.array(OptimizationParameterSpecSchema).optional(),
+    parameterSpecs: z.array(OptimizationParameterSpecSchema).optional(),
     currentTrial: z.number().optional(),
     totalTrials: z.number().optional(),
     trial: OptimizationTrialSchema.optional(),

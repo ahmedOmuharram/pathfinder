@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
+import { Label } from "@/lib/components/ui/Label";
 import { parseGeneIds } from "@/lib/utils/parseGeneIds";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
@@ -101,31 +103,31 @@ export function AddGeneSetPasteTab({ onClose, onCreated }: AddGeneSetPasteTabPro
     <>
       {/* Name input */}
       <div>
-        <label
+        <Label
           htmlFor="gene-set-name"
           className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
           Name
-        </label>
-        <input
+        </Label>
+        <Input
           id="gene-set-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. My upregulated genes"
           disabled={isSubmitting}
-          className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="mt-1.5 bg-background"
         />
       </div>
 
       {/* Textarea */}
       <div className="mt-4">
-        <label
+        <Label
           htmlFor="gene-ids-paste"
           className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
           Gene IDs
-        </label>
+        </Label>
         <textarea
           id="gene-ids-paste"
           value={pasteText}

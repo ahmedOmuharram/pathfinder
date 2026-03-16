@@ -16,3 +16,9 @@ site_id_ctx: ContextVar[str | None] = ContextVar("site_id", default=None)
 veupathdb_auth_token_ctx: ContextVar[str | None] = ContextVar(
     "veupathdb_auth_token", default=None
 )
+
+# Request base URL (e.g. "http://localhost:3000") for constructing full download URLs.
+# Set from the Origin or Referer header so export URLs resolve correctly for the user.
+request_base_url_ctx: ContextVar[str | None] = ContextVar(
+    "request_base_url", default=None
+)

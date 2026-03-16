@@ -70,6 +70,13 @@ const configFixture: ExperimentConfig = {
   enableCrossValidation: false,
   kFolds: 5,
   enrichmentTypes: [],
+  mode: "single",
+  optimizationBudget: 30,
+  optimizationObjective: "balanced_accuracy",
+  enableStepAnalysis: false,
+  treeOptimizationObjective: "precision_at_50",
+  treeOptimizationBudget: 50,
+  sortDirection: "ASC",
 };
 
 const experimentFixture: Experiment = {

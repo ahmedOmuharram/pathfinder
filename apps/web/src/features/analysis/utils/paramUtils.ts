@@ -22,7 +22,10 @@ export function isOptimizable(spec: ParamSpec): boolean {
 
 export function isParamRequired(spec: ParamSpec): boolean {
   if (spec.allowEmptyValue === true) return false;
-  if (spec.isReadOnly || spec.isVisible === false) return false;
+  // isReadOnly / isVisible are WDK raw fields not in the generated schema —
+  // check them defensively via runtime property access.
+  const raw = spec as Record<string, unknown>;
+  if (raw.isReadOnly || raw.isVisible === false) return false;
   if (spec.type === "input-step") return false;
   return true;
 }

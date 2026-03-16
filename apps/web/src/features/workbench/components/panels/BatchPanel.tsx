@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Layers, Play, Loader2 } from "lucide-react";
 import type { Experiment } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
+import { Label } from "@/lib/components/ui/Label";
 import { SearchableMultiSelect } from "@/lib/components/ui/SearchableMultiSelect";
 import { listOrganisms } from "@/lib/api/genes";
 import {
@@ -126,9 +127,9 @@ export function BatchPanel() {
       <div className="space-y-4">
         {/* Organism multi-select */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          <Label className="mb-1 block text-xs text-muted-foreground">
             Target Organisms
-          </label>
+          </Label>
           <SearchableMultiSelect
             options={availableOrganisms.map((org) => ({
               value: org,
@@ -143,9 +144,9 @@ export function BatchPanel() {
 
         {/* Organism param name */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          <Label className="mb-1 block text-xs text-muted-foreground">
             Organism Parameter Name
-          </label>
+          </Label>
           <ParamNameSelect
             siteId={activeSet?.siteId ?? ""}
             recordType={activeSet?.recordType ?? "gene"}

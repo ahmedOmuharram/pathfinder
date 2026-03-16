@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Bookmark, Loader2 } from "lucide-react";
 import { createControlSet } from "../api/controlSets";
 import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
 
 interface SaveControlSetFormProps {
   siteId: string;
@@ -93,20 +94,20 @@ export function SaveControlSetForm({
 
   return (
     <div className="space-y-2 rounded-md border border-border p-3 animate-hover-card-in">
-      <input
+      <Input
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Control set name"
         autoFocus
-        className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-7 bg-background px-2 text-xs"
       />
-      <input
+      <Input
         type="text"
         value={tags}
         onChange={(e) => setTags(e.target.value)}
         placeholder="Tags (comma-separated, optional)"
-        className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs text-muted-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-7 bg-background px-2 text-xs text-muted-foreground"
       />
       <textarea
         value={notes}

@@ -82,11 +82,11 @@ async def resolve_root_step_id(api: StrategyAPI, *, strategy_id: int) -> int | N
 
 
 async def fetch_gene_ids_from_step(api: StrategyAPI, *, step_id: int) -> list[str]:
-    """Fetch gene IDs from a WDK step via the standard report endpoint."""
+    """Fetch all gene IDs from a WDK step via the standard report endpoint."""
     answer = await api.get_step_answer(
         step_id,
         attributes=["primary_key"],
-        pagination={"offset": 0, "numRecords": 10_000},
+        pagination={"offset": 0, "numRecords": -1},
     )
     records = answer.get("records", [])
     if not isinstance(records, list):
@@ -240,6 +240,15 @@ class GeneSetService:
         """List gene sets for a user, optionally filtered by site."""
         return await self._store.alist_for_user(user_id, site_id=site_id)
 
+    def find_by_wdk_strategy(
+        self, user_id: UUID, wdk_strategy_id: int
+    ) -> GeneSet | None:
+        """Find an existing gene set for a WDK strategy (cache lookup)."""
+        for gs in self._store._cache.values():
+            if gs.user_id == user_id and gs.wdk_strategy_id == wdk_strategy_id:
+                return gs
+        return None
+
     async def delete(self, user_id: UUID, gene_set_id: str) -> None:
         """Delete a gene set, raising KeyError if not found or wrong owner."""
         await self.get_for_user(user_id, gene_set_id)
@@ -309,7 +318,7 @@ class GeneSetService:
 
         step_id = gs.wdk_step_id
         search_name = gs.search_name
-        record_type = gs.record_type or "gene"
+        record_type = gs.record_type or "transcript"
         enrichment_params: JSONObject | None = (
             cast(JSONObject, gs.parameters) if gs.parameters else None
         )
@@ -354,7 +363,7 @@ class GeneSetService:
             )
         api = get_strategy_api(gs.site_id)
         return StepResultsService(
-            api, step_id=gs.wdk_step_id, record_type=gs.record_type or "gene"
+            api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"
         )
 
     async def get_strategy_tree(
@@ -377,7 +386,7 @@ class GeneSetService:
             )
         api = get_strategy_api(gs.site_id)
         svc = StepResultsService(
-            api, step_id=gs.wdk_step_id, record_type=gs.record_type or "gene"
+            api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"
         )
         tree = await svc.get_strategy(gs.wdk_strategy_id)
         return gs, tree

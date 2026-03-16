@@ -7,6 +7,7 @@ from kani import ChatMessage
 from kani.engines.base import BaseEngine
 from kani.engines.openai import OpenAIEngine
 
+from veupath_chatbot.ai.engines.responses_openai import ResponsesOpenAIEngine
 from veupath_chatbot.ai.models.catalog import (
     ModelProvider,
     ReasoningEffort,
@@ -40,7 +41,7 @@ def _create_openai_engine(
         kwargs["seed"] = seed
     if max_context_size is not None:
         kwargs["max_context_size"] = max_context_size
-    return OpenAIEngine(
+    return ResponsesOpenAIEngine(
         api_key=settings.openai_api_key,
         model=model,
         **kwargs,
@@ -57,12 +58,12 @@ def _create_anthropic_engine(
     max_context_size: int | None = None,
 ) -> BaseEngine:
     settings = get_settings()
-    from kani.engines.anthropic import AnthropicEngine
+    from veupath_chatbot.ai.engines.cached_anthropic import CachedAnthropicEngine
 
     kwargs: dict[str, object] = {}
     if max_context_size is not None:
         kwargs["max_context_size"] = max_context_size
-    return AnthropicEngine(
+    return CachedAnthropicEngine(
         api_key=settings.anthropic_api_key,
         model=model,
         temperature=temperature,
@@ -203,6 +204,7 @@ def create_engine(
     seed: int | None = None,
     context_size: int | None = None,
     reasoning_budget: int | None = None,
+    site_id: str = "plasmodb",
 ) -> BaseEngine:
     """Create an LLM engine, optionally overridden per-request."""
     provider, model, resolved_temperature, top_p, hyperparams = _resolve_model_config(
@@ -249,6 +251,10 @@ def create_engine(
             hyperparams=hyperparams,
             max_context_size=max_ctx,
         )
+    if provider == "mock":
+        from veupath_chatbot.ai.engines.mock import MockEngine
+
+        return MockEngine(site_id=site_id)
     raise ValueError(f"Unknown provider: {provider!r}")
 
 
@@ -279,6 +285,7 @@ def create_agent(
         seed=seed,
         context_size=context_size,
         reasoning_budget=reasoning_budget,
+        site_id=site_id,
     )
     return PathfinderAgent(
         engine=engine,

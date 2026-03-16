@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from kani import ChatMessage, Kani
-from kani.engines.openai import OpenAIEngine
+from kani.engines.base import BaseEngine
 
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
@@ -26,7 +26,7 @@ class SubtaskAgent(AgentToolRegistryMixin, Kani):
 
     def __init__(
         self,
-        engine: OpenAIEngine,
+        engine: BaseEngine,
         site_id: str,
         session: StrategySession,
         graph_id: str,

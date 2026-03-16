@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Message } from "@pathfinder/shared";
+import { Card } from "@/lib/components/ui/Card";
 
 interface SourcesPartProps {
   messageKey: string;
@@ -22,7 +23,7 @@ export function SourcesPart({
   const expanded = Boolean(expandedSources[messageKey]);
 
   return (
-    <div className="rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
+    <Card className="rounded-md px-2 py-2 text-sm">
       <div className="mb-1 flex items-center justify-between gap-2">
         <div className="font-medium text-foreground">Sources</div>
         <div className="flex items-center gap-2">
@@ -100,6 +101,6 @@ export function SourcesPart({
           ))}
         </ol>
       )}
-    </div>
+    </Card>
   );
 }

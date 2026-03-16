@@ -80,7 +80,10 @@ async def _run_primary_searches(
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
             return results
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Phrase-quoted gene search failed", query=query, error=str(exc)
+            )
             return []
 
     (
@@ -241,7 +244,7 @@ def _build_response(
     authoritative_total = max(total_count, *wdk_totals)
 
     response: dict[str, object] = {
-        "results": paginated,
+        "records": paginated,
         "totalCount": authoritative_total,
     }
     if suggested_organisms:

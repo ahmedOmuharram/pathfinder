@@ -29,8 +29,8 @@ export interface SettingsState {
   showTokenUsage: boolean;
   /** Tool names the user has disabled. */
   disabledTools: string[];
-  /** Sync strategy deletion to WDK (advanced). */
-  syncDeleteToWdk: boolean;
+  /** When true, sidebar delete removes from WDK too (not just dismiss). */
+  deleteFromWdk: boolean;
 
   /** Cached model catalog from the API. */
   modelCatalog: ModelCatalogEntry[];
@@ -49,7 +49,7 @@ export interface SettingsState {
   setShowTokenUsage: (show: boolean) => void;
   setDisabledTools: (tools: string[]) => void;
   toggleTool: (name: string) => void;
-  setSyncDeleteToWdk: (sync: boolean) => void;
+  setDeleteFromWdk: (v: boolean) => void;
   setModelCatalog: (models: ModelCatalogEntry[], defaultModelId: string) => void;
   resetToDefaults: () => void;
 }
@@ -76,7 +76,7 @@ function persist(partial: Partial<SettingsState>) {
     showRawToolCalls,
     showTokenUsage,
     disabledTools,
-    syncDeleteToWdk,
+    deleteFromWdk,
   } = merged;
   window.localStorage.setItem(
     STORAGE_KEY,
@@ -87,7 +87,7 @@ function persist(partial: Partial<SettingsState>) {
       showRawToolCalls,
       showTokenUsage,
       disabledTools,
-      syncDeleteToWdk,
+      deleteFromWdk,
     }),
   );
 }
@@ -100,9 +100,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     (persisted.defaultReasoningEffort as ReasoningEffort) ?? "medium",
   modelOverrides: (persisted.modelOverrides as Record<string, ModelOverrides>) ?? {},
   showRawToolCalls: (persisted.showRawToolCalls as boolean) ?? false,
-  showTokenUsage: (persisted.showTokenUsage as boolean) ?? false,
+  showTokenUsage: (persisted.showTokenUsage as boolean) ?? true,
   disabledTools: (persisted.disabledTools as string[]) ?? [],
-  syncDeleteToWdk: (persisted.syncDeleteToWdk as boolean) ?? false,
+  deleteFromWdk: (persisted.deleteFromWdk as boolean) ?? false,
   modelCatalog: [],
   catalogDefault: null,
 
@@ -149,9 +149,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       persist({ disabledTools: next });
       return { disabledTools: next };
     }),
-  setSyncDeleteToWdk: (sync) => {
-    set({ syncDeleteToWdk: sync });
-    persist({ syncDeleteToWdk: sync });
+  setDeleteFromWdk: (v) => {
+    set({ deleteFromWdk: v });
+    persist({ deleteFromWdk: v });
   },
   setModelCatalog: (models, defaultModelId) =>
     set({ modelCatalog: models, catalogDefault: defaultModelId }),
@@ -161,9 +161,9 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       defaultReasoningEffort: "medium" as ReasoningEffort,
       modelOverrides: {},
       showRawToolCalls: false,
-      showTokenUsage: false,
+      showTokenUsage: true,
       disabledTools: [] as string[],
-      syncDeleteToWdk: false,
+      deleteFromWdk: false,
     };
     set(defaults);
     persist(defaults);

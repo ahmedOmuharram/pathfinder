@@ -12,7 +12,7 @@ class TestStartWorkbenchChatStream:
         from veupath_chatbot.services.workbench_chat import orchestrator
 
         mock_create_agent = MagicMock()
-        mock_resolve_model = MagicMock(return_value="openai/gpt-4o-mini")
+        mock_resolve_model = MagicMock(return_value="openai/gpt-4.1-nano")
         orchestrator.configure(
             create_workbench_agent_fn=mock_create_agent,
             resolve_model_id_fn=mock_resolve_model,

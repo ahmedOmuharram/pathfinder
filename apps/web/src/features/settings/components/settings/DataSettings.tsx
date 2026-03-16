@@ -1,13 +1,21 @@
 "use client";
 
 /**
- * DataSettings -- destructive data-clearing actions (strategies, all data).
+ * DataSettings -- destructive data-clearing actions.
+ *
+ * Four tiers:
+ * - Clear strategies (current site only)
+ * - Clear site data (strategies + gene sets + Redis for current site)
+ * - Clear ALL data (everything locally, WDK strategies dismissed to prevent re-sync)
+ * - Clear ALL data + WDK (everything locally + delete from VEuPathDB, requires "delete my data")
  */
 
 import { useState, useCallback } from "react";
+import { requestJson } from "@/lib/api/http";
 import { listStrategies, deleteStrategy } from "@/lib/api/strategies";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, AlertTriangle } from "lucide-react";
+import { Input } from "@/lib/components/ui/Input";
 
 interface DataSettingsProps {
   siteId: string;
@@ -16,6 +24,7 @@ interface DataSettingsProps {
 export function DataSettings({ siteId }: DataSettingsProps) {
   const [clearing, setClearing] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
+  const [wdkConfirmText, setWdkConfirmText] = useState("");
   const { run, error } = useAsyncAction();
 
   const clearStrategies = useCallback(async () => {
@@ -29,17 +38,45 @@ export function DataSettings({ siteId }: DataSettingsProps) {
     setConfirmAction(null);
   }, [siteId, run]);
 
-  const clearAll = useCallback(async () => {
-    setClearing("all");
+  const clearSiteData = useCallback(async () => {
+    setClearing("site");
     await run(async () => {
-      const all = await listStrategies(siteId);
-      await Promise.allSettled(all.map((s) => deleteStrategy(s.id)));
-      window.localStorage.clear();
+      await requestJson<unknown>("/api/v1/user/data", {
+        method: "DELETE",
+        query: { siteId, deleteWdk: "false" },
+      });
       window.location.reload();
     });
     setClearing(null);
     setConfirmAction(null);
   }, [siteId, run]);
+
+  const clearAllLocal = useCallback(async () => {
+    setClearing("all-local");
+    await run(async () => {
+      await requestJson<unknown>("/api/v1/user/data", {
+        method: "DELETE",
+        query: { deleteWdk: "false" },
+      });
+      window.location.reload();
+    });
+    setClearing(null);
+    setConfirmAction(null);
+  }, [run]);
+
+  const clearAllWithWdk = useCallback(async () => {
+    setClearing("all-wdk");
+    await run(async () => {
+      await requestJson<unknown>("/api/v1/user/data", {
+        method: "DELETE",
+        query: { deleteWdk: "true" },
+      });
+      window.location.reload();
+    });
+    setClearing(null);
+    setConfirmAction(null);
+    setWdkConfirmText("");
+  }, [run]);
 
   return (
     <div className="space-y-4">
@@ -50,7 +87,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
       )}
 
       <DangerAction
-        label="Clear all strategies"
+        label="Clear strategies"
         description="Delete all draft strategies for the current site."
         loading={clearing === "strategies"}
         confirmed={confirmAction === "strategies"}
@@ -60,14 +97,104 @@ export function DataSettings({ siteId }: DataSettingsProps) {
       />
 
       <DangerAction
-        label="Clear all data"
-        description="Delete all strategies and reset settings."
-        loading={clearing === "all"}
-        confirmed={confirmAction === "all"}
-        onConfirm={() => setConfirmAction("all")}
-        onExecute={clearAll}
+        label="Clear site data"
+        description={`Delete all strategies, gene sets, and chat history for ${siteId}.`}
+        loading={clearing === "site"}
+        confirmed={confirmAction === "site"}
+        onConfirm={() => setConfirmAction("site")}
+        onExecute={clearSiteData}
         onCancel={() => setConfirmAction(null)}
       />
+
+      <DangerAction
+        label="Clear ALL data"
+        description="Delete everything locally. WDK strategies are kept but hidden from sync."
+        loading={clearing === "all-local"}
+        confirmed={confirmAction === "all-local"}
+        onConfirm={() => setConfirmAction("all-local")}
+        onExecute={clearAllLocal}
+        onCancel={() => setConfirmAction(null)}
+      />
+
+      {/* Clear ALL data + WDK — requires typing "delete my data" */}
+      <div className="rounded-md border border-destructive/30 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Clear ALL data + WDK
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Delete everything locally <strong>and</strong> from VEuPathDB. This cannot
+              be undone.
+            </div>
+          </div>
+          {confirmAction === "all-wdk" ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmAction(null);
+                  setWdkConfirmText("");
+                }}
+                disabled={clearing === "all-wdk"}
+                className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={clearAllWithWdk}
+                disabled={
+                  clearing === "all-wdk" ||
+                  wdkConfirmText.trim().toLowerCase() !== "delete my data"
+                }
+                className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {clearing === "all-wdk" && <Loader2 className="h-3 w-3 animate-spin" />}
+                Confirm
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmAction("all-wdk")}
+              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/5"
+            >
+              <Trash2 className="h-3 w-3" />
+              Clear ALL + WDK
+            </button>
+          )}
+        </div>
+
+        {confirmAction === "all-wdk" && (
+          <div className="mt-3 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-destructive">
+                  This will permanently delete all strategies from VEuPathDB (WDK)
+                  across all sites.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Type{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    delete my data
+                  </span>{" "}
+                  to confirm:
+                </p>
+                <Input
+                  type="text"
+                  value={wdkConfirmText}
+                  onChange={(e) => setWdkConfirmText(e.target.value)}
+                  placeholder="delete my data"
+                  className="bg-background px-2 py-1 placeholder:text-muted-foreground/50"
+                  autoFocus
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

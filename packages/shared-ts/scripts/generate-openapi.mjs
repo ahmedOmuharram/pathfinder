@@ -5,7 +5,7 @@ import openapiTS from "openapi-typescript";
 import ts from "typescript";
 
 const repoRoot = path.resolve(new URL(".", import.meta.url).pathname, "../../../");
-const openapiPath = path.join(repoRoot, "packages", "spec", "openapi.yaml");
+const openapiPath = path.join(repoRoot, "packages", "spec", "openapi.json");
 const outPath = path.join(repoRoot, "packages", "shared-ts", "src", "openapi.generated.ts");
 
 const checkOnly = process.argv.includes("--check");
@@ -34,7 +34,7 @@ async function main() {
     `/**\n` +
     ` * AUTO-GENERATED FILE — DO NOT EDIT.\n` +
     ` *\n` +
-    ` * Source: packages/spec/openapi.yaml\n` +
+    ` * Source: packages/spec/openapi.json\n` +
     ` * Generator: packages/shared-ts/scripts/generate-openapi.mjs\n` +
     ` */\n\n`;
 

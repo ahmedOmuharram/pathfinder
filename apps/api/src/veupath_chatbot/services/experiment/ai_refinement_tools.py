@@ -41,7 +41,7 @@ class RefinementToolsMixin:
     - _get_experiment() -> Experiment | None  (async)
     """
 
-    site_id: str
+    site_id: str = ""
 
     async def _get_experiment(self) -> Experiment | None: ...
 

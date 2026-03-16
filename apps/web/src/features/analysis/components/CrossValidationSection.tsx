@@ -1,6 +1,7 @@
 import type { CrossValidationResult } from "@pathfinder/shared";
 import { Layers } from "lucide-react";
 import { Badge } from "@/lib/components/ui/Badge";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 import { pct } from "../utils/formatters";
 
@@ -32,7 +33,7 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
     <Section title="K-Fold Cross-Validation">
       <div className="space-y-4">
         {/* Header card: fold count + overfitting */}
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-3">
+        <Card className="flex items-center gap-3 px-5 py-3">
           <Layers className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm font-medium text-foreground">
             {cv.k}-fold cross-validation
@@ -46,7 +47,7 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
               ({(cv.overfittingScore * 100).toFixed(0)}%)
             </span>
           </div>
-        </div>
+        </Card>
 
         {/* Per-fold table */}
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -99,13 +100,10 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {SUMMARY_METRICS.map(({ key, label }) => {
               const mean = cv.meanMetrics[key];
-              const std = cv.stdMetrics[key] ?? null;
+              const std = cv.stdMetrics?.[key] ?? null;
               if (typeof mean !== "number") return null;
               return (
-                <div
-                  key={key}
-                  className="rounded-lg border border-border bg-card px-4 py-3 text-center"
-                >
+                <Card key={key} className="px-4 py-3 text-center">
                   <div className="text-xs text-muted-foreground">{label}</div>
                   <div className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
                     {pct(mean)}
@@ -115,7 +113,7 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
                       +/- {pct(std)}
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>

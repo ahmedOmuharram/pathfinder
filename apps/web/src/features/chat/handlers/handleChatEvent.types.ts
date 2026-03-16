@@ -7,6 +7,7 @@ import type {
   OptimizationProgressData,
   Step,
   Strategy,
+  SubKaniTokenUsage,
 } from "@pathfinder/shared";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -23,6 +24,8 @@ export type StreamSessionState = {
   turnAssistantIndex?: number | null;
   reasoning: string | null;
   optimizationProgress: OptimizationProgressData | null;
+  /** Model ID from the most recent model_selected event in this turn. */
+  currentModelId?: string | null;
 };
 
 export type ChatEventContext = {
@@ -33,6 +36,8 @@ export type ChatEventContext = {
   planningArtifactsBuffer: PlanningArtifact[];
   subKaniCallsBuffer: Record<string, ToolCall[]>;
   subKaniStatusBuffer: Record<string, string>;
+  subKaniModelsBuffer: Record<string, string>;
+  subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage>;
   thinking: Thinking;
 
   // Strategy/session actions

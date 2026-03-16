@@ -620,7 +620,7 @@ class TestStepResponse:
             recordType="gene",
             parameters={"org": "Pf"},
             operator="INTERSECT",
-            colocationParams={"upstream": 100},
+            colocationParams={"upstream": 100, "downstream": 50},
             primaryInputStepId="s1",
             secondaryInputStepId="s0",
             resultCount=42,

@@ -29,10 +29,14 @@ describe("GeneAutocomplete", () => {
           displayName: "PF3D7_0100100",
           organism: "Plasmodium falciparum 3D7",
           product: "erythrocyte membrane protein 1, PfEMP1",
+          geneName: "",
+          geneType: "",
+          location: "",
           matchedFields: ["geneId"],
         },
       ],
       totalCount: 1,
+      suggestedOrganisms: [],
     });
 
     render(<GeneAutocomplete siteId="PlasmoDB" onSelect={() => {}} />);
@@ -54,10 +58,14 @@ describe("GeneAutocomplete", () => {
           displayName: "PF3D7_0100100",
           organism: "Plasmodium falciparum 3D7",
           product: "erythrocyte membrane protein 1",
+          geneName: "",
+          geneType: "",
+          location: "",
           matchedFields: ["geneId"],
         },
       ],
       totalCount: 1,
+      suggestedOrganisms: [],
     });
     const onSelect = vi.fn();
 
@@ -81,10 +89,14 @@ describe("GeneAutocomplete", () => {
           displayName: "PF3D7_0100100",
           organism: "Plasmodium falciparum 3D7",
           product: "test",
+          geneName: "",
+          geneType: "",
+          location: "",
           matchedFields: ["geneId"],
         },
       ],
       totalCount: 1,
+      suggestedOrganisms: [],
     });
 
     render(<GeneAutocomplete siteId="PlasmoDB" onSelect={() => {}} />);

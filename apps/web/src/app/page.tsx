@@ -13,7 +13,6 @@ import { LoginModal } from "@/app/components/LoginModal";
 import { TopBar } from "@/app/components/TopBar";
 import { TopBarActions } from "@/app/components/TopBarActions";
 import { GraphEditorModal } from "@/app/components/GraphEditorModal";
-import { SiteChangeConfirmModal } from "@/app/components/SiteChangeConfirmModal";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { ApiErrorScreen } from "@/app/components/ApiErrorScreen";
 import { useToasts } from "@/app/hooks/useToasts";
@@ -67,21 +66,10 @@ export default function HomePage() {
   const handleSiteChange = useCallback(
     (nextSite: string) => {
       if (nextSite === selectedSite) return;
-      if (strategy && strategy.steps.length > 0) {
-        modals.setPendingSiteChange(nextSite);
-        return;
-      }
       setSelectedSite(nextSite);
     },
-    [selectedSite, strategy, setSelectedSite, modals],
+    [selectedSite, setSelectedSite],
   );
-
-  const confirmSiteChange = useCallback(() => {
-    if (modals.pendingSiteChange) {
-      setSelectedSite(modals.pendingSiteChange);
-      modals.clearPendingSiteChange();
-    }
-  }, [modals, setSelectedSite]);
 
   // --- Workbench gene set export ---
   const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
@@ -91,8 +79,7 @@ export default function HomePage() {
     addGeneSet,
   });
 
-  const chatIsStreaming = useSessionStore((state) => state.chatIsStreaming);
-  const { displayStrategy, hasGraph } = useStableGraph(strategy, chatIsStreaming);
+  const { displayStrategy, hasGraph } = useStableGraph(strategy);
 
   const planResult = buildPlan();
   const canBuild = !!planResult;
@@ -172,12 +159,6 @@ export default function HomePage() {
           />
         </div>
       </div>
-
-      <SiteChangeConfirmModal
-        open={!!modals.pendingSiteChange}
-        onClose={modals.clearPendingSiteChange}
-        onConfirm={confirmSiteChange}
-      />
 
       <SettingsPage
         open={modals.showSettings}

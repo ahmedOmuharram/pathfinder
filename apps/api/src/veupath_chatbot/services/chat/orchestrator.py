@@ -27,6 +27,7 @@ from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
 from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
+from veupath_chatbot.transport.http.schemas.sse import ModelSelectedEventData
 
 logger = get_logger(__name__)
 
@@ -39,14 +40,12 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 _create_agent: Callable[..., PathfinderAgent] | None = None
 _resolve_effective_model_id: Callable[..., str] | None = None
-_mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None
 
 
 def configure(
     *,
     create_agent_fn: Callable[..., PathfinderAgent],
     resolve_model_id_fn: Callable[..., str],
-    mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None,
 ) -> None:
     """Wire AI-layer implementations into the orchestrator.
 
@@ -58,15 +57,10 @@ def configure(
         Factory that builds a Kani agent for a chat turn.
     resolve_model_id_fn:
         Resolves the effective model ID from overrides and persisted state.
-    mock_stream_fn:
-        Optional mock stream provider for deterministic E2E testing.
-        When provided, the orchestrator uses this instead of the real
-        agent for every chat turn.
     """
-    global _create_agent, _resolve_effective_model_id, _mock_stream_fn
+    global _create_agent, _resolve_effective_model_id
     _create_agent = create_agent_fn
     _resolve_effective_model_id = resolve_model_id_fn
-    _mock_stream_fn = mock_stream_fn
 
 
 async def _ensure_stream(
@@ -254,6 +248,7 @@ async def _build_agent_context(
         "steps": projection.steps,
         "rootStepId": projection.root_step_id,
         "recordType": projection.record_type,
+        "wdkStrategyId": projection.wdk_strategy_id,
     }
 
     # Resolve the effective model.
@@ -312,8 +307,13 @@ async def _run_stream_loop(
 
             site = get_site(site_id)
             wdk_url = site.strategy_url(projection.wdk_strategy_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to build WDK URL",
+                site_id=site_id,
+                wdk_strategy_id=projection.wdk_strategy_id,
+                error=str(exc),
+            )
 
     strategy_payload: JSONObject = {
         "id": stream_id_str,
@@ -473,23 +473,16 @@ async def _chat_producer(
             for tool_name in disabled_tools:
                 agent.functions.pop(tool_name, None)
 
-        if effective_model != projection.model_id:
-            await emit(
-                redis,
-                stream_id_str,
-                operation_id,
-                "model_selected",
-                {"modelId": effective_model},
-                session=session,
-            )
-
-        stream_iter = (
-            _mock_stream_fn(
-                message=model_message, strategy_id=stream_id_str, site_id=site_id
-            )
-            if _mock_stream_fn is not None
-            else stream_chat(agent, model_message)
+        await emit(
+            redis,
+            stream_id_str,
+            operation_id,
+            "model_selected",
+            ModelSelectedEventData(modelId=effective_model).model_dump(by_alias=True),
+            session=session,
         )
+
+        stream_iter = stream_chat(agent, model_message, model_id=effective_model)
 
         try:
             await _run_stream_loop(
@@ -520,6 +513,8 @@ async def _chat_producer(
                 operation_id=operation_id,
                 stream_repo=bg_stream_repo,
             )
+            await session.commit()
+            return
 
         await session.commit()
 

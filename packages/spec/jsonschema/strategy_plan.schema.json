@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pathfinder.veupathdb.org/schemas/strategy_plan.json",
+  "$id": "strategy_plan.json",
   "title": "StrategyPlan",
   "description": "Internal DSL for representing VEuPathDB search strategies as an AST",
   "type": "object",

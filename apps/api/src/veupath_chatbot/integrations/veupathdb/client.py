@@ -1,5 +1,6 @@
 """HTTP client for VEuPathDB WDK REST API with retries and cookies."""
 
+import asyncio
 import json
 from collections.abc import Mapping, Sequence
 from typing import cast
@@ -100,24 +101,30 @@ class VEuPathDBClient:
         self.max_connections = int(max_connections)
         self.max_keepalive_connections = int(max_keepalive_connections)
         self._client: httpx.AsyncClient | None = None
+        self._client_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self.base_url,
-                timeout=httpx.Timeout(self.timeout),
-                follow_redirects=True,
-                limits=httpx.Limits(
-                    max_connections=max(1, self.max_connections),
-                    max_keepalive_connections=max(0, self.max_keepalive_connections),
-                ),
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-            )
-        return self._client
+        if self._client is not None and not self._client.is_closed:
+            return self._client
+        async with self._client_lock:
+            if self._client is None or self._client.is_closed:
+                self._client = httpx.AsyncClient(
+                    base_url=self.base_url,
+                    timeout=httpx.Timeout(self.timeout),
+                    follow_redirects=True,
+                    limits=httpx.Limits(
+                        max_connections=max(1, self.max_connections),
+                        max_keepalive_connections=max(
+                            0, self.max_keepalive_connections
+                        ),
+                    ),
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    },
+                )
+            return self._client
 
     async def close(self) -> None:
         """Close HTTP client."""
@@ -181,7 +188,8 @@ class VEuPathDBClient:
             return cast(JSONValue, result)
         except httpx.HTTPStatusError as e:
             allow = e.response.headers.get("allow") or e.response.headers.get("Allow")
-            logger.error(
+            log_fn = logger.warning if e.response.status_code >= 500 else logger.error
+            log_fn(
                 "VEuPathDB HTTP error",
                 method=method,
                 status_code=e.response.status_code,
@@ -224,7 +232,8 @@ class VEuPathDBClient:
             status = 502
             if isinstance(last, httpx.HTTPStatusError):
                 status = last.response.status_code
-            logger.error(
+            log_fn = logger.warning if status >= 500 else logger.error
+            log_fn(
                 "VEuPathDB request failed after retries",
                 method=method,
                 path=path,

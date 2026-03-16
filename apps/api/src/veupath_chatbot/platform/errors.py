@@ -154,7 +154,7 @@ class WDKError(AppError):
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Handle AppError exceptions."""
     problem = ProblemDetail(
-        type=f"https://pathfinder.veupathdb.org/errors/{exc.code.value}",
+        type=f"/errors/{exc.code.value}",
         title=exc.title,
         status=exc.status,
         detail=exc.detail,
@@ -182,7 +182,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         code = ErrorCode.RATE_LIMITED
 
     problem = ProblemDetail(
-        type=f"https://pathfinder.veupathdb.org/errors/{code.value}",
+        type=f"/errors/{code.value}",
         title=str(exc.detail),
         status=exc.status_code,
         instance=str(request.url),

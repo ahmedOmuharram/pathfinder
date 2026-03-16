@@ -18,7 +18,7 @@ from veupath_chatbot.services.gene_lookup import (
 class GeneToolsMixin:
     """Kani tool mixin for gene record lookup."""
 
-    site_id: str
+    site_id: str = ""
 
     @ai_function()
     async def lookup_gene_records(
@@ -33,12 +33,12 @@ class GeneToolsMixin:
                 )
             ),
         ],
-        record_type: Annotated[
+        organism: Annotated[
             str | None,
             AIParam(
                 desc=(
-                    "Document type filter for site-search (default 'gene'). "
-                    "Use 'gene' for most lookups."
+                    "Organism filter (e.g. 'Plasmodium falciparum 3D7'). "
+                    "Omit to search across all organisms on the site."
                 )
             ),
         ] = None,
@@ -53,7 +53,7 @@ class GeneToolsMixin:
         return await lookup_genes_by_text(
             self.site_id,
             query,
-            organism=record_type,
+            organism=organism,
             limit=max(1, min(limit, 50)),
         )
 

@@ -3,6 +3,15 @@
 Single entry point for running enrichment analyses regardless of
 whether the caller is an experiment endpoint, gene set endpoint,
 or AI tool.
+
+Rate limiting
+-------------
+WDK enrichment APIs are rate-sensitive — concurrent analysis requests
+cause 500 errors or extreme latency.  A process-level semaphore
+(``_WDK_ENRICHMENT_SEMAPHORE``) limits how many enrichment analyses
+can run in parallel across the entire application.  Within a single
+``run_batch`` call, analyses are executed sequentially (one at a time)
+to avoid overloading a single WDK site.
 """
 
 import asyncio
@@ -24,6 +33,12 @@ from veupath_chatbot.services.experiment.types import (
 )
 
 logger = get_logger(__name__)
+
+# Limit concurrent enrichment batches process-wide.
+# WDK's step analysis API becomes unreliable under parallel load.
+# This limits how many run_batch calls execute simultaneously, not
+# individual analyses within a batch.
+_WDK_ENRICHMENT_SEMAPHORE = asyncio.Semaphore(3)
 
 
 class EnrichmentService:
@@ -53,7 +68,7 @@ class EnrichmentService:
         if search_name and parameters is not None:
             return await run_enrichment_analysis(
                 site_id=site_id,
-                record_type=record_type or "gene",
+                record_type=record_type or "transcript",
                 search_name=search_name,
                 parameters=parameters,
                 analysis_type=analysis_type,
@@ -81,12 +96,13 @@ class EnrichmentService:
 
         # If we already have a step, run all analyses on it directly.
         if step_id is not None:
-            return await self._run_analyses_on_step(
-                site_id,
-                step_id,
-                analysis_types,
-                errors,
-            )
+            async with _WDK_ENRICHMENT_SEMAPHORE:
+                return await self._run_analyses_on_step(
+                    site_id,
+                    step_id,
+                    analysis_types,
+                    errors,
+                )
 
         # No step — need search_name + parameters to create one.
         if not search_name or parameters is None:
@@ -95,7 +111,7 @@ class EnrichmentService:
         # Create ONE temp step/strategy, run all analyses, then clean up.
         api = get_strategy_api(site_id)
         step = await api.create_step(
-            record_type=record_type or "gene",
+            record_type=record_type or "transcript",
             search_name=search_name,
             parameters=parameters or {},
             custom_name="Enrichment target",
@@ -104,23 +120,24 @@ class EnrichmentService:
         root = StepTreeNode(shared_step_id)
         strategy_id: int | None = None
 
-        try:
-            created = await api.create_strategy(
-                step_tree=root,
-                name="Pathfinder enrichment analysis",
-                description=None,
-                is_internal=True,
-            )
-            strategy_id = extract_wdk_id(created)
+        async with _WDK_ENRICHMENT_SEMAPHORE:
+            try:
+                created = await api.create_strategy(
+                    step_tree=root,
+                    name="Pathfinder enrichment analysis",
+                    description=None,
+                    is_internal=True,
+                )
+                strategy_id = extract_wdk_id(created)
 
-            return await self._run_analyses_on_step(
-                site_id,
-                shared_step_id,
-                analysis_types,
-                errors,
-            )
-        finally:
-            await delete_temp_strategy(api, strategy_id)
+                return await self._run_analyses_on_step(
+                    site_id,
+                    shared_step_id,
+                    analysis_types,
+                    errors,
+                )
+            finally:
+                await delete_temp_strategy(api, strategy_id)
 
     async def _run_analyses_on_step(
         self,
@@ -129,12 +146,20 @@ class EnrichmentService:
         analysis_types: list[EnrichmentAnalysisType],
         errors: list[str],
     ) -> tuple[list[EnrichmentResult], list[str]]:
-        """Run multiple analysis types on a single step concurrently."""
-        api = get_strategy_api(site_id)
+        """Run multiple analysis types on a single step sequentially.
 
-        async def _run_one(analysis_type: EnrichmentAnalysisType) -> EnrichmentResult:
+        Analyses are run one at a time to avoid overloading WDK's step
+        analysis API.  A process-level semaphore further limits how many
+        ``run_batch`` calls can execute analyses concurrently across
+        different requests (e.g. parallel E2E test workers).
+        """
+        api = get_strategy_api(site_id)
+        results: list[EnrichmentResult] = []
+
+        for analysis_type in analysis_types:
             try:
-                return await _execute_analysis(api, step_id, analysis_type)
+                result = await _execute_analysis(api, step_id, analysis_type)
+                results.append(result)
             except Exception as exc:
                 logger.warning(
                     "Enrichment failed",
@@ -143,13 +168,14 @@ class EnrichmentService:
                 )
                 error_msg = str(exc)
                 errors.append(f"{analysis_type}: {error_msg}")
-                return EnrichmentResult(
-                    analysis_type=analysis_type,
-                    terms=[],
-                    total_genes_analyzed=0,
-                    background_size=0,
-                    error=error_msg,
+                results.append(
+                    EnrichmentResult(
+                        analysis_type=analysis_type,
+                        terms=[],
+                        total_genes_analyzed=0,
+                        background_size=0,
+                        error=error_msg,
+                    )
                 )
 
-        results = list(await asyncio.gather(*[_run_one(at) for at in analysis_types]))
         return results, errors

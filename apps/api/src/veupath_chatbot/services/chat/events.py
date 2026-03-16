@@ -112,6 +112,13 @@ def _extract_step_update(
 def _extract_graph_snapshot(
     result: JSONObject, *, get_graph: GetGraphFn = None
 ) -> JSONObject | None:
+    # Skip extraction when auto-build succeeded — the auto-build hook
+    # already emitted a graph_snapshot event with WDK step IDs directly
+    # to the event queue. Extracting the tool result's pre-build snapshot
+    # here would overwrite it with stale data (isBuilt=false, no wdkStepId).
+    auto_build = result.get("autoBuild")
+    if isinstance(auto_build, dict) and auto_build.get("ok") is True:
+        return None
     snapshot = result.get("graphSnapshot")
     if not snapshot:
         return None

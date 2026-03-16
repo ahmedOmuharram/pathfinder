@@ -40,9 +40,7 @@ class TestGetDownloadUrlConstructsUrl:
 
         url = await api.get_download_url(step_id=42, format="csv")
 
-        assert (
-            url == "https://plasmodb.org/plasmo/service/temporary-results/abc123/result"
-        )
+        assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
 
     async def test_no_polling_needed(self) -> None:
         """GET is never called -- the URL is constructed, not polled for."""
@@ -59,7 +57,7 @@ class TestGetDownloadUrlConstructsUrl:
 
         url = await api.get_download_url(step_id=10, format="tab")
 
-        assert url == "https://toxodb.org/toxo/service/temporary-results/tmp-xyz/result"
+        assert url == "https://toxodb.org/toxo/service/temporary-results/tmp-xyz"
 
     async def test_base_url_trailing_slash_stripped(self) -> None:
         api, client = _make_api(base_url="https://example.org/service/")
@@ -69,7 +67,7 @@ class TestGetDownloadUrlConstructsUrl:
 
         # VEuPathDBClient already strips trailing slash, but be safe
         assert "/service//temporary" not in url
-        assert "temporary-results/r1/result" in url
+        assert "temporary-results/r1" in url
 
     async def test_raises_when_no_id_in_response(self) -> None:
         api, client = _make_api()

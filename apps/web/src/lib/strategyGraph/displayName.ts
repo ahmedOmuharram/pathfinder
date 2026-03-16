@@ -9,11 +9,11 @@ export const normalizeName = (value: string | null | undefined) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
 export interface DisplayNameStep {
-  kind?: StepKind | string;
-  searchName?: string;
-  operator?: string;
-  primaryInputStepId?: string;
-  secondaryInputStepId?: string;
+  kind?: StepKind | string | null;
+  searchName?: string | null;
+  operator?: string | null;
+  primaryInputStepId?: string | null;
+  secondaryInputStepId?: string | null;
 }
 
 export function isFallbackDisplayName(

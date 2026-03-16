@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { Play, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
+import { Card } from "@/lib/components/ui/Card";
+import { Input } from "@/lib/components/ui/Input";
 import { runCustomEnrichment, type CustomEnrichmentResult } from "@/lib/api/analysis";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
 
@@ -40,12 +42,12 @@ export function CustomEnrichmentSection({
       </p>
 
       <div className="space-y-3">
-        <input
+        <Input
           type="text"
           value={geneSetName}
           onChange={(e) => setGeneSetName(e.target.value)}
           placeholder="Gene set name (e.g. ISG response genes)"
-          className="h-8 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 bg-background text-xs"
         />
         <textarea
           value={geneIdsText}
@@ -70,7 +72,7 @@ export function CustomEnrichmentSection({
       {results.length > 0 && (
         <div className="space-y-2">
           {results.map((r, i) => (
-            <div key={i} className="rounded-lg border border-border bg-card p-3">
+            <Card key={i} className="p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-foreground">
                   {r.geneSetName}
@@ -96,7 +98,7 @@ export function CustomEnrichmentSection({
                   {r.overlapGenes.length > 20 && ` +${r.overlapGenes.length - 20} more`}
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

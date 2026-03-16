@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+
 __pycache__/
 *.py[cod]
 *$py.class
@@ -91,3 +92,7 @@ packages/shared-py/dist/
 # WDK - Repository cloned for local development
 WDK-master/
 wdk-client/
+
+# Thesis files; temporarily ignored
+thesis/
+docs/

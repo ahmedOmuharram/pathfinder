@@ -89,7 +89,7 @@ class TestCreateGeneSet:
         gs_id = result["geneSetCreated"]["id"]
         gs = store.get(gs_id)
         assert gs is not None
-        assert gs.record_type == "gene"
+        assert gs.record_type == "transcript"
 
     async def test_site_id_propagated_to_gene_set(self) -> None:
         tools = _TestableTools(site_id="toxodb")

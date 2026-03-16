@@ -163,11 +163,34 @@ async def resolve_gene_ids(
     param_name: str = "ds_gene_ids",
     attributes: list[str] | None = None,
 ) -> JSONObject:
-    """Resolve a list of gene IDs to full records via the WDK standard reporter."""
+    """Resolve a list of gene IDs to full records via the WDK standard reporter.
+
+    Uses a dedicated short-lived WDK client to guarantee session affinity
+    between dataset creation and the subsequent search. The shared singleton
+    client's cookie jar is modified by concurrent requests, which can cause
+    the dataset to "not belong" to the search session (WDK tracks anonymous
+    users via session cookies).
+    """
     if not gene_ids:
         return {"records": [], "totalCount": 0}
 
-    client = get_wdk_client(site_id)
+    from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+    from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+    from veupath_chatbot.platform.config import get_settings
+
+    router = get_site_router()
+    site = router.get_site(site_id)
+    settings = get_settings()
+    routing = router._config.routing
+    timeout = float(
+        routing.portal_timeout if site.is_portal else routing.component_timeout
+    )
+
+    client = VEuPathDBClient(
+        base_url=site.service_url,
+        timeout=timeout,
+        auth_token=settings.veupathdb_auth_token,
+    )
     attrs = attributes or DEFAULT_GENE_ATTRIBUTES
 
     try:
@@ -219,6 +242,8 @@ async def resolve_gene_ids(
             "totalCount": 0,
             "error": f"WDK lookup failed: {exc}",
         }
+    finally:
+        await client.close()
 
     if not isinstance(answer, dict):
         return {"records": [], "totalCount": 0}

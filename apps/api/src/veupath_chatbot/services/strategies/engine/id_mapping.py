@@ -6,9 +6,12 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     get_discovery_service,
 )
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_search_matches
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.wdk.record_types import resolve_record_type
 
 from .base import StrategyToolsBase
+
+logger = get_logger(__name__)
 
 
 class IdMappingMixin(StrategyToolsBase):
@@ -66,7 +69,12 @@ class IdMappingMixin(StrategyToolsBase):
     ) -> str | None:
         try:
             catalog = await self._get_catalog()
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch search catalog for record type hint",
+                search_name=search_name,
+                error=str(exc),
+            )
             return None
 
         found = catalog.find_record_type_for_search(search_name)

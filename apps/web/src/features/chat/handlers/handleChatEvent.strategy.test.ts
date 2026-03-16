@@ -13,6 +13,7 @@ describe("handleChatEvent — strategy events", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };
@@ -88,6 +89,7 @@ describe("handleChatEvent — strategy events", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };
@@ -205,6 +207,7 @@ describe("handleChatEvent — strategy events", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };

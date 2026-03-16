@@ -54,6 +54,8 @@ _EFFORT_MAPS: dict[ModelProvider, dict[ReasoningEffort, dict[str, object]]] = {
     "google": _GOOGLE_EFFORT_MAP,
     # Ollama models generally don't support reasoning effort params.
     "ollama": {"none": {}, "low": {}, "medium": {}, "high": {}},
+    # Mock engine ignores reasoning effort.
+    "mock": {"none": {}, "low": {}, "medium": {}, "high": {}},
 }
 
 
@@ -90,64 +92,164 @@ class ModelEntry:
     name: str  # human-readable display name
     provider: ModelProvider
     model: str  # provider-native model ID (e.g. "gpt-5")
+    description: str = ""
     supports_reasoning: bool = False
     context_size: int = 0  # known context window; 0 = use engine default
     default_reasoning_budget: int = (
         0  # default reasoning token budget at "medium" effort
     )
+    input_price: float = 0.0  # USD per 1M input tokens
+    cached_input_price: float = 0.0  # USD per 1M cached input tokens
+    output_price: float = 0.0  # USD per 1M output tokens
 
 
 # Cloud models — always present.
 _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     # OpenAI
     ModelEntry(
-        id="openai/gpt-4o",
-        name="GPT-4o",
+        id="openai/gpt-4.1",
+        name="GPT-4.1",
         provider="openai",
-        model="gpt-4o",
-        context_size=128_000,
+        model="gpt-4.1",
+        description="Default workhorse — 1M context",
+        context_size=1_047_576,
+        input_price=2.00,
+        cached_input_price=0.50,
+        output_price=8.00,
     ),
     ModelEntry(
-        id="openai/gpt-4o-mini",
-        name="GPT-4o Mini",
+        id="openai/gpt-4.1-mini",
+        name="GPT-4.1 Mini",
         provider="openai",
-        model="gpt-4o-mini",
-        context_size=128_000,
+        model="gpt-4.1-mini",
+        description="Fast and cheap with full context",
+        context_size=1_047_576,
+        input_price=0.20,
+        cached_input_price=0.10,
+        output_price=0.80,
+    ),
+    ModelEntry(
+        id="openai/gpt-4.1-nano",
+        name="GPT-4.1 Nano",
+        provider="openai",
+        model="gpt-4.1-nano",
+        description="Ultra-cheap for simple tasks",
+        context_size=1_047_576,
+        input_price=0.05,
+        cached_input_price=0.025,
+        output_price=0.20,
     ),
     ModelEntry(
         id="openai/gpt-5",
         name="GPT-5",
         provider="openai",
         model="gpt-5",
+        description="Smartest OpenAI model",
         supports_reasoning=True,
         context_size=400_000,
+        input_price=1.25,
+        cached_input_price=0.125,
+        output_price=10.00,
+    ),
+    ModelEntry(
+        id="openai/gpt-5-mini",
+        name="GPT-5 Mini",
+        provider="openai",
+        model="gpt-5-mini",
+        description="Smart and budget-friendly",
+        supports_reasoning=True,
+        context_size=400_000,
+        input_price=0.125,
+        cached_input_price=0.025,
+        output_price=1.00,
+    ),
+    ModelEntry(
+        id="openai/gpt-5-nano",
+        name="GPT-5 Nano",
+        provider="openai",
+        model="gpt-5-nano",
+        description="Ultra-cheap, smaller context",
+        supports_reasoning=True,
+        context_size=400_000,
+        input_price=0.05,
+        cached_input_price=0.005,
+        output_price=0.40,
+    ),
+    ModelEntry(
+        id="openai/gpt-5.4",
+        name="GPT-5.4",
+        provider="openai",
+        model="gpt-5.4",
+        description="Latest flagship — 1.1M context",
+        supports_reasoning=True,
+        context_size=1_100_000,
+        input_price=2.50,
+        cached_input_price=0.25,
+        output_price=15.00,
     ),
     ModelEntry(
         id="openai/o3",
         name="o3",
         provider="openai",
         model="o3",
+        description="Reasoning-focused",
         supports_reasoning=True,
         context_size=200_000,
+        input_price=2.00,
+        cached_input_price=0.50,
+        output_price=8.00,
+    ),
+    ModelEntry(
+        id="openai/o4-mini",
+        name="o4 Mini",
+        provider="openai",
+        model="o4-mini",
+        description="Cheap reasoning",
+        supports_reasoning=True,
+        context_size=200_000,
+        input_price=1.10,
+        cached_input_price=0.275,
+        output_price=4.40,
     ),
     # Anthropic
     ModelEntry(
-        id="anthropic/claude-sonnet-4-0",
-        name="Claude Sonnet 4",
+        id="anthropic/claude-opus-4-6",
+        name="Claude Opus 4.6",
         provider="anthropic",
-        model="claude-sonnet-4-0",
+        model="claude-opus-4-6",
+        description="Most capable Anthropic model",
         supports_reasoning=True,
-        context_size=200_000,
+        context_size=1_000_000,
         default_reasoning_budget=8192,
+        input_price=5.00,
+        cached_input_price=0.50,
+        output_price=25.00,
     ),
     ModelEntry(
-        id="anthropic/claude-opus-4",
-        name="Claude Opus 4",
+        id="anthropic/claude-sonnet-4-6",
+        name="Claude Sonnet 4.6",
         provider="anthropic",
-        model="claude-opus-4-0",
+        model="claude-sonnet-4-6",
+        description="Balanced speed and intelligence",
+        supports_reasoning=True,
+        context_size=1_000_000,
+        default_reasoning_budget=8192,
+        input_price=3.00,
+        cached_input_price=0.30,
+        output_price=15.00,
+    ),
+    ModelEntry(
+        id="anthropic/claude-haiku-4-5",
+        name="Claude Haiku 4.5",
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        description="Fastest Anthropic model",
         supports_reasoning=True,
         context_size=200_000,
         default_reasoning_budget=8192,
+        input_price=1.00,
+        cached_input_price=0.10,
+        output_price=5.00,
     ),
     # Google
     ModelEntry(
@@ -155,18 +257,35 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         name="Gemini 2.5 Pro",
         provider="google",
         model="gemini-2.5-pro",
+        description="Best Google — deep reasoning",
         supports_reasoning=True,
         context_size=1_048_576,
         default_reasoning_budget=8192,
+        input_price=1.25,
+        cached_input_price=0.125,
+        output_price=10.00,
     ),
     ModelEntry(
-        id="google/gemini-2.5-flash",
-        name="Gemini 2.5 Flash",
+        id="google/gemini-3.1-pro",
+        name="Gemini 3.1 Pro",
         provider="google",
-        model="gemini-2.5-flash",
+        model="gemini-3.1-pro-preview",
+        description="Latest Google flagship",
         supports_reasoning=True,
-        context_size=1_048_576,
+        context_size=1_000_000,
         default_reasoning_budget=8192,
+        input_price=2.00,
+        cached_input_price=0.20,
+        output_price=12.00,
+    ),
+    # Mock (deterministic E2E testing)
+    ModelEntry(
+        id="mock/deterministic",
+        name="Mock (deterministic)",
+        provider="mock",
+        model="deterministic",
+        description="Deterministic mock for E2E testing — no LLM calls",
+        context_size=128_000,
     ),
 )
 
@@ -223,10 +342,6 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
 def get_model_catalog() -> tuple[ModelEntry, ...]:
     """Return the full model catalog (cloud + local)."""
     return _CLOUD_MODELS + _load_ollama_models()
-
-
-# Backwards-compat alias.
-MODEL_CATALOG = _CLOUD_MODELS
 
 
 def _build_index() -> dict[str, ModelEntry]:

@@ -8,6 +8,7 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
 import { SignInForm } from "@/features/sites/components/SignInForm";
 import type { HeaderTextVariant } from "@/features/sites/siteBanners";
+import { Label } from "@/lib/components/ui/Label";
 import { cn } from "@/lib/utils/cn";
 
 interface SitePickerProps {
@@ -218,16 +219,16 @@ export function SitePicker({
     >
       {showSelect && (
         <>
-          <label
+          <Label
             className={cn(
-              "text-xs font-medium uppercase tracking-wide",
+              "text-xs uppercase tracking-wide",
               headerTextVariant === "light"
                 ? "text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
                 : "text-muted-foreground",
             )}
           >
             Database:
-          </label>
+          </Label>
           <div
             className={
               layout === "stacked" ? "relative w-full overflow-hidden" : "relative"

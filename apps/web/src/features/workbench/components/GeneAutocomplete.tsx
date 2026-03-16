@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import type { GeneSearchResult } from "@pathfinder/shared";
 import { searchGenes } from "@/lib/api/genes";
+import { Input } from "@/lib/components/ui/Input";
 
 interface GeneAutocompleteProps {
   siteId: string;
@@ -83,13 +84,13 @@ export function GeneAutocomplete({
     <div ref={dropdownRef} className="relative">
       <div className="relative">
         <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <Input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="h-7 w-full rounded-md border border-input bg-background pl-7 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-7 bg-background pl-7 pr-7 text-xs"
         />
         {loading && (
           <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted-foreground" />

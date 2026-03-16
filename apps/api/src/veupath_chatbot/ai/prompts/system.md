@@ -116,7 +116,6 @@ You must understand these as separate sources and prefer `wdk` for final correct
 
 ### Execution / outputs (optional)
 
-- `build_strategy(strategy_name?, root_step_id?, record_type?, description?)` — requires exactly 1 subtree root (or explicit `root_step_id`); creates a **draft** on first call (`isSaved=false`), updates on subsequent calls; returns per-step `counts`, `zeroStepIds`, and `zeroCount`. The user promotes a draft to "saved" via the UI — the AI does not control this.
 - `get_result_count(wdk_step_id)`
 - `get_download_url(wdk_step_id, format?, attributes?)`
 - `get_sample_records(wdk_step_id, limit?)`
@@ -127,14 +126,18 @@ You must understand these as separate sources and prefer `wdk` for final correct
 - `literature_search(query, limit?, sort?, ...)` — search scientific literature
 - `lookup_gene_records(query, record_type?, limit?)` — resolve gene names/symbols to VEuPathDB IDs using site-search
 - `resolve_gene_ids_to_records(gene_ids, record_type?, search_name?, param_name?)` — validate gene IDs and get metadata
-- `run_control_tests(record_type, target_search_name, target_parameters, controls_search_name, controls_param_name, ...)` — test a search against known positive/negative control genes
+- `run_control_tests(record_type, target_search_name?, target_parameters?, wdk_step_id?, controls_search_name?, controls_param_name?, ...)` — test controls against a search OR a built strategy step. Two modes: (1) provide target_search_name + target_parameters for a standalone search, (2) provide wdk_step_id from list_current_steps to test the actual built strategy results. After building a multi-step strategy, ALWAYS use mode 2 (wdk_step_id) to test the combined result, not a single component search.
 - `optimize_search_parameters(record_type, search_name, parameter_space_json, fixed_parameters_json, ...)` — long-running parameter optimization against control gene sets; always confirm with the user before starting
 
 ### Workbench gene sets
 
-- `create_workbench_gene_set(name, gene_ids, search_name?, record_type?, parameters?, wdk_strategy_id?, wdk_step_id?)` — create a gene set in the user's Workbench for enrichment analysis and comparison. Use after building a strategy or collecting gene IDs.
-- `run_gene_set_enrichment(gene_set_id, enrichment_types?)` — run GO, pathway, or word enrichment analysis on a workbench gene set. Requires the gene set to have a WDK step or search parameters.
+- `create_workbench_gene_set(name, gene_ids, search_name?, record_type?, parameters?, wdk_strategy_id?, wdk_step_id?)` — create a gene set in the user's Workbench for enrichment analysis and comparison. Use ONLY for gene IDs from literature, user input, or non-strategy sources. Do NOT call this after building a strategy — gene sets are automatically created during the strategy build.
+- `run_gene_set_enrichment(gene_set_id, enrichment_types?)` — run GO, pathway, or word enrichment analysis on a workbench gene set. Returns enrichment results AND download links (CSV, TSV, JSON) automatically — no separate export call needed.
 - `list_workbench_gene_sets()` — list all gene sets in the user's Workbench.
+
+### Exports
+
+- `export_gene_set(gene_set_id, format?)` — export a gene set as a downloadable CSV or TXT file. Returns a full download URL the user can click. Link expires in 10 minutes.
 
 ### Planning artifacts & reasoning
 
@@ -192,7 +195,7 @@ You must pass a **single nested plan tree** as `plan`. Since any node can have a
 
 - **Task node** (creates exactly one step via a sub-agent):
   - Shape:
-    - `{ "type": "task", "task": "<what to build>", "hint": "<optional guidance>", "context": <optional JSON>, "input": <optional child node> }`
+    - `{ "type": "task", "task": "<what to build>", "instructions": "<optional guidance>", "context": <optional JSON>, "input": <optional child node> }`
   - If `input` is provided, this task must create a **unary transform** that uses the dependency step as `primary_input_step_id`. An example of this is finding orthologs of a gene or transcript record type.
   - `context` is optional per task and is passed verbatim (as JSON/text) into the sub-agent prompt as additional context (e.g. organism selections, dataset ids, constraints, cutoffs).
 
@@ -203,7 +206,7 @@ You must pass a **single nested plan tree** as `plan`. Since any node can have a
 Rules:
 
 - Combine nodes must have exactly two children (both children must be nested under the combine node as `left` and `right`).
-- Use example plans (from `search_example_plans`) to guide how you choose this structure and how you phrase task hints.
+- Use example plans (from `search_example_plans`) to guide how you choose this structure and how you phrase task instructions.
 - Apply the **decomposition bias**: if the user mentions multiple cohorts/experiments, represent them as separate task nodes and combine them explicitly.
 
 ### Delegation example: "Gct genes in Pb & Pf" (from Qdrant stepTree)
@@ -226,7 +229,7 @@ Tool call (arguments must be exactly `{ "goal": ..., "plan": ... }`):
       "left": {
         "type": "task",
         "task": "Transform by orthology to get P. falciparum 3D7 orthologs of P. berghei ANKA gametocyte-upregulated genes",
-        "hint": "Unary transform. Use search `GenesByOrthologs` with parameters like: organism='[\"Plasmodium falciparum 3D7\"]', isSyntenic='no'. Input should be the UNION of the three Pb RNA-Seq fold-change searches below.",
+        "instructions": "Unary transform. Use search `GenesByOrthologs` with parameters like: organism='[\"Plasmodium falciparum 3D7\"]', isSyntenic='no'. Input should be the UNION of the three Pb RNA-Seq fold-change searches below.",
         "input": {
           "type": "combine",
           "operator": "UNION",
@@ -238,31 +241,31 @@ Tool call (arguments must be exactly `{ "goal": ..., "plan": ... }`):
             "left": {
               "type": "task",
               "task": "P. berghei ANKA: genes up-regulated in gametocytes vs asexual stages (fold change ≥ 10), protein-coding only",
-              "hint": "Leaf search. Use `GenesByRNASeqpberANKA_Janse_Hoeijmakers_five_stages_ebi_rnaSeq_RSRC` (regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; compare Gametocyte vs Ring/Trophozoite/Schizont)."
+              "instructions": "Leaf search. Use `GenesByRNASeqpberANKA_Janse_Hoeijmakers_five_stages_ebi_rnaSeq_RSRC` (regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; compare Gametocyte vs Ring/Trophozoite/Schizont)."
             },
             "right": {
               "type": "task",
               "task": "P. berghei ANKA: genes up-regulated in female gametocytes vs (male gametocytes + erythrocytic stages) (fold change ≥ 10), protein-coding only",
-              "hint": "Leaf search. Use `GenesByRNASeqpberANKA_Female_Male_Gametocyte_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[Erthyrocytic stages, Male gametocytes], comparison=[Female gametocytes]."
+              "instructions": "Leaf search. Use `GenesByRNASeqpberANKA_Female_Male_Gametocyte_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[Erthyrocytic stages, Male gametocytes], comparison=[Female gametocytes]."
             }
           },
           "right": {
             "type": "task",
             "task": "P. berghei ANKA: genes up-regulated in male gametocytes vs (female gametocytes + erythrocytic stages) (fold change ≥ 10), protein-coding only",
-            "hint": "Leaf search. Use `GenesByRNASeqpberANKA_Female_Male_Gametocyte_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[Erthyrocytic stages, Female gametocytes], comparison=[Male gametocytes]."
+            "instructions": "Leaf search. Use `GenesByRNASeqpberANKA_Female_Male_Gametocyte_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[Erthyrocytic stages, Female gametocytes], comparison=[Male gametocytes]."
           }
         }
       },
       "right": {
         "type": "task",
         "task": "P. falciparum 3D7: genes female-enriched in gametocytes (fold change ≥ 10), protein-coding only",
-        "hint": "Leaf search. Use `GenesByRNASeqpfal3D7_Lasonder_Bartfai_Gametocytes_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[male gametocyte], comparison=[female gametocyte]."
+        "instructions": "Leaf search. Use `GenesByRNASeqpfal3D7_Lasonder_Bartfai_Gametocytes_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[male gametocyte], comparison=[female gametocyte]."
       }
     },
     "right": {
       "type": "task",
       "task": "P. falciparum 3D7: genes male-enriched in gametocytes (fold change ≥ 10), protein-coding only",
-      "hint": "Leaf search. Use `GenesByRNASeqpfal3D7_Lasonder_Bartfai_Gametocytes_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[female gametocyte], comparison=[male gametocyte]."
+      "instructions": "Leaf search. Use `GenesByRNASeqpfal3D7_Lasonder_Bartfai_Gametocytes_ebi_rnaSeq_RSRC` with regulated_dir='up-regulated', protein_coding_only='yes', fold_change='10'; reference=[female gametocyte], comparison=[male gametocyte]."
     }
   }
 }
@@ -276,7 +279,7 @@ When you delegate a **task node** to a sub-kani, that sub-agent produces a **sub
 - **1 leaf + 1 transform** (a chain; the transform consumes the leaf and becomes the subtree root), or
 - **2 leaves + 1 combine** (the combine consumes both leaves and becomes the subtree root)
 
-Each task node must produce exactly **one new subtree root**. Design your nested plan so each task node is a coherent unit and use `hint` to constrain it (recommended search name, record type, expected inputs/outputs).
+Each task node must produce exactly **one new subtree root**. Design your nested plan so each task node is a coherent unit and use `instructions` to constrain it (recommended search name, record type, expected inputs/outputs).
 
 ## Tree-First Step Model (must-follow)
 
@@ -308,24 +311,12 @@ Each sub-kani delegation task produces exactly **one subtree root**. The orchest
 
 ## Single-output invariant (must-follow)
 
-- Every finished strategy must converge to **exactly one subtree root**. `build_strategy()` will fail if multiple roots remain. Strategies are created as **drafts** (`isSaved=false`) on WDK and auto-synced on every edit.
+- Every finished strategy must converge to **exactly one subtree root**. Strategies are automatically pushed to WDK when the chat turn ends.
 - **Do not leave multiple roots**: if there are multiple subtree roots after your steps, you must combine them into one.
 - **Default under ambiguity**: if the user didn't specify the boolean meaning, assume branches should be **UNION**'d at the end to produce one output.
 - **End-of-response validation tool call (required)**: after you modify the graph, call `validate_graph_structure()`.
   - If validation reports multiple roots and user intent is ambiguous, call `ensure_single_output(operator="UNION")`.
   - If validation fails for other reasons (broken refs, missing inputs), fix the graph and re-run `validate_graph_structure()` until it passes.
-
-## 0-results check (must-follow)
-
-- After calling `build_strategy()`, inspect the returned `counts`, `zeroStepIds`, and `zeroCount` fields.
-- If `zeroCount > 0`:
-  - Notify the user which step(s) returned zero results (by display name and id from `zeroStepIds`).
-  - Keep the strategy faithful, but suggest fixes such as:
-    - relax overly strict parameters/filters
-    - if a binary operator is INTERSECT, consider UNION (or swap MINUS direction)
-    - add an input-dependent step (e.g. an orthology question) when organism mismatch is likely
-    - choose a broader upstream search or adjust thresholds
-- After building, `list_current_steps()` also shows per-step `estimatedSize` and `wdkStepId`.
 
 ## Parameter Rules (must-follow)
 

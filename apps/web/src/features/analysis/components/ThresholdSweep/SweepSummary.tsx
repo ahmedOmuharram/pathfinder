@@ -1,5 +1,6 @@
 import { TrendingUp, Target, AlertTriangle } from "lucide-react";
 import type { ThresholdSweepPoint } from "@/lib/api/analysis";
+import { Card } from "@/lib/components/ui/Card";
 import { pct } from "../../utils/formatters";
 
 export function SweepSummary({
@@ -67,7 +68,7 @@ export function SweepSummary({
       </div>
 
       {currentPoint && currentValue != null && (
-        <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
+        <Card className="flex items-start gap-2 rounded-md px-3 py-2">
           <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <div className="text-xs">
             <span className="text-muted-foreground">Current value </span>
@@ -91,7 +92,7 @@ export function SweepSummary({
               </>
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {failedCount > 0 && (
@@ -115,12 +116,12 @@ function SummaryCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-card px-3 py-2">
+    <Card className="rounded-md px-3 py-2">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
       <div className="text-lg font-semibold tabular-nums text-foreground">{value}</div>
       <div className="text-[10px] text-muted-foreground">{detail}</div>
-    </div>
+    </Card>
   );
 }

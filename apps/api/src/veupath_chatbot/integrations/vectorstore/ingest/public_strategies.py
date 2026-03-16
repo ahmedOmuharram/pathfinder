@@ -269,7 +269,7 @@ async def ingest_public_strategies(
     *,
     sites: list[str] | None,
     reset: bool = False,
-    llm_model: str = "gpt-4o-mini",
+    llm_model: str = "gpt-4.1-nano",
     report_path: Path = Path("ingest_public_strategies_report.jsonl"),
     max_strategies_per_site: int | None = None,
     concurrency: int | None = None,
@@ -352,7 +352,7 @@ async def _cli_async(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--llm-model",
-        default="gpt-4o-mini",
+        default="gpt-4.1-nano",
         help="Model for generating name/description (uses same OpenAI API key).",
     )
     parser.add_argument(

@@ -8,14 +8,14 @@ import type { StepParameters } from "@/lib/strategyGraph/types";
  */
 export type NodeSelectionNode = {
   id: string;
-  kind?: string;
+  kind?: string | null;
   displayName?: string;
-  searchName?: string;
-  operator?: string;
-  parameters?: StepParameters;
-  recordType?: string;
+  searchName?: string | null;
+  operator?: string | null;
+  parameters?: StepParameters | null;
+  recordType?: string | null;
   resultCount?: number | null;
-  wdkStepId?: number;
+  wdkStepId?: number | null;
   selected?: boolean;
 };
 

@@ -21,7 +21,7 @@ function withDefaults(
     updatedAt: string;
   },
 ): Strategy {
-  return { steps: [], rootStepId: null, recordType: null, ...s };
+  return { steps: [], rootStepId: null, recordType: null, isSaved: false, ...s };
 }
 
 export async function listStrategies(siteId?: string | null): Promise<Strategy[]> {
@@ -74,10 +74,11 @@ export async function getStrategy(strategyId: string): Promise<Strategy> {
       data: { detail: "strategyId must be a UUID" },
     });
   }
-  return (await requestJsonValidated(
+  const raw = await requestJsonValidated(
     StrategySchema,
     `/api/v1/strategies/${strategyId}`,
-  )) as Strategy;
+  );
+  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
 }
 
 export async function createStrategy(args: {
@@ -85,10 +86,11 @@ export async function createStrategy(args: {
   siteId: string;
   plan: StrategyPlan;
 }): Promise<Strategy> {
-  return (await requestJsonValidated(StrategySchema, "/api/v1/strategies", {
+  const raw = await requestJsonValidated(StrategySchema, "/api/v1/strategies", {
     method: "POST",
     body: args,
-  })) as Strategy;
+  });
+  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
 }
 
 export async function updateStrategy(
@@ -100,14 +102,15 @@ export async function updateStrategy(
     isSaved?: boolean;
   },
 ): Promise<Strategy> {
-  return (await requestJsonValidated(
+  const raw = await requestJsonValidated(
     StrategySchema,
     `/api/v1/strategies/${strategyId}`,
     {
       method: "PATCH",
       body: args,
     },
-  )) as Strategy;
+  );
+  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
 }
 
 export async function deleteStrategy(
@@ -133,15 +136,19 @@ export async function normalizePlan(
 }
 
 export async function restoreStrategy(strategyId: string): Promise<Strategy> {
-  return requestJson<Strategy>(`/api/v1/strategies/${strategyId}/restore`, {
-    method: "POST",
-  });
+  const raw = await requestJson<Record<string, unknown>>(
+    `/api/v1/strategies/${strategyId}/restore`,
+    { method: "POST" },
+  );
+  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
 }
 
 export async function listDismissedStrategies(siteId: string): Promise<Strategy[]> {
-  return requestJson<Strategy[]>("/api/v1/strategies/dismissed", {
-    query: { siteId },
-  });
+  const raw = await requestJson<Record<string, unknown>[]>(
+    "/api/v1/strategies/dismissed",
+    { query: { siteId } },
+  );
+  return raw.map((s) => withDefaults(s as Parameters<typeof withDefaults>[0]));
 }
 
 export async function computeStepCounts(

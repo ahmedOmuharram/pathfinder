@@ -11,7 +11,7 @@ layer never imports from ``veupath_chatbot.ai``.
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole, Kani
@@ -36,14 +36,12 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 _create_workbench_agent: Callable[..., Kani] | None = None
 _resolve_effective_model_id: Callable[..., str] | None = None
-_mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None
 
 
 def configure(
     *,
     create_workbench_agent_fn: Callable[..., Kani],
     resolve_model_id_fn: Callable[..., str],
-    mock_stream_fn: Callable[..., AsyncIterator[JSONObject]] | None = None,
 ) -> None:
     """Wire AI-layer implementations into the workbench chat orchestrator.
 
@@ -55,15 +53,10 @@ def configure(
         Factory that builds a Kani workbench agent for a chat turn.
     resolve_model_id_fn:
         Resolves the effective model ID from overrides and persisted state.
-    mock_stream_fn:
-        Optional mock stream provider for deterministic E2E testing.
-        When provided, the orchestrator uses this instead of the real
-        agent for every chat turn.
     """
-    global _create_workbench_agent, _resolve_effective_model_id, _mock_stream_fn
+    global _create_workbench_agent, _resolve_effective_model_id
     _create_workbench_agent = create_workbench_agent_fn
     _resolve_effective_model_id = resolve_model_id_fn
-    _mock_stream_fn = mock_stream_fn
 
 
 async def start_workbench_chat_stream(
@@ -228,15 +221,7 @@ async def _workbench_chat_producer(
             reasoning_effort=reasoning_effort,
         )
 
-        stream_iter: AsyncIterator[JSONObject] = (
-            _mock_stream_fn(
-                message=message,
-                experiment_id=experiment_id,
-                site_id=site_id,
-            )
-            if _mock_stream_fn is not None
-            else stream_chat(agent, message)
-        )
+        stream_iter = stream_chat(agent, message, model_id=effective_model)
 
         try:
             await emit(

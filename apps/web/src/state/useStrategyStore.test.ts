@@ -133,6 +133,7 @@ describe("state/useStrategyStore", () => {
         },
       ],
       rootStepId: "s1",
+      isSaved: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -265,6 +266,7 @@ describe("state/useStrategyStore (list management)", () => {
       stepCount: 0,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     });
@@ -277,6 +279,7 @@ describe("state/useStrategyStore (list management)", () => {
       stepCount: 1,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t2",
     });
@@ -296,6 +299,7 @@ describe("state/useStrategyStore (list management)", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     });
@@ -325,6 +329,7 @@ describe("state/useStrategyStore (list management)", () => {
       stepCount: 0,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     });
@@ -337,6 +342,7 @@ describe("state/useStrategyStore (list management)", () => {
       stepCount: 0,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     });
@@ -355,6 +361,7 @@ describe("state/useStrategyStore (list management)", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     };

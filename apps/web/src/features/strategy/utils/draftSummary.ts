@@ -17,6 +17,7 @@ export function buildDraftStrategySummary(args: {
     stepCount: 0,
     resultCount: undefined,
     wdkStrategyId: undefined,
+    isSaved: false,
     createdAt: ts,
     updatedAt: ts,
     steps: [],

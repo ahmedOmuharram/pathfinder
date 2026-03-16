@@ -1,3 +1,5 @@
+import { Label } from "@/lib/components/ui/Label";
+
 interface PThresholdFilterProps {
   value: number;
   onChange: (threshold: number) => void;
@@ -6,7 +8,7 @@ interface PThresholdFilterProps {
 export function PThresholdFilter({ value, onChange }: PThresholdFilterProps) {
   return (
     <div className="ml-auto flex items-center gap-2 py-2">
-      <label className="text-xs text-muted-foreground">p &le;</label>
+      <Label className="text-xs text-muted-foreground">p &le;</Label>
       <select
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}

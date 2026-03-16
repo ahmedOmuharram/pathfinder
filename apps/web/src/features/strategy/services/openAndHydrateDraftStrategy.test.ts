@@ -13,6 +13,7 @@ describe("openAndHydrateDraftStrategy", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };

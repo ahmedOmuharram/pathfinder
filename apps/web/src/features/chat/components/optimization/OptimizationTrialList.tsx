@@ -50,18 +50,19 @@ function TrialTable({
                 <td className="px-1.5 py-1 tabular-nums text-muted-foreground">
                   {t.trialNumber}
                 </td>
-                {paramNames.map((n) => (
-                  <td key={n} className="px-1.5 py-1 tabular-nums">
-                    {fmt(
-                      typeof t.parameters[n] === "number"
-                        ? (t.parameters[n] as number)
-                        : null,
-                      3,
-                    ) === "--"
-                      ? String(t.parameters[n] ?? "--")
-                      : fmt(t.parameters[n] as number, 3)}
-                  </td>
-                ))}
+                {paramNames.map((n) => {
+                  const params = t.parameters ?? {};
+                  return (
+                    <td key={n} className="px-1.5 py-1 tabular-nums">
+                      {fmt(
+                        typeof params[n] === "number" ? (params[n] as number) : null,
+                        3,
+                      ) === "--"
+                        ? String(params[n] ?? "--")
+                        : fmt(params[n] as number, 3)}
+                    </td>
+                  );
+                })}
                 <td className="px-1.5 py-1 tabular-nums font-medium">
                   {fmt(t.score, 4)}
                 </td>

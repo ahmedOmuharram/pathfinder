@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckCircle2, CircleDashed, LoaderCircle, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+  Clock,
+  LoaderCircle,
+  XCircle,
+} from "lucide-react";
 
 export function SubKaniStatusIcon(props: { status?: string; className?: string }) {
   const raw = (props.status || "").trim();
@@ -21,8 +28,30 @@ export function SubKaniStatusIcon(props: { status?: string; className?: string }
     return (
       <span title="Running">
         <LoaderCircle
-          className={props.className ?? "h-4 w-4 animate-spin text-muted-foreground"}
+          className={props.className ?? "h-4 w-4 animate-spin text-blue-500"}
           aria-label="Running"
+        />
+      </span>
+    );
+  }
+
+  if (status.includes("no_step") || status.includes("no step")) {
+    return (
+      <span title="No steps created">
+        <AlertTriangle
+          className={props.className ?? "h-4 w-4 text-amber-500"}
+          aria-label="No steps"
+        />
+      </span>
+    );
+  }
+
+  if (status.includes("timeout")) {
+    return (
+      <span title="Timed out">
+        <Clock
+          className={props.className ?? "h-4 w-4 text-red-500"}
+          aria-label="Timeout"
         />
       </span>
     );

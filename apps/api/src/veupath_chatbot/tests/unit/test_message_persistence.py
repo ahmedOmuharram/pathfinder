@@ -603,6 +603,7 @@ class _FakeProjection:
     name: str = "Test Conv"
     record_type: str | None = None
     wdk_strategy_id: int | None = None
+    gene_set_id: str | None = None
     is_saved: bool = False
     model_id: str | None = None
     message_count: int = 0

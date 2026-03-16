@@ -4,7 +4,7 @@ Used by both `PlannerToolRegistryMixin` and `AgentToolRegistryMixin` so that
 web and literature search are available regardless of conversation mode.
 """
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
@@ -25,8 +25,10 @@ class ResearchToolsMixin:
     - literature_search_service: LiteratureSearchService
     """
 
-    web_search_service: WebSearchService
-    literature_search_service: LiteratureSearchService
+    web_search_service: WebSearchService = cast("WebSearchService", cast(object, None))
+    literature_search_service: LiteratureSearchService = cast(
+        "LiteratureSearchService", cast(object, None)
+    )
 
     @ai_function()
     async def web_search(

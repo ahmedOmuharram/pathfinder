@@ -15,6 +15,7 @@ from veupath_chatbot.platform.types import (
     JSONArray,
     JSONObject,
     JSONValue,
+    as_json_object,
 )
 from veupath_chatbot.services.catalog.searches import (
     get_raw_record_types,
@@ -63,8 +64,6 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
         if resolved_record_type:
             record_types = [resolved_record_type]
         else:
-            from veupath_chatbot.platform.types import as_json_object
-
             record_types_list: list[str] = []
             record_types_raw = await get_raw_record_types(self.session.site_id)
             for rt_value in record_types_raw:
@@ -92,7 +91,6 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
                     exc_info=True,
                 )
                 continue
-            from veupath_chatbot.platform.types import as_json_object
 
             for search_value in searches:
                 if not isinstance(search_value, dict):

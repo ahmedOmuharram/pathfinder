@@ -94,7 +94,7 @@ class TestRunOnSearch:
                 parameters={"text": "kinase"},
             )
             call_kwargs = mock_run.call_args[1]
-            assert call_kwargs["record_type"] == "gene"
+            assert call_kwargs["record_type"] == "transcript"
 
     @pytest.mark.asyncio
     async def test_raises_without_step_or_search(self) -> None:

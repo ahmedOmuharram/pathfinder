@@ -45,6 +45,7 @@ describe("state/useStrategySelectors", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t1",
       updatedAt: "t1",
     });

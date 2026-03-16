@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
+import { Input } from "@/lib/components/ui/Input";
 
 interface GeneSetFilterProps {
   value: string;
@@ -11,12 +12,12 @@ export function GeneSetFilter({ value, onChange }: GeneSetFilterProps) {
   return (
     <div className="relative">
       <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-      <input
+      <Input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Filter gene sets..."
-        className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        className="bg-background py-1.5 pl-8 pr-8 text-xs"
       />
       {value && (
         <button

@@ -5,6 +5,15 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { Message, OptimizationProgressData } from "@pathfinder/shared";
 import { ChatMessageList } from "@/features/chat/components/ChatMessageList";
 
+vi.mock("@/state/useSettingsStore", () => ({
+  useSettingsStore: (selector: (s: { modelCatalog: [] }) => unknown) =>
+    selector({ modelCatalog: [] }),
+}));
+
+vi.mock("@/lib/components/ProviderIcon", () => ({
+  ProviderIcon: () => null,
+}));
+
 vi.mock("@/features/chat/components/ChatEmptyState", () => ({
   ChatEmptyState: () => null,
 }));

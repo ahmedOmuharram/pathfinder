@@ -1,5 +1,6 @@
 """Site routing: choose portal vs component sites intelligently."""
 
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import cast
@@ -146,6 +147,7 @@ class SiteRouter:
         self._config = load_sites_config(settings.veupathdb_sites_config)
         self._sites: dict[str, SiteInfo] = {}
         self._clients: dict[str, VEuPathDBClient] = {}
+        self._client_lock = threading.Lock()
         self._load_sites()
 
     def _load_sites(self) -> None:
@@ -188,19 +190,24 @@ class SiteRouter:
         :param site_id: VEuPathDB site identifier.
 
         """
-        if site_id not in self._clients:
-            site = self.get_site(site_id)
-            routing = self._config.routing
-            settings = get_settings()
-            timeout = (
-                routing.portal_timeout if site.is_portal else routing.component_timeout
-            )
-            self._clients[site_id] = VEuPathDBClient(
-                base_url=site.service_url,
-                timeout=float(timeout),
-                auth_token=settings.veupathdb_auth_token,
-            )
-        return self._clients[site_id]
+        if site_id in self._clients:
+            return self._clients[site_id]
+        with self._client_lock:
+            if site_id not in self._clients:
+                site = self.get_site(site_id)
+                routing = self._config.routing
+                settings = get_settings()
+                timeout = (
+                    routing.portal_timeout
+                    if site.is_portal
+                    else routing.component_timeout
+                )
+                self._clients[site_id] = VEuPathDBClient(
+                    base_url=site.service_url,
+                    timeout=float(timeout),
+                    auth_token=settings.veupathdb_auth_token,
+                )
+            return self._clients[site_id]
 
     def get_portal_client(self) -> VEuPathDBClient:
         """Get client for the portal."""
@@ -215,11 +222,15 @@ class SiteRouter:
 
 # Global router instance
 _router: SiteRouter | None = None
+_router_lock = threading.Lock()
 
 
 def get_site_router() -> SiteRouter:
     """Get the global site router."""
     global _router
-    if _router is None:
-        _router = SiteRouter()
-    return _router
+    if _router is not None:
+        return _router
+    with _router_lock:
+        if _router is None:
+            _router = SiteRouter()
+        return _router

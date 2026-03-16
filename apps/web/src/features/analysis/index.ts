@@ -9,4 +9,3 @@ export { CustomEnrichmentSection } from "./components/CustomEnrichmentSection";
 
 export { GeneListsSection } from "./components/GeneListsSection";
 export { Section } from "./components/Section";
-export { pct, fmtNum } from "./utils/formatters";

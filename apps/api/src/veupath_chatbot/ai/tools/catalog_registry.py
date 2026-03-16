@@ -1,6 +1,6 @@
 """Catalog tool methods (RAG + WDK combined lookups)."""
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
@@ -26,10 +26,12 @@ class CatalogToolsMixin:
     - example_plans_rag_tools: ExamplePlansRagTools
     """
 
-    site_id: str
-    catalog_tools: CatalogTools
-    catalog_rag_tools: CatalogRagTools
-    example_plans_rag_tools: ExamplePlansRagTools
+    site_id: str = ""
+    catalog_tools: CatalogTools = cast("CatalogTools", cast(object, None))
+    catalog_rag_tools: CatalogRagTools = cast("CatalogRagTools", cast(object, None))
+    example_plans_rag_tools: ExamplePlansRagTools = cast(
+        "ExamplePlansRagTools", cast(object, None)
+    )
 
     @ai_function()
     async def list_sites(self) -> JSONObject:

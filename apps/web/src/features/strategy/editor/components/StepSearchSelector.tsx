@@ -5,6 +5,8 @@ import type { StepKind } from "@pathfinder/shared";
 import { VEUPATHDB_SITES } from "@pathfinder/shared";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 import { sanitizeHtml } from "@/lib/utils/sanitizeHtml";
+import { Input } from "@/lib/components/ui/Input";
+import { Label } from "@/lib/components/ui/Label";
 
 function rewriteRelativeAssetUrls(html: string, origin: string): string {
   if (!html) return html;
@@ -65,14 +67,14 @@ export function StepSearchSelector({
   return (
     <>
       <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Record Type
-        </label>
-        <input
+        </Label>
+        <Input
           value={recordTypeFilter}
           onChange={(event) => onRecordTypeFilterChange(event.target.value)}
           placeholder="Filter record types..."
-          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="bg-card"
         />
         {filteredRecordTypes.length > 0 ? (
           <div className="mt-2 max-h-40 w-full overflow-auto rounded-md border border-border bg-card p-2 text-sm">
@@ -105,15 +107,15 @@ export function StepSearchSelector({
         )}
       </div>
       <div className="relative">
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {stepType === "transform" ? "Transform Name" : "Search Name"}
-        </label>
-        <input
+        </Label>
+        <Input
           value={editableSearchName}
           onChange={(event) => onSearchNameChange(event.target.value)}
           disabled={isLoadingSearches || searchOptions.length === 0}
           placeholder="Search..."
-          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          className="bg-card"
         />
         {filteredSearchOptions.length > 0 && (
           <div className="mt-2 max-h-56 w-full overflow-auto rounded-md border border-border bg-card p-2 text-sm">

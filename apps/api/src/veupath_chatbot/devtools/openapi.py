@@ -26,15 +26,11 @@ def _spec_with_stable_overrides() -> JSONObject:
     # Keep a stable OAS version string if FastAPI omits/changes it.
     spec.setdefault("openapi", "3.1.0")
 
-    # Preserve/define servers (helps local dev + prod docs).
+    # Preserve/define servers (helps local dev).
     spec.setdefault(
         "servers",
         [
             {"url": "http://localhost:8000", "description": "Local development"},
-            {
-                "url": "https://api.pathfinder.veupathdb.org",
-                "description": "Production",
-            },
         ],
     )
     return spec

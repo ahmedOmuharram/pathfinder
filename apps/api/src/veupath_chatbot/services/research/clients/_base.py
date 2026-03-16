@@ -11,7 +11,7 @@ from veupath_chatbot.domain.research.citations import (
 )
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
-API_USER_AGENT = "pathfinder-planner/1.0 (+https://pathfinder.veupathdb.org)"
+API_USER_AGENT = "pathfinder-planner/1.0"
 
 
 class BaseClient:
@@ -64,7 +64,7 @@ class StandardClient(BaseClient):
     ``_parse_item``.  The ``search`` method is inherited.
     """
 
-    _source_name: str  # override in subclass
+    _source_name: str = ""  # override in subclass
 
     async def search(
         self, query: str, *, limit: int, abstract_max_chars: int

@@ -42,6 +42,8 @@ interface WorkbenchState {
 
   // Actions — gene sets
   addGeneSet: (geneSet: GeneSet) => void;
+  /** Merge fetched gene sets into the store without changing activeSetId. */
+  mergeGeneSets: (sets: GeneSet[]) => void;
   removeGeneSet: (id: string) => void;
   updateGeneSet: (id: string, patch: Partial<GeneSet>) => void;
   setActiveSet: (id: string | null) => void;
@@ -108,6 +110,14 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
       // Auto-activate when no set is active yet
       activeSetId: s.activeSetId ?? geneSet.id,
     })),
+
+  mergeGeneSets: (sets) =>
+    set((s) => {
+      const existingIds = new Set(s.geneSets.map((gs) => gs.id));
+      const newSets = sets.filter((gs) => !existingIds.has(gs.id));
+      if (newSets.length === 0) return s;
+      return { geneSets: [...s.geneSets, ...newSets] };
+    }),
 
   removeGeneSet: (id) =>
     set((s) => {

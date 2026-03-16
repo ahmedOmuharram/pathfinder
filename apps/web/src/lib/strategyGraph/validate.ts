@@ -37,7 +37,7 @@ function inferKind(step: Step): "search" | "transform" | "combine" | "invalid" {
 }
 
 export function resolveRecordType(
-  stepId: string | undefined,
+  stepId: string | null | undefined,
   stepsMap: Map<string, Step>,
 ): string | null {
   if (!stepId) return null;

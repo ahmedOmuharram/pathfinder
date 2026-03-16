@@ -5,6 +5,7 @@ from typing import Annotated, Protocol, cast
 from kani import AIParam, ai_function
 
 from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.strategies.engine.graph_integrity import (
@@ -12,6 +13,8 @@ from veupath_chatbot.services.strategies.engine.graph_integrity import (
     validate_graph_integrity,
 )
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
+
+logger = get_logger(__name__)
 
 
 class CreateStepProtocol(Protocol):
@@ -105,6 +108,8 @@ class StrategyGraphOps(StrategyToolsHelpers):
                         "inputs": cast(JSONArray, root_step_ids),
                     },
                 )
+            return payload
+
         return payload
 
     @ai_function()
@@ -163,7 +168,7 @@ class StrategyGraphOps(StrategyToolsHelpers):
             is_final = index == len(root_ids) - 1
             # create_step is provided by StrategyStepOps via multiple inheritance in StrategyTools.
             # Cast to Protocol to satisfy type checker - this method exists at runtime via mixin.
-            create_step_self = cast("CreateStepProtocol", self)
+            create_step_self = cast("CreateStepProtocol", cast(object, self))
             last_response = await create_step_self.create_step(
                 primary_input_step_id=current,
                 secondary_input_step_id=next_id,

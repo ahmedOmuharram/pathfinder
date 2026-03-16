@@ -15,6 +15,7 @@ describe("core/strategyGraph/serialize", () => {
       recordType: "gene",
       steps: Object.values(stepsById),
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     });
@@ -48,6 +49,7 @@ describe("core/strategyGraph/serialize", () => {
       recordType: "gene",
       steps: Object.values(stepsById),
       rootStepId: "b",
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };
@@ -84,6 +86,7 @@ describe("core/strategyGraph/serialize", () => {
       recordType: "gene",
       steps: Object.values(stepsById),
       rootStepId: "c",
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };

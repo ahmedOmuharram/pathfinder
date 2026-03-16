@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Button } from "@/lib/components/ui/Button";
+import { Card } from "@/lib/components/ui/Card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/Tooltip";
 import { Separator } from "@/lib/components/ui/Separator";
 import { Section } from "./Section";
@@ -34,7 +35,7 @@ function CIBadge({
   fmt?: (v: number) => string;
 }) {
   if (!robustness) return null;
-  const ci = robustness.rankMetricCis[ciKey] ?? robustness.metricCis[ciKey];
+  const ci = robustness.rankMetricCis?.[ciKey] ?? robustness.metricCis?.[ciKey];
   if (!ci) return null;
   return (
     <span className="ml-1.5 text-[10px] text-muted-foreground/70 tabular-nums">
@@ -57,9 +58,9 @@ export function MetricsOverview({
 }: MetricsOverviewProps) {
   const [showSecondary, setShowSecondary] = useState(false);
 
-  const p50 = rankMetrics?.precisionAtK["50"] ?? null;
-  const e50 = rankMetrics?.enrichmentAtK["50"] ?? null;
-  const r50 = rankMetrics?.recallAtK["50"] ?? null;
+  const p50 = rankMetrics?.precisionAtK?.["50"] ?? null;
+  const e50 = rankMetrics?.enrichmentAtK?.["50"] ?? null;
+  const r50 = rankMetrics?.recallAtK?.["50"] ?? null;
 
   const radarData = useMemo(
     () => [
@@ -141,7 +142,7 @@ export function MetricsOverview({
         <Section title="Rank-Based Summary">
           <div className="grid grid-cols-3 gap-4">
             {p50 != null && (
-              <div className="rounded-lg border border-border bg-card px-5 py-4 text-center">
+              <Card className="px-5 py-4 text-center">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Precision@50
                 </div>
@@ -149,10 +150,10 @@ export function MetricsOverview({
                   {pct(p50)}
                 </div>
                 <CIBadge ciKey="precision_at_50" robustness={robustness} />
-              </div>
+              </Card>
             )}
             {r50 != null && (
-              <div className="rounded-lg border border-border bg-card px-5 py-4 text-center">
+              <Card className="px-5 py-4 text-center">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Recall@50
                 </div>
@@ -160,10 +161,10 @@ export function MetricsOverview({
                   {pct(r50)}
                 </div>
                 <CIBadge ciKey="recall_at_50" robustness={robustness} />
-              </div>
+              </Card>
             )}
             {e50 != null && (
-              <div className="rounded-lg border border-border bg-card px-5 py-4 text-center">
+              <Card className="px-5 py-4 text-center">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Enrichment@50
                 </div>
@@ -185,7 +186,7 @@ export function MetricsOverview({
                   robustness={robustness}
                   fmt={(v) => `${fmtNum(v)}x`}
                 />
-              </div>
+              </Card>
             )}
           </div>
         </Section>
@@ -193,7 +194,7 @@ export function MetricsOverview({
 
       {/* Classification metrics */}
       <Section title="Classification Metrics">
-        <div className="rounded-lg border border-border bg-card shadow-xs">
+        <Card>
           <div className="grid grid-cols-[1fr_280px] divide-x divide-border max-lg:grid-cols-1 max-lg:divide-x-0 max-lg:divide-y">
             <div>
               {primary.map((m) => (
@@ -286,7 +287,7 @@ export function MetricsOverview({
               </ResponsiveContainer>
             </div>
           </div>
-        </div>
+        </Card>
       </Section>
     </div>
   );

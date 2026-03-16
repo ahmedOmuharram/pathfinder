@@ -6,6 +6,7 @@ import { createGeneSet } from "@/features/workbench/api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorkbenchStore } from "../store";
 import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
 import { SaveControlSetForm } from "./SaveControlSetForm";
 
 interface GeneSearchActionsProps {
@@ -79,7 +80,7 @@ export function GeneSearchActions({
     <div className="space-y-2 border-t border-border px-3 py-3">
       {showNameInput ? (
         <div className="flex items-center gap-1.5">
-          <input
+          <Input
             type="text"
             value={newSetName}
             onChange={(e) => setNewSetName(e.target.value)}
@@ -89,7 +90,7 @@ export function GeneSearchActions({
               if (e.key === "Escape") setShowNameInput(false);
             }}
             autoFocus
-            className="h-7 flex-1 rounded-md border border-input bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-7 flex-1 bg-background px-2 text-xs"
           />
           <Button
             size="sm"

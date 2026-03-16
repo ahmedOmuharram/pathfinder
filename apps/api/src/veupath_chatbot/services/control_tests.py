@@ -118,10 +118,22 @@ async def _run_intersection_control(
     across multiple calls would cause the second call to fail with
     ``"<stepId> is not a valid step ID"``.
     """
+    from veupath_chatbot.services.catalog.searches import find_record_type_for_search
+
     api = get_strategy_api(site_id)
 
+    # Auto-resolve record types for both searches via the cached catalog.
+    # The AI often passes 'gene' but VEuPathDB gene searches live under
+    # 'transcript'.  The catalog knows the correct mapping.
+    target_rt = await find_record_type_for_search(
+        site_id, record_type, target_search_name
+    )
+    controls_rt = await find_record_type_for_search(
+        site_id, record_type, controls_search_name
+    )
+
     target_step = await api.create_step(
-        record_type=record_type,
+        record_type=target_rt,
         search_name=target_search_name,
         parameters=target_parameters or {},
         custom_name="Target",
@@ -131,7 +143,7 @@ async def _run_intersection_control(
     # Determine whether the controls parameter is an input-dataset type.
     # If so, upload the IDs as a WDK dataset and pass the dataset ID.
     param_type = await resolve_controls_param_type(
-        api, record_type, controls_search_name, controls_param_name
+        api, controls_rt, controls_search_name, controls_param_name
     )
 
     controls_params = dict(controls_extra_parameters or {})
@@ -144,7 +156,7 @@ async def _run_intersection_control(
         )
 
     controls_step = await api.create_step(
-        record_type=record_type,
+        record_type=controls_rt,
         search_name=controls_search_name,
         parameters=controls_params,
         custom_name="Controls",
@@ -155,7 +167,7 @@ async def _run_intersection_control(
         primary_step_id=target_step_id,
         secondary_step_id=controls_step_id,
         boolean_operator=boolean_operator,
-        record_type=record_type,
+        record_type=target_rt,
         custom_name=f"{boolean_operator} controls",
     )
     combined_step_id = _require_step_id(combined_step, "combined step")
@@ -219,7 +231,10 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
     """
     try:
         strategies = await api.list_strategies()
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to list strategies for control-test cleanup", error=str(exc)
+        )
         return
     await cleanup_internal_control_test_strategies(api, strategies)
 

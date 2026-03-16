@@ -4,7 +4,10 @@ import math
 import re
 
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
+
+logger = get_logger(__name__)
 
 
 def numeric_equivalent(a: str | None, b: str | None) -> bool:
@@ -18,7 +21,8 @@ def numeric_equivalent(a: str | None, b: str | None) -> bool:
     try:
         fa = float(str(a).strip())
         fb = float(str(b).strip())
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to compare numeric equivalence", error=str(exc))
         return False
     if not (math.isfinite(fa) and math.isfinite(fb)):
         return False

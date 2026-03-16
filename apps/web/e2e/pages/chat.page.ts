@@ -61,12 +61,9 @@ export class ChatPage {
     await this.stopButton.click();
   }
 
-  /**
-   * Get all assistant message bubbles.
-   * Assistant messages render with `justify-start` in the chat list.
-   */
+  /** Get all assistant message bubbles. */
   get assistantMessages(): Locator {
-    return this.page.locator(".chat-messages .justify-start");
+    return this.page.getByTestId("assistant-message");
   }
 
   /** Get the nth assistant message (0-indexed). */
@@ -74,9 +71,9 @@ export class ChatPage {
     return this.assistantMessages.nth(index);
   }
 
-  /** Get all user message bubbles (right-aligned). */
+  /** Get all user message bubbles. */
   get userMessages(): Locator {
-    return this.page.locator(".chat-messages .justify-end");
+    return this.page.getByTestId("user-message");
   }
 
   // ── Assertions ──────────────────────────────────────────────────

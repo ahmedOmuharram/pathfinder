@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { EnrichmentResult } from "@pathfinder/shared";
 import { AlertCircle } from "lucide-react";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 import { EnrichmentTabs } from "./EnrichmentTabs";
 import { PThresholdFilter } from "./PThresholdFilter";
@@ -30,7 +31,7 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
 
   return (
     <Section title="Enrichment Analysis">
-      <div className="rounded-lg border border-border bg-card">
+      <Card>
         {/* Tab bar + p-value filter */}
         <div className="flex items-center gap-0 border-b border-border px-4">
           <EnrichmentTabs
@@ -55,7 +56,7 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
             <EnrichmentTable terms={filtered} />
           </>
         )}
-      </div>
+      </Card>
     </Section>
   );
 }

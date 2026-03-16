@@ -18,6 +18,11 @@ class ToolCall:
     type: str
     function: FunctionCall
 
+    @classmethod
+    def from_function(
+        cls, __name: str, /, *, call_id_: str | None = None, **kwargs: Any
+    ) -> ToolCall: ...
+
 class ChatMessage:
     role: ChatRole
     content: str | None
@@ -26,6 +31,7 @@ class ChatMessage:
     tool_call_id: str | None
     tool_calls: list[ToolCall] | None
     text: str
+    extra: dict[str, Any]
 
     def __init__(self, **kwargs: Any) -> None: ...
     @classmethod

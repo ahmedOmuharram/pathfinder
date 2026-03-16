@@ -440,7 +440,7 @@ class TestLookupEdgeCases:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase", limit=0)
 
-        paginated = result["results"]
+        paginated = result["records"]
         assert isinstance(paginated, list)
         assert len(paginated) == 0
 
@@ -479,7 +479,7 @@ class TestLookupEdgeCases:
                 "plasmodb", "kinase", offset=100, limit=10
             )
 
-        paginated = result["results"]
+        paginated = result["records"]
         assert isinstance(paginated, list)
         assert len(paginated) == 0
 

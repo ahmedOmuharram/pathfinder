@@ -30,7 +30,7 @@ from veupath_chatbot.services.parameter_optimization import (
 class OptimizationToolsMixin:
     """Kani tool mixin for search parameter optimization."""
 
-    site_id: str
+    site_id: str = ""
 
     async def _emit_event(self, event: JSONObject) -> None:
         """Emit an SSE event. Override in subclass to push to streaming queue."""
@@ -39,7 +39,9 @@ class OptimizationToolsMixin:
     @ai_function()
     async def optimize_search_parameters(
         self,
-        record_type: Annotated[str, AIParam(desc="WDK record type (e.g. 'gene')")],
+        record_type: Annotated[
+            str, AIParam(desc="WDK record type (e.g. 'transcript')")
+        ],
         search_name: Annotated[
             str, AIParam(desc="WDK search/question urlSegment to optimise")
         ],
@@ -358,4 +360,20 @@ class OptimizationToolsMixin:
             check_cancelled=(cancel_event.is_set if cancel_event is not None else None),
         )
 
-        return json.dumps(_opt_result_to_json(result))
+        result_json = _opt_result_to_json(result)
+
+        # Auto-generate exports.
+        try:
+            from veupath_chatbot.services.export import get_export_service
+
+            svc = get_export_service()
+            name = f"{search_name}_optimization"
+            json_export = await svc.export_json(result_json, name)
+            result_json["downloads"] = {
+                "json": json_export.url,
+                "expiresInSeconds": json_export.expires_in_seconds,
+            }
+        except Exception:
+            pass
+
+        return json.dumps(result_json)

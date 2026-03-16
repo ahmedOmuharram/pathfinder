@@ -29,6 +29,8 @@ class PreprintClient(BaseClient):
     still goes through ``_parse_item`` / ``_build_results``.
     """
 
+    _current_source: Literal["biorxiv", "medrxiv"] = "biorxiv"
+
     async def search(
         self,
         query: str,
@@ -78,9 +80,7 @@ class PreprintClient(BaseClient):
     async def _fetch_raw(self, query: str, *, site: str, limit: int) -> list[JSONValue]:
         ddg_url = "https://duckduckgo.com/html/"
         params = {"q": f"site:{site} {query}"}
-        headers = {
-            "User-Agent": "pathfinder-planner/1.0 (+https://pathfinder.veupathdb.org)"
-        }
+        headers = {"User-Agent": "pathfinder-planner/1.0"}
         async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
             resp = await client.get(ddg_url, params=params, follow_redirects=True)
             resp.raise_for_status()

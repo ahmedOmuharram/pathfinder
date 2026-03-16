@@ -34,7 +34,7 @@ class TestLookupGeneRecords:
             limit=10,
         )
 
-    async def test_passes_record_type_as_organism(self) -> None:
+    async def test_passes_organism_filter(self) -> None:
         tools = _TestableTools()
 
         with patch(
@@ -42,7 +42,7 @@ class TestLookupGeneRecords:
             new_callable=AsyncMock,
             return_value={"records": [], "totalCount": 0},
         ) as mock_lookup:
-            await tools.lookup_gene_records(query="ap2", record_type="P. falciparum")
+            await tools.lookup_gene_records(query="ap2", organism="P. falciparum")
 
         mock_lookup.assert_awaited_once_with(
             _SITE_ID,

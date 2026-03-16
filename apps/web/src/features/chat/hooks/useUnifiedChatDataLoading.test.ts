@@ -14,6 +14,7 @@ const mockStrategy: Strategy = {
   siteId: "plasmodb",
   steps: [],
   rootStepId: null,
+  isSaved: false,
   recordType: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

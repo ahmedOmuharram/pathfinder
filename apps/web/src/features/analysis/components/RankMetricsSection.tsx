@@ -12,6 +12,7 @@ import {
   Bar,
   ReferenceLine,
 } from "recharts";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 import { pct, fmtNum } from "../utils/formatters";
 
@@ -25,9 +26,9 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
   const kRows = useMemo(() => {
     return K_DISPLAY_ORDER.map((k) => ({
       k,
-      precision: rankMetrics.precisionAtK[String(k)] ?? null,
-      recall: rankMetrics.recallAtK[String(k)] ?? null,
-      enrichment: rankMetrics.enrichmentAtK[String(k)] ?? null,
+      precision: rankMetrics.precisionAtK?.[String(k)] ?? null,
+      recall: rankMetrics.recallAtK?.[String(k)] ?? null,
+      enrichment: rankMetrics.enrichmentAtK?.[String(k)] ?? null,
     })).filter((r) => r.precision !== null);
   }, [rankMetrics]);
 
@@ -119,7 +120,7 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* PR curve */}
           {prCurveData.length > 1 && (
-            <div className="rounded-lg border border-border bg-card p-4">
+            <Card className="p-4">
               <h4 className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Precision\u2013Recall Curve
               </h4>
@@ -166,12 +167,12 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            </Card>
           )}
 
           {/* List size vs recall */}
           {listSizeData.length > 1 && (
-            <div className="rounded-lg border border-border bg-card p-4">
+            <Card className="p-4">
               <h4 className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 List Size vs Recall
               </h4>
@@ -217,12 +218,12 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            </Card>
           )}
 
           {/* Enrichment bar chart */}
           {enrichmentData.length > 0 && (
-            <div className="rounded-lg border border-border bg-card p-4 lg:col-span-2">
+            <Card className="p-4 lg:col-span-2">
               <h4 className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Enrichment vs Random
               </h4>
@@ -272,7 +273,7 @@ export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
                   />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </Card>
           )}
         </div>
       </div>

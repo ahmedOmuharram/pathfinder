@@ -11,7 +11,9 @@
  */
 
 import { useCallback, useState } from "react";
-import { Archive, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Archive, Loader2, RefreshCw } from "lucide-react";
+import { Modal } from "@/lib/components/Modal";
+import { Input } from "@/lib/components/ui/Input";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
@@ -43,6 +45,8 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
     reportError,
     refetchStrategies: data.refetchStrategies,
     setStrategyItems: data.setStrategyItems,
+    setDismissedItems: data.setDismissedItems,
+    markAsDeleted: data.markAsDeleted,
     setNewConversationInFlight: data.setNewConversationInFlight,
   });
 
@@ -80,13 +84,13 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
       </div>
 
       {/* Search */}
-      <input
+      <Input
         data-testid="conversations-search-input"
         value={data.query}
         onChange={(e) => data.setQuery(e.target.value)}
         placeholder="Search conversations..."
         aria-label="Search conversations"
-        className="w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="bg-card px-2.5 py-1.5"
       />
 
       {/* Loading indicator — shown until the first fetch completes */}
@@ -105,6 +109,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         activeId={actions.activeId}
         renamingId={actions.renamingId}
         renameValue={actions.renameValue}
+        chatIsStreaming={chatIsStreaming}
         onRenameValueChange={actions.setRenameValue}
         onCommitRename={(target) => void actions.commitRename(target)}
         onCancelRename={actions.cancelRename}
@@ -140,14 +145,24 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
                   className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs text-muted-foreground"
                 >
                   <span className="min-w-0 truncate">{item.title}</span>
-                  <button
-                    data-testid="dismissed-restore-button"
-                    type="button"
-                    onClick={() => void actions.handleRestore(item.id)}
-                    className="ml-2 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-accent"
-                  >
-                    Restore
-                  </button>
+                  <div className="ml-2 flex shrink-0 items-center gap-1">
+                    <button
+                      data-testid="dismissed-restore-button"
+                      type="button"
+                      onClick={() => void actions.handleRestore(item.id)}
+                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-accent"
+                    >
+                      Restore
+                    </button>
+                    <button
+                      data-testid="dismissed-delete-button"
+                      type="button"
+                      onClick={() => actions.setPermanentDeleteTarget(item.id)}
+                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -168,6 +183,41 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         setDuplicateModal={actions.setDuplicateModal}
         onDuplicate={actions.handleDuplicate}
       />
+
+      {/* Permanent delete confirmation */}
+      <Modal
+        open={actions.permanentDeleteTarget !== null}
+        onClose={() => actions.setPermanentDeleteTarget(null)}
+        title="Permanently delete strategy"
+        maxWidth="max-w-sm"
+        showCloseButton
+      >
+        <div className="p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <p className="text-sm text-muted-foreground">
+              This will permanently delete the strategy from both PathFinder and
+              VEuPathDB. This cannot be undone.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => actions.setPermanentDeleteTarget(null)}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void actions.confirmPermanentDelete()}
+              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
+            >
+              Delete permanently
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

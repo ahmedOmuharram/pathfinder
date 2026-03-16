@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { ScrollArea } from "@/lib/components/ui/ScrollArea";
@@ -22,6 +23,7 @@ interface WorkbenchSidebarProps {
 }
 
 export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
+  const router = useRouter();
   const geneSets = useWorkbenchStore((s) => s.geneSets);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const selectedSetIds = useWorkbenchStore((s) => s.selectedSetIds);
@@ -65,11 +67,12 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         });
         addGeneSet(gs);
         setActiveSet(gs.id);
+        router.push(`/workbench/${gs.id}`);
       } catch (err) {
         console.error("Failed to create set from Venn region:", err);
       }
     },
-    [selectedSite, addGeneSet, setActiveSet],
+    [selectedSite, addGeneSet, setActiveSet, router],
   );
 
   const handleComposeExecute = useCallback(
@@ -85,6 +88,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         });
         addGeneSet(gs);
         setActiveSet(gs.id);
+        router.push(`/workbench/${gs.id}`);
         clearSelection();
       } catch (err) {
         console.error("Failed to execute set operation:", err);
@@ -92,7 +96,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         setComposing(false);
       }
     },
-    [selectedSets, addGeneSet, setActiveSet, clearSelection],
+    [selectedSets, addGeneSet, setActiveSet, router, clearSelection],
   );
 
   return (
@@ -152,7 +156,10 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
                   isActive={activeSetId === gs.id}
                   isSelected={selectedSetIds.includes(gs.id)}
                   activeGeneIds={activeGeneIds}
-                  onActivate={() => setActiveSet(gs.id)}
+                  onActivate={() => {
+                    setActiveSet(gs.id);
+                    router.push(`/workbench/${gs.id}`);
+                  }}
                   onToggleSelect={() => toggleSetSelection(gs.id)}
                 />
               ))}

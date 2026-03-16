@@ -1,5 +1,7 @@
 "use client";
 
+import { Label } from "@/lib/components/ui/Label";
+
 type StepRawParamsEditorProps = {
   showRaw: boolean;
   rawParams: string;
@@ -30,9 +32,9 @@ export function StepRawParamsEditor({
       </label>
       {showRaw && (
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Parameters (JSON)
-          </label>
+          </Label>
           <textarea
             value={rawParams}
             onChange={(e) => onRawParamsChange(e.target.value)}

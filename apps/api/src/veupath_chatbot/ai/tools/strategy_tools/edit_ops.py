@@ -152,7 +152,7 @@ class StrategyEditOps(StrategyToolsHelpers):
             # steps (primary_input set, no secondary_input).  Binary combine
             # steps are structurally defined and have no WDK params to check.
             if step.secondary_input is None:
-                record_type = graph.record_type or "gene"
+                record_type = graph.record_type or "transcript"
                 try:
                     await validate_parameters(
                         site_id=self.session.site_id,

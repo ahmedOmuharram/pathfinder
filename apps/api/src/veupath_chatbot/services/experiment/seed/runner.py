@@ -2,8 +2,12 @@
 
 Creates real WDK strategies (visible in the sidebar) and curated control sets
 (available in the Experiments tab) across multiple VEuPathDB sites.
+
+Seeds are processed concurrently across sites using ``asyncio.TaskGroup``,
+with a semaphore to cap the number of parallel WDK requests.
 """
 
+import asyncio
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -18,6 +22,8 @@ from veupath_chatbot.services.experiment.seed.seeds import (
 
 logger = get_logger(__name__)
 
+_MAX_CONCURRENT_SEEDS = 10
+
 
 async def run_seed(
     *,
@@ -28,10 +34,8 @@ async def run_seed(
 ) -> AsyncIterator[JSONObject]:
     """Create seed strategies and control sets, yielding SSE progress events.
 
-    For each :class:`SeedDef`:
-    1. Create a WDK strategy via ``_materialize_step_tree`` + ``create_strategy``
-    2. Sync the strategy to the user's sidebar via ``_sync_to_projection``
-    3. Create a control set via ``control_set_repo.create``
+    Seeds run concurrently (up to ``_MAX_CONCURRENT_SEEDS`` at a time).
+    Progress events are streamed back via an ``asyncio.Queue``.
 
     If *site_id* is provided, only seeds for that database are created.
     Otherwise all available seeds are used.
@@ -53,100 +57,140 @@ async def run_seed(
         "type": "seed_progress",
         "data": {
             "phase": "starting",
-            "message": f"Seeding {total} strategies and control sets...",
+            "message": f"Seeding {total} strategies and control sets (up to {_MAX_CONCURRENT_SEEDS} concurrent)...",
         },
     }
 
-    strategies_ok = 0
-    control_sets_ok = 0
+    semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SEEDS)
+    queue: asyncio.Queue[JSONObject | None] = asyncio.Queue()
 
-    for i, seed in enumerate(seeds):
+    async def _seed_one(i: int, seed: Any) -> tuple[bool, bool]:
+        """Process a single seed. Returns (strategy_ok, control_set_ok)."""
         idx = i + 1
-        yield {
-            "type": "seed_progress",
-            "data": {
-                "phase": "running",
-                "current": idx,
-                "total": total,
-                "name": seed.name,
-                "message": f"[{idx}/{total}] Creating strategy: {seed.name}",
-            },
-        }
+        async with semaphore:
+            await queue.put(
+                {
+                    "type": "seed_progress",
+                    "data": {
+                        "phase": "running",
+                        "current": idx,
+                        "total": total,
+                        "name": seed.name,
+                        "message": f"[{idx}/{total}] Creating strategy: {seed.name}",
+                    },
+                }
+            )
 
-        t0 = time.monotonic()
+            t0 = time.monotonic()
+            try:
+                api = get_strategy_api(seed.site_id)
+
+                # 1. Materialize step tree into real WDK steps
+                root_tree = await _materialize_step_tree(
+                    api, seed.step_tree, seed.record_type
+                )
+
+                # 2. Create the WDK strategy (visible, not internal)
+                created = await api.create_strategy(
+                    step_tree=root_tree,
+                    name=seed.name,
+                    description=seed.description,
+                    is_saved=True,
+                )
+                wdk_strategy_id = extract_wdk_id(created)
+
+                if wdk_strategy_id is None:
+                    raise ValueError(
+                        f"WDK did not return a strategy ID for '{seed.name}'"
+                    )
+
+                # 3. Sync to local DB (sidebar)
+                await sync_to_projection(
+                    wdk_id=wdk_strategy_id,
+                    site_id=seed.site_id,
+                    api=api,
+                    stream_repo=stream_repo,
+                    user_id=user_id,
+                )
+
+                elapsed_strategy = time.monotonic() - t0
+                await queue.put(
+                    {
+                        "type": "seed_strategy_complete",
+                        "data": {
+                            "current": idx,
+                            "total": total,
+                            "name": seed.name,
+                            "wdkStrategyId": wdk_strategy_id,
+                            "elapsed": round(elapsed_strategy, 1),
+                            "message": f"[{idx}/{total}] Strategy created: {seed.name}",
+                        },
+                    }
+                )
+
+                # 4. Create control set
+                cs = seed.control_set
+                await control_set_repo.create(
+                    name=cs.name,
+                    site_id=seed.site_id,
+                    record_type=seed.record_type,
+                    positive_ids=cs.positive_ids,
+                    negative_ids=cs.negative_ids,
+                    source="curation",
+                    tags=cs.tags,
+                    provenance_notes=cs.provenance_notes,
+                    is_public=True,
+                    user_id=user_id,
+                )
+                return (True, True)
+
+            except Exception as exc:
+                elapsed = time.monotonic() - t0
+                logger.error("Seed failed", name=seed.name, error=str(exc))
+                await queue.put(
+                    {
+                        "type": "seed_item_error",
+                        "data": {
+                            "current": idx,
+                            "total": total,
+                            "name": seed.name,
+                            "error": str(exc),
+                            "elapsed": round(elapsed, 1),
+                            "message": f"[{idx}/{total}] Failed: {seed.name} — {exc}",
+                        },
+                    }
+                )
+                return (False, False)
+
+    async def _run_all() -> list[tuple[bool, bool]]:
+        """Launch all seeds concurrently, signal completion via sentinel."""
+        results: list[tuple[bool, bool]] = []
         try:
-            api = get_strategy_api(seed.site_id)
+            async with asyncio.TaskGroup() as tg:
+                tasks = [
+                    tg.create_task(_seed_one(i, seed)) for i, seed in enumerate(seeds)
+                ]
+            results = [t.result() for t in tasks]
+        except BaseException:
+            # TaskGroup re-raises child exceptions; individual seeds already
+            # catch their own, so this is a safeguard for truly unexpected errors.
+            logger.exception("Unexpected error in seed TaskGroup")
+        finally:
+            await queue.put(None)
+        return results
 
-            # 1. Materialize step tree into real WDK steps
-            root_tree = await _materialize_step_tree(
-                api, seed.step_tree, seed.record_type
-            )
+    runner = asyncio.create_task(_run_all())
 
-            # 2. Create the WDK strategy (visible, not internal)
-            created = await api.create_strategy(
-                step_tree=root_tree,
-                name=seed.name,
-                description=seed.description,
-                is_saved=True,
-            )
-            wdk_strategy_id = extract_wdk_id(created)
+    # Yield events as they arrive from concurrent tasks
+    while True:
+        event = await queue.get()
+        if event is None:
+            break
+        yield event
 
-            if wdk_strategy_id is None:
-                raise ValueError(f"WDK did not return a strategy ID for '{seed.name}'")
-
-            # 3. Sync to local DB (sidebar)
-            await sync_to_projection(
-                wdk_id=wdk_strategy_id,
-                site_id=seed.site_id,
-                api=api,
-                stream_repo=stream_repo,
-                user_id=user_id,
-            )
-            strategies_ok += 1
-
-            elapsed_strategy = time.monotonic() - t0
-            yield {
-                "type": "seed_strategy_complete",
-                "data": {
-                    "current": idx,
-                    "total": total,
-                    "name": seed.name,
-                    "wdkStrategyId": wdk_strategy_id,
-                    "elapsed": round(elapsed_strategy, 1),
-                    "message": (f"[{idx}/{total}] Strategy created: {seed.name}"),
-                },
-            }
-
-            # 4. Create control set
-            cs = seed.control_set
-            await control_set_repo.create(
-                name=cs.name,
-                site_id=seed.site_id,
-                record_type=seed.record_type,
-                positive_ids=cs.positive_ids,
-                negative_ids=cs.negative_ids,
-                source="curation",
-                tags=cs.tags,
-                provenance_notes=cs.provenance_notes,
-                is_public=True,
-                user_id=user_id,
-            )
-            control_sets_ok += 1
-
-        except Exception as exc:
-            elapsed = time.monotonic() - t0
-            logger.error("Seed failed", name=seed.name, error=str(exc))
-            yield {
-                "type": "seed_item_error",
-                "data": {
-                    "current": idx,
-                    "total": total,
-                    "name": seed.name,
-                    "error": str(exc),
-                    "elapsed": round(elapsed, 1),
-                    "message": f"[{idx}/{total}] Failed: {seed.name} — {exc}",
-                },
-            }
+    results = await runner
+    strategies_ok = sum(1 for s, _ in results if s)
+    control_sets_ok = sum(1 for _, c in results if c)
 
     yield {
         "type": "seed_complete",

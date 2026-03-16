@@ -20,11 +20,14 @@ from veupath_chatbot.integrations.veupathdb.param_utils import (
 )
 from veupath_chatbot.platform.errors import ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.wdk.record_types import resolve_record_type
 
 from .searches import find_record_type_for_search
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Extracted helpers
@@ -377,7 +380,14 @@ async def _load_discovery_details_and_allowed(
             details,
             _extract_param_names(details if isinstance(details, dict) else {}),
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to load discovery details for param resolution",
+            site_id=site_id,
+            record_type=record_type,
+            search_name=search_name,
+            error=str(exc),
+        )
         return None, set()
 
 

@@ -45,8 +45,12 @@ def _pick_redirect_url(candidate: str | None) -> str:
             candidate_origin = f"{parsed.scheme}://{parsed.netloc}"
             if candidate_origin in allowed:
                 return candidate
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "Failed to parse redirect URL candidate",
+                candidate=candidate,
+                error=str(exc),
+            )
     return allowed[0] if allowed else "http://localhost:3000"
 
 
@@ -66,7 +70,8 @@ async def _resolve_veupathdb_email(veupathdb_token: str) -> str | None:
         site = get_site("veupathdb")
         client = get_wdk_client(site.id)
         user = await client.get("/users/current")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to resolve VEuPathDB email from token", error=str(exc))
         return None
     finally:
         veupathdb_auth_token_ctx.reset(reset_token)
@@ -267,7 +272,8 @@ async def auth_status(request: Request) -> _AuthStatusDict:
     client = get_wdk_client(site.id)
     try:
         user = await client.get("/users/current")
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to fetch VEuPathDB auth status", error=str(exc))
         return {"signedIn": False, "name": None, "email": None}
 
     from veupath_chatbot.platform.types import JSONObject, as_json_object

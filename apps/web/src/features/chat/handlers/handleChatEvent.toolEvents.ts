@@ -39,9 +39,10 @@ export function handleSubKaniTaskStartEvent(
 ) {
   const { task } = data;
   if (!task) return;
-  ctx.thinking.subKaniTaskStart(task);
+  ctx.thinking.subKaniTaskStart(task, data.modelId ?? undefined);
   ctx.subKaniStatusBuffer[task] = "running";
   ctx.subKaniCallsBuffer[task] = ctx.subKaniCallsBuffer[task] || [];
+  if (data.modelId) ctx.subKaniModelsBuffer[task] = data.modelId;
 }
 
 export function handleSubKaniToolCallStartEvent(
@@ -63,7 +64,7 @@ export function handleSubKaniToolCallEndEvent(
 ) {
   const { task, id, result } = data;
   if (!task) return;
-  ctx.thinking.subKaniToolCallEnd(task, id, result);
+  ctx.thinking.subKaniToolCallEnd(task, id, result ?? "");
   const taskCalls = ctx.subKaniCallsBuffer[task];
   if (taskCalls) {
     const call = taskCalls.find((c) => c.id === id);
@@ -77,6 +78,14 @@ export function handleSubKaniTaskEndEvent(
 ) {
   const { task, status } = data;
   if (!task) return;
-  ctx.thinking.subKaniTaskEnd(task, status);
-  ctx.subKaniStatusBuffer[task] = status || "done";
+  ctx.thinking.subKaniTaskEnd(task, status ?? undefined);
+  ctx.subKaniStatusBuffer[task] = status ?? "done";
+  if (data.promptTokens != null) {
+    ctx.subKaniTokenUsageBuffer[task] = {
+      promptTokens: data.promptTokens ?? 0,
+      completionTokens: data.completionTokens ?? 0,
+      llmCallCount: data.llmCallCount ?? 0,
+      estimatedCostUsd: data.estimatedCostUsd ?? 0,
+    };
+  }
 }

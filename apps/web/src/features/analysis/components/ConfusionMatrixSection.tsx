@@ -1,4 +1,5 @@
 import type { ConfusionMatrix } from "@pathfinder/shared";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 
 interface ConfusionMatrixSectionProps {
@@ -13,7 +14,7 @@ export function ConfusionMatrixSection({ cm }: ConfusionMatrixSectionProps) {
 
   return (
     <Section title="Confusion Matrix">
-      <div className="inline-block rounded-lg border border-border bg-card">
+      <Card className="inline-block">
         <table className="text-center text-sm">
           <thead>
             <tr>
@@ -82,7 +83,7 @@ export function ConfusionMatrixSection({ cm }: ConfusionMatrixSectionProps) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
       <div className="mt-2 text-xs text-muted-foreground">
         n = {total} &middot; {cm.truePositives + cm.falseNegatives} actual positives
         &middot; {cm.trueNegatives + cm.falsePositives} actual negatives

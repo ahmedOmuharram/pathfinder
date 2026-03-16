@@ -10,6 +10,10 @@ const validEntry = {
   enabled: true,
   contextSize: 400_000,
   defaultReasoningBudget: 0,
+  description: "OpenAI GPT-5",
+  inputPrice: 2.5,
+  cachedInputPrice: 1.25,
+  outputPrice: 10,
 };
 
 describe("ModelCatalogEntrySchema", () => {

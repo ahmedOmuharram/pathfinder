@@ -4,6 +4,8 @@ import type {
   OptimizationProgressData,
   OptimizationTrial,
   PlanningArtifact,
+  SubKaniTokenUsage,
+  TokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
 import type { ChatEventContext } from "./handleChatEvent.types";
@@ -47,9 +49,18 @@ function resolveAssistantIndex(
 export function snapshotSubKaniActivityFromBuffers(
   calls: Record<string, ToolCall[]>,
   status: Record<string, string>,
+  models?: Record<string, string>,
+  tokenUsage?: Record<string, SubKaniTokenUsage>,
 ) {
   if (Object.keys(calls).length === 0) return undefined;
-  return { calls: { ...calls }, status: { ...status } };
+  return {
+    calls: { ...calls },
+    status: { ...status },
+    ...(models && Object.keys(models).length > 0 ? { models: { ...models } } : {}),
+    ...(tokenUsage && Object.keys(tokenUsage).length > 0
+      ? { tokenUsage: { ...tokenUsage } }
+      : {}),
+  };
 }
 
 /**
@@ -100,6 +111,7 @@ export function handleMessageStartEvent(ctx: ChatEventContext, data: MessageStar
       rootStepId: strategy?.rootStepId ?? null,
       stepCount: strategy?.steps?.length ?? 0,
       wdkStrategyId: strategy?.wdkStrategyId,
+      isSaved: strategy?.isSaved ?? false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -141,6 +153,7 @@ export function handleAssistantDeltaEvent(
     const assistantMessage: Message = {
       role: "assistant",
       content: delta,
+      modelId: ctx.streamState.currentModelId ?? undefined,
       optimizationProgress: ctx.streamState.optimizationProgress ?? undefined,
       timestamp: new Date().toISOString(),
     };
@@ -187,6 +200,8 @@ export function handleAssistantMessageEvent(
   const subKaniActivity = snapshotSubKaniActivityFromBuffers(
     ctx.subKaniCallsBuffer,
     ctx.subKaniStatusBuffer,
+    ctx.subKaniModelsBuffer,
+    ctx.subKaniTokenUsageBuffer,
   );
 
   const finalToolCalls =
@@ -228,6 +243,7 @@ export function handleAssistantMessageEvent(
     const assistantMessage: Message = {
       role: "assistant",
       content: finalContent,
+      modelId: ctx.streamState.currentModelId ?? undefined,
       toolCalls: finalToolCalls,
       subKaniActivity,
       citations: finalCitations,
@@ -345,6 +361,8 @@ export function handleModelSelectedEvent(
   const { modelId } = data;
   if (typeof modelId === "string") {
     ctx.setSelectedModelId?.(modelId || null);
+    // Store for stamping on subsequent assistant messages in this turn.
+    ctx.streamState.currentModelId = modelId || null;
   }
 }
 
@@ -369,8 +387,15 @@ export function handleTokenUsagePartialEvent(
             promptTokens,
             completionTokens: 0,
             totalTokens: promptTokens,
+            cachedTokens: 0,
             toolCallCount: 0,
             registeredToolCount,
+            llmCallCount: 0,
+            subKaniPromptTokens: 0,
+            subKaniCompletionTokens: 0,
+            subKaniCallCount: 0,
+            estimatedCostUsd: 0,
+            modelId: "",
           },
         };
         break;
@@ -385,12 +410,19 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
   const total = typeof data.totalTokens === "number" ? data.totalTokens : 0;
   if (total <= 0) return;
 
-  const usage = {
-    promptTokens: (data.promptTokens as number) ?? 0,
-    completionTokens: (data.completionTokens as number) ?? 0,
+  const usage: TokenUsage = {
+    promptTokens: Number(data.promptTokens) || 0,
+    completionTokens: Number(data.completionTokens) || 0,
     totalTokens: total,
-    toolCallCount: (data.toolCallCount as number) ?? 0,
-    registeredToolCount: (data.registeredToolCount as number) ?? 0,
+    cachedTokens: Number(data.cachedTokens) || 0,
+    toolCallCount: Number(data.toolCallCount) || 0,
+    registeredToolCount: Number(data.registeredToolCount) || 0,
+    llmCallCount: Number(data.llmCallCount) || 0,
+    subKaniPromptTokens: Number(data.subKaniPromptTokens) || 0,
+    subKaniCompletionTokens: Number(data.subKaniCompletionTokens) || 0,
+    subKaniCallCount: Number(data.subKaniCallCount) || 0,
+    estimatedCostUsd: Number(data.estimatedCostUsd) || 0,
+    modelId: String(data.modelId ?? ""),
   };
 
   ctx.setMessages((prev) => {

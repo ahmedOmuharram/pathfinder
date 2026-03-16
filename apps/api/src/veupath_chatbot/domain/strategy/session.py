@@ -284,6 +284,21 @@ def hydrate_graph_from_steps_data(
                 graph.record_type = str(step.get("recordType"))
                 break
 
+    # Restore WDK build state from persisted per-step fields.
+    for step in steps_data:
+        if not isinstance(step, dict):
+            continue
+        sid_raw = step.get("id")
+        if sid_raw is None:
+            continue
+        sid = str(sid_raw)
+        wdk_step_id = step.get("wdkStepId")
+        if isinstance(wdk_step_id, int):
+            graph.wdk_step_ids[sid] = wdk_step_id
+        result_count = step.get("resultCount")
+        if isinstance(result_count, int):
+            graph.step_counts[sid] = result_count
+
     # Recompute the subtree-root set from the hydrated step graph.
     graph.recompute_roots()
 

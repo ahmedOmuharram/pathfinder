@@ -15,7 +15,7 @@ repos:
     hooks:
       - id: mypy-api
         name: mypy (api)
-        entry: bash -c "cd apps/api && uv run --project . mypy src"
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run --project . mypy src"
         language: system
         pass_filenames: false
         types: [python]
@@ -52,7 +52,7 @@ repos:
         stages: [pre-push]
       - id: pytest-api
         name: pytest (api)
-        entry: bash -c "cd apps/api && uv run python -m pytest src/veupath_chatbot/tests/unit/ -v"
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m pytest src/veupath_chatbot/tests/unit/ -v"
         language: system
         pass_filenames: false
         types: [python]
@@ -67,7 +67,7 @@ repos:
         stages: [pre-push]
       - id: openapi-generate-api
         name: openapi spec regenerate (api)
-        entry: bash -c "cd apps/api && uv run python -m veupath_chatbot.devtools.openapi generate"
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m veupath_chatbot.devtools.openapi generate"
         language: system
         pass_filenames: false
         types: [python]

@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from kani import Kani
 from kani.models import ChatRole
 
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.parsing import parse_jsonish
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -15,6 +16,29 @@ from veupath_chatbot.platform.types import (
     as_json_object,
 )
 
+logger = get_logger(__name__)
+
+
+class SubKaniRoundResult:
+    """Result of a sub-kani round, including token usage."""
+
+    __slots__ = (
+        "response_text",
+        "created_steps",
+        "errors",
+        "prompt_tokens",
+        "completion_tokens",
+        "llm_call_count",
+    )
+
+    def __init__(self) -> None:
+        self.response_text: str | None = None
+        self.created_steps: JSONArray = []
+        self.errors: list[str] = []
+        self.prompt_tokens: int = 0
+        self.completion_tokens: int = 0
+        self.llm_call_count: int = 0
+
 
 async def consume_subkani_round(
     *,
@@ -23,41 +47,61 @@ async def consume_subkani_round(
     task: str,
     round_prompt: str,
 ) -> tuple[str | None, JSONArray, list[str]]:
-    """Run a sub-kani round and collect created steps + error strings."""
-    response_text: str | None = None
-    created_steps: JSONArray = []
-    errors: list[str] = []
+    """Run a sub-kani round and collect created steps + error strings.
+
+    Also tracks token usage from the sub-kani's assistant messages.
+    Returns the accumulated result via module-level _last_round_result.
+    """
+    result = SubKaniRoundResult()
 
     async for message in sub_kani.full_round(round_prompt):
-        if message.role == ChatRole.ASSISTANT and message.tool_calls:
-            for tc in message.tool_calls:
-                await emit_event(
-                    {
-                        "type": "subkani_tool_call_start",
-                        "data": {
-                            "task": task,
-                            "id": tc.id,
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                )
+        if message.role == ChatRole.ASSISTANT:
+            result.llm_call_count += 1
+            # Extract token usage from Kani's stored usage data
+            extra = getattr(message, "extra", {})
+            if isinstance(extra, dict):
+                oai_usage = extra.get("openai_usage")
+                if oai_usage and isinstance(oai_usage, dict):
+                    result.prompt_tokens += (
+                        oai_usage.get("prompt_tokens", 0)
+                        or oai_usage.get("input_tokens", 0)
+                        or 0
+                    )
+                    result.completion_tokens += (
+                        oai_usage.get("completion_tokens", 0)
+                        or oai_usage.get("output_tokens", 0)
+                        or 0
+                    )
 
-        if message.role == ChatRole.ASSISTANT and message.text:
-            response_text = message.text
+            if message.tool_calls:
+                for tc in message.tool_calls:
+                    await emit_event(
+                        {
+                            "type": "subkani_tool_call_start",
+                            "data": {
+                                "task": task,
+                                "id": tc.id,
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                    )
+
+            if message.text:
+                result.response_text = message.text
 
         if message.role == ChatRole.FUNCTION:
             parsed = parse_jsonish(message.content)
             if isinstance(parsed, dict) and parsed.get("stepId"):
-                created_steps.append(parsed)
+                result.created_steps.append(parsed)
             if isinstance(parsed, dict) and parsed.get("ok") is False:
-                errors.append(
+                result.errors.append(
                     str(parsed.get("message") or parsed.get("code") or "tool error")
                 )
             if isinstance(parsed, dict) and parsed.get("error"):
-                errors.append(str(parsed.get("error")))
+                result.errors.append(str(parsed.get("error")))
             if isinstance(parsed, dict) and parsed.get("invalid"):
-                errors.append("invalid parameters")
+                result.errors.append("invalid parameters")
 
             await emit_event(
                 {
@@ -70,7 +114,18 @@ async def consume_subkani_round(
                 }
             )
 
-    return response_text, created_steps, errors
+    # Store the result for the orchestrator to read
+    _last_round_results[task] = result
+    return result.response_text, result.created_steps, result.errors
+
+
+# Module-level storage for round results (keyed by task)
+_last_round_results: dict[str, SubKaniRoundResult] = {}
+
+
+def get_round_result(task: str) -> SubKaniRoundResult | None:
+    """Get the last round result for a task (includes token usage)."""
+    return _last_round_results.pop(task, None)
 
 
 def format_dependency_context(
@@ -111,7 +166,7 @@ def format_dependency_context(
             dep_node = as_json_object(dep_node_value)
         dep_task_value = dep_node.get("task", dep_id)
         dep_task = str(dep_task_value) if dep_task_value is not None else dep_id
-        dep_hint = dep_node.get("hint")
+        dep_instructions = dep_node.get("instructions")
         dep_result_value = results_by_id.get(dep_id)
         dep_steps: list[str] = []
 
@@ -140,13 +195,17 @@ def format_dependency_context(
                     if step_id:
                         structured_steps.append(step)
 
-        hint_suffix = f" (hint: {dep_hint})" if dep_hint else ""
+        instructions_suffix = (
+            f" (instructions: {dep_instructions})" if dep_instructions else ""
+        )
         if dep_steps:
             lines.append(
-                f"- {dep_id}: {dep_task}{hint_suffix} → {', '.join(dep_steps)}"
+                f"- {dep_id}: {dep_task}{instructions_suffix} → {', '.join(dep_steps)}"
             )
         else:
-            lines.append(f"- {dep_id}: {dep_task}{hint_suffix} → no steps created")
+            lines.append(
+                f"- {dep_id}: {dep_task}{instructions_suffix} → no steps created"
+            )
 
     if structured_steps:
         lines.append("Dependency steps (JSON):")
@@ -169,7 +228,8 @@ def format_task_context(context: JSONValue) -> str | None:
     try:
         # Render JSON deterministically for model consumption.
         return json.dumps(context, ensure_ascii=True, indent=2, sort_keys=True)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to serialize task context as JSON", error=str(exc))
         return str(context).strip() or None
 
 

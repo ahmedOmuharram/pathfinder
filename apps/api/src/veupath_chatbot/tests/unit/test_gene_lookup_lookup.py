@@ -61,9 +61,9 @@ class TestLookupGenesBasic:
             )
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "results" in result
+        assert "records" in result
         assert "totalCount" in result
-        results = result["results"]
+        results = result["records"]
         assert isinstance(results, list)
         assert len(results) == 2
 
@@ -87,7 +87,7 @@ class TestLookupGenesBasic:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase", offset=2, limit=3)
 
-        paginated = result["results"]
+        paginated = result["records"]
         assert isinstance(paginated, list)
         assert len(paginated) == 3
 
@@ -110,7 +110,7 @@ class TestLookupGenesBasic:
             mock_analyse.return_value = QueryIntent(raw="zzz_no_match")
             result = await lookup_genes_by_text("plasmodb", "zzz_no_match")
 
-        assert result["results"] == []
+        assert result["records"] == []
         assert result["totalCount"] == 0
 
 
@@ -143,7 +143,7 @@ class TestLookupGenesOrganismFilter:
                 "plasmodb", "kinase", organism="Plasmodium falciparum 3D7"
             )
 
-        results = result["results"]
+        results = result["records"]
         assert isinstance(results, list)
         # Only Pf results should remain
         for r in results:
@@ -208,7 +208,7 @@ class TestLookupSiteSearchFailure:
             # Should not raise -- the exception is caught inside _strategy_a
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "results" in result
+        assert "records" in result
 
 
 class TestLookupMultiWordQuery:

@@ -9,11 +9,13 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import cast
 
-from kani.engines.openai import OpenAIEngine
+from kani.engines.base import BaseEngine
 from kani.models import ChatMessage, ChatRole
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
 from veupath_chatbot.ai.agents.subtask import SubtaskAgent
+from veupath_chatbot.ai.engines.responses_openai import ResponsesOpenAIEngine
+from veupath_chatbot.ai.models.pricing import estimate_cost as _estimate_subkani_cost
 from veupath_chatbot.ai.orchestration.delegation import (
     DelegationPlan,
     build_delegation_plan,
@@ -28,6 +30,7 @@ from veupath_chatbot.ai.orchestration.subkani.utils import (
     extract_primary_step_id,
     format_dependency_context,
     format_task_context,
+    get_round_result,
 )
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
@@ -36,6 +39,10 @@ from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.transport.http.schemas.sse import (
+    SubKaniTaskEndEventData,
+    SubKaniTaskStartEventData,
+)
 
 logger = get_logger(__name__)
 
@@ -53,14 +60,18 @@ async def run_subkani_task(
     chat_history: list[ChatMessage],
     emit_event: EmitEvent,
     subkani_timeout_seconds: int,
+    engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
-    engine = OpenAIEngine(
-        api_key=settings.openai_api_key,
-        model=settings.subkani_model,
-        temperature=settings.subkani_temperature,
-        top_p=settings.subkani_top_p,
-    )
+    if engine_factory is not None:
+        engine = engine_factory()
+    else:
+        engine = ResponsesOpenAIEngine(
+            api_key=settings.openai_api_key,
+            model=settings.subkani_model,
+            temperature=settings.subkani_temperature,
+            top_p=settings.subkani_top_p,
+        )
 
     if not graph_id:
         graph = strategy_session.get_graph(None)
@@ -88,7 +99,14 @@ async def run_subkani_task(
         chat_history=clean_history,
     )
 
-    await emit_event({"type": "subkani_task_start", "data": {"task": task}})
+    await emit_event(
+        {
+            "type": "subkani_task_start",
+            "data": SubKaniTaskStartEventData(
+                task=task, modelId=f"openai/{settings.subkani_model}"
+            ).model_dump(by_alias=True),
+        }
+    )
     prompt = build_subkani_round_prompt(
         task=task,
         goal=goal,
@@ -123,7 +141,11 @@ async def run_subkani_task(
             await emit_event(
                 {
                     "type": "subkani_task_end",
-                    "data": {"task": task, "status": "timeout"},
+                    "data": SubKaniTaskEndEventData(
+                        task=task,
+                        status="timeout",
+                        modelId=f"openai/{settings.subkani_model}",
+                    ).model_dump(by_alias=True),
                 }
             )
             return {"task": task, "steps": [], "notes": "timeout"}
@@ -186,8 +208,27 @@ async def run_subkani_task(
                 )
             subtree_root = next(iter(new_roots)) if len(new_roots) == 1 else None
 
+            round_result = get_round_result(task)
+            sub_cost = _estimate_subkani_cost(
+                f"openai/{settings.subkani_model}",
+                prompt_tokens=round_result.prompt_tokens if round_result else 0,
+                completion_tokens=round_result.completion_tokens if round_result else 0,
+            )
             await emit_event(
-                {"type": "subkani_task_end", "data": {"task": task, "status": "done"}}
+                {
+                    "type": "subkani_task_end",
+                    "data": SubKaniTaskEndEventData(
+                        task=task,
+                        status="done",
+                        modelId=f"openai/{settings.subkani_model}",
+                        promptTokens=round_result.prompt_tokens if round_result else 0,
+                        completionTokens=round_result.completion_tokens
+                        if round_result
+                        else 0,
+                        llmCallCount=round_result.llm_call_count if round_result else 0,
+                        estimatedCostUsd=sub_cost,
+                    ).model_dump(by_alias=True),
+                }
             )
             result: JSONObject = {
                 "task": task,
@@ -223,7 +264,14 @@ async def run_subkani_task(
             )
 
     await emit_event(
-        {"type": "subkani_task_end", "data": {"task": task, "status": "no_steps"}}
+        {
+            "type": "subkani_task_end",
+            "data": SubKaniTaskEndEventData(
+                task=task,
+                status="no_steps",
+                modelId=f"openai/{settings.subkani_model}",
+            ).model_dump(by_alias=True),
+        }
     )
     return {
         "task": task,
@@ -242,6 +290,7 @@ async def delegate_strategy_subtasks(
     emit_event: EmitEvent,
     chat_history: list[ChatMessage],
     plan: JSONObject | None = None,
+    engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
     compiled = build_delegation_plan(
@@ -378,9 +427,9 @@ async def delegate_strategy_subtasks(
             }
 
         task_text = str(node.get("task") or "").strip()
-        hint = str(node.get("hint") or "").strip()
-        if hint:
-            task_text = f"{task_text}\n\nHint: {hint}"
+        instructions = str(node.get("instructions") or "").strip()
+        if instructions:
+            task_text = f"{task_text}\n\nInstructions: {instructions}"
         extra_context = format_task_context(node.get("context"))
         if extra_context:
             dependency_context = (
@@ -399,14 +448,28 @@ async def delegate_strategy_subtasks(
                 chat_history=chat_history,
                 emit_event=emit_event,
                 subkani_timeout_seconds=settings.subkani_timeout_seconds,
+                engine_factory=engine_factory,
             )
         except Exception as exc:  # pragma: no cover
-            logger.error("Sub-kani task crashed", task=task_text, error=str(exc))
-            result = tool_error("SUBKANI_FAILED", str(exc), notes="failed")
+            logger.error(
+                "Sub-kani task crashed",
+                task=task_text,
+                node_id=node_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            result = tool_error(
+                "SUBKANI_FAILED",
+                str(exc),
+                notes="failed",
+                nodeId=node_id,
+                task=task_text,
+            )
         if isinstance(result, dict):
             result["id"] = node_id
             result["task"] = task_text
             result["kind"] = "task"
+            result["instructions"] = instructions
         return result
 
     results, _results_by_id = await run_nodes_with_dependencies(

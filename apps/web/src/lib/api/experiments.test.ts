@@ -61,6 +61,7 @@ const summaryFixture: ExperimentSummary = {
   siteId: "plasmodb",
   searchName: "GeneByTextSearch",
   recordType: "gene",
+  mode: "single",
   status: "completed",
   f1Score: 0.85,
   sensitivity: 0.9,

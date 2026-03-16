@@ -45,12 +45,12 @@ describe("parseChatSSEEvent", () => {
   it("parses model_selected events", () => {
     const evt = parseChatSSEEvent({
       type: "model_selected",
-      data: JSON.stringify({ modelId: "gpt-4o" }),
+      data: JSON.stringify({ modelId: "gpt-4.1" }),
     });
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("model_selected");
     if (evt!.type === "model_selected") {
-      expect(evt!.data.modelId).toBe("gpt-4o");
+      expect(evt!.data.modelId).toBe("gpt-4.1");
     }
   });
 
@@ -671,7 +671,7 @@ describe("SSE event data Zod schemas", () => {
 
   describe("ModelSelectedDataSchema", () => {
     it("accepts valid data", () => {
-      const result = ModelSelectedDataSchema.safeParse({ modelId: "gpt-4o" });
+      const result = ModelSelectedDataSchema.safeParse({ modelId: "gpt-4.1" });
       expect(result.success).toBe(true);
     });
 

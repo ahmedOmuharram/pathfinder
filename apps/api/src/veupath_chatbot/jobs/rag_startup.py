@@ -42,7 +42,7 @@ async def start_rag_startup_ingestion_background() -> None:
             max_per_site = settings.rag_startup_max_strategies_per_site
             conc = settings.rag_startup_public_strategies_concurrency
             llm_model = (
-                settings.rag_startup_public_strategies_llm_model or "gpt-4o-mini"
+                settings.rag_startup_public_strategies_llm_model or "gpt-4.1-nano"
             ).strip()
             report_path = Path(
                 settings.rag_startup_public_strategies_report_path
@@ -70,8 +70,8 @@ async def start_rag_startup_ingestion_background() -> None:
                     concurrency=conc,
                 )
             except Exception as exc:
-                logger.error(
-                    "RAG startup ingestion failed",
+                logger.warning(
+                    "RAG startup ingestion incomplete",
                     error=str(exc),
                     errorType=type(exc).__name__,
                 )

@@ -74,6 +74,8 @@ def _make_stream_repo() -> MagicMock:
 def _make_gene_set_service(gene_set: GeneSet | None = None) -> MagicMock:
     svc = MagicMock(spec=GeneSetService)
     svc.create = AsyncMock(return_value=gene_set or _make_gene_set())
+    svc.find_by_wdk_strategy = MagicMock(return_value=None)
+    svc.flush = AsyncMock()
     return svc
 
 

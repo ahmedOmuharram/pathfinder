@@ -54,7 +54,7 @@ function buildData(): OptimizationProgressData {
     status: "running",
     currentTrial: 5,
     totalTrials: 10,
-    parameterSpace: [{ name: "hard_floor", type: "numeric" }],
+    parameterSpecs: [{ name: "hard_floor", type: "numeric" }],
     recentTrials: [trial(4, 0.61), trial(5, 0.66)],
     allTrials: [
       trial(1, 0.42),

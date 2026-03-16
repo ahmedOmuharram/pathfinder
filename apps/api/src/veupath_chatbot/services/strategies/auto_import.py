@@ -50,18 +50,43 @@ async def auto_import_gene_sets(
     """
     created: list[GeneSet] = []
 
+    # Track WDK strategy IDs we've already processed in this batch
+    # to prevent concurrent background tasks from creating duplicates.
+    seen_wdk_ids: set[int] = set()
+
     for proj in projections:
         if not _is_eligible(proj):
+            continue
+
+        wdk_id = proj.wdk_strategy_id
+        assert wdk_id is not None  # guaranteed by _is_eligible
+
+        # Skip if already processed in this batch.
+        if wdk_id in seen_wdk_ids:
+            continue
+        seen_wdk_ids.add(wdk_id)
+
+        # Skip if a gene set already exists for this WDK strategy (from a
+        # concurrent background task or previous partial import).
+        existing = gene_set_service.find_by_wdk_strategy(user_id, wdk_id)
+        if existing:
+            # Link to the existing gene set instead of creating a new one.
+            await stream_repo.update_projection(
+                proj.stream_id,
+                gene_set_id=existing.id,
+                gene_set_id_set=True,
+                gene_set_auto_imported=True,
+            )
             continue
 
         try:
             gs = await gene_set_service.create(
                 user_id=user_id,
-                name=proj.name or f"WDK Strategy {proj.wdk_strategy_id}",
+                name=proj.name or f"WDK Strategy {wdk_id}",
                 site_id=site_id,
                 gene_ids=[],
                 source="strategy",
-                wdk_strategy_id=proj.wdk_strategy_id,
+                wdk_strategy_id=wdk_id,
                 record_type=proj.record_type,
             )
             # Ensure gene set row exists in DB before setting the FK.
@@ -76,13 +101,13 @@ async def auto_import_gene_sets(
             logger.info(
                 "Auto-imported gene set for strategy",
                 gene_set_id=gs.id,
-                wdk_strategy_id=proj.wdk_strategy_id,
+                wdk_strategy_id=wdk_id,
                 gene_count=len(gs.gene_ids),
             )
         except Exception as exc:
             logger.warning(
                 "Failed to auto-import gene set for strategy",
-                wdk_strategy_id=proj.wdk_strategy_id,
+                wdk_strategy_id=wdk_id,
                 error=str(exc),
             )
 

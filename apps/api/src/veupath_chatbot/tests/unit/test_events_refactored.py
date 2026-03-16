@@ -265,6 +265,52 @@ class TestExtractGraphSnapshot:
         assert event is not None
         assert event["data"]["graphId"] is None
 
+    def test_skipped_when_auto_build_succeeded(self):
+        """When autoBuild.ok is True, the auto-build hook already emitted
+        a graph_snapshot with WDK step IDs. Extracting the tool result's
+        pre-build snapshot would overwrite it with stale data."""
+        result = {
+            "graphSnapshot": {
+                "steps": [{"id": "s1", "isBuilt": False}],
+                "graphId": "g1",
+            },
+            "autoBuild": {"ok": True, "wdkStrategyId": 999},
+        }
+        event = _extract_graph_snapshot(result, get_graph=None)
+        assert event is None
+
+    def test_not_skipped_when_auto_build_failed(self):
+        """When autoBuild.ok is False, the tool result snapshot is the only
+        one — it should still be extracted."""
+        snapshot = {"steps": [{"id": "s1"}], "graphId": "g1"}
+        result = {
+            "graphSnapshot": snapshot,
+            "autoBuild": {"ok": False, "error": "WDK down"},
+        }
+        event = _extract_graph_snapshot(result, get_graph=None)
+        assert event is not None
+        assert event["type"] == GRAPH_SNAPSHOT
+
+    def test_not_skipped_when_auto_build_skipped(self):
+        """When autoBuild was skipped (multiple roots), the tool result
+        snapshot should still be extracted."""
+        snapshot = {"steps": [{"id": "s1"}], "graphId": "g1"}
+        result = {
+            "graphSnapshot": snapshot,
+            "autoBuild": {"ok": False, "skipped": True, "reason": "multiple_roots"},
+        }
+        event = _extract_graph_snapshot(result, get_graph=None)
+        assert event is not None
+        assert event["type"] == GRAPH_SNAPSHOT
+
+    def test_not_skipped_without_auto_build(self):
+        """Without autoBuild, normal extraction should work."""
+        snapshot = {"steps": [{"id": "s1"}], "graphId": "g1"}
+        result = {"graphSnapshot": snapshot}
+        event = _extract_graph_snapshot(result, get_graph=None)
+        assert event is not None
+        assert event["type"] == GRAPH_SNAPSHOT
+
 
 # ---------------------------------------------------------------------------
 # _extract_graph_plan

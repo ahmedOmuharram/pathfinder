@@ -13,6 +13,8 @@ describe("ComposeBar", () => {
     geneCount: 3,
     siteId: "PlasmoDB",
     source: "paste" as const,
+    stepCount: 1,
+    createdAt: "2026-01-01T00:00:00Z",
   };
   const setB = {
     id: "b",
@@ -21,6 +23,8 @@ describe("ComposeBar", () => {
     geneCount: 3,
     siteId: "PlasmoDB",
     source: "paste" as const,
+    stepCount: 1,
+    createdAt: "2026-01-01T00:00:00Z",
   };
 
   it("shows live result count for intersection", () => {

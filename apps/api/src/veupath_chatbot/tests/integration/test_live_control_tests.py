@@ -219,6 +219,39 @@ class TestLiveSingleIntersection:
         assert result.get("intersectionCount") is not None
 
 
+class TestLiveAutoResolveRecordType:
+    """Test that _run_intersection_control auto-resolves wrong record types.
+
+    Bug: The AI passed record_type='gene' but GeneByLocusTag lives under
+    'transcript'. This caused resolve_controls_param_type to return None,
+    which meant raw gene IDs were passed as ds_gene_ids instead of creating
+    a dataset first → WDK 422.
+    """
+
+    @pytest.mark.asyncio
+    async def test_wrong_record_type_auto_resolves_for_controls(self) -> None:
+        """Controls search record type must be auto-resolved from the catalog."""
+        result = await _run_intersection_control(
+            site_id=SITE_ID,
+            record_type="gene",  # WRONG — should auto-resolve to 'transcript'
+            target_search_name="GenesByMolecularWeight",
+            target_parameters={
+                "min_molecular_weight": "10000",
+                "max_molecular_weight": "50000",
+                "organism": '["Plasmodium falciparum 3D7"]',
+            },
+            controls_search_name=CONTROLS_SEARCH_NAME,
+            controls_param_name=CONTROLS_PARAM_NAME,
+            controls_ids=["PF3D7_0108300"],
+            controls_value_format="newline",
+            controls_extra_parameters=None,
+        )
+
+        assert isinstance(result, dict)
+        assert result["controlsCount"] == 1
+        # Must not raise HTTP 422
+
+
 class TestLiveFullControlFlow:
     """Test run_positive_negative_controls end-to-end against live PlasmoDB.
 

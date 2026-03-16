@@ -215,7 +215,7 @@ async def run_assistant(
     :param message: User message.
     :param context: Wizard state context.
     :param history: Previous conversation messages.
-    :param model_override: Model catalog ID override (default: ``openai/gpt-4o-mini``).
+    :param model_override: Model catalog ID override (default: ``openai/gpt-4.1-nano``).
     :param provider_override: Provider override.
     :param reasoning_effort: Reasoning effort override.
     :returns: Async iterator of SSE-compatible event dicts.
@@ -226,7 +226,7 @@ async def run_assistant(
             "Call services.experiment.assistant.configure() at startup."
         )
 
-    effective_model = model_override or "openai/gpt-4o-mini"
+    effective_model = model_override or "openai/gpt-4.1-nano"
     engine = _create_engine(
         model_override=effective_model,
         provider_override=provider_override,
@@ -262,5 +262,5 @@ async def run_assistant(
             chat_history=chat_history,
         )
 
-    async for event in stream_chat(agent, message):
+    async for event in stream_chat(agent, message, model_id=effective_model):
         yield event

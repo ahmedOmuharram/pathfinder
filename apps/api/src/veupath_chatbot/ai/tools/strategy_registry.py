@@ -9,6 +9,7 @@ are surfaced to the agent framework automatically.
 
 import contextlib
 import inspect
+from typing import cast
 
 from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
 from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
@@ -36,10 +37,12 @@ class StrategyToolsMixin:
     - conversation_tools: ConversationTools
     """
 
-    strategy_tools: StrategyTools
-    execution_tools: ExecutionTools
-    result_tools: ResultTools
-    conversation_tools: ConversationTools
+    strategy_tools: StrategyTools = cast("StrategyTools", cast(object, None))
+    execution_tools: ExecutionTools = cast("ExecutionTools", cast(object, None))
+    result_tools: ResultTools = cast("ResultTools", cast(object, None))
+    conversation_tools: ConversationTools = cast(
+        "ConversationTools", cast(object, None)
+    )
 
     def _tool_instances(self) -> list[object]:
         """Return the concrete tool instances to delegate to."""

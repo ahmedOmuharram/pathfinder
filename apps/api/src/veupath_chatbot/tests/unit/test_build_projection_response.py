@@ -30,6 +30,8 @@ def _make_projection(**overrides):
     proj.root_step_id = overrides.get("root_step_id")
     proj.result_count = overrides.get("result_count")
     proj.updated_at = overrides.get("updated_at", datetime.now(UTC))
+    proj.gene_set_id = overrides.get("gene_set_id")
+    proj.dismissed_at = overrides.get("dismissed_at")
     proj.stream = stream
     proj.site_id = stream.site_id
     return proj

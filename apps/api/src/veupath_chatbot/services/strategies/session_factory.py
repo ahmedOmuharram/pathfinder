@@ -99,6 +99,30 @@ def build_strategy_session(
                     graph_id=graph_id,
                 )
 
+        # Restore WDK build state from the persisted projection.
+        # This runs regardless of whether the graph was loaded from plan
+        # or from steps hydration, because the plan AST doesn't carry
+        # WDK step IDs — only the persisted steps snapshot does.
+        wdk_strategy_id = strategy_graph.get("wdkStrategyId")
+        if isinstance(wdk_strategy_id, int):
+            graph.wdk_strategy_id = wdk_strategy_id
+
+        steps_data_for_wdk = strategy_graph.get("steps")
+        if isinstance(steps_data_for_wdk, list):
+            for step in steps_data_for_wdk:
+                if not isinstance(step, dict):
+                    continue
+                sid = step.get("id")
+                if sid is None:
+                    continue
+                sid = str(sid)
+                wdk_step_id = step.get("wdkStepId")
+                if isinstance(wdk_step_id, int) and sid in graph.steps:
+                    graph.wdk_step_ids[sid] = wdk_step_id
+                result_count = step.get("resultCount") or step.get("estimatedSize")
+                if isinstance(result_count, int) and sid in graph.steps:
+                    graph.step_counts[sid] = result_count
+
         session.add_graph(graph)
 
     if not session.get_graph(None):

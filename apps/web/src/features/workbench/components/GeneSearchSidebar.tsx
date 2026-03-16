@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { ChevronRight, Search } from "lucide-react";
+import { Input } from "@/lib/components/ui/Input";
 import { useGeneSearch } from "../hooks/useGeneSearch";
 import { useGeneSelection } from "../hooks/useGeneSelection";
 import { OrganismFilter } from "./OrganismFilter";
@@ -40,12 +41,12 @@ export function GeneSearchSidebar({ onCollapse }: GeneSearchSidebarProps) {
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <Input
             type="text"
             value={search.query}
             onChange={(e) => search.setQuery(e.target.value)}
             placeholder="Search genes..."
-            className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 bg-background pl-8 pr-3 text-xs"
           />
         </div>
 

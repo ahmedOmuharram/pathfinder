@@ -207,7 +207,7 @@ def build_delegation_plan(
             left_id, right_id = dep_ids[0], dep_ids[1]
 
             display_name = _get_field(node, "display_name", "displayName")
-            hint = _get_field(node, "hint")
+            instructions = _get_field(node, "instructions")
             combine_depends_json: JSONArray = [left_id, right_id]
             combine_node_data: JSONObject = {
                 "kind": "combine",
@@ -215,7 +215,7 @@ def build_delegation_plan(
                 "inputs": [left_id, right_id],
                 "depends_on": combine_depends_json,
                 "display_name": display_name,
-                "hint": hint,
+                "instructions": instructions,
                 "task": display_name or "",  # Will be formatted with node_id if needed
             }
             combine_signature_obj: JSONObject = {
@@ -223,7 +223,7 @@ def build_delegation_plan(
                 "operator": operator,
                 "inputs": [left_id, right_id],
                 "display_name": display_name,
-                "hint": hint,
+                "instructions": instructions,
             }
 
             def task_formatter(nid: str) -> str:
@@ -242,7 +242,7 @@ def build_delegation_plan(
                     "Task node requires a non-empty 'task' string.",
                     nodeId=node.get("id"),
                 )
-            hint = str(_get_field(node, "hint") or "").strip()
+            instructions = str(_get_field(node, "instructions") or "").strip()
             # Optional per-task context that will be passed to the sub-kani as
             # additional structured context (e.g. organism, recordType, dataset ids,
             # constraints). Allow common aliases since models vary:
@@ -276,14 +276,14 @@ def build_delegation_plan(
             task_node_data: JSONObject = {
                 "kind": "task",
                 "task": task_text,
-                "hint": hint,
+                "instructions": instructions,
                 "context": context,
                 "depends_on": task_depends_json,
             }
             task_signature_obj: JSONObject = {
                 "kind": "task",
                 "task": task_text,
-                "hint": hint,
+                "instructions": instructions,
                 "context": context,
                 "depends_on": task_depends_json,
             }

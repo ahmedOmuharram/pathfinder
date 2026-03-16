@@ -1,5 +1,6 @@
 import type { Message, PlanningArtifact } from "@pathfinder/shared";
 import { ChatMarkdown } from "@/lib/components/ChatMarkdown";
+import { Card } from "@/lib/components/ui/Card";
 
 interface ResponsePartProps {
   message: Message;
@@ -16,7 +17,7 @@ export function ResponsePart({ message, onApplyPlanningArtifact }: ResponsePartP
       />
       {Array.isArray(message.planningArtifacts) &&
         message.planningArtifacts.length > 0 && (
-          <div className="mt-2 rounded-md border border-border bg-card px-2 py-2 text-sm text-foreground">
+          <Card className="mt-2 rounded-md px-2 py-2 text-sm">
             <div className="mb-1 font-medium text-foreground">
               Saved planning artifacts
             </div>
@@ -38,7 +39,7 @@ export function ResponsePart({ message, onApplyPlanningArtifact }: ResponsePartP
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         )}
     </div>
   );

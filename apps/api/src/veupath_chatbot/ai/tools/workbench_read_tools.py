@@ -30,8 +30,8 @@ class WorkbenchReadToolsMixin:
     - _get_experiment() -> Experiment | None  (async)
     """
 
-    site_id: str
-    experiment_id: str
+    site_id: str = ""
+    experiment_id: str = ""
 
     async def _get_experiment(self) -> Experiment | None:
         store = get_experiment_store()

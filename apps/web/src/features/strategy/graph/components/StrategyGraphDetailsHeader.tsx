@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
+import { Label } from "@/lib/components/ui/Label";
 
 export function StrategyGraphDetailsHeader() {
   const {
@@ -24,12 +25,12 @@ export function StrategyGraphDetailsHeader() {
         <div className="overflow-hidden">
           <div className="mt-0.5">
             <div>
-              <label
+              <Label
                 htmlFor="strategy-description-input"
                 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 Description
-              </label>
+              </Label>
               <textarea
                 id="strategy-description-input"
                 value={descriptionValue}

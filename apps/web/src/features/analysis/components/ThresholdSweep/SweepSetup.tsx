@@ -1,5 +1,7 @@
 import { Play, Loader2, Square } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
+import { Label } from "@/lib/components/ui/Label";
 import type { SweepableParam } from "./types";
 import { CategoricalPicker } from "./CategoricalPicker";
 
@@ -57,9 +59,7 @@ export function SweepSetup({
 
       {/* Parameter selector */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">
-          Parameter
-        </label>
+        <Label className="mb-1 block text-xs text-muted-foreground">Parameter</Label>
         <select
           value={paramName}
           onChange={(e) => onParamChange(e.target.value)}
@@ -91,38 +91,32 @@ export function SweepSetup({
       {selectedParam?.kind === "numeric" && (
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Min
-            </label>
-            <input
+            <Label className="mb-1 block text-xs text-muted-foreground">Min</Label>
+            <Input
               type="number"
               value={minVal}
               onChange={(e) => onMinChange(e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 bg-background px-2 text-xs"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Max
-            </label>
-            <input
+            <Label className="mb-1 block text-xs text-muted-foreground">Max</Label>
+            <Input
               type="number"
               value={maxVal}
               onChange={(e) => onMaxChange(e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 bg-background px-2 text-xs"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Steps
-            </label>
-            <input
+            <Label className="mb-1 block text-xs text-muted-foreground">Steps</Label>
+            <Input
               type="number"
               min={3}
               max={50}
               value={steps}
               onChange={(e) => onStepsChange(e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 bg-background px-2 text-xs"
             />
           </div>
         </div>

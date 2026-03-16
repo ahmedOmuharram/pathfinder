@@ -25,6 +25,7 @@ const baseStrategy: Strategy = {
   siteId: "plasmodb",
   recordType: "gene",
   rootStepId: "step-1",
+  isSaved: false,
   steps: [
     {
       id: "step-1",
@@ -77,7 +78,7 @@ describe("useGeneSetExport", () => {
       parameters: { text: "kinase" },
     });
     expect(mockAddGeneSet).toHaveBeenCalledWith(fakeGeneSet);
-    expect(mockPush).toHaveBeenCalledWith("/workbench");
+    expect(mockPush).toHaveBeenCalledWith("/workbench/gs1");
     expect(result.current.exportingGeneSet).toBe(false);
   });
 

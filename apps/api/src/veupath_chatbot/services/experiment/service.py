@@ -15,7 +15,7 @@ from typing import cast
 from uuid import uuid4
 
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
 from veupath_chatbot.services.experiment.cross_validation import run_cross_validation
 from veupath_chatbot.services.experiment.enrichment import upsert_enrichment_result
@@ -354,7 +354,7 @@ async def _phase_optimize_parameters(
         for s in optimizable_specs
     ]
 
-    fixed_params = {
+    fixed_params: dict[str, JSONValue] = {
         k: v
         for k, v in config.parameters.items()
         if k not in optimizable_names and v not in ("", None)

@@ -18,7 +18,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
-      DEFAULT_MODEL_ID: ${DEFAULT_MODEL_ID:-openai/gpt-5}
+      DEFAULT_MODEL_ID: ${DEFAULT_MODEL_ID:-openai/gpt-4.1}
       DEFAULT_REASONING_EFFORT: ${DEFAULT_REASONING_EFFORT:-medium}
       # "default" = real LLM chat (requires an API key).
       # Set PATHFINDER_CHAT_PROVIDER=mock in .env for fake chat (E2E / offline dev).
@@ -93,6 +93,23 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+
+  # Type codegen: fetches OpenAPI spec from API → generates TypeScript types.
+  # Run with: docker compose --profile dev up -d
+  codegen:
+    profiles: ["dev"]
+    image: node:22-slim
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      sh -c "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 &&
+             cd /app/packages/shared-ts && npm install --ignore-scripts > /dev/null 2>&1 &&
+             cd /app && sh scripts/sync-api-types.sh"
+    restart: "no"
 
   # Optional manual re-index job (run on demand).
   #

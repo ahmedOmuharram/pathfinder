@@ -499,11 +499,35 @@ async def _execute_analysis(
         params=analysis_params,
     )
 
-    result = await api.run_step_analysis(
-        step_id=step_id,
-        analysis_type=wdk_analysis_type,
-        parameters=analysis_params,
-    )
+    # Retry on WDK 500s — the step analysis endpoint is flaky under load.
+    import asyncio as _asyncio
+
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            result = await api.run_step_analysis(
+                step_id=step_id,
+                analysis_type=wdk_analysis_type,
+                parameters=analysis_params,
+            )
+            break
+        except Exception as exc:
+            last_err = exc
+            err_str = str(exc)
+            if "500" in err_str or "502" in err_str or "503" in err_str:
+                logger.warning(
+                    "WDK enrichment 5xx, retrying",
+                    attempt=attempt + 1,
+                    analysis_type=wdk_analysis_type,
+                    error=err_str,
+                )
+                await _asyncio.sleep(2**attempt)
+                continue
+            raise
+    else:
+        if last_err is not None:
+            raise last_err
+        raise RuntimeError("Enrichment analysis failed after retries")
 
     rows = _extract_analysis_rows(result)
     terms = _parse_enrichment_terms(rows)

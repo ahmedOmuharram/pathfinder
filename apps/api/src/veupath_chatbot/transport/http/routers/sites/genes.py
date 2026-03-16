@@ -90,7 +90,7 @@ async def search_genes(
         siteId, q, organism=organism or None, limit=limit, offset=offset
     )
     data_dict = data if isinstance(data, dict) else {}
-    raw_results = data_dict.get("results")
+    raw_results = data_dict.get("records")
     if not isinstance(raw_results, list):
         raw_results = []
     total = data_dict.get("totalCount", 0)

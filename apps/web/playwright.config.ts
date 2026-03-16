@@ -55,6 +55,11 @@ export default defineConfig({
     {
       name: "cross-feature",
       testDir: "./e2e/cross-feature",
+      timeout: 120_000,
+      // All cross-feature tests run enrichment against live VEuPathDB WDK
+      // APIs.  WDK rate-limits concurrent analysis requests, so serialize
+      // tests within this project to avoid parallel enrichment calls.
+      fullyParallel: false,
     },
     {
       name: "journey",

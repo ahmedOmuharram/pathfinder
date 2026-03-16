@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Strategy } from "@pathfinder/shared";
 
 /**
@@ -7,24 +7,34 @@ import type { Strategy } from "@pathfinder/shared";
  * During streaming, the backend may temporarily clear the strategy
  * (via `graph_cleared` events) before rebuilding it. This hook caches
  * the last known valid strategy so the graph view doesn't flash.
+ *
+ * The cache resets when switching to a different conversation (new non-null ID).
+ * It does NOT reset when the strategy becomes null (temporary clear).
+ *
+ * Uses the "adjust state during render" pattern recommended by React 19:
+ * https://react.dev/reference/react/useState#storing-information-from-previous-renders
  */
-export function useStableGraph(
-  strategy: Strategy | null,
-  isStreaming: boolean,
-): { displayStrategy: Strategy | null; hasGraph: boolean } {
+export function useStableGraph(strategy: Strategy | null): {
+  displayStrategy: Strategy | null;
+  hasGraph: boolean;
+} {
   const [cached, setCached] = useState<Strategy | null>(null);
+  const [prevId, setPrevId] = useState<string | null>(null);
 
+  const currentId = strategy?.id ?? null;
   const hasSteps = !!(strategy && strategy.steps.length > 0);
 
-  // Compute the target cache value during render.
-  // When strategy has steps, cache it. When streaming without steps,
-  // keep the previous cache. When idle without steps, clear.
-  const nextCached = hasSteps ? strategy : isStreaming ? cached : null;
+  // Only clear cache when switching to a DIFFERENT conversation (new non-null ID).
+  // Don't clear when strategy becomes null (temporary clear during streaming).
+  if (currentId !== null && currentId !== prevId) {
+    setPrevId(currentId);
+    setCached(null);
+  }
 
-  // Sync to state (same pattern as usePrevious).
-  useEffect(() => {
-    setCached(nextCached);
-  }, [nextCached]);
+  // Cache any strategy that has steps.
+  if (hasSteps && cached !== strategy) {
+    setCached(strategy);
+  }
 
   const displayStrategy = hasSteps ? strategy : cached;
   const hasGraph = !!(displayStrategy && displayStrategy.steps.length > 0);

@@ -80,10 +80,58 @@ test.describe("Strategy Graph", () => {
       timeout: 15_000,
     });
 
+    // UI: Graph compact view must be visible after reload
+    await graphPage.expectCompactView();
+    const pillCount = await graphPage.stepPills.count();
+    expect(pillCount).toBeGreaterThan(0);
+
     // API: Strategy still in DB after reload with steps intact
     const afterResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
     expect(afterResp.ok()).toBeTruthy();
     const strategy = await afterResp.json();
+    expect(strategy.steps.length).toBeGreaterThan(0);
+  });
+
+  test("delegation graph appears immediately during streaming — no refresh needed", async ({
+    chatPage,
+    graphPage,
+  }) => {
+    await chatPage.send("delegation");
+    // Graph must appear DURING streaming, before message_end
+    await graphPage.expectCompactView();
+    // Step pills must be visible
+    const pillCount = await graphPage.stepPills.count();
+    expect(pillCount).toBeGreaterThan(0);
+  });
+
+  test("delegation graph visible in UI after page reload", async ({
+    chatPage,
+    graphPage,
+    page,
+    apiClient,
+  }) => {
+    await chatPage.send("delegation");
+    await chatPage.expectAssistantMessage(/\[mock\].*delegation/i);
+    await chatPage.expectIdle();
+    await graphPage.expectCompactView();
+
+    const strategyId = chatPage.lastStrategyId;
+    expect(strategyId).toBeTruthy();
+
+    await page.reload();
+    await expect(page.getByTestId("message-composer")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // UI: Graph renders after reload
+    await graphPage.expectCompactView();
+    const pillCount = await graphPage.stepPills.count();
+    expect(pillCount).toBeGreaterThan(0);
+
+    // API: Steps persisted
+    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    expect(resp.ok()).toBeTruthy();
+    const strategy = await resp.json();
     expect(strategy.steps.length).toBeGreaterThan(0);
   });
 });

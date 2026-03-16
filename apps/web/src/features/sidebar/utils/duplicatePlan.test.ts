@@ -18,6 +18,7 @@ const base: Strategy = {
   siteId: "s",
   recordType: null,
   rootStepId: null,
+  isSaved: false,
   createdAt: "t",
   updatedAt: "t",
 };

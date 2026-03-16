@@ -120,6 +120,11 @@ export function useOperationRecovery({
           [];
         const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
         const subKaniStatusBuffer: Record<string, string> = {};
+        const subKaniModelsBuffer: Record<string, string> = {};
+        const subKaniTokenUsageBuffer: Record<
+          string,
+          import("@pathfinder/shared").SubKaniTokenUsage
+        > = {};
 
         const sub = subscribeToOperation<RawSSEData>(op.operationId, {
           onEvent: ({ type, data }) => {
@@ -134,6 +139,8 @@ export function useOperationRecovery({
                 planningArtifactsBuffer,
                 subKaniCallsBuffer,
                 subKaniStatusBuffer,
+                subKaniModelsBuffer,
+                subKaniTokenUsageBuffer,
                 thinking,
                 setStrategyId,
                 addStrategy,
@@ -168,6 +175,8 @@ export function useOperationRecovery({
             const activity = snapshotSubKaniActivityFromBuffers(
               subKaniCallsBuffer,
               subKaniStatusBuffer,
+              subKaniModelsBuffer,
+              subKaniTokenUsageBuffer,
             );
             attachThinkingToLastAssistant(
               toolCalls.length > 0 ? [...toolCalls] : [],

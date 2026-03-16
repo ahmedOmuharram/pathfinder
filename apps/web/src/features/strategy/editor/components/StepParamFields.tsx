@@ -7,6 +7,7 @@ import { isMultiParam, type ParamSpec } from "@/features/strategy/parameters/spe
 import { SingleValueField } from "./SingleValueField";
 import { MultiValueField } from "./MultiValueField";
 import type { StepParameters } from "@/lib/strategyGraph/types";
+import { Label } from "@/lib/components/ui/Label";
 
 type StepParamFieldsProps = {
   paramSpecs: ParamSpec[];
@@ -80,12 +81,12 @@ export function StepParamFields({
 
         return (
           <div key={paramName} className={fieldWrapperClass}>
-            <label className={fieldLabelClass}>
+            <Label className={fieldLabelClass}>
               {label}
               {spec.allowEmptyValue === false && (
                 <span className="ml-1 text-destructive">*</span>
               )}
-            </label>
+            </Label>
             {multi ? (
               <MultiValueField
                 paramName={paramName}

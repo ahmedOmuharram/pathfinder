@@ -69,6 +69,7 @@ function makeStrategy(overrides?: Partial<Strategy>): Strategy {
     recordType: "gene",
     steps: [],
     rootStepId: "step-1",
+    isSaved: false,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,

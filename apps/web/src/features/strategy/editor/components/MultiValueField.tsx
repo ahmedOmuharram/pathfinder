@@ -5,6 +5,7 @@ import { collectNodeValues, type VocabOption, type VocabNode } from "@/lib/utils
 import { coerceMultiValue } from "@/features/strategy/parameters/coerce";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import type { StepParameters } from "@/lib/strategyGraph/types";
+import { Input } from "@/lib/components/ui/Input";
 
 type MultiValueFieldProps = {
   paramName: string;
@@ -223,7 +224,7 @@ function MultiTextInput({
   );
 
   return (
-    <input
+    <Input
       type={isNumeric ? "number" : "text"}
       value={value === undefined || value === null ? "" : String(value)}
       onChange={(event) => {
@@ -233,7 +234,7 @@ function MultiTextInput({
           [paramName]: isNumeric ? Number(raw) : raw,
         }));
       }}
-      className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
+      className="bg-card"
     />
   );
 }

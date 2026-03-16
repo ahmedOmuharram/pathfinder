@@ -1,0 +1,9 @@
+{
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Linux",
+  "venvPath": ".",
+  "venv": "apps/api/.venv",
+  "include": ["apps/api/src"],
+  "stubPath": "apps/api/stubs",
+  "exclude": ["apps/api/src/veupath_chatbot/tests"]
+}

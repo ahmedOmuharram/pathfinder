@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getVeupathdbAuthStatus, loginVeupathdb } from "@/lib/api/veupathdb-auth";
 import { useSessionStore } from "@/state/useSessionStore";
+import { Input } from "@/lib/components/ui/Input";
 
 interface SignInFormProps {
   /** Called when sign-in succeeds. */
@@ -44,14 +45,13 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
   return (
     <div className="space-y-3">
       <div className="space-y-2.5">
-        <input
+        <Input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
-        <input
+        <Input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -59,7 +59,6 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !authBusy) void handleSubmit();
           }}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
       {authError && (

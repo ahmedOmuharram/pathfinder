@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.transport.http.schemas.plan import ColocationParams
 
 
 class StepFilterResponse(BaseModel):
@@ -62,7 +63,9 @@ class StepResponse(BaseModel):
     record_type: str | None = Field(default=None, alias="recordType")
     parameters: JSONObject | None = None
     operator: str | None = None
-    colocation_params: JSONObject | None = Field(default=None, alias="colocationParams")
+    colocation_params: ColocationParams | None = Field(
+        default=None, alias="colocationParams"
+    )
     primary_input_step_id: str | None = Field(default=None, alias="primaryInputStepId")
     secondary_input_step_id: str | None = Field(
         default=None, alias="secondaryInputStepId"

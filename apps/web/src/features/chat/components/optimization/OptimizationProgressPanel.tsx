@@ -1,5 +1,6 @@
 import type { OptimizationProgressData } from "@pathfinder/shared";
 import { X, FlaskConical, Check } from "lucide-react";
+import { Card } from "@/lib/components/ui/Card";
 import {
   pct,
   fmt,
@@ -44,8 +45,8 @@ export function OptimizationProgressPanel({
   const progressPct = total > 0 ? (current / total) * 100 : 0;
 
   const paramNames =
-    data.parameterSpace?.map((p) => p.name) ??
-    (data.bestTrial ? Object.keys(data.bestTrial.parameters) : []);
+    data.parameterSpecs?.map((p: { name: string }) => p.name) ??
+    (data.bestTrial?.parameters ? Object.keys(data.bestTrial.parameters) : []);
 
   const chartTrials = data.allTrials ?? data.recentTrials ?? [];
   const displayTrials = data.recentTrials ?? data.allTrials ?? [];
@@ -57,7 +58,7 @@ export function OptimizationProgressPanel({
   return (
     <div className="flex animate-fade-in justify-start">
       <div data-testid="optimization-panel" className="w-[760px] max-w-full">
-        <div className="rounded-lg border border-border bg-card">
+        <Card>
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <div className="flex items-center gap-2">
               {isRunning ? (
@@ -118,19 +119,23 @@ export function OptimizationProgressPanel({
                     </span>
                   </span>
                 )}
-                {data.positiveControlsCount != null && (
+                {(data as Record<string, unknown>)["positiveControlsCount"] != null && (
                   <span>
                     +controls:{" "}
                     <span className="font-medium text-foreground">
-                      {data.positiveControlsCount}
+                      {String(
+                        (data as Record<string, unknown>)["positiveControlsCount"],
+                      )}
                     </span>
                   </span>
                 )}
-                {data.negativeControlsCount != null && (
+                {(data as Record<string, unknown>)["negativeControlsCount"] != null && (
                   <span>
                     -controls:{" "}
                     <span className="font-medium text-foreground">
-                      {data.negativeControlsCount}
+                      {String(
+                        (data as Record<string, unknown>)["negativeControlsCount"],
+                      )}
                     </span>
                   </span>
                 )}
@@ -168,16 +173,19 @@ export function OptimizationProgressPanel({
                   Best configuration (trial {data.bestTrial.trialNumber})
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                  {paramNames.map((n) => (
-                    <span key={n}>
-                      <span className="text-muted-foreground">{n}:</span>{" "}
-                      <span className="font-medium tabular-nums">
-                        {typeof data.bestTrial!.parameters[n] === "number"
-                          ? fmt(data.bestTrial!.parameters[n] as number, 4)
-                          : String(data.bestTrial!.parameters[n] ?? "--")}
+                  {paramNames.map((n) => {
+                    const params = data.bestTrial!.parameters ?? {};
+                    return (
+                      <span key={n}>
+                        <span className="text-muted-foreground">{n}:</span>{" "}
+                        <span className="font-medium tabular-nums">
+                          {typeof params[n] === "number"
+                            ? fmt(params[n] as number, 4)
+                            : String(params[n] ?? "--")}
+                        </span>
                       </span>
-                    </span>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                   <span>
@@ -269,7 +277,7 @@ export function OptimizationProgressPanel({
               />
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

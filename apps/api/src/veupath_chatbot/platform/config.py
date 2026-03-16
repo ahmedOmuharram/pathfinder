@@ -97,7 +97,7 @@ class Settings(BaseSettings):
 
     # OpenAI
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-4.1"
     openai_temperature: float = 0.0
     openai_top_p: float = 1.0
     openai_hyperparams: dict[str, object] = Field(
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
 
     # Anthropic (Claude)
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-0"
+    anthropic_model: str = "claude-sonnet-4-6"
     anthropic_temperature: float = 0.0
     anthropic_top_p: float = 1.0
     anthropic_hyperparams: dict[str, object] = Field(default_factory=dict)
@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     # RAG ingestion (startup background job)
     rag_startup_max_strategies_per_site: int | None = None
     rag_startup_public_strategies_concurrency: int | None = None
-    rag_startup_public_strategies_llm_model: str = "gpt-4o-mini"
+    rag_startup_public_strategies_llm_model: str = "gpt-4.1-nano"
     rag_startup_public_strategies_report_path: str = (
         "/tmp/ingest_public_strategies_report.jsonl"
     )
@@ -141,14 +141,14 @@ class Settings(BaseSettings):
     embeddings_base_url: str = ""
 
     # Sub-kani orchestration
-    subkani_model: str = "gpt-4o"
+    subkani_model: str = "gpt-4.1-mini"
     subkani_temperature: float = 0.0
     subkani_top_p: float = 1.0
     subkani_max_concurrency: int = 6
     subkani_timeout_seconds: int = 120
 
     # Unified model defaults (applies to both planning and execution modes)
-    default_model_id: str = "openai/gpt-5"
+    default_model_id: str = "openai/gpt-4.1"
     default_reasoning_effort: ReasoningEffort = "medium"
 
     # VEuPathDB

@@ -1,6 +1,7 @@
 import type { BootstrapResult, ConfidenceInterval } from "@pathfinder/shared";
 import { Shield } from "lucide-react";
 import { Badge } from "@/lib/components/ui/Badge";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 import { pct, fmtNum } from "../utils/formatters";
 
@@ -80,7 +81,7 @@ export function RobustnessSection({ robustness }: RobustnessSectionProps) {
       <div className="space-y-4">
         {/* Stability badge — only shown when rank metrics are present */}
         {hasRankCis && (
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-3">
+          <Card className="flex items-center gap-3 px-5 py-3">
             <Shield className="h-5 w-5 text-muted-foreground" />
             <div>
               <span className="text-sm font-medium text-foreground">
@@ -93,7 +94,7 @@ export function RobustnessSection({ robustness }: RobustnessSectionProps) {
             <span className="ml-auto text-xs text-muted-foreground">
               {robustness.nIterations} bootstrap iterations
             </span>
-          </div>
+          </Card>
         )}
 
         {/* CI table */}
@@ -155,17 +156,17 @@ export function RobustnessSection({ robustness }: RobustnessSectionProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {robustness.negativeSetSensitivity.map((v) => (
+                  {(robustness.negativeSetSensitivity ?? []).map((v) => (
                     <tr key={v.label} className="border-b border-border last:border-0">
                       <td className="px-4 py-2 font-medium">{v.label}</td>
                       <td className="px-4 py-2 text-right font-mono tabular-nums">
                         {v.negativeCount}
                       </td>
                       <td className="px-4 py-2 text-right font-mono tabular-nums">
-                        {pct(v.rankMetrics.precisionAtK["50"] ?? 0)}
+                        {pct(v.rankMetrics.precisionAtK?.["50"] ?? 0)}
                       </td>
                       <td className="px-4 py-2 text-right font-mono tabular-nums">
-                        {fmtNum(v.rankMetrics.enrichmentAtK["50"] ?? 0)}x
+                        {fmtNum(v.rankMetrics.enrichmentAtK?.["50"] ?? 0)}x
                       </td>
                     </tr>
                   ))}

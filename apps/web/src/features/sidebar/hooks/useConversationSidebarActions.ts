@@ -39,6 +39,9 @@ export interface UseConversationSidebarActionsArgs {
   /** Lightweight re-fetch from local DB only (no WDK sync). */
   refetchStrategies: () => Promise<void>;
   setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
+  setDismissedItems: Dispatch<SetStateAction<Strategy[]>>;
+  /** Mark a strategy ID as recently deleted to prevent stale refetch re-adds. */
+  markAsDeleted: (id: string) => void;
   setNewConversationInFlight: (inFlight: boolean) => void;
 }
 
@@ -75,6 +78,11 @@ export interface ConversationSidebarActions {
 
   // Restore dismissed
   handleRestore: (strategyId: string) => Promise<void>;
+
+  // Permanent delete (dismissed → hard-delete from PathFinder + WDK)
+  permanentDeleteTarget: string | null;
+  setPermanentDeleteTarget: (id: string | null) => void;
+  confirmPermanentDelete: () => Promise<void>;
 }
 
 export function useConversationSidebarActions({
@@ -82,13 +90,15 @@ export function useConversationSidebarActions({
   reportError,
   refetchStrategies,
   setStrategyItems,
+  setDismissedItems,
+  markAsDeleted,
   setNewConversationInFlight,
 }: UseConversationSidebarActionsArgs): ConversationSidebarActions {
   // --- Store selectors ---
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
 
-  const syncDeleteToWdk = useSettingsStore((s) => s.syncDeleteToWdk);
+  const deleteFromWdk = useSettingsStore((s) => s.deleteFromWdk);
 
   const removeStrategy = useStrategyStore((s) => s.removeStrategyFromList);
 
@@ -104,6 +114,9 @@ export function useConversationSidebarActions({
   );
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(
+    null,
+  );
 
   // --- Derived ---
   const activeId = strategyId || null;
@@ -192,16 +205,19 @@ export function useConversationSidebarActions({
     try {
       const si = deleteTarget.strategyItem;
       if (si) {
+        // Mark as deleted so stale refetch responses don't re-add it.
+        markAsDeleted(si.id);
         await runDeleteStrategyWorkflow({
           item: si,
           currentStrategyId: strategyId || null,
           setStrategyItems,
+          setDismissedItems,
           clearStrategy,
           removeStrategy,
           setStrategyId,
           setDeleteError: () => {},
           deleteStrategyApi: deleteStrategy,
-          deleteFromWdk: syncDeleteToWdk,
+          deleteFromWdk,
           refetchStrategies,
           reportError: (msg) => reportError(msg),
         });
@@ -213,11 +229,13 @@ export function useConversationSidebarActions({
   }, [
     deleteTarget,
     strategyId,
-    syncDeleteToWdk,
+    deleteFromWdk,
     setStrategyId,
     clearStrategy,
     removeStrategy,
     setStrategyItems,
+    setDismissedItems,
+    markAsDeleted,
     refetchStrategies,
     reportError,
   ]);
@@ -304,14 +322,36 @@ export function useConversationSidebarActions({
   const handleRestore = useCallback(
     async (strategyIdToRestore: string) => {
       try {
-        await restoreStrategy(strategyIdToRestore);
-        void refetchStrategies();
+        const restored = await restoreStrategy(strategyIdToRestore);
+        // Direct state update after the API confirms success.
+        // Move the item from dismissed → active using the API response data
+        // so the UI reflects the change immediately.  A background refetch
+        // (fire-and-forget) is unreliable because the syncInFlight guard may
+        // silently drop it, so the direct update is the primary mechanism.
+        setDismissedItems((prev) => prev.filter((s) => s.id !== strategyIdToRestore));
+        setStrategyItems((prev) => [
+          restored,
+          ...prev.filter((s) => s.id !== restored.id),
+        ]);
       } catch (err) {
         reportError(toUserMessage(err, "Failed to restore strategy."));
       }
     },
-    [refetchStrategies, reportError],
+    [reportError, setDismissedItems, setStrategyItems],
   );
+
+  // --- Permanent delete (dismissed strategy → hard-delete from WDK) ---
+  const confirmPermanentDelete = useCallback(async () => {
+    if (!permanentDeleteTarget) return;
+    try {
+      await deleteStrategy(permanentDeleteTarget, true);
+      setDismissedItems((prev) => prev.filter((s) => s.id !== permanentDeleteTarget));
+    } catch (err) {
+      reportError(toUserMessage(err, "Failed to permanently delete strategy."));
+    } finally {
+      setPermanentDeleteTarget(null);
+    }
+  }, [permanentDeleteTarget, setDismissedItems, reportError]);
 
   return {
     activeId,
@@ -333,5 +373,8 @@ export function useConversationSidebarActions({
     startDuplicate,
     handleToggleSaved,
     handleRestore,
+    permanentDeleteTarget,
+    setPermanentDeleteTarget,
+    confirmPermanentDelete,
   };
 }

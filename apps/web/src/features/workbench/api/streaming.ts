@@ -32,12 +32,7 @@ type SerializedExperimentConfig = {
   [key: string]: unknown;
 };
 
-function serializeExperimentConfig(
-  config: Omit<ExperimentConfig, "name" | "description"> & {
-    name?: string;
-    description?: string;
-  },
-): SerializedExperimentConfig {
+function serializeExperimentConfig(config: PartialConfig): SerializedExperimentConfig {
   return {
     siteId: config.siteId,
     recordType: config.recordType,
@@ -114,10 +109,21 @@ function serializeExperimentConfig(
   };
 }
 
-type PartialConfig = Omit<ExperimentConfig, "name" | "description"> & {
-  name?: string;
-  description?: string;
-};
+/** Fields that have backend defaults and needn't be supplied by callers. */
+type DefaultedConfigKeys =
+  | "name"
+  | "description"
+  | "mode"
+  | "optimizationBudget"
+  | "optimizationObjective"
+  | "enableStepAnalysis"
+  | "treeOptimizationObjective"
+  | "treeOptimizationBudget"
+  | "sortDirection"
+  | "controlsValueFormat";
+
+type PartialConfig = Omit<ExperimentConfig, DefaultedConfigKeys> &
+  Partial<Pick<ExperimentConfig, DefaultedConfigKeys>>;
 
 /* ── SSE event data shapes for experiment streams ────────────────── */
 

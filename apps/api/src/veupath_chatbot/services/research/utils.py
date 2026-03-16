@@ -7,7 +7,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+
+logger = get_logger(__name__)
 
 BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -105,7 +108,8 @@ def decode_ddg_redirect(href: str) -> str:
             uddg = qs.get("uddg", [None])[0]
             if isinstance(uddg, str) and uddg:
                 return unquote(uddg)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to decode DDG redirect URL", error=str(exc))
         return h
     return h
 
@@ -205,7 +209,8 @@ def fuzzy_score(query: str, text: str) -> float:
         from rapidfuzz import fuzz
 
         return float(fuzz.token_set_ratio(q, t))
-    except Exception:
+    except Exception as exc:
+        logger.debug("rapidfuzz unavailable, using fallback ratio", error=str(exc))
         return fallback_ratio(q, t)
 
 
@@ -387,7 +392,8 @@ async def fetch_page_summary(
                     break
                 if len(buf) >= _HEAD_LIMIT:
                     break
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to fetch page for summary extraction", error=str(exc))
         return None
 
     # --- Try meta descriptions (always in <head>) ---

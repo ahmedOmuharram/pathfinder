@@ -29,7 +29,13 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
 
         site = get_site(site_id)
         return site.strategy_url(wdk_strategy_id)
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "Failed to compute WDK URL for strategy",
+            site_id=site_id,
+            wdk_strategy_id=wdk_strategy_id,
+            error=str(exc),
+        )
         return None
 
 
@@ -64,7 +70,13 @@ def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
                         s["resultCount"] = count
 
         return [build_step_response(s) for s in steps_data if isinstance(s, dict)]
-    except ValueError, KeyError, TypeError:
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.error(
+            "derive_steps_from_plan failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            plan_keys=list(plan.keys()) if isinstance(plan, dict) else None,
+        )
         return []
 
 
@@ -85,7 +97,8 @@ def parse_thinking(raw: JSONObject | None) -> ThinkingResponse | None:
         return None
     try:
         return ThinkingResponse.model_validate(raw)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to parse thinking response", error=str(exc))
         return None
 
 
@@ -114,7 +127,7 @@ def build_projection_response(
     Steps and rootStepId are derived from the plan at read time.
     """
     plan: JSONObject = projection.plan if isinstance(projection.plan, dict) else {}
-    root_step_id = extract_root_step_id(plan, None)
+    root_step_id = extract_root_step_id(plan, projection.root_step_id)
 
     msg_responses: list[MessageResponse] | None = None
     if messages:
@@ -148,6 +161,7 @@ def build_projection_response(
         rootStepId=root_step_id,
         wdkStrategyId=projection.wdk_strategy_id,
         wdkUrl=wdk_url,
+        geneSetId=projection.gene_set_id,
         isSaved=projection.is_saved,
         messages=msg_responses,
         thinking=thinking_response,
@@ -180,6 +194,7 @@ def build_projection_summary(
         recordType=projection.record_type,
         wdkStrategyId=projection.wdk_strategy_id,
         wdkUrl=wdk_url,
+        geneSetId=projection.gene_set_id,
         isSaved=projection.is_saved,
         stepCount=projection.step_count,
         resultCount=projection.result_count,

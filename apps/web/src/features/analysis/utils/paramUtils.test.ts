@@ -18,7 +18,10 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeSpec(
-  overrides: Partial<ParamSpec> & { name: string; type: string },
+  overrides: Partial<ParamSpec> & { name: string; type: string } & Record<
+      string,
+      unknown
+    >,
 ): ParamSpec {
   return { ...overrides } as ParamSpec;
 }

@@ -24,11 +24,6 @@ export interface UseWorkbenchChatReturn {
   stop: () => void;
 }
 
-let msgCounter = 0;
-function nextMsgId(): string {
-  return `wb-msg-${++msgCounter}`;
-}
-
 export function useWorkbenchChat(
   experimentId: string | null,
   siteId: string,
@@ -40,6 +35,11 @@ export function useWorkbenchChat(
   const cancelRef = useRef<(() => void) | null>(null);
   const autoTriggeredRef = useRef<string | null>(null);
   const currentAssistantIdRef = useRef<string | null>(null);
+
+  const msgCounterRef = useRef(0);
+  function nextMsgId(): string {
+    return `wb-msg-${++msgCounterRef.current}`;
+  }
 
   // Load existing messages on experiment change
   useEffect(() => {

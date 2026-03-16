@@ -3,11 +3,14 @@
 import type { ColocationParams } from "@pathfinder/shared";
 import { CombineOperator, CombineOperatorLabels } from "@pathfinder/shared";
 import { OpBadge } from "@/features/strategy/graph/components/OpBadge";
+import { Card } from "@/lib/components/ui/Card";
+import { Input } from "@/lib/components/ui/Input";
+import { Label } from "@/lib/components/ui/Label";
 
 type StepCombineOperatorSelectProps = {
   operatorValue: string;
   onOperatorChange: (nextValue: string) => void;
-  colocationParams?: ColocationParams;
+  colocationParams?: ColocationParams | null;
   onColocationParamsChange: (nextValue: ColocationParams) => void;
 };
 
@@ -22,9 +25,9 @@ export function StepCombineOperatorSelect({
   const showColocate = operatorValue === "COLOCATE";
   return (
     <div>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <Label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Operator
-      </label>
+      </Label>
       <div className="grid grid-cols-2 gap-2">
         {COMBINE_OPERATORS.map((op) => {
           const selected = op === operatorValue;
@@ -53,14 +56,14 @@ export function StepCombineOperatorSelect({
       </div>
 
       {showColocate && (
-        <div className="mt-3 space-y-2 rounded-md border border-border bg-card p-3">
+        <Card className="mt-3 space-y-2 rounded-md p-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Colocation parameters
           </div>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-sm text-foreground">
               <div className="mb-1 text-xs text-muted-foreground">Upstream (bp)</div>
-              <input
+              <Input
                 type="number"
                 min={0}
                 value={colocationParams?.upstream ?? 0}
@@ -71,12 +74,12 @@ export function StepCombineOperatorSelect({
                     strand: colocationParams?.strand ?? "both",
                   })
                 }
-                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
+                className="bg-card"
               />
             </label>
             <label className="text-sm text-foreground">
               <div className="mb-1 text-xs text-muted-foreground">Downstream (bp)</div>
-              <input
+              <Input
                 type="number"
                 min={0}
                 value={colocationParams?.downstream ?? 0}
@@ -87,7 +90,7 @@ export function StepCombineOperatorSelect({
                     strand: colocationParams?.strand ?? "both",
                   })
                 }
-                className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
+                className="bg-card"
               />
             </label>
           </div>
@@ -119,7 +122,7 @@ export function StepCombineOperatorSelect({
               })}
             </div>
           </label>
-        </div>
+        </Card>
       )}
     </div>
   );

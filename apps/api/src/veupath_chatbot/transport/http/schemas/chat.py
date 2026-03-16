@@ -6,12 +6,15 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.platform.types import (
-    JSONArray,
     JSONObject,
+    JSONValue,
     ModelProvider,
     ReasoningEffort,
 )
 from veupath_chatbot.services.chat.mention_context import MentionType
+from veupath_chatbot.transport.http.schemas.optimization import (
+    OptimizationProgressEventData,
+)
 
 
 class ChatMention(BaseModel):
@@ -66,11 +69,28 @@ class ToolCallResponse(BaseModel):
     result: str | None = None
 
 
+class SubKaniTokenUsageResponse(BaseModel):
+    """Token usage for a single sub-kani agent."""
+
+    prompt_tokens: int = Field(alias="promptTokens")
+    completion_tokens: int = Field(alias="completionTokens")
+    llm_call_count: int = Field(default=0, alias="llmCallCount")
+    estimated_cost_usd: float = Field(default=0.0, alias="estimatedCostUsd")
+
+    model_config = {"populate_by_name": True}
+
+
 class SubKaniActivityResponse(BaseModel):
     """Sub-kani tool call activity."""
 
     calls: dict[str, list[ToolCallResponse]]
     status: dict[str, str]
+    models: dict[str, str] | None = None
+    token_usage: dict[str, SubKaniTokenUsageResponse] | None = Field(
+        default=None, alias="tokenUsage"
+    )
+
+    model_config = {"populate_by_name": True}
 
 
 class ThinkingResponse(BaseModel):
@@ -96,8 +116,49 @@ class TokenUsageResponse(BaseModel):
     prompt_tokens: int = Field(alias="promptTokens")
     completion_tokens: int = Field(alias="completionTokens")
     total_tokens: int = Field(alias="totalTokens")
+    cached_tokens: int = Field(default=0, alias="cachedTokens")
     tool_call_count: int = Field(alias="toolCallCount")
     registered_tool_count: int = Field(alias="registeredToolCount")
+    llm_call_count: int = Field(default=0, alias="llmCallCount")
+    sub_kani_prompt_tokens: int = Field(default=0, alias="subKaniPromptTokens")
+    sub_kani_completion_tokens: int = Field(default=0, alias="subKaniCompletionTokens")
+    sub_kani_call_count: int = Field(default=0, alias="subKaniCallCount")
+    estimated_cost_usd: float = Field(default=0.0, alias="estimatedCostUsd")
+    model_id: str = Field(default="", alias="modelId")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitationResponse(BaseModel):
+    """Citation from research tools."""
+
+    id: str
+    source: str  # "pubmed" | "arxiv" | "google_scholar" | "web"
+    tag: str | None = None
+    title: str
+    url: str | None = None
+    authors: list[str] | None = None
+    year: int | None = None
+    doi: str | None = None
+    pmid: str | None = None
+    snippet: str | None = None
+    accessed_at: str | None = Field(default=None, alias="accessedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class PlanningArtifactResponse(BaseModel):
+    """Strategy planning artifact."""
+
+    id: str
+    title: str
+    summary_markdown: str = Field(alias="summaryMarkdown")
+    assumptions: list[str] = Field(default_factory=list)
+    parameters: dict[str, JSONValue] = Field(default_factory=dict)
+    proposed_strategy_plan: JSONObject | None = Field(
+        default=None, alias="proposedStrategyPlan"
+    )
+    created_at: str = Field(alias="createdAt")
 
     model_config = {"populate_by_name": True}
 
@@ -107,16 +168,17 @@ class MessageResponse(BaseModel):
 
     role: str
     content: str
+    model_id: str | None = Field(default=None, alias="modelId")
     tool_calls: list[ToolCallResponse] | None = Field(default=None, alias="toolCalls")
     sub_kani_activity: SubKaniActivityResponse | None = Field(
         default=None, alias="subKaniActivity"
     )
-    citations: JSONArray | None = None
-    planning_artifacts: JSONArray | None = Field(
+    citations: list[CitationResponse] | None = None
+    planning_artifacts: list[PlanningArtifactResponse] | None = Field(
         default=None, alias="planningArtifacts"
     )
     reasoning: str | None = Field(default=None)
-    optimization_progress: JSONObject | None = Field(
+    optimization_progress: OptimizationProgressEventData | None = Field(
         default=None, alias="optimizationProgress"
     )
     token_usage: TokenUsageResponse | None = Field(default=None, alias="tokenUsage")

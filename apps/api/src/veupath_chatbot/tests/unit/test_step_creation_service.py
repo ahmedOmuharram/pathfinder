@@ -39,7 +39,7 @@ async def _resolve_record_type_stub(
     allow_fallback: bool,
 ) -> str | None:
     """Stub that always returns the record type as-is, or 'gene' as default."""
-    return record_type or "gene"
+    return record_type or "transcript"
 
 
 async def _find_record_type_hint_stub(
@@ -684,7 +684,7 @@ class TestCreateStepIntegration:
         ) -> str | None:
             if req:
                 return None
-            return rt or "gene"
+            return rt or "transcript"
 
         result = await create_step(
             graph=graph,

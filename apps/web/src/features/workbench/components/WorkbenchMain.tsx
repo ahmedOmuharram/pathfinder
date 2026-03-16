@@ -4,7 +4,6 @@ import { useWorkbenchStore } from "../store";
 import { useSessionStore } from "@/state/useSessionStore";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
 import { Layers } from "lucide-react";
-import { BlockingOverlay } from "./BlockingOverlay";
 import { WorkbenchChat } from "./WorkbenchChat";
 import { SOURCE_CONFIG } from "./geneSetSourceConfig";
 import {
@@ -88,12 +87,11 @@ const PANELS = [
 // ---------------------------------------------------------------------------
 
 export function WorkbenchMain() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const lastExperiment = useWorkbenchStore((s) => s.lastExperiment);
   const selectedSite = useSessionStore((s) => s.selectedSite);
 
-  if (geneSets.length === 0) {
+  if (!activeSetId) {
     return (
       <EmptyState
         icon={<Layers className="h-10 w-10" />}
@@ -101,10 +99,6 @@ export function WorkbenchMain() {
         description="Add a gene set to get started. Paste gene IDs, import from a strategy, or upload a file."
       />
     );
-  }
-
-  if (!activeSetId) {
-    return <BlockingOverlay />;
   }
 
   return (

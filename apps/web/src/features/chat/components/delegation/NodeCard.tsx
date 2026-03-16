@@ -1,9 +1,9 @@
 export type ChatNodeCardData = {
-  type?: string;
-  kind?: string;
-  displayName?: string;
-  searchName?: string;
-  operator?: string;
+  type?: string | null;
+  kind?: string | null;
+  displayName?: string | null;
+  searchName?: string | null;
+  operator?: string | null;
   selected?: boolean;
 };
 

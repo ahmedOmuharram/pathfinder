@@ -10,23 +10,13 @@ import type { ModelCatalogEntry, ModelProvider } from "@pathfinder/shared";
 import { useSettingsStore, type ModelOverrides } from "@/state/useSettingsStore";
 import { ModelPicker } from "@/lib/components/ModelPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
+import { Input } from "@/lib/components/ui/Input";
+import { formatCompactShort } from "@/lib/utils/format";
+import { PROVIDER_LABELS } from "@/lib/models/providerMeta";
 import { SettingsField } from "./SettingsField";
-
-const PROVIDER_LABELS: Record<ModelProvider, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  google: "Google",
-  ollama: "Ollama (Local)",
-};
 
 /** Providers that support a custom reasoning token budget. */
 const BUDGET_PROVIDERS = new Set<ModelProvider>(["anthropic", "google"]);
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
-  return String(n);
-}
 
 function defaultResponseTokens(contextSize: number): number {
   return Math.min(Math.floor(contextSize / 10), 8192);
@@ -227,14 +217,14 @@ function ModelRow({
       <td className="py-1.5 px-1">
         <TuningInput
           value={overrides?.contextSize}
-          placeholder={ctxDefault > 0 ? fmt(ctxDefault) : "auto"}
+          placeholder={ctxDefault > 0 ? formatCompactShort(ctxDefault) : "auto"}
           onChange={handleChange("contextSize")}
         />
       </td>
       <td className="py-1.5 px-1">
         <TuningInput
           value={overrides?.responseTokens}
-          placeholder={fmt(respDefault)}
+          placeholder={formatCompactShort(respDefault)}
           onChange={handleChange("responseTokens")}
         />
       </td>
@@ -242,7 +232,7 @@ function ModelRow({
         {showBudget ? (
           <TuningInput
             value={overrides?.reasoningBudget}
-            placeholder={budgetDefault > 0 ? fmt(budgetDefault) : "—"}
+            placeholder={budgetDefault > 0 ? formatCompactShort(budgetDefault) : "—"}
             onChange={handleChange("reasoningBudget")}
           />
         ) : (
@@ -263,14 +253,14 @@ function TuningInput({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <input
+    <Input
       type="number"
       min={0}
       step={1024}
       value={value ?? ""}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/30"
+      className="h-auto px-1.5 py-1 text-xs placeholder:text-muted-foreground/40"
     />
   );
 }

@@ -90,7 +90,7 @@ function OperatorComparisonTable({
           </thead>
           <tbody>
             {comparisons.flatMap((c) =>
-              c.variants.map((v) => (
+              (c.variants ?? []).map((v) => (
                 <tr
                   key={`${c.combineNodeId}-${v.operator}`}
                   className="border-b border-border/50"
@@ -175,7 +175,9 @@ export function StepContributionPanel() {
 
   const experiment = lastExperimentSetId === activeSetId ? lastExperiment : null;
   const analysis = getAnalysis(experiment);
-  const hasContributions = Boolean(analysis && analysis.stepContributions.length > 0);
+  const hasContributions = Boolean(
+    analysis && (analysis.stepContributions?.length ?? 0) > 0,
+  );
 
   return (
     <AnalysisPanelContainer
@@ -188,14 +190,14 @@ export function StepContributionPanel() {
     >
       {analysis && (
         <div className="space-y-5">
-          {analysis.stepContributions.length > 0 && (
-            <ContributionTable contributions={analysis.stepContributions} />
+          {(analysis.stepContributions?.length ?? 0) > 0 && (
+            <ContributionTable contributions={analysis.stepContributions ?? []} />
           )}
-          {analysis.operatorComparisons.length > 0 && (
-            <OperatorComparisonTable comparisons={analysis.operatorComparisons} />
+          {(analysis.operatorComparisons?.length ?? 0) > 0 && (
+            <OperatorComparisonTable comparisons={analysis.operatorComparisons ?? []} />
           )}
-          {analysis.stepEvaluations.length > 0 && (
-            <StepEvaluationTable evaluations={analysis.stepEvaluations} />
+          {(analysis.stepEvaluations?.length ?? 0) > 0 && (
+            <StepEvaluationTable evaluations={analysis.stepEvaluations ?? []} />
           )}
         </div>
       )}

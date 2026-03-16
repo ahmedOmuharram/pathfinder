@@ -1,4 +1,4 @@
-import type { PlanStepNode, StrategyPlan } from "@pathfinder/shared";
+import type { CombineOperator, PlanStepNode, StrategyPlan } from "@pathfinder/shared";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy, StepParameters } from "./types";
 
@@ -70,7 +70,7 @@ export function serializeStrategyPlan(
       if (!secondary) return null;
       node.secondaryInput = secondary;
       if (!step.operator) return null;
-      node.operator = step.operator;
+      node.operator = step.operator as CombineOperator;
       if (step.operator === "COLOCATE" && step.colocationParams) {
         node.colocationParams = step.colocationParams;
       }

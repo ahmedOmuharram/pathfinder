@@ -19,6 +19,7 @@ describe("features/chat/utils/graphSnapshot", () => {
         recordType: "gene",
         steps: [{ id: "a", displayName: "A" }] satisfies Step[],
         rootStepId: "a",
+        isSaved: false,
         createdAt: "t",
         updatedAt: "t",
       } satisfies Strategy,
@@ -54,6 +55,7 @@ describe("features/chat/utils/graphSnapshot", () => {
         recordType: "gene",
         steps: [{ id: "a", displayName: "A" }] satisfies Step[],
         rootStepId: "a",
+        isSaved: false,
         createdAt: "t",
         updatedAt: "t",
       } satisfies Strategy,
@@ -69,6 +71,7 @@ describe("features/chat/utils/graphSnapshot", () => {
       recordType: "gene",
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "t",
       updatedAt: "t",
     };

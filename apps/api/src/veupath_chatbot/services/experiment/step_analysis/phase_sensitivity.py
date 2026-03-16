@@ -69,7 +69,13 @@ async def _discover_numeric_params(
     api = get_strategy_api(site_id)
     try:
         details = await api.client.get_search_details(record_type, search_name)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to fetch search details for numeric param discovery",
+            search_name=search_name,
+            record_type=record_type,
+            error=str(exc),
+        )
         return []
 
     search_data = details.get("searchData") if isinstance(details, dict) else None

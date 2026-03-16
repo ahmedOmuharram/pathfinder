@@ -23,6 +23,8 @@ class PubmedClient(BaseClient):
     Per-item parsing still goes through ``_parse_item`` / ``_build_results``.
     """
 
+    _include_abstract: bool = False
+
     async def search(
         self,
         query: str,

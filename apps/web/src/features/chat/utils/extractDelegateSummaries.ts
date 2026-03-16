@@ -11,6 +11,7 @@ export interface DelegateSummary {
     recordType?: string;
   }>;
   notes?: string;
+  instructions?: string;
 }
 
 export interface RejectedDelegateSummary {
@@ -36,6 +37,7 @@ const DelegatePayloadSchema = z
             )
             .optional(),
           notes: z.string().optional(),
+          instructions: z.string().optional(),
         }),
       )
       .optional(),
@@ -65,6 +67,7 @@ export function extractDelegateSummaries(toolCalls: ToolCall[]) {
         task: entry.task ?? "",
         steps: entry.steps ?? [],
         notes: entry.notes,
+        instructions: entry.instructions,
       });
     }
     for (const entry of parsed.data.rejected ?? []) {

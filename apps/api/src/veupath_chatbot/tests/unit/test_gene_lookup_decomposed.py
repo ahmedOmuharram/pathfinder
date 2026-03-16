@@ -423,7 +423,7 @@ class TestBuildResponse:
             wdk_totals=(5, 20),
             suggested_organisms=None,
         )
-        assert resp["results"] is paginated
+        assert resp["records"] is paginated
         # Authoritative total = max(10, 5, 20)
         assert resp["totalCount"] == 20
         assert "suggestedOrganisms" not in resp
@@ -489,9 +489,9 @@ class TestLookupGenesAfterDecomposition:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "results" in result
+        assert "records" in result
         assert "totalCount" in result
-        assert isinstance(result["results"], list)
+        assert isinstance(result["records"], list)
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -521,7 +521,7 @@ class TestLookupGenesAfterDecomposition:
                 organism="Plasmodium falciparum 3D7",
             )
 
-        results = result["results"]
+        results = result["records"]
         assert isinstance(results, list)
         for r in results:
             assert isinstance(r, dict)
@@ -555,5 +555,5 @@ class TestLookupGenesAfterDecomposition:
                 limit=2,
             )
 
-        assert isinstance(result["results"], list)
-        assert len(result["results"]) == 2
+        assert isinstance(result["records"], list)
+        assert len(result["records"]) == 2

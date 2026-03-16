@@ -10,7 +10,7 @@ import { z } from "zod";
 // Model Catalog
 // ---------------------------------------------------------------------------
 
-const ModelProviderSchema = z.enum(["openai", "anthropic", "google", "ollama"]);
+const ModelProviderSchema = z.enum(["openai", "anthropic", "google", "ollama", "mock"]);
 
 const ReasoningEffortSchema = z.enum(["none", "low", "medium", "high"]);
 
@@ -24,6 +24,10 @@ export const ModelCatalogEntrySchema = z
     enabled: z.boolean(),
     contextSize: z.number(),
     defaultReasoningBudget: z.number(),
+    description: z.string(),
+    inputPrice: z.number(),
+    cachedInputPrice: z.number(),
+    outputPrice: z.number(),
   })
   .passthrough();
 

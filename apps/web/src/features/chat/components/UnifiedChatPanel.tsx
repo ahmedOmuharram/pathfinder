@@ -15,6 +15,7 @@ import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { ChatMessageList } from "@/features/chat/components/ChatMessageList";
 import { ChatInputBar } from "@/features/chat/components/ChatInputBar";
 import { useChatPanelState } from "@/features/chat/hooks/useChatPanelState";
+import { useSessionStore } from "@/state/useSessionStore";
 
 interface UnifiedChatPanelProps {
   siteId: string;
@@ -32,6 +33,8 @@ export function UnifiedChatPanel({
   addGeneSet,
   geneSets,
 }: UnifiedChatPanelProps) {
+  const veupathdbName = useSessionStore((s) => s.veupathdbName);
+
   const {
     displayName,
     firstName,
@@ -66,6 +69,7 @@ export function UnifiedChatPanel({
         siteId={siteId}
         displayName={displayName}
         firstName={firstName}
+        fullName={veupathdbName ?? undefined}
         isStreaming={isStreaming}
         isLoading={isLoadingChat}
         messages={messages}

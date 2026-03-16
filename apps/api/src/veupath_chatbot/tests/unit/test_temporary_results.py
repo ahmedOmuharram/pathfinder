@@ -133,10 +133,7 @@ class TestGetDownloadUrl:
 
         url = await api.get_download_url(step_id=42, format="csv")
 
-        assert (
-            url
-            == "https://plasmodb.org/plasmo/service/temporary-results/result1/result"
-        )
+        assert url == "https://plasmodb.org/plasmo/service/temporary-results/result1"
 
     async def test_csv_format_uses_standard_reporter(self) -> None:
         api, client = _make_api("12345")

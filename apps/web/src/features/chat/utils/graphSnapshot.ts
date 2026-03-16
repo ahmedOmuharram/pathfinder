@@ -96,6 +96,7 @@ export function buildStrategyFromGraphSnapshot(args: {
       graphSnapshot.description !== undefined
         ? (graphSnapshot.description ?? undefined)
         : existingStrategy?.description,
+    isSaved: existingStrategy?.isSaved ?? false,
     createdAt: existingStrategy?.createdAt || now,
     updatedAt: now,
   };

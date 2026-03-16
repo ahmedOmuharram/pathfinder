@@ -360,44 +360,6 @@ test.describe("Dismissed Strategies — complex flows", () => {
     expect(dismissed.some((d) => d.id === plainId)).toBeFalsy();
   });
 
-  test("syncDeleteToWdk setting forces hard-delete of WDK strategy", async ({
-    chatPage,
-    sidebarPage,
-    settingsPage,
-    apiClient,
-    page,
-  }) => {
-    // Enable the "Sync delete to WDK" setting.
-    await settingsPage.enableSyncDeleteToWdk();
-
-    const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
-
-    // Delete with the setting ON — should hard-delete even though WDK-linked.
-    const deleteCompleted = waitForDelete(page, strategyId);
-    await sidebarPage.delete(strategyId);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(strategyId)).not.toBeVisible({
-      timeout: 10_000,
-    });
-
-    // No dismissed section — strategy was hard-deleted.
-    await sidebarPage.expectNoDismissedSection();
-
-    // API confirms hard-deleted (404).
-    const afterResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
-    expect(afterResp.ok()).toBeFalsy();
-
-    // Dismissed list confirms it's not there either.
-    const dismissedResp = await apiClient.get("/api/v1/strategies/dismissed");
-    expect(dismissedResp.ok()).toBeTruthy();
-    const dismissed = (await dismissedResp.json()) as { id: string }[];
-    expect(dismissed.some((d) => d.id === strategyId)).toBeFalsy();
-
-    // Reset the setting back to default.
-    await settingsPage.disableSyncDeleteToWdk();
-  });
-
   test("restored strategy is fully functional — can receive messages", async ({
     chatPage,
     sidebarPage,
@@ -441,58 +403,5 @@ test.describe("Dismissed Strategies — complex flows", () => {
     // API confirms strategy still exists and is accessible.
     const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
-  });
-
-  test("dismiss WDK strategy, toggle setting ON, delete another — first stays dismissed", async ({
-    chatPage,
-    sidebarPage,
-    settingsPage,
-    apiClient,
-    page,
-  }) => {
-    // Create and dismiss a WDK strategy with the setting OFF.
-    const id1 = await makeWdkLinked(
-      chatPage,
-      sidebarPage,
-      apiClient,
-      "strategy dismissed with setting OFF",
-    );
-
-    let deleteCompleted = waitForDelete(page, id1);
-    await sidebarPage.delete(id1);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(id1)).not.toBeVisible({ timeout: 10_000 });
-    await sidebarPage.expectDismissedCount(1);
-
-    // Now enable the setting.
-    await settingsPage.enableSyncDeleteToWdk();
-
-    // Create and delete another WDK strategy — this one should be hard-deleted.
-    await startNewChat(page, sidebarPage);
-    const id2 = await makeWdkLinked(
-      chatPage,
-      sidebarPage,
-      apiClient,
-      "strategy deleted with setting ON",
-    );
-
-    deleteCompleted = waitForDelete(page, id2);
-    await sidebarPage.delete(id2);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(id2)).not.toBeVisible({ timeout: 10_000 });
-
-    // First strategy is still dismissed (count = 1) — only the first is soft-deleted.
-    await sidebarPage.expectDismissedCount(1);
-    await sidebarPage.expandDismissed();
-    await sidebarPage.expectDismissedItemVisible(id1);
-
-    // Second strategy is hard-deleted (404).
-    const resp2 = await apiClient.get(`/api/v1/strategies/${id2}`);
-    expect(resp2.ok()).toBeFalsy();
-
-    // Clean up: disable setting, restore the dismissed one.
-    await settingsPage.disableSyncDeleteToWdk();
   });
 });

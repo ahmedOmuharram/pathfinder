@@ -221,8 +221,12 @@ async def cleanup_before_sweep(site_id: str) -> None:
         api = get_strategy_api(site_id)
         strategies = await api.list_strategies()
         await cleanup_internal_control_test_strategies(api, strategies)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "Pre-sweep cleanup of leaked control-test strategies failed",
+            site_id=site_id,
+            error=str(exc),
+        )
 
 
 async def generate_sweep_events(

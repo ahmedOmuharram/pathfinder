@@ -266,7 +266,7 @@ def test_message_response_with_all_fields() -> None:
         toolCalls=[
             schemas.ToolCallResponse(id="t1", name="search", arguments={"q": "abc"})
         ],
-        citations=[{"id": "c1", "title": "Citation"}],
+        citations=[{"id": "c1", "source": "pubmed", "title": "Citation"}],
         reasoning="Step-by-step analysis",
     )
     assert msg.role == "assistant"

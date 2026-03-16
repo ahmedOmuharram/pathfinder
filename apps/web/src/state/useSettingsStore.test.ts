@@ -30,9 +30,8 @@ describe("state/useSettingsStore - defaults", () => {
     expect(state.defaultReasoningEffort).toBe("medium");
     expect(state.modelOverrides).toEqual({});
     expect(state.showRawToolCalls).toBe(false);
-    expect(state.showTokenUsage).toBe(false);
+    expect(state.showTokenUsage).toBe(true);
     expect(state.disabledTools).toEqual([]);
-    expect(state.syncDeleteToWdk).toBe(false);
     expect(state.modelCatalog).toEqual([]);
     expect(state.catalogDefault).toBeNull();
   });
@@ -238,40 +237,6 @@ describe("setShowTokenUsage", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setSyncDeleteToWdk
-// ---------------------------------------------------------------------------
-
-describe("setSyncDeleteToWdk", () => {
-  it("toggles sync delete on", async () => {
-    const mod = await import("./useSettingsStore");
-    const store = mod.useSettingsStore;
-
-    store.getState().setSyncDeleteToWdk(true);
-    expect(store.getState().syncDeleteToWdk).toBe(true);
-  });
-
-  it("toggles sync delete off", async () => {
-    const mod = await import("./useSettingsStore");
-    const store = mod.useSettingsStore;
-
-    store.getState().setSyncDeleteToWdk(true);
-    store.getState().setSyncDeleteToWdk(false);
-    expect(store.getState().syncDeleteToWdk).toBe(false);
-  });
-
-  it("persists to localStorage", async () => {
-    const localStorage = makeLocalStorage();
-    vi.stubGlobal("window", { localStorage });
-
-    const mod = await import("./useSettingsStore");
-    mod.useSettingsStore.getState().setSyncDeleteToWdk(true);
-
-    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    expect(persisted.syncDeleteToWdk).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // disabledTools / toggleTool
 // ---------------------------------------------------------------------------
 
@@ -343,6 +308,10 @@ describe("setModelCatalog", () => {
         enabled: true,
         contextSize: 400_000,
         defaultReasoningBudget: 0,
+        description: "OpenAI GPT-5",
+        inputPrice: 2.5,
+        cachedInputPrice: 1.25,
+        outputPrice: 10,
       },
       {
         id: "anthropic/claude-4",
@@ -353,6 +322,10 @@ describe("setModelCatalog", () => {
         enabled: true,
         contextSize: 200_000,
         defaultReasoningBudget: 8192,
+        description: "Anthropic Claude 4",
+        inputPrice: 3,
+        cachedInputPrice: 1.5,
+        outputPrice: 15,
       },
     ];
 
@@ -378,6 +351,10 @@ describe("setModelCatalog", () => {
           enabled: true,
           contextSize: 400_000,
           defaultReasoningBudget: 0,
+          description: "OpenAI GPT-5",
+          inputPrice: 2.5,
+          cachedInputPrice: 1.25,
+          outputPrice: 10,
         },
       ],
       "openai/gpt-5",
@@ -409,7 +386,6 @@ describe("resetToDefaults", () => {
     store.getState().setShowRawToolCalls(true);
     store.getState().setShowTokenUsage(true);
     store.getState().setDisabledTools(["tool_a"]);
-    store.getState().setSyncDeleteToWdk(true);
 
     // Reset
     store.getState().resetToDefaults();
@@ -419,9 +395,8 @@ describe("resetToDefaults", () => {
     expect(state.defaultReasoningEffort).toBe("medium");
     expect(state.modelOverrides).toEqual({});
     expect(state.showRawToolCalls).toBe(false);
-    expect(state.showTokenUsage).toBe(false);
+    expect(state.showTokenUsage).toBe(true);
     expect(state.disabledTools).toEqual([]);
-    expect(state.syncDeleteToWdk).toBe(false);
   });
 
   it("persists reset state to localStorage", async () => {
@@ -433,7 +408,6 @@ describe("resetToDefaults", () => {
 
     store.getState().setDefaultModelId("some-model");
     store.getState().setShowTokenUsage(true);
-    store.getState().setSyncDeleteToWdk(true);
     store.getState().setDisabledTools(["t"]);
     store.getState().resetToDefaults();
 
@@ -442,9 +416,8 @@ describe("resetToDefaults", () => {
     expect(persisted.defaultReasoningEffort).toBe("medium");
     expect(persisted.modelOverrides).toEqual({});
     expect(persisted.showRawToolCalls).toBe(false);
-    expect(persisted.showTokenUsage).toBe(false);
+    expect(persisted.showTokenUsage).toBe(true);
     expect(persisted.disabledTools).toEqual([]);
-    expect(persisted.syncDeleteToWdk).toBe(false);
   });
 });
 
@@ -461,7 +434,6 @@ describe("persistence", () => {
       showRawToolCalls: true,
       showTokenUsage: true,
       disabledTools: ["tool_a"],
-      syncDeleteToWdk: true,
     };
     vi.stubGlobal("window", {
       localStorage: makeLocalStorage({
@@ -478,7 +450,6 @@ describe("persistence", () => {
     expect(state.showRawToolCalls).toBe(true);
     expect(state.showTokenUsage).toBe(true);
     expect(state.disabledTools).toEqual(["tool_a"]);
-    expect(state.syncDeleteToWdk).toBe(true);
   });
 
   it("handles corrupted localStorage gracefully", async () => {

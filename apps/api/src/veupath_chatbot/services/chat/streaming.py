@@ -9,6 +9,7 @@ from uuid import uuid4
 from kani import Kani
 from kani.models import ChatRole
 
+from veupath_chatbot.ai.models.pricing import estimate_cost
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.parsing import parse_jsonish
@@ -18,11 +19,84 @@ from veupath_chatbot.platform.pydantic_validation import (
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.chat.events import tool_result_to_events
+from veupath_chatbot.transport.http.schemas.sse import (
+    AssistantDeltaEventData,
+    AssistantMessageEventData,
+    ErrorEventData,
+    MessageEndEventData,
+    TokenUsagePartialEventData,
+    ToolCallEndEventData,
+    ToolCallStartEventData,
+)
 
 logger = get_logger(__name__)
 
 
-async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
+def _extract_cached_tokens(msg: object) -> int:
+    """Extract cached token count from provider-specific usage stored in msg.extra.
+
+    Kani engines store raw provider usage in the message's extra dict:
+    - OpenAI Chat Completions: extra["openai_usage"].prompt_tokens_details.cached_tokens
+    - OpenAI Responses API:    extra["openai_usage"].input_tokens_details.cached_tokens
+    - Anthropic:               extra["anthropic_message"].usage.cache_read_input_tokens
+    - Google:                  extra[RAW_RESPONSE_EXTRA_KEY].usage_metadata.cached_content_token_count
+    """
+    extra = getattr(msg, "extra", None)
+    if not extra or not isinstance(extra, dict):
+        return 0
+
+    # --- OpenAI (both Chat Completions and Responses API) ---
+    # oai_usage is a DottableDict (dict subclass where __getattr__ = __getitem__).
+    # Use .get() instead of getattr() to avoid KeyError on missing keys.
+    oai_usage = extra.get("openai_usage")
+    if oai_usage and isinstance(oai_usage, dict):
+        for key in ("input_tokens_details", "prompt_tokens_details"):
+            details = oai_usage.get(key)
+            if details is None:
+                continue
+            ct = details.get("cached_tokens") if isinstance(details, dict) else None
+            if ct:
+                return int(ct)
+
+    # --- Anthropic ---
+    anthropic_msg = extra.get("anthropic_message")
+    if anthropic_msg:
+        try:
+            cache_read = anthropic_msg.usage.cache_read_input_tokens
+            if cache_read:
+                return int(cache_read)
+        except AttributeError, TypeError:
+            pass
+
+    # --- Google Gemini ---
+    for key in ("google_response", "raw_response"):
+        google_resp = extra.get(key)
+        if google_resp:
+            try:
+                ct = google_resp.usage_metadata.cached_content_token_count
+                if ct:
+                    return int(ct)
+            except AttributeError, TypeError:
+                pass
+
+    return 0
+
+
+def _accumulate_subkani_metrics(
+    metrics: dict[str, int | float], end_data: JSONObject
+) -> None:
+    """Add sub-kani token counts from a task_end event into running metrics."""
+    pt = end_data.get("promptTokens", 0)
+    ct = end_data.get("completionTokens", 0)
+    lc = end_data.get("llmCallCount", 0)
+    metrics["subkani_prompt"] += int(pt) if isinstance(pt, (int, float)) else 0
+    metrics["subkani_completion"] += int(ct) if isinstance(ct, (int, float)) else 0
+    metrics["subkani_calls"] += int(lc) if isinstance(lc, (int, float)) else 0
+
+
+async def stream_chat(
+    agent: Kani, message: str, *, model_id: str = ""
+) -> AsyncIterator[JSONObject]:
     """Stream chat responses from the agent as SSE-friendly events.
 
     NOTE: Does NOT emit ``message_start`` — the orchestrator (_chat_producer)
@@ -31,18 +105,28 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
     queue: asyncio.Queue[JSONObject] = asyncio.Queue()
     agent.event_queue = queue
 
-    async def _produce_events() -> None:
-        try:
-            saw_assistant_message = False
-            total_prompt_tokens = 0
-            total_completion_tokens = 0
-            tool_call_count = 0
-            registered_tool_count = len(getattr(agent, "functions", {}))
+    # Shared metrics for cross-scope accumulation
+    metrics: dict[str, int | float] = {
+        "subkani_prompt": 0,
+        "subkani_completion": 0,
+        "subkani_calls": 0,
+    }
 
+    async def _produce_events() -> None:
+        saw_assistant_message = False
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        tool_call_count = 0
+        registered_tool_count = len(getattr(agent, "functions", {}))
+        llm_call_count = 0
+        cached_tokens = 0
+
+        try:
             async for stream in agent.full_round_stream(message):
                 # Assistant messages stream tokens; function calls typically do not, but are still emitted
                 # as StreamManager entries in full_round_stream.
                 if stream.role == ChatRole.ASSISTANT:
+                    llm_call_count += 1
                     message_id = str(uuid4())
                     streamed_any = False
                     async for token in stream:
@@ -53,7 +137,9 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         await queue.put(
                             {
                                 "type": "assistant_delta",
-                                "data": {"messageId": message_id, "delta": token},
+                                "data": AssistantDeltaEventData(
+                                    messageId=message_id, delta=token
+                                ).model_dump(by_alias=True),
                             }
                         )
 
@@ -66,14 +152,17 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         await queue.put(
                             {
                                 "type": "token_usage_partial",
-                                "data": {
-                                    "promptTokens": total_prompt_tokens,
-                                    "registeredToolCount": registered_tool_count,
-                                },
+                                "data": TokenUsagePartialEventData(
+                                    promptTokens=total_prompt_tokens,
+                                    registeredToolCount=registered_tool_count,
+                                ).model_dump(by_alias=True),
                             }
                         )
                     if completion.completion_tokens:
                         total_completion_tokens += completion.completion_tokens
+                    # Extract cached token count from provider usage stored
+                    # in msg.extra by Kani's engine implementations.
+                    cached_tokens += _extract_cached_tokens(msg)
                     # msg.content can be a list of parts (e.g. Gemini multipart);
                     # msg.text always returns a joined plain string.
                     final_text = msg.text or ""
@@ -82,10 +171,9 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         await queue.put(
                             {
                                 "type": "assistant_message",
-                                "data": {
-                                    "messageId": message_id,
-                                    "content": final_text,
-                                },
+                                "data": AssistantMessageEventData(
+                                    messageId=message_id, content=final_text
+                                ).model_dump(by_alias=True),
                             }
                         )
                     elif streamed_any:
@@ -93,7 +181,9 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                         await queue.put(
                             {
                                 "type": "assistant_message",
-                                "data": {"messageId": message_id, "content": ""},
+                                "data": AssistantMessageEventData(
+                                    messageId=message_id, content=""
+                                ).model_dump(by_alias=True),
                             }
                         )
 
@@ -103,11 +193,11 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                             await queue.put(
                                 {
                                     "type": "tool_call_start",
-                                    "data": {
-                                        "id": tc.id,
-                                        "name": tc.function.name,
-                                        "arguments": tc.function.arguments,
-                                    },
+                                    "data": ToolCallStartEventData(
+                                        id=tc.id,
+                                        name=tc.function.name,
+                                        arguments=tc.function.arguments,
+                                    ).model_dump(by_alias=True),
                                 }
                             )
 
@@ -134,10 +224,10 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                     await queue.put(
                         {
                             "type": "tool_call_end",
-                            "data": {
-                                "id": msg.tool_call_id,
-                                "result": tool_result_text,
-                            },
+                            "data": ToolCallEndEventData(
+                                id=msg.tool_call_id or "",
+                                result=tool_result_text,
+                            ).model_dump(by_alias=True),
                         }
                     )
 
@@ -158,16 +248,26 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                             ):
                                 await queue.put(event)
                     except Exception as e:  # pragma: no cover
-                        logger.error("Error parsing tool result", error=str(e))
+                        logger.error(
+                            "Error parsing tool result", error=str(e), exc_info=True
+                        )
+                        await queue.put(
+                            {
+                                "type": "error",
+                                "data": ErrorEventData(
+                                    error=f"Failed to process tool result: {e}"
+                                ).model_dump(by_alias=True),
+                            }
+                        )
 
             if not saw_assistant_message:
                 await queue.put(
                     {
                         "type": "assistant_message",
-                        "data": {
-                            "messageId": str(uuid4()),
-                            "content": "I processed your request.",
-                        },
+                        "data": AssistantMessageEventData(
+                            messageId=str(uuid4()),
+                            content="I processed your request.",
+                        ).model_dump(by_alias=True),
                     }
                 )
         except Exception as e:  # pragma: no cover
@@ -177,18 +277,36 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                 error=str(e),
                 errorType=type(e).__name__,
             )
-            await queue.put({"type": "error", "data": {"error": str(e)}})
+            await queue.put(
+                {
+                    "type": "error",
+                    "data": ErrorEventData(error=str(e)).model_dump(by_alias=True),
+                }
+            )
         finally:
+            estimated_cost = estimate_cost(
+                model_id,
+                prompt_tokens=total_prompt_tokens,
+                completion_tokens=total_completion_tokens,
+                cached_tokens=cached_tokens,
+            )
             await queue.put(
                 {
                     "type": "message_end",
-                    "data": {
-                        "promptTokens": total_prompt_tokens,
-                        "completionTokens": total_completion_tokens,
-                        "totalTokens": total_prompt_tokens + total_completion_tokens,
-                        "toolCallCount": tool_call_count,
-                        "registeredToolCount": registered_tool_count,
-                    },
+                    "data": MessageEndEventData(
+                        promptTokens=total_prompt_tokens,
+                        completionTokens=total_completion_tokens,
+                        totalTokens=total_prompt_tokens + total_completion_tokens,
+                        cachedTokens=cached_tokens,
+                        toolCallCount=tool_call_count,
+                        registeredToolCount=registered_tool_count,
+                        llmCallCount=llm_call_count,
+                        subKaniPromptTokens=int(metrics["subkani_prompt"]),
+                        subKaniCompletionTokens=int(metrics["subkani_completion"]),
+                        subKaniCallCount=int(metrics["subkani_calls"]),
+                        estimatedCostUsd=estimated_cost,
+                        modelId=model_id,
+                    ).model_dump(by_alias=True),
                 }
             )
 
@@ -207,6 +325,11 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
                 if event.get("type") == "message_end":
                     pending_end = event
                     continue
+                # Accumulate sub-kani token usage from task_end events
+                if event.get("type") == "subkani_task_end":
+                    end_data = event.get("data", {})
+                    if isinstance(end_data, dict):
+                        _accumulate_subkani_metrics(metrics, end_data)
                 yield event
                 continue
 
@@ -215,13 +338,26 @@ async def stream_chat(agent: Kani, message: str) -> AsyncIterator[JSONObject]:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=idle_grace_seconds)
             except TimeoutError:
-                # If producer finished and nothing else is queued, we can end safely.
-                if producer.done() and queue.empty():
+                if producer.done():
+                    # Producer is done — drain any remaining items without waiting.
+                    while not queue.empty():
+                        event = queue.get_nowait()
+                        if event.get("type") != "message_end":
+                            if event.get("type") == "subkani_task_end":
+                                end_data = event.get("data", {})
+                                if isinstance(end_data, dict):
+                                    _accumulate_subkani_metrics(metrics, end_data)
+                            yield event
                     break
                 continue
 
             # Ignore duplicate message_end; yield anything else.
             if event.get("type") != "message_end":
+                # Accumulate sub-kani token usage from late task_end events
+                if event.get("type") == "subkani_task_end":
+                    end_data = event.get("data", {})
+                    if isinstance(end_data, dict):
+                        _accumulate_subkani_metrics(metrics, end_data)
                 yield event
 
         # Now emit the stored end event as the final item.

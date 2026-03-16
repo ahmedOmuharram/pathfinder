@@ -35,6 +35,7 @@ export function buildStrategy(
     rootStepId,
     wdkStrategyId: existing?.wdkStrategyId,
     wdkUrl: existing?.wdkUrl,
+    isSaved: existing?.isSaved ?? false,
     description: existing?.description,
     createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),

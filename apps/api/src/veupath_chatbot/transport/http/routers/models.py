@@ -1,29 +1,40 @@
 """Models endpoint — exposes available LLM models and their status."""
 
-from typing import TypedDict
-
 from fastapi import APIRouter
+from pydantic import BaseModel, Field
 
 from veupath_chatbot.ai.models.catalog import get_model_catalog
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
 
 
-class _ModelItem(TypedDict):
+class ModelCatalogEntryResponse(BaseModel):
+    """A single model in the catalog — for API responses."""
+
     id: str
     name: str
     provider: ModelProvider
     model: str
-    supportsReasoning: bool
-    enabled: bool
-    contextSize: int
-    defaultReasoningBudget: int
+    description: str = ""
+    supports_reasoning: bool = Field(default=False, alias="supportsReasoning")
+    enabled: bool = True
+    context_size: int = Field(default=0, alias="contextSize")
+    default_reasoning_budget: int = Field(default=0, alias="defaultReasoningBudget")
+    input_price: float = Field(default=0.0, alias="inputPrice")
+    cached_input_price: float = Field(default=0.0, alias="cachedInputPrice")
+    output_price: float = Field(default=0.0, alias="outputPrice")
+
+    model_config = {"populate_by_name": True}
 
 
-class ModelListResponse(TypedDict):
-    models: list[_ModelItem]
+class ModelListResponse(BaseModel):
+    """Response for the /models endpoint."""
+
+    models: list[ModelCatalogEntryResponse]
     default: str
-    defaultReasoningEffort: ReasoningEffort
+    default_reasoning_effort: ReasoningEffort = Field(alias="defaultReasoningEffort")
+
+    model_config = {"populate_by_name": True}
 
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
@@ -53,8 +64,9 @@ async def list_models() -> ModelListResponse:
     so the frontend can render them as disabled in the picker.
     """
     settings = get_settings()
-    models: list[_ModelItem] = [
-        _ModelItem(
+    is_mock = settings.chat_provider.strip().lower() == "mock"
+    models: list[ModelCatalogEntryResponse] = [
+        ModelCatalogEntryResponse(
             id=m.id,
             name=m.name,
             provider=m.provider,
@@ -63,11 +75,16 @@ async def list_models() -> ModelListResponse:
             enabled=_provider_enabled(m.provider),
             contextSize=m.context_size,
             defaultReasoningBudget=m.default_reasoning_budget,
+            description=m.description,
+            inputPrice=m.input_price,
+            cachedInputPrice=m.cached_input_price,
+            outputPrice=m.output_price,
         )
         for m in get_model_catalog()
+        if is_mock or m.provider != "mock"
     ]
-    return {
-        "models": models,
-        "default": settings.default_model_id,
-        "defaultReasoningEffort": settings.default_reasoning_effort,
-    }
+    return ModelListResponse(
+        models=models,
+        default=settings.default_model_id,
+        defaultReasoningEffort=settings.default_reasoning_effort,
+    )

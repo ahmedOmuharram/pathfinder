@@ -19,8 +19,8 @@ logger = get_logger(__name__)
 class WorkbenchToolsMixin:
     """Kani tool mixin for workbench gene set operations."""
 
-    site_id: str
-    user_id: UUID | None
+    site_id: str = ""
+    user_id: UUID | None = None
 
     @ai_function()
     async def create_workbench_gene_set(
@@ -48,9 +48,9 @@ class WorkbenchToolsMixin:
             ),
         ] = None,
         record_type: Annotated[
-            str | None,
-            AIParam(desc="Record type (default 'gene')"),
-        ] = None,
+            str,
+            AIParam(desc="Record type (default 'transcript')"),
+        ] = "transcript",
         parameters: Annotated[
             dict[str, str] | None,
             AIParam(desc="WDK search parameters if from a strategy search"),
@@ -93,7 +93,7 @@ class WorkbenchToolsMixin:
             wdk_strategy_id=wdk_strategy_id,
             wdk_step_id=wdk_step_id,
             search_name=search_name,
-            record_type=record_type or "gene",
+            record_type=record_type,
             parameters=parameters,
         )
         get_gene_set_store().save(gs)
@@ -147,7 +147,17 @@ class WorkbenchToolsMixin:
         store = get_gene_set_store()
         gs = await store.aget(gene_set_id)
         if gs is None:
-            return {"error": f"Gene set '{gene_set_id}' not found."}
+            if self.user_id is not None:
+                available = store.list_for_user(self.user_id, site_id=self.site_id)
+            else:
+                available = store.list_all(site_id=self.site_id)
+            return {
+                "error": f"Gene set '{gene_set_id}' not found. Use one of the available IDs below.",
+                "availableGeneSets": [
+                    {"id": g.id, "name": g.name, "geneCount": len(g.gene_ids)}
+                    for g in available[:10]
+                ],
+            }
 
         _valid_types = get_args(EnrichmentAnalysisType)
         types: list[EnrichmentAnalysisType] = (
@@ -171,7 +181,7 @@ class WorkbenchToolsMixin:
             analysis_types=types,
             step_id=gs.wdk_step_id,
             search_name=gs.search_name,
-            record_type=gs.record_type or "gene",
+            record_type=gs.record_type or "transcript",
             parameters=params,
         )
 
@@ -180,7 +190,6 @@ class WorkbenchToolsMixin:
             "geneSetId": gene_set_id,
             "geneSetName": gs.name,
             "geneCount": len(gs.gene_ids),
-            "enrichmentResults": serialized,
             "analysisTypesRun": [r.get("analysisType", "unknown") for r in serialized],
             "totalSignificantTerms": sum(
                 sum(
@@ -191,6 +200,27 @@ class WorkbenchToolsMixin:
                 for r in serialized
             ),
         }
+
+        # Auto-generate exports in multiple formats.
+        if results:
+            try:
+                from veupath_chatbot.services.export import get_export_service
+
+                export_svc = get_export_service()
+                name = gs.name or gene_set_id
+                csv_result = await export_svc.export_enrichment(results, name)
+                tsv_result = await export_svc.export_enrichment_tsv(results, name)
+                json_result = await export_svc.export_enrichment_json(results, name)
+                summary["downloads"] = {
+                    "csv": csv_result.url,
+                    "tsv": tsv_result.url,
+                    "json": json_result.url,
+                    "expiresInSeconds": csv_result.expires_in_seconds,
+                }
+            except Exception as export_err:
+                logger.warning("Enrichment export failed", error=str(export_err))
+
+        summary["enrichmentResults"] = serialized
         if errors:
             summary["errors"] = cast(JSONValue, errors)
 

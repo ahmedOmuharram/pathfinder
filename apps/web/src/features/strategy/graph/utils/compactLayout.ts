@@ -17,8 +17,8 @@ export interface CompactStep {
   displayName: string;
   kind: StepKind;
   resultCount?: number | null;
-  recordType?: string;
-  operator?: string;
+  recordType?: string | null;
+  operator?: string | null;
   /** 1-based index in the strategy execution order. */
   stepNumber: number;
 }

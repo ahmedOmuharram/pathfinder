@@ -13,12 +13,19 @@ from starlette.responses import Response
 
 from veupath_chatbot import __version__
 from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
+from veupath_chatbot.integrations.vectorstore.qdrant_store import (
+    close_all_qdrant_stores,
+)
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.integrations.veupathdb.site_search import close_site_search_client
 from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
 from veupath_chatbot.persistence.session import close_db, init_db
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.context import request_id_ctx, veupathdb_auth_token_ctx
+from veupath_chatbot.platform.context import (
+    request_base_url_ctx,
+    request_id_ctx,
+    veupathdb_auth_token_ctx,
+)
 from veupath_chatbot.platform.errors import (
     AppError,
     app_error_handler,
@@ -32,6 +39,7 @@ from veupath_chatbot.transport.http.routers import (
     control_sets,
     experiments,
     health,
+    internal,
     models,
     operations,
     sites,
@@ -39,6 +47,7 @@ from veupath_chatbot.transport.http.routers import (
     tools,
     veupathdb_auth,
 )
+from veupath_chatbot.transport.http.routers.exports import router as exports_router
 from veupath_chatbot.transport.http.routers.gene_sets import router as gene_sets_router
 
 logger = get_logger(__name__)
@@ -94,6 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Shutdown
     logger.info("Shutting down Pathfinder API")
+    await close_all_qdrant_stores()
     await close_all_clients()
     await close_site_search_client()
     await close_redis()
@@ -119,16 +129,16 @@ def _wire_ai_dependencies() -> None:
     )
     from veupath_chatbot.services.experiment import assistant as exp_assistant
 
-    mock_stream_fn = None
-    if get_settings().chat_provider.strip().lower() == "mock":
-        from veupath_chatbot.tests.fixtures.mock_chat import mock_stream_chat
-
-        mock_stream_fn = mock_stream_chat
+    # When chat_provider is "mock", override the default model to use MockEngine.
+    # This makes the REAL agent use a deterministic engine — all downstream
+    # systems (WDK, DB, Redis, gene sets, auto-build) still run real.
+    settings = get_settings()
+    if settings.chat_provider.strip().lower() == "mock":
+        settings.default_model_id = "mock/deterministic"
 
     chat_orchestrator.configure(
         create_agent_fn=create_agent,
         resolve_model_id_fn=resolve_effective_model_id,
-        mock_stream_fn=mock_stream_fn,
     )
     exp_assistant.configure(
         create_engine_fn=create_engine,
@@ -176,7 +186,6 @@ def _wire_ai_dependencies() -> None:
     wb_orchestrator.configure(
         create_workbench_agent_fn=_create_workbench_agent,
         resolve_model_id_fn=resolve_effective_model_id,
-        mock_stream_fn=mock_stream_fn,
     )
 
 
@@ -226,6 +235,13 @@ def create_app() -> FastAPI:
             or request.headers.get("X-VEUPATHDB-AUTHORIZATION")
             or request.cookies.get("Authorization")
         )
+        # Capture the frontend origin for constructing full download URLs.
+        origin = (
+            request.headers.get("Origin")
+            or request.headers.get("Referer", "").rstrip("/").rsplit("/api/", 1)[0]
+            or (settings.cors_origins[0] if settings.cors_origins else None)
+        )
+        request_base_url_ctx.set(origin)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
@@ -269,6 +285,12 @@ def create_app() -> FastAPI:
     app.include_router(veupathdb_auth.router)
     app.include_router(operations.router)
     app.include_router(gene_sets_router)
+    app.include_router(exports_router)
+    app.include_router(internal.router)
+
+    from veupath_chatbot.transport.http.routers import user_data
+
+    app.include_router(user_data.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":

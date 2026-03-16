@@ -18,6 +18,7 @@ interface ThinkingState {
   lastToolCalls: ToolCall[];
   subKaniCalls: Record<string, ToolCall[]>;
   subKaniStatus: Record<string, string>;
+  subKaniModels?: Record<string, string>;
   reasoning?: string | null;
 }
 
@@ -72,6 +73,7 @@ export function AssistantMessageParts({
                 lastToolCalls={thinking.lastToolCalls}
                 subKaniCalls={thinking.subKaniCalls}
                 subKaniStatus={thinking.subKaniStatus}
+                subKaniModels={thinking.subKaniModels}
                 reasoning={thinking.reasoning}
                 title="Thinking"
               />

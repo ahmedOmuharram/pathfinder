@@ -6,8 +6,6 @@ export {
   enrichGeneSet,
 } from "./geneSets";
 
-export type { CreateGeneSetRequest, SetOperationRequest } from "./geneSets";
-
 export {
   listExperiments,
   getExperiment,
@@ -32,8 +30,6 @@ export {
 } from "./analysis";
 
 export type {
-  OverlapResult,
-  EnrichmentCompareResult,
   CustomEnrichmentResult,
   ThresholdSweepResult,
   ThresholdSweepPoint,
@@ -56,10 +52,4 @@ export type {
   BatchOrganismTarget,
 } from "./streaming";
 
-export {
-  listControlSets,
-  getControlSet,
-  createControlSet,
-  deleteControlSet,
-  getExperimentReport,
-} from "./controlSets";
+export { listControlSets, createControlSet } from "./controlSets";

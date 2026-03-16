@@ -117,7 +117,7 @@ async def ingest_wdk_catalog(
     await store.ensure_collection(name=WDK_SEARCHES_V1, vector_size=dim)
 
     embedder = OpenAIEmbeddings(model=settings.embeddings_model)
-    concurrency = max(1, int(os.cpu_count() or 1) * 10)
+    concurrency = min(40, max(1, int(os.cpu_count() or 1) * 10))
     logger.info(
         "WDK ingest starting",
         concurrency=concurrency,
@@ -129,18 +129,40 @@ async def ingest_wdk_catalog(
     all_sites = [s.id for s in router.list_sites()]
     selected = all_sites if not sites else [s for s in all_sites if s in set(sites)]
 
+    # Skip portal sites during ingestion — their searches are a superset of
+    # the individual component sites and cause many upstream 500 errors.
+    # Individual sites (plasmodb, toxodb, etc.) cover all searches without
+    # the portal's aggregation issues.
+    portal_ids = {s.id for s in router.list_sites() if s.is_portal}
+    if portal_ids:
+        skipped = [s for s in selected if s in portal_ids]
+        if skipped:
+            logger.info(
+                "Skipping portal sites (covered by individual sites)",
+                skipped=skipped,
+            )
+        selected = [s for s in selected if s not in portal_ids]
+
     async with store.connect() as qdrant_client:
         for site_id in selected:
             logger.info("WDK ingest site", siteId=site_id)
-            await ingest_site(
-                site_id=site_id,
-                store=store,
-                qdrant_client=qdrant_client,
-                embedder=embedder,
-                concurrency=concurrency,
-                batch_size=max(8, int(batch_size)),
-                skip_existing=bool(skip_existing) and (not bool(reset)),
-            )
+            try:
+                await ingest_site(
+                    site_id=site_id,
+                    store=store,
+                    qdrant_client=qdrant_client,
+                    embedder=embedder,
+                    concurrency=concurrency,
+                    batch_size=max(8, int(batch_size)),
+                    skip_existing=bool(skip_existing) and (not bool(reset)),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "WDK ingest site failed, continuing with remaining sites",
+                    siteId=site_id,
+                    error=str(exc),
+                    errorType=type(exc).__name__,
+                )
 
 
 async def _cli_async(argv: list[str] | None = None) -> None:

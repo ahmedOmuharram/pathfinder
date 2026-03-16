@@ -114,6 +114,8 @@ function makeGeneSet(overrides: Partial<GeneSet> = {}): GeneSet {
     searchName: "GenesByTaxon",
     recordType: "gene",
     parameters: { organism: "Plasmodium falciparum 3D7" },
+    stepCount: 1,
+    createdAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }

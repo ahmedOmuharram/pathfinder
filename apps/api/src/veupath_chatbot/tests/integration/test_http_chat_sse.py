@@ -8,76 +8,15 @@ the request and returns immediately; events are consumed from a Redis-backed
 SSE subscription endpoint.
 """
 
-from unittest.mock import patch
-
 import httpx
 import pytest
 
-from veupath_chatbot.tests.fixtures.mock_chat import mock_stream_chat
 from veupath_chatbot.tests.fixtures.scripted_engine import (
     ScriptedEngineFactory,
     ScriptedToolCall,
     ScriptedTurn,
 )
 from veupath_chatbot.tests.fixtures.sse_collector import collect_chat_stream
-
-_MOCK_PROVIDER_PATCH = patch(
-    "veupath_chatbot.services.chat.orchestrator._mock_stream_fn",
-    mock_stream_chat,
-)
-
-
-# ── Mock-provider tests ──────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_mock_provider_text_only(
-    authed_client: httpx.AsyncClient,
-) -> None:
-    """Mock provider returns deterministic text events via CQRS pipeline."""
-    with _MOCK_PROVIDER_PATCH:
-        result = await collect_chat_stream(
-            authed_client, message="hello", site_id="plasmodb", timeout=30.0
-        )
-
-    assert result.http_status == 202
-    types = result.event_types
-
-    assert "message_start" in types
-    assert "assistant_delta" in types
-    assert "assistant_message" in types
-    assert types[-1] == "message_end"
-
-    # Mock content should echo the message.
-    assert "hello" in result.assistant_content
-
-
-@pytest.mark.asyncio
-async def test_mock_provider_planning_artifact(
-    authed_client: httpx.AsyncClient,
-) -> None:
-    """Mock provider emits ``planning_artifact`` event for artifact graph requests."""
-    with _MOCK_PROVIDER_PATCH:
-        result = await collect_chat_stream(
-            authed_client,
-            message="please emit artifact graph",
-            site_id="plasmodb",
-            timeout=30.0,
-        )
-
-    assert result.http_status == 202
-    types = result.event_types
-
-    assert "planning_artifact" in types
-    assert types[-1] == "message_end"
-
-    # Verify artifact structure.
-    artifact_evt = result.first_event("planning_artifact")
-    assert artifact_evt is not None
-    artifact = artifact_evt.data.get("planningArtifact")
-    assert isinstance(artifact, dict)
-    assert "proposedStrategyPlan" in artifact
-
 
 # ── Scripted-engine tests (realistic SSE contract) ──────────────────
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, startTransition } from "react";
 import type { Search } from "@pathfinder/shared";
 import { getSearches } from "@/lib/api/sites";
 import { Modal } from "@/lib/components/Modal";
+import { Label } from "@/lib/components/ui/Label";
 
 function looksLikeOrthologSearch(s: Search) {
   const hay =
@@ -79,9 +80,9 @@ export function OrthologTransformModal(props: {
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Transform tool
-            </label>
+            </Label>
             {isLoading ? (
               <div className="text-sm text-muted-foreground">Loading…</div>
             ) : searches.length === 0 ? (

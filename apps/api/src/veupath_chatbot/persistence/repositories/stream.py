@@ -19,6 +19,37 @@ class StreamRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    # ── Helpers ──
+
+    async def _deduplicate_name(
+        self,
+        user_id: UUID,
+        site_id: str,
+        name: str,
+        exclude_stream_id: UUID | None = None,
+    ) -> str:
+        """Return a unique name for a projection within (user, site).
+
+        If ``name`` already exists, appends ``(1)``, ``(2)``, etc.
+        """
+        query = (
+            select(StreamProjection.name)
+            .join(Stream)
+            .where(Stream.user_id == user_id, Stream.site_id == site_id)
+        )
+        if exclude_stream_id is not None:
+            query = query.where(StreamProjection.stream_id != exclude_stream_id)
+        result = await self.session.execute(query)
+        existing: set[str] = {row[0] for row in result.all() if row[0]}
+
+        if name not in existing:
+            return name
+
+        i = 1
+        while f"{name} ({i})" in existing:
+            i += 1
+        return f"{name} ({i})"
+
     # ── Identity ──
 
     async def create(
@@ -30,6 +61,11 @@ class StreamRepository:
         name: str = "",
         experiment_id: str | None = None,
     ) -> Stream:
+        resolved_name = await self._deduplicate_name(
+            user_id,
+            site_id,
+            name or DEFAULT_STREAM_NAME,
+        )
         stream = Stream(
             id=stream_id or uuid4(),
             user_id=user_id,
@@ -41,7 +77,7 @@ class StreamRepository:
 
         proj = StreamProjection(
             stream_id=stream.id,
-            name=name or DEFAULT_STREAM_NAME,
+            name=resolved_name,
             site_id=site_id,
         )
         self.session.add(proj)
@@ -139,6 +175,15 @@ class StreamRepository:
         """
         values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
         if name is not None:
+            # Deduplicate rename against other projections for the same user+site.
+            proj = await self.get_projection(stream_id)
+            if proj and proj.stream:
+                name = await self._deduplicate_name(
+                    proj.stream.user_id,
+                    proj.stream.site_id,
+                    name,
+                    exclude_stream_id=stream_id,
+                )
             values["name"] = name
         if record_type is not None:
             values["record_type"] = record_type

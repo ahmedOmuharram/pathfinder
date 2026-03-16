@@ -6,7 +6,10 @@ from typing import cast
 import json5
 
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONValue
+
+logger = get_logger(__name__)
 
 
 def decode_values(value: JSONValue, name: str) -> list[JSONValue]:
@@ -41,5 +44,6 @@ def parse_json5_value(raw: str) -> JSONValue | None:
         # json5.loads returns Any, but we know it's JSON-serializable
         result = json5.loads(raw)
         return cast(JSONValue, result)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to parse JSON5 value", error=str(exc))
         return None

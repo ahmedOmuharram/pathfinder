@@ -2,7 +2,10 @@
 
 import json
 
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
+
+logger = get_logger(__name__)
 
 
 def parse_jsonish(
@@ -31,6 +34,7 @@ def parse_jsonish(
             import ast
 
             parsed = ast.literal_eval(value)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Failed to parse value as Python literal", error=str(exc))
             return None
         return parsed if isinstance(parsed, (dict, list)) else None

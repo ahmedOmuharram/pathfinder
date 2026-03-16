@@ -5,6 +5,134 @@
  * RMINUS, LONLY, RONLY, COLOCATE, UNION.
  */
 
+import type { components } from "./openapi.generated";
+
+// ── Generated API types (SSOT — do not hand-edit these shapes) ─────────────
+// Re-exported from openapi.generated.ts with aliases matching existing names.
+// Types where the generated shape is structurally compatible with existing usage.
+
+export type TokenUsage = components["schemas"]["TokenUsageResponse"];
+export type ModelCatalogEntry = components["schemas"]["ModelCatalogEntryResponse"];
+export type GeneSearchResult = components["schemas"]["GeneSearchResultResponse"];
+export type GeneSearchResponse = components["schemas"]["GeneSearchResponse"];
+export type ResolvedGene = components["schemas"]["ResolvedGeneResponse"];
+export type GeneResolveResponse = components["schemas"]["GeneResolveResponse"];
+export type Search = components["schemas"]["SearchResponse"];
+export type RecordType = components["schemas"]["RecordTypeResponse"];
+export type StepCountsResponse = components["schemas"]["StepCountsResponse"];
+export type OpenStrategyRequest = components["schemas"]["OpenStrategyRequest"];
+export type OpenStrategyResponse = components["schemas"]["OpenStrategyResponse"];
+export type ChatMention = components["schemas"]["ChatMention"];
+export type ChatRequest = components["schemas"]["ChatRequest"];
+export type ParamSpec = components["schemas"]["ParamSpecResponse"];
+export type SearchValidationErrors = components["schemas"]["SearchValidationErrors"];
+export type SearchValidationPayload = components["schemas"]["SearchValidationPayload"];
+export type SearchValidationResponse = components["schemas"]["SearchValidationResponse"];
+export type CreateStrategyRequest = components["schemas"]["CreateStrategyRequest"];
+export type UpdateStrategyRequest = components["schemas"]["UpdateStrategyRequest"];
+
+// SSE event data types (generated SSOT)
+export type MessageStartData = components["schemas"]["MessageStartEventData"];
+export type UserMessageData = components["schemas"]["UserMessageEventData"];
+export type AssistantDeltaData = components["schemas"]["AssistantDeltaEventData"];
+export type AssistantMessageData = components["schemas"]["AssistantMessageEventData"];
+export type TokenUsagePartialData = components["schemas"]["TokenUsagePartialEventData"];
+export type SubKaniTaskStartData = components["schemas"]["SubKaniTaskStartEventData"];
+export type SubKaniTaskEndData = components["schemas"]["SubKaniTaskEndEventData"];
+export type SubKaniToolCallStartData = components["schemas"]["SubKaniToolCallStartEventData"];
+export type SubKaniToolCallEndData = components["schemas"]["SubKaniToolCallEndEventData"];
+export type SSEToolCallStartData = components["schemas"]["ToolCallStartEventData"];
+export type SSEToolCallEndData = components["schemas"]["ToolCallEndEventData"];
+export type ModelSelectedData = components["schemas"]["ModelSelectedEventData"];
+export type SSEErrorData = components["schemas"]["ErrorEventData"];
+export type StrategyMetaData = components["schemas"]["StrategyMetaEventData"];
+export type StrategyLinkData = components["schemas"]["StrategyLinkEventData"];
+export type GraphClearedData = components["schemas"]["GraphClearedEventData"];
+export type ReasoningData = components["schemas"]["ReasoningEventData"];
+export type MessageEndData = components["schemas"]["MessageEndEventData"];
+
+// SSE event data types that use JSONObject/JSONValue — re-exported but
+// downstream consumers use `as` casts or runtime checks for type safety.
+export type GraphSnapshotData = components["schemas"]["GraphSnapshotEventData"];
+export type GraphPlanData = components["schemas"]["GraphPlanEventData"];
+export type StrategyUpdateData = components["schemas"]["StrategyUpdateEventData"];
+export type ExecutorBuildRequestData = components["schemas"]["ExecutorBuildRequestEventData"];
+export type WorkbenchGeneSetData = components["schemas"]["WorkbenchGeneSetEventData"];
+export type CitationsData = components["schemas"]["CitationsEventData"];
+export type PlanningArtifactData = components["schemas"]["PlanningArtifactEventData"];
+
+// Optimization SSE event types
+export type OptimizationProgressData = components["schemas"]["OptimizationProgressEventData"];
+export type OptimizationTrialData = components["schemas"]["OptimizationTrialData"];
+export type OptimizationParameterSpecData = components["schemas"]["OptimizationParameterSpecData"];
+
+// Experiment response types
+export type ConfusionMatrix = components["schemas"]["ConfusionMatrixResponse"];
+export type ExperimentMetrics = components["schemas"]["ExperimentMetricsResponse"];
+export type GeneInfo = components["schemas"]["GeneInfoResponse"];
+export type FoldMetrics = components["schemas"]["FoldMetricsResponse"];
+export type CrossValidationResult = components["schemas"]["CrossValidationResultResponse"];
+export type EnrichmentTerm = components["schemas"]["EnrichmentTermResponse"];
+export type EnrichmentResult = components["schemas"]["EnrichmentResultResponse"];
+export type BootstrapResult = components["schemas"]["BootstrapResultResponse"];
+export type ConfidenceInterval = components["schemas"]["ConfidenceIntervalResponse"];
+export type RankMetrics = components["schemas"]["RankMetricsResponse"];
+export type NegativeSetVariant = components["schemas"]["NegativeSetVariantResponse"];
+export type StepEvaluation = components["schemas"]["StepEvaluationResponse"];
+export type OperatorVariant = components["schemas"]["OperatorVariantResponse"];
+export type OperatorComparison = components["schemas"]["OperatorComparisonResponse"];
+export type StepContribution = components["schemas"]["StepContributionResponse"];
+export type ParameterSweepPoint = components["schemas"]["ParameterSweepPointResponse"];
+export type ParameterSensitivity = components["schemas"]["ParameterSensitivityResponse"];
+export type StepAnalysisResult = components["schemas"]["StepAnalysisResultResponse"];
+export type TreeOptimizationTrial = components["schemas"]["TreeOptimizationTrialResponse"];
+export type TreeOptimizationResult = components["schemas"]["TreeOptimizationResultResponse"];
+export type ExperimentConfig = components["schemas"]["ExperimentConfigResponse"];
+export type Experiment = components["schemas"]["ExperimentResponse"];
+export type ExperimentSummary = components["schemas"]["ExperimentSummaryResponse"];
+export type OptimizeSpec = components["schemas"]["OptimizationSpecResponse"];
+export type ThresholdKnob = components["schemas"]["ThresholdKnobResponse"];
+export type OperatorKnob = components["schemas"]["OperatorKnobResponse"];
+
+// Newly typed models (were JSONObject before)
+export type Citation = components["schemas"]["CitationResponse"];
+export type PlanningArtifact = components["schemas"]["PlanningArtifactResponse"];
+export type ColocationParams = components["schemas"]["ColocationParams"];
+export type ControlSetSummary = components["schemas"]["ControlSetSummaryResponse"];
+export type OptimizationResult = components["schemas"]["OptimizationResultResponse"];
+export type TrialProgressData = components["schemas"]["TrialProgressDataResponse"];
+export type StepAnalysisProgressData = components["schemas"]["StepAnalysisProgressDataResponse"];
+export type ExperimentProgressData = components["schemas"]["ExperimentProgressDataResponse"];
+
+// REST response types — formerly hand-written, now generated SSOT
+export type ToolCall = components["schemas"]["ToolCallResponse"];
+export type SubKaniTokenUsage = components["schemas"]["SubKaniTokenUsageResponse"];
+export type SubKaniActivity = components["schemas"]["SubKaniActivityResponse"];
+export type Thinking = components["schemas"]["ThinkingResponse"];
+export type StepFilter = components["schemas"]["StepFilterResponse"];
+export type StepAnalysis = components["schemas"]["StepAnalysisResponse"];
+export type StepReport = components["schemas"]["StepReportResponse"];
+export type Step = components["schemas"]["StepResponse"];
+export type GeneSet = components["schemas"]["GeneSetResponse"];
+export type ControlSet = components["schemas"]["ControlSetResponse"];
+/**
+ * Strategy normalizes the generated StrategyResponse: `steps` and `isSaved`
+ * always have values at runtime (backend defaults), but OpenAPI marks them
+ * optional. We make them required here to match actual API behavior.
+ */
+export type Strategy = Omit<
+  components["schemas"]["StrategyResponse"],
+  "steps" | "isSaved"
+> & {
+  steps: components["schemas"]["StepResponse"][];
+  isSaved: boolean;
+};
+
+// ── Hand-written types (frontend-enriched, not yet in generated schema) ────
+// These types extend/differ from their generated counterparts with frontend-
+// specific fields or stricter typing.  They'll migrate to generated re-exports
+// as the backend schema evolves to cover their full shape.
+
 // Combine Operations
 
 export const CombineOperator = {
@@ -87,12 +215,6 @@ export function wdkOperatorToCombine(wdkOperator: string | null | undefined): Co
 
 // Strategy Plan DSL (AST)
 
-export interface ColocationParams {
-  upstream: number;
-  downstream: number;
-  strand: "same" | "opposite" | "both";
-}
-
 export interface BasePlanNode {
   id?: string;
   displayName?: string;
@@ -112,39 +234,11 @@ export interface BasePlanNode {
  * All nodes use `searchName` to identify the underlying WDK question/search.
  */
 export interface PlanStepNode extends BasePlanNode {
-  /**
-   * Name of the WDK search/question to execute (search, transform, or boolean operator).
-   */
   searchName: string;
-
-  /**
-   * Parameters passed to the underlying WDK question/search.
-   *
-   * - For leaf searches and transforms: the question parameters
-   * - For combine/operator steps: typically includes operator param(s) in WDK, but we also
-   *   store `operator` explicitly in the plan for convenience/validation.
-   */
   parameters?: Record<string, unknown>;
-
-  /**
-   * Primary input step (unary/binary operations).
-   */
   primaryInput?: PlanStepNode;
-
-  /**
-   * Secondary input step (binary operations).
-   * When present, this node represents a combine operation.
-   */
   secondaryInput?: PlanStepNode;
-
-  /**
-   * Required when `secondaryInput` is present.
-   */
   operator?: CombineOperator;
-
-  /**
-   * Only relevant when operator is COLOCATE.
-   */
   colocationParams?: ColocationParams;
 }
 
@@ -277,139 +371,11 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
   },
 ];
 
-// API Types
-
-export interface RecordType {
-  name: string;
-  displayName: string;
-  description?: string;
-}
-
-export interface Search {
-  name: string;
-  displayName: string;
-  description?: string;
-  recordType: string;
-}
-
-// Gene Search / Resolve Types
-
-export interface GeneSearchResult {
-  geneId: string;
-  displayName: string;
-  organism: string;
-  product: string;
-  matchedFields: string[];
-  geneName?: string;
-  geneType?: string;
-  location?: string;
-}
-
-export interface GeneSearchResponse {
-  results: GeneSearchResult[];
-  totalCount: number;
-  suggestedOrganisms?: string[];
-}
-
-export interface ResolvedGene {
-  geneId: string;
-  displayName: string;
-  organism: string;
-  product: string;
-  geneName: string;
-  geneType: string;
-  location: string;
-}
-
-export interface GeneResolveResponse {
-  resolved: ResolvedGene[];
-  unresolved: string[];
-}
-
-// Strategy Types
-
-export type StepKind = "search" | "transform" | "combine";
-
-export interface Step {
-  id: string;
-  /**
-   * Derived convenience field. Do not persist as source-of-truth.
-   * Inferred from presence of input edges.
-   */
-  kind?: StepKind;
-  displayName: string;
-  /**
-   * Name of the underlying WDK question/search for this step.
-   *
-   * For transforms and combines, this is still the WDK question name
-   * (e.g. boolean_question_* or a transform question).
-   */
-  searchName?: string;
-  recordType?: string;
-  parameters?: Record<string, unknown>;
-  operator?: CombineOperator;
-  colocationParams?: ColocationParams;
-  primaryInputStepId?: string;
-  secondaryInputStepId?: string;
-  resultCount?: number | null;
-  wdkStepId?: number;
-  filters?: StepFilter[];
-  analyses?: StepAnalysis[];
-  reports?: StepReport[];
-  /** Set during graph editing when step has a validation issue. */
-  validationError?: string;
-}
-
-export interface StepFilter {
-  name: string;
-  value: unknown;
-  disabled?: boolean;
-}
-
-export interface StepAnalysis {
-  analysisType: string;
-  parameters?: Record<string, unknown>;
-  customName?: string;
-}
-
-export interface StepReport {
-  reportName: string;
-  config?: Record<string, unknown>;
-}
-
-export interface Strategy {
-  id: string;
-  name: string;
-  title?: string | null;
-  description?: string | null;
-  siteId: string;
-  recordType: string | null;
-  /** Full step list. Empty `[]` in list responses, populated in detail views. */
-  steps: Step[];
-  rootStepId: string | null;
-  wdkStrategyId?: number;
-  isSaved?: boolean;
-  messages?: Message[];
-  thinking?: Thinking;
-  modelId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  /** Convenience count — always set, avoids needing steps loaded. */
-  stepCount?: number;
-  /** Result count from root step. Present in list views. */
-  resultCount?: number | null;
-  /** URL to the strategy on the WDK site. */
-  wdkUrl?: string | null;
-  /** ISO datetime when strategy was dismissed (soft-deleted). null = active. */
-  dismissedAt?: string | null;
-}
-
-
 // Chat Types
 
 export type MessageRole = "user" | "assistant" | "system";
 
-export type ModelProvider = "openai" | "anthropic" | "google" | "ollama";
+export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
 /** Model selection passed with each chat request. */
@@ -422,111 +388,14 @@ export interface ModelSelection {
   reasoningBudget?: number;
 }
 
-/** An entry in the model catalog returned by GET /api/v1/models. */
-export interface ModelCatalogEntry {
-  id: string;
-  name: string;
-  provider: ModelProvider;
-  model: string;
-  supportsReasoning: boolean;
-  enabled: boolean;
-  contextSize: number;
-  defaultReasoningBudget: number;
-}
-
-export type CitationSource =
-  | "web"
-  | "europepmc"
-  | "crossref"
-  | "openalex"
-  | "semanticscholar"
-  | "pubmed"
-  | "arxiv"
-  | "biorxiv"
-  | "medrxiv"
-  | "veupathdb";
-
-export interface Citation {
-  id: string;
-  source: CitationSource;
-  /**
-   * Stable, model-friendly reference tag (BibTeX-ish).
-   * The model can cite inline using \\cite{tag} or [@tag].
-   */
-  tag?: string | null;
-  title: string;
-  url?: string | null;
-  authors?: string[] | null;
-  year?: number | null;
-  doi?: string | null;
-  pmid?: string | null;
-  snippet?: string | null;
-  accessedAt?: string | null;
-}
-
-export interface PlanningArtifact {
-  id: string;
-  title: string;
-  summaryMarkdown: string;
-  assumptions: string[];
-  parameters: Record<string, unknown>;
-  proposedStrategyPlan?: StrategyPlan | Record<string, unknown> | null;
-  createdAt: string;
-}
-
-export interface ToolCall {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-  result?: string | null;
-}
-
-export interface SubKaniActivity {
-  calls: Record<string, ToolCall[]>;
-  status: Record<string, string>;
-}
-
-export interface Thinking {
-  toolCalls?: ToolCall[];
-  /**
-   * Completed tool calls from the last finalized turn.
-   * (Used so Thinking/Reasoning survives refresh without implying streaming.)
-   */
-  lastToolCalls?: ToolCall[];
-  subKaniCalls?: Record<string, ToolCall[]>;
-  subKaniStatus?: Record<string, string>;
-  reasoning?: string;
-  updatedAt?: string;
-}
-
-export interface Message {
-  role: MessageRole;
-  content: string;
-  toolCalls?: ToolCall[];
-  subKaniActivity?: SubKaniActivity;
-  citations?: Citation[];
-  planningArtifacts?: PlanningArtifact[];
-  /** Model reasoning text captured during the turn. */
-  reasoning?: string | null;
-  /** Final optimization progress snapshot for this turn. */
-  optimizationProgress?: OptimizationProgressData | null;
-  timestamp: string;
-  /** Catalog model ID that generated this message (e.g. "openai/gpt-5"). */
-  modelId?: string;
+/**
+ * Message extends the generated MessageResponse with frontend-only fields
+ * (mentions and reasoningEffort are set locally, not persisted by the backend).
+ */
+export type Message = components["schemas"]["MessageResponse"] & {
   reasoningEffort?: ReasoningEffort;
-  /** @-mentions attached to a user message. */
   mentions?: ChatMention[];
-  /** Token usage for this assistant turn. */
-  tokenUsage?: TokenUsage;
-}
-
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  toolCallCount: number;
-  registeredToolCount: number;
-}
+};
 
 export interface Conversation {
   id: string;
@@ -538,11 +407,7 @@ export interface Conversation {
   updatedAt: string;
 }
 
-export interface ChatRequest {
-  strategyId?: string;
-  siteId: string;
-  message: string;
-}
+export type StepKind = "search" | "transform" | "combine";
 
 // Search parameter validation/specs (UI-facing)
 
@@ -558,75 +423,6 @@ export interface SearchDetailsResponse {
 
 export type DependentParamsResponse = Record<string, unknown>[];
 
-export interface SearchValidationErrors {
-  general: string[];
-  byKey: Record<string, string[]>;
-}
-
-export interface SearchValidationPayload {
-  isValid: boolean;
-  normalizedContextValues: Record<string, unknown>;
-  errors: SearchValidationErrors;
-}
-
-export interface SearchValidationResponse {
-  validation: SearchValidationPayload;
-}
-
-export interface ParamSpec {
-  name: string;
-  displayName?: string;
-  type: string;
-  allowEmptyValue?: boolean;
-  allowMultipleValues?: boolean;
-  multiPick?: boolean;
-  minSelectedCount?: number;
-  maxSelectedCount?: number;
-  countOnlyLeaves?: boolean;
-  /** WDK default value for this parameter. */
-  initialDisplayValue?: unknown;
-  vocabulary?: unknown;
-  /** Range for number/number-range params. */
-  min?: number | null;
-  max?: number | null;
-  increment?: number | null;
-  /**
-   * ``true`` when the WDK marks a string-typed param as numeric
-   * (``isNumber: true``).  Used to detect params like ``fold_change``
-   * that have ``type: "string"`` but accept numeric input.
-   */
-  isNumber?: boolean;
-  [key: string]: unknown;
-}
-
-// Strategy Requests/Responses
-
-export interface StepCountsResponse {
-  counts: Record<string, number | null>;
-}
-
-export interface OpenStrategyRequest {
-  strategyId?: string;
-  wdkStrategyId?: number;
-  siteId?: string;
-}
-
-export interface OpenStrategyResponse {
-  strategyId: string;
-}
-
-export interface CreateStrategyRequest {
-  name: string;
-  siteId: string;
-  plan: StrategyPlan;
-}
-
-export interface UpdateStrategyRequest {
-  name?: string;
-  plan?: StrategyPlan;
-  wdkStrategyId?: number | null;
-}
-
 export interface PushResult {
   wdkStrategyId: number;
   wdkUrl: string;
@@ -637,15 +433,15 @@ export interface PushResult {
 
 export interface OptimizationTrial {
   trialNumber: number;
-  parameters: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
   score: number;
-  recall: number | null;
-  falsePositiveRate: number | null;
-  resultCount: number | null;
-  positiveHits: number | null;
-  negativeHits: number | null;
-  totalPositives: number | null;
-  totalNegatives: number | null;
+  recall?: number | null;
+  falsePositiveRate?: number | null;
+  resultCount?: number | null;
+  positiveHits?: number | null;
+  negativeHits?: number | null;
+  totalPositives?: number | null;
+  totalNegatives?: number | null;
 }
 
 export interface OptimizationParameterSpec {
@@ -663,28 +459,6 @@ export type OptimizationStatus =
   | "completed"
   | "cancelled"
   | "error";
-
-export interface OptimizationProgressData {
-  optimizationId: string;
-  status: OptimizationStatus;
-  searchName?: string;
-  recordType?: string;
-  budget?: number;
-  objective?: string;
-  positiveControlsCount?: number;
-  negativeControlsCount?: number;
-  parameterSpace?: OptimizationParameterSpec[];
-  currentTrial?: number;
-  totalTrials?: number;
-  trial?: OptimizationTrial;
-  bestTrial?: OptimizationTrial | null;
-  recentTrials?: OptimizationTrial[];
-  allTrials?: OptimizationTrial[];
-  paretoFrontier?: OptimizationTrial[];
-  sensitivity?: Record<string, number>;
-  totalTimeSeconds?: number;
-  error?: string;
-}
 
 // SSE Event Types
 
@@ -771,337 +545,15 @@ export type ExperimentProgressPhase =
   | "completed"
   | "error";
 
-export interface ConfusionMatrix {
-  truePositives: number;
-  falsePositives: number;
-  trueNegatives: number;
-  falseNegatives: number;
-}
-
-export interface ExperimentMetrics {
-  confusionMatrix: ConfusionMatrix;
-  sensitivity: number;
-  specificity: number;
-  precision: number;
-  negativePredictiveValue: number;
-  falsePositiveRate: number;
-  falseNegativeRate: number;
-  f1Score: number;
-  mcc: number;
-  balancedAccuracy: number;
-  youdensJ: number;
-  totalResults: number;
-  totalPositives: number;
-  totalNegatives: number;
-}
-
-export interface GeneInfo {
-  id: string;
-  name?: string | null;
-  organism?: string | null;
-  product?: string | null;
-}
-
-export interface FoldMetrics {
-  foldIndex: number;
-  metrics: ExperimentMetrics;
-  positiveControlIds: string[];
-  negativeControlIds: string[];
-}
-
-export interface CrossValidationResult {
-  k: number;
-  folds: FoldMetrics[];
-  meanMetrics: ExperimentMetrics;
-  stdMetrics: Record<string, number>;
-  overfittingScore: number;
-  overfittingLevel: "low" | "moderate" | "high";
-}
-
-export interface EnrichmentTerm {
-  termId: string;
-  termName: string;
-  geneCount: number;
-  backgroundCount: number;
-  foldEnrichment: number;
-  oddsRatio: number;
-  pValue: number;
-  fdr: number;
-  bonferroni: number;
-  genes: string[];
-}
-
-export interface EnrichmentResult {
-  analysisType: EnrichmentAnalysisType;
-  terms: EnrichmentTerm[];
-  totalGenesAnalyzed: number;
-  backgroundSize: number;
-  error?: string | null;
-}
-
 // Gene Set Types
 
 export type GeneSetSource = "strategy" | "paste" | "upload" | "derived" | "saved";
-
-export interface GeneSet {
-  id: string;
-  name: string;
-  siteId: string;
-  geneIds: string[];
-  geneCount: number;
-  source: GeneSetSource;
-  wdkStrategyId?: number;
-  wdkStepId?: number;
-  searchName?: string;
-  recordType?: string;
-  parameters?: Record<string, unknown>;
-  parentSetIds?: string[];
-  operation?: string;
-  stepCount?: number;
-  createdAt?: string;
-}
-
-export interface OptimizeSpec {
-  name: string;
-  type: "numeric" | "integer" | "categorical";
-  min?: number;
-  max?: number;
-  step?: number;
-  choices?: string[];
-}
 
 // Rank-based evaluation types
 
 export type ControlSetSource = "paper" | "curation" | "db_build" | "other";
 
-export interface ControlSetSummary {
-  id: string;
-  name: string;
-  source: ControlSetSource;
-  tags: string[];
-  positiveCount: number;
-  negativeCount: number;
-}
-
-export interface ControlSet {
-  id: string;
-  name: string;
-  siteId: string;
-  recordType: string;
-  positiveIds: string[];
-  negativeIds: string[];
-  source: ControlSetSource;
-  tags: string[];
-  provenanceNotes: string;
-  version: number;
-  isPublic: boolean;
-  userId?: string | null;
-  createdAt: string;
-}
-
-export interface RankMetrics {
-  precisionAtK: Record<string, number>;
-  recallAtK: Record<string, number>;
-  enrichmentAtK: Record<string, number>;
-  prCurve: [number, number][];
-  listSizeVsRecall: [number, number][];
-  totalResults: number;
-}
-
-export interface ConfidenceInterval {
-  lower: number;
-  mean: number;
-  upper: number;
-  std: number;
-}
-
-export interface NegativeSetVariant {
-  label: string;
-  negativeCount: number;
-  rankMetrics: RankMetrics;
-}
-
-export interface BootstrapResult {
-  nIterations: number;
-  metricCis: Record<string, ConfidenceInterval>;
-  rankMetricCis: Record<string, ConfidenceInterval>;
-  topKStability: number;
-  negativeSetSensitivity: NegativeSetVariant[];
-}
-
-// Tree optimization knob types
-
-export interface ThresholdKnob {
-  stepId: string;
-  paramName: string;
-  minVal: number;
-  maxVal: number;
-  stepSize?: number | null;
-}
-
-export interface OperatorKnob {
-  combineNodeId: string;
-  options: string[];
-}
-
-export interface TreeOptimizationTrial {
-  trialNumber: number;
-  parameters: Record<string, number | string>;
-  score: number;
-  rankMetrics: RankMetrics | null;
-  listSize: number;
-}
-
-export interface TreeOptimizationResult {
-  bestTrial: TreeOptimizationTrial | null;
-  allTrials: TreeOptimizationTrial[];
-  totalTimeSeconds: number;
-  objective: string;
-}
-
-export interface ExperimentConfig {
-  siteId: string;
-  recordType: string;
-
-  /** Experiment mode: single search, multi-step graph, or import from strategy. */
-  mode?: ExperimentMode;
-
-  /** Search name for single-step mode. */
-  searchName: string;
-  /** Parameters for single-step mode. */
-  parameters: Record<string, unknown>;
-
-  /**
-   * Step tree for multi-step or import mode.
-   * Each node follows the ``PlanStepNode`` shape (recursive).
-   */
-  stepTree?: PlanStepNode | null;
-  /** Pathfinder strategy ID to import (import mode). */
-  sourceStrategyId?: string | null;
-  /** Which step node ID in the tree to optimise (multi-step mode). */
-  optimizationTargetStep?: string | null;
-
-  positiveControls: string[];
-  negativeControls: string[];
-  controlsSearchName: string;
-  controlsParamName: string;
-  controlsValueFormat?: string;
-  enableCrossValidation: boolean;
-  kFolds: number;
-  enrichmentTypes: EnrichmentAnalysisType[];
-  name: string;
-  description?: string;
-  optimizationSpecs?: OptimizeSpec[];
-  parameterDisplayValues?: Record<string, string>;
-  optimizationBudget?: number;
-  optimizationObjective?: string;
-  parentExperimentId?: string | null;
-  enableStepAnalysis?: boolean;
-  stepAnalysisPhases?: StepAnalysisPhase[];
-  controlSetId?: string | null;
-  thresholdKnobs?: ThresholdKnob[];
-  operatorKnobs?: OperatorKnob[];
-  treeOptimizationObjective?: string;
-  treeOptimizationBudget?: number;
-  maxListSize?: number | null;
-  sortAttribute?: string | null;
-  sortDirection?: "ASC" | "DESC";
-  /** Pre-resolved gene IDs for direct evaluation (bypasses WDK step creation). */
-  targetGeneIds?: string[] | null;
-}
-
-export interface OptimizationResult {
-  optimizationId: string;
-  status: string;
-  bestTrial: OptimizationTrial | null;
-  allTrials: OptimizationTrial[];
-  paretoFrontier: OptimizationTrial[];
-  sensitivity: Record<string, number>;
-  totalTimeSeconds: number;
-  totalTrials: number;
-  errorMessage: string | null;
-}
-
-// Step Analysis Types (deterministic decomposition)
-
 export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "harmful";
-
-export interface StepEvaluation {
-  stepId: string;
-  searchName: string;
-  displayName: string;
-  resultCount: number;
-  positiveHits: number;
-  positiveTotal: number;
-  negativeHits: number;
-  negativeTotal: number;
-  recall: number;
-  falsePositiveRate: number;
-  capturedPositiveIds: string[];
-  capturedNegativeIds: string[];
-  tpMovement: number;
-  fpMovement: number;
-  fnMovement: number;
-}
-
-export interface OperatorVariant {
-  operator: string;
-  positiveHits: number;
-  negativeHits: number;
-  totalResults: number;
-  recall: number;
-  falsePositiveRate: number;
-  f1Score: number;
-}
-
-export interface OperatorComparison {
-  combineNodeId: string;
-  currentOperator: string;
-  variants: OperatorVariant[];
-  recommendation: string;
-  recommendedOperator: string;
-  precisionAtKDelta: Record<string, number>;
-}
-
-export interface StepContribution {
-  stepId: string;
-  searchName: string;
-  baselineRecall: number;
-  ablatedRecall: number;
-  recallDelta: number;
-  baselineFpr: number;
-  ablatedFpr: number;
-  fprDelta: number;
-  verdict: StepContributionVerdict;
-  enrichmentDelta: number;
-  narrative: string;
-}
-
-export interface ParameterSweepPoint {
-  value: number;
-  positiveHits: number;
-  negativeHits: number;
-  totalResults: number;
-  recall: number;
-  fpr: number;
-  f1: number;
-}
-
-export interface ParameterSensitivity {
-  stepId: string;
-  paramName: string;
-  currentValue: number;
-  sweepPoints: ParameterSweepPoint[];
-  recommendedValue: number;
-  recommendation: string;
-}
-
-export interface StepAnalysisResult {
-  stepEvaluations: StepEvaluation[];
-  operatorComparisons: OperatorComparison[];
-  stepContributions: StepContribution[];
-  parameterSensitivities: ParameterSensitivity[];
-}
 
 export type StepAnalysisPhase =
   | "step_evaluation"
@@ -1109,100 +561,6 @@ export type StepAnalysisPhase =
   | "contribution"
   | "sensitivity";
 
-export interface Experiment {
-  id: string;
-  config: ExperimentConfig;
-  status: ExperimentStatus;
-  metrics: ExperimentMetrics | null;
-  crossValidation: CrossValidationResult | null;
-  enrichmentResults: EnrichmentResult[];
-  truePositiveGenes: GeneInfo[];
-  falseNegativeGenes: GeneInfo[];
-  falsePositiveGenes: GeneInfo[];
-  trueNegativeGenes: GeneInfo[];
-  optimizationResult: OptimizationResult | null;
-  notes: string | null;
-  batchId: string | null;
-  benchmarkId: string | null;
-  controlSetLabel: string | null;
-  isPrimaryBenchmark: boolean;
-  error: string | null;
-  totalTimeSeconds: number | null;
-  createdAt: string;
-  completedAt: string | null;
-  wdkStrategyId: number | null;
-  wdkStepId: number | null;
-  stepAnalysis: StepAnalysisResult | null;
-  rankMetrics: RankMetrics | null;
-  robustness: BootstrapResult | null;
-  treeOptimization: TreeOptimizationResult | null;
-}
-
-export interface ExperimentSummary {
-  id: string;
-  name: string;
-  siteId: string;
-  searchName: string;
-  recordType: string;
-  mode?: ExperimentMode;
-  status: ExperimentStatus;
-  f1Score: number | null;
-  sensitivity: number | null;
-  specificity: number | null;
-  totalPositives: number;
-  totalNegatives: number;
-  createdAt: string;
-  batchId: string | null;
-  benchmarkId: string | null;
-  controlSetLabel: string | null;
-  isPrimaryBenchmark: boolean;
-}
-
-export interface TrialProgressData {
-  currentTrial: number;
-  totalTrials: number;
-  trial: {
-    trialNumber: number;
-    score: number;
-    recall: number | null;
-    falsePositiveRate: number | null;
-    resultCount: number | null;
-    parameters: Record<string, unknown>;
-  };
-  bestTrial: {
-    trialNumber: number;
-    score: number;
-    parameters: Record<string, unknown>;
-  } | null;
-  recentTrials: {
-    trialNumber: number;
-    score: number;
-  }[];
-}
-
-export interface StepAnalysisProgressData {
-  phase: StepAnalysisPhase;
-  message: string;
-  current?: number;
-  total?: number;
-  stepEvaluation?: StepEvaluation;
-  operatorComparison?: OperatorComparison;
-  stepContribution?: StepContribution;
-  parameterSensitivity?: ParameterSensitivity;
-}
-
-export interface ExperimentProgressData {
-  experimentId: string;
-  phase: ExperimentProgressPhase;
-  message?: string;
-  metrics?: ExperimentMetrics | null;
-  cvFoldIndex?: number;
-  cvTotalFolds?: number;
-  enrichmentType?: EnrichmentAnalysisType;
-  trialProgress?: TrialProgressData;
-  stepAnalysisProgress?: StepAnalysisProgressData;
-  error?: string;
-}
 
 // Classification for control test results
 export type Classification = "TP" | "FP" | "FN" | "TN";
@@ -1210,9 +568,3 @@ export type Classification = "TP" | "FP" | "FN" | "TN";
 // Chat @-Mention References
 
 export type ChatMentionType = "strategy" | "experiment";
-
-export interface ChatMention {
-  type: ChatMentionType;
-  id: string;
-  displayName: string;
-}

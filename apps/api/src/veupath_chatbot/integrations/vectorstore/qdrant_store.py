@@ -1,9 +1,10 @@
 import hashlib
 import json
+import threading
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from qdrant_client import AsyncQdrantClient
 
@@ -44,11 +45,17 @@ def point_uuid(key: str) -> str:
     return str(uuid.uuid5(_POINT_ID_NAMESPACE, key))
 
 
-@dataclass(frozen=True)
+@dataclass
 class QdrantStore:
     url: str
     api_key: str | None = None
     timeout_seconds: float = 10.0
+    _shared_client: AsyncQdrantClient | None = field(
+        default=None, init=False, repr=False
+    )
+    _client_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
 
     @classmethod
     def from_settings(cls) -> QdrantStore:
@@ -56,13 +63,15 @@ class QdrantStore:
         api_key = s.qdrant_api_key
         if api_key is not None and not str(api_key).strip():
             api_key = None
-        return cls(
+        store = cls(
             url=s.qdrant_url,
             api_key=api_key,
             timeout_seconds=float(s.qdrant_timeout_seconds),
         )
+        _active_stores.append(store)
+        return store
 
-    def _client(self) -> AsyncQdrantClient:
+    def _create_client(self) -> AsyncQdrantClient:
         from qdrant_client import AsyncQdrantClient
 
         return AsyncQdrantClient(
@@ -73,14 +82,32 @@ class QdrantStore:
             else None,
         )
 
+    def _get_client(self) -> AsyncQdrantClient:
+        if self._shared_client is not None:
+            return self._shared_client
+        with self._client_lock:
+            if self._shared_client is None:
+                self._shared_client = self._create_client()
+            return self._shared_client
+
     @asynccontextmanager
     async def connect(self) -> AsyncIterator[AsyncQdrantClient]:
-        """Create and properly close an AsyncQdrantClient."""
-        client = self._client()
-        try:
-            yield client
-        finally:
-            await client.close()
+        """Yield the shared persistent AsyncQdrantClient.
+
+        The client is created lazily on first use and reused across all
+        subsequent calls.  It is NOT closed when the context manager exits;
+        call :meth:`close` during application shutdown instead.
+        """
+        yield self._get_client()
+
+    async def close(self) -> None:
+        """Close the shared client and release its connection pool.
+
+        Safe to call multiple times or when no client has been created.
+        """
+        if self._shared_client is not None:
+            await self._shared_client.close()
+            self._shared_client = None
 
     async def reset_collections(self, *names: str) -> None:
         """Delete collections if they exist (used before re-ingestion)."""
@@ -120,7 +147,7 @@ class QdrantStore:
             # Validate vector size to prevent silent corruption.
             # PathFinder uses simple dense vectors, so `vectors` is always VectorParams.
             current = info.config.params.vectors
-            if current is not None and hasattr(current, "size"):
+            if isinstance(current, VectorParams) and current.size is not None:
                 size = int(current.size)
                 if size != int(vector_size):
                     raise InternalError(
@@ -303,6 +330,19 @@ class QdrantStore:
                 }
                 for p in points
             ]
+
+
+_active_stores: list[QdrantStore] = []
+
+
+async def close_all_qdrant_stores() -> None:
+    """Close every QdrantStore created via ``from_settings()``.
+
+    Called during application shutdown to release all Qdrant connection pools.
+    """
+    for store in list(_active_stores):
+        await store.close()
+    _active_stores.clear()
 
 
 def _maybe_log_qdrant_error(op: str, *, collection: str, error: Exception) -> None:

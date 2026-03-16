@@ -11,6 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { ChatMarkdown } from "@/lib/components/ChatMarkdown";
+import { Card } from "@/lib/components/ui/Card";
 import { useWorkbenchChat, type WorkbenchMessage } from "../hooks/useWorkbenchChat";
 
 interface WorkbenchChatProps {
@@ -58,7 +59,7 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
   );
 
   return (
-    <div className="rounded-lg border bg-card">
+    <Card>
       {/* Header */}
       <button
         type="button"
@@ -182,7 +183,7 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
           </form>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 

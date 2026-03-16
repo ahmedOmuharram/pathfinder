@@ -1,15 +1,15 @@
 export interface ParamSpec {
   name?: string;
-  displayName?: string;
+  displayName?: string | null;
   help?: string;
   type?: string;
   allowEmptyValue?: boolean;
-  allowMultipleValues?: boolean;
-  multiPick?: boolean;
+  allowMultipleValues?: boolean | null;
+  multiPick?: boolean | null;
   vocabulary?: unknown;
   defaultValue?: unknown;
-  minSelectedCount?: number;
-  maxSelectedCount?: number;
+  minSelectedCount?: number | null;
+  maxSelectedCount?: number | null;
   values?: unknown;
   items?: unknown;
   terms?: unknown;

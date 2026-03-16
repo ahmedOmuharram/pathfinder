@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { BarChart3, Play, Loader2, Plus, Trash2 } from "lucide-react";
 import type { Experiment, ControlSet } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
+import { Input } from "@/lib/components/ui/Input";
 import {
   listControlSets,
   createBenchmarkStream,
@@ -32,8 +33,6 @@ interface InlineControlSet {
 function formatMetric(value: number): string {
   return value.toFixed(3);
 }
-
-let inlineIdCounter = 0;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -85,7 +84,7 @@ export function BenchmarkPanel() {
     setInlineSets((prev) => [
       ...prev,
       {
-        id: `inline-${++inlineIdCounter}`,
+        id: crypto.randomUUID(),
         label: "",
         positiveControls: [],
         negativeControls: [],
@@ -217,12 +216,12 @@ export function BenchmarkPanel() {
         {inlineSets.map((inline) => (
           <div key={inline.id} className="rounded-md border p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <input
+              <Input
                 type="text"
                 value={inline.label}
                 onChange={(e) => updateInlineSet(inline.id, { label: e.target.value })}
                 placeholder="Control set label"
-                className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+                className="h-auto bg-background px-2 py-1 text-xs"
               />
               <button
                 type="button"

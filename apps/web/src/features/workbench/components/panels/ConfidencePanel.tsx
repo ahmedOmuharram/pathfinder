@@ -35,7 +35,7 @@ function computeEnrichmentGeneCounts(enrichmentResults: EnrichmentResult[]): {
     for (const term of result.terms) {
       if (term.fdr <= 0.05) {
         maxTerms++;
-        for (const geneId of term.genes) {
+        for (const geneId of term.genes ?? []) {
           counts.set(geneId, (counts.get(geneId) ?? 0) + 1);
         }
       }
@@ -49,10 +49,10 @@ function computeConfidenceScores(experiment: Experiment): GeneConfidenceScore[] 
   const seen = new Set<string>();
 
   const lists: [keyof typeof CLASSIFICATION_WEIGHTS, GeneInfo[]][] = [
-    ["TP", experiment.truePositiveGenes],
-    ["FP", experiment.falsePositiveGenes],
-    ["FN", experiment.falseNegativeGenes],
-    ["TN", experiment.trueNegativeGenes],
+    ["TP", experiment.truePositiveGenes ?? []],
+    ["FP", experiment.falsePositiveGenes ?? []],
+    ["FN", experiment.falseNegativeGenes ?? []],
+    ["TN", experiment.trueNegativeGenes ?? []],
   ];
 
   for (const [label, genes] of lists) {
@@ -66,7 +66,7 @@ function computeConfidenceScores(experiment: Experiment): GeneConfidenceScore[] 
 
   // Enrichment support: count how many significant terms contain each gene
   const { counts: enrichCounts, maxTerms } = computeEnrichmentGeneCounts(
-    experiment.enrichmentResults,
+    experiment.enrichmentResults ?? [],
   );
   const maxTermsDenom = Math.max(maxTerms, 1);
 
@@ -103,10 +103,10 @@ function scoreColor(value: number): string {
 
 function hasClassifiedGenes(exp: Experiment): boolean {
   return (
-    exp.truePositiveGenes.length > 0 ||
-    exp.falsePositiveGenes.length > 0 ||
-    exp.falseNegativeGenes.length > 0 ||
-    exp.trueNegativeGenes.length > 0
+    (exp.truePositiveGenes?.length ?? 0) > 0 ||
+    (exp.falsePositiveGenes?.length ?? 0) > 0 ||
+    (exp.falseNegativeGenes?.length ?? 0) > 0 ||
+    (exp.trueNegativeGenes?.length ?? 0) > 0
   );
 }
 

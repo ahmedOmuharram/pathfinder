@@ -59,6 +59,10 @@ export interface ConversationSidebarData {
   setNewConversationInFlight: (inFlight: boolean) => void;
   /** Dismissed (soft-deleted) strategies. */
   dismissedConversations: ConversationItem[];
+  /** Optimistic setter for dismissed items (used by restore workflow). */
+  setDismissedItems: Dispatch<SetStateAction<Strategy[]>>;
+  /** Mark an ID as recently deleted so stale refetch responses won't re-add it. */
+  markAsDeleted: (id: string) => void;
 }
 
 export function useConversationSidebarData({
@@ -70,6 +74,7 @@ export function useConversationSidebarData({
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
   const authVersion = useSessionStore((s) => s.authVersion);
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
+  const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
 
   const draftStrategy = useStrategyStore((s) => s.strategy);
 
@@ -92,6 +97,10 @@ export function useConversationSidebarData({
   // Guard: when the user explicitly clicks "New Chat", suppress auto-pick
   // until the new conversation POST completes.
   const newConversationInFlight = useRef(false);
+  // IDs of strategies that were optimistically removed by a delete workflow.
+  // Refetch responses filter these out so stale data doesn't re-add them.
+  // Cleared when the delete's own refetch completes with committed data.
+  const recentlyDeletedIds = useRef(new Set<string>());
 
   // Clear stale items immediately on site change + unblock fetch guard.
   useEffect(() => {
@@ -105,6 +114,45 @@ export function useConversationSidebarData({
     }
   }, [siteId]);
 
+  /** Apply fetched data, filtering out any IDs in the recentlyDeletedIds set
+   *  so that stale refetch responses don't undo optimistic deletions.
+   *  For dismissed items, preserves optimistic additions that the server
+   *  hasn't seen yet (the soft-delete may not have committed when the
+   *  refetch query ran). */
+  const applyFetchResult = useCallback(
+    (strategies: Strategy[], dismissed: Strategy[]) => {
+      const excluded = recentlyDeletedIds.current;
+      if (excluded.size > 0) {
+        // Filter recently-deleted IDs from the active list.
+        const filteredStrategies = strategies.filter((s) => !excluded.has(s.id));
+        useStrategyStore.getState().setStrategies(filteredStrategies);
+        setStrategyItems(filteredStrategies);
+        // Merge dismissed: keep optimistic additions that the server hasn't
+        // picked up yet (their ID is in excluded but not in the server's
+        // dismissed list).
+        const serverDismissedIds = new Set(dismissed.map((s) => s.id));
+        setDismissedItems((prev) => {
+          const optimisticExtras = prev.filter(
+            (s) => excluded.has(s.id) && !serverDismissedIds.has(s.id),
+          );
+          return [...dismissed, ...optimisticExtras];
+        });
+        // Clear IDs whose deletion the server has acknowledged (the ID no
+        // longer appears in the active list).
+        for (const id of excluded) {
+          if (!strategies.some((s) => s.id === id)) {
+            excluded.delete(id);
+          }
+        }
+      } else {
+        useStrategyStore.getState().setStrategies(strategies);
+        setStrategyItems(strategies);
+        setDismissedItems(dismissed);
+      }
+    },
+    [],
+  );
+
   const refreshStrategies = useCallback(() => {
     if (syncInFlight.current) return Promise.resolve();
     syncInFlight.current = true;
@@ -115,11 +163,7 @@ export function useConversationSidebarData({
         if (fetchSite !== prevSiteRef.current) return;
         hasFetched.current = true;
         setHasInitiallyLoaded(true);
-        // Populate the global store so @-mentions and experiment import
-        // can read the same data (single source of truth).
-        useStrategyStore.getState().setStrategies(strategies);
-        setStrategyItems(strategies);
-        setDismissedItems(dismissed);
+        applyFetchResult(strategies, dismissed);
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to sync strategies:", err);
@@ -130,7 +174,7 @@ export function useConversationSidebarData({
       .finally(() => {
         syncInFlight.current = false;
       });
-  }, [siteId]);
+  }, [siteId, applyFetchResult]);
 
   const refetchStrategies = useCallback(() => {
     if (syncInFlight.current) return Promise.resolve();
@@ -141,9 +185,7 @@ export function useConversationSidebarData({
         if (fetchSite !== prevSiteRef.current) return;
         hasFetched.current = true;
         setHasInitiallyLoaded(true);
-        useStrategyStore.getState().setStrategies(strategies);
-        setStrategyItems(strategies);
-        setDismissedItems(dismissed);
+        applyFetchResult(strategies, dismissed);
       })
       .catch((err) => {
         console.warn("[ConversationSidebar] Failed to fetch strategies:", err);
@@ -152,7 +194,7 @@ export function useConversationSidebarData({
       .finally(() => {
         syncInFlight.current = false;
       });
-  }, [siteId]);
+  }, [siteId, applyFetchResult]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsSyncing(true);
@@ -168,8 +210,9 @@ export function useConversationSidebarData({
   // layer validates it (404 → clear). This prevents race conditions during
   // rapid refresh where the sidebar list isn't populated yet.
   const ensureActiveConversation = useCallback(async () => {
-    // Don't auto-pick while the user is explicitly creating a new conversation.
-    if (newConversationInFlight.current) return;
+    // Don't auto-pick while the user is explicitly creating a new conversation
+    // or while chat is streaming (the chat flow creates its own conversation).
+    if (newConversationInFlight.current || chatIsStreaming) return;
 
     const action = resolveActiveConversation({
       strategyId,
@@ -224,6 +267,7 @@ export function useConversationSidebarData({
     }
   }, [
     veupathdbSignedIn,
+    chatIsStreaming,
     strategyId,
     strategyItems,
     setStrategyId,
@@ -251,9 +295,14 @@ export function useConversationSidebarData({
   }, [authVersion, refreshStrategies]);
 
   // Re-fetch strategies when draft strategy changes (local DB only — no WDK sync needed).
+  // Only refetch when a strategy is actively loaded (non-null), not when cleared.
+  // Clearing (null) happens during delete/restore workflows where optimistic updates
+  // already handle the state, and a refetch here would race with those updates.
   useEffect(() => {
-    void refetchStrategies();
-  }, [draftStrategy?.id, draftStrategy?.updatedAt, refetchStrategies]);
+    if (draftStrategy) {
+      void refetchStrategies();
+    }
+  }, [draftStrategy, refetchStrategies]);
 
   // Ensure there's always an active conversation selected
   useEffect(() => {
@@ -300,6 +349,10 @@ export function useConversationSidebarData({
     newConversationInFlight.current = inFlight;
   }, []);
 
+  const markAsDeleted = useCallback((id: string) => {
+    recentlyDeletedIds.current.add(id);
+  }, []);
+
   return {
     filtered,
     hasConversations: conversations.length > 0,
@@ -314,5 +367,7 @@ export function useConversationSidebarData({
     setStrategyItems,
     setNewConversationInFlight,
     dismissedConversations,
+    setDismissedItems,
+    markAsDeleted,
   };
 }

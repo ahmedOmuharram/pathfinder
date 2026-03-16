@@ -9,9 +9,7 @@ from veupath_chatbot.platform.errors import ErrorCode, NotFoundError, Validation
 from veupath_chatbot.platform.events import read_stream_messages, read_stream_thinking
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
-from veupath_chatbot.platform.tasks import spawn
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.strategies.auto_push import try_auto_push_to_wdk
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.wdk_bridge import (
     fetch_and_convert,
@@ -190,10 +188,6 @@ async def update_strategy(
                     strategy_id=str(strategyId),
                     error=str(e),
                 )
-
-    # Best-effort auto-push to WDK (fire-and-forget).
-    if updated.wdk_strategy_id and not is_saved_set:
-        spawn(try_auto_push_to_wdk(strategyId))
 
     return build_projection_response(updated)
 

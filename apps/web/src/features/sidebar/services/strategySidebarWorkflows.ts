@@ -5,6 +5,7 @@ export async function runDeleteStrategyWorkflow(args: {
   item: Strategy;
   currentStrategyId: string | null;
   setStrategyItems: (updater: (prev: Strategy[]) => Strategy[]) => void;
+  setDismissedItems?: (updater: (prev: Strategy[]) => Strategy[]) => void;
   clearStrategy: () => void;
   removeStrategy: (id: string) => void;
   setStrategyId: (id: string | null) => void;
@@ -18,6 +19,7 @@ export async function runDeleteStrategyWorkflow(args: {
     item,
     currentStrategyId,
     setStrategyItems,
+    setDismissedItems,
     clearStrategy,
     removeStrategy,
     setStrategyId,
@@ -28,8 +30,16 @@ export async function runDeleteStrategyWorkflow(args: {
     reportError,
   } = args;
 
-  // Optimistic UI removal.
+  // Optimistic UI removal from main list.
   setStrategyItems((items) => items.filter((entry) => entry.id !== item.id));
+
+  // For WDK-linked strategies that will be soft-deleted (dismissed), optimistically
+  // add to the dismissed list so the UI updates immediately rather than waiting for
+  // a refetch (which may be silently dropped by the syncInFlight guard).
+  const willSoftDelete = item.wdkStrategyId != null && !deleteFromWdk;
+  if (willSoftDelete && setDismissedItems) {
+    setDismissedItems((prev) => [...prev, item]);
+  }
 
   // If deleting active strategy, reset active state.
   if (currentStrategyId === item.id) {
@@ -42,6 +52,10 @@ export async function runDeleteStrategyWorkflow(args: {
   try {
     await deleteStrategyApi(item.id, deleteFromWdk);
   } catch (e) {
+    // Rollback optimistic dismissed addition on failure.
+    if (willSoftDelete && setDismissedItems) {
+      setDismissedItems((prev) => prev.filter((s) => s.id !== item.id));
+    }
     reportError(toUserMessage(e, "Failed to delete strategy. Please try again."));
   } finally {
     refetchStrategies();

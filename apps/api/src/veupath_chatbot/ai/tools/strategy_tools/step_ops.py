@@ -28,7 +28,7 @@ class StrategyStepOps(StrategyToolsHelpers):
         record_type: Annotated[
             str | None,
             AIParam(
-                desc="Record type context (e.g., 'gene'). If omitted, the tool will try to infer it from the graph or discovery."
+                desc="Record type context (e.g., 'transcript'). Defaults to 'transcript' which covers most VEuPathDB gene searches. If omitted, inferred from graph or discovery."
             ),
         ] = None,
         primary_input_step_id: Annotated[

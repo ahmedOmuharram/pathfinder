@@ -559,9 +559,7 @@ class TestTemporaryResultsEdgeCases:
 
         url = await api.get_download_url(step_id=42, format="csv")
 
-        assert (
-            url == "https://plasmodb.org/plasmo/service/temporary-results/abc123/result"
-        )
+        assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
         client.get.assert_not_awaited()
 
 

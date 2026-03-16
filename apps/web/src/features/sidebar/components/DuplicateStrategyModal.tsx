@@ -1,4 +1,6 @@
+import { Label } from "@/lib/components/ui/Label";
 import { Modal } from "@/lib/components/Modal";
+import { Input } from "@/lib/components/ui/Input";
 import type { DuplicateModalState } from "@/features/sidebar/utils/duplicateModalState";
 import {
   applyDuplicateSubmitFailure,
@@ -26,10 +28,10 @@ export function DuplicateStrategyModal({
       {duplicateModal && (
         <div className="p-4">
           <div className="mt-3 space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Name
-            </label>
-            <input
+            </Label>
+            <Input
               value={duplicateModal.name}
               onChange={(event) =>
                 setDuplicateModal((prev) =>
@@ -37,11 +39,10 @@ export function DuplicateStrategyModal({
                 )
               }
               disabled={duplicateModal.isLoading}
-              className="w-full rounded-md border border-border px-3 py-2 text-sm text-foreground"
             />
-            <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Description
-            </label>
+            </Label>
             <textarea
               value={duplicateModal.description}
               onChange={(event) =>

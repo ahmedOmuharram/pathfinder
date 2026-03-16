@@ -42,7 +42,7 @@ function ExpandedTermDetails({ term }: { term: EnrichmentTerm }) {
         </span>
       </div>
 
-      {term.genes.length > 0 && (
+      {term.genes && term.genes.length > 0 && (
         <div>
           <span className="text-muted-foreground">Genes ({term.genes.length}):</span>
           <div className="mt-1 flex flex-wrap gap-1">

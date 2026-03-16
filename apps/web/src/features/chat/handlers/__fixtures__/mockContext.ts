@@ -5,6 +5,7 @@ import type {
   PlanningArtifact,
   Strategy,
   Message,
+  SubKaniTokenUsage,
 } from "@pathfinder/shared";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import type { ChatEventContext, StreamSessionState } from "../handleChatEvent.types";
@@ -23,6 +24,8 @@ export function createMockChatContext(
   const planningArtifactsBuffer: PlanningArtifact[] = [];
   const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
   const subKaniStatusBuffer: Record<string, string> = {};
+  const subKaniModelsBuffer: Record<string, string> = {};
+  const subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage> = {};
 
   const streamState: StreamSessionState = {
     streamingAssistantIndex: null,
@@ -42,11 +45,14 @@ export function createMockChatContext(
     planningArtifactsBuffer,
     subKaniCallsBuffer,
     subKaniStatusBuffer,
+    subKaniModelsBuffer,
+    subKaniTokenUsageBuffer,
     thinking: {
       activeToolCalls: [],
       lastToolCalls: [],
       subKaniCalls: {},
       subKaniStatus: {},
+      subKaniModels: {},
       reasoning: null,
       subKaniActivity: undefined,
       reset: vi.fn(),

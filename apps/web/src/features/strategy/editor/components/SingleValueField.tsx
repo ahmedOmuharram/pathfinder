@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { VocabOption, VocabNode } from "@/lib/utils/vocab";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import type { StepParameters } from "@/lib/strategyGraph/types";
+import { Input } from "@/lib/components/ui/Input";
 
 type SingleValueFieldProps = {
   paramName: string;
@@ -141,7 +142,7 @@ function TextInput({
   );
 
   return (
-    <input
+    <Input
       type={isNumeric ? "number" : "text"}
       value={value === undefined || value === null ? "" : String(value)}
       onChange={(event) => {
@@ -151,7 +152,7 @@ function TextInput({
           [paramName]: isNumeric ? Number(raw) : raw,
         }));
       }}
-      className={`w-full rounded-md border px-3 py-2 text-sm text-foreground ${fieldBorderClass}`}
+      className={fieldBorderClass}
     />
   );
 }

@@ -16,6 +16,7 @@ describe("handleChatEvent — realistic execute mode", () => {
       recordType: null as string | null,
       steps: [],
       rootStepId: null,
+      isSaved: false,
       createdAt: "2025-02-15T00:00:00Z",
       updatedAt: "2025-02-15T00:00:00Z",
     };
@@ -87,6 +88,11 @@ describe("handleChatEvent — realistic execute mode", () => {
     const planningArtifactsBuffer: PlanningArtifact[] = [];
     const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
     const subKaniStatusBuffer: Record<string, string> = {};
+    const subKaniModelsBuffer: Record<string, string> = {};
+    const subKaniTokenUsageBuffer: Record<
+      string,
+      import("@pathfinder/shared").SubKaniTokenUsage
+    > = {};
 
     const ctx = {
       siteId: "plasmodb",
@@ -96,11 +102,14 @@ describe("handleChatEvent — realistic execute mode", () => {
       planningArtifactsBuffer,
       subKaniCallsBuffer,
       subKaniStatusBuffer,
+      subKaniModelsBuffer,
+      subKaniTokenUsageBuffer,
       thinking: {
         activeToolCalls: [],
         lastToolCalls: [],
         subKaniCalls: {},
         subKaniStatus: {},
+        subKaniModels: {},
         reasoning: null,
         subKaniActivity: undefined,
         reset: vi.fn(),
@@ -137,6 +146,7 @@ describe("handleChatEvent — realistic execute mode", () => {
         recordType: "gene",
         steps: [],
         rootStepId: null,
+        isSaved: false,
         createdAt: "t",
         updatedAt: "t",
       })),

@@ -102,7 +102,7 @@ async def test_temporary_results_get_download_url_constructs_from_id() -> None:
 
     url = await api.get_download_url(step_id=123, format="csv", attributes=None)
 
-    assert url == "https://example.org/service/temporary-results/tmp-1/result"
+    assert url == "https://example.org/service/temporary-results/tmp-1"
 
 
 @pytest.mark.asyncio

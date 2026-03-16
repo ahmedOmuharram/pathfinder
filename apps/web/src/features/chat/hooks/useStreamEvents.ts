@@ -117,6 +117,11 @@ export function useStreamEvents(deps: StreamEventDeps) {
       const planningArtifactsBuffer: PlanningArtifact[] = [];
       const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
       const subKaniStatusBuffer: Record<string, string> = {};
+      const subKaniModelsBuffer: Record<string, string> = {};
+      const subKaniTokenUsageBuffer: Record<
+        string,
+        import("@pathfinder/shared").SubKaniTokenUsage
+      > = {};
 
       const streamState: StreamSessionState = {
         streamingAssistantIndex: null,
@@ -134,6 +139,8 @@ export function useStreamEvents(deps: StreamEventDeps) {
         planningArtifactsBuffer,
         subKaniCallsBuffer,
         subKaniStatusBuffer,
+        subKaniModelsBuffer,
+        subKaniTokenUsageBuffer,
         thinking,
         setStrategyId,
         addStrategy,
@@ -172,6 +179,8 @@ export function useStreamEvents(deps: StreamEventDeps) {
           const subKaniActivity = snapshotSubKaniActivityFromBuffers(
             subKaniCallsBuffer,
             subKaniStatusBuffer,
+            subKaniModelsBuffer,
+            subKaniTokenUsageBuffer,
           );
           attachThinkingToLastAssistant(
             toolCalls.length > 0 ? [...toolCalls] : [],

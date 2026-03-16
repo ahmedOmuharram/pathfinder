@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import type { GeneSet } from "@pathfinder/shared";
 
 /**
@@ -15,6 +15,12 @@ export function useWorkbenchBridge(
   addGeneSet: (gs: GeneSet) => void,
   geneSets: GeneSet[],
 ) {
+  // Keep a ref to always read the latest geneSets without re-creating the callback.
+  const geneSetsRef = useRef(geneSets);
+  useEffect(() => {
+    geneSetsRef.current = geneSets;
+  });
+
   const handleWorkbenchGeneSet = useCallback(
     (gs: {
       id: string;
@@ -23,7 +29,7 @@ export function useWorkbenchBridge(
       source: string;
       siteId: string;
     }) => {
-      if (geneSets.some((s) => s.id === gs.id)) return;
+      if (geneSetsRef.current.some((s) => s.id === gs.id)) return;
       addGeneSet({
         id: gs.id,
         name: gs.name,
@@ -31,10 +37,11 @@ export function useWorkbenchBridge(
         siteId: gs.siteId,
         geneCount: gs.geneCount,
         source: gs.source as "strategy" | "paste" | "upload" | "derived" | "saved",
+        stepCount: 1,
         createdAt: new Date().toISOString(),
       });
     },
-    [addGeneSet, geneSets],
+    [addGeneSet],
   );
 
   return { handleWorkbenchGeneSet };

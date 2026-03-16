@@ -7,7 +7,7 @@ function normalizeBaseUrl(baseUrl: string): string {
 }
 
 export function useWdkUrlFallback(args: {
-  wdkStrategyId: number | undefined;
+  wdkStrategyId: number | null | undefined;
   siteId: string | undefined;
   listSites: () => Promise<SiteSummary[]>;
 }): string | null {

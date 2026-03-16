@@ -38,7 +38,6 @@ All tools above return **both** `rag` and `wdk` results. Treat:
 
 ### Execution / outputs (only if your delegated task explicitly asks)
 
-- `build_strategy(strategy_name?, root_step_id?, record_type?, description?)` — creates on first call, updates on subsequent calls; returns per-step `counts`, `zeroStepIds`, and `zeroCount`
 - `preview_results(step_id, limit?, graph_id?)`
 - `get_result_count(wdk_step_id)`
 - `get_download_url(wdk_step_id, format?, attributes?)`

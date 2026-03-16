@@ -2,12 +2,13 @@ import { useCallback, useMemo, useState } from "react";
 import type { ToolCall } from "@pathfinder/shared";
 
 export type ThinkingPayload = {
-  toolCalls?: ToolCall[];
-  lastToolCalls?: ToolCall[];
-  subKaniCalls?: Record<string, ToolCall[]>;
-  subKaniStatus?: Record<string, string>;
-  reasoning?: string;
-  updatedAt?: string;
+  toolCalls?: ToolCall[] | null;
+  lastToolCalls?: ToolCall[] | null;
+  subKaniCalls?: Record<string, ToolCall[]> | null;
+  subKaniStatus?: Record<string, string> | null;
+  subKaniModels?: Record<string, string> | null;
+  reasoning?: string | null;
+  updatedAt?: string | null;
 };
 
 export function useThinkingState() {
@@ -15,6 +16,7 @@ export function useThinkingState() {
   const [lastToolCalls, setLastToolCalls] = useState<ToolCall[]>([]);
   const [subKaniCalls, setSubKaniCalls] = useState<Record<string, ToolCall[]>>({});
   const [subKaniStatus, setSubKaniStatus] = useState<Record<string, string>>({});
+  const [subKaniModels, setSubKaniModels] = useState<Record<string, string>>({});
   const [reasoning, setReasoning] = useState<string | null>(null);
 
   const reset = useCallback(() => {
@@ -22,6 +24,7 @@ export function useThinkingState() {
     setLastToolCalls([]);
     setSubKaniCalls({});
     setSubKaniStatus({});
+    setSubKaniModels({});
     setReasoning(null);
   }, []);
 
@@ -36,6 +39,7 @@ export function useThinkingState() {
       setLastToolCalls(payload.lastToolCalls || []);
       setSubKaniCalls(payload.subKaniCalls || {});
       setSubKaniStatus(payload.subKaniStatus || {});
+      setSubKaniModels(payload.subKaniModels || {});
       setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
 
       const anyActiveTool = toolCalls.some(
@@ -62,9 +66,12 @@ export function useThinkingState() {
     setActiveToolCalls([]);
   }, []);
 
-  const subKaniTaskStart = useCallback((task: string) => {
+  const subKaniTaskStart = useCallback((task: string, modelId?: string) => {
     setSubKaniStatus((prev) => ({ ...prev, [task]: "running" }));
     setSubKaniCalls((prev) => ({ ...prev, [task]: prev[task] || [] }));
+    if (modelId) {
+      setSubKaniModels((prev) => ({ ...prev, [task]: modelId }));
+    }
   }, []);
 
   const subKaniToolCallStart = useCallback((task: string, toolCall: ToolCall) => {
@@ -107,6 +114,7 @@ export function useThinkingState() {
     lastToolCalls,
     subKaniCalls,
     subKaniStatus,
+    subKaniModels,
     reasoning,
     subKaniActivity,
     reset,

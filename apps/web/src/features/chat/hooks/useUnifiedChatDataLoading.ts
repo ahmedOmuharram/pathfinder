@@ -15,7 +15,6 @@ interface UseUnifiedChatDataLoadingParams {
   setApiError: Dispatch<SetStateAction<string | null>>;
   setSelectedModelId: Dispatch<SetStateAction<string | null>>;
   thinking: ReturnType<typeof useThinkingState>;
-  /** Apply strategy to the graph store directly (avoids a second fetch). */
   setStrategy: (strategy: Strategy) => void;
   setStrategyMeta: (meta: {
     name?: string;
@@ -23,12 +22,10 @@ interface UseUnifiedChatDataLoadingParams {
     recordType?: string | null;
     siteId?: string;
   }) => void;
-  /** Called when the strategy no longer exists (404). */
   onStrategyNotFound?: () => void;
 }
 
 export interface UseUnifiedChatDataLoadingReturn {
-  /** True while the initial strategy fetch is in-flight. */
   isLoading: boolean;
 }
 
@@ -46,8 +43,9 @@ export function useUnifiedChatDataLoading({
   const authVersion = useSessionStore((s) => s.authVersion);
   const [isLoading, setIsLoading] = useState(!!strategyId);
 
-  // Track whether the last load attempt failed (for auth retry).
+  // Track whether the last load failed so auth-retry only fires when needed.
   const loadFailedRef = useRef(false);
+  // Track the previous authVersion to distinguish initial mount from auth bumps.
   const prevAuthVersionRef = useRef(authVersion);
 
   const applyStrategy = useCallback(
@@ -58,8 +56,6 @@ export function useUnifiedChatDataLoading({
       if (strategy.thinking) {
         thinking.applyThinkingPayload(strategy.thinking);
       }
-      // Apply the already-fetched strategy directly to the graph store
-      // instead of calling loadGraph (which would re-fetch the same data).
       if (strategy.id && !sessionRef.current?.snapshotApplied) {
         setStrategy(strategy);
         setStrategyMeta({
@@ -73,8 +69,14 @@ export function useUnifiedChatDataLoading({
     [setMessages, setSelectedModelId, setStrategy, setStrategyMeta],
   );
 
-  // Primary data loading effect — runs on strategyId change.
+  // Single unified loading effect — handles both initial load and auth retry.
+  // Including authVersion in deps means this re-runs on auth refresh, but we
+  // guard the auth-retry path with loadFailedRef so a successful load is not
+  // re-fetched when auth changes.
   useEffect(() => {
+    const isAuthRetry = prevAuthVersionRef.current !== authVersion;
+    prevAuthVersionRef.current = authVersion;
+
     if (!strategyId) {
       startTransition(() => setMessages([]));
       loadFailedRef.current = false;
@@ -82,10 +84,13 @@ export function useUnifiedChatDataLoading({
       return;
     }
 
+    // On auth bump, only retry if the previous load actually failed.
+    if (isAuthRetry && !loadFailedRef.current) return;
+
     setIsLoading(true);
     let cancelled = false;
 
-    const loadWithRetry = async () => {
+    const load = async () => {
       try {
         const strategy = await getStrategy(strategyId);
         if (cancelled) return;
@@ -101,6 +106,7 @@ export function useUnifiedChatDataLoading({
           return;
         }
 
+        // Single retry
         try {
           const strategy = await getStrategy(strategyId);
           if (cancelled) return;
@@ -121,40 +127,13 @@ export function useUnifiedChatDataLoading({
       }
     };
 
-    void loadWithRetry();
+    void load();
 
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategyId]);
-
-  // Auth-cookie retry: if a previous load failed and the auth cookie was
-  // refreshed (signaled by authVersion bump), retry loading.
-  useEffect(() => {
-    if (prevAuthVersionRef.current === authVersion) return;
-    prevAuthVersionRef.current = authVersion;
-    if (!strategyId || !loadFailedRef.current) return;
-
-    loadFailedRef.current = false;
-
-    let cancelled = false;
-    getStrategy(strategyId)
-      .then((strategy) => {
-        if (cancelled) return;
-        setApiError(null);
-        applyStrategy(strategy);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("[DataLoading] Auth-retry failed:", err);
-        loadFailedRef.current = true;
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authVersion, strategyId, applyStrategy, setApiError]);
+  }, [strategyId, authVersion]);
 
   return { isLoading };
 }

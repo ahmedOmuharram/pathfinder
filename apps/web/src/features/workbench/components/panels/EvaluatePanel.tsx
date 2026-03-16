@@ -283,8 +283,8 @@ export function EvaluatePanel() {
                 </div>
               </Section>
             )}
-            {experiment.enrichmentResults.length > 0 && (
-              <EnrichmentSection results={experiment.enrichmentResults} />
+            {(experiment.enrichmentResults?.length ?? 0) > 0 && (
+              <EnrichmentSection results={experiment.enrichmentResults ?? []} />
             )}
             <GeneListsSection experiment={experiment} />
           </div>

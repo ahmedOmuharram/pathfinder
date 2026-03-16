@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Experiment, GeneInfo } from "@pathfinder/shared";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { Card } from "@/lib/components/ui/Card";
 import { Section } from "./Section";
 
 interface GeneListsSectionProps {
@@ -9,19 +10,19 @@ interface GeneListsSectionProps {
 
 export function GeneListsSection({ experiment }: GeneListsSectionProps) {
   const lists = [
-    { label: "True Positives", genes: experiment.truePositiveGenes },
-    { label: "False Negatives", genes: experiment.falseNegativeGenes },
-    { label: "False Positives", genes: experiment.falsePositiveGenes },
-    { label: "True Negatives", genes: experiment.trueNegativeGenes },
+    { label: "True Positives", genes: experiment.truePositiveGenes ?? [] },
+    { label: "False Negatives", genes: experiment.falseNegativeGenes ?? [] },
+    { label: "False Positives", genes: experiment.falsePositiveGenes ?? [] },
+    { label: "True Negatives", genes: experiment.trueNegativeGenes ?? [] },
   ];
 
   return (
     <Section title="Gene Lists">
-      <div className="rounded-lg border border-border bg-card divide-y divide-border">
+      <Card className="divide-y divide-border">
         {lists.map((list) => (
           <GeneListRow key={list.label} label={list.label} genes={list.genes} />
         ))}
-      </div>
+      </Card>
     </Section>
   );
 }

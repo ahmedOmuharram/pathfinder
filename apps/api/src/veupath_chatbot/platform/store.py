@@ -15,7 +15,7 @@ boilerplate that was previously duplicated across every concrete store.
 """
 
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -45,9 +45,11 @@ class WriteThruStore[T: Identifiable]:
     Every entity must satisfy the ``Identifiable`` protocol (have ``id: str``).
     """
 
-    _model: Any  # SQLAlchemy ORM model class
-    _to_row: Callable[[T], dict[str, object]]
-    _from_row: Callable[..., T]
+    _model: Any = None  # SQLAlchemy ORM model class — set by subclass
+    _to_row: Callable[[T], dict[str, object]] = cast(
+        "Callable[[T], dict[str, object]]", cast(object, None)
+    )
+    _from_row: Callable[..., T] = cast("Callable[..., T]", cast(object, None))
 
     def __init__(self) -> None:
         self._cache: dict[str, T] = {}

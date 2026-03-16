@@ -1,7 +1,6 @@
 """Unit tests for the CQRS chat orchestrator module.
 
-Covers the mock stream provider and the start_chat_stream entry point
-with mocked dependencies.
+Covers start_chat_stream entry point with mocked dependencies.
 """
 
 from types import SimpleNamespace
@@ -14,90 +13,6 @@ import pytest
 from veupath_chatbot.services.chat.orchestrator import (
     start_chat_stream,
 )
-from veupath_chatbot.tests.fixtures.mock_chat import mock_stream_chat
-
-# ---------------------------------------------------------------------------
-# mock_stream_chat
-# ---------------------------------------------------------------------------
-
-
-class TestMockStreamChat:
-    """Test the deterministic mock chat stream generator."""
-
-    @pytest.mark.asyncio
-    async def test_basic_message_yields_deltas_and_end(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(message="Hello"):
-            events.append(ev)
-
-        types = [e["type"] for e in events]
-        assert "assistant_delta" in types
-        assert "assistant_message" in types
-        assert types[-1] == "message_end"
-
-    @pytest.mark.asyncio
-    async def test_basic_message_echoes_input(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(message="Test input"):
-            events.append(ev)
-
-        assistant_messages = [e for e in events if e["type"] == "assistant_message"]
-        assert len(assistant_messages) == 1
-        content = assistant_messages[0]["data"]["content"]
-        assert "Test input" in content
-
-    @pytest.mark.asyncio
-    async def test_artifact_graph_trigger_yields_planning_artifact(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(message="show artifact graph"):
-            events.append(ev)
-
-        types = [e["type"] for e in events]
-        assert "planning_artifact" in types
-        artifact_ev = next(e for e in events if e["type"] == "planning_artifact")
-        artifact = artifact_ev["data"]["planningArtifact"]
-        assert artifact["id"] == "mock_exec_graph_artifact"
-        assert "proposedStrategyPlan" in artifact
-
-    @pytest.mark.asyncio
-    async def test_delegation_trigger_yields_subkani_and_strategy_events(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(
-            message="delegate_strategy_subtasks", strategy_id="test-strat-123"
-        ):
-            events.append(ev)
-
-        types = [e["type"] for e in events]
-        assert "subkani_task_start" in types
-        assert "subkani_tool_call_start" in types
-        assert "subkani_tool_call_end" in types
-        assert "subkani_task_end" in types
-        assert "strategy_update" in types
-        assert "assistant_message" in types
-        assert types[-1] == "message_end"
-
-        su_events = [e for e in events if e["type"] == "strategy_update"]
-        assert len(su_events) >= 1
-        assert su_events[0]["data"]["graphId"] == "test-strat-123"
-
-    @pytest.mark.asyncio
-    async def test_slow_message_still_completes(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(message="slow test"):
-            events.append(ev)
-
-        types = [e["type"] for e in events]
-        assert "message_end" in types
-
-    @pytest.mark.asyncio
-    async def test_delegation_default_strategy_id(self) -> None:
-        events: list[dict[str, Any]] = []
-        async for ev in mock_stream_chat(message="delegation test"):
-            events.append(ev)
-
-        su_events = [e for e in events if e["type"] == "strategy_update"]
-        assert su_events[0]["data"]["graphId"] == "mock_graph_delegation"
-
 
 # ---------------------------------------------------------------------------
 # start_chat_stream (CQRS version)

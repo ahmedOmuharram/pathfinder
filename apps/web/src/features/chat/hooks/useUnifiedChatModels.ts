@@ -5,7 +5,8 @@
  * for the unified chat panel.
  */
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { listModels } from "@/lib/api/models";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { buildModelSelection } from "@/features/chat/components/MessageComposer";
@@ -29,18 +30,15 @@ export function useUnifiedChatModels(): UnifiedChatModels {
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
   const modelOverrides = useSettingsStore((s) => s.modelOverrides);
 
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
+  // Local overrides — null means "use store default"
+  const [localModelId, setLocalModelId] = useState<string | null>(null);
+  const [localEffort, setLocalEffort] = useState<ReasoningEffort | null>(null);
 
-  // Sync from settings store defaults on mount / when defaults change
-  useEffect(() => {
-    setSelectedModelId(defaultModelId);
-  }, [defaultModelId]);
-  useEffect(() => {
-    setReasoningEffort(defaultReasoningEffort);
-  }, [defaultReasoningEffort]);
+  // Effective values: local override wins, then store default
+  const selectedModelId = localModelId ?? defaultModelId;
+  const reasoningEffort = localEffort ?? defaultReasoningEffort;
 
-  // Fetch model catalog on mount
+  // Fetch model catalog once on mount
   useEffect(() => {
     listModels()
       .then((res) => setModelCatalog(res.models, res.default))
@@ -58,9 +56,9 @@ export function useUnifiedChatModels(): UnifiedChatModels {
     modelCatalog,
     catalogDefault,
     selectedModelId,
-    setSelectedModelId,
+    setSelectedModelId: setLocalModelId,
     reasoningEffort,
-    setReasoningEffort,
+    setReasoningEffort: setLocalEffort as Dispatch<SetStateAction<ReasoningEffort>>,
     currentModelSelection,
   };
 }

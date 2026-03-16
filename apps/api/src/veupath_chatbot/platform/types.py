@@ -20,7 +20,7 @@ type JSONArray = list[JSONValue]
 # Defined here (platform layer) so both AI and service layers can use
 # them without creating a circular dependency.
 
-ModelProvider = Literal["openai", "anthropic", "google", "ollama"]
+ModelProvider = Literal["openai", "anthropic", "google", "ollama", "mock"]
 """Supported LLM provider identifiers."""
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]

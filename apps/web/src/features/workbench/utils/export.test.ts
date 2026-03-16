@@ -91,6 +91,8 @@ function makeGeneSet(overrides: Partial<GeneSet> = {}): GeneSet {
     geneIds: ["PF3D7_0100100", "PF3D7_0200200"],
     geneCount: 2,
     source: "paste",
+    stepCount: 1,
+    createdAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }

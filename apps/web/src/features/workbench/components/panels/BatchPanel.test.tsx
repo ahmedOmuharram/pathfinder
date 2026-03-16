@@ -98,6 +98,8 @@ function makeGeneSet(overrides: Partial<GeneSet> = {}): GeneSet {
     searchName: "GenesByTaxon",
     recordType: "gene",
     parameters: { organism: "Plasmodium falciparum 3D7" },
+    stepCount: 1,
+    createdAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -144,6 +146,14 @@ function makeExperiment(organism: string): Experiment {
       kFolds: 5,
       enrichmentTypes: [],
       name: `Batch: ${organism}`,
+      description: "",
+      mode: "single",
+      optimizationBudget: 30,
+      optimizationObjective: "balanced_accuracy",
+      enableStepAnalysis: false,
+      treeOptimizationObjective: "precision_at_50",
+      treeOptimizationBudget: 50,
+      sortDirection: "ASC",
     },
     status: "completed",
     metrics: makeMetrics(),

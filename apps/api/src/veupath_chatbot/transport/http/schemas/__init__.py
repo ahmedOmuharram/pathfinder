@@ -2,12 +2,20 @@
 
 from .chat import (
     ChatRequest,
+    CitationResponse,
     MessageResponse,
+    PlanningArtifactResponse,
     SubKaniActivityResponse,
+    SubKaniTokenUsageResponse,
     ThinkingResponse,
     ToolCallResponse,
 )
 from .health import HealthResponse, SystemConfigResponse
+from .optimization import (
+    OptimizationParameterSpecData,
+    OptimizationProgressEventData,
+    OptimizationTrialData,
+)
 from .plan import PlanNormalizeRequest, PlanNormalizeResponse, StrategyPlan
 from .sites import (
     DependentParamsRequest,
@@ -48,6 +56,7 @@ from .veupathdb_auth import AuthStatusResponse, AuthSuccessResponse
 
 __all__ = [
     "ChatRequest",
+    "CitationResponse",
     "CreateStrategyRequest",
     "DependentParamsResponse",
     "DependentParamsRequest",
@@ -58,6 +67,7 @@ __all__ = [
     "PlanNormalizeRequest",
     "PlanNormalizeResponse",
     "MessageResponse",
+    "PlanningArtifactResponse",
     "OpenStrategyRequest",
     "OpenStrategyResponse",
     "RecordTypeResponse",
@@ -88,4 +98,8 @@ __all__ = [
     "UpdateStrategyRequest",
     "AuthSuccessResponse",
     "AuthStatusResponse",
+    "SubKaniTokenUsageResponse",
+    "OptimizationTrialData",
+    "OptimizationParameterSpecData",
+    "OptimizationProgressEventData",
 ]
