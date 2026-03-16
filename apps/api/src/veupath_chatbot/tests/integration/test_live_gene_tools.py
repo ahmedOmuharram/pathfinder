@@ -40,6 +40,12 @@ class _LiveTools(GeneToolsMixin):
 
 @pytest.fixture(autouse=True)
 async def _close_clients() -> AsyncGenerator[None]:
+    await close_site_search_client()
+    try:
+        router = get_site_router()
+        await router.close_all()
+    except Exception:
+        pass
     yield
     await close_site_search_client()
     try:

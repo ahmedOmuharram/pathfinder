@@ -170,6 +170,15 @@ test.describe("Full Researcher Lifecycle", () => {
     await sitePicker.selectSite("toxodb");
     await sitePicker.expectCurrentSite("toxodb");
 
+    // Clean any stale ToxoDB gene sets before checking isolation.
+    const staleToxoResp = await apiClient.get("/api/v1/gene-sets?siteId=toxodb");
+    if (staleToxoResp.ok()) {
+      const staleToxo = (await staleToxoResp.json()) as { id: string }[];
+      await Promise.all(
+        staleToxo.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // Workbench should show empty state (no ToxoDB sets)
     await workbenchSidebarPage.goto();
 
@@ -207,9 +216,13 @@ test.describe("Full Researcher Lifecycle", () => {
     await chatPage.expectAssistantMessage(/\[mock\].*findings/i);
     await chatPage.expectIdle();
 
-    // API verification — PlasmoDB gene sets still intact
+    // API verification — manually created PlasmoDB gene sets still intact
+    // (auto-build may add extra strategy-sourced sets, so check by name)
     const finalResp = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
-    const finalSets = await finalResp.json();
-    expect(finalSets.length).toBe(3);
+    const finalSets = (await finalResp.json()) as { name: string; source: string }[];
+    expect(finalSets.length).toBeGreaterThanOrEqual(3);
+    expect(finalSets.find((gs) => gs.name === "Resistance Markers")).toBeDefined();
+    expect(finalSets.find((gs) => gs.name === "Top 3 Markers")).toBeDefined();
+    expect(finalSets.find((gs) => gs.source === "derived")).toBeDefined();
   });
 });

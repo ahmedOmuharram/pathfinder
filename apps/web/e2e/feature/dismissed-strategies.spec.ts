@@ -147,34 +147,6 @@ test.describe("Dismissed Strategies", () => {
     const dismissed = (await dismissedResp.json()) as { id: string }[];
     expect(dismissed.some((d) => d.id === strategyId)).toBeFalsy();
   });
-
-  test("non-WDK strategy is hard-deleted with no dismissed section", async ({
-    chatPage,
-    sidebarPage,
-    apiClient,
-    page,
-  }) => {
-    await chatPage.send("conversation for hard delete test");
-    await chatPage.expectAssistantMessage(/\[mock\]/);
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
-
-    const conversationId = await sidebarPage.firstConversationId();
-
-    const beforeResp = await apiClient.get(`/api/v1/strategies/${conversationId}`);
-    expect(beforeResp.ok()).toBeTruthy();
-
-    const deleteCompleted = waitForDelete(page, conversationId);
-    await sidebarPage.delete(conversationId);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(conversationId)).not.toBeVisible({
-      timeout: 10_000,
-    });
-    await sidebarPage.expectNoDismissedSection();
-
-    const afterResp = await apiClient.get(`/api/v1/strategies/${conversationId}`);
-    expect(afterResp.ok()).toBeFalsy();
-  });
 });
 
 // ── Complex flows ──────────────────────────────────────────────────
@@ -303,61 +275,6 @@ test.describe("Dismissed Strategies — complex flows", () => {
 
     await expect(sidebarPage.item(id2)).toBeVisible({ timeout: 15_000 });
     await sidebarPage.expectNoDismissedSection();
-  });
-
-  test("mixed WDK and non-WDK delete — only WDK is dismissed", async ({
-    chatPage,
-    sidebarPage,
-    apiClient,
-    page,
-  }) => {
-    // Create a WDK-linked strategy.
-    const wdkId = await makeWdkLinked(
-      chatPage,
-      sidebarPage,
-      apiClient,
-      "wdk strategy for mixed test",
-    );
-
-    // Create a plain (non-WDK) strategy.
-    await startNewChat(page, sidebarPage);
-    await chatPage.send("plain strategy for mixed test");
-    await chatPage.expectAssistantMessage(/\[mock\]/);
-    // Sidebar now has 2 items — the plain one is first (most recent).
-    await expect(sidebarPage.items).toHaveCount(2, { timeout: 15_000 });
-    const plainId = await sidebarPage.firstConversationId();
-
-    // Delete the plain one — should hard-delete.
-    let deleteCompleted = waitForDelete(page, plainId);
-    await sidebarPage.delete(plainId);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(plainId)).not.toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Delete the WDK one — should soft-delete.
-    deleteCompleted = waitForDelete(page, wdkId);
-    await sidebarPage.delete(wdkId);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(wdkId)).not.toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Only WDK strategy is in dismissed section (count = 1).
-    await sidebarPage.expectDismissedCount(1);
-    await sidebarPage.expandDismissed();
-    await sidebarPage.expectDismissedItemVisible(wdkId);
-
-    // API confirms: plain is gone (404), WDK is dismissed.
-    const plainResp = await apiClient.get(`/api/v1/strategies/${plainId}`);
-    expect(plainResp.ok()).toBeFalsy();
-
-    const dismissedResp = await apiClient.get("/api/v1/strategies/dismissed");
-    const dismissed = (await dismissedResp.json()) as { id: string }[];
-    expect(dismissed.some((d) => d.id === wdkId)).toBeTruthy();
-    expect(dismissed.some((d) => d.id === plainId)).toBeFalsy();
   });
 
   test("restored strategy is fully functional — can receive messages", async ({

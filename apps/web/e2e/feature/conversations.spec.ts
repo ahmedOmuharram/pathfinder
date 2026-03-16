@@ -97,9 +97,11 @@ test.describe("Conversations", () => {
       timeout: 10_000,
     });
 
-    // API confirms deleted
-    const afterResp = await apiClient.get(`/api/v1/strategies/${conversationId}`);
-    expect(afterResp.ok()).toBeFalsy();
+    // API confirms soft-deleted (moved to dismissed, since auto-build gave it a WDK ID)
+    const dismissedResp = await apiClient.get("/api/v1/strategies/dismissed");
+    expect(dismissedResp.ok()).toBeTruthy();
+    const dismissed = (await dismissedResp.json()) as { id: string }[];
+    expect(dismissed.some((d) => d.id === conversationId)).toBeTruthy();
   });
 
   test("search conversations filters list", async ({ chatPage, sidebarPage }) => {

@@ -121,18 +121,20 @@ async def stream_chat(
         llm_call_count = 0
         cached_tokens = 0
 
+        # Single message ID for the entire round so the frontend treats
+        # all assistant text + tool calls as one logical message.
+        message_id = str(uuid4())
+        accumulated_text_parts: list[str] = []
+
         try:
             async for stream in agent.full_round_stream(message):
                 # Assistant messages stream tokens; function calls typically do not, but are still emitted
                 # as StreamManager entries in full_round_stream.
                 if stream.role == ChatRole.ASSISTANT:
                     llm_call_count += 1
-                    message_id = str(uuid4())
-                    streamed_any = False
                     async for token in stream:
                         if not token:
                             continue
-                        streamed_any = True
                         saw_assistant_message = True
                         await queue.put(
                             {
@@ -168,24 +170,11 @@ async def stream_chat(
                     final_text = msg.text or ""
                     if final_text:
                         saw_assistant_message = True
-                        await queue.put(
-                            {
-                                "type": "assistant_message",
-                                "data": AssistantMessageEventData(
-                                    messageId=message_id, content=final_text
-                                ).model_dump(by_alias=True),
-                            }
-                        )
-                    elif streamed_any:
-                        # We streamed tokens but final message content is empty (rare). Keep the streamed message.
-                        await queue.put(
-                            {
-                                "type": "assistant_message",
-                                "data": AssistantMessageEventData(
-                                    messageId=message_id, content=""
-                                ).model_dump(by_alias=True),
-                            }
-                        )
+                        accumulated_text_parts.append(final_text)
+
+                    # Don't emit assistant_message here — defer to end of
+                    # round so the frontend keeps one message open across
+                    # text → tool_call → text cycles.
 
                     if msg.tool_calls:
                         tool_call_count += len(msg.tool_calls)
@@ -260,16 +249,21 @@ async def stream_chat(
                             }
                         )
 
-            if not saw_assistant_message:
-                await queue.put(
-                    {
-                        "type": "assistant_message",
-                        "data": AssistantMessageEventData(
-                            messageId=str(uuid4()),
-                            content="I processed your request.",
-                        ).model_dump(by_alias=True),
-                    }
-                )
+            # Emit one assistant_message for the entire round so the
+            # frontend finalizes a single chat bubble.
+            full_text = "\n\n".join(accumulated_text_parts)
+            await queue.put(
+                {
+                    "type": "assistant_message",
+                    "data": AssistantMessageEventData(
+                        messageId=message_id,
+                        content=full_text
+                        or (
+                            "" if saw_assistant_message else "I processed your request."
+                        ),
+                    ).model_dump(by_alias=True),
+                }
+            )
         except Exception as e:  # pragma: no cover
             logger.error(
                 "Stream error",

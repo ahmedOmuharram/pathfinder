@@ -28,6 +28,15 @@ test.describe("Malaria Drug Resistance Journey", () => {
     const subsetGenes = plasmoGenes.slice(0, 2);
     const subsetCount = subsetGenes.length;
 
+    // ── Setup: Clean stale gene sets for PlasmoDB ────────────────
+    const cleanupResp = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
+    if (cleanupResp.ok()) {
+      const stale = (await cleanupResp.json()) as { id: string }[];
+      await Promise.all(
+        stale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // ── Phase 1: Multi-round Chat ─────────────────────────────────
 
     await chatPage.goto();
@@ -63,6 +72,15 @@ test.describe("Malaria Drug Resistance Journey", () => {
     expect(strategies.length).toBeGreaterThan(0);
 
     // ── Phase 3: Workbench — Gene Set Creation ────────────────────
+
+    // Clean auto-built gene sets so manual set assertions start from zero.
+    const preSetsResp = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
+    if (preSetsResp.ok()) {
+      const preSets = (await preSetsResp.json()) as { id: string }[];
+      await Promise.all(
+        preSets.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
 
     await workbenchSidebarPage.goto();
 

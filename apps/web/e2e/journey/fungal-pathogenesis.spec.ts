@@ -25,6 +25,15 @@ test.describe("Fungal Pathogenesis Journey", () => {
     const fungiGenes = seedData.siteData.fungidb.geneIds;
     const fullCount = fungiGenes.length;
 
+    // ── Setup: Clean stale gene sets for FungiDB ─────────────────
+    const cleanupResp = await apiClient.get("/api/v1/gene-sets?siteId=fungidb");
+    if (cleanupResp.ok()) {
+      const stale = (await cleanupResp.json()) as { id: string }[];
+      await Promise.all(
+        stale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // ── Phase 1: Site Switch & Chat ──────────────────────────────
 
     await chatPage.goto();
@@ -66,6 +75,15 @@ test.describe("Fungal Pathogenesis Journey", () => {
     expect(strategiesResp.ok()).toBeTruthy();
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────
+
+    // Clean auto-built gene sets so manual set assertions start from zero.
+    const preSetsResp = await apiClient.get("/api/v1/gene-sets?siteId=fungidb");
+    if (preSetsResp.ok()) {
+      const preSets = (await preSetsResp.json()) as { id: string }[];
+      await Promise.all(
+        preSets.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
 
     await workbenchSidebarPage.goto();
 

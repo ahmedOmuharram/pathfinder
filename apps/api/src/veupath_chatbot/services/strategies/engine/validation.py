@@ -67,4 +67,9 @@ class ValidationMixin(StrategyToolsBase):
     def _is_placeholder_name(self, name: str | None) -> bool:
         if not name:
             return True
-        return name.strip().lower() in {"draft graph", "draft strategy", "draft"}
+        return name.strip().lower() in {
+            "draft graph",
+            "draft strategy",
+            "draft",
+            "new conversation",
+        }

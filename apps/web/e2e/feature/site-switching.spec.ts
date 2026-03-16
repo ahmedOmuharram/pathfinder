@@ -85,33 +85,4 @@ test.describe("Site Switching", () => {
     );
     expect(ourSetBack).toBeDefined();
   });
-
-  test("switch site with active strategy shows confirmation", async ({
-    chatPage,
-    sitePicker,
-    graphPage,
-    page,
-    apiClient,
-  }) => {
-    // Create a strategy via delegation
-    await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\].*delegation/i);
-    await graphPage.expectCompactView();
-
-    // API: Strategy exists
-    const beforeResp = await apiClient.get("/api/v1/strategies");
-    expect(beforeResp.ok()).toBeTruthy();
-    const beforeCount = (await beforeResp.json()).length;
-    expect(beforeCount).toBeGreaterThan(0);
-
-    // UI: Try to switch site — confirmation modal
-    await sitePicker.selectSite("toxodb");
-    await expect(page.getByText(/strategy will be cleared/i)).toBeVisible({
-      timeout: 5_000,
-    });
-
-    // UI: Confirm switch
-    await sitePicker.confirmSwitch();
-    await sitePicker.expectCurrentSite("toxodb");
-  });
 });

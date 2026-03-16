@@ -28,6 +28,15 @@ test.describe("Crypto Intestinal Infection Journey", () => {
     const subsetCount = subsetGenes.length;
     const minusCount = fullCount - subsetCount; // genes in full but not in subset
 
+    // ── Setup: Clean stale gene sets for CryptoDB ────────────────
+    const cleanupResp = await apiClient.get("/api/v1/gene-sets?siteId=cryptodb");
+    if (cleanupResp.ok()) {
+      const stale = (await cleanupResp.json()) as { id: string }[];
+      await Promise.all(
+        stale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // ── Phase 1: Site Switch & Chat ──────────────────────────────
 
     await chatPage.goto();
@@ -58,6 +67,15 @@ test.describe("Crypto Intestinal Infection Journey", () => {
     await chatPage.expectIdle();
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────
+
+    // Clean auto-built gene sets so manual set assertions start from zero.
+    const preSetsResp = await apiClient.get("/api/v1/gene-sets?siteId=cryptodb");
+    if (preSetsResp.ok()) {
+      const preSets = (await preSetsResp.json()) as { id: string }[];
+      await Promise.all(
+        preSets.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
 
     await workbenchSidebarPage.goto();
 

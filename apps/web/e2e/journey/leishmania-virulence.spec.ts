@@ -25,6 +25,15 @@ test.describe("Leishmania Virulence Journey", () => {
     const tritrypGenes = seedData.siteData.tritrypdb.geneIds;
     const fullCount = tritrypGenes.length;
 
+    // ── Setup: Clean stale gene sets for TriTrypDB ───────────────
+    const cleanupResp = await apiClient.get("/api/v1/gene-sets?siteId=tritrypdb");
+    if (cleanupResp.ok()) {
+      const stale = (await cleanupResp.json()) as { id: string }[];
+      await Promise.all(
+        stale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // ── Phase 1: Site Switch & Chat ──────────────────────────────
 
     await chatPage.goto();
@@ -60,6 +69,15 @@ test.describe("Leishmania Virulence Journey", () => {
     expect(strategies.length).toBeGreaterThan(0);
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────
+
+    // Clean auto-built gene sets so manual set assertions start from zero.
+    const preSetsResp = await apiClient.get("/api/v1/gene-sets?siteId=tritrypdb");
+    if (preSetsResp.ok()) {
+      const preSets = (await preSetsResp.json()) as { id: string }[];
+      await Promise.all(
+        preSets.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
 
     await workbenchSidebarPage.goto();
 

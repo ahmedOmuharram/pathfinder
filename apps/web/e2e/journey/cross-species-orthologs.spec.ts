@@ -23,6 +23,20 @@ test.describe("Cross-Species Orthologs Journey", () => {
     const plasmoGenes = seedData.siteData.plasmodb.geneIds;
     const toxoGenes = seedData.siteData.toxodb.geneIds;
 
+    // ── Setup: Clean stale gene sets for both sites ──────────────
+    const cleanupSites = ["plasmodb", "toxodb"];
+    await Promise.all(
+      cleanupSites.map(async (site) => {
+        const resp = await apiClient.get(`/api/v1/gene-sets?siteId=${site}`);
+        if (resp.ok()) {
+          const stale = (await resp.json()) as { id: string }[];
+          await Promise.all(
+            stale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+          );
+        }
+      }),
+    );
+
     // ── Phase 1: PlasmoDB — Chat & Gene Set ──────────────────────
 
     await chatPage.goto();
@@ -87,6 +101,15 @@ test.describe("Cross-Species Orthologs Journey", () => {
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 
+    // Clean auto-built ToxoDB gene sets so manual set assertions start from zero.
+    const toxoCleanResp = await apiClient.get("/api/v1/gene-sets?siteId=toxodb");
+    if (toxoCleanResp.ok()) {
+      const toxoStale = (await toxoCleanResp.json()) as { id: string }[];
+      await Promise.all(
+        toxoStale.map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     // Workbench should be empty — PlasmoDB sets don't leak
     await workbenchSidebarPage.goto();
     await workbenchSidebarPage.expectEmptyState();
@@ -118,6 +141,21 @@ test.describe("Cross-Species Orthologs Journey", () => {
 
     await sitePicker.selectSite("plasmodb");
     await sitePicker.expectCurrentSite("plasmodb");
+
+    // Remove auto-built gene sets, keeping only the manually created one.
+    const plasmoCleanResp = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
+    if (plasmoCleanResp.ok()) {
+      const plasmoAll = (await plasmoCleanResp.json()) as {
+        id: string;
+        name: string;
+      }[];
+      await Promise.all(
+        plasmoAll
+          .filter((gs) => gs.name !== "Plasmo Resistance")
+          .map((gs) => apiClient.delete(`/api/v1/gene-sets/${gs.id}`)),
+      );
+    }
+
     await workbenchSidebarPage.goto();
 
     // PlasmoDB set should still exist

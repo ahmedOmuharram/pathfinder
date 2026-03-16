@@ -86,13 +86,29 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           ),
         );
       }
-      const geneSetsResp = await req.get(`${BASE_URL}/api/v1/gene-sets`);
-      if (geneSetsResp.ok()) {
-        const geneSets = (await geneSetsResp.json()) as { id: string }[];
-        await Promise.all(
-          geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
-        );
-      }
+      // Clean gene sets across ALL sites (default + site-specific).
+      const workerSiteIds = [
+        undefined,
+        "plasmodb",
+        "toxodb",
+        "cryptodb",
+        "fungidb",
+        "tritrypdb",
+      ];
+      await Promise.all(
+        workerSiteIds.map(async (siteId) => {
+          const url = siteId
+            ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
+            : `${BASE_URL}/api/v1/gene-sets`;
+          const resp = await req.get(url);
+          if (resp.ok()) {
+            const geneSets = (await resp.json()) as { id: string }[];
+            await Promise.all(
+              geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
+            );
+          }
+        }),
+      );
 
       await page.context().storageState({ path: fileName });
       await page.close();
@@ -122,13 +138,29 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   _autoCleanup: [
     async ({ context }, use) => {
       const req = context.request;
-      const geneSetsResp = await req.get(`${BASE_URL}/api/v1/gene-sets`);
-      if (geneSetsResp.ok()) {
-        const geneSets = (await geneSetsResp.json()) as { id: string }[];
-        await Promise.all(
-          geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
-        );
-      }
+      // Clean gene sets across ALL sites (default + site-specific).
+      const allSiteIds = [
+        undefined,
+        "plasmodb",
+        "toxodb",
+        "cryptodb",
+        "fungidb",
+        "tritrypdb",
+      ];
+      await Promise.all(
+        allSiteIds.map(async (siteId) => {
+          const url = siteId
+            ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
+            : `${BASE_URL}/api/v1/gene-sets`;
+          const resp = await req.get(url);
+          if (resp.ok()) {
+            const geneSets = (await resp.json()) as { id: string }[];
+            await Promise.all(
+              geneSets.map((gs) => req.delete(`${BASE_URL}/api/v1/gene-sets/${gs.id}`)),
+            );
+          }
+        }),
+      );
       // Force hard-delete (deleteFromWdk=true) so WDK-linked strategies
       // don't get soft-deleted and accumulate in the dismissed list.
       const strategiesResp = await req.get(`${BASE_URL}/api/v1/strategies`);

@@ -3,8 +3,16 @@
 import pytest
 from httpx import AsyncClient
 
+import veupath_chatbot.services.export as _export_mod
 from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.types import GeneSet
+
+
+@pytest.fixture(autouse=True)
+def _reset_export_singleton():
+    _export_mod._service = None
+    yield
+    _export_mod._service = None
 
 
 @pytest.mark.anyio
@@ -22,7 +30,7 @@ async def test_download_export_round_trip(client: AsyncClient) -> None:
 
     response = await client.get(result.url)
     assert response.status_code == 200
-    assert response.headers["content-type"] == "text/csv"
+    assert response.headers["content-type"].startswith("text/csv")
     assert 'filename="IntegrationTest.csv"' in response.headers["content-disposition"]
     body = response.text
     assert "gene_id" in body

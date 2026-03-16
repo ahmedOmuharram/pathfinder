@@ -63,11 +63,32 @@ def _create_anthropic_engine(
     kwargs: dict[str, object] = {}
     if max_context_size is not None:
         kwargs["max_context_size"] = max_context_size
+
+    # Anthropic extended thinking constraints:
+    # - temperature must be 1 when thinking is enabled
+    # - top_p/top_k must not be set when thinking is enabled
+    # - budget_tokens must be < max_tokens
+    thinking_cfg = (hyperparams or {}).get("thinking")
+    thinking_enabled = isinstance(thinking_cfg, dict) and thinking_cfg.get("type") in (
+        "enabled",
+        "adaptive",
+    )
+    if thinking_enabled and isinstance(thinking_cfg, dict):
+        temperature = 1.0
+        # Don't pass top_p — Anthropic rejects it with thinking enabled.
+        raw_budget = thinking_cfg.get("budget_tokens", 0)
+        budget = int(raw_budget) if isinstance(raw_budget, (int, float)) else 0
+        # max_tokens must exceed budget_tokens; default kani value (2048) is
+        # too low for medium/high budgets.  Set to budget + 16 384 output room.
+        if budget >= 2048:
+            kwargs["max_tokens"] = budget + 16_384
+    else:
+        kwargs["top_p"] = top_p
+
     return CachedAnthropicEngine(
         api_key=settings.anthropic_api_key,
         model=model,
         temperature=temperature,
-        top_p=top_p,
         **kwargs,
         **(hyperparams or {}),
     )
