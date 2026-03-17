@@ -8,8 +8,9 @@ from kani import AIParam, ai_function
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType
+from veupath_chatbot.services.gene_sets.enrichment import run_enrichment_for_gene_set
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
 
@@ -141,9 +142,6 @@ class WorkbenchToolsMixin:
         GO terms, pathways, or word patterns in the gene set. Requires
         the gene set to have a WDK step ID or search parameters.
         """
-        from veupath_chatbot.services.experiment.types import to_json
-        from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
-
         store = get_gene_set_store()
         gs = await store.aget(gene_set_id)
         if gs is None:
@@ -170,60 +168,10 @@ class WorkbenchToolsMixin:
             else ["go_function", "go_process", "go_component", "pathway", "word"]
         )
 
-        svc = EnrichmentService()
-        params: JSONObject | None = (
-            {k: cast(JSONValue, v) for k, v in gs.parameters.items()}
-            if gs.parameters is not None
-            else None
-        )
-        results, errors = await svc.run_batch(
-            site_id=gs.site_id,
-            analysis_types=types,
-            step_id=gs.wdk_step_id,
-            search_name=gs.search_name,
-            record_type=gs.record_type or "transcript",
-            parameters=params,
-        )
-
-        serialized = [to_json(r) for r in results]
-        summary: JSONObject = {
-            "geneSetId": gene_set_id,
-            "geneSetName": gs.name,
-            "geneCount": len(gs.gene_ids),
-            "analysisTypesRun": [r.get("analysisType", "unknown") for r in serialized],
-            "totalSignificantTerms": sum(
-                sum(
-                    1
-                    for t in r.get("terms", [])
-                    if isinstance(t, dict) and t.get("pValue", 1) < 0.05
-                )
-                for r in serialized
-            ),
-        }
-
-        # Auto-generate exports in multiple formats.
-        if results:
-            try:
-                from veupath_chatbot.services.export import get_export_service
-
-                export_svc = get_export_service()
-                name = gs.name or gene_set_id
-                csv_result = await export_svc.export_enrichment(results, name)
-                tsv_result = await export_svc.export_enrichment_tsv(results, name)
-                json_result = await export_svc.export_enrichment_json(results, name)
-                summary["downloads"] = {
-                    "csv": csv_result.url,
-                    "tsv": tsv_result.url,
-                    "json": json_result.url,
-                    "expiresInSeconds": csv_result.expires_in_seconds,
-                }
-            except Exception as export_err:
-                logger.warning("Enrichment export failed", error=str(export_err))
-
-        summary["enrichmentResults"] = serialized
-        if errors:
-            summary["errors"] = cast(JSONValue, errors)
-
+        summary = await run_enrichment_for_gene_set(gs, types)
+        summary["geneSetId"] = gene_set_id
+        summary["geneSetName"] = gs.name
+        summary["geneCount"] = len(gs.gene_ids)
         return summary
 
     @ai_function()

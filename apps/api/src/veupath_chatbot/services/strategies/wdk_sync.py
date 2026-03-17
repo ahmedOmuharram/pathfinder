@@ -6,6 +6,8 @@ Handles:
 - ``upsert_projection`` — create-or-update a stream projection from WDK data
 - ``upsert_summary_projection`` — create-or-update from list summary data
 - ``plan_needs_detail_fetch`` — check if a projection needs WDK detail fetch
+- ``lazy_fetch_wdk_detail`` — lazy-load full WDK detail for summary-only projections
+- ``sync_is_saved_to_wdk`` — sync isSaved flag from projection to WDK
 """
 
 from uuid import UUID
@@ -234,3 +236,84 @@ async def upsert_summary_projection(
         proj = await stream_repo.get_projection(stream.id)
 
     return proj
+
+
+async def lazy_fetch_wdk_detail(
+    *,
+    projection: StreamProjection,
+    stream_repo: StreamRepository,
+) -> StreamProjection:
+    """Fetch full WDK strategy detail for a summary-only projection.
+
+    If the projection has a wdk_strategy_id but no plan data (created during
+    sync-wdk to avoid N+1), fetches the full detail from WDK now and updates
+    the projection. Returns the updated projection, or the original if no
+    fetch was needed or the fetch failed.
+    """
+    if not plan_needs_detail_fetch(projection):
+        return projection
+
+    site_id = projection.site_id
+    wdk_id = projection.wdk_strategy_id
+    if not site_id or wdk_id is None:
+        return projection
+
+    try:
+        from veupath_chatbot.services.wdk import get_strategy_api
+
+        api = get_strategy_api(site_id)
+        ast, is_saved, step_counts = await fetch_and_convert(api, wdk_id)
+        plan = ast.to_dict()
+        if step_counts:
+            plan["stepCounts"] = step_counts
+        await stream_repo.update_projection(
+            projection.stream_id,
+            plan=plan,
+            record_type=ast.record_type,
+            step_count=len(ast.get_all_steps()),
+            is_saved=is_saved,
+            is_saved_set=True,
+        )
+        updated = await stream_repo.get_projection(projection.stream_id)
+        if updated is not None:
+            return updated
+    except Exception as exc:
+        logger.warning(
+            "Lazy WDK detail fetch failed",
+            stream_id=str(projection.stream_id),
+            wdk_id=wdk_id,
+            error=str(exc),
+        )
+
+    return projection
+
+
+async def sync_is_saved_to_wdk(
+    *,
+    projection: StreamProjection,
+) -> None:
+    """Sync the isSaved flag from a projection to WDK.
+
+    No-op if the projection has no wdk_strategy_id or site_id.
+    Failures are logged and swallowed (non-critical sync).
+    """
+    wdk_id = projection.wdk_strategy_id
+    if not wdk_id:
+        return
+
+    site_id = projection.stream.site_id if projection.stream else ""
+    if not site_id:
+        return
+
+    try:
+        from veupath_chatbot.services.wdk import get_strategy_api
+
+        api = get_strategy_api(site_id)
+        await api.set_saved(wdk_id, projection.is_saved)
+    except Exception as exc:
+        logger.warning(
+            "Failed to sync isSaved to WDK",
+            stream_id=str(projection.stream_id),
+            wdk_id=wdk_id,
+            error=str(exc),
+        )

@@ -85,9 +85,10 @@ async def _search_for_searches_via_site_search(
             offset=0,
         )
     except Exception as exc:
-        logger.info(
+        logger.warning(
             "Site-search lookup failed; falling back to discovery search",
-            extra={"site_id": site_id, "error": str(exc)},
+            site_id=site_id,
+            error=str(exc),
         )
         return []
 

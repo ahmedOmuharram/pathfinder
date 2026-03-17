@@ -12,8 +12,8 @@ from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.wdk_sync import (
-    fetch_and_convert,
-    plan_needs_detail_fetch,
+    lazy_fetch_wdk_detail,
+    sync_is_saved_to_wdk,
 )
 from veupath_chatbot.services.wdk import get_strategy_api
 from veupath_chatbot.transport.http.deps import CurrentUser, StreamRepo
@@ -98,34 +98,10 @@ async def get_strategy(
     # Lazy detail fetch: if this is a WDK-linked strategy with no plan data,
     # fetch the full detail from WDK now (summary-only projections are created
     # during sync-wdk to avoid the N+1 problem).
-    if plan_needs_detail_fetch(projection):
-        site_id = projection.site_id
-        wdk_id = projection.wdk_strategy_id
-        if site_id and wdk_id is not None:
-            try:
-                api = get_strategy_api(site_id)
-                ast, is_saved, step_counts = await fetch_and_convert(api, wdk_id)
-                plan = ast.to_dict()
-                if step_counts:
-                    plan["stepCounts"] = step_counts
-                await stream_repo.update_projection(
-                    strategyId,
-                    plan=plan,
-                    record_type=ast.record_type,
-                    step_count=len(ast.get_all_steps()),
-                    is_saved=is_saved,
-                    is_saved_set=True,
-                )
-                projection = await get_owned_projection_or_404(
-                    stream_repo, strategyId, user_id
-                )
-            except Exception as e:
-                logger.warning(
-                    "Lazy WDK detail fetch failed",
-                    strategy_id=str(strategyId),
-                    wdk_id=wdk_id,
-                    error=str(e),
-                )
+    projection = await lazy_fetch_wdk_detail(
+        projection=projection,
+        stream_repo=stream_repo,
+    )
 
     redis = get_redis()
     messages = await read_stream_messages(redis, str(strategyId))
@@ -177,17 +153,7 @@ async def update_strategy(
 
     # If isSaved was toggled and WDK strategy exists, sync the flag to WDK.
     if is_saved_set and updated.wdk_strategy_id:
-        site_id = updated.stream.site_id if updated.stream else ""
-        if site_id:
-            try:
-                api = get_strategy_api(site_id)
-                await api.set_saved(updated.wdk_strategy_id, updated.is_saved)
-            except Exception as e:
-                logger.warning(
-                    "Failed to sync isSaved to WDK",
-                    strategy_id=str(strategyId),
-                    error=str(e),
-                )
+        await sync_is_saved_to_wdk(projection=updated)
 
     return build_projection_response(updated)
 

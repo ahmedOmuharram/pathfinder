@@ -17,6 +17,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 from .param_resolution import (
@@ -24,6 +25,8 @@ from .param_resolution import (
     _filter_context_values,
     expand_search_details_with_params,
 )
+
+logger = get_logger(__name__)
 
 
 async def validate_search_params(
@@ -182,8 +185,14 @@ async def validate_parameters(
                 context=context,
                 expand_params=True,
             )
-        except Exception:
+        except Exception as exc:
             # Fallback: non-contextual specs (may be incomplete for dependent params).
+            logger.warning(
+                "Contextual param fetch failed, falling back to non-contextual specs",
+                record_type=resolved_record_type,
+                search_name=search_name,
+                error=str(exc),
+            )
             details = await discovery.get_search_details(
                 site_id, resolved_record_type, search_name, expand_params=True
             )
@@ -230,7 +239,12 @@ async def validate_parameters(
                 if match:
                     hint_record_type = rt_name
                     break
-        except Exception:
+        except Exception as hint_exc:
+            logger.warning(
+                "Record type hint resolution failed",
+                search_name=search_name,
+                error=str(hint_exc),
+            )
             hint_record_type = None
         raise ValidationError(
             title=f"Unknown or invalid search: {search_name}",

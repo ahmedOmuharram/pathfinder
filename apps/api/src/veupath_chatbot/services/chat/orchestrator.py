@@ -5,19 +5,19 @@ projection is updated inline. No accumulation, no finalization step.
 
 AI-layer dependencies (agent factory, model resolver) are injected at
 startup via :func:`configure` — the transport layer calls this once to
-wire the concrete implementations so that the services layer never
-imports from ``veupath_chatbot.ai``.
+wire the concrete implementations. The services layer depends only on
+``kani.Kani`` (third-party base class), never on concrete agent types
+from ``veupath_chatbot.ai``.
 """
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
 from uuid import UUID, uuid4
 
-from kani import ChatMessage, ChatRole
+from kani import ChatMessage, ChatRole, Kani
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.ai.agents.executor import PathfinderAgent
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository, UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
@@ -38,13 +38,13 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 # ── Injected AI-layer dependencies ──────────────────────────────────
 # Set once at startup via configure(). Avoids services importing from ai.
 
-_create_agent: Callable[..., PathfinderAgent] | None = None
+_create_agent: Callable[..., Kani] | None = None
 _resolve_effective_model_id: Callable[..., str] | None = None
 
 
 def configure(
     *,
-    create_agent_fn: Callable[..., PathfinderAgent],
+    create_agent_fn: Callable[..., Kani],
     resolve_model_id_fn: Callable[..., str],
 ) -> None:
     """Wire AI-layer implementations into the orchestrator.
@@ -214,7 +214,7 @@ async def _build_agent_context(
     context_size: int | None = None,
     response_tokens: int | None = None,
     reasoning_budget: int | None = None,
-) -> tuple[PathfinderAgent, str]:
+) -> tuple[Kani, str]:
     """Build the agent and resolve the effective model.
 
     Handles mention context building, chat history retrieval,
