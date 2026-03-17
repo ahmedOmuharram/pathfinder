@@ -55,22 +55,28 @@ export function ResultsTableBody({
             )}
             {orderedColumns.map((col) => (
               <th key={col.name} className="whitespace-nowrap px-4 py-2.5">
-                <button
-                  type="button"
-                  onClick={() => onSort(col.name)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {col.displayName}
-                  {sortColumn === col.name ? (
-                    sortDir === "ASC" ? (
-                      <ChevronUp className="h-3 w-3" />
+                {col.isSortable !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.name)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {col.displayName}
+                    {sortColumn === col.name ? (
+                      sortDir === "ASC" ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )
                     ) : (
-                      <ChevronDown className="h-3 w-3" />
-                    )
-                  ) : (
-                    <ArrowUpDown className="h-3 w-3 opacity-40" />
-                  )}
-                </button>
+                      <ArrowUpDown className="h-3 w-3 opacity-40" />
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {col.displayName}
+                  </span>
+                )}
               </th>
             ))}
             <th className="w-8 px-2" />

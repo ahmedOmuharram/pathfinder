@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import type { Search, StepKind } from "@pathfinder/shared";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import { useParamSpecs } from "@/lib/hooks/useParamSpecs";
 import { extractVocabOptions, type VocabOption } from "@/lib/utils/vocab";
 import { extractSpecVocabulary } from "../components/stepEditorUtils";
+import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
 
 interface UseStepParametersArgs {
   stepId: string;
@@ -75,6 +76,42 @@ export function useStepParameters({
       setRawParams("{}");
     });
   }, [identityKey, prevIdentityKey]);
+
+  // -------------------------------------------------------------------------
+  // Coerce initial params when paramSpecs first load.
+  // WDK-synced strategies store multi-pick values as JSON-encoded strings
+  // (e.g. '["Plasmodium falciparum 3D7"]'). The widgets expect arrays, so
+  // we coerce once paramSpecs are available to determine which params are
+  // multi-pick. This runs exactly once per mount (component remounts for
+  // each new step since StepEditor is conditionally rendered).
+  // -------------------------------------------------------------------------
+  const hasCoercedRef = useRef(false);
+  useEffect(() => {
+    if (paramSpecs.length === 0 || isLoading) return;
+    if (hasCoercedRef.current) return;
+    hasCoercedRef.current = true;
+
+    startTransition(() => {
+      setParameters((prev) => {
+        if (Object.keys(prev).length === 0) return prev;
+        return coerceParametersForSpecs(prev, paramSpecs, {
+          allowStringParsing: false,
+        });
+      });
+      setRawParams((prev) => {
+        try {
+          const obj = JSON.parse(prev) as StepParameters;
+          if (Object.keys(obj).length === 0) return prev;
+          const coerced = coerceParametersForSpecs(obj, paramSpecs, {
+            allowStringParsing: false,
+          });
+          return JSON.stringify(coerced, null, 2);
+        } catch {
+          return prev;
+        }
+      });
+    });
+  }, [paramSpecs, isLoading]);
 
   // -------------------------------------------------------------------------
   // Vocabulary options (derived from param specs)

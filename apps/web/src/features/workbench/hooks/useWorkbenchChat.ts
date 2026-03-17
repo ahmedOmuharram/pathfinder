@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { Citation } from "@pathfinder/shared";
+import { cancelOperation } from "@/lib/operationSubscribe";
 import { getWorkbenchChatMessages, streamWorkbenchChat } from "../api/workbenchChatApi";
+import { useWorkbenchStore } from "../store";
 
 export interface WorkbenchMessage {
   id: string;
@@ -20,6 +22,7 @@ export interface UseWorkbenchChatReturn {
   messages: WorkbenchMessage[];
   streaming: boolean;
   activeToolCalls: ActiveToolCall[];
+  error: string | null;
   sendMessage: (text: string) => void;
   stop: () => void;
 }
@@ -31,8 +34,12 @@ export function useWorkbenchChat(
   const [messages, setMessages] = useState<WorkbenchMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [activeToolCalls, setActiveToolCalls] = useState<ActiveToolCall[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loadedForId, setLoadedForId] = useState<string | null>(null);
+  const historyLoaded = loadedForId === experimentId;
 
   const cancelRef = useRef<(() => void) | null>(null);
+  const operationIdRef = useRef<string | null>(null);
   const autoTriggeredRef = useRef<string | null>(null);
   const currentAssistantIdRef = useRef<string | null>(null);
 
@@ -56,13 +63,17 @@ export function useWorkbenchChat(
             id: m.messageId ?? nextMsgId(),
             role: m.role,
             content: m.content,
+            toolCalls: m.toolCalls as WorkbenchMessage["toolCalls"],
+            citations: m.citations as WorkbenchMessage["citations"],
           }));
         setMessages(loaded);
+        setLoadedForId(experimentId);
       })
       .catch((err) => {
         if (!cancelled) {
           console.error("[useWorkbenchChat] Failed to load messages:", err);
         }
+        if (!cancelled) setLoadedForId(experimentId);
       });
 
     return () => {
@@ -160,7 +171,28 @@ export function useWorkbenchChat(
         setStreaming(false);
         setActiveToolCalls([]);
         currentAssistantIdRef.current = null;
+        setError(event.data.error || "An error occurred");
         break;
+      case "workbench_gene_set": {
+        const gs = event.data.geneSet;
+        if (gs) {
+          useWorkbenchStore.getState().addGeneSet({
+            id: gs.id,
+            name: gs.name,
+            geneCount: gs.geneCount,
+            source: (["strategy", "paste", "upload", "derived", "saved"].includes(
+              gs.source,
+            )
+              ? gs.source
+              : "derived") as "strategy" | "paste" | "upload" | "derived" | "saved",
+            siteId: gs.siteId,
+            geneIds: [],
+            createdAt: new Date().toISOString(),
+            stepCount: 1,
+          });
+        }
+        break;
+      }
     }
   }, []);
 
@@ -177,22 +209,30 @@ export function useWorkbenchChat(
         { id: nextMsgId(), role: "user", content: text },
       ]);
       setStreaming(true);
+      setError(null);
       currentAssistantIdRef.current = null;
 
-      const { cancel } = streamWorkbenchChat(experimentId, text, siteId, {
+      const { promise, cancel } = streamWorkbenchChat(experimentId, text, siteId, {
         onMessage: handleEvent,
         onError: (err) => {
           console.error("[useWorkbenchChat] Stream error:", err);
           setStreaming(false);
           setActiveToolCalls([]);
+          setError(err.message || "An error occurred");
         },
         onComplete: () => {
           setStreaming(false);
           setActiveToolCalls([]);
+          operationIdRef.current = null;
         },
       });
 
       cancelRef.current = cancel;
+      promise
+        .then(({ operationId }) => {
+          operationIdRef.current = operationId;
+        })
+        .catch(() => {});
     },
     [experimentId, siteId, streaming, handleEvent],
   );
@@ -205,28 +245,25 @@ export function useWorkbenchChat(
 
   useEffect(() => {
     if (!experimentId) return;
+    if (!historyLoaded) return;
     if (autoTriggeredRef.current === experimentId) return;
-    // Only trigger if messages have been loaded (empty array) and not streaming
     if (messages.length > 0 || streaming) return;
 
-    // Small delay to let messages load first
-    const timer = setTimeout(() => {
-      // Re-check after delay — messages might have loaded
-      if (autoTriggeredRef.current === experimentId) return;
-      autoTriggeredRef.current = experimentId;
-      sendMessageRef.current(
-        "Please interpret these experiment results. Provide a clear scientific assessment, " +
-          "explain what the metrics mean for this specific search, highlight key enrichment findings, " +
-          "and suggest concrete next steps.",
-      );
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [experimentId, messages.length, streaming]);
+    autoTriggeredRef.current = experimentId;
+    sendMessageRef.current(
+      "Please interpret these experiment results. Provide a clear scientific assessment, " +
+        "explain what the metrics mean for this specific search, highlight key enrichment findings, " +
+        "and suggest concrete next steps.",
+    );
+  }, [experimentId, historyLoaded, messages.length, streaming]);
 
   const stop = useCallback(() => {
     cancelRef.current?.();
     cancelRef.current = null;
+    if (operationIdRef.current) {
+      cancelOperation(operationIdRef.current);
+      operationIdRef.current = null;
+    }
     setStreaming(false);
     setActiveToolCalls([]);
   }, []);
@@ -238,5 +275,5 @@ export function useWorkbenchChat(
     };
   }, []);
 
-  return { messages, streaming, activeToolCalls, sendMessage, stop };
+  return { messages, streaming, activeToolCalls, error, sendMessage, stop };
 }

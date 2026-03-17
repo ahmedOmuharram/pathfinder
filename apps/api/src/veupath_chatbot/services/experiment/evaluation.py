@@ -140,13 +140,38 @@ def compute_sweep_values(
 def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
     """Ensure *param_name* exists in the experiment config.
 
+    For single-step experiments, checks ``exp.config.parameters``.
+    For tree-mode experiments, walks the step tree looking for the parameter
+    in any leaf node's ``parameters`` dict.
+
     :raises ValidationError: If the parameter is missing.
     """
-    if param_name not in exp.config.parameters:
-        raise ValidationError(
-            title="Parameter not found",
-            detail=f"Parameter '{param_name}' is not in this experiment's config.",
-        )
+    if exp.config.is_tree_mode:
+        if _tree_has_parameter(exp.config.step_tree, param_name):
+            return
+    elif param_name in exp.config.parameters:
+        return
+
+    raise ValidationError(
+        title="Parameter not found",
+        detail=f"Parameter '{param_name}' is not in this experiment's config.",
+    )
+
+
+def _tree_has_parameter(tree: object, param_name: str) -> bool:
+    """Check whether any node in a dict-based step tree contains *param_name*."""
+    from veupath_chatbot.domain.strategy.tree import walk_dict_tree
+
+    found = False
+
+    def _check(node: JSONObject) -> None:
+        nonlocal found
+        params = node.get("parameters")
+        if isinstance(params, dict) and param_name in params:
+            found = True
+
+    walk_dict_tree(tree, _check)
+    return found
 
 
 def format_metrics_dict(m: ExperimentMetrics) -> JSONObject:
@@ -172,32 +197,43 @@ async def run_sweep_point(
 ) -> JSONObject:
     """Run a single sweep point: modify the parameter and evaluate.
 
+    For tree-mode experiments, clones the step tree and injects the swept
+    parameter value into every node that contains it, then calls
+    :func:`run_controls_against_tree`.  For single-step experiments, modifies
+    the flat parameter dict and calls :func:`run_positive_negative_controls`.
+
     :returns: Dict with ``value``, ``metrics`` (or ``None``), and optionally ``error``.
     """
-    modified_params = dict(exp.config.parameters)
-    modified_params[param_name] = value
-
     try:
         response_value: float | str = float(value) if not is_categorical else value
     except ValueError:
         response_value = value
 
     try:
-        result = await asyncio.wait_for(
-            run_positive_negative_controls(
-                site_id=exp.config.site_id,
-                record_type=exp.config.record_type,
-                target_search_name=exp.config.search_name,
-                target_parameters=modified_params,
-                controls_search_name=exp.config.controls_search_name,
-                controls_param_name=exp.config.controls_param_name,
-                positive_controls=exp.config.positive_controls or None,
-                negative_controls=exp.config.negative_controls or None,
-                controls_value_format=exp.config.controls_value_format,
-                skip_cleanup=True,
-            ),
-            timeout=SWEEP_POINT_TIMEOUT_S,
-        )
+        if exp.config.is_tree_mode:
+            result = await _run_sweep_point_tree(
+                exp=exp,
+                param_name=param_name,
+                value=value,
+            )
+        else:
+            modified_params = dict(exp.config.parameters)
+            modified_params[param_name] = value
+            result = await asyncio.wait_for(
+                run_positive_negative_controls(
+                    site_id=exp.config.site_id,
+                    record_type=exp.config.record_type,
+                    target_search_name=exp.config.search_name,
+                    target_parameters=modified_params,
+                    controls_search_name=exp.config.controls_search_name,
+                    controls_param_name=exp.config.controls_param_name,
+                    positive_controls=exp.config.positive_controls or None,
+                    negative_controls=exp.config.negative_controls or None,
+                    controls_value_format=exp.config.controls_value_format,
+                    skip_cleanup=True,
+                ),
+                timeout=SWEEP_POINT_TIMEOUT_S,
+            )
         m = metrics_from_control_result(result)
         return {"value": response_value, "metrics": format_metrics_dict(m)}
     except Exception as exc:
@@ -208,6 +244,50 @@ async def run_sweep_point(
             error=str(exc),
         )
         return {"value": response_value, "metrics": None, "error": str(exc)}
+
+
+async def _run_sweep_point_tree(
+    *,
+    exp: Experiment,
+    param_name: str,
+    value: str,
+) -> JSONObject:
+    """Run a single tree-mode sweep point.
+
+    Deep-copies the step tree, injects *value* into every node whose
+    ``parameters`` dict contains *param_name*, then evaluates against controls.
+    """
+    import copy
+
+    from veupath_chatbot.domain.strategy.tree import walk_dict_tree
+    from veupath_chatbot.services.experiment.step_analysis import (
+        run_controls_against_tree,
+    )
+
+    tree = copy.deepcopy(exp.config.step_tree)
+    if not isinstance(tree, dict):
+        raise ValueError("step_tree must be a dict in tree mode")
+
+    def _inject(node: JSONObject) -> None:
+        params = node.get("parameters")
+        if isinstance(params, dict) and param_name in params:
+            params[param_name] = value
+
+    walk_dict_tree(tree, _inject)
+
+    return await asyncio.wait_for(
+        run_controls_against_tree(
+            site_id=exp.config.site_id,
+            record_type=exp.config.record_type,
+            tree=tree,
+            controls_search_name=exp.config.controls_search_name,
+            controls_param_name=exp.config.controls_param_name,
+            controls_value_format=exp.config.controls_value_format,
+            positive_controls=exp.config.positive_controls or None,
+            negative_controls=exp.config.negative_controls or None,
+        ),
+        timeout=SWEEP_POINT_TIMEOUT_S,
+    )
 
 
 async def cleanup_before_sweep(site_id: str) -> None:
@@ -297,7 +377,10 @@ async def generate_sweep_events(
             if isinstance(v, (int, float)):
                 return float(v)
             if isinstance(v, str):
-                return float(v)
+                try:
+                    return float(v)
+                except ValueError:
+                    return 0.0
             return 0.0
 
         all_points.sort(key=_numeric_value)

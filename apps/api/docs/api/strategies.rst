@@ -20,7 +20,7 @@ Plan Normalization
 to the expected types, fill defaults, resolve vocabulary terms. Called before
 save or push to VEuPathDB.
 
-**Key function:** :py:func:`normalize_plan`
+**Key function:** :py:func:`canonicalize_plan_parameters`
 
 .. automodule:: veupath_chatbot.services.strategies.plan_normalize
    :members:
@@ -45,6 +45,20 @@ WDK Bridge
 
 **Purpose:** Bridge between PathFinder strategy representation and WDK API
 payloads. Translates between domain models and WDK wire format.
+
+.. admonition:: WDK Wire Format and Parameter Coercion
+   :class: note
+
+   WDK stores multi-pick parameter values as **JSON-encoded strings** (e.g.
+   ``'["Plasmodium falciparum 3D7"]'`` rather than a native array). When
+   strategies are synced from WDK via :py:func:`fetch_and_convert`, the
+   ``ParameterNormalizer`` preserves this wire format in the stored plan.
+
+   The frontend step editor automatically coerces these JSON strings into
+   native arrays when parameter specs load, so widgets (TreeBox, Select,
+   etc.) can match values against their vocabulary options. This coercion
+   runs once per editor mount via ``coerceParametersForSpecs`` in the
+   ``useStepParameters`` hook.
 
 .. automodule:: veupath_chatbot.services.strategies.wdk_bridge
    :members:

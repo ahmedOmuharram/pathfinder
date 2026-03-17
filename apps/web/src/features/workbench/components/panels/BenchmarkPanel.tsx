@@ -10,6 +10,7 @@ import {
   createBenchmarkStream,
   type BenchmarkControlSetInput,
 } from "@/features/workbench/api";
+import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useWorkbenchStore } from "../../store";
@@ -44,7 +45,8 @@ export function BenchmarkPanel() {
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
   const hasSearchContext = Boolean(
-    activeSet && activeSet.searchName && activeSet.parameters,
+    activeSet &&
+    (activeSet.geneIds?.length || (activeSet.searchName && activeSet.parameters)),
   );
 
   // Saved control sets
@@ -57,15 +59,23 @@ export function BenchmarkPanel() {
   // Streaming state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [controlSetError, setControlSetError] = useState<string | null>(null);
   const [results, setResults] = useState<Experiment[]>([]);
 
   // Load saved control sets
   useEffect(() => {
     if (!activeSet?.siteId) return;
     let cancelled = false;
-    listControlSets(activeSet.siteId).then((sets) => {
-      if (!cancelled) setSavedSets(sets);
-    });
+    listControlSets(activeSet.siteId)
+      .then((sets) => {
+        if (!cancelled) setSavedSets(sets);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Failed to load control sets:", err);
+          setControlSetError("Failed to load saved control sets");
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -99,7 +109,13 @@ export function BenchmarkPanel() {
 
   const updateInlineSet = useCallback(
     (id: string, patch: Partial<InlineControlSet>) => {
-      setInlineSets((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+      setInlineSets((prev) =>
+        prev.map((s) => {
+          if (s.id === id) return { ...s, ...patch };
+          if (patch.isPrimary) return { ...s, isPrimary: false };
+          return s;
+        }),
+      );
     },
     [],
   );
@@ -110,6 +126,11 @@ export function BenchmarkPanel() {
     // Build control set inputs from saved selections + inline
     const controlSets: BenchmarkControlSetInput[] = [];
 
+    // Check if any inline set is explicitly marked as primary
+    const hasInlinePrimary = inlineSets.some(
+      (s) => s.isPrimary && s.positiveControls.length > 0,
+    );
+
     for (const id of selectedSavedIds) {
       const saved = savedSets.find((s) => s.id === id);
       if (!saved) continue;
@@ -118,7 +139,7 @@ export function BenchmarkPanel() {
         positiveControls: saved.positiveIds,
         negativeControls: saved.negativeIds,
         controlSetId: saved.id,
-        isPrimary: controlSets.length === 0, // first is primary by default
+        isPrimary: !hasInlinePrimary && controlSets.length === 0,
       });
     }
 
@@ -130,6 +151,19 @@ export function BenchmarkPanel() {
         negativeControls: inline.negativeControls,
         isPrimary: inline.isPrimary,
       });
+    }
+
+    // Enforce at most one primary — if multiple, keep only the first
+    let foundPrimary = false;
+    for (const cs of controlSets) {
+      if (cs.isPrimary) {
+        if (foundPrimary) cs.isPrimary = false;
+        else foundPrimary = true;
+      }
+    }
+    // If none is primary, default the first
+    if (!foundPrimary && controlSets.length > 0) {
+      controlSets[0].isPrimary = true;
     }
 
     if (controlSets.length === 0) {
@@ -148,10 +182,11 @@ export function BenchmarkPanel() {
           recordType: activeSet.recordType ?? "gene",
           searchName: activeSet.searchName ?? "",
           parameters: activeSet.parameters ?? {},
+          targetGeneIds: activeSet.geneIds?.length ? activeSet.geneIds : undefined,
           positiveControls: [],
           negativeControls: [],
-          controlsSearchName: "GeneByLocusTag",
-          controlsParamName: "ds_gene_ids",
+          controlsSearchName: CONTROLS_SEARCH_NAME,
+          controlsParamName: CONTROLS_PARAM_NAME,
           controlsValueFormat: "newline",
           enableCrossValidation: false,
           kFolds: 5,
@@ -284,6 +319,9 @@ export function BenchmarkPanel() {
           {loading ? "Running..." : "Run Benchmark"}
         </Button>
 
+        {controlSetError && (
+          <p className="text-xs text-destructive">{controlSetError}</p>
+        )}
         {error && <p className="text-xs text-destructive">{error}</p>}
 
         {/* Results comparison table */}

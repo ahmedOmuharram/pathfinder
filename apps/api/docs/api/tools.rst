@@ -80,12 +80,10 @@ mixin. Auto-discovers ``@ai_function`` methods on composed tool instances via
 Execution Tools
 ---------------
 
-**Purpose:** Tool wiring: parse tool arguments from LLM output, apply graph
-snapshots from tool results, build strategy. Used when the agent needs to
-interpret create_step/build_strategy results.
+**Purpose:** Tools for retrieving strategy execution results (e.g. result
+counts for built steps). Includes WDK error handling for common API failures.
 
-**Key functions:** :py:func:`parse_tool_arguments`, :py:func:`parse_tool_result`,
-:py:func:`apply_graph_snapshot_from_tool_result`
+**Key class:** :py:class:`ExecutionTools`
 
 .. automodule:: veupath_chatbot.ai.tools.execution_tools
    :members:

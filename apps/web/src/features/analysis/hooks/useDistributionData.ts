@@ -7,15 +7,17 @@ import {
 } from "@/features/analysis/api/stepResults";
 import type { DistributionEntry } from "@/features/analysis/components/DistributionExplorer/types";
 
-function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
+export function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
   if (Array.isArray(raw.histogram)) {
-    return raw.histogram
+    const isNumericBinned =
+      raw.histogram.length > 0 && raw.histogram[0].binStart != null;
+    const parsed = raw.histogram
       .filter((bin) => bin.value > 0)
       .map((bin) => ({
         value: bin.binLabel || bin.binStart || "",
         count: bin.value,
-      }))
-      .sort((a, b) => b.count - a.count);
+      }));
+    return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
   }
 
   const histogram = raw.distribution ?? raw;
@@ -102,29 +104,13 @@ export function useDistributionData(
       setLoadingModal(true);
 
       try {
-        if (entityRef.type === "gene-set") {
-          const { records } = await getRecords(entityRef, {
-            attributes: [selectedAttr, "gene_product"],
-            filterAttribute: selectedAttr,
-            filterValue: value,
-            limit: 500,
-          });
-          setModalRecords(records);
-        } else {
-          const { meta } = await getRecords(entityRef, {
-            attributes: [selectedAttr, "gene_product"],
-            limit: 1,
-          });
-          const total = meta.totalCount || meta.displayTotalCount || 5000;
-
-          const { records } = await getRecords(entityRef, {
-            attributes: [selectedAttr, "gene_product"],
-            limit: total,
-          });
-
-          const filtered = records.filter((r) => r.attributes[selectedAttr] === value);
-          setModalRecords(filtered);
-        }
+        const { records } = await getRecords(entityRef, {
+          attributes: [selectedAttr, "gene_product"],
+          filterAttribute: selectedAttr,
+          filterValue: value,
+          limit: 500,
+        });
+        setModalRecords(records);
       } catch {
         setModalRecords([]);
       } finally {

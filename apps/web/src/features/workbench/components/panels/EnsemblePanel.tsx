@@ -39,6 +39,16 @@ export function EnsemblePanel() {
 
   const handleCompute = useCallback(async () => {
     if (!canCompute) return;
+
+    const selectedSets = geneSets.filter((gs) => selectedSetIds.includes(gs.id));
+    const sites = new Set(selectedSets.map((gs) => gs.siteId));
+    if (sites.size > 1) {
+      setError(
+        "Selected gene sets are from different sites. Results may be meaningless.",
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResults(null);
@@ -57,7 +67,7 @@ export function EnsemblePanel() {
     } finally {
       setLoading(false);
     }
-  }, [canCompute, selectedSetIds, positiveControls]);
+  }, [canCompute, selectedSetIds, positiveControls, geneSets]);
 
   return (
     <AnalysisPanelContainer

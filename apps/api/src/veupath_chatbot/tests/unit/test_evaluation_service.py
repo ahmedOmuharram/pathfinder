@@ -6,6 +6,7 @@ import pytest
 
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.services.experiment.evaluation import (
+    _tree_has_parameter,
     compute_sweep_values,
     format_metrics_dict,
     generate_sweep_events,
@@ -173,6 +174,45 @@ class TestValidateSweepParameter:
         exp = _make_experiment()
         with pytest.raises(ValidationError):
             validate_sweep_parameter(exp, "not_a_param")
+
+    def test_tree_mode_finds_param_in_leaf(self) -> None:
+        """Tree-mode validation walks the step tree to find the parameter."""
+        exp = _make_experiment(
+            config_overrides={
+                "mode": "multi-step",
+                "step_tree": {
+                    "searchName": "CombineStep",
+                    "primaryInput": {
+                        "searchName": "GenesByTaxon",
+                        "parameters": {"organism": "Plasmodium falciparum 3D7"},
+                    },
+                    "secondaryInput": {
+                        "searchName": "GenesByExpression",
+                        "parameters": {"fold_change": "2.0"},
+                    },
+                },
+            }
+        )
+        # Should not raise -- organism exists in primary leaf
+        validate_sweep_parameter(exp, "organism")
+        # Should not raise -- fold_change exists in secondary leaf
+        validate_sweep_parameter(exp, "fold_change")
+
+    def test_tree_mode_missing_param_raises(self) -> None:
+        exp = _make_experiment(
+            config_overrides={
+                "mode": "multi-step",
+                "step_tree": {
+                    "searchName": "CombineStep",
+                    "primaryInput": {
+                        "searchName": "GenesByTaxon",
+                        "parameters": {"organism": "P. falciparum"},
+                    },
+                },
+            }
+        )
+        with pytest.raises(ValidationError):
+            validate_sweep_parameter(exp, "not_present")
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +433,230 @@ class TestGenerateSweepEvents:
                 events.append(event)
 
         # 3 sweep_point events + 1 sweep_complete
+        point_events = [e for e in events if "sweep_point" in e]
+        complete_events = [e for e in events if "sweep_complete" in e]
+        assert len(point_events) == 3
+        assert len(complete_events) == 1
+
+
+# ---------------------------------------------------------------------------
+# _tree_has_parameter
+# ---------------------------------------------------------------------------
+
+
+class TestTreeHasParameter:
+    def test_finds_param_in_root(self) -> None:
+        tree = {"searchName": "S", "parameters": {"threshold": "0.5"}}
+        assert _tree_has_parameter(tree, "threshold") is True
+
+    def test_finds_param_in_nested_primary_input(self) -> None:
+        tree = {
+            "searchName": "CombineStep",
+            "primaryInput": {
+                "searchName": "S",
+                "parameters": {"threshold": "0.5"},
+            },
+        }
+        assert _tree_has_parameter(tree, "threshold") is True
+
+    def test_finds_param_in_nested_secondary_input(self) -> None:
+        tree = {
+            "searchName": "CombineStep",
+            "primaryInput": {
+                "searchName": "A",
+                "parameters": {"organism": "Pf"},
+            },
+            "secondaryInput": {
+                "searchName": "B",
+                "parameters": {"fold_change": "2.0"},
+            },
+        }
+        assert _tree_has_parameter(tree, "fold_change") is True
+
+    def test_deeply_nested_param(self) -> None:
+        tree = {
+            "searchName": "Root",
+            "primaryInput": {
+                "searchName": "Mid",
+                "primaryInput": {
+                    "searchName": "Leaf",
+                    "parameters": {"deep_param": "1"},
+                },
+            },
+        }
+        assert _tree_has_parameter(tree, "deep_param") is True
+
+    def test_returns_false_when_param_missing(self) -> None:
+        tree = {
+            "searchName": "S",
+            "parameters": {"threshold": "0.5"},
+        }
+        assert _tree_has_parameter(tree, "nonexistent") is False
+
+    def test_handles_non_dict_root(self) -> None:
+        assert _tree_has_parameter(None, "x") is False
+        assert _tree_has_parameter("not a tree", "x") is False
+
+    def test_handles_node_without_parameters(self) -> None:
+        tree = {
+            "searchName": "CombineStep",
+            "primaryInput": {"searchName": "Leaf"},
+        }
+        assert _tree_has_parameter(tree, "threshold") is False
+
+
+# ---------------------------------------------------------------------------
+# _run_sweep_point_tree
+# ---------------------------------------------------------------------------
+
+
+class TestRunSweepPointTree:
+    @pytest.mark.asyncio
+    async def test_clones_and_injects_parameter(self) -> None:
+        """_run_sweep_point_tree deep-copies the tree and injects the value."""
+        exp = _make_experiment(
+            config_overrides={
+                "mode": "multi-step",
+                "step_tree": {
+                    "searchName": "CombineStep",
+                    "primaryInput": {
+                        "searchName": "GenesByTaxon",
+                        "parameters": {"threshold": "0.5"},
+                    },
+                    "secondaryInput": {
+                        "searchName": "GenesByExpression",
+                        "parameters": {"threshold": "0.5", "other": "keep"},
+                    },
+                },
+            }
+        )
+        mock_result = {
+            "positive": {"intersectionCount": 2, "controlsCount": 2},
+            "negative": {"intersectionCount": 0, "controlsCount": 1},
+            "target": {"resultCount": 40},
+        }
+
+        captured_tree = None
+
+        async def _capture_tree(**kwargs: object) -> dict:  # type: ignore[type-arg]
+            nonlocal captured_tree
+            captured_tree = kwargs.get("tree")
+            return mock_result
+
+        with patch(
+            "veupath_chatbot.services.experiment.step_analysis.run_controls_against_tree",
+            new_callable=AsyncMock,
+            side_effect=_capture_tree,
+        ):
+            point = await run_sweep_point(
+                exp=exp,
+                param_name="threshold",
+                value="0.99",
+                is_categorical=False,
+            )
+
+        # The sweep point should succeed
+        assert point["metrics"] is not None
+        assert point["value"] == pytest.approx(0.99)
+
+        # Verify the tree was modified with the swept value
+        assert captured_tree is not None
+        assert captured_tree["primaryInput"]["parameters"]["threshold"] == "0.99"
+        assert captured_tree["secondaryInput"]["parameters"]["threshold"] == "0.99"
+        # Non-swept params should be preserved
+        assert captured_tree["secondaryInput"]["parameters"]["other"] == "keep"
+
+        # Verify original tree was NOT modified (deep copy)
+        assert exp.config.step_tree["primaryInput"]["parameters"]["threshold"] == "0.5"
+        assert (
+            exp.config.step_tree["secondaryInput"]["parameters"]["threshold"] == "0.5"
+        )
+
+
+# ---------------------------------------------------------------------------
+# _numeric_value (sorting helper inside generate_sweep_events)
+# ---------------------------------------------------------------------------
+
+
+class TestNumericValueSorting:
+    @pytest.mark.asyncio
+    async def test_numeric_sweep_events_are_sorted_by_value(self) -> None:
+        """Sweep results are sorted numerically, so even out-of-order
+        completion produces sorted output in sweep_complete."""
+        exp = _make_experiment()
+        call_count = 0
+
+        async def _mock_controls(**_: object) -> dict:  # type: ignore[type-arg]
+            nonlocal call_count
+            call_count += 1
+            return {
+                "positive": {"intersectionCount": 1, "controlsCount": 2},
+                "negative": {"intersectionCount": 0, "controlsCount": 1},
+                "target": {"resultCount": 50},
+            }
+
+        with (
+            patch(
+                "veupath_chatbot.services.experiment.evaluation.cleanup_before_sweep",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+                new_callable=AsyncMock,
+                side_effect=_mock_controls,
+            ),
+        ):
+            events: list[str] = []
+            async for event in generate_sweep_events(
+                exp=exp,
+                param_name="threshold",
+                sweep_type="numeric",
+                sweep_values=["1.0", "0.0", "0.5"],
+            ):
+                events.append(event)
+
+        # Find sweep_complete event
+        import json as json_mod
+
+        complete_event = [e for e in events if "sweep_complete" in e][0]
+        data_str = complete_event.split("data: ", 1)[1].strip()
+        data = json_mod.loads(data_str)
+        values = [p["value"] for p in data["points"]]
+        assert values == sorted(values), "Points should be sorted numerically"
+
+    @pytest.mark.asyncio
+    async def test_non_numeric_string_value_sorts_as_zero(self) -> None:
+        """Non-numeric string values should be treated as 0.0 for sorting."""
+        exp = _make_experiment()
+
+        mock_result = {
+            "positive": {"intersectionCount": 1, "controlsCount": 2},
+            "negative": {"intersectionCount": 0, "controlsCount": 1},
+            "target": {"resultCount": 50},
+        }
+
+        with (
+            patch(
+                "veupath_chatbot.services.experiment.evaluation.cleanup_before_sweep",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
+        ):
+            events: list[str] = []
+            # Mix a non-numeric value with numeric ones
+            async for event in generate_sweep_events(
+                exp=exp,
+                param_name="threshold",
+                sweep_type="numeric",
+                sweep_values=["1.0", "not_a_number", "0.5"],
+            ):
+                events.append(event)
+
+        # Should have 3 point events and 1 complete event
         point_events = [e for e in events if "sweep_point" in e]
         complete_events = [e for e in events if "sweep_complete" in e]
         assert len(point_events) == 3

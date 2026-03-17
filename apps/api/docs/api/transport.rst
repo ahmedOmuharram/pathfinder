@@ -7,7 +7,7 @@ the HTTP API to the chat and strategy services.
 Overview
 --------
 
-- **Dependencies** — Request-scoped deps: auth, DB session, strategy loading.
+- **Dependencies** — Request-scoped deps: auth, DB session, repository injection.
   Injected into router handlers.
 - **Streaming** — SSE (Server-Sent Events) for chat. Event formatting,
   chunk encoding, stream lifecycle.
@@ -57,11 +57,11 @@ development.
 Dependencies
 ------------
 
-**Purpose:** FastAPI dependencies. Provide auth context, DB session, strategy
-loading, site context. Used by chat and strategies routers.
+**Purpose:** FastAPI dependencies. Provide auth context, DB session, repository
+injection, and experiment ownership checks. Used by routers.
 
-**Key functions:** :py:func:`get_db_session`, :py:func:`get_current_user`,
-:py:func:`get_site_context` (or equivalent)
+**Key functions:** :py:func:`get_current_user_with_db_row`,
+:py:func:`get_experiment_owned_by_user`
 
 .. automodule:: veupath_chatbot.transport.http.deps
    :members:

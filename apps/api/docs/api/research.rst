@@ -116,7 +116,14 @@ literature search and citation processing.
 Research Clients
 ----------------
 
-API clients for literature sources. Each implements search for its backend:
+API clients for literature sources. Each implements search for its backend.
+All clients inherit from :py:class:`BaseClient` / :py:class:`StandardClient`
+defined in the base module.
+
+.. automodule:: veupath_chatbot.services.research.clients._base
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 .. automodule:: veupath_chatbot.services.research.clients.semanticscholar
    :members:

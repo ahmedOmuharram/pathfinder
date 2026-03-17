@@ -11,6 +11,7 @@ import {
   createBatchExperimentStream,
   type BatchOrganismTarget,
 } from "@/features/workbench/api";
+import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { ParamNameSelect } from "../ParamNameSelect";
@@ -32,6 +33,8 @@ export function BatchPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Experiment[] | null>(null);
+  const [expectedCount, setExpectedCount] = useState(0);
+  const [batchParamName, setBatchParamName] = useState<string | null>(null);
 
   // Fetch organisms for SearchableMultiSelect
   const [availableOrganisms, setAvailableOrganisms] = useState<string[]>([]);
@@ -63,6 +66,8 @@ export function BatchPanel() {
     if (selectedOrganisms.length === 0) return;
     if (!organismParamName) return;
 
+    setBatchParamName(organismParamName);
+
     const targets: BatchOrganismTarget[] = selectedOrganisms.map((org) => ({
       organism: org,
       positiveControls: positiveControls.length > 0 ? positiveControls : null,
@@ -72,6 +77,7 @@ export function BatchPanel() {
     setLoading(true);
     setError(null);
     setResults(null);
+    setExpectedCount(selectedOrganisms.length);
 
     try {
       await createBatchExperimentStream(
@@ -82,8 +88,8 @@ export function BatchPanel() {
           parameters: activeSet.parameters ?? {},
           positiveControls,
           negativeControls,
-          controlsSearchName: "GeneByLocusTag",
-          controlsParamName: "ds_gene_ids",
+          controlsSearchName: CONTROLS_SEARCH_NAME,
+          controlsParamName: CONTROLS_PARAM_NAME,
           controlsValueFormat: "newline",
           enableCrossValidation: false,
           kFolds: 5,
@@ -212,7 +218,10 @@ export function BatchPanel() {
               </thead>
               <tbody>
                 {results.map((exp) => {
-                  const orgValue = exp.config.parameters?.organism ?? exp.config.name;
+                  const paramKey = batchParamName;
+                  const orgValue =
+                    (paramKey ? exp.config.parameters?.[paramKey] : undefined) ??
+                    exp.config.name;
                   return (
                     <tr key={exp.id} className="border-b last:border-b-0">
                       <td className="px-3 py-2 text-foreground">{String(orgValue)}</td>
@@ -234,6 +243,13 @@ export function BatchPanel() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {results && results.length > 0 && results.length < expectedCount && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Completed {results.length} of {expectedCount} organisms. Some organisms may
+            have failed.
+          </p>
         )}
       </div>
     </AnalysisPanelContainer>

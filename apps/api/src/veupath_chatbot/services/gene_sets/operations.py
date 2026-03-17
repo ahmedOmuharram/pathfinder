@@ -188,7 +188,7 @@ class GeneSetService:
                         error=str(exc),
                     )
 
-            # Count steps in the strategy
+            # Count steps and extract search context from the strategy
             try:
                 strategy = await api.get_strategy(wdk_strategy_id)
                 step_tree = strategy.get("stepTree")
@@ -199,6 +199,52 @@ class GeneSetService:
                     strategy_id=wdk_strategy_id,
                     error=str(exc),
                 )
+
+            # Extract searchName and parameters from the root step.
+            # Only for single-step strategies — multi-step roots are boolean
+            # combinations whose params (bq_operator, bq_left_op, etc.) are
+            # internal WDK step references, not re-runnable search parameters.
+            if wdk_step_id is not None and search_name is None and step_count == 1:
+                try:
+                    await api._ensure_session()
+                    step_data = await api.client.get(
+                        f"/users/{api.user_id}/steps/{wdk_step_id}"
+                    )
+                    if isinstance(step_data, dict):
+                        sn = step_data.get("searchName")
+                        if isinstance(sn, str) and not sn.startswith(
+                            "boolean_question_"
+                        ):
+                            search_name = sn
+                            sc = step_data.get("searchConfig")
+                            if isinstance(sc, dict):
+                                params = sc.get("parameters")
+                                if isinstance(params, dict):
+                                    parameters = {
+                                        str(k): str(v) for k, v in params.items()
+                                    }
+                        if not record_type:
+                            rcn = step_data.get("recordClassName")
+                            if isinstance(rcn, str):
+                                record_type = (
+                                    rcn.split(".")[-1]
+                                    .replace("RecordClass", "")
+                                    .lower()
+                                    if "." in rcn
+                                    else "transcript"
+                                )
+                    logger.info(
+                        "Extracted search context from WDK step",
+                        step_id=wdk_step_id,
+                        search_name=search_name,
+                        has_params=parameters is not None,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to extract search context from step",
+                        step_id=wdk_step_id,
+                        error=str(exc),
+                    )
 
         # Deduplicate gene IDs while preserving order
         seen: set[str] = set()

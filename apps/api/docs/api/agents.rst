@@ -81,9 +81,9 @@ task node in the delegation plan.
 ExperimentAssistantAgent
 ------------------------
 
-**Purpose:** Lightweight AI assistant for the Experiment Lab wizard. Scoped to
-research capabilities (web search, literature search, catalog tools, gene lookup)
-for helping users configure experiment steps.
+**Purpose:** Lightweight AI assistant for the workbench experiment wizard.
+Scoped to research capabilities (web search, literature search, catalog tools,
+gene lookup) for helping users configure experiment steps.
 
 **Inherits:** :py:class:`~veupath_chatbot.ai.tools.research_registry.ResearchToolsMixin`, ``Kani``
 

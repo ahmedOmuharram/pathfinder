@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { GeneSet } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
 // Mock the workbench store so AnalysisPanelContainer renders children
 // ---------------------------------------------------------------------------
 
-function makeGeneSet(id: string, geneIds: string[]): GeneSet {
+function makeGeneSet(id: string, geneIds: string[], siteId = "PlasmoDB"): GeneSet {
   return {
     id,
     name: `Set ${id}`,
-    siteId: "PlasmoDB",
+    siteId,
     geneIds,
     source: "paste",
     geneCount: geneIds.length,
@@ -148,6 +148,86 @@ describe("EnsemblePanel", () => {
     expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/ensemble", {
       method: "POST",
       body: { geneSetIds: ["s1", "s3"], positiveControls: undefined },
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Cross-site validation tests
+  // -----------------------------------------------------------------------
+
+  it("shows error when selected gene sets are from different sites", async () => {
+    storeState.geneSets = [
+      makeGeneSet("s1", ["G1", "G2"], "PlasmoDB"),
+      makeGeneSet("s2", ["G2", "G3"], "ToxoDB"),
+    ];
+    storeState.selectedSetIds = ["s1", "s2"];
+
+    render(<EnsemblePanel />);
+    const button = screen.getByRole("button", { name: /compute/i });
+    fireEvent.click(button);
+
+    // Should show cross-site error, not call the API
+    await waitFor(() => {
+      expect(screen.getByText(/different sites/i)).toBeTruthy();
+    });
+    expect(mockRequestJson).not.toHaveBeenCalled();
+  });
+
+  it("shows no error when all gene sets are from the same site", async () => {
+    storeState.geneSets = [
+      makeGeneSet("s1", ["G1", "G2"], "PlasmoDB"),
+      makeGeneSet("s2", ["G2", "G3"], "PlasmoDB"),
+      makeGeneSet("s3", ["G3", "G4"], "PlasmoDB"),
+    ];
+    storeState.selectedSetIds = ["s1", "s2", "s3"];
+
+    mockRequestJson.mockResolvedValueOnce([
+      { geneId: "G2", frequency: 0.67, count: 2, total: 3, inPositives: false },
+    ]);
+
+    render(<EnsemblePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /compute/i }));
+
+    // Should call the API (no cross-site error)
+    expect(mockRequestJson).toHaveBeenCalled();
+
+    // Wait for results — no error text about different sites
+    await screen.findByText("G2");
+    expect(screen.queryByText(/different sites/i)).toBeNull();
+  });
+
+  it("clears cross-site error when computation succeeds", async () => {
+    // First: trigger the cross-site error
+    storeState.geneSets = [
+      makeGeneSet("s1", ["G1"], "PlasmoDB"),
+      makeGeneSet("s2", ["G2"], "ToxoDB"),
+    ];
+    storeState.selectedSetIds = ["s1", "s2"];
+
+    const { rerender } = render(<EnsemblePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /compute/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/different sites/i)).toBeTruthy();
+    });
+
+    // Now fix the selection: both from same site
+    storeState.geneSets = [
+      makeGeneSet("s1", ["G1"], "PlasmoDB"),
+      makeGeneSet("s2", ["G2"], "PlasmoDB"),
+    ];
+    storeState.selectedSetIds = ["s1", "s2"];
+
+    mockRequestJson.mockResolvedValueOnce([
+      { geneId: "G1", frequency: 0.5, count: 1, total: 2, inPositives: false },
+    ]);
+
+    rerender(<EnsemblePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /compute/i }));
+
+    // Error should be cleared once computation succeeds
+    await waitFor(() => {
+      expect(screen.queryByText(/different sites/i)).toBeNull();
     });
   });
 });

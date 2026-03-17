@@ -180,7 +180,7 @@ when the agent needs to discover or validate parameters.
 
 - :py:func:`get_search_parameters` — Full parameter specs for a search
 - :py:func:`validate_search_params` — Validate parameter values
-- :py:func:`get_dependent_vocab` — Refresh dependent parameter options
+- :py:func:`get_refreshed_dependent_params` — Refresh dependent parameter options
 
 .. automodule:: veupath_chatbot.services.catalog.parameters
    :members:
@@ -241,8 +241,15 @@ when switching strategies or restoring sessions.
 Experiment Seed Data
 --------------------
 
-**Purpose:** Seed data generation for experiments. Helpers, runner, and type
-definitions for creating reproducible seed datasets.
+**Purpose:** Generate demo experiments with pre-built multi-step strategies and
+control sets across 13 VEuPathDB databases. Seeds use ``multi-step`` mode
+internally to create strategy trees (the only place multi-step mode is used).
+Triggered via ``POST /api/v1/experiments/seed`` or the Settings > Seeding UI.
+
+Each database has curated seed definitions with organism-specific searches,
+known positive/negative gene controls, and step trees that demonstrate
+real research workflows (e.g. drug resistance genes in PlasmoDB, virulence
+factors in TriTrypDB).
 
 .. automodule:: veupath_chatbot.services.experiment.seed
    :members:
@@ -264,13 +271,3 @@ definitions for creating reproducible seed datasets.
    :undoc-members:
    :show-inheritance:
 
-Research Base Client
---------------------
-
-**Purpose:** Abstract base class and interfaces for all research API clients.
-Provides common error handling, retry logic, and response normalization.
-
-.. automodule:: veupath_chatbot.services.research.clients._base
-   :members:
-   :undoc-members:
-   :show-inheritance:

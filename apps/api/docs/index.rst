@@ -16,12 +16,12 @@ PathFinder API
       Unified agent that researches, plans, and builds strategy graphs
       in a single conversation.
 
-   .. grid-item-card:: Experiment Lab
+   .. grid-item-card:: Evaluation & Analysis
       :link: api/experiments
       :link-type: doc
 
-      Evaluate search/strategy performance with control sets, metrics,
-      cross-validation, and enrichment.
+      Backend evaluation engine powering the workbench: control sets,
+      classification metrics, cross-validation, and enrichment.
 
    .. grid-item-card:: Workbench
       :link: api/gene_sets

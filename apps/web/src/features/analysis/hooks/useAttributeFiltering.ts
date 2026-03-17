@@ -21,13 +21,14 @@ export function useAttributeFiltering(entityRef: EntityRef): AttributeFilteringS
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSelectedAttr("");
 
     getAttributes(entityRef)
       .then(({ attributes: attrs }) => {
         if (cancelled) return;
         const displayable = attrs.filter(isDistributableAttr);
         setAttributes(displayable);
-        if (displayable.length > 0 && !selectedAttr) {
+        if (displayable.length > 0) {
           setSelectedAttr(displayable[0].name);
         }
       })

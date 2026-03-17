@@ -25,10 +25,8 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, streaming, activeToolCalls, sendMessage, stop } = useWorkbenchChat(
-    experimentId,
-    siteId,
-  );
+  const { messages, streaming, activeToolCalls, error, sendMessage, stop } =
+    useWorkbenchChat(experimentId, siteId);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -142,6 +140,9 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
               )}
           </div>
 
+          {/* Error display */}
+          {error && <div className="text-sm text-red-500 px-3 py-1">{error}</div>}
+
           {/* Input area */}
           <form
             onSubmit={handleSubmit}
@@ -157,7 +158,7 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
                   ? "Ask about your results..."
                   : "Run an experiment first..."
               }
-              disabled={!experimentId}
+              disabled={!experimentId || streaming}
               rows={1}
               className="min-h-[36px] max-h-[120px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />

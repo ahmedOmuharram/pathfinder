@@ -2,7 +2,8 @@ Persistence
 ===========
 
 Database layer: SQLAlchemy models, session management, and repositories
-for strategies and users. Used by the HTTP layer and background jobs.
+for users, experiments, streams, and control sets. Used by the HTTP layer
+and background jobs.
 
 Overview
 --------
@@ -55,10 +56,10 @@ Design Decisions
 ORM Models
 ----------
 
-**Purpose:** SQLAlchemy models for strategies, users, and strategy history.
-Define the schema and relationships.
+**Purpose:** SQLAlchemy models for users, control sets, experiments, streams,
+gene sets, and operations. Define the schema and relationships.
 
-**Key classes:** :py:class:`Strategy`, :py:class:`User`
+**Key classes:** :py:class:`User`, :py:class:`ControlSet`, :py:class:`ExperimentRow`, :py:class:`Stream`
 
 .. automodule:: veupath_chatbot.persistence.models
    :members:

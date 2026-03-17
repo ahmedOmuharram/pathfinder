@@ -38,7 +38,9 @@ export function useEnrichmentTableState(terms: EnrichmentTerm[]): EnrichmentTabl
         setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
       } else {
         setSortKey(key);
-        setSortDir(key === "termName" ? "asc" : "desc");
+        setSortDir(
+          key === "termName" || key === "pValue" || key === "fdr" ? "asc" : "desc",
+        );
       }
     },
     [sortKey],

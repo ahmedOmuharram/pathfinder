@@ -68,9 +68,25 @@ function toSingleValue(raw: unknown): string | undefined {
 
 function toMultiValue(raw: unknown, options: VocabOption[]): string[] {
   if (raw === null || raw === undefined) return [];
+
+  // WDK wire format stores multi-pick values as JSON-encoded strings.
+  // Decode them before matching against options.
+  let decoded: unknown = raw;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) decoded = parsed;
+      } catch {
+        /* not JSON, use as-is */
+      }
+    }
+  }
+
   const valueSet = new Set(options.map((o) => o.value));
   const labelToValue = new Map(options.map((o) => [o.rawLabel ?? o.label, o.value]));
-  const list = Array.isArray(raw) ? raw : [raw];
+  const list = Array.isArray(decoded) ? decoded : [decoded];
   return list
     .map((entry) => {
       const str = String(entry);

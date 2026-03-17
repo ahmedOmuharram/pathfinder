@@ -15,8 +15,8 @@ const storeState: Record<string, unknown> = {
       id: "set-1",
       name: "Test Set",
       siteId: "PlasmoDB",
-      geneIds: ["PF3D7_0100100"],
-      geneCount: 1,
+      geneIds: ["PF3D7_0100100", "PF3D7_0100200", "PF3D7_0100300"],
+      geneCount: 3,
       source: "strategy",
       searchName: "GenesByTaxon",
       recordType: "gene",
@@ -163,6 +163,16 @@ function makeExperiment(overrides: Partial<Experiment> = {}): Experiment {
   };
 }
 
+/** Helper: select a saved control set checkbox and click Run Benchmark. */
+async function selectControlSetAndRun(label: string) {
+  await waitFor(() => {
+    expect(screen.getByText(label)).toBeTruthy();
+  });
+  const checkbox = screen.getByRole("checkbox", { name: new RegExp(label, "i") });
+  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByText("Run Benchmark"));
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -180,8 +190,8 @@ describe("BenchmarkPanel", () => {
         id: "set-1",
         name: "Test Set",
         siteId: "PlasmoDB",
-        geneIds: ["PF3D7_0100100"],
-        geneCount: 1,
+        geneIds: ["PF3D7_0100100", "PF3D7_0100200", "PF3D7_0100300"],
+        geneCount: 3,
         source: "strategy",
         searchName: "GenesByTaxon",
         recordType: "gene",
@@ -194,183 +204,458 @@ describe("BenchmarkPanel", () => {
     mockSearchGenes.mockResolvedValue({ results: [], total: 0 });
   });
 
-  it("is disabled when no active gene set has search context", () => {
-    storeState.geneSets = [
-      {
-        id: "set-1",
-        name: "Plain Set",
-        siteId: "PlasmoDB",
-        geneIds: ["PF3D7_0100100"],
-        geneCount: 1,
-        source: "paste",
-        // no searchName or parameters
-      },
-    ];
+  // =========================================================================
+  // Panel enablement — the panel must be enabled whenever the gene set has
+  // data to evaluate (gene IDs OR search context).
+  // =========================================================================
 
-    render(<BenchmarkPanel />);
-
-    // Panel header renders but content does not (disabled)
-    expect(screen.getByText("Benchmark")).toBeTruthy();
-    expect(screen.queryByText("Run Benchmark")).toBeNull();
-  });
-
-  it("renders control set selection form when enabled", async () => {
-    mockListControlSets.mockResolvedValue([makeControlSet()]);
-
-    render(<BenchmarkPanel />);
-
-    // Wait for control sets to load
-    await waitFor(() => {
-      expect(screen.getByText("Curated Controls")).toBeTruthy();
-    });
-
-    expect(screen.getByText("Run Benchmark")).toBeTruthy();
-  });
-
-  it("shows comparison table after benchmark completes", async () => {
-    const primaryExperiment = makeExperiment({
-      controlSetLabel: "Primary Set",
-      isPrimaryBenchmark: true,
-      metrics: {
-        confusionMatrix: {
-          truePositives: 40,
-          falsePositives: 10,
-          falseNegatives: 10,
-          trueNegatives: 90,
+  describe("panel enablement", () => {
+    it("is disabled when active gene set has neither geneIds nor search context", () => {
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Empty Set",
+          siteId: "PlasmoDB",
+          geneIds: [],
+          geneCount: 0,
+          source: "paste",
+          // no searchName or parameters
         },
-        sensitivity: 0.8,
-        specificity: 0.9,
-        precision: 0.8,
-        negativePredictiveValue: 0.9,
-        falsePositiveRate: 0.1,
-        falseNegativeRate: 0.2,
-        f1Score: 0.8,
-        mcc: 0.7,
-        balancedAccuracy: 0.85,
-        youdensJ: 0.7,
-        totalResults: 150,
-        totalPositives: 50,
-        totalNegatives: 100,
-      },
+      ];
+      render(<BenchmarkPanel />);
+      expect(screen.getByText("Benchmark")).toBeTruthy();
+      expect(screen.queryByText("Run Benchmark")).toBeNull();
     });
 
-    const secondaryExperiment = makeExperiment({
-      id: "exp-2",
-      controlSetLabel: "Secondary Set",
-      isPrimaryBenchmark: false,
-      metrics: {
-        confusionMatrix: {
-          truePositives: 30,
-          falsePositives: 20,
-          falseNegatives: 20,
-          trueNegatives: 80,
+    it("is enabled when gene set has geneIds but no search context", () => {
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Pasted Set",
+          siteId: "PlasmoDB",
+          geneIds: ["PF3D7_0100100", "PF3D7_0100200"],
+          geneCount: 2,
+          source: "paste",
+          // no searchName or parameters — must still be evaluable via geneIds
         },
-        sensitivity: 0.6,
-        specificity: 0.8,
-        precision: 0.6,
-        negativePredictiveValue: 0.8,
-        falsePositiveRate: 0.2,
-        falseNegativeRate: 0.4,
-        f1Score: 0.6,
-        mcc: 0.4,
-        balancedAccuracy: 0.7,
-        youdensJ: 0.4,
-        totalResults: 150,
-        totalPositives: 50,
-        totalNegatives: 100,
-      },
+      ];
+      render(<BenchmarkPanel />);
+      expect(screen.getByText("Run Benchmark")).toBeTruthy();
     });
 
-    mockCreateBenchmarkStream.mockImplementation(
-      (
-        _base: unknown,
-        _cs: unknown,
-        handlers: { onComplete?: (exps: Experiment[], id: string) => void },
-      ) => {
-        // Simulate immediate completion
-        handlers.onComplete?.([primaryExperiment, secondaryExperiment], "bench-1");
-        return Promise.resolve({ close: vi.fn() });
-      },
-    );
-
-    mockListControlSets.mockResolvedValue([
-      makeControlSet({ id: "cs-1", name: "Primary Set" }),
-    ]);
-
-    render(<BenchmarkPanel />);
-
-    // Wait for control sets to load then add an inline control set
-    await waitFor(() => {
-      expect(screen.getByText("Primary Set")).toBeTruthy();
+    it("is enabled when gene set has search context but empty geneIds", () => {
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Search-Only Set",
+          siteId: "PlasmoDB",
+          geneIds: [],
+          geneCount: 0,
+          source: "strategy",
+          searchName: "GenesByTaxon",
+          recordType: "gene",
+          parameters: { organism: "Plasmodium falciparum 3D7" },
+        },
+      ];
+      render(<BenchmarkPanel />);
+      expect(screen.getByText("Run Benchmark")).toBeTruthy();
     });
 
-    // Toggle on the saved control set
-    const checkbox = screen.getByRole("checkbox", { name: /Primary Set/i });
-    fireEvent.click(checkbox);
-
-    // Click run
-    const runButton = screen.getByText("Run Benchmark");
-    fireEvent.click(runButton);
-
-    // Results table should appear with metrics columns
-    await waitFor(() => {
-      // "Primary Set" appears in both checkbox label and results table
-      expect(screen.getAllByText("Primary Set").length).toBeGreaterThanOrEqual(2);
-      expect(screen.getByText("Secondary Set")).toBeTruthy();
-    });
-
-    // Check metric values are rendered in the table
-    // sensitivity=0.8 appears multiple times (sensitivity, f1, precision for primary)
-    expect(screen.getAllByText("0.800").length).toBeGreaterThan(0);
-    // specificity=0.9 for primary
-    expect(screen.getAllByText("0.900").length).toBeGreaterThan(0);
-    // MCC=0.700 for primary
-    expect(screen.getByText("0.700")).toBeTruthy();
-  });
-
-  it("handles error state", async () => {
-    mockCreateBenchmarkStream.mockImplementation(
-      (_base: unknown, _cs: unknown, handlers: { onError?: (err: string) => void }) => {
-        handlers.onError?.("Benchmark failed: server error");
-        return Promise.resolve({ close: vi.fn() });
-      },
-    );
-
-    mockListControlSets.mockResolvedValue([
-      makeControlSet({ id: "cs-1", name: "Test Controls" }),
-    ]);
-
-    render(<BenchmarkPanel />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Test Controls")).toBeTruthy();
-    });
-
-    // Toggle on a control set
-    const checkbox = screen.getByRole("checkbox", { name: /Test Controls/i });
-    fireEvent.click(checkbox);
-
-    // Click run
-    fireEvent.click(screen.getByText("Run Benchmark"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Benchmark failed: server error")).toBeTruthy();
+    it("is enabled when gene set has both geneIds and search context", () => {
+      // Default store state has both — just verify
+      render(<BenchmarkPanel />);
+      expect(screen.getByText("Run Benchmark")).toBeTruthy();
     });
   });
 
-  it("renders GeneChipInput in inline control sets", async () => {
-    mockListControlSets.mockResolvedValue([]);
-    render(<BenchmarkPanel />);
+  // =========================================================================
+  // Request payload — THE critical contract. The benchmark MUST send
+  // targetGeneIds so the backend evaluates the actual gene set, not a
+  // re-execution of stale search parameters.
+  // =========================================================================
 
-    // Click "Add inline control set"
-    fireEvent.click(screen.getByText(/add inline control set/i));
+  describe("request payload — targetGeneIds", () => {
+    it("sends targetGeneIds from the active gene set when running benchmark", async () => {
+      const geneIds = ["PF3D7_0100100", "PF3D7_0100200", "PF3D7_0100300"];
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Strategy Set",
+          siteId: "PlasmoDB",
+          geneIds,
+          geneCount: 3,
+          source: "strategy",
+          searchName: "GenesByTaxon",
+          recordType: "gene",
+          parameters: { organism: "Plasmodium falciparum 3D7" },
+        },
+      ];
 
-    // Should see GeneChipInput labels
-    expect(screen.getByText("Positive Controls")).toBeTruthy();
-    expect(screen.getByText("Negative Controls")).toBeTruthy();
+      mockListControlSets.mockResolvedValue([makeControlSet()]);
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
 
-    // GeneChipInput renders autocomplete search inputs (no textareas)
-    const searchInputs = screen.getAllByPlaceholderText("Search genes...");
-    expect(searchInputs).toHaveLength(2);
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Curated Controls");
+
+      expect(mockCreateBenchmarkStream).toHaveBeenCalledTimes(1);
+      const [baseConfig] = mockCreateBenchmarkStream.mock.calls[0] as [
+        Record<string, unknown>,
+      ];
+      expect(baseConfig.targetGeneIds).toEqual(geneIds);
+    });
+
+    it("sends targetGeneIds even when searchName/parameters are empty", async () => {
+      const geneIds = ["AGAP000001", "AGAP000002"];
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Pasted Set",
+          siteId: "VectorBase",
+          geneIds,
+          geneCount: 2,
+          source: "paste",
+          // no searchName, no parameters
+        },
+      ];
+
+      mockListControlSets.mockResolvedValue([
+        makeControlSet({ id: "cs-1", name: "VB Controls", siteId: "VectorBase" }),
+      ]);
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("VB Controls");
+
+      expect(mockCreateBenchmarkStream).toHaveBeenCalledTimes(1);
+      const [baseConfig] = mockCreateBenchmarkStream.mock.calls[0] as [
+        Record<string, unknown>,
+      ];
+      expect(baseConfig.targetGeneIds).toEqual(geneIds);
+    });
+
+    it("does not send targetGeneIds when gene set has empty geneIds array", async () => {
+      storeState.geneSets = [
+        {
+          id: "set-1",
+          name: "Search-Only Set",
+          siteId: "PlasmoDB",
+          geneIds: [],
+          geneCount: 0,
+          source: "strategy",
+          searchName: "GenesByTaxon",
+          recordType: "gene",
+          parameters: { organism: "Plasmodium falciparum 3D7" },
+        },
+      ];
+
+      mockListControlSets.mockResolvedValue([makeControlSet()]);
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Curated Controls");
+
+      expect(mockCreateBenchmarkStream).toHaveBeenCalledTimes(1);
+      const [baseConfig] = mockCreateBenchmarkStream.mock.calls[0] as [
+        Record<string, unknown>,
+      ];
+      // targetGeneIds should be undefined (falsy guard in the component)
+      expect(baseConfig.targetGeneIds).toBeUndefined();
+    });
+  });
+
+  // =========================================================================
+  // Control set payload — verify the control sets are correctly built from
+  // saved selections and inline entries, and passed to the API.
+  // =========================================================================
+
+  describe("request payload — control sets", () => {
+    it("passes saved control set positive/negative IDs to the API", async () => {
+      const controlSet = makeControlSet({
+        id: "cs-42",
+        name: "Insecticide Resistance",
+        positiveIds: ["AGAP000001", "AGAP000002", "AGAP000003"],
+        negativeIds: ["AGAP009001", "AGAP009002"],
+      });
+      mockListControlSets.mockResolvedValue([controlSet]);
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Insecticide Resistance");
+
+      const [, controlSets] = mockCreateBenchmarkStream.mock.calls[0] as [
+        unknown,
+        Array<Record<string, unknown>>,
+      ];
+      expect(controlSets).toHaveLength(1);
+      expect(controlSets[0].label).toBe("Insecticide Resistance");
+      expect(controlSets[0].positiveControls).toEqual([
+        "AGAP000001",
+        "AGAP000002",
+        "AGAP000003",
+      ]);
+      expect(controlSets[0].negativeControls).toEqual(["AGAP009001", "AGAP009002"]);
+      expect(controlSets[0].controlSetId).toBe("cs-42");
+      expect(controlSets[0].isPrimary).toBe(true);
+    });
+
+    it("marks first control set as primary when none explicitly set", async () => {
+      mockListControlSets.mockResolvedValue([
+        makeControlSet({ id: "cs-1", name: "Set A" }),
+        makeControlSet({ id: "cs-2", name: "Set B" }),
+      ]);
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      render(<BenchmarkPanel />);
+      await waitFor(() => {
+        expect(screen.getByText("Set A")).toBeTruthy();
+      });
+      // Select both
+      fireEvent.click(screen.getByRole("checkbox", { name: /Set A/i }));
+      fireEvent.click(screen.getByRole("checkbox", { name: /Set B/i }));
+      fireEvent.click(screen.getByText("Run Benchmark"));
+
+      const [, controlSets] = mockCreateBenchmarkStream.mock.calls[0] as [
+        unknown,
+        Array<Record<string, unknown>>,
+      ];
+      expect(controlSets).toHaveLength(2);
+      expect(controlSets[0].isPrimary).toBe(true);
+      expect(controlSets[1].isPrimary).toBe(false);
+    });
+  });
+
+  // =========================================================================
+  // Results rendering — verify the table shows metrics from the response.
+  // =========================================================================
+
+  describe("results rendering", () => {
+    it("shows comparison table with metrics after benchmark completes", async () => {
+      const primaryExperiment = makeExperiment({
+        controlSetLabel: "Primary Set",
+        isPrimaryBenchmark: true,
+        metrics: {
+          confusionMatrix: {
+            truePositives: 40,
+            falsePositives: 10,
+            falseNegatives: 10,
+            trueNegatives: 90,
+          },
+          sensitivity: 0.8,
+          specificity: 0.9,
+          precision: 0.8,
+          negativePredictiveValue: 0.9,
+          falsePositiveRate: 0.1,
+          falseNegativeRate: 0.2,
+          f1Score: 0.8,
+          mcc: 0.7,
+          balancedAccuracy: 0.85,
+          youdensJ: 0.7,
+          totalResults: 150,
+          totalPositives: 50,
+          totalNegatives: 100,
+        },
+      });
+
+      const secondaryExperiment = makeExperiment({
+        id: "exp-2",
+        controlSetLabel: "Secondary Set",
+        isPrimaryBenchmark: false,
+        metrics: {
+          confusionMatrix: {
+            truePositives: 30,
+            falsePositives: 20,
+            falseNegatives: 20,
+            trueNegatives: 80,
+          },
+          sensitivity: 0.6,
+          specificity: 0.8,
+          precision: 0.6,
+          negativePredictiveValue: 0.8,
+          falsePositiveRate: 0.2,
+          falseNegativeRate: 0.4,
+          f1Score: 0.6,
+          mcc: 0.4,
+          balancedAccuracy: 0.7,
+          youdensJ: 0.4,
+          totalResults: 150,
+          totalPositives: 50,
+          totalNegatives: 100,
+        },
+      });
+
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onComplete?: (exps: Experiment[], id: string) => void },
+        ) => {
+          handlers.onComplete?.([primaryExperiment, secondaryExperiment], "bench-1");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      mockListControlSets.mockResolvedValue([
+        makeControlSet({ id: "cs-1", name: "Primary Set" }),
+      ]);
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Primary Set");
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Primary Set").length).toBeGreaterThanOrEqual(2);
+        expect(screen.getByText("Secondary Set")).toBeTruthy();
+      });
+
+      expect(screen.getAllByText("0.800").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("0.900").length).toBeGreaterThan(0);
+      expect(screen.getByText("0.700")).toBeTruthy();
+    });
+  });
+
+  // =========================================================================
+  // Error handling
+  // =========================================================================
+
+  describe("error handling", () => {
+    it("shows error from benchmark stream handler", async () => {
+      mockCreateBenchmarkStream.mockImplementation(
+        (
+          _base: unknown,
+          _cs: unknown,
+          handlers: { onError?: (err: string) => void },
+        ) => {
+          handlers.onError?.("Benchmark failed: server error");
+          return Promise.resolve({ close: vi.fn() });
+        },
+      );
+
+      mockListControlSets.mockResolvedValue([
+        makeControlSet({ id: "cs-1", name: "Test Controls" }),
+      ]);
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Test Controls");
+
+      await waitFor(() => {
+        expect(screen.getByText("Benchmark failed: server error")).toBeTruthy();
+      });
+    });
+
+    it("shows error when no control sets are selected", async () => {
+      mockListControlSets.mockResolvedValue([]);
+      render(<BenchmarkPanel />);
+      fireEvent.click(screen.getByText("Run Benchmark"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Select or add at least one control set with positive controls.",
+          ),
+        ).toBeTruthy();
+      });
+    });
+
+    it("shows error when listControlSets fails", async () => {
+      mockListControlSets.mockRejectedValue(new Error("Network error"));
+      render(<BenchmarkPanel />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed to load saved control sets")).toBeTruthy();
+      });
+    });
+
+    it("shows error when benchmark throws an exception", async () => {
+      mockCreateBenchmarkStream.mockRejectedValue(new Error("Unexpected crash"));
+      mockListControlSets.mockResolvedValue([makeControlSet()]);
+
+      render(<BenchmarkPanel />);
+      await selectControlSetAndRun("Curated Controls");
+
+      await waitFor(() => {
+        expect(screen.getByText("Unexpected crash")).toBeTruthy();
+      });
+    });
+  });
+
+  // =========================================================================
+  // UI interactions
+  // =========================================================================
+
+  describe("UI interactions", () => {
+    it("renders GeneChipInput in inline control sets", async () => {
+      mockListControlSets.mockResolvedValue([]);
+      render(<BenchmarkPanel />);
+
+      fireEvent.click(screen.getByText(/add inline control set/i));
+
+      expect(screen.getByText("Positive Controls")).toBeTruthy();
+      expect(screen.getByText("Negative Controls")).toBeTruthy();
+      const searchInputs = screen.getAllByPlaceholderText("Search genes...");
+      expect(searchInputs).toHaveLength(2);
+    });
+
+    it("allows only one primary — toggling one untoggles others", async () => {
+      mockListControlSets.mockResolvedValue([]);
+      render(<BenchmarkPanel />);
+
+      fireEvent.click(screen.getByText(/add inline control set/i));
+      fireEvent.click(screen.getByText(/add inline control set/i));
+
+      const primaryCheckboxes = screen.getAllByRole("checkbox", { name: /primary/i });
+      expect(primaryCheckboxes).toHaveLength(2);
+
+      fireEvent.click(primaryCheckboxes[0]);
+      expect((primaryCheckboxes[0] as HTMLInputElement).checked).toBe(true);
+      expect((primaryCheckboxes[1] as HTMLInputElement).checked).toBe(false);
+
+      fireEvent.click(primaryCheckboxes[1]);
+      expect((primaryCheckboxes[0] as HTMLInputElement).checked).toBe(false);
+      expect((primaryCheckboxes[1] as HTMLInputElement).checked).toBe(true);
+    });
   });
 });

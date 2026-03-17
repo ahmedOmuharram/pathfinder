@@ -58,8 +58,8 @@ export function EnrichmentPanel() {
     setResults(null);
 
     try {
-      const results = await enrichGeneSet(activeSet.id, [...selectedTypes]);
-      setResults(results);
+      const data = await enrichGeneSet(activeSet.id, [...selectedTypes]);
+      setResults(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -101,7 +101,7 @@ export function EnrichmentPanel() {
           <Button
             size="sm"
             onClick={handleRun}
-            disabled={loading || selectedTypes.size === 0}
+            disabled={loading || !activeSet || selectedTypes.size === 0}
           >
             {loading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

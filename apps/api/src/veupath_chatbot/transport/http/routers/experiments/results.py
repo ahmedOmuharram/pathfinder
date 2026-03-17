@@ -60,6 +60,8 @@ async def get_experiment_records(
     sort: str | None = None,
     dir: Literal["ASC", "DESC"] = "ASC",
     attributes: str | None = None,
+    filter_attribute: str | None = Query(None, alias="filterAttribute"),
+    filter_value: str | None = Query(None, alias="filterValue"),
 ) -> JSONObject:
     """Get paginated result records for an experiment.
 
@@ -76,6 +78,45 @@ async def get_experiment_records(
     if attributes:
         attr_list = [a.strip() for a in attributes.split(",") if a.strip()]
 
+    if filter_attribute and filter_value is not None:
+        answer = await svc.get_records(
+            offset=0,
+            limit=10_000,
+            sort=sort,
+            direction=dir,
+            attributes=attr_list,
+        )
+        raw_records = answer.get("records", [])
+        record_list: list[JSONObject] = (
+            [r for r in raw_records if isinstance(r, dict)]
+            if isinstance(raw_records, list)
+            else []
+        )
+        classified = classify_records(
+            record_list,
+            tp_ids={g.id for g in exp.true_positive_genes},
+            fp_ids={g.id for g in exp.false_positive_genes},
+            fn_ids={g.id for g in exp.false_negative_genes},
+            tn_ids={g.id for g in exp.true_negative_genes},
+        )
+        filtered: list[JSONValue] = []
+        for r in classified:
+            attrs = r.get("attributes")
+            if isinstance(attrs, dict) and attrs.get(filter_attribute) == filter_value:
+                filtered.append(r)
+        page = filtered[offset : offset + limit]
+        return {
+            "records": cast(JSONValue, page),
+            "meta": {
+                "totalCount": len(filtered),
+                "displayTotalCount": len(filtered),
+                "responseCount": len(page),
+                "pagination": {"offset": offset, "numRecords": limit},
+                "attributes": cast(JSONValue, attr_list or []),
+                "tables": cast(JSONValue, []),
+            },
+        }
+
     answer = await svc.get_records(
         offset=offset,
         limit=limit,
@@ -85,7 +126,7 @@ async def get_experiment_records(
     )
 
     raw_records = answer.get("records", [])
-    record_list: list[JSONObject] = (
+    record_list = (
         [r for r in raw_records if isinstance(r, dict)]
         if isinstance(raw_records, list)
         else []

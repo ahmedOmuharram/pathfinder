@@ -78,9 +78,10 @@ then build the strategy.
 
 - :py:class:`StrategyAPI` — Main API; methods: ``create_step``, ``create_combined_step``,
   ``build_strategy``, ``get_step_count``, ``get_step_answer``
-- :py:class:`StepTreeNode` — Tree node for step composition
-- :py:func:`is_internal_wdk_strategy_name` — Check if strategy is a Pathfinder helper
-- :py:func:`strip_internal_wdk_strategy_name` — Remove internal name prefix
+- :py:class:`StepTreeNode` — Tree node for step composition (defined in ``domain.strategy.ast``,
+  re-exported from ``strategy_api.helpers``)
+- :py:func:`is_internal_wdk_strategy_name` — Check if strategy is a Pathfinder helper (in ``helpers``)
+- :py:func:`strip_internal_wdk_strategy_name` — Remove internal name prefix (in ``helpers``)
 
 .. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.api
    :members:
@@ -122,7 +123,12 @@ Factory
 **Purpose:** Factory for obtaining configured VEuPathDB clients and discovery
 services. Manages site routing and client lifecycle.
 
-**Key functions:** :py:func:`get_wdk_client`, :py:func:`get_discovery_service`
+**Key function:** :py:func:`get_wdk_client`
+
+.. note::
+
+   :py:func:`get_discovery_service` is defined in ``integrations.veupathdb.discovery``,
+   not in the factory module.
 
 .. automodule:: veupath_chatbot.integrations.veupathdb.factory
    :members:

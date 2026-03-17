@@ -50,7 +50,7 @@ This repo is organized as:
 - **`packages/shared-py/`**: shared Pydantic models (Python)
 - **`packages/spec/`**: OpenAPI spec (`packages/spec/openapi.yaml`)
 
-The API also includes: gene set management, experiment lab, export tools, model catalog with token metrics, and workbench chat.
+The API also includes: gene set management, evaluation engine (metrics, cross-validation, enrichment), export tools, model catalog with token metrics, and workbench chat.
 
 ## How it works (high level)
 

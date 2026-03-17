@@ -14,7 +14,6 @@ interface GeneConfidenceScore {
   geneId: string;
   compositeScore: number;
   classificationScore: number;
-  ensembleScore: number;
   enrichmentScore: number;
 }
 
@@ -71,14 +70,12 @@ function computeConfidenceScores(experiment: Experiment): GeneConfidenceScore[] 
   const maxTermsDenom = Math.max(maxTerms, 1);
 
   const results: GeneConfidenceScore[] = classified.map(([geneId, clsScore]) => {
-    const ensScore = 0.0; // No ensemble data on single experiment
     const enrScore = Math.min((enrichCounts.get(geneId) ?? 0) / maxTermsDenom, 1.0);
-    const composite = (clsScore + ensScore + enrScore) / 3.0;
+    const composite = (clsScore + enrScore) / 2.0;
     return {
       geneId,
       compositeScore: composite,
       classificationScore: clsScore,
-      ensembleScore: ensScore,
       enrichmentScore: enrScore,
     };
   });
@@ -141,7 +138,6 @@ export function ConfidencePanel() {
               <th className="pb-1.5 pr-3 font-medium">Gene ID</th>
               <th className="pb-1.5 pr-3 font-medium">Composite</th>
               <th className="pb-1.5 pr-3 font-medium">Classification</th>
-              <th className="pb-1.5 pr-3 font-medium">Ensemble</th>
               <th className="pb-1.5 font-medium">Enrichment</th>
             </tr>
           </thead>
@@ -154,9 +150,6 @@ export function ConfidencePanel() {
                 </td>
                 <td className={`py-1 pr-3 ${scoreColor(s.classificationScore)}`}>
                   {s.classificationScore.toFixed(1)}
-                </td>
-                <td className="py-1 pr-3 text-muted-foreground">
-                  {s.ensembleScore.toFixed(2)}
                 </td>
                 <td className={`py-1 ${scoreColor(s.enrichmentScore)}`}>
                   {s.enrichmentScore.toFixed(2)}

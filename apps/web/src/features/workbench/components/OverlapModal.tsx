@@ -1,9 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { Modal } from "@/lib/components/Modal";
 import { SetVenn } from "@/lib/components/SetVenn";
+import { Button } from "@/lib/components/ui/Button";
+import { createGeneSet } from "../api/geneSets";
 import type { GeneSet } from "../store";
+import { useWorkbenchStore } from "../store";
+import { useSessionStore } from "@/state/useSessionStore";
 
 interface OverlapModalProps {
   open: boolean;
@@ -21,10 +26,38 @@ interface PairwiseResult {
 }
 
 export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
+
   const [clickedRegion, setClickedRegion] = useState<{
     label: string;
     geneIds: string[];
   } | null>(null);
+  const [creatingSet, setCreatingSet] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreateGeneSet = useCallback(async () => {
+    if (!clickedRegion || clickedRegion.geneIds.length === 0) return;
+    setCreatingSet(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+
+    try {
+      const gs = await createGeneSet({
+        name: clickedRegion.label,
+        source: "derived",
+        geneIds: clickedRegion.geneIds,
+        siteId: selectedSite,
+      });
+      addGeneSet(gs);
+      setCreateSuccess(`Created "${gs.name}" with ${gs.geneIds?.length ?? 0} genes`);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create gene set.");
+    } finally {
+      setCreatingSet(false);
+    }
+  }, [clickedRegion, selectedSite, addGeneSet]);
 
   const unresolvedSets = sets.filter(
     (s) => (s.geneIds ?? []).length === 0 && s.wdkStepId != null,
@@ -131,7 +164,11 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
               </h4>
               <button
                 type="button"
-                onClick={() => setClickedRegion(null)}
+                onClick={() => {
+                  setClickedRegion(null);
+                  setCreateSuccess(null);
+                  setCreateError(null);
+                }}
                 className="text-[10px] text-muted-foreground hover:text-foreground"
               >
                 Clear
@@ -148,6 +185,26 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                   </span>
                 ))}
               </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCreateGeneSet}
+                loading={creatingSet}
+                disabled={creatingSet}
+                className="gap-1 text-xs"
+              >
+                <Plus className="h-3 w-3" />
+                Create Gene Set
+              </Button>
+              {createSuccess && (
+                <span className="text-xs text-success">{createSuccess}</span>
+              )}
+              {createError && (
+                <span className="text-xs text-destructive">{createError}</span>
+              )}
             </div>
           </div>
         )}

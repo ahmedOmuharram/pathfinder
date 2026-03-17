@@ -14,7 +14,7 @@ import {
   flattenVocab,
 } from "../../utils/paramUtils";
 import type { SweepableParam } from "./types";
-import { fmtNum } from "./types";
+import { fmtNum, MAX_CATEGORICAL_CHOICES } from "./types";
 
 export function useSweepState(experiment: Experiment) {
   const { siteId, recordType, searchName } = experiment.config;
@@ -110,7 +110,9 @@ export function useSweepState(experiment: Experiment) {
       }
 
       if (param.kind === "categorical" && param.vocab) {
-        setSelectedValues(new Set(param.vocab.map((e) => e.value)));
+        setSelectedValues(
+          new Set(param.vocab.slice(0, MAX_CATEGORICAL_CHOICES).map((e) => e.value)),
+        );
       }
     },
     [sweepableParams],
@@ -118,13 +120,18 @@ export function useSweepState(experiment: Experiment) {
 
   const handleRun = useCallback(async () => {
     if (!paramName || !selectedParam) return;
+    setError(null);
 
     let request: SweepRequest;
     if (selectedParam.kind === "numeric") {
       const mn = parseFloat(minVal);
       const mx = parseFloat(maxVal);
       const st = parseInt(steps);
-      if (isNaN(mn) || isNaN(mx) || mn >= mx || isNaN(st)) return;
+      if (isNaN(mn) || isNaN(mx) || isNaN(st)) return;
+      if (mn >= mx) {
+        setError("Minimum must be less than maximum");
+        return;
+      }
       request = {
         sweepType: "numeric",
         parameterName: paramName,

@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import {
   MAX_CHART_TERMS,
@@ -203,11 +202,11 @@ export function EnrichmentDotPlot({ terms }: EnrichmentDotPlotProps) {
             content={<DotPlotTooltip />}
             cursor={{ fill: "hsl(var(--accent))", fillOpacity: 0.3 }}
           />
-          <Bar dataKey="foldEnrichment" shape={<DotShape />} isAnimationActive={false}>
-            {data.map((d, i) => (
-              <Cell key={i} fill={pvalColor(d.pValue)} />
-            ))}
-          </Bar>
+          <Bar
+            dataKey="foldEnrichment"
+            shape={<DotShape />}
+            isAnimationActive={false}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

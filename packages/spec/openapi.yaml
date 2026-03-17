@@ -1395,6 +1395,22 @@ paths:
           - type: string
           - type: 'null'
           title: Attributes
+      - name: filterAttribute
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filterattribute
+      - name: filterValue
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filtervalue
       responses:
         '200':
           description: Successful Response

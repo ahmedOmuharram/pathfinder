@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Target, Play, Loader2 } from "lucide-react";
 import type { Experiment, EnrichmentAnalysisType } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
+import type { OperationSubscription } from "@/lib/operationSubscribe";
 import {
   MetricsOverview,
   ConfusionMatrixSection,
+  CrossValidationSection,
   GeneListsSection,
   EnrichmentSection,
   RobustnessSection,
   RankMetricsSection,
-  Section,
 } from "@/features/analysis";
 import {
   createExperimentStream,
   type ExperimentSSEHandler,
 } from "@/features/workbench/api";
+import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { SaveControlSetForm } from "../SaveControlSetForm";
@@ -37,10 +39,12 @@ export function EvaluatePanel() {
   const [negativeControls, setNegativeControls] = useState<string[]>([]);
   const [enableCV, setEnableCV] = useState(false);
   const [kFolds, setKFolds] = useState(5);
+  const [enableStepAnalysis, setEnableStepAnalysis] = useState(false);
   const [enrichmentTypes, setEnrichmentTypes] = useState<EnrichmentAnalysisType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [experiment, setExperiment] = useState<Experiment | null>(null);
+  const subscriptionRef = useRef<OperationSubscription | null>(null);
 
   // Consume pending controls from gene search sidebar
   const pendingPositive = useWorkbenchStore((s) => s.pendingPositiveControls);
@@ -61,6 +65,12 @@ export function EvaluatePanel() {
       }
     });
   }, [pendingPositive, pendingNegative, clearPendingControls]);
+
+  useEffect(() => {
+    return () => {
+      subscriptionRef.current?.unsubscribe();
+    };
+  }, []);
 
   const hasSearchContext = Boolean(
     activeSet &&
@@ -94,7 +104,7 @@ export function EvaluatePanel() {
     };
 
     try {
-      await createExperimentStream(
+      const subscription = await createExperimentStream(
         {
           siteId: activeSet.siteId,
           recordType: activeSet.recordType ?? "gene",
@@ -102,17 +112,19 @@ export function EvaluatePanel() {
           parameters: activeSet.parameters ?? {},
           positiveControls,
           negativeControls,
-          controlsSearchName: "GeneByLocusTag",
-          controlsParamName: "ds_gene_ids",
+          controlsSearchName: CONTROLS_SEARCH_NAME,
+          controlsParamName: CONTROLS_PARAM_NAME,
           controlsValueFormat: "newline",
           enableCrossValidation: enableCV,
           kFolds,
+          enableStepAnalysis,
           enrichmentTypes,
           targetGeneIds: activeSet.geneIds?.length ? activeSet.geneIds : undefined,
           name: `Workbench eval: ${activeSet.name}`,
         },
         handlers,
       );
+      subscriptionRef.current = subscription;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -124,6 +136,7 @@ export function EvaluatePanel() {
     negativeControls,
     enableCV,
     kFolds,
+    enableStepAnalysis,
     enrichmentTypes,
     setLastExperiment,
   ]);
@@ -201,6 +214,15 @@ export function EvaluatePanel() {
               <span className="text-[10px] text-muted-foreground">10</span>
             </div>
           )}
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={enableStepAnalysis}
+              onChange={(e) => setEnableStepAnalysis(e.target.checked)}
+              className="rounded border-input"
+            />
+            Step contribution analysis
+          </label>
           <div className="flex flex-wrap gap-1.5">
             {(["go_process", "go_function", "go_component", "pathway"] as const).map(
               (t) => {
@@ -262,26 +284,7 @@ export function EvaluatePanel() {
               <RobustnessSection robustness={experiment.robustness} />
             )}
             {experiment.crossValidation && (
-              <Section title="Cross-Validation">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{experiment.crossValidation.k}-fold</span>
-                    <span
-                      className={
-                        experiment.crossValidation.overfittingLevel === "low"
-                          ? "text-green-600 dark:text-green-400"
-                          : experiment.crossValidation.overfittingLevel === "moderate"
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400"
-                      }
-                    >
-                      Overfitting: {experiment.crossValidation.overfittingLevel} (
-                      {experiment.crossValidation.overfittingScore.toFixed(3)})
-                    </span>
-                  </div>
-                  <MetricsOverview metrics={experiment.crossValidation.meanMetrics} />
-                </div>
-              </Section>
+              <CrossValidationSection cv={experiment.crossValidation} />
             )}
             {(experiment.enrichmentResults?.length ?? 0) > 0 && (
               <EnrichmentSection results={experiment.enrichmentResults ?? []} />

@@ -25,7 +25,7 @@ Agent Factory
 and model selection. Handles per-request overrides and reasoning effort.
 Resolves model ID from override, persisted state, or server default.
 
-**Key functions:** :py:func:`create_agent`, :py:func:`resolve_model_id`
+**Key functions:** :py:func:`create_agent`, :py:func:`resolve_effective_model_id`
 
 .. automodule:: veupath_chatbot.ai.agents.factory
    :members:

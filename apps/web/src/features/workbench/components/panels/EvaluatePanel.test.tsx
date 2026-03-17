@@ -43,13 +43,11 @@ vi.mock("@/features/workbench/api", () => ({
 vi.mock("@/features/analysis", () => ({
   MetricsOverview: () => <div data-testid="metrics-overview" />,
   ConfusionMatrixSection: () => <div data-testid="confusion-matrix" />,
+  CrossValidationSection: () => <div data-testid="cross-validation" />,
   GeneListsSection: () => <div data-testid="gene-lists" />,
   EnrichmentSection: () => <div data-testid="enrichment" />,
   RobustnessSection: () => <div data-testid="robustness" />,
   RankMetricsSection: () => <div data-testid="rank-metrics" />,
-  Section: ({ children, title }: { children: React.ReactNode; title: string }) => (
-    <div data-testid={`section-${title}`}>{children}</div>
-  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -216,5 +214,42 @@ describe("EvaluatePanel", () => {
     expect(screen.getByText(/cross-validation/i)).toBeTruthy();
     expect(screen.getByText("GO:BP")).toBeTruthy();
     expect(screen.getByText("GO:MF")).toBeTruthy();
+  });
+
+  it("renders step contribution analysis checkbox", () => {
+    render(<EvaluatePanel />);
+    expect(screen.getByText("Step contribution analysis")).toBeTruthy();
+    // The checkbox itself is an input[type=checkbox]
+    const checkboxes = screen.getAllByRole("checkbox");
+    // At least 2 checkboxes: cross-validation and step analysis
+    expect(checkboxes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("cleans up SSE subscription on unmount", async () => {
+    const mockUnsubscribe = vi.fn();
+    mockCreateExperimentStream.mockResolvedValue({
+      unsubscribe: mockUnsubscribe,
+    });
+
+    // Set up positive controls via store pending controls
+    storeState.pendingPositiveControls = ["PF3D7_0100100"];
+
+    const { unmount } = render(<EvaluatePanel />);
+
+    // Wait for pending controls to be consumed
+    await waitFor(() => {
+      expect(screen.getByText("PF3D7_0100100")).toBeTruthy();
+    });
+
+    // Trigger a run to create the subscription
+    fireEvent.click(screen.getByText("Run Evaluation"));
+
+    await waitFor(() => {
+      expect(mockCreateExperimentStream).toHaveBeenCalled();
+    });
+
+    // Unmount should clean up
+    unmount();
+    expect(mockUnsubscribe).toHaveBeenCalled();
   });
 });

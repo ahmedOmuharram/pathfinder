@@ -41,6 +41,7 @@ export function SelectionToolbar({
   const selectAll = useWorkbenchStore((s) => s.selectAll);
   const deselectAll = useWorkbenchStore((s) => s.deselectAll);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const toDelete = useMemo(
@@ -58,11 +59,13 @@ export function SelectionToolbar({
   const handleDeleteConfirm = useCallback(async () => {
     setShowDeleteConfirm(false);
     setDeleting(true);
+    setDeleteError(null);
     try {
       await Promise.all(toDelete.map((gs) => deleteGeneSet(gs.id)));
       removeGeneSets(toDelete.map((gs) => gs.id));
     } catch (err) {
       console.error("Failed to delete gene set(s):", err);
+      setDeleteError("Some gene sets could not be deleted. Please try again.");
     } finally {
       setDeleting(false);
     }
@@ -166,6 +169,12 @@ export function SelectionToolbar({
             </DropdownMenu>
           )}
         </div>
+
+        {deleteError && (
+          <p className="mt-2 text-xs text-destructive" role="alert">
+            {deleteError}
+          </p>
+        )}
       </div>
 
       <DeleteConfirmDialog

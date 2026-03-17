@@ -6,12 +6,8 @@ import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { Label } from "@/lib/components/ui/Label";
 import { parseGeneIds } from "@/lib/utils/parseGeneIds";
-import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "../store/useWorkbenchStore";
-import type { ResolvedGene } from "@pathfinder/shared";
-import { createGeneSet } from "../api/geneSets";
-import { resolveGeneIds } from "@/lib/api/genes";
 import { cn } from "@/lib/utils/cn";
+import { useGeneSetCreation } from "../hooks/useGeneSetCreation";
 import { VerificationResults } from "./VerificationResults";
 
 /* ------------------------------------------------------------------ */
@@ -35,20 +31,22 @@ interface AddGeneSetUploadTabProps {
 }
 
 export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabProps) {
-  const selectedSite = useSessionStore((s) => s.selectedSite);
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
-
   const [name, setName] = useState("");
   const [fileText, setFileText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Verification state
-  const [verifying, setVerifying] = useState(false);
-  const [resolvedGenes, setResolvedGenes] = useState<ResolvedGene[] | null>(null);
-  const [unresolvedIds, setUnresolvedIds] = useState<string[]>([]);
-  const [verified, setVerified] = useState(false);
+  const {
+    error,
+    setError,
+    isSubmitting,
+    verifying,
+    resolvedGenes,
+    unresolvedIds,
+    verified,
+    resetVerification,
+    handleVerify,
+    handleSubmit,
+  } = useGeneSetCreation({ onCreated });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,10 +58,7 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
       const file = e.target.files?.[0];
       if (!file) return;
 
-      setError(null);
-      setVerified(false);
-      setResolvedGenes(null);
-      setUnresolvedIds([]);
+      resetVerification();
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
@@ -78,59 +73,8 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
       };
       reader.readAsText(file);
     },
-    [name],
+    [name, resetVerification, setError],
   );
-
-  const handleVerify = useCallback(async () => {
-    if (parsedIds.length === 0) return;
-    setVerifying(true);
-    setError(null);
-
-    try {
-      const result = await resolveGeneIds(selectedSite, parsedIds);
-      setResolvedGenes(result.resolved);
-      setUnresolvedIds(result.unresolved);
-      setVerified(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify gene IDs.");
-    } finally {
-      setVerifying(false);
-    }
-  }, [parsedIds, selectedSite]);
-
-  const handleSubmit = useCallback(async () => {
-    setError(null);
-
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please enter a name for the gene set.");
-      return;
-    }
-
-    const idsToSubmit =
-      verified && resolvedGenes ? resolvedGenes.map((g) => g.geneId) : parsedIds;
-
-    if (idsToSubmit.length === 0) {
-      setError("No valid gene IDs to add.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const geneSet = await createGeneSet({
-        name: trimmedName,
-        source: "upload",
-        geneIds: idsToSubmit,
-        siteId: selectedSite,
-      });
-      addGeneSet(geneSet);
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create gene set.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [name, parsedIds, selectedSite, verified, resolvedGenes, addGeneSet, onCreated]);
 
   return (
     <>
@@ -196,7 +140,7 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleVerify}
+            onClick={() => handleVerify(parsedIds)}
             loading={verifying}
             disabled={verifying || isSubmitting}
             className="gap-1 text-xs"
@@ -236,7 +180,7 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
         <Button
           type="button"
           size="sm"
-          onClick={handleSubmit}
+          onClick={() => handleSubmit(name, parsedIds, "upload")}
           loading={isSubmitting}
           disabled={detectedCount === 0}
         >

@@ -1,44 +1,54 @@
-Experiment Lab
-==============
+Evaluation Engine
+=================
 
-:bdg-primary:`Single` :bdg-warning:`Multi-Step` :bdg-info:`Import`
-
-The **Experiment Lab** is a separate area from Chat. It lets users evaluate
-search/strategy performance with positive/negative control gene sets, compute
-classification and rank metrics, run cross-validation, enrichment analysis, and
-step-level analysis. The web app exposes it at ``/experiments``.
+The **evaluation engine** is the backend service that powers the workbench's
+analysis features. It evaluates search performance with positive/negative
+control gene sets, computes classification and rank metrics, runs
+cross-validation, and enrichment analysis. The workbench UI at ``/workbench``
+consumes these endpoints.
 
 .. mermaid::
 
    flowchart LR
-       A["Create Experiment"] --> B{"Mode?"}
-       B -->|single| C["Run Search"]
-       B -->|multi-step| D["Build Strategy"]
-       B -->|import| E["Import WDK Strategy"]
-       C --> F["Evaluate Controls"]
-       D --> F
-       E --> F
-       F --> G["Metrics<br/>P/R/F1"]
-       F --> H["Cross-Validation"]
-       F --> I["Enrichment"]
-       F --> J["Step Analysis"]
+       A["Gene Set + Controls"] --> G{targetGeneIds?}
+       G -- yes --> H["Set Intersection<br/>(no WDK call)"]
+       G -- no --> B["Run Search on WDK"]
+       B --> C["Evaluate Controls"]
+       H --> C
+       C --> D["Metrics<br/>P/R/F1"]
+       C --> E["Cross-Validation"]
+       C --> F["Enrichment"]
 
        style A fill:#2563eb,color:#fff
-       style F fill:#7c3aed,color:#fff
+       style G fill:#f59e0b,color:#000
+       style H fill:#10b981,color:#fff
+       style C fill:#7c3aed,color:#fff
 
-Experiment Modes
+Evaluation Modes
 ----------------
 
-When creating a new experiment, the user chooses a **mode** (not a chat mode):
+The evaluation engine supports two evaluation modes:
 
-- **single** — One search, one set of parameters. Tune parameters, run control
-  tests, optional parameter optimization and cross-validation.
-- **multi-step** — Build a strategy graph (multiple searches, combines,
-  transforms) in the Multi-Step Builder. Evaluate the full tree with controls;
-  optional step analysis (e.g. step evaluation, operator comparison, contribution,
-  parameter sensitivity).
-- **import** — Import an existing VEuPathDB strategy and run the same
-  evaluation and analysis as multi-step.
+**Gene-ID mode** (workbench gene sets):
+   When ``targetGeneIds`` is provided in the experiment config, the engine
+   skips WDK search re-execution and evaluates using pure set intersection
+   against the control genes. This is the correct path for workbench gene
+   sets, which already contain materialized gene IDs.
+
+**Search re-execution mode** (strategy evaluation):
+   When ``targetGeneIds`` is absent, the engine runs the WDK search using
+   ``searchName`` and ``parameters`` from the config and evaluates the
+   results against controls. This is the correct path when evaluating a
+   **search configuration itself** — e.g., when the AI agent builds a
+   strategy and needs to test its performance before the results have been
+   materialized into a gene set.
+
+.. important::
+
+   The **benchmark** and **evaluate** panels in the workbench both send
+   ``targetGeneIds`` from the active gene set. This ensures metrics are
+   computed against the actual gene set contents, not a potentially stale
+   re-execution of search parameters.
 
 Execution Endpoints
 -------------------
@@ -81,9 +91,6 @@ Analysis Endpoints
    * - :bdg-success:`POST`
      - ``/api/v1/experiments/enrichment-compare``
      - Compare enrichment results across experiments
-   * - :bdg-success:`POST`
-     - ``/api/v1/experiments/ai-assist``
-     - AI assistant for the experiment wizard (SSE)
 
 **Per-experiment** (scoped to ``{experiment_id}``):
 
@@ -109,12 +116,9 @@ Analysis Endpoints
    * - :bdg-success:`POST`
      - ``/api/v1/experiments/{id}/threshold-sweep``
      - Threshold sweep for a parameter
-   * - :bdg-success:`POST`
-     - ``/api/v1/experiments/{id}/step-contributions``
-     - Step contribution analysis (multi-step/import)
    * - :bdg-info:`GET`
-     - ``/api/v1/experiments/{id}/report``
-     - Get report (e.g. markdown)
+     - ``/api/v1/experiments/{id}/export``
+     - Download experiment report (HTML)
 
 CRUD and Results
 ----------------
@@ -138,27 +142,47 @@ CRUD and Results
    * - :bdg-danger:`DELETE`
      - ``/api/v1/experiments/{id}``
      - Delete an experiment
+
+**Results browsing** (per-experiment):
+
+.. list-table::
+   :widths: 15 40 45
+   :header-rows: 1
+
+   * - Method
+     - Endpoint
+     - Description
    * - :bdg-info:`GET`
-     - ``/api/v1/experiments/importable-strategies``
-     - List strategies available for import-mode
+     - ``/api/v1/experiments/{id}/results/attributes``
+     - List available result attributes
+   * - :bdg-info:`GET`
+     - ``/api/v1/experiments/{id}/results/records``
+     - Paginated result records
    * - :bdg-success:`POST`
-     - ``/api/v1/experiments/create-strategy``
-     - Create a strategy (for experiments)
+     - ``/api/v1/experiments/{id}/results/record``
+     - Get single record detail
    * - :bdg-info:`GET`
-     - ``/api/v1/experiments/{id}/results/``
-     - Attributes, sortable-attributes, records, distributions
+     - ``/api/v1/experiments/{id}/results/distributions/{attr}``
+     - Distribution data for an attribute
    * - :bdg-success:`POST`
-     - ``/api/v1/experiments/{id}/results/refine``
-     - Refine result records
-   * - :bdg-info:`GET`
-     - ``/api/v1/experiments/{id}/strategy``
-     - Get strategy for experiment
-   * - :bdg-info:`GET`
-     - ``/api/v1/experiments/{id}/analyses/types``
-     - Available analysis types
+     - ``/api/v1/experiments/{id}/refine``
+     - Refine/filter result records
+
+**Workbench chat** (per-experiment conversational AI):
+
+.. list-table::
+   :widths: 15 40 45
+   :header-rows: 1
+
+   * - Method
+     - Endpoint
+     - Description
    * - :bdg-success:`POST`
-     - ``/api/v1/experiments/{id}/analyses/run``
-     - Run an analysis
+     - ``/api/v1/experiments/{id}/chat``
+     - Start workbench chat stream (SSE)
+   * - :bdg-info:`GET`
+     - ``/api/v1/experiments/{id}/chat/messages``
+     - Get chat message history
 
 Persistence
 -----------
@@ -458,5 +482,6 @@ Pydantic models for experiment configuration, metrics, enrichment, and results.
 Seed Data
 ~~~~~~~~~
 
-Demo experiment seeding (strategies, control sets, gene lists).
-See :doc:`services` for full seed module reference.
+Generate demo experiments with curated multi-step strategies and control sets
+across 13 VEuPathDB databases. This is the only place the backend's
+``multi-step`` mode is used. See :doc:`services` for full seed module reference.

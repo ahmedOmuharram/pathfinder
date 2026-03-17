@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import type { WdkSortDir } from "@/features/analysis/constants";
@@ -37,20 +37,31 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /* ---------- abort controller for record fetches ---------- */
+  const abortRef = useRef<AbortController | null>(null);
+
   /* ---------- row expansion state ---------- */
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [detail, setDetail] = useState<RecordDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  /* ---------- fetch attributes on mount ---------- */
+  /* ---------- fetch attributes on entity change ---------- */
   useEffect(() => {
     let cancelled = false;
+    setVisibleColumns(new Set());
+    setSortColumn(null);
+    setSortDir("ASC");
     const fetchAttrs = getAttributes(entityRef);
     fetchAttrs
       .then(({ attributes: attrs }) => {
         if (cancelled) return;
         const displayable = attrs.filter((a) => a.isDisplayable !== false);
+        if (displayable.length === 0) {
+          setAttributes([]);
+          setLoading(false);
+          return;
+        }
         setAttributes(displayable);
         setVisibleColumns(new Set(displayable.slice(0, 6).map((a) => a.name)));
       })
@@ -64,6 +75,9 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
 
   /* ---------- fetch records ---------- */
   const fetchRecords = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -75,12 +89,14 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
         attributes: [...visibleColumns],
       };
       const res = await getRecords(entityRef, opts);
+      if (controller.signal.aborted) return;
       setRecords(res.records);
       setMeta(res.meta);
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [entityRef, offset, pageSize, sortColumn, sortDir, visibleColumns]);
 

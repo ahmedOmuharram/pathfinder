@@ -2,36 +2,41 @@ Architecture Overview
 =====================
 
 This document describes the Pathfinder API architecture: how Kani drives the
-unified agent, the **Experiment Lab** (separate from chat), sub-kani
-orchestration, delegation plans, and the end-to-end request flow.
+unified agent, the evaluation engine, sub-kani orchestration, delegation plans,
+and the end-to-end request flow.
 
-Application Areas
+User-Facing Pages
 -----------------
 
-.. grid:: 3
+The frontend has **two user-facing pages**:
+
+.. grid:: 2
    :gutter: 3
 
    .. grid-item-card:: Chat
       :class-card: sd-border-primary
 
-      Unified agent for building/editing strategy graphs via natural language.
-      Uses ``POST /api/v1/chat``. The agent decides per-turn whether to
-      research, plan, or execute. Supports **@-mentions** of strategies and
-      experiments (see :ref:`overview-mentions`).
-
-   .. grid-item-card:: Experiment Lab
-      :class-card: sd-border-warning
-
-      Evaluate search/strategy performance at ``/experiments``. Modes:
-      **single** (one search), **multi-step** (strategy graph), **import**
-      (existing WDK strategy). See :doc:`experiments`.
+      Home page (``/``). Unified agent for building/editing strategy graphs
+      via natural language. Uses ``POST /api/v1/chat``. The agent decides
+      per-turn whether to research, plan, or execute. Supports **@-mentions**
+      of strategies and experiments (see :ref:`overview-mentions`).
 
    .. grid-item-card:: Workbench
       :class-card: sd-border-success
 
-      AI-powered analysis at ``/workbench``. Gene set exploration,
-      enrichment, distributions, cross-validation. Conversational
-      WorkbenchAgent scoped to experiment context. See :doc:`gene_sets`.
+      Located at ``/workbench``. Gene set management, enrichment,
+      distributions, cross-validation, and AI-powered analysis.
+      Conversational WorkbenchAgent scoped to experiment context.
+      See :doc:`gene_sets`.
+
+Backend: Evaluation Engine
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **experiment endpoints** (``/api/v1/experiments/...``) are the backend
+evaluation engine consumed by the workbench. They provide control-set
+evaluation, classification metrics, cross-validation, and enrichment
+analysis. There is no standalone ``/experiments`` page in the frontend.
+See :doc:`experiments`.
 
 High-Level Chat Flow
 --------------------
@@ -75,8 +80,8 @@ Pathfinder extends Kani with:
 
 - :py:class:`veupath_chatbot.ai.agents.executor.PathfinderAgent` — Unified agent; handles research, planning, and
   strategy building with a single tool set.
-- :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent` — Sub-agent for delegated tasks; same tools as main
-  agent minus delegation.
+- :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent` — Sub-agent for delegated tasks; has core tools
+  (catalog, graph, execution, research) but not delegation, optimization, workbench, export, or artifacts.
 
 Unified Agent
 -------------
@@ -91,13 +96,13 @@ compose strategies). Every conversation is backed by a strategy.
 - **Catalog / discovery:** ``list_sites``, ``search_for_searches``,
   ``get_search_parameters``, ``get_dependent_vocab``, etc.
 - **Graph building / editing:** ``create_step``, ``list_current_steps``,
-  ``build_strategy``, ``delete_step``, ``update_step``, etc.
+  ``validate_graph_structure``, ``delete_step``, ``update_step``, etc.
 - **Research / validation:** ``web_search``, ``literature_search``,
   ``run_control_tests``, ``optimize_search_parameters``,
   ``lookup_gene_records``, ``save_planning_artifact``.
 - **Delegation:** ``delegate_strategy_subtasks`` for multi-step builds.
-- **Export / results:** ``get_step_results``, ``export_strategy``,
-  ``export_gene_set``.
+- **Export / results:** ``get_result_count``, ``get_download_url``,
+  ``get_sample_records``, ``export_gene_set``.
 
 For **single-step** builds, the agent calls tools directly.
 For **multi-step** builds (2+ steps, combines, transforms), the agent
@@ -123,8 +128,9 @@ gametocyte gene search", "create step with fold_change=2").
 6. Emit ``subkani_task_start``, ``subkani_tool_call_start/end``, ``subkani_task_end``
    so the UI can show Sub-kani Activity.
 
-**SubtaskAgent** — Same tool set as main agent (catalog, strategy tools) but
-no ``delegate_strategy_subtasks``. Each sub-kani runs one delegated task.
+**SubtaskAgent** — Has catalog, graph building, execution, strategy metadata,
+and research tools but not delegation, optimization, workbench, export, or
+artifact tools. Each sub-kani runs one delegated task.
 
 **Subtask scheduler** — ``run_nodes_with_dependencies`` runs task nodes in
 topological order. ``partition_task_results`` groups outputs for combine steps.
@@ -147,7 +153,8 @@ and consumes them via ``delegate_strategy_subtasks(goal, plan)``.
 SSE Event Contract
 ------------------
 
-The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.http.sse`):
+The chat stream emits these event types (schemas in :py:mod:`veupath_chatbot.transport.http.schemas.sse`,
+streaming logic in :py:mod:`veupath_chatbot.services.chat.streaming`):
 
 .. list-table:: SSE Event Types
    :widths: 30 70
@@ -163,14 +170,22 @@ The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.
      - Sub-kani activity lifecycle
    * - ``strategy_update``
      - Graph changed (new step, update, delete)
+   * - ``strategy_link``
+     - Strategy linked to WDK (includes WDK strategy ID and URL)
    * - ``graph_snapshot``
      - Full graph state
    * - ``assistant_delta`` / ``assistant_message``
      - Streaming text
+   * - ``reasoning``
+     - Model reasoning/thinking blocks (Anthropic extended thinking, etc.)
+   * - ``token_usage_partial``
+     - Early prompt token count for UI display
    * - ``optimization_progress``
      - Parameter optimization updates
+   * - ``error``
+     - Stream or tool processing error
    * - ``message_end``
-     - Turn complete
+     - Turn complete; includes full token usage and cost estimate
 
 .. _overview-mentions:
 
@@ -181,7 +196,7 @@ Chat requests can include **mentions**: references to a strategy or an
 experiment. The backend loads the referenced entity and injects a rich context
 block into the prompt so the agent can reason about "this strategy" or "this
 experiment". See :py:mod:`veupath_chatbot.services.chat.mention_context`:
-``build_mention_context(mentions, strategy_repo)``. Mention types are
+``build_mention_context(mentions, stream_repo)``. Mention types are
 ``"strategy"`` and ``"experiment"``; each mention has ``type``, ``id``, and
 ``displayName``.
 
@@ -257,11 +272,11 @@ See Also
 .. grid:: 2
    :gutter: 3
 
-   .. grid-item-card:: Experiment Lab
+   .. grid-item-card:: Evaluation Engine
       :link: experiments
       :link-type: doc
 
-      Modes, execution, analysis, and control sets.
+      Experiment modes, execution, analysis, and control sets.
 
    .. grid-item-card:: PathfinderAgent & SubtaskAgent
       :link: agents

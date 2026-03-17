@@ -90,6 +90,7 @@ export function CustomEnrichmentSection({
                   Overlap: {r.overlapCount} / {r.tpCount} TP genes
                 </span>
                 <span>Fold: {r.foldEnrichment.toFixed(2)}x</span>
+                <span>Odds Ratio: {r.oddsRatio.toFixed(2)}</span>
                 <span>Gene set size: {r.geneSetSize}</span>
               </div>
               {r.overlapGenes.length > 0 && (

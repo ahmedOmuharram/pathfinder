@@ -16,6 +16,7 @@ PathfinderAgent (Unified)
 - ``search_for_searches`` — Semantic search for searches
 - ``get_search_parameters`` — Parameter specs for a search
 - ``get_dependent_vocab`` — Refresh dependent parameter options
+- ``lookup_phyletic_codes`` — Look up phyletic pattern codes for organisms
 - ``search_example_plans`` — Search example strategies (RAG + WDK)
 
 **Graph Building / Editing**
@@ -32,12 +33,11 @@ PathfinderAgent (Unified)
 - ``add_step_analysis`` — Add analysis to a step
 - ``add_step_report`` — Add report to a step
 - ``explain_operator`` — Explain combine operator (UNION, etc.)
+- ``search_searches_by_keywords`` — Keyword search for available searches
 
 **Execution / Outputs**
 
-- ``build_strategy`` — Build or update WDK strategy
-- ``preview_results`` — Preview step results
-- ``get_result_count`` — Get result count for a step
+- ``get_result_count`` — Get result count for a built step
 - ``get_download_url`` — Get download URL for results
 - ``get_sample_records`` — Get sample records from a step
 
@@ -68,6 +68,16 @@ PathfinderAgent (Unified)
 
 - ``save_planning_artifact`` — Save artifact (title, summary, parameters, proposed_strategy_plan)
 
+**Workbench / Gene Sets**
+
+- ``create_workbench_gene_set`` — Create a gene set in the workbench
+- ``run_gene_set_enrichment`` — Run enrichment analysis on a gene set
+- ``list_workbench_gene_sets`` — List available gene sets
+
+**Export**
+
+- ``export_gene_set`` — Export a gene set as CSV or TXT
+
 **Session**
 
 - ``set_conversation_title`` — Set conversation title
@@ -76,9 +86,10 @@ PathfinderAgent (Unified)
 SubtaskAgent (Sub-kani)
 ------------------------
 
-Same tools as PathfinderAgent **except** ``delegate_strategy_subtasks``.
-Each sub-kani has catalog, graph-building, execution, and research tools,
-but cannot delegate further.
+Has **catalog**, **graph building / editing**, **execution / outputs**,
+**strategy metadata**, and **research** tools -- the same core tools as
+PathfinderAgent. Does **not** have delegation, validation & optimization,
+workbench, export, or artifact tools.
 
 Detailed Tool Docs
 ------------------
