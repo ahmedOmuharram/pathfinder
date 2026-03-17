@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/sites";
@@ -126,23 +126,28 @@ function useParamSpecsAdvanced({
   const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const debouncedFetch = useDebouncedCallback((resolvedRecordType: string) => {
+  // Stable identity key — only changes when the search itself changes,
+  // NOT when contextValues/isSearchNameAvailable flicker during renders.
+  const resolvedRecordType = useMemo(() => {
+    const preferred =
+      resolveRecordTypeForSearch(selectedSearch?.recordType) ||
+      apiRecordTypeValue ||
+      recordType;
+    return normalizeRecordType(preferred);
+  }, [recordType, selectedSearch, apiRecordTypeValue, resolveRecordTypeForSearch]);
+
+  const debouncedFetch = useDebouncedCallback((rt: string, ctx: StepParameters) => {
     let isActive = true;
     setIsLoading(true);
-    getParamSpecs(
-      siteId,
-      resolvedRecordType,
-      searchName,
-      buildContextValues(contextValues || {}),
-    )
+    getParamSpecs(siteId, rt, searchName, buildContextValues(ctx || {}))
       .then((details) => {
         if (!isActive) return;
         setParamSpecs(details || []);
       })
       .catch((err) => {
         console.error("[useParamSpecs]", err);
-        if (!isActive) return;
-        setParamSpecs([]);
+        // Don't clear on error — keep stale specs rather than flashing
+        // empty. Params only clear on real identity change.
       })
       .finally(() => {
         if (!isActive) return;
@@ -153,44 +158,13 @@ function useParamSpecsAdvanced({
     };
   }, 250);
 
+  // Primary fetch: fires when search identity changes.
+  // contextValues included in deps so the linter is satisfied — the 250ms
+  // debounce prevents rapid-fire fetches when the user types.
   useEffect(() => {
-    if (!enabled) {
-      startTransition(() => {
-        setParamSpecs([]);
-        setIsLoading(false);
-      });
-      return;
-    }
-    const preferredRecordType =
-      resolveRecordTypeForSearch(selectedSearch?.recordType) ||
-      apiRecordTypeValue ||
-      recordType;
-    if (!isSearchNameAvailable) {
-      startTransition(() => {
-        setParamSpecs([]);
-      });
-      return;
-    }
-    const resolvedRecordType = normalizeRecordType(preferredRecordType);
-    if (!searchName || !resolvedRecordType) {
-      startTransition(() => {
-        setParamSpecs([]);
-      });
-      return;
-    }
-    debouncedFetch(resolvedRecordType);
-  }, [
-    enabled,
-    siteId,
-    recordType,
-    searchName,
-    selectedSearch,
-    isSearchNameAvailable,
-    apiRecordTypeValue,
-    resolveRecordTypeForSearch,
-    contextValues,
-    debouncedFetch,
-  ]);
+    if (!enabled || !searchName || !resolvedRecordType) return;
+    debouncedFetch(resolvedRecordType, contextValues || {});
+  }, [enabled, siteId, searchName, resolvedRecordType, contextValues, debouncedFetch]);
 
   return { paramSpecs, isLoading };
 }

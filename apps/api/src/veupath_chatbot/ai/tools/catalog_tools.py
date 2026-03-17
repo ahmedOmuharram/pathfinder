@@ -61,3 +61,27 @@ class CatalogTools:
     ) -> list[dict[str, str]]:
         # Search broadly across record types for better recall.
         return await catalog.search_for_searches(site_id, record_type=None, query=query)
+
+    @ai_function()
+    async def lookup_phyletic_codes(
+        self,
+        site_id: Annotated[str, AIParam(desc="Site ID (e.g., 'plasmodb')")],
+        record_type: Annotated[str, AIParam(desc="Record type (usually 'transcript')")],
+        query: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "Species or clade name to search for "
+                    "(e.g., 'falciparum', 'human', 'Apicomplexa'). "
+                    "Returns matching codes for use in profile_pattern."
+                )
+            ),
+        ],
+    ) -> JSONObject:
+        """Look up phyletic species codes by name for GenesByOrthologPattern.
+
+        Returns {code, label} pairs. Use the codes in profile_pattern:
+        CODE>=1T (include) or CODE=0T (exclude).
+        Example: lookup 'falciparum' → pfal, then use 'pfal>=1T' in profile_pattern.
+        """
+        return await catalog.lookup_phyletic_codes(site_id, record_type, query)

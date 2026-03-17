@@ -24,6 +24,7 @@ from veupath_chatbot.transport.http.schemas.sse import (
     AssistantMessageEventData,
     ErrorEventData,
     MessageEndEventData,
+    ReasoningEventData,
     TokenUsagePartialEventData,
     ToolCallEndEventData,
     ToolCallStartEventData,
@@ -80,6 +81,26 @@ def _extract_cached_tokens(msg: object) -> int:
                 pass
 
     return 0
+
+
+def _extract_reasoning(msg: object) -> str | None:
+    """Extract reasoning/thinking content from message parts.
+
+    Anthropic thinking blocks arrive as ``ReasoningPart`` (or its subclass
+    ``AnthropicThinkingPart``) inside ``msg.parts``.  The ``content``
+    attribute holds the thinking text; ``__str__`` returns ``""`` so it
+    won't appear in ``msg.text``.
+    """
+    from kani.parts.reasoning import ReasoningPart
+
+    parts = getattr(msg, "parts", None)
+    if not parts:
+        return None
+    reasoning_parts: list[str] = []
+    for part in parts:
+        if isinstance(part, ReasoningPart) and part.content:
+            reasoning_parts.append(part.content)
+    return "\n\n".join(reasoning_parts) if reasoning_parts else None
 
 
 def _accumulate_subkani_metrics(
@@ -165,6 +186,19 @@ async def stream_chat(
                     # Extract cached token count from provider usage stored
                     # in msg.extra by Kani's engine implementations.
                     cached_tokens += _extract_cached_tokens(msg)
+                    # Emit reasoning/thinking blocks (Anthropic extended thinking,
+                    # GPT-OSS, etc.) as a separate event so the frontend can
+                    # display them in a collapsible panel.
+                    reasoning_text = _extract_reasoning(msg)
+                    if reasoning_text:
+                        await queue.put(
+                            {
+                                "type": "reasoning",
+                                "data": ReasoningEventData(
+                                    reasoning=reasoning_text,
+                                ).model_dump(by_alias=True),
+                            }
+                        )
                     # msg.content can be a list of parts (e.g. Gemini multipart);
                     # msg.text always returns a joined plain string.
                     final_text = msg.text or ""

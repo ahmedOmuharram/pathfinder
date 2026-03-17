@@ -5670,6 +5670,30 @@ components:
           - type: number
           - type: 'null'
           title: Increment
+        displayType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displaytype
+        isVisible:
+          type: boolean
+          title: Isvisible
+          default: true
+        group:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Group
+        dependentParams:
+          items:
+            type: string
+          type: array
+          title: Dependentparams
+        help:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Help
       type: object
       required:
       - name

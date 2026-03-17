@@ -19,10 +19,15 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 class TestAllowedValues:
     """Direct tests for the module-level _allowed_values() helper."""
 
-    def _call(self, vocab: JSONObject | JSONArray | None) -> list[str]:
+    def _call(self, vocab: JSONObject | JSONArray | None) -> list[JSONObject]:
         from veupath_chatbot.services.catalog.param_resolution import _allowed_values
 
         return _allowed_values(vocab)
+
+    @staticmethod
+    def _values(entries: list[JSONObject]) -> list[str]:
+        """Extract just the 'value' strings from allowed-values entries."""
+        return [str(e["value"]) for e in entries if isinstance(e, dict)]
 
     def test_returns_empty_for_none(self) -> None:
         assert self._call(None) == []
@@ -39,8 +44,11 @@ class TestAllowedValues:
             ["PvP01", "P. vivax P01"],
         ]
         result = self._call(vocab)
-        assert "Pf3D7" in result
-        assert "PvP01" in result
+        values = self._values(result)
+        assert "Pf3D7" in values
+        assert "PvP01" in values
+        # Each entry should have both value and display
+        assert result[0]["display"] == "P. falciparum 3D7"
 
     def test_deduplicates_values(self) -> None:
         vocab: JSONArray = [
@@ -48,7 +56,8 @@ class TestAllowedValues:
             ["Pf3D7", "P. falciparum 3D7 duplicate"],
         ]
         result = self._call(vocab)
-        assert result.count("Pf3D7") == 1
+        values = self._values(result)
+        assert values.count("Pf3D7") == 1
 
     def test_caps_at_50(self) -> None:
         vocab: JSONArray = [[f"val{i}", f"display{i}"] for i in range(100)]
@@ -64,7 +73,8 @@ class TestAllowedValues:
             ["good_val", "Good Display"],
         ]
         result = self._call(vocab)
-        assert "good_val" in result
+        values = self._values(result)
+        assert "good_val" in values
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +211,12 @@ class TestFormatParamInfo:
         p = result[0]
         assert isinstance(p, dict)
         assert "allowedValues" in p
-        assert "Pf3D7" in p["allowedValues"]
+        allowed = p["allowedValues"]
+        assert isinstance(allowed, list)
+        values = [e["value"] for e in allowed if isinstance(e, dict)]
+        assert "Pf3D7" in values
+        displays = [e["display"] for e in allowed if isinstance(e, dict)]
+        assert "P. falciparum 3D7" in displays
 
     def test_no_allowed_values_when_vocabulary_empty(self) -> None:
         specs: JSONArray = [

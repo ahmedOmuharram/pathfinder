@@ -59,6 +59,24 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
             float(increment_raw) if isinstance(increment_raw, (int, float)) else None
         )
 
+        # WDK UI metadata
+        display_type_raw = raw.get("displayType")
+        display_type = (
+            str(display_type_raw) if isinstance(display_type_raw, str) else None
+        )
+        is_visible_raw = raw.get("isVisible")
+        is_visible = bool(is_visible_raw) if isinstance(is_visible_raw, bool) else True
+        group_raw = raw.get("group")
+        group_str = str(group_raw) if isinstance(group_raw, str) else None
+        dependent_params_raw = raw.get("dependentParams")
+        dependent_params = (
+            [str(p) for p in dependent_params_raw]
+            if isinstance(dependent_params_raw, list)
+            else []
+        )
+        help_raw = raw.get("help")
+        help_text = str(help_raw) if isinstance(help_raw, str) else None
+
         results.append(
             ParamSpecResponse(
                 name=name,
@@ -76,6 +94,11 @@ def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
                 max=max_value,
                 isNumber=is_number,
                 increment=increment,
+                displayType=display_type,
+                isVisible=is_visible,
+                group=group_str,
+                dependentParams=dependent_params,
+                help=help_text,
             )
         )
     results.sort(key=lambda s: s.name)

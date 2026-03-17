@@ -133,6 +133,8 @@ export function useStepEditorState({
         // Normal save path: do not accept stringified arrays/CSV.
         { allowStringParsing: false },
       );
+      // Merge hidden param defaults (lowest priority — user edits win).
+      parsedParams = { ...paramState.hiddenDefaults, ...parsedParams };
       // Do not enforce business-required checks here (backend is authoritative).
       const updates: Partial<Step> = {
         displayName: nextName,
@@ -239,6 +241,7 @@ export function useStepEditorState({
     parameters: paramState.parameters,
     setParameters: paramState.setParameters,
     vocabOptions: paramState.vocabOptions,
+    hiddenDefaults: paramState.hiddenDefaults,
     dependentOptions: paramState.dependentOptions,
     dependentLoading: paramState.dependentLoading,
     dependentErrors: paramState.dependentErrors,

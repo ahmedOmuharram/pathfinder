@@ -21,6 +21,11 @@ class ParamSpecNormalized:
     max_value: float | None = None
     increment: float | None = None
     max_length: int | None = None
+    display_type: str = ""
+    is_visible: bool = True
+    group: str = ""
+    dependent_params: tuple[str, ...] = ()
+    help: str | None = None
 
 
 def unwrap_search_data(details: JSONObject | None) -> JSONObject | None:
@@ -135,6 +140,20 @@ def adapt_param_specs(payload: JSONObject) -> dict[str, ParamSpecNormalized]:
         if max_length is not None and max_length <= 0:
             max_length = None
 
+        # WDK UI metadata
+        display_type = str(spec.get("displayType") or "")
+        is_visible_raw = spec.get("isVisible")
+        is_visible = bool(is_visible_raw) if isinstance(is_visible_raw, bool) else True
+        group = str(spec.get("group") or "")
+        dependent_params_raw = spec.get("dependentParams")
+        dependent_params = (
+            tuple(str(p) for p in dependent_params_raw)
+            if isinstance(dependent_params_raw, list)
+            else ()
+        )
+        help_text = spec.get("help")
+        help_str = str(help_text) if isinstance(help_text, str) else None
+
         normalized[name] = ParamSpecNormalized(
             name=name,
             param_type=param_type,
@@ -148,6 +167,11 @@ def adapt_param_specs(payload: JSONObject) -> dict[str, ParamSpecNormalized]:
             max_value=max_value,
             increment=increment,
             max_length=max_length,
+            display_type=display_type,
+            is_visible=is_visible,
+            group=group,
+            dependent_params=dependent_params,
+            help=help_str,
         )
     return normalized
 

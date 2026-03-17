@@ -480,7 +480,8 @@ class TestGetSearchParameters:
         p = _get_param_by_name(result, "organism")
         allowed = p["allowedValues"]
         assert isinstance(allowed, list)
-        assert "Pf3D7" in allowed
+        values = [e["value"] for e in allowed if isinstance(e, dict)]
+        assert "Pf3D7" in values
 
     async def test_allowed_values_capped_at_50(self) -> None:
         vocab = [[f"val{i}", f"display{i}"] for i in range(100)]

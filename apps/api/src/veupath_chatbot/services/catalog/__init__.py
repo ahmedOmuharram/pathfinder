@@ -10,6 +10,7 @@ from veupath_chatbot.services.catalog.parameters import (
     get_refreshed_dependent_params,
     get_search_parameters,
     get_search_parameters_tool,
+    lookup_phyletic_codes,
     validate_search_params,
 )
 from veupath_chatbot.services.catalog.rag_search import RagSearchService
@@ -33,6 +34,7 @@ __all__ = [
     "get_record_types",
     "get_search_parameters",
     "get_search_parameters_tool",
+    "lookup_phyletic_codes",
     "list_searches",
     "list_sites",
     "search_for_searches",

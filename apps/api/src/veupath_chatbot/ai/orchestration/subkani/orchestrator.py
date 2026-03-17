@@ -49,6 +49,19 @@ logger = get_logger(__name__)
 EmitEvent = Callable[[JSONObject], Awaitable[None]]
 
 
+def _derive_model_id(engine: BaseEngine) -> str:
+    """Derive a catalog-style model ID from an engine instance."""
+    from veupath_chatbot.ai.engines.cached_anthropic import CachedAnthropicEngine
+
+    model = getattr(engine, "model", "unknown")
+    if isinstance(engine, CachedAnthropicEngine):
+        return f"anthropic/{model}"
+    if isinstance(engine, ResponsesOpenAIEngine):
+        return f"openai/{model}"
+    # Google, Ollama, etc.
+    return model
+
+
 async def run_subkani_task(
     *,
     task: str,
@@ -72,6 +85,7 @@ async def run_subkani_task(
             temperature=settings.subkani_temperature,
             top_p=settings.subkani_top_p,
         )
+    subkani_model_id = _derive_model_id(engine)
 
     if not graph_id:
         graph = strategy_session.get_graph(None)
@@ -103,7 +117,7 @@ async def run_subkani_task(
         {
             "type": "subkani_task_start",
             "data": SubKaniTaskStartEventData(
-                task=task, modelId=f"openai/{settings.subkani_model}"
+                task=task, modelId=subkani_model_id
             ).model_dump(by_alias=True),
         }
     )
@@ -144,7 +158,7 @@ async def run_subkani_task(
                     "data": SubKaniTaskEndEventData(
                         task=task,
                         status="timeout",
-                        modelId=f"openai/{settings.subkani_model}",
+                        modelId=subkani_model_id,
                     ).model_dump(by_alias=True),
                 }
             )
@@ -210,7 +224,7 @@ async def run_subkani_task(
 
             round_result = get_round_result(task)
             sub_cost = _estimate_subkani_cost(
-                f"openai/{settings.subkani_model}",
+                subkani_model_id,
                 prompt_tokens=round_result.prompt_tokens if round_result else 0,
                 completion_tokens=round_result.completion_tokens if round_result else 0,
             )
@@ -220,7 +234,7 @@ async def run_subkani_task(
                     "data": SubKaniTaskEndEventData(
                         task=task,
                         status="done",
-                        modelId=f"openai/{settings.subkani_model}",
+                        modelId=subkani_model_id,
                         promptTokens=round_result.prompt_tokens if round_result else 0,
                         completionTokens=round_result.completion_tokens
                         if round_result
@@ -269,7 +283,7 @@ async def run_subkani_task(
             "data": SubKaniTaskEndEventData(
                 task=task,
                 status="no_steps",
-                modelId=f"openai/{settings.subkani_model}",
+                modelId=subkani_model_id,
             ).model_dump(by_alias=True),
         }
     )

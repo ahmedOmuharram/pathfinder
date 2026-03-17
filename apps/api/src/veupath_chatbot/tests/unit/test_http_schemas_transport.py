@@ -527,6 +527,43 @@ class TestParamSpecResponse:
         assert "min" in data
         assert "max" in data
 
+    def test_wdk_metadata_full(self) -> None:
+        resp = ParamSpecResponse(
+            name="org",
+            type="multi-pick-vocabulary",
+            displayType="treeBox",
+            isVisible=True,
+            group="empty",
+            dependentParams=["other"],
+            help="Pick organisms",
+        )
+        data = resp.model_dump(by_alias=True)
+        assert data["displayType"] == "treeBox"
+        assert data["isVisible"] is True
+        assert data["group"] == "empty"
+        assert data["dependentParams"] == ["other"]
+        assert data["help"] == "Pick organisms"
+
+    def test_wdk_metadata_hidden(self) -> None:
+        resp = ParamSpecResponse(
+            name="hidden",
+            type="string",
+            isVisible=False,
+            group="_hidden",
+        )
+        data = resp.model_dump(by_alias=True)
+        assert data["isVisible"] is False
+        assert data["group"] == "_hidden"
+
+    def test_wdk_metadata_defaults(self) -> None:
+        resp = ParamSpecResponse(name="p", type="string")
+        data = resp.model_dump(by_alias=True)
+        assert data["displayType"] is None
+        assert data["isVisible"] is True
+        assert data["group"] is None
+        assert data["dependentParams"] == []
+        assert data["help"] is None
+
 
 # ── Steps schemas ────────────────────────────────────────────────────────────
 

@@ -128,5 +128,10 @@ class ParamSpecResponse(BaseModel):
     max_value: float | None = Field(default=None, alias="max")
     is_number: bool = Field(default=False, alias="isNumber")
     increment: float | None = None
+    display_type: str | None = Field(default=None, alias="displayType")
+    is_visible: bool = Field(default=True, alias="isVisible")
+    group: str | None = None
+    dependent_params: list[str] = Field(default_factory=list, alias="dependentParams")
+    help: str | None = None
 
     model_config = {"populate_by_name": True}

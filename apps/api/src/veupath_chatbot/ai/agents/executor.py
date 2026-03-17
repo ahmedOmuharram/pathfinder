@@ -298,15 +298,29 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         ] = None,
     ) -> JSONObject:
         """Spawn sub-kanis to discover searches and parameters (nested plan)."""
-        # When using MockEngine, pass a factory so sub-kanis get mock engines too.
         from veupath_chatbot.ai.engines.mock import MockEngine
 
-        def _mock_engine_factory() -> MockEngine:
-            return MockEngine(site_id=self.site_id)
+        if isinstance(self.engine, MockEngine):
 
-        engine_factory = (
-            _mock_engine_factory if isinstance(self.engine, MockEngine) else None
-        )
+            def _engine_factory() -> BaseEngine:
+                return MockEngine(site_id=self.site_id)
+
+        else:
+            # Build sub-kani engines from the same provider as the parent agent
+            # so delegation works even when the user only has one API key.
+            from veupath_chatbot.ai.agents.factory import create_engine
+            from veupath_chatbot.ai.models.catalog import get_model_entry
+
+            parent_entry = get_model_entry(getattr(self.engine, "model", ""))
+            parent_provider = parent_entry.provider if parent_entry else None
+
+            def _engine_factory() -> BaseEngine:
+                return create_engine(
+                    provider_override=parent_provider,
+                    model_override=_SUBKANI_MODEL_BY_PROVIDER.get(
+                        parent_provider or ""
+                    ),
+                )
 
         return await subkani_delegate_strategy_subtasks(
             goal=goal,
@@ -316,5 +330,14 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             emit_event=self._emit_event,
             chat_history=self.chat_history,
             plan=plan,
-            engine_factory=engine_factory,
+            engine_factory=_engine_factory,
         )
+
+
+# Cheapest model per provider for sub-kani delegation.
+_SUBKANI_MODEL_BY_PROVIDER: dict[str, str | None] = {
+    "openai": None,  # None = use settings.subkani_model (gpt-4.1-mini)
+    "anthropic": "anthropic/claude-haiku-4-5",
+    "google": "google/gemini-2.5-pro",
+    "ollama": None,
+}

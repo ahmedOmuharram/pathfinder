@@ -73,6 +73,12 @@ export const ParamSpecSchema = z
     max: z.number().nullable().optional(),
     increment: z.number().nullable().optional(),
     isNumber: z.boolean(),
+    // WDK UI metadata (new — for widget dispatch)
+    displayType: z.string().nullable().optional(),
+    isVisible: z.boolean().optional(),
+    group: z.string().nullable().optional(),
+    dependentParams: z.array(z.string()).optional(),
+    help: z.string().nullable().optional(),
   })
   .passthrough();
 

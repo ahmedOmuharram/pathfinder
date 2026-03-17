@@ -34,19 +34,20 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _allowed_values(vocab: JSONObject | JSONArray | None) -> list[str]:
+def _allowed_values(
+    vocab: JSONObject | JSONArray | None,
+) -> list[JSONObject]:
     """Extract WDK-accepted parameter values from a vocabulary.
 
-    Uses term/value (what WDK actually accepts) rather than display labels,
-    so the LLM can pass these values directly to WDK API calls without
-    needing vocabulary normalisation.
+    Returns ``[{"value": <wdk_value>, "display": <label>}, ...]`` so the LLM
+    knows both *what to pass* and *what it means*.
 
     :param vocab: Vocabulary tree or flat list from catalog.
-    :returns: List of WDK-accepted values (capped at 50).
+    :returns: List of value/display dicts (capped at 50).
     """
     if not vocab:
         return []
-    values: list[str] = []
+    entries: list[JSONObject] = []
     seen: set[str] = set()
     for entry in flatten_vocab(vocab, prefer_term=True):
         # Prefer the WDK-accepted value; fall back to display if missing.
@@ -57,10 +58,28 @@ def _allowed_values(vocab: JSONObject | JSONArray | None) -> list[str]:
         if text in seen:
             continue
         seen.add(text)
-        values.append(text)
-        if len(values) >= 50:
+        display = entry.get("display")
+        display_str = str(display) if display else text
+        entries.append({"value": text, "display": display_str})
+        if len(entries) >= 50:
             break
-    return values
+    return entries
+
+
+_PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
+
+_PROFILE_PATTERN_HELP = (
+    "Phylogenetic profile pattern. Format: comma-separated CODE=STATE entries.\n"
+    "  Include species: CODE>=1T  (at least 1 protein present)\n"
+    "  Exclude species: CODE=0T  (zero proteins)\n"
+    "  Unconstrained: omit from pattern\n"
+    "Example: 'pfal>=1T,hsap=0T' (P.falciparum present AND human absent)\n"
+    "Use lookup_phyletic_codes(query) to find species codes by name.\n"
+    "CRITICAL: The 'organism' parameter controls which organisms' genes appear in "
+    "results. You MUST select ALL relevant organisms (use all leaf values from the "
+    "organism vocabulary tree, or use the tree's root '@@fake@@' sentinel for 'select all'). "
+    "If you only select one organism, you will get 0 results even if the pattern is correct."
+)
 
 
 def _format_param_info(param_specs: JSONArray) -> JSONArray:
@@ -69,6 +88,10 @@ def _format_param_info(param_specs: JSONArray) -> JSONArray:
     Each spec dict is transformed into a normalized info dict with keys:
     name, displayName, type, required, isVisible, help, and optionally
     allowedValues and defaultValue.
+
+    Phyletic structural params (phyletic_indent_map, phyletic_term_map) are
+    omitted from AI tool output — the model should never set them directly.
+    The profile_pattern param gets enriched help text with encoding docs.
 
     :param param_specs: Raw parameter spec dicts from WDK.
     :returns: Formatted parameter info array.
@@ -80,6 +103,10 @@ def _format_param_info(param_specs: JSONArray) -> JSONArray:
         name_raw = spec.get("name")
         name = name_raw if isinstance(name_raw, str) else ""
         if not name:
+            continue
+
+        # Skip phyletic structural params — model should not set these.
+        if name in _PHYLETIC_STRUCTURAL_PARAMS:
             continue
 
         allow_empty_raw = spec.get("allowEmptyValue")
@@ -94,6 +121,10 @@ def _format_param_info(param_specs: JSONArray) -> JSONArray:
         is_visible_raw = spec.get("isVisible")
         is_visible = is_visible_raw if isinstance(is_visible_raw, bool) else True
 
+        # Inject enriched help for profile_pattern.
+        if name == "profile_pattern":
+            help_text = _PROFILE_PATTERN_HELP
+
         info: JSONObject = {
             "name": name,
             "displayName": display_name,
@@ -107,9 +138,9 @@ def _format_param_info(param_specs: JSONArray) -> JSONArray:
         vocabulary = (
             vocabulary_raw if isinstance(vocabulary_raw, (dict, list)) else None
         )
-        allowed = _allowed_values(vocabulary)
-        if allowed:
-            info["allowedValues"] = cast(JSONValue, allowed)
+        allowed_entries = _allowed_values(vocabulary)
+        if allowed_entries:
+            info["allowedValues"] = cast(JSONValue, allowed_entries)
 
         initial_display_raw = spec.get("initialDisplayValue")
         if initial_display_raw is not None:
@@ -287,6 +318,74 @@ async def get_search_parameters_tool(
         )
 
 
+async def lookup_phyletic_codes(
+    site_id: str,
+    record_type: str,
+    query: str,
+) -> JSONObject:
+    """Search phyletic species codes by name for the GenesByOrthologPattern search.
+
+    Returns matching ``{code, label}`` pairs from the ``phyletic_term_map``
+    vocabulary. The model uses codes to build ``profile_pattern`` values.
+
+    :param site_id: Site ID.
+    :param record_type: Record type (usually "transcript").
+    :param query: Species/clade name search term (case-insensitive substring).
+    :returns: Dict with ``matches`` list and ``query`` echo.
+    """
+    try:
+        discovery = get_discovery_service()
+        record_types = await discovery.get_record_types(site_id)
+        resolved = resolve_record_type(record_types, record_type) or record_type
+
+        details, _ = await _fetch_search_details(
+            discovery,
+            site_id,
+            resolved,
+            "GenesByOrthologPattern",
+            record_types=record_types,
+        )
+        details = unwrap_search_data(details) or details
+        specs = extract_param_specs(details if isinstance(details, dict) else {})
+
+        term_map_vocab: JSONArray = []
+        for spec in specs:
+            if isinstance(spec, dict) and spec.get("name") == "phyletic_term_map":
+                vocab = spec.get("vocabulary")
+                if isinstance(vocab, list):
+                    term_map_vocab = vocab
+                break
+
+        q = query.lower().strip()
+        matches: list[JSONObject] = []
+        for entry in term_map_vocab:
+            if not isinstance(entry, list) or len(entry) < 2:
+                continue
+            code = str(entry[0])
+            label = str(entry[1])
+            if code == "ALL":
+                continue
+            if q in label.lower() or q in code.lower():
+                matches.append({"code": code, "label": label})
+                if len(matches) >= 20:
+                    break
+
+        return {
+            "query": query,
+            "matches": cast(JSONValue, matches),
+            "total": len(matches),
+            "hint": (
+                "Use codes in profile_pattern: CODE>=1T (include) or CODE=0T (exclude). "
+                "Example: 'pfal>=1T,hsap=0T'"
+            ),
+        }
+    except Exception as exc:
+        return tool_error(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to look up phyletic codes: {exc}",
+        )
+
+
 async def expand_search_details_with_params(
     site_id: str,
     record_type: str,
@@ -458,36 +557,28 @@ async def get_refreshed_dependent_params(
         raise
 
 
+def _names_from_param_list(params: list[JSONValue]) -> set[str]:
+    """Extract name strings from a list of param dicts."""
+    names: set[str] = set()
+    for p in params:
+        if isinstance(p, dict):
+            name = p.get("name")
+            if isinstance(name, str):
+                names.add(name)
+    return names
+
+
 def _extract_param_names(details: JSONObject) -> set[str]:
     """Extract parameter names from WDK search details.
 
-    :param details: Search details from WDK.
-    :returns: Set of parameter names.
+    Checks ``details.searchData.parameters`` first, then ``details.parameters``.
     """
     if not isinstance(details, dict):
         return set()
-    search_data = details.get("searchData")
-    if isinstance(search_data, dict):
-        params = search_data.get("parameters")
-        if isinstance(params, list):
-            result: set[str] = set()
-            for p in params:
-                if not isinstance(p, dict):
-                    continue
-                name_raw = p.get("name")
-                if isinstance(name_raw, str):
-                    result.add(name_raw)
-            return result
-    params = details.get("parameters")
+    unwrapped = unwrap_search_data(details) or details
+    params = unwrapped.get("parameters") if isinstance(unwrapped, dict) else None
+    if isinstance(params, list):
+        return _names_from_param_list(params)
     if isinstance(params, dict):
         return {k for k in params if k}
-    if isinstance(params, list):
-        result2: set[str] = set()
-        for p in params:
-            if not isinstance(p, dict):
-                continue
-            name_raw = p.get("name")
-            if isinstance(name_raw, str):
-                result2.add(name_raw)
-        return result2
     return set()

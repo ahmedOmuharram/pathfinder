@@ -1351,6 +1351,28 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exports/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Export
+         * @description Serve a previously generated export file.
+         *
+         *     Export IDs are uuid4 tokens with a 10-minute TTL. No auth required.
+         */
+        get: operations["download_export_api_v1_exports__export_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/sse-schemas": {
         parameters: {
             query?: never;
@@ -3256,6 +3278,19 @@ export type components = {
             isNumber: boolean;
             /** Increment */
             increment?: number | null;
+            /** Displaytype */
+            displayType?: string | null;
+            /**
+             * Isvisible
+             * @default true
+             */
+            isVisible: boolean;
+            /** Group */
+            group?: string | null;
+            /** Dependentparams */
+            dependentParams?: string[];
+            /** Help */
+            help?: string | null;
         };
         /**
          * ParamSpecsRequest
@@ -6856,6 +6891,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeneConfidenceScoreResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_export_api_v1_exports__export_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

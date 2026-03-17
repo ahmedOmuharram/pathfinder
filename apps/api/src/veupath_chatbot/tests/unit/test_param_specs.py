@@ -351,3 +351,75 @@ class TestFindMissingRequiredParams:
         # "yes" is not bool, defaults to True for allow_empty
         missing = find_missing_required_params(specs, {})
         assert missing == []
+
+
+# ---------------------------------------------------------------------------
+# WDK metadata extraction (display_type, is_visible, group, etc.)
+# ---------------------------------------------------------------------------
+class TestWdkMetadataExtraction:
+    def test_display_type_extracted(self) -> None:
+        payload = {
+            "parameters": [
+                {
+                    "name": "org",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                }
+            ]
+        }
+        specs = adapt_param_specs(payload)
+        assert specs["org"].display_type == "treeBox"
+
+    def test_is_visible_false(self) -> None:
+        payload = {
+            "parameters": [
+                {
+                    "name": "hidden",
+                    "type": "string",
+                    "isVisible": False,
+                    "group": "_hidden",
+                }
+            ]
+        }
+        specs = adapt_param_specs(payload)
+        assert specs["hidden"].is_visible is False
+        assert specs["hidden"].group == "_hidden"
+
+    def test_is_visible_defaults_true(self) -> None:
+        payload = {"parameters": [{"name": "vis", "type": "string"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["vis"].is_visible is True
+
+    def test_dependent_params(self) -> None:
+        payload = {
+            "parameters": [
+                {"name": "p", "type": "string", "dependentParams": ["a", "b"]}
+            ]
+        }
+        specs = adapt_param_specs(payload)
+        assert specs["p"].dependent_params == ("a", "b")
+
+    def test_dependent_params_missing(self) -> None:
+        payload = {"parameters": [{"name": "p", "type": "string"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["p"].dependent_params == ()
+
+    def test_help_text(self) -> None:
+        payload = {"parameters": [{"name": "p", "type": "string", "help": "some help"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["p"].help == "some help"
+
+    def test_help_missing(self) -> None:
+        payload = {"parameters": [{"name": "p", "type": "string"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["p"].help is None
+
+    def test_display_type_defaults_empty(self) -> None:
+        payload = {"parameters": [{"name": "p", "type": "string"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["p"].display_type == ""
+
+    def test_group_defaults_empty(self) -> None:
+        payload = {"parameters": [{"name": "p", "type": "string"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["p"].group == ""

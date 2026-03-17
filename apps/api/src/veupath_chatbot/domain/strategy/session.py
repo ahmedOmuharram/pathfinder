@@ -50,6 +50,18 @@ class StrategyGraph:
         # WDK strategy ID, set after build_strategy creates the strategy on WDK.
         self.wdk_strategy_id: int | None = None
 
+    def invalidate_build(self) -> None:
+        """Clear WDK build state so stale counts are not shown.
+
+        Call after any mutation that changes step semantics (parameters,
+        search_name, operator, delete).  The next ``build_strategy`` call
+        will re-populate ``step_counts`` and ``wdk_step_ids``.
+        """
+        self.step_counts.clear()
+        self.wdk_step_ids.clear()
+        self.wdk_strategy_id = None
+        self.current_strategy = None
+
     def add_step(self, step: Step) -> str:
         """Add a step and maintain the subtree-root set.
 

@@ -125,10 +125,15 @@ class CatalogToolsMixin:
         wdk = await self.catalog_tools.get_search_parameters(
             self.site_id, record_type, search_name
         )
+        # Strip bulky vocab/param data from RAG — the WDK response is
+        # authoritative for params, and RAG vocabularies can be 10k+ lines.
+        if isinstance(rag, dict):
+            rag.pop("paramSpecs", None)
+            rag.pop("vocabulary", None)
         return combined_result(
             rag=rag,
             wdk=wdk,
-            rag_note="Qdrant cached search metadata (may be stale / incomplete if ingestion failed).",
+            rag_note="Qdrant cached search metadata (description only; use WDK data for params).",
             wdk_note="Live WDK expanded search details (authoritative when it succeeds).",
         )
 
@@ -165,6 +170,34 @@ class CatalogToolsMixin:
             rag_note="Qdrant semantic retrieval (fast, may be stale; results include score and are thresholded).",
             wdk_note="Live WDK-backed keyword-ish search across catalog (authoritative).",
         )
+
+    @ai_function()
+    async def lookup_phyletic_codes(
+        self,
+        query: Annotated[
+            str,
+            AIParam(
+                desc=(
+                    "Species or clade name to search for "
+                    "(e.g., 'falciparum', 'human', 'Apicomplexa'). "
+                    "Returns matching codes for use in profile_pattern."
+                )
+            ),
+        ],
+        record_type: Annotated[
+            str, AIParam(desc="Record type (usually 'transcript')")
+        ] = "transcript",
+    ) -> JSONObject:
+        """Look up phyletic species codes by name for GenesByOrthologPattern.
+
+        Returns {code, label} pairs. Use the codes in profile_pattern:
+        CODE>=1T (include) or CODE=0T (exclude).
+        Example: lookup 'falciparum' -> pfal, then use 'pfal>=1T' in profile_pattern.
+        """
+        result: JSONObject = await self.catalog_tools.lookup_phyletic_codes(
+            self.site_id, record_type, query
+        )
+        return result
 
     @ai_function()
     async def get_dependent_vocab(

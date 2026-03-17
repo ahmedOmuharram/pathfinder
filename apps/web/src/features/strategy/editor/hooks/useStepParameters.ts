@@ -60,20 +60,21 @@ export function useStepParameters({
   });
 
   // -------------------------------------------------------------------------
-  // Reset params when spec key changes (step, record type, or search changed)
+  // Reset params when step identity or search name changes (user switched search).
+  // Keyed only on stepId + searchName — NOT record type, which can resolve
+  // asynchronously and cause a spurious reset that clears loaded params.
   // -------------------------------------------------------------------------
-  const resolvedSpecRecordType = resolveRecordTypeForSearch(selectedSearch?.recordType);
-  const specKey = `${stepId}:${resolvedSpecRecordType || ""}:${searchName || ""}`;
-  const prevSpecKey = usePrevious(specKey);
+  const identityKey = `${stepId}:${searchName || ""}`;
+  const prevIdentityKey = usePrevious(identityKey);
 
   useEffect(() => {
-    if (prevSpecKey === undefined) return;
-    if (prevSpecKey === specKey) return;
+    if (prevIdentityKey === undefined) return;
+    if (prevIdentityKey === identityKey) return;
     startTransition(() => {
       setParameters({});
       setRawParams("{}");
     });
-  }, [specKey, prevSpecKey]);
+  }, [identityKey, prevIdentityKey]);
 
   // -------------------------------------------------------------------------
   // Vocabulary options (derived from param specs)
@@ -89,6 +90,25 @@ export function useStepParameters({
     }, {});
   }, [paramSpecs]);
 
+  // -------------------------------------------------------------------------
+  // Hidden param defaults — for params with isVisible=false that no composite
+  // widget claims. These get merged into the save payload at lowest priority.
+  // -------------------------------------------------------------------------
+  const hiddenDefaults = useMemo(() => {
+    const defaults: StepParameters = {};
+    for (const spec of paramSpecs) {
+      if (spec.isVisible === false && spec.name) {
+        const defaultVal = spec.initialDisplayValue;
+        if (defaultVal != null) {
+          defaults[spec.name] = defaultVal;
+        } else if (spec.type === "input-step") {
+          defaults[spec.name] = "";
+        }
+      }
+    }
+    return defaults;
+  }, [paramSpecs]);
+
   return {
     parameters,
     setParameters,
@@ -99,6 +119,7 @@ export function useStepParameters({
     paramSpecs,
     isLoading,
     vocabOptions,
+    hiddenDefaults,
     dependentOptions,
     dependentLoading,
     dependentErrors,

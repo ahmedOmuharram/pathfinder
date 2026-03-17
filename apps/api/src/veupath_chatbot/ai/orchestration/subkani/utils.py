@@ -91,7 +91,8 @@ async def consume_subkani_round(
                 result.response_text = message.text
 
         if message.role == ChatRole.FUNCTION:
-            parsed = parse_jsonish(message.content)
+            content_text = message.content if isinstance(message.content, str) else None
+            parsed = parse_jsonish(content_text)
             if isinstance(parsed, dict) and parsed.get("stepId"):
                 result.created_steps.append(parsed)
             if isinstance(parsed, dict) and parsed.get("ok") is False:
@@ -109,7 +110,7 @@ async def consume_subkani_round(
                     "data": {
                         "task": task,
                         "id": message.tool_call_id,
-                        "result": message.content,
+                        "result": message.text,
                     },
                 }
             )

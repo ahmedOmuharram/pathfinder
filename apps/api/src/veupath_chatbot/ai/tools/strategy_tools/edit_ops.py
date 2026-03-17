@@ -59,7 +59,8 @@ class StrategyEditOps(StrategyToolsHelpers):
         for sid in to_remove:
             graph.steps.pop(sid, None)
 
-        graph.current_strategy = None
+        # Invalidate stale WDK build state — the strategy tree changed.
+        graph.invalidate_build()
         graph.last_step_id = next(iter(remaining), None)
         # Recompute the subtree-root set after bulk removal.
         graph.recompute_roots()
@@ -144,10 +145,25 @@ class StrategyEditOps(StrategyToolsHelpers):
                 stepId=step_id,
             )
 
+        # Track whether a substantive field changed (requires rebuild).
+        substantive_change = False
+
         if search_name:
             step.search_name = search_name
+            substantive_change = True
 
         if parameters is not None:
+            # Auto-expand organism for GenesByOrthologPattern (needs all leaves).
+            if step.search_name == "GenesByOrthologPattern":
+                from veupath_chatbot.services.strategies.step_creation import (
+                    _auto_expand_organism_param,
+                )
+
+                record_type = graph.record_type or "transcript"
+                parameters = await _auto_expand_organism_param(
+                    self.session.site_id, record_type, parameters
+                )
+
             # Validate parameters for leaf steps (no inputs) and transform
             # steps (primary_input set, no secondary_input).  Binary combine
             # steps are structurally defined and have no WDK params to check.
@@ -168,6 +184,7 @@ class StrategyEditOps(StrategyToolsHelpers):
                         exc, recordType=record_type, searchName=step.search_name
                     )
             step.parameters = parameters
+            substantive_change = True
 
         if operator is not None:
             if step.secondary_input is None:
@@ -177,8 +194,14 @@ class StrategyEditOps(StrategyToolsHelpers):
                     stepId=step_id,
                 )
             step.operator = parse_op(operator)
+            substantive_change = True
 
         if display_name:
             step.display_name = display_name
+
+        # Invalidate stale WDK build state so estimatedSize is not shown
+        # until the strategy is rebuilt.
+        if substantive_change:
+            graph.invalidate_build()
 
         return self._step_ok_response(graph, step)

@@ -36,6 +36,74 @@ FindRecordTypeHintFn = Callable[[str, str | None], Awaitable[str | None]]
 ExtractVocabOptionsFn = Callable[[JSONObject], list[str]]
 
 
+async def _auto_expand_organism_param(
+    site_id: str,
+    record_type: str,
+    parameters: JSONObject,
+) -> JSONObject:
+    """Auto-expand organism for GenesByOrthologPattern.
+
+    The search requires ALL leaf organisms to be selected to return results.
+    The model typically passes only one or a few. This fetches the organism
+    vocabulary tree and populates all leaf values automatically.
+    """
+    import json as _json
+
+    from veupath_chatbot.domain.parameters.vocab_utils import collect_leaf_terms
+
+    org_raw = parameters.get("organism")
+    current: list[str] = []
+    if isinstance(org_raw, str):
+        try:
+            parsed = _json.loads(org_raw)
+            if isinstance(parsed, list):
+                current = [str(v) for v in parsed]
+        except _json.JSONDecodeError:
+            current = [org_raw] if org_raw else []
+    elif isinstance(org_raw, list):
+        current = [str(v) for v in org_raw]
+
+    if len(current) > 5:
+        return parameters
+
+    try:
+        from veupath_chatbot.integrations.veupathdb.discovery import (
+            get_discovery_service,
+        )
+
+        discovery = get_discovery_service()
+        details = await discovery.get_search_details(
+            site_id, record_type, "GenesByOrthologPattern", expand_params=True
+        )
+        if not isinstance(details, dict):
+            return parameters
+        search_data = details.get("searchData", details)
+        if not isinstance(search_data, dict):
+            return parameters
+        raw_params = search_data.get("parameters", [])
+        if not isinstance(raw_params, list):
+            return parameters
+        for p in raw_params:
+            if not isinstance(p, dict) or p.get("name") != "organism":
+                continue
+            vocab = p.get("vocabulary")
+            if not isinstance(vocab, dict):
+                break
+            all_leaves = [t for t in collect_leaf_terms(vocab) if t != "@@fake@@"]
+            if all_leaves:
+                logger.info(
+                    "Auto-expanded organism for GenesByOrthologPattern",
+                    original_count=len(current),
+                    expanded_count=len(all_leaves),
+                )
+                return {**parameters, "organism": _json.dumps(all_leaves)}
+            break
+    except Exception as exc:
+        logger.warning("Failed to auto-expand organism param", error=str(exc))
+
+    return parameters
+
+
 @dataclass
 class StepCreationResult:
     """Result of step creation: either a successfully added step or an error payload."""
@@ -370,6 +438,14 @@ async def create_step(
     :returns: StepCreationResult with either step/step_id or error.
     """
     parameters = parameters or {}
+
+    # Auto-expand organism for GenesByOrthologPattern: the search requires ALL
+    # leaf organisms to be selected, but the model typically passes only one.
+    # Fetch the full vocabulary tree and populate all leaves automatically.
+    if search_name == "GenesByOrthologPattern":
+        parameters = await _auto_expand_organism_param(
+            site_id, record_type or "transcript", parameters
+        )
 
     # WDK compatibility: if caller encoded a boolean combine as WDK boolean-question
     # parameters, translate it into structural inputs.
