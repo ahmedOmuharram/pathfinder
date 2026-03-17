@@ -54,8 +54,8 @@ intersphinx_mapping = {
 
 html_theme = "furo"
 
-html_logo = "_static/pathfinder-logo.svg"
-html_favicon = "_static/pathfinder-logo.svg"
+html_logo = "_static/pathfinder-logo.png"
+html_favicon = "_static/pathfinder-logo.png"
 
 html_theme_options = {
     "light_css_variables": {

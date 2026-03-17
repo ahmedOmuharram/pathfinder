@@ -1,7 +1,7 @@
 <div align="center">
   <h1>
     <img
-      src="apps/web/public/pathfinder-white.svg"
+      src="apps/web/public/pathfinder.svg"
       alt="PathFinder"
       height="32"
       style="vertical-align: middle; margin-right: 8px;"

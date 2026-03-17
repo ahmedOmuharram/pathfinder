@@ -37,7 +37,7 @@ export function TopBar({ selectedSite, onSiteChange, actions }: TopBarProps) {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
             <Image
-              src="/pathfinder-white.svg"
+              src="/pathfinder.svg"
               alt="PathFinder"
               width={28}
               height={28}
