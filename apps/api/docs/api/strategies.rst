@@ -40,11 +40,11 @@ search names, step structure. Returns structured validation errors with field pa
    :undoc-members:
    :show-inheritance:
 
-WDK Bridge
-----------
+WDK Conversion
+--------------
 
-**Purpose:** Bridge between PathFinder strategy representation and WDK API
-payloads. Translates between domain models and WDK wire format.
+**Purpose:** Pure WDK → AST conversion. Parses WDK strategy payloads into
+internal ``StrategyAST``, extracts field values, and normalizes parameters.
 
 .. admonition:: WDK Wire Format and Parameter Coercion
    :class: note
@@ -60,7 +60,30 @@ payloads. Translates between domain models and WDK wire format.
    runs once per editor mount via ``coerceParametersForSpecs`` in the
    ``useStepParameters`` hook.
 
-.. automodule:: veupath_chatbot.services.strategies.wdk_bridge
+.. automodule:: veupath_chatbot.services.strategies.wdk_conversion
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+WDK Sync
+--------
+
+**Purpose:** Fetch WDK strategies and sync into CQRS projections.
+Lazy detail fetching, isSaved sync, and projection upsert.
+
+.. automodule:: veupath_chatbot.services.strategies.wdk_sync
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+WDK Step Counts
+---------------
+
+**Purpose:** Per-step result count computation. Uses anonymous reports
+for leaf-only strategies (fast) and temporary WDK compilation for complex
+strategies. Results are cached by plan hash.
+
+.. automodule:: veupath_chatbot.services.strategies.wdk_counts
    :members:
    :undoc-members:
    :show-inheritance:
