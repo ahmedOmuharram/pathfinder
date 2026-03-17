@@ -24,12 +24,11 @@ def go_search_params(
 ) -> dict[str, str]:
     """Build GenesByGoTerm search parameters.
 
-    Args:
-        organism: Organism full name (e.g. "Plasmodium falciparum 3D7").
-        go_id: GO term identifier (e.g. "GO:0004672").
-        evidence: Evidence code filter. Defaults to ``["Curated", "Computed"]``.
-        go_term_value: Value for the ``go_term`` field. Defaults to *go_id*.
-            GiardiaDB uses ``"N/A"`` here.
+    :param organism: Organism full name (e.g. "Plasmodium falciparum 3D7").
+    :param go_id: GO term identifier (e.g. "GO:0004672").
+    :param evidence: Evidence code filter. Defaults to ``["Curated", "Computed"]``.
+    :param go_term_value: Value for the ``go_term`` field. Defaults to *go_id*.
+        GiardiaDB uses ``"N/A"`` here.
     """
     if evidence is None:
         evidence = ["Curated", "Computed"]

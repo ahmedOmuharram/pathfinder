@@ -84,12 +84,24 @@ flattening, canonicalization, and value decoding. Used by catalog and tools.
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters.validation
+.. automodule:: veupath_chatbot.domain.parameters._value_helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
 .. automodule:: veupath_chatbot.domain.parameters.vocab_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Strategy Tree Walkers
+---------------------
+
+**Purpose:** Shared tree traversal utilities for strategy trees. Supports both
+dict-based (raw JSON) and AST-based (typed Pydantic) tree structures. Used by
+validation, compilation, and analysis.
+
+.. automodule:: veupath_chatbot.domain.strategy.tree
    :members:
    :undoc-members:
    :show-inheritance:

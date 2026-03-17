@@ -152,12 +152,11 @@ class ExperimentToolsMixin:
     ) -> JSONObject:
         """Run control tests against a WDK search OR a built strategy step.
 
-        Two modes:
-        1. **Standalone search**: provide target_search_name + target_parameters.
-           Creates a temporary WDK strategy to intersect.
-        2. **Built step**: provide wdk_step_id from list_current_steps.
-           Tests directly against the strategy's actual results (recommended
-           after building a multi-step strategy).
+        Two modes: (1) **Standalone search** — provide ``target_search_name`` +
+        ``target_parameters``; creates a temporary WDK strategy to intersect.
+        (2) **Built step** — provide ``wdk_step_id`` from ``list_current_steps``;
+        tests directly against the strategy's actual results (recommended after
+        building a multi-step strategy).
         """
         has_positives = positive_controls and len(positive_controls) > 0
         has_negatives = negative_controls and len(negative_controls) > 0

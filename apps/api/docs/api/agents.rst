@@ -5,6 +5,31 @@ Pathfinder uses two Kani-based agents: the main unified agent and
 sub-agents for delegated tasks. Both extend `Kani <https://github.com/zhudotexe/kani>`_
 with tools and prompts tailored to VEuPathDB strategy building.
 
+.. list-table:: Agent Comparison
+   :widths: 20 25 25 30
+   :header-rows: 1
+
+   * - Agent
+     - Purpose
+     - Tools
+     - When Used
+   * - **PathfinderAgent**
+     - Unified chat agent
+     - All tools (catalog, strategy, research, delegation)
+     - Every chat conversation
+   * - **SubtaskAgent**
+     - Delegated sub-task
+     - Same minus delegation
+     - Multi-step builds via sub-kani
+   * - **ExperimentAssistantAgent**
+     - Experiment wizard helper
+     - Research + catalog + gene lookup
+     - ``POST /api/v1/experiments/ai-assist``
+   * - **WorkbenchAgent**
+     - Workbench analysis chat
+     - 7 tool mixins (research, gene, catalog, refinement, analysis, workbench)
+     - Workbench conversations
+
 PathfinderAgent (Unified)
 -------------------------
 
@@ -22,6 +47,12 @@ update_step, etc.), conversation tools (save_strategy, load_strategy),
 research (web_search, literature_search), validation (run_control_tests,
 optimize_search_parameters, lookup_gene_records), artifacts
 (save_planning_artifact), and **delegate_strategy_subtasks**.
+
+.. tip::
+
+   The unified agent has no separate "plan mode" or "execute mode". The model
+   autonomously decides per-turn whether to research, plan, or build. This
+   matches how researchers naturally describe goals.
 
 .. automodule:: veupath_chatbot.ai.agents.executor
    :members:
@@ -43,6 +74,43 @@ Each sub-kani creates exactly one step (or edits one) and returns the result.
 task node in the delegation plan.
 
 .. automodule:: veupath_chatbot.ai.agents.subtask
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ExperimentAssistantAgent
+------------------------
+
+**Purpose:** Lightweight AI assistant for the Experiment Lab wizard. Scoped to
+research capabilities (web search, literature search, catalog tools, gene lookup)
+for helping users configure experiment steps.
+
+**Inherits:** :py:class:`~veupath_chatbot.ai.tools.research_registry.ResearchToolsMixin`, ``Kani``
+
+**Tools:** web_search, literature_search, catalog tools, gene lookup. No strategy
+mutation or delegation tools.
+
+**When used:** By the experiment wizard AI-assist endpoint
+(``POST /api/v1/experiments/ai-assist``).
+
+.. automodule:: veupath_chatbot.ai.agents.experiment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+WorkbenchAgent
+--------------
+
+**Purpose:** Full-featured conversational AI agent for the workbench. Provides
+experiment result exploration, gene set analysis, strategy refinement, and
+literature research within the context of a specific experiment.
+
+**Inherits:** Composes 7 tool mixins (research, gene, catalog, refinement,
+analysis, workbench read, workbench mutation) + ``Kani``
+
+**When used:** By the workbench chat endpoint, scoped to a (user_id, experiment_id) pair.
+
+.. automodule:: veupath_chatbot.ai.agents.workbench
    :members:
    :undoc-members:
    :show-inheritance:

@@ -16,6 +16,7 @@ src/shared_py/
 - `SearchNode`, `CombineNode`, `TransformNode` -- tree nodes for the strategy plan
 - `PlanNode` -- discriminated union of all node types
 - `StrategyPlan` -- complete plan with root node and metadata
+- `StrategyPlanMetadata` -- name, description, site ID, and timestamp for a plan
 - `ColocationParams` -- parameters for genomic colocation operations
 
 **Combine operators**: `CombineOperator` enum (INTERSECT, MINUS, RMINUS, LONLY, RONLY, COLOCATE, UNION) with display labels.
@@ -25,6 +26,8 @@ src/shared_py/
 **Site/catalog types**: `VEuPathDBSite`, `RecordType`, `Search`, `SearchParameter`.
 
 **Chat types**: `ChatMode`, `Message`, `ToolCall`, `ChatRequest`, `Conversation`.
+
+**Preview/Download types**: `PreviewRequest`, `PreviewResponse`, `DownloadRequest`, `DownloadResponse`.
 
 All models use `Field(alias=...)` for camelCase serialization with `populate_by_name=True` for Python-side snake_case access.
 

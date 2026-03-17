@@ -40,28 +40,45 @@ search names, step structure. Returns structured validation errors with field pa
    :undoc-members:
    :show-inheritance:
 
-Serialization
--------------
+WDK Bridge
+----------
 
-**Purpose:** Convert between domain AST and persistence format. Plan to/from
-JSON, strategy snapshots for undo and restore.
+**Purpose:** Bridge between PathFinder strategy representation and WDK API
+payloads. Translates between domain models and WDK wire format.
 
-**Key functions:** Plan serialization, snapshot build/restore
-
-.. automodule:: veupath_chatbot.services.strategies.serialization
+.. automodule:: veupath_chatbot.services.strategies.wdk_bridge
    :members:
    :undoc-members:
    :show-inheritance:
 
-WDK Snapshot
-------------
+Strategy Build
+--------------
 
-**Purpose:** Build WDK-compatible step trees and strategy payloads from the
-domain plan. Used when pushing to VEuPathDB or creating strategies.
+**Purpose:** High-level strategy build orchestration. Coordinates step
+creation and graph assembly.
 
-**Key functions:** ``_build_snapshot_from_wdk``, ``_build_node_from_wdk``
+.. automodule:: veupath_chatbot.services.strategies.build
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.wdk_snapshot
+Step Creation
+-------------
+
+**Purpose:** Create individual strategy steps with parameter validation
+and WDK integration.
+
+.. automodule:: veupath_chatbot.services.strategies.step_creation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Auto Import
+-----------
+
+**Purpose:** Automatic import of WDK strategies into PathFinder.
+
+.. automodule:: veupath_chatbot.services.strategies.auto_import
    :members:
    :undoc-members:
    :show-inheritance:
@@ -99,17 +116,6 @@ the correct step structure for WDK API calls.
    :undoc-members:
    :show-inheritance:
 
-WDK Counts
-----------
-
-**Purpose:** Fetch step result counts from WDK. Used to populate the
-strategy graph UI with result counts per step.
-
-.. automodule:: veupath_chatbot.services.strategies.wdk_counts
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Strategy Engine
 ---------------
 
@@ -127,6 +133,26 @@ step ordering, and execution helpers.
    :show-inheritance:
 
 .. automodule:: veupath_chatbot.services.strategies.engine.helpers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.graph_ops
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.id_mapping
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.step_builder
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.strategies.engine.validation
    :members:
    :undoc-members:
    :show-inheritance:

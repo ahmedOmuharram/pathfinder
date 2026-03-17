@@ -14,6 +14,48 @@ Overview
 - **Security** — Auth and authorization helpers.
 - **Logging** — Structured logging setup.
 
+Design Decisions
+~~~~~~~~~~~~~~~~
+
+.. dropdown:: Redis for event bus
+   :icon: broadcast
+
+   The platform event bus uses Redis Streams for durable
+   event delivery. Chat streams and experiment executions publish events that
+   clients consume via SSE. Redis Streams support consumer groups, cursor-based
+   replay, and TTL-based cleanup — all necessary for reliable long-running
+   operations that may outlive HTTP connections.
+
+.. dropdown:: Pydantic settings
+   :icon: gear
+
+   Configuration uses ``pydantic-settings`` with TOML +
+   environment variable layering. TOML provides checked-in defaults; environment
+   variables override for deployment. This avoids the "which .env file?" problem
+   while keeping sensitive values out of version control.
+
+.. dropdown:: Structured logging via structlog
+   :icon: log
+
+   All logging uses ``structlog`` with JSON
+   output. This enables structured queries in log aggregation tools (filtering by
+   ``user_id``, ``strategy_id``, ``tool_name``) without string parsing. Development
+   mode uses human-readable console output.
+
+.. dropdown:: Context variables for request state
+   :icon: link
+
+   Request-scoped state (auth token, user
+   ID, site context) propagates via Python ``contextvars``. This avoids threading
+   state through every function signature while remaining async-safe (each task
+   gets its own context copy).
+
+.. tip::
+
+   All configuration values can be overridden via environment variables.
+   See ``config.toml`` for defaults and ``platform/config.py`` for the
+   full settings schema.
+
 Config
 ------
 
@@ -83,6 +125,87 @@ Context
 user IDs, and other per-request data propagated via contextvars.
 
 .. automodule:: veupath_chatbot.platform.context
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Events
+------
+
+**Purpose:** Application event bus for cross-cutting concerns and
+inter-service communication.
+
+.. automodule:: veupath_chatbot.platform.events
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Health
+------
+
+**Purpose:** Health check logic and readiness probe implementation.
+
+.. automodule:: veupath_chatbot.platform.health
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Redis
+-----
+
+**Purpose:** Redis client management, connection pooling, and utilities.
+
+.. automodule:: veupath_chatbot.platform.redis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Store
+-----
+
+**Purpose:** Generic store abstractions for in-memory + persistence patterns.
+
+.. automodule:: veupath_chatbot.platform.store
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Tasks
+-----
+
+**Purpose:** Background task infrastructure and management.
+
+.. automodule:: veupath_chatbot.platform.tasks
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Tool Errors
+-----------
+
+**Purpose:** Tool-specific error formatting and handling utilities.
+
+.. automodule:: veupath_chatbot.platform.tool_errors
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Parsing
+-------
+
+**Purpose:** Input parsing utilities for request processing.
+
+.. automodule:: veupath_chatbot.platform.parsing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Pydantic Validation
+-------------------
+
+**Purpose:** Pydantic validation helpers and custom validators.
+
+.. automodule:: veupath_chatbot.platform.pydantic_validation
    :members:
    :undoc-members:
    :show-inheritance:

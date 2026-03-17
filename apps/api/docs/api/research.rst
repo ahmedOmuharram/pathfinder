@@ -14,6 +14,63 @@ Overview
 - **Research Utils** — Text normalization, fuzzy scoring, deduplication, filters.
 - **Clients** — Per-source API clients (Semantic Scholar, PubMed, etc.).
 
+Design Decisions
+~~~~~~~~~~~~~~~~
+
+.. dropdown:: Multi-source aggregation
+   :icon: globe
+
+   No single literature API has complete coverage.
+   Semantic Scholar excels at recent ML/CS papers; PubMed covers biomedical
+   literature; Europe PMC has open-access full text; OpenAlex provides broad
+   citation data. PathFinder queries all sources in parallel and deduplicates
+   by DOI/PMID, giving researchers the best coverage without requiring them to
+   know which API to use.
+
+.. dropdown:: Deduplication by DOI + PMID
+   :icon: duplicate
+
+   Papers appear in multiple databases. The
+   literature search generates a dedupe key from DOI (preferred) or PMID, removing
+   exact duplicates. Near-duplicates (different title casing, different abstract
+   length) are handled by fuzzy matching on normalized title + first author.
+
+.. dropdown:: DuckDuckGo for web search
+   :icon: search
+
+   DuckDuckGo's Instant Answer API requires no
+   API key and has generous rate limits. It's used for general web queries when
+   the agent needs non-academic information (documentation, protocols, methods).
+
+.. list-table:: Supported Research Sources
+   :widths: 25 25 50
+   :header-rows: 1
+
+   * - Source
+     - Type
+     - Coverage
+   * - Semantic Scholar
+     - Academic
+     - CS, ML, biomedical — citation graphs
+   * - PubMed
+     - Academic
+     - Biomedical literature (MEDLINE)
+   * - Europe PMC
+     - Academic
+     - Open-access full text, preprints
+   * - OpenAlex
+     - Academic
+     - Broad citation data, works metadata
+   * - Crossref
+     - Academic
+     - DOI metadata, publisher data
+   * - arXiv
+     - Preprint
+     - CS, math, physics, biology preprints
+   * - DuckDuckGo
+     - Web
+     - General web search (no API key required)
+
 Literature Search
 -----------------
 

@@ -7,10 +7,50 @@ for strategies and users. Used by the HTTP layer and background jobs.
 Overview
 --------
 
-- **ORM Models** — Strategy, User, StrategyHistory. Map to PostgreSQL tables.
+- **ORM Models** — User, ControlSet, and related models. Map to PostgreSQL tables.
 - **Session** — Async engine, session factory, init/close lifecycle.
-- **Repositories** — StrategyRepository, UserRepository.
+- **Repositories** — UserRepository, StreamRepository, ControlSetRepository.
   Encapsulate queries and CRUD.
+
+Design Decisions
+~~~~~~~~~~~~~~~~
+
+.. dropdown:: Async SQLAlchemy
+   :icon: zap
+
+   All database operations use ``async`` sessions with
+   ``asyncpg`` (PostgreSQL's native async driver). This ensures the event loop
+   is never blocked by database I/O, which matters for SSE streaming where many
+   concurrent connections share the same process.
+
+.. dropdown:: Repository pattern
+   :icon: package
+
+   Each domain entity (users, streams, control sets) has
+   its own repository class that encapsulates queries. Services never construct
+   raw SQL — they call repository methods. This makes testing easier (mock the
+   repository, not the database) and keeps SQL details out of business logic.
+
+.. dropdown:: Alembic for migrations
+   :icon: versions
+
+   Schema migrations use Alembic with async-compatible
+   migration scripts. ``create_all`` is retained for development convenience
+   (fresh databases), but production-like environments should use Alembic to
+   apply schema changes incrementally.
+
+.. dropdown:: UUID primary keys
+   :icon: key
+
+   All entities use UUID primary keys (via the custom
+   ``GUID`` type decorator) for globally unique, non-sequential identifiers. This
+   allows distributed ID generation without coordination and prevents information
+   leakage from sequential IDs.
+
+.. note::
+
+   Schema migrations use **Alembic** (see ``alembic/versions/``).
+   ``create_all`` is retained for development convenience on fresh databases.
 
 ORM Models
 ----------
@@ -42,12 +82,19 @@ Repositories
 ------------
 
 **Purpose:** Data access layer. Encapsulates queries and CRUD operations.
-StrategyRepository: get, create, update, delete strategies.
-UserRepository: users.
+Split into domain-specific repository modules.
 
-**Key classes:** :py:class:`StrategyRepository`
+.. automodule:: veupath_chatbot.persistence.repositories.user
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. automodule:: veupath_chatbot.persistence.repo
+.. automodule:: veupath_chatbot.persistence.repositories.stream
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.persistence.repositories.control_set
    :members:
    :undoc-members:
    :show-inheritance:

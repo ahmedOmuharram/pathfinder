@@ -16,29 +16,32 @@ FastAPI backend for PathFinder. It exposes a streaming chat API (SSE) that runs 
 ```
 src/veupath_chatbot/
   ai/                        # Agent construction and orchestration
-    agents/                  #   Unified PathfinderAgent, subtask agent, experiment agent, factory
+    agents/                  #   Unified PathfinderAgent, subtask agent, factory
     models/                  #   Model catalog: provider mappings, reasoning config
-    orchestration/           #   Sub-agent delegation, scheduler, subkani orchestrator
+    orchestration/           #   Sub-agent delegation, scheduler
       subkani/               #     SubKani multi-agent coordination
     prompts/                 #   System prompt templates and loader
     stubs/                   #   Type stubs for downstream extensions
     tools/                   #   All agent tools (unified -- no mode split)
-      planner/               #     Artifact, experiment, gene, optimization tools
+      planner/               #     Artifact, experiment, gene, optimization, workbench tools
       strategy_tools/        #     Strategy graph mutation tools (step_ops, graph_ops, etc.)
       unified_registry.py    #     Unified tool registry mixin
       catalog_tools.py       #     Catalog browsing tools
+      catalog_registry.py    #     Catalog tool registry
       catalog_rag_tools.py   #     RAG-backed catalog search
       conversation_tools.py  #     Conversation management tools
       execution_tools.py     #     Strategy execution tools
+      export_tools.py        #     Data export tools
       result_tools.py        #     Result retrieval tools
       research_registry.py   #     Research/literature tool registry
       strategy_registry.py   #     Strategy tool registry
       registry.py            #     Base tool registry
+      wdk_error_handler.py   #     WDK error handling
+      workbench_read_tools.py #    Workbench data access tools
   domain/                    # Core business logic (no I/O)
     parameters/              #   Parameter decoding, validation, vocabulary resolution
     research/                #   Citation extraction and research helpers
-    strategy/                #   Strategy compilation, explanation, metadata, session
-      validate/              #     Plan validation against WDK constraints
+    strategy/                #   Strategy AST, compilation, explanation, metadata, validation
   integrations/              # External service clients
     embeddings/              #   OpenAI embedding client
     vectorstore/             #   Qdrant wrapper, collections, ingestion pipeline
@@ -47,45 +50,64 @@ src/veupath_chatbot/
       strategy_api/          #     Strategy CRUD, steps, reports, helpers
   jobs/                      # Background tasks (startup ingestion)
   persistence/               # Database layer
-    repositories/            #   SQLAlchemy repositories (strategies, sessions, experiments)
+    repositories/            #   SQLAlchemy repositories (users, streams, control sets)
   platform/                  # Shared infrastructure
     config.py                #   Settings (API keys, DB URL, feature flags)
     context.py               #   Request-scoped context variables
     errors.py                #   Error codes and exception types
+    events.py                #   Event bus for cross-cutting concerns
+    health.py                #   Health check logic
     logging.py               #   Structured logging setup
+    parsing.py               #   Input parsing utilities
+    pydantic_validation.py   #   Pydantic validation helpers
+    redis.py                 #   Redis client and connection management
     security.py              #   Auth and authorization helpers
+    store.py                 #   Generic store abstractions
+    tasks.py                 #   Background task infrastructure
+    tool_errors.py           #   Tool-specific error formatting
     types.py                 #   JSONObject, JSONArray, JSONValue aliases
   services/                  # Application services
     catalog/                 #   Catalog browsing, search spec loading, parameter helpers
       parameters/            #     Parameter-specific catalog logic
     chat/                    #   Chat orchestration and message processing
       orchestrator.py        #     SSE stream entry point, agent construction
-      processor.py           #     Stream processing, event handling
-      bootstrap.py           #     Strategy/history initialization
+      streaming.py           #     Stream processing, event handling
       events.py              #     Chat event types
-      event_handlers.py      #     Event dispatch logic
-      finalization.py        #     Post-stream cleanup
       mention_context.py     #     @mention context injection
-      message_builder.py     #     Message construction helpers
-      thinking.py            #     Thinking/reasoning display
+      utils.py               #     Shared chat utilities
     experiment/              #   Experiment mode (comparison, evaluation, enrichment)
       core/                  #     Experiment config, streaming
-      seed/                  #     Experiment seeding data
+      seed/                  #     Experiment seeding (per-database seed definitions)
       step_analysis/         #     Per-step analysis utilities
       types/                 #     Experiment Pydantic models
+    export/                  #   Data export (CSV, TXT)
     gene_lookup/             #   Gene ID resolution
+    gene_sets/               #   Gene set management (CRUD, confidence, ensemble)
     parameter_optimization/  #   Parameter tuning via optimization loops
     research/                #   Research paper retrieval
-      clients/               #     External research API clients
+      clients/               #     External research API clients (PubMed, arXiv, etc.)
     strategies/              #   Strategy lifecycle
       engine/                #     Graph integrity, step ordering, execution helpers
+    wdk/                     #   WDK integration helpers (enrichment, record types, results)
+    workbench_chat/          #   Workbench-specific chat orchestration
   transport/                 # HTTP layer
     http/
-      routers/               #   FastAPI routers (chat, strategies, experiments, sites, etc.)
-        experiments/          #     CRUD, execution, evaluation, analysis, comparison, etc.
-        strategies/           #     CRUD, plan, counts, WDK import
-        steps/                #     Step-level endpoints
+      routers/               #   FastAPI routers
+        chat.py              #     Chat SSE endpoint
+        control_sets.py      #     Control set CRUD
+        dev.py               #     Dev login and utilities
+        exports.py           #     Data export endpoints
+        gene_sets.py         #     Gene set CRUD
+        health.py            #     Health/readiness probes
+        internal.py          #     Internal admin endpoints
+        models.py            #     Model catalog endpoints
+        operations.py        #     Long-running operation tracking
+        tools.py             #     Tool listing endpoint
+        user_data.py         #     User data management
+        veupathdb_auth.py    #     VEuPathDB auth proxy
+        experiments/          #     Experiment CRUD, execution, evaluation, analysis, etc.
         sites/                #     Site-scoped catalog, gene, parameter endpoints
+        strategies/           #     Strategy CRUD, plan, counts, WDK import
       schemas/               #   Pydantic request/response DTOs
       deps.py                #   FastAPI dependencies (auth, DB, site context)
       streaming.py           #   SSE event formatting and stream lifecycle
@@ -118,8 +140,8 @@ There is a single `PathfinderAgent` that has access to all tools -- strategy con
 **Persistence**:
 
 - PostgreSQL via SQLAlchemy async sessions
-- Repositories in `persistence/repositories/` for strategies, sessions, experiments
-- Schema created via `create_all` (no Alembic migrations yet)
+- Repositories in `persistence/repositories/` for users, streams, control sets
+- Uses **Alembic** for schema migrations (see `alembic/versions/`). Initial schema is also bootstrapped via `create_all` for development convenience.
 
 **VEuPathDB integration**:
 
@@ -139,7 +161,7 @@ Common env vars:
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` if using those providers)
 - `API_SECRET_KEY` (32+ chars)
 - `DATABASE_URL` (defaults to PostgreSQL on `localhost:5432` if unset)
-- `DEFAULT_MODEL_ID`, `DEFAULT_REASONING_EFFORT` (optional; defaults are `openai/gpt-5` and `medium`)
+- `DEFAULT_MODEL_ID`, `DEFAULT_REASONING_EFFORT` (optional; defaults are `openai/gpt-4.1` and `medium`)
 - `QDRANT_URL`, `QDRANT_API_KEY` (optional; compose sets container-friendly defaults)
 - Startup-ingestion tuning lives in `config.toml` (keys: `rag_startup_*`)
 
@@ -185,7 +207,7 @@ uv run mypy src
 
 - Uses SQLAlchemy async sessions (`src/veupath_chatbot/persistence/session.py`).
 - Dev defaults to **PostgreSQL** (to match Docker/production).
-- There is **no Alembic migrations workflow yet**; schema is created via `create_all`.
+- Uses **Alembic** for schema migrations (see `alembic/versions/`). Initial schema is also bootstrapped via `create_all` for development convenience.
 
 ### RAG / Qdrant
 

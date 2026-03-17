@@ -44,11 +44,26 @@ so that nodes run only after their dependencies complete.
    :undoc-members:
    :show-inheritance:
 
-Subkani Utils
--------------
+Sub-kani Prompts
+----------------
 
-**Purpose:** Helpers for subkani: format task context, extract step IDs from
-results, consume subkani round output.
+**Purpose:** Prompt construction for sub-kani execution rounds. Composes task
+descriptions, goals, graph context, and dependency rules into execution prompts.
+
+.. automodule:: veupath_chatbot.ai.orchestration.subkani.prompts
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Sub-kani Utilities
+------------------
+
+**Purpose:** Utilities for coordinating sub-kani task execution. Parses
+sub-kani responses, extracts created steps, manages token counting and
+error aggregation.
+
+**Key types:** ``SubKaniRoundResult`` -- Captures token usage, created step IDs,
+and errors from a sub-kani round.
 
 .. automodule:: veupath_chatbot.ai.orchestration.subkani.utils
    :members:

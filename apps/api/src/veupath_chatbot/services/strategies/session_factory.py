@@ -21,14 +21,12 @@ def build_strategy_session(
 ) -> StrategySession:
     """Build a StrategySession from a persisted strategy graph payload.
 
-    This mirrors UI persistence semantics:
-    - Prefer canonical `plan` if present/parseable.
-    - Fall back to snapshot-derived `steps` + `rootStepId` hydration when
-      plan is missing/invalid.
+    This mirrors UI persistence semantics: prefer canonical ``plan`` if
+    present/parseable, fall back to snapshot-derived ``steps`` + ``rootStepId``
+    hydration when plan is missing/invalid.
 
     :param site_id: VEuPathDB site identifier.
     :param strategy_graph: JSONObject | None.
-
     """
 
     session = StrategySession(site_id)

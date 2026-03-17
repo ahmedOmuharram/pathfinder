@@ -8,6 +8,7 @@ Shared TypeScript types and validators used by the web app and any TS tooling ar
 src/
   index.ts                 # Package entry point (re-exports types.ts)
   types.ts                 # Core type definitions and constants
+  defaults.ts              # Default values and shared constants
   zod.ts                   # Zod runtime validators for API payloads
   openapi.generated.ts     # Auto-generated types from OpenAPI spec
 ```

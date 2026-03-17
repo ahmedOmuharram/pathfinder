@@ -8,8 +8,8 @@
     />
     PathFinder
   </h1>
-  <p>An open-source tool-calling LLM agent for constructing VEuPathDB search strategies (WDK strategy graphs).</p>
-  <p><strong><em>How Underspecified Prompts Shape Tool-Calling LLM Agents in Scientific Workflows, Chapter II</em></strong></p>
+  <p>An open-source tool-calling LLM agent for constructing VEuPathDB search strategies.</p>
+  <p><strong><em>How Underspecified Prompts Shape Tool-Calling LLM Agents in Scientific Workflows</em></strong></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?logo=python&logoColor=white" alt="Python 3.14+" />
     <img src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=node.js&logoColor=white" alt="Node.js 24+" />
@@ -43,11 +43,14 @@ This repo is organized as:
   - A single **unified agent** that can research, plan, and execute tool calls -- the model decides which capability to use on each turn.
 - **`apps/web/`**: Next.js UI
   - Chat UI with strategy graph visualization, step editing, and result panes.
+  - **Workbench** for gene set management and multi-panel analysis (enrichment, distributions, cross-validation).
   - Proxies API routes via Next rewrites (see `apps/web/next.config.js`).
 - **`packages/shared-ts/`**: shared TypeScript types (and OpenAPI tooling)
   - The web app imports types via TS path mapping to `packages/shared-ts/src` (see `apps/web/tsconfig.json`).
 - **`packages/shared-py/`**: shared Pydantic models (Python)
 - **`packages/spec/`**: OpenAPI spec (`packages/spec/openapi.yaml`)
+
+The API also includes: gene set management, experiment lab, export tools, model catalog with token metrics, and workbench chat.
 
 ## How it works (high level)
 
@@ -181,7 +184,7 @@ docker compose up --build
 
 Notes:
 
-- Compose includes **Postgres + Qdrant** by default.
+- Compose includes **Postgres, Redis, and Qdrant** by default.
 
 ### Populate Qdrant (RAG ingestion)
 
@@ -220,7 +223,7 @@ uv run uvicorn veupath_chatbot.main:app --reload --host 0.0.0.0 --port 8000
 If you’re not running the full stack via Docker Compose, you still need local services:
 
 ```bash
-docker compose up -d db qdrant
+docker compose up -d db redis qdrant
 ```
 
 Web:
@@ -284,20 +287,17 @@ The web app also uses path-based imports for shared TS types (see `apps/web/tsco
 
 PathFinder is a research-driven prototype. These are the biggest gaps you should expect today:
 
-- **CI/CD**: GitHub Actions workflows exist (see `.github/workflows/ci.yml`).
+- **CD (deployment pipelines)**: CI exists (`.github/workflows/ci.yml`) but there is no continuous deployment pipeline yet.
 - **License**: no `LICENSE` file yet (important for a truly open-source distribution).
 - **Contribution docs**: no `CONTRIBUTING.md`, no governance/release process.
 - **Production hardening**
   - readiness endpoint notes missing DB/Redis checks (`/health/ready` TODO)
   - no documented deployment path (containers, reverse proxy, secrets management)
   - limited auth story (VEuPathDB auth integration is evolving)
-- **Database migrations**: schema is created via SQLAlchemy `create_all`; Alembic is listed as a dependency but not set up as a migrations workflow.
-- **Qdrant in Docker**: RAG is implemented, ingestion scripts exist, and Qdrant is included in `docker-compose.yml`.
-- **Evaluation** (thesis): reproducible experiments/benchmarks, datasets, and metrics for “vagueness” handling are not yet packaged as a part of the suite.
+- **Database migrations**: Alembic is set up with 4 migrations, but schema creation still relies on SQLAlchemy `create_all`; Alembic is not yet used as the primary migration workflow.
+- **Evaluation** (thesis): an evaluation framework exists in `thesis/eval/` (gold strategies, prompts, analysis scripts), but reproducible experiment packaging and benchmarks are still in progress.
 
-If you’re looking for “good first PRs”, adding CI (pytest/ruff/mypy + web lint/typecheck/tests) and formalizing licensing/docs would be the highest impact.
-
-## Thesis context: “Linguistic Vagueness in Tool-Calling LLM Agents”
+## Thesis context: “How Underspecified Prompts Shape Tool-Calling LLM Agents in Scientific Workflows”
 
 PathFinder is built around the idea that ambiguous or underspecified requests are normal when humans describe complex strategies. The system therefore emphasizes:
 

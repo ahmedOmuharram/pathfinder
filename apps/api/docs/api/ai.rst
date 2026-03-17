@@ -12,6 +12,12 @@ Overview
 - **Model Catalog** — Model metadata, provider mappings, reasoning-effort config.
   Populates the model picker; enforces sampling constraints.
 
+.. note::
+
+   The default model is ``openai/gpt-4.1``. Override per-request via the
+   ``model`` field in the chat request body, or set ``DEFAULT_MODEL_ID``
+   in the environment.
+
 Agent Factory
 -------------
 
@@ -53,6 +59,23 @@ Prompt templates with site context, strategy state, and tool instructions.
    :show-inheritance:
 
 .. automodule:: veupath_chatbot.ai.prompts.loader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.ai.prompts.workbench_chat
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Model Pricing
+-------------
+
+**Purpose:** Cost estimation utilities for LLM API calls. Calculates USD cost
+per request accounting for prompt tokens, completion tokens, and cached token
+discounts.
+
+.. automodule:: veupath_chatbot.ai.models.pricing
    :members:
    :undoc-members:
    :show-inheritance:

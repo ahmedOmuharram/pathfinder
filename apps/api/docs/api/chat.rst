@@ -4,24 +4,43 @@ Chat & Orchestration
 Chat event handling, streaming, and orchestration of the agent flow.
 Coordinates between HTTP, the agent, and the strategy store.
 
+.. mermaid::
+
+   sequenceDiagram
+       participant Client
+       participant Router
+       participant Orchestrator
+       participant Agent
+       participant WDK
+
+       Client->>Router: POST /api/v1/chat
+       Router->>Orchestrator: start_chat_stream()
+       Orchestrator->>Agent: create PathfinderAgent
+       loop Streaming
+           Agent->>Agent: tool call (e.g. create_step)
+           Agent->>WDK: WDK API call
+           WDK-->>Agent: result
+           Agent-->>Orchestrator: SSE event
+           Orchestrator-->>Client: SSE: tool_call_start/end
+       end
+       Agent-->>Orchestrator: final message
+       Orchestrator-->>Client: SSE: message_end
+
 Overview
 --------
 
-- **Bootstrap** — Load messages, attach thinking state, set up streaming.
-  Used when the chat HTTP endpoint is hit.
-- **Orchestrator** — Run the agent loop: send messages, handle tool calls,
-  apply graph snapshots, emit SSE events.
+- **Events** — Chat event type definitions
+- **Orchestrator** — Run the agent loop, emit SSE events
+- **Streaming** — Stream processing and event handling
+- **Mention Context** — @mention context injection
+- **Utils** — Shared chat utilities
 
-Chat Bootstrap
---------------
+Chat Events
+-----------
 
-**Purpose:** Bootstrap the chat session. Load existing messages from the
-strategy conversation, attach thinking state, set up streaming. Used by
-the chat HTTP endpoint before starting the stream.
+**Purpose:** Chat event type definitions for the event bus.
 
-**Key functions:** Session loading, message merge, thinking state init
-
-.. automodule:: veupath_chatbot.services.chat.bootstrap
+.. automodule:: veupath_chatbot.services.chat.events
    :members:
    :undoc-members:
    :show-inheritance:
@@ -41,14 +60,13 @@ Coordinates between the agent and the strategy store.
    :undoc-members:
    :show-inheritance:
 
-Chat Stream Processor
----------------------
+Chat Streaming
+--------------
 
-**Purpose:** Process SSE events from the agent stream. Handles strategy
-updates, tool calls, assistant messages, and sub-kani activity. Persists
-state to the strategy conversation.
+**Purpose:** Stream processing for the chat agent. Handles SSE event
+formatting and stream lifecycle management.
 
-.. automodule:: veupath_chatbot.services.chat.processor
+.. automodule:: veupath_chatbot.services.chat.streaming
    :members:
    :undoc-members:
    :show-inheritance:

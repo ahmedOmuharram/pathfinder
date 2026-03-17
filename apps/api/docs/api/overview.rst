@@ -8,45 +8,53 @@ orchestration, delegation plans, and the end-to-end request flow.
 Application Areas
 -----------------
 
-Pathfinder has two main user-facing areas:
+.. grid:: 3
+   :gutter: 3
 
-1. **Chat** (home page) — A single unified agent for building/editing strategy
-   graphs via natural language. Every conversation is backed by a strategy.
-   Uses ``POST /api/v1/chat``. The agent decides when to research (explore
-   the catalog, search literature, run control tests) versus execute
-   (build steps, compose strategies). Supports **@-mentions** of strategies
-   and experiments (see :ref:`overview-mentions`).
+   .. grid-item-card:: Chat
+      :class-card: sd-border-primary
 
-2. **Experiment Lab** (``/experiments`` page) — Evaluate search/strategy
-   performance with control sets, metrics, cross-validation, enrichment, and
-   step analysis. Not a chat mode; it has its own setup flows and endpoints.
-   Experiment **modes** are: **single** (one search), **multi-step** (strategy
-   graph), **import** (existing WDK strategy). See :doc:`experiments` for
-   endpoints and flows.
+      Unified agent for building/editing strategy graphs via natural language.
+      Uses ``POST /api/v1/chat``. The agent decides per-turn whether to
+      research, plan, or execute. Supports **@-mentions** of strategies and
+      experiments (see :ref:`overview-mentions`).
+
+   .. grid-item-card:: Experiment Lab
+      :class-card: sd-border-warning
+
+      Evaluate search/strategy performance at ``/experiments``. Modes:
+      **single** (one search), **multi-step** (strategy graph), **import**
+      (existing WDK strategy). See :doc:`experiments`.
+
+   .. grid-item-card:: Workbench
+      :class-card: sd-border-success
+
+      AI-powered analysis at ``/workbench``. Gene set exploration,
+      enrichment, distributions, cross-validation. Conversational
+      WorkbenchAgent scoped to experiment context. See :doc:`gene_sets`.
 
 High-Level Chat Flow
 --------------------
 
-::
+.. mermaid::
 
-  HTTP Request (POST /api/v1/chat)
-       │
-       ▼
-  Chat Orchestrator (start_chat_stream)
-       │
-       ▼
-  PathfinderAgent (unified)  ──► All tools (catalog, research, graph building, artifacts, optimization)
-       │
-       │  when multi-step build
-       ▼
-  delegate_strategy_subtasks
-       │
-       ▼
-  Sub-kani Orchestrator
-       │
-       ├── Spawn SubtaskAgent(s) for each task node
-       ├── Run with dependency order (left before right, etc.)
-       └── Emit subkani_task_start/end, tool_call events
+   flowchart TD
+       A["POST /api/v1/chat"] --> B["Chat Orchestrator"]
+       B --> C["PathfinderAgent (unified)"]
+       C --> D{"Single-step?"}
+       D -->|yes| E["Direct tool calls"]
+       D -->|no| F["delegate_strategy_subtasks"]
+       F --> G["Sub-kani Orchestrator"]
+       G --> H["SubtaskAgent 1"]
+       G --> I["SubtaskAgent 2"]
+       G --> J["SubtaskAgent N"]
+       H --> K["Combine Steps"]
+       I --> K
+       J --> K
+
+       style A fill:#2563eb,color:#fff
+       style C fill:#7c3aed,color:#fff
+       style G fill:#0891b2,color:#fff
 
 What Kani Does
 --------------
@@ -88,6 +96,8 @@ compose strategies). Every conversation is backed by a strategy.
   ``run_control_tests``, ``optimize_search_parameters``,
   ``lookup_gene_records``, ``save_planning_artifact``.
 - **Delegation:** ``delegate_strategy_subtasks`` for multi-step builds.
+- **Export / results:** ``get_step_results``, ``export_strategy``,
+  ``export_gene_set``.
 
 For **single-step** builds, the agent calls tools directly.
 For **multi-step** builds (2+ steps, combines, transforms), the agent
@@ -137,16 +147,30 @@ and consumes them via ``delegate_strategy_subtasks(goal, plan)``.
 SSE Event Contract
 ------------------
 
-The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.http.streaming`):
+The chat stream emits these event types (see :py:mod:`veupath_chatbot.transport.http.sse`):
 
-- ``message_start`` — New turn; includes strategy snapshot.
-- ``tool_call_start`` / ``tool_call_end`` — Main agent tool execution.
-- ``subkani_task_start`` / ``subkani_tool_call_start`` / ``subkani_tool_call_end`` / ``subkani_task_end`` — Sub-kani activity.
-- ``strategy_update`` — Graph changed (new step, update, delete).
-- ``graph_snapshot`` — Full graph state.
-- ``assistant_delta`` / ``assistant_message`` — Streaming text.
-- ``optimization_progress`` — Parameter optimization updates.
-- ``message_end`` — Turn complete.
+.. list-table:: SSE Event Types
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Event
+     - Description
+   * - ``message_start``
+     - New turn; includes strategy snapshot
+   * - ``tool_call_start`` / ``tool_call_end``
+     - Main agent tool execution
+   * - ``subkani_task_start`` / ``subkani_task_end``
+     - Sub-kani activity lifecycle
+   * - ``strategy_update``
+     - Graph changed (new step, update, delete)
+   * - ``graph_snapshot``
+     - Full graph state
+   * - ``assistant_delta`` / ``assistant_message``
+     - Streaming text
+   * - ``optimization_progress``
+     - Parameter optimization updates
+   * - ``message_end``
+     - Turn complete
 
 .. _overview-mentions:
 
@@ -161,11 +185,104 @@ experiment". See :py:mod:`veupath_chatbot.services.chat.mention_context`:
 ``"strategy"`` and ``"experiment"``; each mention has ``type``, ``id``, and
 ``displayName``.
 
+Architecture Layers
+-------------------
+
+The backend follows a layered architecture with strict dependency rules:
+
+.. mermaid::
+
+   flowchart TD
+       T["Transport<br/><small>FastAPI routers, SSE, schemas</small>"] --> S["Services<br/><small>Business logic orchestration</small>"]
+       S --> D["Domain<br/><small>Strategy AST, parameters — pure, no I/O</small>"]
+       S --> I["Integrations<br/><small>WDK client, Qdrant, embeddings</small>"]
+       S --> P["Persistence<br/><small>PostgreSQL, Redis</small>"]
+
+       style T fill:#2563eb,color:#fff
+       style S fill:#7c3aed,color:#fff
+       style D fill:#059669,color:#fff
+       style I fill:#d97706,color:#fff
+       style P fill:#dc2626,color:#fff
+
+**Key rules:**
+
+- **Transport** depends on Services but never on Domain directly.
+- **Services** orchestrate Domain + Integrations + Persistence.
+- **Domain** has zero external dependencies — pure Python, no I/O.
+- **Integrations** are thin HTTP/gRPC clients; business logic lives in Services.
+- **Persistence** uses the repository pattern; services never write raw SQL.
+
+Design Decisions
+~~~~~~~~~~~~~~~~
+
+.. dropdown:: Why a unified agent instead of plan-then-execute?
+   :class-title: sd-font-weight-bold
+
+   Early prototypes had separate "plan mode" and "execute mode" that the user
+   toggled manually. This forced researchers to understand the system's internal
+   workflow. The unified agent lets the model decide per-turn whether to
+   research, plan, or execute — matching how researchers naturally describe
+   goals ("find genes involved in drug resistance and intersect with high
+   expression").
+
+.. dropdown:: Why sub-kani delegation for multi-step builds?
+   :class-title: sd-font-weight-bold
+
+   A single agent building a 5-step strategy must maintain context across many
+   tool calls. Sub-kanis isolate each step construction into a focused task
+   with clear inputs and outputs. The orchestrator handles dependency ordering
+   and combine steps, reducing the main agent's cognitive load.
+
+.. dropdown:: Why SSE instead of WebSocket?
+   :class-title: sd-font-weight-bold
+
+   SSE is simpler (HTTP/1.1 compatible, no upgrade handshake), unidirectional
+   (server -> client, which matches our stream-only chat model), and natively
+   supported by browsers. The client sends new messages via POST; the server
+   streams responses via SSE. This avoids the complexity of bidirectional
+   WebSocket state management.
+
+.. dropdown:: Why Redis for events?
+   :class-title: sd-font-weight-bold
+
+   Chat streams and experiment executions are long-running operations that can
+   outlive individual HTTP connections. Redis Streams provide durable event logs
+   that clients can reconnect to, replay from a cursor, and consume across
+   process restarts. PostgreSQL handles the final persisted state; Redis handles
+   the ephemeral event flow.
+
 See Also
 --------
 
-- :doc:`experiments` — Experiment Lab: modes, execution, analysis, control sets
-- :doc:`agents` — PathfinderAgent (unified), SubtaskAgent
-- :doc:`subkani` — Sub-kani orchestrator and scheduler
-- :doc:`delegation` — Delegation plan schema and validation
-- :doc:`ai_functions` — Full AI function reference
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: Experiment Lab
+      :link: experiments
+      :link-type: doc
+
+      Modes, execution, analysis, and control sets.
+
+   .. grid-item-card:: PathfinderAgent & SubtaskAgent
+      :link: agents
+      :link-type: doc
+
+      Unified agent and sub-agent architecture.
+
+   .. grid-item-card:: Sub-kani Orchestrator
+      :link: subkani
+      :link-type: doc
+
+      Orchestrator and scheduler for delegated tasks.
+
+   .. grid-item-card:: Delegation Plans
+      :link: delegation
+      :link-type: doc
+
+      Plan schema and validation.
+
+   .. grid-item-card:: AI Functions
+      :link: ai_functions
+      :link-type: doc
+
+      Full AI function reference.

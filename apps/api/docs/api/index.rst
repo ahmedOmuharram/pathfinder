@@ -21,9 +21,12 @@ alphabetical index of all documented objects.
    delegation
    ai_functions
    ai
+   engines
    tools
    services
+   gene_sets
    integrations
+   wdk_services
    domain
    strategies
    chat

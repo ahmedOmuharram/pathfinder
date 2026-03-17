@@ -1,0 +1,95 @@
+/* PathFinder Sphinx custom styles */
+
+/* ── Admonition styling ──────────────────────────────────────────────── */
+
+/* Design Decision admonitions (use .. admonition:: Design Decision) */
+.admonition.design-decision {
+    border-left-color: #8b5cf6;
+}
+.admonition.design-decision > .admonition-title {
+    background-color: rgba(139, 92, 246, 0.1);
+}
+.admonition.design-decision > .admonition-title::before {
+    content: "\f0eb";  /* lightbulb */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-right: 0.4em;
+}
+
+/* Architecture note styling */
+.admonition.architecture {
+    border-left-color: #0891b2;
+}
+.admonition.architecture > .admonition-title {
+    background-color: rgba(8, 145, 178, 0.1);
+}
+
+/* ── Code block enhancements ─────────────────────────────────────────── */
+
+/* Tighter code blocks */
+div.highlight pre {
+    padding: 0.8em 1em;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+/* ── Mermaid diagram sizing ──────────────────────────────────────────── */
+
+.mermaid {
+    margin: 1.5em auto;
+    text-align: center;
+}
+
+/* ── Cards (sphinx-design) ───────────────────────────────────────────── */
+
+.sd-card {
+    border-radius: 8px !important;
+    transition: box-shadow 0.2s ease;
+}
+.sd-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Math blocks ─────────────────────────────────────────────────────── */
+
+div.math {
+    padding: 0.5em 0;
+}
+
+/* ── Layer diagram (ASCII art) ───────────────────────────────────────── */
+
+.layer-diagram pre {
+    font-size: 0.8em;
+    line-height: 1.6;
+    background: var(--color-background-secondary);
+    border-radius: 6px;
+    padding: 1em;
+}
+
+/* ── Sidebar API version badge ───────────────────────────────────────── */
+
+.sidebar-brand {
+    font-weight: 600;
+}
+
+/* ── Table styling ───────────────────────────────────────────────────── */
+
+table.docutils {
+    border-collapse: collapse;
+    width: 100%;
+}
+table.docutils th {
+    background-color: var(--color-background-secondary);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.5em 0.8em;
+}
+table.docutils td {
+    padding: 0.4em 0.8em;
+}
+
+/* ── Inline tabs (sphinx-inline-tabs) ────────────────────────────────── */
+
+.sd-tab-set > label {
+    font-size: 0.9em;
+}

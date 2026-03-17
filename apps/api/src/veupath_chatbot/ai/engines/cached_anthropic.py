@@ -14,10 +14,9 @@ from kani.models import FunctionCall, MessagePart, ToolCall
 class CachedAnthropicEngine(AnthropicEngine):
     """AnthropicEngine subclass that adds prompt caching and fixes thinking blocks.
 
-    Fixes:
     - Anthropic's prompt caching reduces cache-hit costs by 90%.
-    - Wraps single-MessagePart content in a list to prevent Pydantic
-      validation errors when the response is a bare thinking block.
+    - Wraps single-MessagePart content in a list to prevent Pydantic validation
+      errors when the response is a bare thinking block.
     """
 
     @staticmethod
