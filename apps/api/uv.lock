@@ -977,7 +977,7 @@ wheels = [
 
 [[package]]
 name = "pathfinder-api"
-version = "1.0.0"
+version = "0.1.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -1089,7 +1089,7 @@ dev = [
 
 [[package]]
 name = "pathfinder-shared"
-version = "1.0.0"
+version = "0.1.0a1"
 source = { editable = "../../packages/shared-py" }
 dependencies = [
     { name = "pydantic" },

@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 project = "PathFinder API"
 copyright = "2025, Ahmed Muharram"
 author = "Ahmed Muharram"
-release = "1.0.0"
+version = "0.1.0-alpha"
+release = "0.1.0-alpha"
 
 # -- General configuration ---------------------------------------------------
 
@@ -53,7 +54,12 @@ intersphinx_mapping = {
 
 html_theme = "furo"
 
+html_logo = "_static/pathfinder-logo.svg"
+html_favicon = "_static/pathfinder-logo.svg"
+
 html_theme_options = {
+    "light_logo": "pathfinder-logo.svg",
+    "dark_logo": "pathfinder-logo-dark.svg",
     "light_css_variables": {
         "color-brand-primary": "#2563eb",
         "color-brand-content": "#1d4ed8",
