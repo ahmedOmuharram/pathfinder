@@ -58,8 +58,6 @@ html_logo = "_static/pathfinder-logo.svg"
 html_favicon = "_static/pathfinder-logo.svg"
 
 html_theme_options = {
-    "light_logo": "pathfinder-logo.svg",
-    "dark_logo": "pathfinder-logo-dark.svg",
     "light_css_variables": {
         "color-brand-primary": "#2563eb",
         "color-brand-content": "#1d4ed8",
