@@ -11,7 +11,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     resolve_wdk_user_id,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
@@ -97,6 +97,131 @@ class StrategyAPIBase:
                 logger.info("Resolved WDK user id", resolved_user_id=resolved)
                 self.user_id = resolved
         self._session_initialized = True
+
+    async def _expand_profile_pattern_groups(
+        self,
+        record_type: str,
+        pattern: str,
+    ) -> str:
+        """Expand group codes in a profile_pattern to leaf species codes.
+
+        The WDK ``profile_pattern`` is matched via SQL LIKE against a stored
+        profile string that only contains **leaf** species codes.  Group codes
+        (e.g. ``MAMM``) never appear in the DB string and silently return 0.
+
+        The WDK frontend expands group → leaves automatically via the
+        ``phyletic_indent_map`` tree.  We replicate that logic here so the
+        LLM can use intuitive group codes like ``MAMM:N``.
+        """
+        if not pattern.startswith("%") or not pattern.endswith("%"):
+            return pattern
+
+        # Parse entries: ["MAMM:N", "pfal:Y", ...]
+        entries = [p for p in pattern.strip("%").split("%") if p]
+        if not entries:
+            return pattern
+
+        # Fetch the phyletic tree to identify group vs leaf codes.
+        try:
+            search_def = await self.client.get(
+                f"/record-types/{record_type}/searches/GenesByOrthologPattern",
+                params={"expandParams": "true"},
+            )
+            if not isinstance(search_def, dict):
+                return pattern
+
+            # Unwrap searchData wrapper if present.
+            search_data = search_def.get("searchData", search_def)
+            if not isinstance(search_data, dict):
+                return pattern
+
+            params = search_data.get("parameters", [])
+            if not isinstance(params, list):
+                return pattern
+            indent_vocab: list[JSONValue] = []
+            for spec in params:
+                if isinstance(spec, dict) and spec.get("name") == "phyletic_indent_map":
+                    vocab = spec.get("vocabulary")
+                    if isinstance(vocab, list):
+                        indent_vocab = vocab
+                    break
+
+            if not indent_vocab:
+                return pattern
+
+            # Build parent→children map from the indentation tree.
+            # Each entry is [code, depth, null].
+            codes_at_depth: list[tuple[str, int]] = []
+            for item in indent_vocab:
+                if isinstance(item, list) and len(item) >= 2:
+                    codes_at_depth.append(
+                        (str(item[0]), int(str(item[1])) if item[1] is not None else 0)
+                    )
+
+            # For each code, find its leaf descendants.
+            children_of: dict[str, list[str]] = {}
+            leaf_codes: set[str] = set()
+            for i, (code, depth) in enumerate(codes_at_depth):
+                # Collect all descendants until we hit same or lower depth.
+                descendants: list[str] = []
+                for j in range(i + 1, len(codes_at_depth)):
+                    d_code, d_depth = codes_at_depth[j]
+                    if d_depth <= depth:
+                        break
+                    descendants.append(d_code)
+                if descendants:
+                    children_of[code] = descendants
+                else:
+                    leaf_codes.add(code)
+
+            # Expand group codes using CODE:STATE[:QUANTIFIER] encoding.
+            #
+            # Quantifier semantics for groups:
+            #   :N:all → absent from ALL members → expand to leaf :N (default for :N)
+            #   :N:any → absent from ANY member → cannot express in WDK, drop
+            #   :Y:all → present in ALL members → expand to leaf :Y (rare, usually 0)
+            #   :Y:any → present in ANY member → cannot express in WDK, drop (default for :Y)
+            #
+            # Leaf codes ignore the quantifier (single species).
+            expanded: list[str] = []
+            for entry in entries:
+                parts = entry.split(":")
+                if len(parts) < 2:
+                    expanded.append(entry)
+                    continue
+
+                code = parts[0]
+                state = parts[1]  # Y or N
+                quantifier = parts[2] if len(parts) >= 3 else None
+
+                if code not in children_of:
+                    # Leaf code — pass through (strip quantifier).
+                    expanded.append(f"{code}:{state}")
+                    continue
+
+                # Group code — apply quantifier defaults.
+                if quantifier is None:
+                    quantifier = "all" if state == "N" else "any"
+
+                if quantifier == "all":
+                    # Expand to all leaf descendants.
+                    for desc in children_of[code]:
+                        if desc in leaf_codes:
+                            expanded.append(f"{desc}:{state}")
+                else:
+                    # "any" — cannot express in WDK profile_pattern (OR logic).
+                    logger.info(
+                        "Dropping group:%s:%s:any from profile_pattern "
+                        "(cannot express 'any' in WDK)",
+                        code,
+                        state,
+                    )
+
+            return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
+
+        except Exception:
+            logger.debug("Failed to expand profile_pattern groups (non-fatal)")
+            return pattern
 
     async def _standard_report(
         self,

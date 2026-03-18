@@ -158,6 +158,22 @@ class StepsMixin(StrategyAPIBase):
         :returns: Created step data with stepId.
         """
         normalized_params = self._normalize_parameters(parameters)
+
+        # Expand group codes in profile_pattern for GenesByOrthologPattern.
+        # WDK profile_pattern uses SQL LIKE against leaf-only profile strings;
+        # group codes (e.g. MAMM) never appear in the DB and return 0 results.
+        # The WDK frontend expands group → leaf automatically; we must too.
+        if (
+            search_name == "GenesByOrthologPattern"
+            and "profile_pattern" in normalized_params
+        ):
+            normalized_params[
+                "profile_pattern"
+            ] = await self._expand_profile_pattern_groups(
+                record_type,
+                normalized_params["profile_pattern"],
+            )
+
         search_config: JSONObject = {
             "parameters": cast(JSONObject, normalized_params),
         }

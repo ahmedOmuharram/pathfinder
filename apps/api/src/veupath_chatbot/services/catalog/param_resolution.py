@@ -69,12 +69,23 @@ def _allowed_values(
 _PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
 
 _PROFILE_PATTERN_HELP = (
-    "Phylogenetic profile pattern. Format: comma-separated CODE=STATE entries.\n"
-    "  Include species: CODE>=1T  (at least 1 protein present)\n"
-    "  Exclude species: CODE=0T  (zero proteins)\n"
-    "  Unconstrained: omit from pattern\n"
-    "Example: 'pfal>=1T,hsap=0T' (P.falciparum present AND human absent)\n"
-    "Use lookup_phyletic_codes(query) to find species codes by name.\n"
+    "Phylogenetic profile pattern. Format: %CODE:STATE[:QUANTIFIER]% (percent-delimited).\n"
+    "  CODE  = species or group code from lookup_phyletic_codes()\n"
+    "  STATE = Y (present) or N (absent)\n"
+    "  QUANTIFIER = 'any' or 'all' (optional, only matters for group codes)\n"
+    "\n"
+    "For leaf species codes (e.g. pfal, hsap), quantifier is ignored:\n"
+    "  pfal:Y  → present in P. falciparum\n"
+    "  hsap:N  → absent from H. sapiens\n"
+    "\n"
+    "For group codes (e.g. MAMM, APIC), quantifier controls expansion:\n"
+    "  MAMM:N       → absent from ALL mammals (default for :N)\n"
+    "  MAMM:N:all   → same as above (explicit)\n"
+    "  APIC:Y:any   → present in ANY Apicomplexa (default for :Y, dropped from pattern)\n"
+    "  APIC:Y:all   → present in ALL Apicomplexa (expanded, usually 0 results)\n"
+    "\n"
+    "Example: '%MAMM:N%pfal:Y%' → P.falciparum present, all mammals absent\n"
+    "\n"
     "CRITICAL: The 'organism' parameter controls which organisms' genes appear in "
     "results. You MUST select ALL relevant organisms (use all leaf values from the "
     "organism vocabulary tree, or use the tree's root '@@fake@@' sentinel for 'select all'). "
@@ -349,12 +360,35 @@ async def lookup_phyletic_codes(
         specs = extract_param_specs(details if isinstance(details, dict) else {})
 
         term_map_vocab: JSONArray = []
+        indent_map_vocab: JSONArray = []
         for spec in specs:
-            if isinstance(spec, dict) and spec.get("name") == "phyletic_term_map":
+            if not isinstance(spec, dict):
+                continue
+            name = spec.get("name")
+            if name == "phyletic_term_map":
                 vocab = spec.get("vocabulary")
                 if isinstance(vocab, list):
                     term_map_vocab = vocab
-                break
+            elif name == "phyletic_indent_map":
+                vocab = spec.get("vocabulary")
+                if isinstance(vocab, list):
+                    indent_map_vocab = vocab
+
+        # Build a set of group codes (codes that have children = non-leaf).
+        # indent_map entries are [code, depth, null].  A code is a group if
+        # the *next* entry has a strictly greater depth.
+        group_codes: set[str] = set()
+        for i, entry in enumerate(indent_map_vocab):
+            if not isinstance(entry, list) or len(entry) < 2:
+                continue
+            code = str(entry[0])
+            depth = int(str(entry[1])) if entry[1] is not None else 0
+            if i + 1 < len(indent_map_vocab):
+                nxt = indent_map_vocab[i + 1]
+                if isinstance(nxt, list) and len(nxt) >= 2:
+                    next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
+                    if next_depth > depth:
+                        group_codes.add(code)
 
         q = query.lower().strip()
         matches: list[JSONObject] = []
@@ -366,7 +400,8 @@ async def lookup_phyletic_codes(
             if code == "ALL":
                 continue
             if q in label.lower() or q in code.lower():
-                matches.append({"code": code, "label": label})
+                is_leaf = code not in group_codes
+                matches.append({"code": code, "label": label, "leaf": is_leaf})
                 if len(matches) >= 20:
                     break
 
@@ -375,8 +410,12 @@ async def lookup_phyletic_codes(
             "matches": cast(JSONValue, matches),
             "total": len(matches),
             "hint": (
-                "Use codes in profile_pattern: CODE>=1T (include) or CODE=0T (exclude). "
-                "Example: 'pfal>=1T,hsap=0T'"
+                "Use codes in profile_pattern: %CODE:Y% (include) or %CODE:N% (exclude). "
+                "Example: '%MAMM:N%pfal:Y%'. "
+                "Group codes (leaf=false) support optional quantifier: "
+                "MAMM:N:all (absent from all, default for :N), "
+                "APIC:Y:any (present in any, default for :Y). "
+                "Leaf codes need no quantifier."
             ),
         }
     except Exception as exc:
