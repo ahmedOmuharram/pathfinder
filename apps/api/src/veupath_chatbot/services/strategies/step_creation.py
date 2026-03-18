@@ -315,6 +315,24 @@ async def _validate_leaf_step(
         )
     except ValidationError as exc:
         return validation_error_payload(exc)
+
+    # Guard: fold-change searches with identical ref and comp samples produce
+    # meaningless results. Catch this early so the model can fix it.
+    ref = parameters.get("samples_fc_ref_generic") or parameters.get(
+        "samples_percentile_generic"
+    )
+    comp = parameters.get("samples_fc_comp_generic")
+    if ref and comp and str(ref) == str(comp):
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            "Reference and comparison samples are identical — this will produce "
+            "meaningless fold-change results. Set different samples for reference "
+            "vs comparison.",
+            searchName=search_name,
+            ref=ref,
+            comp=comp,
+        )
+
     return None
 
 

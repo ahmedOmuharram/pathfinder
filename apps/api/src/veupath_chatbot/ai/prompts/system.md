@@ -63,9 +63,9 @@ When executing (building the strategy graph):
      - `GenesByInterproDomain` — protein domain search (InterPro, PFAM, etc.).
      - `GenesByMotifSearch` — regex protein motif pattern search.
      - `GenesByOrthologs` — transform a step's results to orthologs in another organism (use via `list_transforms`).
-     - `GenesByRNASeqEvidence` — genes with RNA-Seq expression evidence.
-     - `GenesByMassSpec` — genes with mass spectrometry evidence.
-     - Dataset-specific searches (RNA-Seq fold change, proteomics fold change) have long names like `GenesByRNASeq{organism}_{author}_{dataset}_RSRC`. Use `search_for_searches` with the author name or dataset keyword to find them.
+     - `GenesByRNASeqEvidence` — genes with RNA-Seq expression evidence (any dataset).
+     - `GenesByMassSpec` — genes with mass spectrometry evidence (any dataset).
+     - Dataset-specific searches have long names like `GenesByRNASeq{organism}_{author}_{dataset}_RSRC`. Use `search_for_searches` with the author name or dataset keyword to find them. **Important**: datasets come in two variants — `_RSRC` (fold-change: compare reference vs comparison samples) and `_RSRCPercentile` (percentile: top-N% expressed). Use fold-change when comparing conditions (e.g. infected vs control), use percentile when filtering by expression level.
 4. **Act with the minimal correct tool call(s)**
    - Create: `create_step`
    - Edit: `update_step`, `rename_step`, `delete_step`, `undo_last_change`

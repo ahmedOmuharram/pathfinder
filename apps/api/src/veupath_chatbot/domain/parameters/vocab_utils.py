@@ -56,10 +56,32 @@ def match_vocab_value(
             return raw_value if raw_value is not None else (display or value)
         if numeric_equivalent(value_norm, raw_value):
             return raw_value if raw_value is not None else value
+    # Before failing, check for prefix/substring matches to suggest alternatives.
+    suggestions: list[str] = []
+    value_lower = value_norm.lower()
+    for entry in entries:
+        display = entry.get("display") or ""
+        raw_value = entry.get("value") or ""
+        if (
+            value_lower in display.lower()
+            or value_lower in raw_value.lower()
+            or display.lower().startswith(value_lower)
+            or raw_value.lower().startswith(value_lower)
+        ):
+            suggestions.append(raw_value or display)
+    if len(suggestions) > 20:
+        suggestions = suggestions[:20]
+
+    detail = f"Parameter '{param_name}' does not accept '{value}'."
+    if suggestions:
+        detail += f" Did you mean one of: {suggestions}"
+
     raise ValidationError(
         title="Invalid parameter value",
-        detail=f"Parameter '{param_name}' does not accept '{value}'.",
-        errors=[{"param": param_name, "value": value}],
+        detail=detail,
+        errors=[
+            {"param": param_name, "value": value, "suggestions": ", ".join(suggestions)}
+        ],
     )
 
 
