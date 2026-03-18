@@ -109,12 +109,18 @@ def flatten_vocab(
         display_raw = data.get("display")
         display = display_raw if isinstance(display_raw, str) else None
         raw_value = choose_value(data)
-        entries.append({"display": display, "value": raw_value})
         children_raw = node.get("children", [])
-        children = children_raw if isinstance(children_raw, list) else []
+        children = [
+            c
+            for c in (children_raw if isinstance(children_raw, list) else [])
+            if isinstance(c, dict)
+        ]
+        # Only include leaf nodes — parent/group nodes in WDK tree vocabs
+        # are not selectable values (WDK rejects them with 422).
+        if not children:
+            entries.append({"display": display, "value": raw_value})
         for child in children:
-            if isinstance(child, dict):
-                walk(child)
+            walk(child)
 
     if isinstance(vocabulary, dict) and vocabulary:
         walk(vocabulary)
