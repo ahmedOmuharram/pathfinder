@@ -40,7 +40,13 @@ async def get_raw_searches(site_id: str, record_type: str) -> JSONArray:
 
 
 async def list_searches(site_id: str, record_type: str) -> list[dict[str, str]]:
-    """List searches for a specific record type."""
+    """List searches for a specific record type.
+
+    Returns **name + displayName only** to keep the payload small (VEuPathDB
+    has 2000+ searches; descriptions alone add ~3 MB).  The model should use
+    ``search_for_searches`` for targeted discovery with descriptions, or
+    ``get_search_parameters`` for full details on a specific search.
+    """
     discovery = get_discovery_service()
     searches = await discovery.get_searches(site_id, record_type)
     result: list[dict[str, str]] = []
@@ -53,13 +59,10 @@ async def list_searches(site_id: str, record_type: str) -> list[dict[str, str]]:
         search_name = wdk_entity_name(s)
         display_name_raw = s.get("displayName")
         display_name = display_name_raw if isinstance(display_name_raw, str) else ""
-        description_raw = s.get("description")
-        description = description_raw if isinstance(description_raw, str) else ""
         result.append(
             {
                 "name": search_name,
                 "displayName": display_name,
-                "description": description,
             }
         )
     return result
