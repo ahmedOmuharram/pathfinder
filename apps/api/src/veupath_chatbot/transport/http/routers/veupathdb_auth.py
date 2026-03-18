@@ -62,12 +62,14 @@ def _extract_auth_cookie(set_cookie_headers: list[str]) -> str | None:
     return None
 
 
-async def _resolve_veupathdb_email(veupathdb_token: str) -> str | None:
+async def _resolve_veupathdb_email(
+    veupathdb_token: str, site_id: str = "veupathdb"
+) -> str | None:
     """Call VEuPathDB ``/users/current`` and return the user's email (or None)."""
     # Temporarily set the context var so the WDK client picks up the token.
     reset_token = veupathdb_auth_token_ctx.set(veupathdb_token)
     try:
-        site = get_site("veupathdb")
+        site = get_site(site_id)
         client = get_wdk_client(site.id)
         user = await client.get("/users/current")
     except Exception as exc:
@@ -87,14 +89,14 @@ async def _resolve_veupathdb_email(veupathdb_token: str) -> str | None:
 
 
 async def _link_internal_user(
-    user_repo: UserRepo, veupathdb_token: str
+    user_repo: UserRepo, veupathdb_token: str, site_id: str = "veupathdb"
 ) -> tuple[str | None, str | None]:
     """Resolve VEuPathDB identity and create/lookup the internal user.
 
     Returns ``(auth_token, email)`` or ``(None, None)`` when the VEuPathDB
     session cannot be resolved.
     """
-    email = await _resolve_veupathdb_email(veupathdb_token)
+    email = await _resolve_veupathdb_email(veupathdb_token, site_id)
     if not email:
         return None, None
     user = await user_repo.get_or_create_by_external_id(email)
@@ -142,6 +144,7 @@ async def login_with_password(
     user_repo: UserRepo,
     payload: LoginPayload | None = None,
     redirect_to: str | None = Query(None, alias="redirectTo"),
+    site_id: str = Query("veupathdb", alias="siteId"),
 ) -> JSONResponse:
     """Login via VEuPathDB /login, link internal user, and store auth cookies."""
     if not payload:
@@ -164,7 +167,7 @@ async def login_with_password(
             ],
         )
 
-    auth_site = get_site("veupathdb")
+    auth_site = get_site(site_id)
     redirect_url = _pick_redirect_url(redirect_to)
     login_payload: dict[str, str] = {
         "email": email,
@@ -183,14 +186,16 @@ async def login_with_password(
         logger.warning("Authorization cookie missing in VEuPathDB login response")
         raise UnauthorizedError(detail="Login failed")
 
-    auth_token, _email = await _link_internal_user(user_repo, token)
+    auth_token, _email = await _link_internal_user(user_repo, token, site_id)
     return _build_success_response(token, auth_token)
 
 
 @router.post("/logout", response_model=AuthSuccessResponse)
-async def logout() -> JSONResponse:
+async def logout(
+    site_id: str = Query("veupathdb", alias="siteId"),
+) -> JSONResponse:
     """Clear local auth cookie and log out of VEuPathDB."""
-    auth_site = get_site("veupathdb")
+    auth_site = get_site(site_id)
     async with httpx.AsyncClient(
         base_url=auth_site.service_url, follow_redirects=True
     ) as client:
@@ -208,6 +213,7 @@ async def logout() -> JSONResponse:
 async def refresh_internal_auth(
     request: Request,
     user_repo: UserRepo,
+    site_id: str = Query("veupathdb", alias="siteId"),
 ) -> JSONResponse:
     """Re-derive the internal ``pathfinder-auth`` token from a live VEuPathDB session.
 
@@ -222,7 +228,7 @@ async def refresh_internal_auth(
     if not veupathdb_token:
         raise UnauthorizedError(detail="No VEuPathDB session")
 
-    auth_token, _email = await _link_internal_user(user_repo, veupathdb_token)
+    auth_token, _email = await _link_internal_user(user_repo, veupathdb_token, site_id)
     if not auth_token:
         raise UnauthorizedError(detail="VEuPathDB session expired or invalid")
 
@@ -248,7 +254,10 @@ class _AuthStatusDict(TypedDict):
 
 
 @router.get("/status", response_model=AuthStatusResponse)
-async def auth_status(request: Request) -> _AuthStatusDict:
+async def auth_status(
+    request: Request,
+    site_id: str = Query("veupathdb", alias="siteId"),
+) -> _AuthStatusDict:
     """Return current VEuPathDB auth status.
 
     In mock mode (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
@@ -268,7 +277,7 @@ async def auth_status(request: Request) -> _AuthStatusDict:
                 "email": "e2e@test.local",
             }
 
-    site = get_site("veupathdb")
+    site = get_site(site_id)
     client = get_wdk_client(site.id)
     try:
         user = await client.get("/users/current")
