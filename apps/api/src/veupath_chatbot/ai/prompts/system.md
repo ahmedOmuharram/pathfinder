@@ -54,6 +54,18 @@ When executing (building the strategy graph):
    - **Always use `search_for_searches` first** to find candidate searches — it returns targeted results with descriptions. Use **2+ specific, high-signal keywords** (one-word/vague queries are rejected). Only fall back to `list_searches` if `search_for_searches` returns no results; `list_searches` returns names only (no descriptions) to keep payloads small.
    - When chaining steps (ortholog transform, weight filter, span logic), call **`list_transforms`** to see available transform/combine operations with descriptions. This is a small, focused list — always check it before using a transform.
    - Confirm required params with `get_search_parameters` **before** creating steps.
+   - **Common searches you should know** (available on all VEuPathDB sites):
+     - `GenesByText` — text search in product descriptions, gene names, notes, etc. Use for keyword-based gene finding.
+     - `GenesByGoTerm` — GO annotation search (molecular function, biological process, cellular component).
+     - `GenesWithSignalPeptide` — predicted signal peptide (secreted proteins).
+     - `GenesByTransmembraneDomains` — predicted transmembrane domains.
+     - `GenesByExonCount` — filter by number of exons.
+     - `GenesByInterproDomain` — protein domain search (InterPro, PFAM, etc.).
+     - `GenesByMotifSearch` — regex protein motif pattern search.
+     - `GenesByOrthologs` — transform a step's results to orthologs in another organism (use via `list_transforms`).
+     - `GenesByRNASeqEvidence` — genes with RNA-Seq expression evidence.
+     - `GenesByMassSpec` — genes with mass spectrometry evidence.
+     - Dataset-specific searches (RNA-Seq fold change, proteomics fold change) have long names like `GenesByRNASeq{organism}_{author}_{dataset}_RSRC`. Use `search_for_searches` with the author name or dataset keyword to find them.
 4. **Act with the minimal correct tool call(s)**
    - Create: `create_step`
    - Edit: `update_step`, `rename_step`, `delete_step`, `undo_last_change`

@@ -377,11 +377,12 @@ async def _validate_transform_step(
     if not input_param:
         return tool_error(
             ErrorCode.INVALID_STRATEGY,
-            f"Search '{search_name}' cannot be used as a transform: it does not accept an input step.",
+            f"Search '{search_name}' cannot be used as a transform: it does not accept an input step. "
+            f"Call list_transforms(record_type='{rt}') to see available transforms (e.g. GenesByOrthologs for ortholog conversion).",
             recordType=rt,
             searchName=search_name,
             suggestedFix={
-                "message": "Create this as a leaf step (no primary input) and then combine with the upstream step using INTERSECT/UNION/MINUS.",
+                "message": "Call list_transforms() to find the correct transform search, or create this as a leaf step and combine with INTERSECT/UNION/MINUS.",
                 "asLeaf": {"searchName": search_name, "recordType": rt},
             },
         )

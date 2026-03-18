@@ -177,7 +177,32 @@ async def _search_for_searches_via_site_search(
             }
         )
 
-    return results[:limit]
+    # Boost transcript/gene results to the top — the model almost always
+    # builds gene strategies, so EST/Popset/compound matches are noise.
+    results.sort(key=lambda r: _record_type_priority(r.get("recordType", "")))
+
+    # Deduplicate: same search can appear for multiple record types;
+    # keep only the highest-priority (lowest sort key) occurrence.
+    seen: set[str] = set()
+    deduped: list[dict[str, str]] = []
+    for r in results:
+        if r["name"] not in seen:
+            seen.add(r["name"])
+            deduped.append(r)
+    return deduped[:limit]
+
+
+# Record types the model cares about most, in priority order.
+_PREFERRED_RECORD_TYPES = ("transcript", "gene")
+
+
+def _record_type_priority(record_type: str) -> int:
+    """Lower = higher priority.  Transcript/gene first, everything else after."""
+    rt = record_type.lower()
+    for i, preferred in enumerate(_PREFERRED_RECORD_TYPES):
+        if preferred in rt:
+            return i
+    return 100
 
 
 async def search_for_searches(
@@ -287,7 +312,19 @@ async def search_for_searches(
         display_name_raw = item.get("displayName")
         return display_name_raw if isinstance(display_name_raw, str) else ""
 
-    matches.sort(key=lambda item: (-get_score(item), get_display_name(item)))
+    def get_rt_priority(item: JSONValue) -> int:
+        if not isinstance(item, dict):
+            return 100
+        rt_raw = item.get("recordType")
+        return _record_type_priority(rt_raw if isinstance(rt_raw, str) else "")
+
+    matches.sort(
+        key=lambda item: (
+            -get_score(item),
+            get_rt_priority(item),
+            get_display_name(item),
+        )
+    )
     result: list[dict[str, str]] = []
     for item in matches:
         if not isinstance(item, dict):
