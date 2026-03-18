@@ -53,19 +53,37 @@ async def _materialize_step_tree(
     if primary_tree is not None and secondary_tree is not None:
         operator = str(node.get("operator", DEFAULT_COMBINE_OPERATOR.value))
         if operator == "COLOCATE":
-            # Colocation uses GenesByLocation transform, not a boolean operator.
-            coloc_params: JSONObject = {
-                "gene_result": str(primary_tree.step_id),
-                "span_result": str(secondary_tree.step_id),
-            }
+            # Colocation uses GenesBySpanLogic — two input-step params
+            # (span_a, span_b) wired via stepTree at strategy creation.
             coloc_raw = node.get("colocationParams")
+            upstream = "0"
+            downstream = "0"
             if isinstance(coloc_raw, dict):
-                coloc_params["upstream"] = str(coloc_raw.get("upstream", 0))
-                coloc_params["downstream"] = str(coloc_raw.get("downstream", 0))
-                coloc_params["strand"] = str(coloc_raw.get("strand", "both"))
+                upstream = str(coloc_raw.get("upstream", 0))
+                downstream = str(coloc_raw.get("downstream", 0))
+            coloc_params: JSONObject = {
+                "span_sentence": "sentence",
+                "span_operation": "overlap",
+                "span_strand": "Both strands",
+                "span_output": "a",
+                "region_a": "exact",
+                "region_b": "exact",
+                "span_begin_a": "start",
+                "span_begin_direction_a": "-",
+                "span_begin_offset_a": upstream,
+                "span_end_a": "stop",
+                "span_end_direction_a": "+",
+                "span_end_offset_a": downstream,
+                "span_begin_b": "start",
+                "span_begin_direction_b": "+",
+                "span_begin_offset_b": "0",
+                "span_end_b": "stop",
+                "span_end_direction_b": "+",
+                "span_end_offset_b": "0",
+            }
             step = await api.create_transform_step(
                 input_step_id=primary_tree.step_id,
-                transform_name="GenesByLocation",
+                transform_name="GenesBySpanLogic",
                 parameters=coloc_params,
                 record_type=record_type,
                 custom_name=display_name,

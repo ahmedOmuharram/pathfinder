@@ -47,6 +47,11 @@ class StrategyAPIBase:
         Omitting empty params avoids 422s when a required param is left blank
         in the UI; the caller should supply a valid value for required params.
 
+        Params whose value is ``None`` are omitted (never explicitly set).
+        Params whose value is ``""`` (empty string) are kept — the caller
+        explicitly included them, and WDK may accept them via
+        ``allowEmptyValue``.
+
         :param parameters: Raw parameter dict.
         :param keep_empty: Param names that must be kept even when empty
             (e.g. AnswerParams that WDK requires as ``""``).
@@ -54,8 +59,10 @@ class StrategyAPIBase:
         keep = keep_empty or set()
         out: dict[str, str] = {}
         for key, value in (parameters or {}).items():
+            if value is None:
+                continue
             s = normalize_param_value(value)
-            if s.strip() or key in keep:
+            if s.strip() or key in keep or isinstance(value, str):
                 out[key] = s if s.strip() else ""
         return out
 

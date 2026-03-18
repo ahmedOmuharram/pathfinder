@@ -327,18 +327,53 @@ class StrategyCompiler:
         right_step_id: int,
         record_type: str,
     ) -> JSONObject:
-        """Compile a colocation operation."""
+        """Compile a colocation operation using WDK's GenesBySpanLogic search.
+
+        GenesBySpanLogic ("Genes by Relative Location") has two ``input-step``
+        params (``span_a``, ``span_b``).  WDK requires them to be ``""`` at
+        step creation — the actual input wiring happens via the ``stepTree``
+        when the strategy is created/updated (``primaryInput`` → ``span_a``,
+        ``secondaryInput`` → ``span_b``).
+
+        The ``span_sentence`` param is vestigial but **required** (WDK rejects
+        empty); the frontend always sets it to ``"sentence"``.
+        """
+        logger.debug(
+            "Compiling colocation",
+            left=left_step_id,
+            right=right_step_id,
+            upstream=step.colocation_params.upstream if step.colocation_params else 0,
+            downstream=step.colocation_params.downstream
+            if step.colocation_params
+            else 0,
+        )
         params: JSONObject = {
-            "gene_result": str(left_step_id),
-            "span_result": str(right_step_id),
+            "span_sentence": "sentence",
+            "span_operation": "overlap",
+            "span_strand": "Both strands",
+            "span_output": "a",
+            "region_a": "exact",
+            "region_b": "exact",
+            "span_begin_a": "start",
+            "span_begin_direction_a": "-",
+            "span_begin_offset_a": str(
+                step.colocation_params.upstream if step.colocation_params else 0
+            ),
+            "span_end_a": "stop",
+            "span_end_direction_a": "+",
+            "span_end_offset_a": str(
+                step.colocation_params.downstream if step.colocation_params else 0
+            ),
+            "span_begin_b": "start",
+            "span_begin_direction_b": "+",
+            "span_begin_offset_b": "0",
+            "span_end_b": "stop",
+            "span_end_direction_b": "+",
+            "span_end_offset_b": "0",
         }
-        if step.colocation_params:
-            params["upstream"] = str(step.colocation_params.upstream)
-            params["downstream"] = str(step.colocation_params.downstream)
-            params["strand"] = step.colocation_params.strand
         return await self.api.create_transform_step(
             input_step_id=left_step_id,
-            transform_name="GenesByLocation",
+            transform_name="GenesBySpanLogic",
             parameters=params,
             record_type=record_type,
             custom_name=step.display_name or "Genomic colocation",
