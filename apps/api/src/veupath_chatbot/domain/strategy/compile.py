@@ -352,23 +352,23 @@ class StrategyCompiler:
             "span_operation": "overlap",
             "span_strand": "Both strands",
             "span_output": "a",
-            "region_a": "exact",
+            "region_a": "upstream",
             "region_b": "exact",
             "span_begin_a": "start",
             "span_begin_direction_a": "-",
             "span_begin_offset_a": str(
                 step.colocation_params.upstream if step.colocation_params else 0
             ),
-            "span_end_a": "stop",
-            "span_end_direction_a": "+",
+            "span_end_a": "start",
+            "span_end_direction_a": "-",
             "span_end_offset_a": str(
                 step.colocation_params.downstream if step.colocation_params else 0
             ),
             "span_begin_b": "start",
-            "span_begin_direction_b": "+",
+            "span_begin_direction_b": "-",
             "span_begin_offset_b": "0",
             "span_end_b": "stop",
-            "span_end_direction_b": "+",
+            "span_end_direction_b": "-",
             "span_end_offset_b": "0",
         }
         return await self.api.create_transform_step(
