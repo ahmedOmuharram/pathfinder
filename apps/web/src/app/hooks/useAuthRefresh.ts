@@ -13,14 +13,15 @@ export function useAuthRefresh(): void {
   const authRefreshed = useSessionStore((s) => s.authRefreshed);
   const setAuthRefreshed = useSessionStore((s) => s.setAuthRefreshed);
   const bumpAuthVersion = useSessionStore((s) => s.bumpAuthVersion);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
 
   useEffect(() => {
     if (!veupathdbSignedIn || authRefreshed) return;
     setAuthRefreshed(true);
-    refreshAuth()
+    refreshAuth(selectedSite)
       .then(() => bumpAuthVersion())
       .catch((err) => {
         console.error("[refreshAuth]", err);
       });
-  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, bumpAuthVersion]);
+  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, bumpAuthVersion, selectedSite]);
 }

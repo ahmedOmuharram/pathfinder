@@ -64,7 +64,7 @@ describe("lib/api functions", () => {
   });
 
   it("loginVeupathdb validates required inputs before making a request", async () => {
-    await expect(loginVeupathdb("", "")).rejects.toBeInstanceOf(Error);
+    await expect(loginVeupathdb("", "", "veupathdb")).rejects.toBeInstanceOf(Error);
     expect(requestJsonMock).not.toHaveBeenCalled();
   });
 
@@ -210,37 +210,37 @@ describe("lib/api functions", () => {
     );
   });
 
-  it("auth bridge endpoints always use veupathdb portal site ID", async () => {
+  it("auth bridge endpoints forward the provided siteId", async () => {
     requestJsonValidatedMock.mockResolvedValueOnce({
       signedIn: false,
       name: null,
       email: null,
     });
-    await getVeupathdbAuthStatus();
+    await getVeupathdbAuthStatus("plasmodb");
     expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/status",
-      { query: { siteId: "veupathdb" } },
+      { query: { siteId: "plasmodb" } },
     );
 
     requestJsonValidatedMock.mockResolvedValueOnce({ success: true });
-    await loginVeupathdb("a@b.com", "pw");
+    await loginVeupathdb("a@b.com", "pw", "plasmodb");
     expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/login",
       {
         method: "POST",
-        query: { siteId: "veupathdb" },
+        query: { siteId: "plasmodb" },
         body: { email: "a@b.com", password: "pw" },
       },
     );
 
     requestJsonValidatedMock.mockResolvedValueOnce({ success: true });
-    await logoutVeupathdb();
+    await logoutVeupathdb("plasmodb");
     expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/logout",
-      { method: "POST" },
+      { method: "POST", query: { siteId: "plasmodb" } },
     );
   });
 });

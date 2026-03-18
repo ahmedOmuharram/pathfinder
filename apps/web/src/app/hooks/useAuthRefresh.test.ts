@@ -31,6 +31,7 @@ vi.mock("@/state/useSessionStore", () => ({
       authRefreshed: boolean;
       setAuthRefreshed: (v: boolean) => void;
       bumpAuthVersion: () => void;
+      selectedSite: string;
     }) => T,
   ) =>
     selector({
@@ -38,6 +39,7 @@ vi.mock("@/state/useSessionStore", () => ({
       authRefreshed: mockStoreState.authRefreshed,
       setAuthRefreshed: mockSetAuthRefreshed,
       bumpAuthVersion: mockBumpAuthVersion,
+      selectedSite: "plasmodb",
     }),
 }));
 

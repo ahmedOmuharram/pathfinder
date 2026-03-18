@@ -176,7 +176,7 @@ export function SitePicker({
   useEffect(() => {
     if (!value) return;
     setAuthError(null);
-    getVeupathdbAuthStatus()
+    getVeupathdbAuthStatus(value)
       .then((status) => {
         setAuthStatus(status);
         setVeupathdbAuth(status.signedIn, status.name ?? null);
@@ -331,7 +331,7 @@ export function SitePicker({
                   setAuthBusy(true);
                   setAuthError(null);
                   try {
-                    await logoutVeupathdb();
+                    await logoutVeupathdb(value);
                     setAuthStatus({ signedIn: false });
                     setVeupathdbAuth(false, null);
                   } catch {

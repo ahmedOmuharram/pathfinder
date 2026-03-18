@@ -30,12 +30,14 @@ vi.mock("@/state/useSessionStore", () => ({
       authStatusKnown: boolean;
       setVeupathdbAuth: (signedIn: boolean, name?: string | null) => void;
       setAuthStatusKnown: (value: boolean) => void;
+      selectedSite: string;
     }) => T,
   ) =>
     selector({
       authStatusKnown: mockAuthStatusKnown,
       setVeupathdbAuth: mockSetVeupathdbAuth,
       setAuthStatusKnown: mockSetAuthStatusKnown,
+      selectedSite: "plasmodb",
     }),
 }));
 
