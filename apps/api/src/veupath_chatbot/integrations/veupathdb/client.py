@@ -102,6 +102,7 @@ class VEuPathDBClient:
         self.max_keepalive_connections = int(max_keepalive_connections)
         self._client: httpx.AsyncClient | None = None
         self._client_lock = asyncio.Lock()
+        self._session_initialized = False
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -124,7 +125,6 @@ class VEuPathDBClient:
                         "Content-Type": "application/json",
                     },
                 )
-                await self._init_wdk_session(self._client)
             return self._client
 
     async def _init_wdk_session(self, client: httpx.AsyncClient) -> None:
@@ -190,6 +190,10 @@ class VEuPathDBClient:
             # httpx has deprecated per-request ``cookies=``.
             if auth_token:
                 client.cookies.set("Authorization", auth_token)
+            # Initialize WDK session on first authenticated request.
+            if auth_token and not self._session_initialized:
+                self._session_initialized = True
+                await self._init_wdk_session(client)
             httpx_params = _convert_params_for_httpx(params)
             response = await client.request(
                 method=method,

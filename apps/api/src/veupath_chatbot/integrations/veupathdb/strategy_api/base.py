@@ -16,6 +16,18 @@ from veupath_chatbot.platform.types import JSONObject
 logger = get_logger(__name__)
 
 
+def _sort_profile_pattern(pattern: str) -> str:
+    """Sort ``%code:Y%code:N%`` entries alphabetically.
+
+    OrthoMCL requires pattern entries in alphabetical order.  The WDK
+    frontend always ``.sort()``s before joining — we must too.
+    """
+    if not pattern.startswith("%") or not pattern.endswith("%"):
+        return pattern
+    parts = [p for p in pattern.strip("%").split("%") if p]
+    return f"%{'%'.join(sorted(parts))}%" if parts else pattern
+
+
 class StrategyAPIBase:
     """Base infrastructure for :class:`StrategyAPI`.
 
@@ -64,6 +76,10 @@ class StrategyAPIBase:
             s = normalize_param_value(value)
             if s.strip() or key in keep or isinstance(value, str):
                 out[key] = s if s.strip() else ""
+        # OrthoMCL requires profile_pattern entries in alphabetical order.
+        # The frontend monorepo always .sort()s before joining — we must too.
+        if "profile_pattern" in out:
+            out["profile_pattern"] = _sort_profile_pattern(out["profile_pattern"])
         return out
 
     async def _ensure_session(self) -> None:
