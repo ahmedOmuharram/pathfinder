@@ -29,6 +29,15 @@ def numeric_equivalent(a: str | None, b: str | None) -> bool:
     return math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-12)
 
 
+def _looks_numeric(value: str) -> bool:
+    """Quick check if a string could plausibly be a number."""
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
 def match_vocab_value(
     *,
     vocab: JSONObject | JSONArray | None,
@@ -45,32 +54,27 @@ def match_vocab_value(
     value_norm = value.strip() if isinstance(value, str) else str(value)
 
     entries = flatten_vocab(vocab, prefer_term=True)
-    for entry in entries:
-        display = entry.get("display")
-        raw_value = entry.get("value")
-        if value_norm == (display or ""):
-            return raw_value if raw_value is not None else (display or value)
-        if value_norm == (raw_value or ""):
-            return raw_value if raw_value is not None else value
-        if numeric_equivalent(value_norm, display):
-            return raw_value if raw_value is not None else (display or value)
-        if numeric_equivalent(value_norm, raw_value):
-            return raw_value if raw_value is not None else value
-    # Before failing, check for prefix/substring matches to suggest alternatives.
-    suggestions: list[str] = []
-    value_lower = value_norm.lower()
+    try_numeric = _looks_numeric(value_norm)
     for entry in entries:
         display = entry.get("display") or ""
-        raw_value = entry.get("value") or ""
-        if (
-            value_lower in display.lower()
-            or value_lower in raw_value.lower()
-            or display.lower().startswith(value_lower)
-            or raw_value.lower().startswith(value_lower)
+        raw_value = entry.get("value")
+        canonical = raw_value if raw_value is not None else (display or value)
+        if value_norm in (display, raw_value or ""):
+            return canonical
+        if try_numeric and (
+            numeric_equivalent(value_norm, display)
+            or numeric_equivalent(value_norm, raw_value)
         ):
-            suggestions.append(raw_value or display)
-    if len(suggestions) > 20:
-        suggestions = suggestions[:20]
+            return canonical
+
+    # Suggest substring matches before failing.
+    value_lower = value_norm.lower()
+    suggestions: list[str] = [
+        (entry.get("value") or entry.get("display") or "")
+        for entry in entries
+        if value_lower in (entry.get("display") or "").lower()
+        or value_lower in (entry.get("value") or "").lower()
+    ][:20]
 
     detail = f"Parameter '{param_name}' does not accept '{value}'."
     if suggestions:
@@ -115,10 +119,10 @@ def flatten_vocab(
             for c in (children_raw if isinstance(children_raw, list) else [])
             if isinstance(c, dict)
         ]
-        # Only include leaf nodes — parent/group nodes in WDK tree vocabs
-        # are not selectable values (WDK rejects them with 422).
-        if not children:
-            entries.append({"display": display, "value": raw_value})
+        # Include all nodes (parents and leaves). WDK only accepts leaf
+        # values, but PathFinder accepts parents and expands them to leaves
+        # at WDK submission time via _expand_tree_params_to_leaves.
+        entries.append({"display": display, "value": raw_value})
         for child in children:
             walk(child)
 

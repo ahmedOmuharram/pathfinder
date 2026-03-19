@@ -22,8 +22,6 @@ from veupath_chatbot.platform.types import (
     as_json_object,
 )
 
-Step = PlanStepNode
-
 
 class StrategyGraph:
     """State for a single strategy graph."""
@@ -36,7 +34,7 @@ class StrategyGraph:
         # Set when the first step is created or when importing a WDK strategy.
         self.record_type: str | None = None
         self.current_strategy: StrategyAST | None = None
-        self.steps: dict[str, Step] = {}
+        self.steps: dict[str, PlanStepNode] = {}
         # Current subtree root IDs.  Every step creation updates this set:
         # the new step is added as a root and any inputs it consumes are
         # removed.  A complete strategy has exactly one root.
@@ -62,7 +60,7 @@ class StrategyGraph:
         self.wdk_strategy_id = None
         self.current_strategy = None
 
-    def add_step(self, step: Step) -> str:
+    def add_step(self, step: PlanStepNode) -> str:
         """Add a step and maintain the subtree-root set.
 
         The new step becomes a root.  If it consumes existing roots as
@@ -83,13 +81,26 @@ class StrategyGraph:
         self.last_step_id = step.id
         return step.id
 
-    def get_step(self, step_id: str) -> Step | None:
+    def get_step(self, step_id: str) -> PlanStepNode | None:
         """Get a step by ID.
 
         :param step_id: Step ID.
         :returns: Step or None.
         """
         return self.steps.get(step_id)
+
+    def find_consumer(self, step_id: str) -> str | None:
+        """Find the step that consumes *step_id* as a primary or secondary input.
+
+        :param step_id: Step ID to search for.
+        :returns: ID of the consuming step, or None if unconsumed.
+        """
+        for s in self.steps.values():
+            if (s.primary_input and s.primary_input.id == step_id) or (
+                s.secondary_input and s.secondary_input.id == step_id
+            ):
+                return s.id
+        return None
 
     def recompute_roots(self) -> None:
         """Recompute ``roots`` from the current ``steps`` dict.
@@ -98,17 +109,13 @@ class StrategyGraph:
         or ``secondary_input`` of another step.  Call this after bulk
         mutations (delete, hydration) where incremental root tracking is
         impractical.
-
-
         """
         referenced: set[str] = set()
         for step in self.steps.values():
-            primary = getattr(getattr(step, "primary_input", None), "id", None)
-            secondary = getattr(getattr(step, "secondary_input", None), "id", None)
-            if isinstance(primary, str) and primary:
-                referenced.add(primary)
-            if isinstance(secondary, str) and secondary:
-                referenced.add(secondary)
+            if step.primary_input:
+                referenced.add(step.primary_input.id)
+            if step.secondary_input:
+                referenced.add(step.secondary_input.id)
         self.roots = {sid for sid in self.steps if sid not in referenced}
 
     def save_history(self, description: str) -> None:
@@ -213,7 +220,10 @@ def hydrate_graph_from_steps_data(
         return
 
     nodes: dict[str, PlanStepNode] = {}
+    # Maps step_id -> (primaryInputStepId, secondaryInputStepId) for the linking pass.
+    input_refs: dict[str, tuple[str | None, str | None]] = {}
 
+    # Single pass: build nodes, collect input refs, restore WDK state, detect record type.
     for step in steps_data:
         if not isinstance(step, dict):
             continue
@@ -259,26 +269,38 @@ def hydrate_graph_from_steps_data(
 
         nodes[step_id] = node
 
-    # Second pass: connect inputs.
-    for step in steps_data:
-        if not isinstance(step, dict):
-            continue
-        step_id = step.get("id")
-        if step_id is None:
-            continue
-        current_node: PlanStepNode | None = nodes.get(str(step_id))
-        if current_node is None:
-            continue
-        primary_id = step.get("primaryInputStepId")
-        secondary_id = step.get("secondaryInputStepId")
+        # Collect input references for the linking pass.
+        primary_raw = step.get("primaryInputStepId")
+        secondary_raw = step.get("secondaryInputStepId")
+        if primary_raw is not None or secondary_raw is not None:
+            input_refs[step_id] = (
+                str(primary_raw) if primary_raw is not None else None,
+                str(secondary_raw) if secondary_raw is not None else None,
+            )
+
+        # Restore WDK build state.
+        wdk_step_id = step.get("wdkStepId")
+        if isinstance(wdk_step_id, int):
+            graph.wdk_step_ids[step_id] = wdk_step_id
+        result_count = step.get("resultCount")
+        if isinstance(result_count, int):
+            graph.step_counts[step_id] = result_count
+
+        # Best-effort record type from first step that has one.
+        if not graph.record_type and step.get("recordType"):
+            graph.record_type = str(step["recordType"])
+
+    # Second pass: connect inputs (needs all nodes to exist).
+    for step_id, (primary_id, secondary_id) in input_refs.items():
+        node = nodes[step_id]
         if primary_id is not None:
-            primary_node = nodes.get(str(primary_id))
+            primary_node = nodes.get(primary_id)
             if primary_node is not None:
-                current_node.primary_input = primary_node
+                node.primary_input = primary_node
         if secondary_id is not None:
-            secondary_node = nodes.get(str(secondary_id))
+            secondary_node = nodes.get(secondary_id)
             if secondary_node is not None:
-                current_node.secondary_input = secondary_node
+                node.secondary_input = secondary_node
 
     # Attach hydrated nodes to the graph (don't blow away any already-loaded plan steps).
     if not graph.steps:
@@ -287,29 +309,9 @@ def hydrate_graph_from_steps_data(
         for sid, node in nodes.items():
             graph.steps.setdefault(sid, node)
 
-    # Best-effort record type context.
+    # Best-effort record type context from caller.
     if record_type and not graph.record_type:
         graph.record_type = record_type
-    if not graph.record_type:
-        for step in steps_data:
-            if isinstance(step, dict) and step.get("recordType"):
-                graph.record_type = str(step.get("recordType"))
-                break
-
-    # Restore WDK build state from persisted per-step fields.
-    for step in steps_data:
-        if not isinstance(step, dict):
-            continue
-        sid_raw = step.get("id")
-        if sid_raw is None:
-            continue
-        sid = str(sid_raw)
-        wdk_step_id = step.get("wdkStepId")
-        if isinstance(wdk_step_id, int):
-            graph.wdk_step_ids[sid] = wdk_step_id
-        result_count = step.get("resultCount")
-        if isinstance(result_count, int):
-            graph.step_counts[sid] = result_count
 
     # Recompute the subtree-root set from the hydrated step graph.
     graph.recompute_roots()

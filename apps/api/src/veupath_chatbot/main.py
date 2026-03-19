@@ -37,7 +37,10 @@ from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.transport.http.routers import (
     chat,
     control_sets,
+    evaluation,
     experiments,
+    exports,
+    gene_sets,
     health,
     internal,
     models,
@@ -45,10 +48,9 @@ from veupath_chatbot.transport.http.routers import (
     sites,
     strategies,
     tools,
+    user_data,
     veupathdb_auth,
 )
-from veupath_chatbot.transport.http.routers.exports import router as exports_router
-from veupath_chatbot.transport.http.routers.gene_sets import router as gene_sets_router
 
 logger = get_logger(__name__)
 
@@ -123,11 +125,8 @@ def _wire_ai_dependencies() -> None:
         create_engine,
         resolve_effective_model_id,
     )
-    from veupath_chatbot.services.chat import orchestrator as chat_orchestrator
-    from veupath_chatbot.services.experiment import (
-        ai_analysis_tools as analysis_tools,
-    )
-    from veupath_chatbot.services.experiment import assistant as exp_assistant
+    from veupath_chatbot.services.chat import orchestrator
+    from veupath_chatbot.services.experiment import ai_analysis_tools, assistant
 
     # When chat_provider is "mock", override the default model to use MockEngine.
     # This makes the REAL agent use a deterministic engine — all downstream
@@ -136,15 +135,15 @@ def _wire_ai_dependencies() -> None:
     if settings.chat_provider.strip().lower() == "mock":
         settings.default_model_id = "mock/deterministic"
 
-    chat_orchestrator.configure(
+    orchestrator.configure(
         create_agent_fn=create_agent,
         resolve_model_id_fn=resolve_effective_model_id,
     )
-    exp_assistant.configure(
+    assistant.configure(
         create_engine_fn=create_engine,
         experiment_agent_cls=ExperimentAssistantAgent,
     )
-    analysis_tools.configure(
+    ai_analysis_tools.configure(
         experiment_agent_cls=ExperimentAssistantAgent,
     )
 
@@ -155,9 +154,7 @@ def _wire_ai_dependencies() -> None:
 
     from veupath_chatbot.ai.agents.workbench import WorkbenchAgent
     from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
-    from veupath_chatbot.services.workbench_chat import (
-        orchestrator as wb_orchestrator,
-    )
+    from veupath_chatbot.services import workbench_chat
 
     def _create_workbench_agent(
         site_id: str,
@@ -183,7 +180,7 @@ def _wire_ai_dependencies() -> None:
             chat_history=chat_history,
         )
 
-    wb_orchestrator.configure(
+    workbench_chat.orchestrator.configure(
         create_workbench_agent_fn=_create_workbench_agent,
         resolve_model_id_fn=resolve_effective_model_id,
     )
@@ -284,13 +281,11 @@ def create_app() -> FastAPI:
     app.include_router(control_sets.router)
     app.include_router(veupathdb_auth.router)
     app.include_router(operations.router)
-    app.include_router(gene_sets_router)
-    app.include_router(exports_router)
+    app.include_router(gene_sets.router)
+    app.include_router(exports.router)
     app.include_router(internal.router)
-
-    from veupath_chatbot.transport.http.routers import user_data
-
     app.include_router(user_data.router)
+    app.include_router(evaluation.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":

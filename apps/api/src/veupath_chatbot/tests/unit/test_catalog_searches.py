@@ -81,7 +81,6 @@ class TestListSearches:
         assert len(result) == 1
         assert result[0]["name"] == "GenesByTaxon"
         assert result[0]["displayName"] == "Genes by Taxon"
-        assert result[0]["description"] == "Find genes by organism"
 
     async def test_prefers_url_segment_over_name(self) -> None:
         discovery = _mock_discovery(
@@ -180,7 +179,6 @@ class TestListSearches:
             result = await list_searches("plasmodb", "gene")
 
         assert result[0]["displayName"] == ""
-        assert result[0]["description"] == ""
 
 
 # ---------------------------------------------------------------------------

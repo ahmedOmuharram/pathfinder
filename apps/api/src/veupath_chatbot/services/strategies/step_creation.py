@@ -7,7 +7,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
@@ -16,6 +16,7 @@ from veupath_chatbot.domain.parameters.specs import (
 )
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
+from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
@@ -43,6 +44,11 @@ class StepCreationResult:
     step: PlanStepNode | None
     step_id: str | None
     error: JSONObject | None
+
+
+def _error_result(error: JSONObject) -> StepCreationResult:
+    """Shorthand for an error-only StepCreationResult."""
+    return StepCreationResult(step=None, step_id=None, error=error)
 
 
 def coerce_wdk_boolean_question_params(
@@ -91,21 +97,6 @@ def coerce_wdk_boolean_question_params(
     if left_id and right_id and op:
         return left_id, right_id, op
     return None, None, None
-
-
-def _find_consumer(graph: StrategyGraph, step_id: str) -> str | None:
-    """Find the step that already consumes *step_id* as an input."""
-    return next(
-        (
-            s.id
-            for s in graph.steps.values()
-            if (
-                getattr(getattr(s, "primary_input", None), "id", None) == step_id
-                or getattr(getattr(s, "secondary_input", None), "id", None) == step_id
-            )
-        ),
-        None,
-    )
 
 
 def _validate_inputs(
@@ -175,12 +166,11 @@ def _validate_inputs(
 def _validate_root_status(
     graph: StrategyGraph,
     step_id: str,
-    label: str,
 ) -> JSONObject | None:
     """Check that *step_id* is a subtree root. Return an error payload if not."""
     if step_id in graph.roots:
         return None
-    consumer = _find_consumer(graph, step_id)
+    consumer = graph.find_consumer(step_id)
     return tool_error(
         ErrorCode.INVALID_STRATEGY,
         f"Step '{step_id}' is not a subtree root — it is already consumed by step '{consumer}'. "
@@ -208,7 +198,12 @@ async def _resolve_and_set_record_type(
     return resolved
 
 
-async def _validate_leaf_step(
+# ---------------------------------------------------------------------------
+# Search resolution + parameter validation
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_search_and_validate_params(
     *,
     graph: StrategyGraph,
     site_id: str,
@@ -219,8 +214,13 @@ async def _validate_leaf_step(
     find_record_type_hint: FindRecordTypeHintFn,
     extract_vocab_options: ExtractVocabOptionsFn,
     validation_error_payload: Callable[[ValidationError], JSONObject],
-) -> JSONObject | None:
-    """Validate a leaf step (no inputs). Returns error payload or None on success."""
+) -> tuple[str, JSONObject | None]:
+    """Resolve record type for a search and validate its parameters.
+
+    Shared by leaf and transform validation paths.
+
+    :returns: (resolved_record_type, error_or_none).
+    """
     rt = await resolve_record_type_for_search(
         resolved_record_type, search_name, True, True
     )
@@ -228,13 +228,14 @@ async def _validate_leaf_step(
         record_type_hint = await find_record_type_hint(
             search_name, resolved_record_type
         )
-        return tool_error(
+        return resolved_record_type, tool_error(
             ErrorCode.SEARCH_NOT_FOUND,
             f"Unknown or invalid search: {search_name}",
             recordType=resolved_record_type,
             recordTypeHint=record_type_hint,
         )
     graph.record_type = rt
+
     try:
         await validate_parameters(
             site_id=site_id,
@@ -246,10 +247,58 @@ async def _validate_leaf_step(
             extract_vocab_options=extract_vocab_options,
         )
     except ValidationError as exc:
-        return validation_error_payload(exc)
+        return rt, validation_error_payload(exc)
 
-    # Guard: fold-change searches with identical ref and comp samples produce
-    # meaningless results. Catch this early so the model can fix it.
+    return rt, None
+
+
+async def _validate_leaf_or_transform(
+    *,
+    graph: StrategyGraph,
+    site_id: str,
+    resolved_record_type: str,
+    search_name: str,
+    parameters: JSONObject,
+    is_transform: bool,
+    resolve_record_type_for_search: ResolveRecordTypeFn,
+    find_record_type_hint: FindRecordTypeHintFn,
+    extract_vocab_options: ExtractVocabOptionsFn,
+    validation_error_payload: Callable[[ValidationError], JSONObject],
+) -> JSONObject | None:
+    """Validate a leaf or transform step. Returns error payload or None on success.
+
+    Shared validation (search resolution + parameter validation) runs first,
+    then kind-specific checks:
+    - Leaf: fold-change duplicate sample guard.
+    - Transform: confirm the search accepts an input step.
+    """
+    rt, error = await _resolve_search_and_validate_params(
+        graph=graph,
+        site_id=site_id,
+        resolved_record_type=resolved_record_type,
+        search_name=search_name,
+        parameters=parameters,
+        resolve_record_type_for_search=resolve_record_type_for_search,
+        find_record_type_hint=find_record_type_hint,
+        extract_vocab_options=extract_vocab_options,
+        validation_error_payload=validation_error_payload,
+    )
+    if error is not None:
+        return error
+
+    if is_transform:
+        return await _validate_transform_input_param(rt, site_id, search_name)
+
+    # Leaf-specific: fold-change searches with identical ref and comp samples
+    # produce meaningless results.
+    return _validate_fold_change_samples(search_name, parameters)
+
+
+def _validate_fold_change_samples(
+    search_name: str,
+    parameters: JSONObject,
+) -> JSONObject | None:
+    """Guard against identical ref/comp samples in fold-change searches."""
     ref = parameters.get("samples_fc_ref_generic") or parameters.get(
         "samples_percentile_generic"
     )
@@ -264,53 +313,15 @@ async def _validate_leaf_step(
             ref=ref,
             comp=comp,
         )
-
     return None
 
 
-async def _validate_transform_step(
-    *,
-    graph: StrategyGraph,
+async def _validate_transform_input_param(
+    rt: str,
     site_id: str,
-    resolved_record_type: str,
     search_name: str,
-    parameters: JSONObject,
-    resolve_record_type_for_search: ResolveRecordTypeFn,
-    find_record_type_hint: FindRecordTypeHintFn,
-    extract_vocab_options: ExtractVocabOptionsFn,
-    validation_error_payload: Callable[[ValidationError], JSONObject],
 ) -> JSONObject | None:
-    """Validate a transform step (primary input only). Returns error payload or None."""
-    rt = await resolve_record_type_for_search(
-        resolved_record_type, search_name, True, True
-    )
-    if rt is None:
-        record_type_hint = await find_record_type_hint(
-            search_name, resolved_record_type
-        )
-        return tool_error(
-            ErrorCode.SEARCH_NOT_FOUND,
-            f"Unknown or invalid search: {search_name}",
-            recordType=resolved_record_type,
-            recordTypeHint=record_type_hint,
-        )
-    graph.record_type = rt
-
-    # Validate parameters against WDK specs.
-    try:
-        await validate_parameters(
-            site_id=site_id,
-            record_type=rt,
-            search_name=search_name,
-            parameters=parameters,
-            resolve_record_type_for_search=resolve_record_type_for_search,
-            find_record_type_hint=find_record_type_hint,
-            extract_vocab_options=extract_vocab_options,
-        )
-    except ValidationError as exc:
-        return validation_error_payload(exc)
-
-    # Confirm the question supports an input step.
+    """Confirm the search accepts an input step (required for transforms)."""
     try:
         wdk = get_wdk_client(site_id)
         details = await wdk.get_search_details(rt, search_name, expand_params=True)
@@ -339,25 +350,35 @@ async def _validate_transform_step(
     return None
 
 
-def _build_colocation_params(
-    operator: CombineOp | None,
-    upstream: int | None,
-    downstream: int | None,
-    strand: str | None,
-) -> ColocationParams | None:
-    """Build ColocationParams if the operator is COLOCATE."""
-    if operator != CombineOp.COLOCATE:
-        return None
-    strand_value: Literal["same", "opposite", "both"]
-    if strand in ("same", "opposite", "both"):
-        strand_value = cast(Literal["same", "opposite", "both"], strand)
-    else:
-        strand_value = "both"
-    return ColocationParams(
-        upstream=upstream or 0,
-        downstream=downstream or 0,
-        strand=strand_value,
-    )
+def _validate_cross_organism_intersect(
+    graph: StrategyGraph,
+    primary_input: PlanStepNode,
+    secondary_input: PlanStepNode,
+) -> JSONObject | None:
+    """Guard: INTERSECT between different organisms always returns 0."""
+    primary_orgs = extract_output_organisms(primary_input)
+    secondary_orgs = extract_output_organisms(secondary_input)
+    if (
+        primary_orgs is not None
+        and secondary_orgs is not None
+        and primary_orgs.isdisjoint(secondary_orgs)
+    ):
+        return tool_error(
+            ErrorCode.INVALID_STRATEGY,
+            f"Cannot INTERSECT steps with different organism scopes "
+            f"({', '.join(sorted(primary_orgs))} vs {', '.join(sorted(secondary_orgs))}). "
+            f"Gene IDs from different species never match, so this always returns 0 results. "
+            f"Apply organism-specific filters BEFORE any ortholog transform, not after.",
+            graphId=graph.id,
+            primaryOrganisms=cast(JSONValue, sorted(primary_orgs)),
+            secondaryOrganisms=cast(JSONValue, sorted(secondary_orgs)),
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Main orchestrator
+# ---------------------------------------------------------------------------
 
 
 async def create_step(
@@ -404,25 +425,17 @@ async def create_step(
         graph, primary_input_step_id, secondary_input_step_id, operator
     )
     if error is not None:
-        return StepCreationResult(step=None, step_id=None, error=error)
+        return _error_result(error)
 
     # Validate root status for input steps.
-    if (
-        primary_input is not None
-        and primary_input_step_id is not None
-        and primary_input_step_id not in graph.roots
+    for step_node, step_id in (
+        (primary_input, primary_input_step_id),
+        (secondary_input, secondary_input_step_id),
     ):
-        root_error = _validate_root_status(graph, primary_input_step_id, "primary")
-        if root_error is not None:
-            return StepCreationResult(step=None, step_id=None, error=root_error)
-    if (
-        secondary_input is not None
-        and secondary_input_step_id is not None
-        and secondary_input_step_id not in graph.roots
-    ):
-        root_error = _validate_root_status(graph, secondary_input_step_id, "secondary")
-        if root_error is not None:
-            return StepCreationResult(step=None, step_id=None, error=root_error)
+        if step_node is not None and step_id is not None and step_id not in graph.roots:
+            root_error = _validate_root_status(graph, step_id)
+            if root_error is not None:
+                return _error_result(root_error)
 
     # Resolve record type.
     resolved_record_type = await _resolve_and_set_record_type(
@@ -435,51 +448,46 @@ async def create_step(
         if is_binary:
             search_name = COMBINE_PLACEHOLDER_SEARCH_NAME
         else:
-            return StepCreationResult(
-                step=None,
-                step_id=None,
-                error=tool_error(
+            return _error_result(
+                tool_error(
                     ErrorCode.INVALID_STRATEGY,
                     "search_name is required for leaf and transform steps.",
                     graphId=graph.id,
-                ),
+                )
             )
 
-    # Validate leaf steps (no inputs).
-    if primary_input is None and secondary_input is None:
-        leaf_error = await _validate_leaf_step(
+    # Validate leaf and transform steps (binary steps skip this).
+    if not is_binary:
+        step_error = await _validate_leaf_or_transform(
             graph=graph,
             site_id=site_id,
             resolved_record_type=resolved_record_type,
             search_name=search_name,
             parameters=parameters,
+            is_transform=primary_input is not None,
             resolve_record_type_for_search=resolve_record_type_for_search,
             find_record_type_hint=find_record_type_hint,
             extract_vocab_options=extract_vocab_options,
             validation_error_payload=validation_error_payload,
         )
-        if leaf_error is not None:
-            return StepCreationResult(step=None, step_id=None, error=leaf_error)
-
-    # Validate transform steps (primary input only, no secondary).
-    if primary_input is not None and secondary_input is None:
-        transform_error = await _validate_transform_step(
-            graph=graph,
-            site_id=site_id,
-            resolved_record_type=resolved_record_type,
-            search_name=search_name,
-            parameters=parameters,
-            resolve_record_type_for_search=resolve_record_type_for_search,
-            find_record_type_hint=find_record_type_hint,
-            extract_vocab_options=extract_vocab_options,
-            validation_error_payload=validation_error_payload,
-        )
-        if transform_error is not None:
-            return StepCreationResult(step=None, step_id=None, error=transform_error)
+        if step_error is not None:
+            return _error_result(step_error)
 
     # Parse operator and build colocation params.
-    op = parse_op(operator) if secondary_input is not None and operator else None
-    colocation = _build_colocation_params(op, upstream, downstream, strand)
+    parsed_op = parse_op(operator) if secondary_input is not None and operator else None
+    colocation = ColocationParams.from_raw(parsed_op, upstream, downstream, strand)
+
+    # Cross-organism combine guard.
+    if (
+        parsed_op == CombineOp.INTERSECT
+        and primary_input is not None
+        and secondary_input is not None
+    ):
+        organism_error = _validate_cross_organism_intersect(
+            graph, primary_input, secondary_input
+        )
+        if organism_error is not None:
+            return _error_result(organism_error)
 
     # Build and add the step.
     step = PlanStepNode(
@@ -487,7 +495,7 @@ async def create_step(
         parameters=parameters,
         primary_input=primary_input,
         secondary_input=secondary_input,
-        operator=op,
+        operator=parsed_op,
         colocation_params=colocation,
         display_name=display_name or search_name,
     )

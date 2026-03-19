@@ -15,21 +15,73 @@ module.exports = defineConfig([
     ],
   },
   ...nextConfig,
-  // TypeScript rule overrides (plugin must be in same config object).
+  // TypeScript type-aware rules (the big guns).
   ...(tsPlugin
     ? [
         {
           files: ["**/*.ts", "**/*.tsx"],
           plugins: { "@typescript-eslint": tsPlugin },
+          languageOptions: {
+            parserOptions: {
+              projectService: true,
+              tsconfigRootDir: __dirname,
+            },
+          },
           rules: {
+            // --- Existing ---
             "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-require-imports": "error",
+
+            // --- Async bugs (catch REAL production crashes) ---
+            "@typescript-eslint/no-floating-promises": "error",
+            "@typescript-eslint/no-misused-promises": "error",
+            "@typescript-eslint/await-thenable": "error",
+
+            // --- Type safety (no unsafe escape hatches) ---
+            "@typescript-eslint/no-unnecessary-type-assertion": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+
+            // --- Code quality ---
+            "@typescript-eslint/no-unused-vars": [
+              "error",
+              { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+            ],
+            "@typescript-eslint/prefer-nullish-coalescing": "error",
+            "@typescript-eslint/prefer-optional-chain": "error",
+            "@typescript-eslint/strict-boolean-expressions": "error",
+            "@typescript-eslint/switch-exhaustiveness-check": "error",
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/consistent-type-imports": [
+              "error",
+              { prefer: "type-imports", fixStyle: "inline-type-imports" },
+            ],
+
+            // --- React ---
+            "react-hooks/exhaustive-deps": "error",
+
+            // --- No stray console.log ---
+            "no-console": ["error", { allow: ["warn", "error"] }],
           },
         },
+        // Relax rules for test files
         {
           files: ["**/*.test.{ts,tsx}", "e2e/**/*.spec.ts"],
           plugins: { "@typescript-eslint": tsPlugin },
-          rules: { "@typescript-eslint/no-explicit-any": "off" },
+          rules: {
+            "@typescript-eslint/no-explicit-any": "off",
+            "@typescript-eslint/no-unsafe-assignment": "off",
+            "@typescript-eslint/no-unsafe-call": "off",
+            "@typescript-eslint/no-unsafe-member-access": "off",
+            "@typescript-eslint/no-unsafe-return": "off",
+            "@typescript-eslint/no-unsafe-argument": "off",
+            "@typescript-eslint/no-floating-promises": "off",
+            "@typescript-eslint/strict-boolean-expressions": "off",
+            "no-console": "off",
+          },
         },
         // Playwright fixtures use a callback named "use", not React hooks.
         {

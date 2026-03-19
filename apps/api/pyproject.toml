@@ -74,7 +74,37 @@ target-version = "py314"
 src = ["src", "alembic"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+select = [
+    "E", "F", "I", "N", "W", "UP", "B", "C4", "SIM",  # existing
+    "A",      # builtin-shadowing (list = [], type = "foo")
+    "ASYNC",  # async anti-patterns (missing await, blocking in async)
+    "BLE",    # blind except (bare `except:` or `except Exception:`)
+    "C90",    # McCabe complexity
+    "DTZ",    # datetime without timezone
+    "EM",     # string literals in exceptions
+    "ERA",    # commented-out code
+    "FBT",    # boolean trap (boolean positional args)
+    "ICN",    # import conventions
+    "ISC",    # implicit string concatenation
+    "LOG",    # logging anti-patterns
+    "PIE",    # misc linting
+    "PT",     # pytest style enforcement
+    "PTH",    # pathlib over os.path
+    "RET",    # unnecessary return/else patterns
+    "RSE",    # raise improvements
+    "RUF",    # ruff-specific rules
+    "S",      # bandit security (SQL injection, hardcoded passwords, etc.)
+    "T20",    # print() statements (use structlog)
+    "TCH",    # TYPE_CHECKING imports
+    "TID",    # tidy imports
+    "TRY",    # exception handling anti-patterns
+    "PERF",   # performance anti-patterns
+    "FURB",   # modernization
+    "PLC",    # pylint convention
+    "PLE",    # pylint error
+    "PLR",    # pylint refactor
+    "PLW",    # pylint warning
+]
 ignore = [
     # FastAPI path params and Pydantic field names intentionally use mixedCase
     # to match the public HTTP contract (e.g. `siteId`, `planSessionId`).
@@ -86,6 +116,27 @@ ignore = [
     # even on Python 3.14 (PEP 649) because Pydantic's metaclass evaluates
     # annotations eagerly at class construction time.
     "UP037",
+    # We don't use TYPE_CHECKING imports.
+    "TCH001", "TCH002", "TCH003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 6
+max-returns = 3
+max-branches = 10
+
+[tool.ruff.lint.per-file-ignores]
+"src/veupath_chatbot/tests/**" = [
+    "S101",     # assert is what tests do
+    "PLR2004",  # magic values in assertions are expected
+    "FBT",      # boolean args in test helpers are fine
+    "ERA001",   # commented-out test code during development
+]
+"src/veupath_chatbot/ai/prompts/**" = [
+    "E501",  # prompt strings are long by nature
 ]
 
 [tool.ruff.lint.isort]
@@ -119,6 +170,8 @@ min_confidence = 80
 [dependency-groups]
 dev = [
     "fakeredis>=2.34.1",
+    "import-linter>=2.0",
+    "pip-audit>=2.7.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
@@ -131,4 +184,77 @@ dev = [
 [tool.pyright]
 pythonVersion = "3.14"
 pythonPlatform = "Linux"
+
+# ---------------------------------------------------------------------------
+# Import Linter — backend architecture enforcement
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_packages = ["veupath_chatbot"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain layer is pure (no I/O, no other layers)"
+type = "forbidden"
+source_modules = ["veupath_chatbot.domain"]
+forbidden_modules = [
+    "veupath_chatbot.integrations",
+    "veupath_chatbot.services",
+    "veupath_chatbot.transport",
+    "veupath_chatbot.persistence",
+    "veupath_chatbot.ai",
+    "httpx",
+    "sqlalchemy",
+    "asyncpg",
+    "qdrant_client",
+    "redis",
+    "fastapi",
+]
+
+[[tool.importlinter.contracts]]
+name = "Transport never imports integrations or persistence directly"
+type = "forbidden"
+source_modules = ["veupath_chatbot.transport"]
+forbidden_modules = [
+    "veupath_chatbot.integrations",
+    "veupath_chatbot.persistence",
+]
+
+[[tool.importlinter.contracts]]
+name = "AI tools never import integrations or persistence directly"
+type = "forbidden"
+source_modules = ["veupath_chatbot.ai.tools"]
+forbidden_modules = [
+    "veupath_chatbot.integrations",
+    "veupath_chatbot.persistence",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services never import transport or AI"
+type = "forbidden"
+source_modules = ["veupath_chatbot.services"]
+forbidden_modules = [
+    "veupath_chatbot.transport",
+    "veupath_chatbot.ai",
+]
+
+[[tool.importlinter.contracts]]
+name = "Integrations never import services, transport, or AI"
+type = "forbidden"
+source_modules = ["veupath_chatbot.integrations"]
+forbidden_modules = [
+    "veupath_chatbot.services",
+    "veupath_chatbot.transport",
+    "veupath_chatbot.ai",
+]
+
+[[tool.importlinter.contracts]]
+name = "Persistence never imports services, transport, AI, or integrations"
+type = "forbidden"
+source_modules = ["veupath_chatbot.persistence"]
+forbidden_modules = [
+    "veupath_chatbot.services",
+    "veupath_chatbot.transport",
+    "veupath_chatbot.ai",
+    "veupath_chatbot.integrations",
+]
 

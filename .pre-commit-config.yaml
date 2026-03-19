@@ -72,9 +72,30 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^apps/api/.*
+      - id: import-linter-api
+        name: import-linter (api)
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run lint-imports"
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^apps/api/.*
+      - id: pip-audit-api
+        name: pip-audit (api)
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run pip-audit"
+        language: system
+        pass_filenames: false
+        files: ^apps/api/pyproject\.toml$
+        stages: [pre-push]
       - id: shared-ts-openapi
         name: openapi types regenerate (shared-ts)
         entry: bash -c "cd packages/shared-ts && yarn generate:openapi"
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*
+      - id: knip-web
+        name: knip (web)
+        entry: bash -c "cd apps/web && npx knip"
+        language: system
+        pass_filenames: false
+        files: ^(apps/web/|packages/shared-ts/).*
+        stages: [pre-push]

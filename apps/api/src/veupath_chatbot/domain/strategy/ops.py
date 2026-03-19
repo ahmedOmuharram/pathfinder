@@ -7,7 +7,7 @@ RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, cast
 
 # Order matches WDK; use this tuple for iteration / descriptions
 COMBINE_OP_ORDER = (
@@ -60,6 +60,28 @@ class ColocationParams:
     downstream: int = 0
     strand: Literal["same", "opposite", "both"] = "both"
 
+    @classmethod
+    def from_raw(
+        cls,
+        operator: "CombineOp | None",
+        upstream: int | None,
+        downstream: int | None,
+        strand: str | None,
+    ) -> "ColocationParams | None":
+        """Build ColocationParams if *operator* is COLOCATE, else None."""
+        if operator != CombineOp.COLOCATE:
+            return None
+        strand_value: Literal["same", "opposite", "both"]
+        if strand in ("same", "opposite", "both"):
+            strand_value = cast(Literal["same", "opposite", "both"], strand)
+        else:
+            strand_value = "both"
+        return cls(
+            upstream=upstream or 0,
+            downstream=downstream or 0,
+            strand=strand_value,
+        )
+
     def validate(self) -> list[str]:
         """Validate parameters."""
         errors = []
@@ -87,6 +109,27 @@ def get_wdk_operator(op: CombineOp) -> str:
     return op.value
 
 
+_OP_ALIASES: dict[str, CombineOp] = {
+    "AND": CombineOp.INTERSECT,
+    "INTERSECTION": CombineOp.INTERSECT,
+    "OR": CombineOp.UNION,
+    "PLUS": CombineOp.UNION,
+    "UNION": CombineOp.UNION,
+    "INTERSECT": CombineOp.INTERSECT,
+    "MINUS": CombineOp.MINUS,
+    "NOT": CombineOp.MINUS,
+    "RMINUS": CombineOp.RMINUS,
+    "LONLY": CombineOp.LONLY,
+    "RONLY": CombineOp.RONLY,
+    "LEFT_MINUS": CombineOp.MINUS,
+    "RIGHT_MINUS": CombineOp.RMINUS,
+    "LMINUS": CombineOp.MINUS,
+    "MINUS_LEFT": CombineOp.MINUS,
+    "MINUS_RIGHT": CombineOp.RMINUS,
+    "COLOCATE": CombineOp.COLOCATE,
+}
+
+
 def parse_op(value: str) -> CombineOp:
     """Parse operator from string value.
 
@@ -98,31 +141,10 @@ def parse_op(value: str) -> CombineOp:
     if not raw:
         raise ValueError("Unknown operator: <empty>")
 
-    # Normalize common user inputs.
     norm = raw.upper().replace("-", "_").replace(" ", "_")
-    aliases: dict[str, CombineOp] = {
-        "AND": CombineOp.INTERSECT,
-        "INTERSECTION": CombineOp.INTERSECT,
-        "OR": CombineOp.UNION,
-        "PLUS": CombineOp.UNION,
-        "UNION": CombineOp.UNION,
-        "INTERSECT": CombineOp.INTERSECT,
-        "MINUS": CombineOp.MINUS,
-        "NOT": CombineOp.MINUS,
-        "RMINUS": CombineOp.RMINUS,
-        "LONLY": CombineOp.LONLY,
-        "RONLY": CombineOp.RONLY,
-        "LEFT_MINUS": CombineOp.MINUS,
-        "RIGHT_MINUS": CombineOp.RMINUS,
-        "LMINUS": CombineOp.MINUS,
-        "MINUS_LEFT": CombineOp.MINUS,
-        "MINUS_RIGHT": CombineOp.RMINUS,
-        "COLOCATE": CombineOp.COLOCATE,
-    }
-    if norm in aliases:
-        return aliases[norm]
+    if norm in _OP_ALIASES:
+        return _OP_ALIASES[norm]
 
-    # Fallback: accept exact enum values (case-insensitive).
     try:
         return CombineOp(norm)
     except ValueError as exc:

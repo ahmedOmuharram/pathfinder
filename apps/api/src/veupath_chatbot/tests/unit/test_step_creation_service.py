@@ -3,15 +3,14 @@
 from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.step_creation import (
     COMBINE_PLACEHOLDER_SEARCH_NAME,
-    _build_colocation_params,
-    _find_consumer,
     _validate_inputs,
     _validate_root_status,
     coerce_wdk_boolean_question_params,
@@ -141,7 +140,7 @@ class TestFindConsumer:
         step_b = PlanStepNode(search_name="B", parameters={}, primary_input=step_a)
         graph.add_step(step_a)
         graph.add_step(step_b)
-        assert _find_consumer(graph, step_a.id) == step_b.id
+        assert graph.find_consumer(step_a.id) == step_b.id
 
     def test_finds_consumer_via_secondary(self):
         graph = _make_graph()
@@ -156,13 +155,13 @@ class TestFindConsumer:
         graph.add_step(step_a)
         graph.add_step(step_b)
         graph.add_step(step_c)
-        assert _find_consumer(graph, step_b.id) == step_c.id
+        assert graph.find_consumer(step_b.id) == step_c.id
 
     def test_returns_none_for_unconsumed(self):
         graph = _make_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
-        assert _find_consumer(graph, step_a.id) is None
+        assert graph.find_consumer(step_a.id) is None
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +233,7 @@ class TestValidateRootStatus:
         graph = _make_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
-        assert _validate_root_status(graph, step_a.id, "primary") is None
+        assert _validate_root_status(graph, step_a.id) is None
 
     def test_non_root_step_fails(self):
         graph = _make_graph()
@@ -249,7 +248,7 @@ class TestValidateRootStatus:
             secondary_input=step_b,
         )
         graph.add_step(combine)
-        error = _validate_root_status(graph, step_a.id, "primary")
+        error = _validate_root_status(graph, step_a.id)
         assert error is not None
         assert "not a subtree root" in str(error["message"])
         assert error["consumedBy"] == combine.id
@@ -262,25 +261,25 @@ class TestValidateRootStatus:
 
 class TestBuildColocationParams:
     def test_non_colocate_returns_none(self):
-        assert _build_colocation_params(CombineOp.UNION, 10, 20, "same") is None
-        assert _build_colocation_params(None, 10, 20, "same") is None
+        assert ColocationParams.from_raw(CombineOp.UNION, 10, 20, "same") is None
+        assert ColocationParams.from_raw(None, 10, 20, "same") is None
 
     def test_colocate_defaults(self):
-        result = _build_colocation_params(CombineOp.COLOCATE, None, None, None)
+        result = ColocationParams.from_raw(CombineOp.COLOCATE, None, None, None)
         assert result is not None
         assert result.upstream == 0
         assert result.downstream == 0
         assert result.strand == "both"
 
     def test_colocate_custom(self):
-        result = _build_colocation_params(CombineOp.COLOCATE, 100, 200, "same")
+        result = ColocationParams.from_raw(CombineOp.COLOCATE, 100, 200, "same")
         assert result is not None
         assert result.upstream == 100
         assert result.downstream == 200
         assert result.strand == "same"
 
     def test_colocate_invalid_strand_defaults_to_both(self):
-        result = _build_colocation_params(CombineOp.COLOCATE, 0, 0, "invalid")
+        result = ColocationParams.from_raw(CombineOp.COLOCATE, 0, 0, "invalid")
         assert result is not None
         assert result.strand == "both"
 
@@ -721,3 +720,267 @@ class TestCreateStepIntegration:
         )
         assert result.error is not None
         assert result.error["code"] == "VALIDATION_ERROR"
+
+
+# ---------------------------------------------------------------------------
+# extract_output_organisms
+# ---------------------------------------------------------------------------
+
+
+class TestExtractOutputOrganisms:
+    """Tests for organism scope extraction from step subtrees."""
+
+    def test_leaf_with_organism_param(self) -> None:
+        step = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        assert extract_output_organisms(step) == {"Plasmodium falciparum 3D7"}
+
+    def test_leaf_with_text_search_organism(self) -> None:
+        step = PlanStepNode(
+            search_name="GenesByText",
+            parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
+        )
+        assert extract_output_organisms(step) == {"Plasmodium berghei ANKA"}
+
+    def test_leaf_without_organism_returns_none(self) -> None:
+        step = PlanStepNode(
+            search_name="GenesByMassSpec",
+            parameters={"ms_assay": '["merozoite_Plasmodium falciparum 3D7"]'},
+        )
+        assert extract_output_organisms(step) is None
+
+    def test_orthologs_transform_returns_target_organism(self) -> None:
+        inner = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        ortho = PlanStepNode(
+            search_name="GenesByOrthologs",
+            parameters={"organism": '["Plasmodium berghei ANKA"]'},
+            primary_input=inner,
+        )
+        # Output is Pb, not Pf — the transform changes the organism scope
+        assert extract_output_organisms(ortho) == {"Plasmodium berghei ANKA"}
+
+    def test_combine_inherits_from_primary(self) -> None:
+        pf = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        pf2 = PlanStepNode(
+            search_name="GenesByText",
+            parameters={"text_search_organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        combine = PlanStepNode(
+            search_name="__combine__",
+            primary_input=pf,
+            secondary_input=pf2,
+            operator=CombineOp.UNION,
+        )
+        assert extract_output_organisms(combine) == {"Plasmodium falciparum 3D7"}
+
+    def test_non_orthologs_transform_passthrough(self) -> None:
+        inner = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        transform = PlanStepNode(
+            search_name="GenesByPathwaysTransform",
+            parameters={},
+            primary_input=inner,
+        )
+        assert extract_output_organisms(transform) == {"Plasmodium falciparum 3D7"}
+
+    def test_multiple_organisms_in_param(self) -> None:
+        step = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={
+                "organism": '["Plasmodium falciparum 3D7", "Plasmodium vivax P01"]'
+            },
+        )
+        result = extract_output_organisms(step)
+        assert result == {"Plasmodium falciparum 3D7", "Plasmodium vivax P01"}
+
+
+# ---------------------------------------------------------------------------
+# Cross-organism INTERSECT guard
+# ---------------------------------------------------------------------------
+
+
+class TestCrossOrganismIntersectGuard:
+    """Combining steps from different organisms with INTERSECT must fail."""
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_intersect_different_organisms_rejected(self, mock_val: AsyncMock) -> None:
+        graph = _make_graph()
+        pf = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByGoTerm",
+                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        pb = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByText",
+                parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
+            )
+        )
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            primary_input_step_id=pf,
+            secondary_input_step_id=pb,
+            operator="INTERSECT",
+            resolve_record_type_for_search=_resolve_record_type_stub,
+            find_record_type_hint=_find_record_type_hint_stub,
+            extract_vocab_options=_extract_vocab_options_stub,
+            validation_error_payload=_noop_validation_error_payload,
+        )
+        assert result.error is not None
+        assert result.error["code"] == "INVALID_STRATEGY"
+        assert "different organism" in result.error["message"].lower()
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_intersect_same_organism_allowed(self, mock_val: AsyncMock) -> None:
+        graph = _make_graph()
+        a = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByGoTerm",
+                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        b = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByText",
+                parameters={"text_search_organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            primary_input_step_id=a,
+            secondary_input_step_id=b,
+            operator="INTERSECT",
+            resolve_record_type_for_search=_resolve_record_type_stub,
+            find_record_type_hint=_find_record_type_hint_stub,
+            extract_vocab_options=_extract_vocab_options_stub,
+            validation_error_payload=_noop_validation_error_payload,
+        )
+        assert result.error is None
+        assert result.step is not None
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_union_different_organisms_allowed(self, mock_val: AsyncMock) -> None:
+        """UNION across organisms is valid (e.g. collecting genes from multiple species)."""
+        graph = _make_graph()
+        pf = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByGoTerm",
+                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        pb = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByText",
+                parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
+            )
+        )
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            primary_input_step_id=pf,
+            secondary_input_step_id=pb,
+            operator="UNION",
+            resolve_record_type_for_search=_resolve_record_type_stub,
+            find_record_type_hint=_find_record_type_hint_stub,
+            extract_vocab_options=_extract_vocab_options_stub,
+            validation_error_payload=_noop_validation_error_payload,
+        )
+        assert result.error is None
+        assert result.step is not None
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_intersect_no_organism_param_skips_check(self, mock_val: AsyncMock) -> None:
+        """Steps without organism params (e.g. MassSpec) should not trigger the guard."""
+        graph = _make_graph()
+        a = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByGoTerm",
+                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        b = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByMassSpec",
+                parameters={"ms_assay": '["merozoite_Plasmodium falciparum 3D7"]'},
+            )
+        )
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            primary_input_step_id=a,
+            secondary_input_step_id=b,
+            operator="INTERSECT",
+            resolve_record_type_for_search=_resolve_record_type_stub,
+            find_record_type_hint=_find_record_type_hint_stub,
+            extract_vocab_options=_extract_vocab_options_stub,
+            validation_error_payload=_noop_validation_error_payload,
+        )
+        assert result.error is None
+        assert result.step is not None
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_intersect_orthologs_output_vs_different_species_rejected(
+        self, mock_val: AsyncMock
+    ) -> None:
+        """Orthologs(Pf→Pb) INTERSECT Pf_expression should fail — Pb IDs vs Pf IDs."""
+        graph = _make_graph()
+        pf_kinases = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        )
+        ortho_step_id = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByOrthologs",
+                parameters={"organism": '["Plasmodium berghei ANKA"]'},
+                primary_input=pf_kinases,
+            )
+        )
+        pf_expr_id = graph.add_step(
+            PlanStepNode(
+                search_name="GenesByRNASeqPercentile",
+                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            )
+        )
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            primary_input_step_id=ortho_step_id,
+            secondary_input_step_id=pf_expr_id,
+            operator="INTERSECT",
+            resolve_record_type_for_search=_resolve_record_type_stub,
+            find_record_type_hint=_find_record_type_hint_stub,
+            extract_vocab_options=_extract_vocab_options_stub,
+            validation_error_payload=_noop_validation_error_payload,
+        )
+        assert result.error is not None
+        assert result.error["code"] == "INVALID_STRATEGY"
+        assert "berghei" in result.error["message"].lower()
+        assert "falciparum" in result.error["message"].lower()
