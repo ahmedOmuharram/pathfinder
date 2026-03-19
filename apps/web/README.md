@@ -154,8 +154,8 @@ Required env:
 
 ```bash
 cd apps/web
-npm ci
-npm run dev
+yarn install
+yarn dev
 ```
 
 Open `http://localhost:3000`.
@@ -164,14 +164,14 @@ Open `http://localhost:3000`.
 
 From `package.json`:
 
-- `npm run dev`: start Next dev server
-- `npm run build` / `npm run start`: production build + start
-- `npm run lint`: ESLint
-- `npm run typecheck`: TypeScript (`tsc --noEmit`)
-- `npm test`: Vitest
-- `npm run check:boundaries`: repo-specific boundary checks
-- `npm run test:e2e`: Playwright E2E tests
-- `npm run test:e2e:ui`: Playwright E2E tests with UI mode
+- `yarn dev`: start Next dev server
+- `yarn build` / `yarn start`: production build + start
+- `yarn lint`: ESLint
+- `yarn typecheck`: TypeScript (`tsc --noEmit`)
+- `yarn test`: Vitest
+- `yarn check:boundaries`: repo-specific boundary checks
+- `yarn test:e2e`: Playwright E2E tests
+- `yarn test:e2e:ui`: Playwright E2E tests with UI mode
 
 ### E2E testing
 

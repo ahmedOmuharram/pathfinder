@@ -1,28 +1,28 @@
 FROM node:24-alpine AS base
 
+# Enable Corepack so Yarn 4 is available
+RUN corepack enable
+
 # Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
-COPY apps/web/package*.json ./apps/web/
-COPY packages/shared-ts/package*.json ./packages/shared-ts/
+# Copy workspace config + Yarn release
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn .yarn
+COPY apps/web/package.json ./apps/web/
+COPY packages/shared-ts/package.json ./packages/shared-ts/
 
-# Install dependencies
-WORKDIR /app/apps/web
-RUN npm ci
-
-# Install shared-ts deps too (Next imports from this path in the image)
-WORKDIR /app/packages/shared-ts
-RUN npm ci
+# Install all workspace dependencies
+RUN yarn install --immutable
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /app/packages/shared-ts/node_modules ./packages/shared-ts/node_modules
+# Copy entire deps stage (root + workspace node_modules, yarn config)
+COPY --from=deps /app ./
 COPY apps/web ./apps/web
 COPY packages/shared-ts ./packages/shared-ts
 
@@ -38,7 +38,7 @@ ENV NODE_ENV=production
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN npm run build
+RUN yarn build
 
 # Production image, copy all the files and run next
 FROM base AS runner

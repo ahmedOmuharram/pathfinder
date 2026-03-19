@@ -44,7 +44,7 @@ async function main() {
     const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, "utf8") : "";
     if (current !== next) {
       console.error(
-        `OpenAPI types are out of date.\nRun: (cd packages/shared-ts && npm run generate:openapi)`
+        `OpenAPI types are out of date.\nRun: (cd packages/shared-ts && yarn generate:openapi)`
       );
       process.exit(1);
     }

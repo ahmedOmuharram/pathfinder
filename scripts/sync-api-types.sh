@@ -18,6 +18,6 @@ http.get('http://api:8000/openapi.json', res => {
 "
 
 echo "Generating TypeScript types..."
-cd packages/shared-ts && npm run generate:openapi
+cd packages/shared-ts && yarn generate:openapi
 
 echo "Types synced successfully."

@@ -42,6 +42,6 @@ The repo generates TS types from this spec into `packages/shared-ts/src/openapi.
 
 ```bash
 cd packages/shared-ts
-npm ci
-npm run generate:openapi
+yarn install
+yarn generate:openapi
 ```

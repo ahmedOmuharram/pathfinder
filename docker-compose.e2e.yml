@@ -5,7 +5,7 @@
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
-#   cd apps/web && npm run test:e2e
+#   cd apps/web && yarn test:e2e
 
 services:
   api:

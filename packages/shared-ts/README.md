@@ -37,18 +37,18 @@ The web app uses TS path mapping (`@pathfinder/shared`) configured in `apps/web/
 
 ```bash
 cd packages/shared-ts
-npm ci
-npm run build
+yarn install
+yarn build
 ```
 
 Regenerate OpenAPI types from the spec:
 
 ```bash
-npm run generate:openapi
+yarn generate:openapi
 ```
 
 Validate that generated types match the spec:
 
 ```bash
-npm run check:openapi
+yarn check:openapi
 ```

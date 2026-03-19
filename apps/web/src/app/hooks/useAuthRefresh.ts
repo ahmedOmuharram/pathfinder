@@ -23,5 +23,11 @@ export function useAuthRefresh(): void {
       .catch((err) => {
         console.error("[refreshAuth]", err);
       });
-  }, [veupathdbSignedIn, authRefreshed, setAuthRefreshed, bumpAuthVersion, selectedSite]);
+  }, [
+    veupathdbSignedIn,
+    authRefreshed,
+    setAuthRefreshed,
+    bumpAuthVersion,
+    selectedSite,
+  ]);
 }

@@ -13,7 +13,7 @@ const isCI = Boolean(process.env.CI);
  *
  * 2. Run the tests:
  *
- *      npm run test:e2e
+ *      yarn test:e2e
  *
  * ## CI
  *

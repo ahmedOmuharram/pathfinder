@@ -106,9 +106,8 @@ Enable local formatting/linting hooks so issues are caught before push:
 ```bash
 cd apps/api
 uv sync --extra dev
-cd ../web
-npm install
 cd ../..
+yarn install
 uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
 
@@ -238,8 +237,8 @@ Web:
 
 ```bash
 cd apps/web
-npm ci
-npm run dev
+yarn install
+yarn dev
 ```
 
 ## Testing, linting, typechecking
@@ -257,9 +256,9 @@ uv run mypy src
 
 ```bash
 cd apps/web
-npm run lint
-npm run typecheck
-npm test
+yarn lint
+yarn typecheck
+yarn test
 ```
 
 ## Documentation
@@ -285,8 +284,8 @@ Open `apps/api/docs/_build/html/index.html` in a browser.
 
 ```bash
 cd packages/shared-ts
-npm ci
-npm run generate:openapi
+yarn install
+yarn generate:openapi
 ```
 
 The web app also uses path-based imports for shared TS types (see `apps/web/tsconfig.json`) and Next transpilation settings (`apps/web/next.config.js`).

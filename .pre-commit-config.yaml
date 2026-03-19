@@ -21,31 +21,31 @@ repos:
         types: [python]
       - id: prettier-web
         name: prettier (web)
-        entry: bash -c "cd apps/web && npm run format"
+        entry: bash -c "cd apps/web && yarn format"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
       - id: eslint-web
         name: eslint (web)
-        entry: bash -c "cd apps/web && npm run lint"
+        entry: bash -c "cd apps/web && yarn lint"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
       - id: typecheck-web
         name: tsc --noEmit (web)
-        entry: bash -c "cd apps/web && npm run typecheck"
+        entry: bash -c "cd apps/web && yarn typecheck"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
       - id: boundaries-web
         name: check boundaries (web)
-        entry: bash -c "cd apps/web && npm run check:boundaries"
+        entry: bash -c "cd apps/web && yarn check:boundaries"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
       - id: vitest-web
         name: vitest (web)
-        entry: bash -c "cd apps/web && npx vitest run"
+        entry: bash -c "cd apps/web && yarn vitest run"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
@@ -60,7 +60,7 @@ repos:
         stages: [pre-push]
       - id: build-web
         name: next build (web)
-        entry: bash -c "cd apps/web && NEXT_PUBLIC_API_URL='http://localhost:8000' npm run build"
+        entry: bash -c "cd apps/web && NEXT_PUBLIC_API_URL='http://localhost:8000' yarn build"
         language: system
         pass_filenames: false
         files: ^(apps/web/|packages/shared-ts/).*
@@ -74,7 +74,7 @@ repos:
         files: ^apps/api/.*
       - id: shared-ts-openapi
         name: openapi types regenerate (shared-ts)
-        entry: bash -c "cd packages/shared-ts && npm run generate:openapi"
+        entry: bash -c "cd packages/shared-ts && yarn generate:openapi"
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*

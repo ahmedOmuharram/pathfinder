@@ -121,28 +121,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
-          cache: "npm"
-          cache-dependency-path: apps/web/package-lock.json
+          cache: "yarn"
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        working-directory: apps/web
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Run ESLint
         working-directory: apps/web
-        run: npm run lint
+        run: yarn lint
 
       - name: Check formatting
         working-directory: apps/web
-        run: npm run format:check
+        run: yarn format:check
 
       - name: Type check
         working-directory: apps/web
-        run: npm run typecheck
+        run: yarn typecheck
 
       - name: Check architectural boundaries
         working-directory: apps/web
-        run: npm run check:boundaries
+        run: yarn check:boundaries
 
   check-shared-ts:
     name: Check shared TS types
@@ -154,16 +156,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
-          cache: "npm"
-          cache-dependency-path: packages/shared-ts/package-lock.json
+          cache: "yarn"
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        working-directory: packages/shared-ts
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Check OpenAPI-generated types are up to date
         working-directory: packages/shared-ts
-        run: npm run check:openapi
+        run: yarn check:openapi
 
   test-web:
     name: Test Web
@@ -175,16 +179,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
-          cache: "npm"
-          cache-dependency-path: apps/web/package-lock.json
+          cache: "yarn"
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        working-directory: apps/web
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Run unit tests (with coverage)
         working-directory: apps/web
-        run: npm run test:coverage
+        run: yarn test:coverage
 
   test-e2e:
     name: E2E (Playwright)
@@ -255,29 +261,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
-          cache: "npm"
-          cache-dependency-path: apps/web/package-lock.json
+          cache: "yarn"
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install web dependencies
-        working-directory: apps/web
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Install Playwright browsers
         working-directory: apps/web
-        run: npx playwright install --with-deps
+        run: yarn playwright install --with-deps
 
       - name: Build web
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
-        run: npm run build
+        run: yarn build
 
       - name: Start web
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           PORT: "3000"
-        run: npm run start -- -p 3000 &
+        run: yarn start -p 3000 &
 
       - name: Wait for web
         run: |
@@ -292,6 +300,4 @@ jobs:
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
-        run: npm run test:e2e
-
-
+        run: yarn test:e2e

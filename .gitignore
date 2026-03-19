@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
 
 __pycache__/
 *.py[cod]

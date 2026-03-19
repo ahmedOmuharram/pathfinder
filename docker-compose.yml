@@ -108,7 +108,7 @@ services:
     working_dir: /app
     command: >
       sh -c "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 &&
-             cd /app/packages/shared-ts && npm install --ignore-scripts > /dev/null 2>&1 &&
+             cd /app && corepack enable && yarn install > /dev/null 2>&1 &&
              cd /app && sh scripts/sync-api-types.sh"
     restart: "no"
 
