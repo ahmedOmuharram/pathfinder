@@ -23,7 +23,6 @@ from typing import (
     get_type_hints,
 )
 
-
 _MIN_DICT_TYPE_ARGS = 2
 
 

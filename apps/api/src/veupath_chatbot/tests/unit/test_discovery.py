@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     SearchCatalog,
 )
+from veupath_chatbot.platform.errors import DataParsingError
 
 # ---------------------------------------------------------------------------
 # Helpers

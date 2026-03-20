@@ -12,7 +12,6 @@ import pytest
 import respx
 
 from veupath_chatbot.platform.errors import ExternalServiceError
-
 from veupath_chatbot.services.research.clients.arxiv import ArxivClient
 from veupath_chatbot.services.research.clients.crossref import CrossrefClient
 from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient

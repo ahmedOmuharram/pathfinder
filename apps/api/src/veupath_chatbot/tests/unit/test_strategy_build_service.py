@@ -6,11 +6,11 @@ extraction, full build orchestration, and result count lookup.
 
 import pytest
 
-from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
+from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import resolve_record_type_from_steps
 from veupath_chatbot.services.strategies.build import (
