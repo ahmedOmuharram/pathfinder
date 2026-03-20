@@ -133,10 +133,6 @@ def _wire_ai_dependencies() -> None:
         resolve_effective_model_id,
     )
     from veupath_chatbot.ai.agents.workbench import WorkbenchAgent  # noqa: PLC0415
-    from veupath_chatbot.platform.types import (  # noqa: PLC0415
-        ModelProvider,
-        ReasoningEffort,
-    )
     from veupath_chatbot.services import workbench_chat  # noqa: PLC0415
     from veupath_chatbot.services.chat import orchestrator  # noqa: PLC0415
 
@@ -159,17 +155,9 @@ def _wire_ai_dependencies() -> None:
         user_id: UUID | None = None,
         system_prompt: str = "",
         chat_history: list[ChatMessage] | None = None,
-        provider_override: ModelProvider | None = None,
-        model_override: str | None = None,
-        reasoning_effort: ReasoningEffort | None = None,
+        engine_config: EngineConfig | None = None,
     ) -> WorkbenchAgent:
-        engine = create_engine(
-            EngineConfig(
-                provider_override=provider_override,
-                model_override=model_override,
-                reasoning_effort=reasoning_effort,
-            ),
-        )
+        engine = create_engine(engine_config or EngineConfig())
         return WorkbenchAgent(
             engine=engine,
             site_id=site_id,

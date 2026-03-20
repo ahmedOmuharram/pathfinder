@@ -55,6 +55,12 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# SonarQube / SonarScanner
+.scannerwork/
+.sonarqube/
+.sonar/
+sonar-report.json
+
 # Playwright
 apps/web/playwright-report/
 apps/web/test-results/
