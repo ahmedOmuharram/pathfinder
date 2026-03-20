@@ -24,6 +24,7 @@ from veupath_chatbot.platform.events import (
     read_stream_thinking,
 )
 from veupath_chatbot.services.chat.orchestrator import start_chat_stream
+from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.transport.http.routers.strategies._shared import (
     build_projection_response,
 )
@@ -747,6 +748,12 @@ class TestOrchestratorEmitsReadableMessages:
         stream_repo.register_operation = AsyncMock()
         stream_repo.session = mock_session
 
+        context = ChatContext(
+            user_id=uuid4(),
+            user_repo=user_repo,
+            stream_repo=stream_repo,
+        )
+
         def _fake_create_task(coro: Any) -> MagicMock:
             coro.close()
             task = MagicMock()
@@ -768,9 +775,7 @@ class TestOrchestratorEmitsReadableMessages:
                 message="Test message for persistence",
                 site_id="plasmodb",
                 strategy_id=stream_uuid,
-                user_id=uuid4(),
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
         # NOW: read from Redis using the SAME stream_id the endpoint would use.

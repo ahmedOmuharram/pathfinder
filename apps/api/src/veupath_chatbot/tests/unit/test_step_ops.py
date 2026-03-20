@@ -5,7 +5,10 @@ in test_step_creation_service.py. These tests verify the tool layer still
 orchestrates correctly (graph lookup, delegation, response formatting).
 """
 
-from veupath_chatbot.ai.tools.strategy_tools.step_ops import StrategyStepOps
+from veupath_chatbot.ai.tools.strategy_tools.step_ops import (
+    StepInputSpec,
+    StrategyStepOps,
+)
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategySession
 
@@ -45,8 +48,7 @@ async def test_create_step_secondary_without_primary():
     ops.session = session
 
     result = await ops.create_step(
-        secondary_input_step_id=step_b.id,
-        operator="UNION",
+        inputs=StepInputSpec(secondary_input_step_id=step_b.id, operator="UNION"),
         graph_id="g1",
     )
     assert result["ok"] is False
@@ -66,8 +68,10 @@ async def test_create_step_secondary_without_operator():
     ops.session = session
 
     result = await ops.create_step(
-        primary_input_step_id=step_a.id,
-        secondary_input_step_id=step_b.id,
+        inputs=StepInputSpec(
+            primary_input_step_id=step_a.id,
+            secondary_input_step_id=step_b.id,
+        ),
         graph_id="g1",
     )
     assert result["ok"] is False
@@ -96,7 +100,7 @@ async def test_create_step_primary_input_not_found():
     ops.session = session
 
     result = await ops.create_step(
-        primary_input_step_id="nonexistent",
+        inputs=StepInputSpec(primary_input_step_id="nonexistent"),
         search_name="SomeTransform",
         graph_id="g1",
     )
@@ -115,9 +119,11 @@ async def test_create_step_secondary_input_not_found():
     ops.session = session
 
     result = await ops.create_step(
-        primary_input_step_id=step_a.id,
-        secondary_input_step_id="nonexistent",
-        operator="UNION",
+        inputs=StepInputSpec(
+            primary_input_step_id=step_a.id,
+            secondary_input_step_id="nonexistent",
+            operator="UNION",
+        ),
         graph_id="g1",
     )
     assert result["ok"] is False
@@ -149,7 +155,7 @@ async def test_create_step_rejects_non_root_primary_input():
     # Try to use step_a again as primary input -- it's not a root anymore
     result = await ops.create_step(
         search_name="SomeSearch",
-        primary_input_step_id=step_a.id,
+        inputs=StepInputSpec(primary_input_step_id=step_a.id),
         graph_id="g1",
     )
     assert result["ok"] is False

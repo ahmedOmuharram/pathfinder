@@ -328,9 +328,7 @@ class TestFetchSearchDetails:
         """When fallback scan finds the search but details fetch fails too,
         it should still raise ValidationError."""
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(
-            side_effect=ValueError("always fails")
-        )
+        discovery.get_search_details = AsyncMock(side_effect=ValueError("always fails"))
         discovery.get_searches = AsyncMock(
             side_effect=lambda _sid, rt: (
                 [{"urlSegment": "MySearch"}] if rt == "gene" else []

@@ -18,6 +18,7 @@ from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import _encode_id_list
 from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
     _run_intersection_control,
     resolve_controls_param_type,
     run_positive_negative_controls,
@@ -58,6 +59,7 @@ STRATEGY_ID = 200
 DATASET_ID = 500
 
 PATCH_TARGET = "veupath_chatbot.services.control_tests.get_strategy_api"
+PATCH_RECORD_TYPE = "veupath_chatbot.services.control_tests.find_record_type_for_search"
 
 
 # ---------------------------------------------------------------------------
@@ -128,19 +130,18 @@ def _make_mock_api(
     return api
 
 
-def _common_kwargs(controls_ids: list[str]) -> dict:
-    """Return the kwargs dict passed to ``_run_intersection_control``."""
-    return {
-        "site_id": SITE_ID,
-        "record_type": RECORD_TYPE,
-        "target_search_name": TARGET_SEARCH_NAME,
-        "target_parameters": TARGET_PARAMETERS,
-        "controls_search_name": CONTROLS_SEARCH_NAME,
-        "controls_param_name": CONTROLS_PARAM_NAME,
-        "controls_ids": controls_ids,
-        "controls_value_format": "newline",
-        "controls_extra_parameters": None,
-    }
+def _make_intersection_config() -> IntersectionConfig:
+    """Return an IntersectionConfig with test defaults."""
+    return IntersectionConfig(
+        site_id=SITE_ID,
+        record_type=RECORD_TYPE,
+        target_search_name=TARGET_SEARCH_NAME,
+        target_parameters=TARGET_PARAMETERS,
+        controls_search_name=CONTROLS_SEARCH_NAME,
+        controls_param_name=CONTROLS_PARAM_NAME,
+        controls_value_format="newline",
+        controls_extra_parameters=None,
+    )
 
 
 # ===================================================================
@@ -233,7 +234,7 @@ class TestResolveControlsParamType:
     async def test_returns_none_on_exception(self) -> None:
         api = AsyncMock()
         api.client = MagicMock()
-        api.client.get_search_details = AsyncMock(side_effect=RuntimeError("boom"))
+        api.client.get_search_details = AsyncMock(side_effect=ValueError("boom"))
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
         )
@@ -253,8 +254,12 @@ class TestPositiveControlsIntersection:
             combined_count=3,
             answer_gene_ids=POSITIVE_IDS,
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
-            result = await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            result = await _run_intersection_control(config, POSITIVE_IDS)
 
         assert result["targetStepId"] == TARGET_STEP_ID
         assert result["targetResultCount"] == 150
@@ -264,8 +269,12 @@ class TestPositiveControlsIntersection:
     @pytest.mark.asyncio
     async def test_creates_steps_in_order(self) -> None:
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
-        with patch(PATCH_TARGET, return_value=mock_api):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         # Two create_step calls: target then controls
         assert mock_api.create_step.call_count == 2
@@ -277,8 +286,12 @@ class TestPositiveControlsIntersection:
     @pytest.mark.asyncio
     async def test_creates_strategy_and_queries_answer(self) -> None:
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
-        with patch(PATCH_TARGET, return_value=mock_api):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         mock_api.create_strategy.assert_awaited_once()
         mock_api.get_step_answer.assert_awaited_once()
@@ -287,8 +300,12 @@ class TestPositiveControlsIntersection:
     async def test_intersection_ids_returned(self) -> None:
         """The result should contain the IDs found in the intersection."""
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
-        with patch(PATCH_TARGET, return_value=mock_api):
-            result = await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            result = await _run_intersection_control(config, POSITIVE_IDS)
 
         ids = result["intersectionIds"]
         assert isinstance(ids, list)
@@ -308,8 +325,12 @@ class TestNegativeControls:
             combined_count=1,
             answer_gene_ids=NEGATIVE_IDS[:1],
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
-            result = await _run_intersection_control(**_common_kwargs(NEGATIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            result = await _run_intersection_control(config, NEGATIVE_IDS)
 
         assert result["targetStepId"] == TARGET_STEP_ID
         assert result["controlsCount"] == len(NEGATIVE_IDS)
@@ -324,8 +345,12 @@ class TestNegativeControls:
             combined_count=0,
             answer_gene_ids=[],
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
-            result = await _run_intersection_control(**_common_kwargs(NEGATIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            result = await _run_intersection_control(config, NEGATIVE_IDS)
 
         assert result["intersectionCount"] == 0
         assert result["intersectionIds"] == []
@@ -356,17 +381,15 @@ class TestBothControls:
             combined_count=1,
             answer_gene_ids=NEGATIVE_IDS[:1],
         )
-        with patch(PATCH_TARGET, side_effect=[cleanup_api, pos_api, neg_api]):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, side_effect=[cleanup_api, pos_api, neg_api]),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=POSITIVE_IDS,
                 negative_controls=NEGATIVE_IDS,
-                controls_value_format="newline",
             )
 
         assert result["siteId"] == SITE_ID
@@ -399,14 +422,13 @@ class TestBothControls:
             combined_count=2,
             answer_gene_ids=POSITIVE_IDS[:2],
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=POSITIVE_IDS,
                 negative_controls=None,
             )
@@ -422,14 +444,13 @@ class TestBothControls:
             combined_count=0,
             answer_gene_ids=[],
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=None,
                 negative_controls=NEGATIVE_IDS,
             )
@@ -440,14 +461,13 @@ class TestBothControls:
     @pytest.mark.asyncio
     async def test_both_empty_returns_nulls(self) -> None:
         """When neither set is provided, both are None — no API calls."""
-        with patch(PATCH_TARGET) as mock_factory:
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET) as mock_factory,
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=[],
                 negative_controls=[],
                 skip_cleanup=True,
@@ -467,14 +487,13 @@ class TestBothControls:
             combined_count=1,
             answer_gene_ids=found_ids,
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=POSITIVE_IDS,
             )
 
@@ -503,8 +522,12 @@ class TestControlsWithDatasetParam:
             answer_gene_ids=POSITIVE_IDS[:2],
             param_type="input-dataset",
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         mock_api.create_dataset.assert_awaited_once_with(POSITIVE_IDS)
 
@@ -521,8 +544,12 @@ class TestControlsWithDatasetParam:
             answer_gene_ids=POSITIVE_IDS[:2],
             param_type="string",
         )
-        with patch(PATCH_TARGET, return_value=mock_api):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         mock_api.create_dataset.assert_not_awaited()
 
@@ -541,8 +568,12 @@ class TestCleanupOnSuccess:
     @pytest.mark.asyncio
     async def test_strategy_deleted_after_success(self) -> None:
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
-        with patch(PATCH_TARGET, return_value=mock_api):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         mock_api.delete_strategy.assert_awaited_once_with(STRATEGY_ID)
 
@@ -560,16 +591,14 @@ class TestCleanupOnSuccess:
             combined_count=2,
             answer_gene_ids=POSITIVE_IDS[:2],
         )
-        with patch(PATCH_TARGET, side_effect=[cleanup_api, pos_api]):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, side_effect=[cleanup_api, pos_api]),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                config,
                 positive_controls=POSITIVE_IDS,
-                controls_value_format="newline",
             )
 
         # The stale strategy should have been deleted by the cleanup API
@@ -591,8 +620,12 @@ class TestCleanupOnFailure:
             RuntimeError("WDK 500"),
             2,
         ]
-        with patch(PATCH_TARGET, return_value=mock_api):
-            result = await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
+            result = await _run_intersection_control(config, POSITIVE_IDS)
 
         # targetResultCount should be None because get_step_count failed
         assert result["targetResultCount"] is None
@@ -605,11 +638,13 @@ class TestCleanupOnFailure:
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
         mock_api.get_step_answer.side_effect = RuntimeError("WDK timeout")
 
+        config = _make_intersection_config()
         with (
             patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
             pytest.raises(RuntimeError, match="WDK timeout"),
         ):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         mock_api.delete_strategy.assert_awaited_once_with(STRATEGY_ID)
 
@@ -620,11 +655,13 @@ class TestCleanupOnFailure:
         mock_api.get_step_answer.side_effect = RuntimeError("original error")
         mock_api.delete_strategy.side_effect = RuntimeError("cleanup also failed")
 
+        config = _make_intersection_config()
         with (
             patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
             pytest.raises(RuntimeError, match="original error"),
         ):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+            await _run_intersection_control(config, POSITIVE_IDS)
 
     @pytest.mark.asyncio
     async def test_no_cleanup_when_strategy_creation_fails(self) -> None:
@@ -633,11 +670,15 @@ class TestCleanupOnFailure:
         # Return a response without an id -> temp_strategy_id stays None
         mock_api.create_strategy.return_value = {}
 
-        with patch(PATCH_TARGET, return_value=mock_api):
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+        ):
             # get_step_count will raise because steps are not in a strategy,
             # but _get_total_count_for_step catches it. get_step_answer will
             # return a result (mock doesn't enforce strategy existence).
-            await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
+            await _run_intersection_control(config, POSITIVE_IDS)
 
         # delete_strategy should NOT have been called (no strategy ID to delete,
         # beyond any stale cleanup)
@@ -651,10 +692,14 @@ class TestCleanupOnFailure:
             {},  # target step with no id
             step_creation_response(CONTROLS_STEP_ID),
         ]
-        with patch(PATCH_TARGET, return_value=mock_api):
-            with pytest.raises(InternalError) as exc_info:
-                await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
-            assert "target step" in (exc_info.value.detail or "")
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+            pytest.raises(InternalError) as exc_info,
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
+        assert "target step" in (exc_info.value.detail or "")
 
     @pytest.mark.asyncio
     async def test_controls_step_creation_failure_raises(self) -> None:
@@ -664,10 +709,14 @@ class TestCleanupOnFailure:
             step_creation_response(TARGET_STEP_ID),
             {},  # controls step with no id
         ]
-        with patch(PATCH_TARGET, return_value=mock_api):
-            with pytest.raises(InternalError) as exc_info:
-                await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
-            assert "controls step" in (exc_info.value.detail or "")
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+            pytest.raises(InternalError) as exc_info,
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
+        assert "controls step" in (exc_info.value.detail or "")
 
     @pytest.mark.asyncio
     async def test_combined_step_creation_failure_raises(self) -> None:
@@ -675,7 +724,11 @@ class TestCleanupOnFailure:
         mock_api = _make_mock_api()
         mock_api.create_combined_step.return_value = {}  # no id
 
-        with patch(PATCH_TARGET, return_value=mock_api):
-            with pytest.raises(InternalError) as exc_info:
-                await _run_intersection_control(**_common_kwargs(POSITIVE_IDS))
-            assert "combined step" in (exc_info.value.detail or "")
+        config = _make_intersection_config()
+        with (
+            patch(PATCH_TARGET, return_value=mock_api),
+            patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
+            pytest.raises(InternalError) as exc_info,
+        ):
+            await _run_intersection_control(config, POSITIVE_IDS)
+        assert "combined step" in (exc_info.value.detail or "")

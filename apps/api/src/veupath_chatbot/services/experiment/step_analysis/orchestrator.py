@@ -1,11 +1,14 @@
 """Main entry point: run_step_analysis coordinates all four analysis phases."""
 
 from collections.abc import Callable
-from typing import Any, TypedDict
+from typing import Any
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import ProgressCallback
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    ProgressCallback,
+)
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
 )
@@ -22,7 +25,6 @@ from veupath_chatbot.services.experiment.step_analysis.phase_step_eval import (
     evaluate_steps,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     StepAnalysisResult,
     StepContribution,
     StepEvaluation,
@@ -34,18 +36,6 @@ _RECALL_DROP_THRESHOLD = -0.05
 _RECALL_IMPROVEMENT_THRESHOLD = 0.02
 _FPR_DROP_THRESHOLD = -0.05
 _FPR_INCREASE_THRESHOLD = 0.05
-
-
-class _SharedPhaseKwargs(TypedDict):
-    site_id: str
-    record_type: str
-    tree: JSONObject
-    controls_search_name: str
-    controls_param_name: str
-    controls_value_format: ControlValueFormat
-    positive_controls: list[str]
-    negative_controls: list[str]
-    progress_callback: ProgressCallback | None
 
 
 # ---------------------------------------------------------------------------
@@ -141,21 +131,15 @@ def _enrich_contributions_with_narrative(
 
 
 async def run_step_analysis(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
     baseline_result: JSONObject,
     phases: list[str] | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> StepAnalysisResult:
     """Run all requested step analysis phases.
 
+    :param ctx: Shared controls context (site, record type, controls config).
     :param tree: ``PlanStepNode``-shaped dict.
     :param baseline_result: Raw result from the initial tree evaluation.
     :param phases: Which phases to run. Defaults to all four.
@@ -171,36 +155,17 @@ async def run_step_analysis(
         ]
     )
 
-    # Shared kwargs passed to every phase function.
-    shared_kwargs: _SharedPhaseKwargs = {
-        "site_id": site_id,
-        "record_type": record_type,
-        "tree": tree,
-        "controls_search_name": controls_search_name,
-        "controls_param_name": controls_param_name,
-        "controls_value_format": controls_value_format,
-        "positive_controls": positive_controls,
-        "negative_controls": negative_controls,
-        "progress_callback": progress_callback,
-    }
-
-    # Phase descriptors: (phase_key, progress_message, async_fn, extra_kwargs)
-    phase_descriptors: list[
-        tuple[str, str, Callable[..., Any], dict[str, JSONObject]]
-    ] = [
-        ("step_evaluation", "Starting per-step evaluation...", evaluate_steps, {}),
-        ("operator_comparison", "Comparing operators...", compare_operators, {}),
-        (
-            "contribution",
-            "Running ablation analysis...",
-            analyze_contributions,
-            {"baseline_metrics": baseline_result},
-        ),
-        ("sensitivity", "Sweeping parameters...", sweep_parameters, {}),
+    # Phase descriptors: (phase_key, progress_message, async_fn)
+    # Each phase_fn takes (ctx, tree, progress_callback) with optional extras.
+    phase_descriptors: list[tuple[str, str, Callable[..., Any]]] = [
+        ("step_evaluation", "Starting per-step evaluation...", evaluate_steps),
+        ("operator_comparison", "Comparing operators...", compare_operators),
+        ("contribution", "Running ablation analysis...", analyze_contributions),
+        ("sensitivity", "Sweeping parameters...", sweep_parameters),
     ]
 
     results: dict[str, Any] = {}
-    for phase_key, message, phase_fn, extra_kwargs in phase_descriptors:
+    for phase_key, message, phase_fn in phase_descriptors:
         if phase_key not in enabled:
             continue
         if progress_callback:
@@ -210,7 +175,12 @@ async def run_step_analysis(
                     "data": {"phase": phase_key, "message": message},
                 }
             )
-        results[phase_key] = await phase_fn(**shared_kwargs, **extra_kwargs)
+        if phase_key == "contribution":
+            results[phase_key] = await phase_fn(
+                ctx, tree, baseline_result, progress_callback
+            )
+        else:
+            results[phase_key] = await phase_fn(ctx, tree, progress_callback)
 
     # Post-process phases that need enrichment.
     step_evals: list[StepEvaluation] = results.get("step_evaluation", [])

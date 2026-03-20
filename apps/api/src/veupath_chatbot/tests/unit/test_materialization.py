@@ -146,7 +146,9 @@ class TestPersistExperimentStrategy:
         api.create_strategy.return_value = {}  # no "id" key
         mock_get_api.return_value = api
 
-        with pytest.raises(StrategyCompilationError, match="Failed to create WDK strategy"):
+        with pytest.raises(
+            StrategyCompilationError, match="Failed to create WDK strategy"
+        ):
             await _persist_experiment_strategy(_cfg("single"), "exp-001")
 
 
@@ -184,7 +186,9 @@ class TestPersistImportStrategy:
         api.client.post.return_value = {"error": "not found"}
 
         cfg = _cfg("import", source_strategy_id="999")
-        with pytest.raises(StrategyCompilationError, match="Failed to duplicate step tree"):
+        with pytest.raises(
+            StrategyCompilationError, match="Failed to duplicate step tree"
+        ):
             await _persist_import_strategy(api, cfg, "exp-001")
 
 

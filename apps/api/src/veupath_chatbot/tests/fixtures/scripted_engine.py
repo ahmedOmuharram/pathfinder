@@ -66,7 +66,7 @@ class ScriptedKaniEngine(BaseEngine):
             ScriptedTurn(tool_calls=[ScriptedToolCall("create_step", {"search_name": "..."})]),
             ScriptedTurn(content="I've created the strategy for you."),
         ])
-        agent = PathfinderAgent(engine=engine, site_id="plasmodb")
+        agent = PathfinderAgent(engine=engine, context=AgentContext(site_id="plasmodb"))
 
 
     """

@@ -18,8 +18,14 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.gene_sets.operations import GeneSetService
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.gene_sets.operations import (
+    GeneSetService,
+    GeneSetWdkContext,
+)
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 
 pytestmark = pytest.mark.live_wdk
@@ -65,8 +71,10 @@ class TestSingleStepGeneSet:
                 site_id=SITE,
                 gene_ids=[],
                 source="strategy",
-                wdk_strategy_id=sid,
-                record_type=RECORD_TYPE,
+                wdk=GeneSetWdkContext(
+                    wdk_strategy_id=sid,
+                    record_type=RECORD_TYPE,
+                ),
             )
 
             assert gs.search_name == SEARCH, f"Expected {SEARCH}, got {gs.search_name}"
@@ -98,8 +106,10 @@ class TestSingleStepGeneSet:
                 site_id=SITE,
                 gene_ids=[],
                 source="strategy",
-                wdk_strategy_id=sid,
-                record_type=RECORD_TYPE,
+                wdk=GeneSetWdkContext(
+                    wdk_strategy_id=sid,
+                    record_type=RECORD_TYPE,
+                ),
             )
 
             assert gs.search_name is not None
@@ -107,12 +117,14 @@ class TestSingleStepGeneSet:
 
             # THE ACTUAL TEST: this must not throw a 422
             result = await run_positive_negative_controls(
-                site_id=SITE,
-                record_type=RECORD_TYPE,
-                target_search_name=gs.search_name,
-                target_parameters=cast("JSONObject", gs.parameters),
-                controls_search_name="GeneByLocusTag",
-                controls_param_name="ds_gene_ids",
+                IntersectionConfig(
+                    site_id=SITE,
+                    record_type=RECORD_TYPE,
+                    target_search_name=gs.search_name,
+                    target_parameters=cast("JSONObject", gs.parameters),
+                    controls_search_name="GeneByLocusTag",
+                    controls_param_name="ds_gene_ids",
+                ),
                 positive_controls=POSITIVE,
             )
 
@@ -155,8 +167,10 @@ class TestMultiStepGeneSet:
                 site_id=SITE,
                 gene_ids=[],
                 source="strategy",
-                wdk_strategy_id=sid,
-                record_type=RECORD_TYPE,
+                wdk=GeneSetWdkContext(
+                    wdk_strategy_id=sid,
+                    record_type=RECORD_TYPE,
+                ),
             )
 
             # Must NOT have boolean params

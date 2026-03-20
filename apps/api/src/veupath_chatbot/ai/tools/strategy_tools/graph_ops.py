@@ -18,20 +18,18 @@ logger = get_logger(__name__)
 
 
 class CreateStepProtocol(Protocol):
-    """Protocol for classes that have a create_step method."""
+    """Protocol for the subset of create_step used by ensure_single_output.
+
+    Only the fields called in :meth:`_chain_combines` are required here.
+    """
 
     async def create_step(
         self,
-        search_name: str | None = None,
-        parameters: JSONObject | None = None,
-        record_type: str | None = None,
+        *,
         primary_input_step_id: str | None = None,
         secondary_input_step_id: str | None = None,
         operator: str | None = None,
         display_name: str | None = None,
-        upstream: int | None = None,
-        downstream: int | None = None,
-        strand: str | None = None,
         graph_id: str | None = None,
     ) -> JSONObject:
         """Create a step in the graph."""
@@ -141,12 +139,9 @@ class StrategyGraphOps(StrategyToolsHelpers):
             return self._graph_not_found(graph_id)
 
         validation = await self.validate_graph_structure(graph_id=graph.id)
-        if validation.get("ok") is True:
-            return _build_single_output_response(graph, validation)
-
         root_ids_raw = validation.get("rootStepIds")
         root_ids = list(root_ids_raw if isinstance(root_ids_raw, list) else [])
-        if len(root_ids) <= 1:
+        if validation.get("ok") is True or len(root_ids) <= 1:
             return _build_single_output_response(graph, validation)
 
         return await self._chain_combines(

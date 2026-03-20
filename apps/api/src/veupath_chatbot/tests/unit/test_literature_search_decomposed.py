@@ -1,13 +1,19 @@
 """Tests for decomposed LiteratureSearchService helper methods."""
 
 import asyncio
+from dataclasses import dataclass, field
 from typing import cast
 
 import pytest
 
-from veupath_chatbot.domain.research.citations import LiteratureSource
+from veupath_chatbot.domain.research.citations import (
+    LiteratureFilters,
+    LiteratureOutputOptions,
+    LiteratureSource,
+)
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.research.literature_search import (
+    LiteratureResultData,
     LiteratureSearchService,
 )
 
@@ -21,33 +27,38 @@ def service() -> LiteratureSearchService:
     return LiteratureSearchService(timeout_seconds=5.0)
 
 
-def _make_result(
-    *,
-    title: str = "A Paper",
-    doi: str | None = "10.1234/test",
-    pmid: str | None = None,
-    year: int | None = 2020,
-    authors: list[str] | None = None,
-    abstract: str | None = None,
-    journal: str | None = None,
-    source: str | None = None,
-    url: str | None = None,
-) -> JSONObject:
-    r: JSONObject = {"title": title, "year": year}
-    if doi is not None:
-        r["doi"] = doi
-    if pmid is not None:
-        r["pmid"] = pmid
-    if authors is not None:
-        r["authors"] = cast("JSONValue", authors)
-    if abstract is not None:
-        r["abstract"] = abstract
-    if journal is not None:
-        r["journalTitle"] = journal
-    if source is not None:
-        r["source"] = source
-    if url is not None:
-        r["url"] = url
+@dataclass
+class _MakeResultSpec:
+    title: str = "A Paper"
+    doi: str | None = "10.1234/test"
+    pmid: str | None = None
+    year: int | None = 2020
+    authors: list[str] | None = field(default=None)
+    abstract: str | None = None
+    journal: str | None = None
+    source: str | None = None
+    url: str | None = None
+
+
+_DEFAULT_MAKE_RESULT_SPEC = _MakeResultSpec()
+
+
+def _make_result(spec: _MakeResultSpec = _DEFAULT_MAKE_RESULT_SPEC) -> JSONObject:
+    r: JSONObject = {"title": spec.title, "year": spec.year}
+    if spec.doi is not None:
+        r["doi"] = spec.doi
+    if spec.pmid is not None:
+        r["pmid"] = spec.pmid
+    if spec.authors is not None:
+        r["authors"] = cast("JSONValue", spec.authors)
+    if spec.abstract is not None:
+        r["abstract"] = spec.abstract
+    if spec.journal is not None:
+        r["journalTitle"] = spec.journal
+    if spec.source is not None:
+        r["source"] = spec.source
+    if spec.url is not None:
+        r["url"] = spec.url
     return r
 
 
@@ -193,8 +204,8 @@ class TestBuildSourceTasks:
 
 class TestDeduplicateAndFilter:
     def test_removes_duplicates_by_doi(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Paper A", doi="10.1234/same")
-        r2 = _make_result(title="Paper B", doi="10.1234/same")
+        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/same"))
+        r2 = _make_result(_MakeResultSpec(title="Paper B", doi="10.1234/same"))
         c1 = _make_citation(title="Paper A", doi="10.1234/same")
         c2 = _make_citation(title="Paper B", doi="10.1234/same")
         by_source: dict[str, JSONObject] = {
@@ -203,108 +214,118 @@ class TestDeduplicateAndFilter:
         }
         filtered, _citations_by_key = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 1
 
     def test_removes_duplicates_by_pmid(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Paper A", doi=None, pmid="12345")
-        r2 = _make_result(title="Paper B", doi=None, pmid="12345")
+        r1 = _make_result(_MakeResultSpec(title="Paper A", doi=None, pmid="12345"))
+        r2 = _make_result(_MakeResultSpec(title="Paper B", doi=None, pmid="12345"))
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1]),
             "pubmed": _make_source_payload([r2]),
         }
         filtered, _ = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 1
 
     def test_keeps_unique_items(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Paper A", doi="10.1234/a")
-        r2 = _make_result(title="Paper B", doi="10.1234/b")
+        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
+        r2 = _make_result(_MakeResultSpec(title="Paper B", doi="10.1234/b"))
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1, r2]),
         }
         filtered, _ = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 2
 
     def test_applies_year_filter(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Old", doi="10.1234/old", year=2010)
-        r2 = _make_result(title="New", doi="10.1234/new", year=2022)
+        r1 = _make_result(_MakeResultSpec(title="Old", doi="10.1234/old", year=2010))
+        r2 = _make_result(_MakeResultSpec(title="New", doi="10.1234/new", year=2022))
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1, r2]),
         }
         filtered, _ = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=2015,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=2015,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 1
         assert isinstance(filtered[0], dict)
         assert filtered[0].get("title") == "New"
 
     def test_applies_require_doi(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Has DOI", doi="10.1234/a")
-        r2 = _make_result(title="No DOI", doi=None)
+        r1 = _make_result(_MakeResultSpec(title="Has DOI", doi="10.1234/a"))
+        r2 = _make_result(_MakeResultSpec(title="No DOI", doi=None))
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1, r2]),
         }
         filtered, _ = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=True,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=True,
+            ),
         )
         assert len(filtered) == 1
         assert isinstance(filtered[0], dict)
@@ -312,26 +333,30 @@ class TestDeduplicateAndFilter:
 
     def test_limits_authors(self, service: LiteratureSearchService) -> None:
         r1 = _make_result(
-            title="Many Authors",
-            doi="10.1234/many",
-            authors=["Alice", "Bob", "Carol", "Dave"],
+            _MakeResultSpec(
+                title="Many Authors",
+                doi="10.1234/many",
+                authors=["Alice", "Bob", "Carol", "Dave"],
+            )
         )
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1]),
         }
         filtered, _ = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 1
         item = filtered[0]
@@ -343,24 +368,26 @@ class TestDeduplicateAndFilter:
         assert authors[-1] == "et al."
 
     def test_citations_by_key_populated(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(title="Paper A", doi="10.1234/a")
+        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
         c1 = _make_citation(title="Paper A", doi="10.1234/a")
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1], [c1]),
         }
         _filtered, citations_by_key = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(citations_by_key) == 1
 
@@ -372,17 +399,19 @@ class TestDeduplicateAndFilter:
         }
         filtered, citations_by_key = service._deduplicate_and_filter(
             by_source=by_source,
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
         assert len(filtered) == 0
         assert len(citations_by_key) == 0
@@ -396,9 +425,9 @@ class TestDeduplicateAndFilter:
 class TestSortResults:
     def test_newest_sort(self, service: LiteratureSearchService) -> None:
         items: JSONArray = [
-            _make_result(title="Old", year=2015, doi="10.1/a"),
-            _make_result(title="New", year=2023, doi="10.1/b"),
-            _make_result(title="Mid", year=2019, doi="10.1/c"),
+            _make_result(_MakeResultSpec(title="Old", year=2015, doi="10.1/a")),
+            _make_result(_MakeResultSpec(title="New", year=2023, doi="10.1/b")),
+            _make_result(_MakeResultSpec(title="Mid", year=2019, doi="10.1/c")),
         ]
         sorted_items = service._sort_results(
             items, sort="newest", source="europepmc", query="test"
@@ -414,8 +443,8 @@ class TestSortResults:
         self, service: LiteratureSearchService
     ) -> None:
         items: JSONArray = [
-            _make_result(title="malaria vaccine", doi="10.1/a"),
-            _make_result(title="unrelated topic", doi="10.1/b"),
+            _make_result(_MakeResultSpec(title="malaria vaccine", doi="10.1/a")),
+            _make_result(_MakeResultSpec(title="unrelated topic", doi="10.1/b")),
         ]
         sorted_items = service._sort_results(
             items, sort="relevance", source="all", query="malaria vaccine"
@@ -430,7 +459,7 @@ class TestSortResults:
         self, service: LiteratureSearchService
     ) -> None:
         items: JSONArray = [
-            _make_result(title="Paper A", doi="10.1/a"),
+            _make_result(_MakeResultSpec(title="Paper A", doi="10.1/a")),
         ]
         sorted_items = service._sort_results(
             items, sort="relevance", source="europepmc", query="test"
@@ -452,7 +481,9 @@ class TestSortResults:
 
 class TestBuildResponse:
     def test_response_structure(self, service: LiteratureSearchService) -> None:
-        results: JSONArray = [_make_result(title="Paper A", doi="10.1234/a")]
+        results: JSONArray = [
+            _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
+        ]
         citations_by_key = {
             "doi:10.1234/a": _make_citation(title="Paper A", doi="10.1234/a")
         }
@@ -460,21 +491,25 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
-            results=results,
-            citations_by_key=citations_by_key,
-            by_source={},
-            limit=5,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
+            result_data=LiteratureResultData(
+                results=results,
+                citations_by_key=citations_by_key,
+                by_source={},
+                limit=5,
+            ),
         )
         assert payload["query"] == "test"
         assert payload["source"] == "europepmc"
@@ -486,8 +521,8 @@ class TestBuildResponse:
     def test_citations_aligned_with_results(
         self, service: LiteratureSearchService
     ) -> None:
-        r1 = _make_result(title="A", doi="10.1234/a")
-        r2 = _make_result(title="B", doi="10.1234/b")
+        r1 = _make_result(_MakeResultSpec(title="A", doi="10.1234/a"))
+        r2 = _make_result(_MakeResultSpec(title="B", doi="10.1234/b"))
         c1 = _make_citation(title="A", doi="10.1234/a")
         c2 = _make_citation(title="B", doi="10.1234/b")
         citations_by_key = {
@@ -498,21 +533,25 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
-            results=[r1, r2],
-            citations_by_key=citations_by_key,
-            by_source={},
-            limit=5,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
+            result_data=LiteratureResultData(
+                results=[r1, r2],
+                citations_by_key=citations_by_key,
+                by_source={},
+                limit=5,
+            ),
         )
         results_out = payload["results"]
         citations_out = payload["citations"]
@@ -522,7 +561,8 @@ class TestBuildResponse:
 
     def test_limit_applied_to_results(self, service: LiteratureSearchService) -> None:
         results: JSONArray = [
-            _make_result(title=f"Paper {i}", doi=f"10.1234/{i}") for i in range(10)
+            _make_result(_MakeResultSpec(title=f"Paper {i}", doi=f"10.1234/{i}"))
+            for i in range(10)
         ]
         citations_by_key = {
             f"doi:10.1234/{i}": _make_citation(title=f"Paper {i}", doi=f"10.1234/{i}")
@@ -532,21 +572,25 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
-            results=results,
-            citations_by_key=citations_by_key,
-            by_source={},
-            limit=3,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
+            result_data=LiteratureResultData(
+                results=results,
+                citations_by_key=citations_by_key,
+                by_source={},
+                limit=3,
+            ),
         )
         results_out = payload["results"]
         citations_out = payload["citations"]
@@ -563,21 +607,22 @@ class TestBuildResponse:
             query="test",
             source="all",
             sort="relevance",
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
-            results=[],
-            citations_by_key={},
-            by_source=by_source,
-            limit=5,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
+            result_data=LiteratureResultData(
+                results=[], citations_by_key={}, by_source=by_source, limit=5
+            ),
         )
         assert "bySource" in payload
 
@@ -588,20 +633,21 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            include_abstract=False,
-            abstract_max_chars=2000,
-            max_authors=2,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
-            results=[],
-            citations_by_key={},
-            by_source={},
-            limit=5,
+            options=LiteratureOutputOptions(
+                include_abstract=False, abstract_max_chars=2000, max_authors=2
+            ),
+            filters=LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
+            result_data=LiteratureResultData(
+                results=[], citations_by_key={}, by_source={}, limit=5
+            ),
         )
         assert "bySource" not in payload

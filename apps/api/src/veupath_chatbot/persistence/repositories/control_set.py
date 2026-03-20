@@ -1,11 +1,28 @@
 """Control set repository."""
 
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.persistence.models import ControlSet
+
+
+@dataclass
+class ControlSetCreate:
+    """Data required to create a control set."""
+
+    name: str
+    site_id: str
+    record_type: str
+    positive_ids: list[str]
+    negative_ids: list[str]
+    source: str | None = None
+    tags: list[str] = field(default_factory=list)
+    provenance_notes: str | None = None
+    is_public: bool = False
+    user_id: UUID | None = None
 
 
 class ControlSetRepository:
@@ -52,32 +69,19 @@ class ControlSetRepository:
             ]
         return rows
 
-    async def create(
-        self,
-        *,
-        name: str,
-        site_id: str,
-        record_type: str,
-        positive_ids: list[str],
-        negative_ids: list[str],
-        source: str | None = None,
-        tags: list[str] | None = None,
-        provenance_notes: str | None = None,
-        is_public: bool = False,
-        user_id: UUID | None = None,
-    ) -> ControlSet:
+    async def create(self, data: ControlSetCreate) -> ControlSet:
         """Create a new control set."""
         cs = ControlSet(
-            name=name,
-            site_id=site_id,
-            record_type=record_type,
-            positive_ids=positive_ids,
-            negative_ids=negative_ids,
-            source=source,
-            tags=tags or [],
-            provenance_notes=provenance_notes,
-            is_public=is_public,
-            user_id=user_id,
+            name=data.name,
+            site_id=data.site_id,
+            record_type=data.record_type,
+            positive_ids=data.positive_ids,
+            negative_ids=data.negative_ids,
+            source=data.source,
+            tags=data.tags,
+            provenance_notes=data.provenance_notes,
+            is_public=data.is_public,
+            user_id=data.user_id,
         )
         self.session.add(cs)
         await self.session.flush()

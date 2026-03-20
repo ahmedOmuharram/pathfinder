@@ -3,7 +3,10 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
+from veupath_chatbot.ai.tools.planner.workbench_tools import (
+    WdkSourceSpec,
+    WorkbenchToolsMixin,
+)
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
@@ -68,7 +71,7 @@ class TestCreateGeneSet:
             result = await tools.create_workbench_gene_set(
                 name="From Strategy",
                 gene_ids=["PF3D7_0100100"],
-                wdk_strategy_id=99,
+                wdk_source=WdkSourceSpec(wdk_strategy_id=99),
             )
 
         assert result["geneSetCreated"]["source"] == "strategy"
@@ -137,9 +140,11 @@ class TestCreateGeneSet:
             result = await tools.create_workbench_gene_set(
                 name="With Params",
                 gene_ids=["PF3D7_0100100"],
-                search_name="GenesByFoldChange",
-                parameters={"fold_change": "2.0"},
-                wdk_step_id=42,
+                wdk_source=WdkSourceSpec(
+                    search_name="GenesByFoldChange",
+                    parameters={"fold_change": "2.0"},
+                    wdk_step_id=42,
+                ),
             )
 
         gs_id = result["geneSetCreated"]["id"]
@@ -265,9 +270,15 @@ class TestRunGeneSetEnrichment:
         ]
 
         mock_export_svc = MagicMock()
-        mock_export_svc.export_enrichment = AsyncMock(return_value=MagicMock(url="http://x/csv", expires_in_seconds=300))
-        mock_export_svc.export_enrichment_tsv = AsyncMock(return_value=MagicMock(url="http://x/tsv", expires_in_seconds=300))
-        mock_export_svc.export_enrichment_json = AsyncMock(return_value=MagicMock(url="http://x/json", expires_in_seconds=300))
+        mock_export_svc.export_enrichment = AsyncMock(
+            return_value=MagicMock(url="http://x/csv", expires_in_seconds=300)
+        )
+        mock_export_svc.export_enrichment_tsv = AsyncMock(
+            return_value=MagicMock(url="http://x/tsv", expires_in_seconds=300)
+        )
+        mock_export_svc.export_enrichment_json = AsyncMock(
+            return_value=MagicMock(url="http://x/json", expires_in_seconds=300)
+        )
 
         with (
             patch(

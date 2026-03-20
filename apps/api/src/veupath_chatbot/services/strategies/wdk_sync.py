@@ -10,12 +10,16 @@ Handles:
 - ``sync_is_saved_to_wdk`` — sync isSaved flag from projection to WDK
 """
 
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.persistence.models import StreamProjection
-from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.persistence.repositories.stream import (
+    ProjectionUpdate,
+    StreamRepository,
+)
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -29,6 +33,22 @@ from .wdk_conversion import (
 )
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class WdkProjectionSpec:
+    """Data needed to upsert a WDK strategy projection.
+
+    Bundles the strategy-specific fields for :func:`upsert_projection` so the
+    signature stays within the six-argument limit.
+    """
+
+    wdk_id: int
+    name: str
+    plan: JSONObject
+    record_type: str | None
+    is_saved: bool
+    step_count: int = field(default=0)
 
 
 def plan_needs_detail_fetch(projection: StreamProjection) -> bool:
@@ -97,12 +117,14 @@ async def sync_to_projection(
         stream_repo=stream_repo,
         user_id=user_id,
         site_id=site_id,
-        wdk_id=wdk_id,
-        name=name,
-        plan=plan,
-        record_type=ast.record_type,
-        is_saved=is_saved,
-        step_count=len(ast.get_all_steps()),
+        spec=WdkProjectionSpec(
+            wdk_id=wdk_id,
+            name=name,
+            plan=plan,
+            record_type=ast.record_type,
+            is_saved=is_saved,
+            step_count=len(ast.get_all_steps()),
+        ),
     )
 
 
@@ -111,48 +133,47 @@ async def upsert_projection(
     stream_repo: StreamRepository,
     user_id: UUID,
     site_id: str,
-    wdk_id: int,
-    name: str,
-    plan: JSONObject,
-    record_type: str | None,
-    is_saved: bool,
-    step_count: int = 0,
+    spec: WdkProjectionSpec,
 ) -> StreamProjection:
     """Upsert a WDK strategy into the CQRS layer (create or update stream projection)."""
-    existing = await stream_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    existing = await stream_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
     if existing:
         await stream_repo.update_projection(
             existing.stream_id,
-            name=name,
-            plan=plan,
-            record_type=record_type,
-            wdk_strategy_id=wdk_id,
-            wdk_strategy_id_set=True,
-            is_saved=is_saved,
-            is_saved_set=True,
-            step_count=step_count,
+            ProjectionUpdate(
+                name=spec.name,
+                plan=spec.plan,
+                record_type=spec.record_type,
+                wdk_strategy_id=spec.wdk_id,
+                wdk_strategy_id_set=True,
+                is_saved=spec.is_saved,
+                is_saved_set=True,
+                step_count=spec.step_count,
+            ),
         )
         proj = await stream_repo.get_projection(existing.stream_id)
     else:
         stream = await stream_repo.create(
             user_id=user_id,
             site_id=site_id,
-            name=name,
+            name=spec.name,
         )
         await stream_repo.update_projection(
             stream.id,
-            plan=plan,
-            record_type=record_type,
-            wdk_strategy_id=wdk_id,
-            wdk_strategy_id_set=True,
-            is_saved=is_saved,
-            is_saved_set=True,
-            step_count=step_count,
+            ProjectionUpdate(
+                plan=spec.plan,
+                record_type=spec.record_type,
+                wdk_strategy_id=spec.wdk_id,
+                wdk_strategy_id_set=True,
+                is_saved=spec.is_saved,
+                is_saved_set=True,
+                step_count=spec.step_count,
+            ),
         )
         proj = await stream_repo.get_projection(stream.id)
 
     if proj is None:
-        msg = f"Projection disappeared for WDK strategy {wdk_id}"
+        msg = f"Projection disappeared for WDK strategy {spec.wdk_id}"
         raise InternalError(detail=msg)
     return proj
 
@@ -208,15 +229,17 @@ async def upsert_summary_projection(
     if existing:
         await stream_repo.update_projection(
             existing.stream_id,
-            name=name,
-            record_type=record_type,
-            wdk_strategy_id=wdk_id,
-            wdk_strategy_id_set=True,
-            is_saved=is_saved,
-            is_saved_set=True,
-            step_count=step_count,
-            result_count=estimated_size,
-            result_count_set=True,
+            ProjectionUpdate(
+                name=name,
+                record_type=record_type,
+                wdk_strategy_id=wdk_id,
+                wdk_strategy_id_set=True,
+                is_saved=is_saved,
+                is_saved_set=True,
+                step_count=step_count,
+                result_count=estimated_size,
+                result_count_set=True,
+            ),
         )
         proj = await stream_repo.get_projection(existing.stream_id)
     else:
@@ -227,14 +250,16 @@ async def upsert_summary_projection(
         )
         await stream_repo.update_projection(
             stream.id,
-            record_type=record_type,
-            wdk_strategy_id=wdk_id,
-            wdk_strategy_id_set=True,
-            is_saved=is_saved,
-            is_saved_set=True,
-            step_count=step_count,
-            result_count=estimated_size,
-            result_count_set=True,
+            ProjectionUpdate(
+                record_type=record_type,
+                wdk_strategy_id=wdk_id,
+                wdk_strategy_id_set=True,
+                is_saved=is_saved,
+                is_saved_set=True,
+                step_count=step_count,
+                result_count=estimated_size,
+                result_count_set=True,
+            ),
         )
         proj = await stream_repo.get_projection(stream.id)
 
@@ -253,12 +278,9 @@ async def lazy_fetch_wdk_detail(
     the projection. Returns the updated projection, or the original if no
     fetch was needed or the fetch failed.
     """
-    if not plan_needs_detail_fetch(projection):
-        return projection
-
     site_id = projection.site_id
     wdk_id = projection.wdk_strategy_id
-    if not site_id or wdk_id is None:
+    if not plan_needs_detail_fetch(projection) or not site_id or wdk_id is None:
         return projection
 
     try:
@@ -269,11 +291,13 @@ async def lazy_fetch_wdk_detail(
             plan["stepCounts"] = step_counts
         await stream_repo.update_projection(
             projection.stream_id,
-            plan=plan,
-            record_type=ast.record_type,
-            step_count=len(ast.get_all_steps()),
-            is_saved=is_saved,
-            is_saved_set=True,
+            ProjectionUpdate(
+                plan=plan,
+                record_type=ast.record_type,
+                step_count=len(ast.get_all_steps()),
+                is_saved=is_saved,
+                is_saved_set=True,
+            ),
         )
         updated = await stream_repo.get_projection(projection.stream_id)
         if updated is not None:

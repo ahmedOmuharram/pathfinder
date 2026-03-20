@@ -7,13 +7,14 @@ Enrichment@K) with optional list-size constraints.
 
 import copy
 import time
+from dataclasses import dataclass
 
 import optuna
 
 from veupath_chatbot.domain.strategy.tree import walk_dict_tree
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import safe_int
+from veupath_chatbot.services.experiment.helpers import ControlsContext, safe_int
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
@@ -22,7 +23,6 @@ from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     ExperimentMetrics,
     OperatorKnob,
     ThresholdKnob,
@@ -33,37 +33,41 @@ from veupath_chatbot.services.experiment.types import (
 logger = get_logger(__name__)
 
 
+@dataclass
+class TreeOptimizationOptions:
+    """Options for :func:`optimize_tree_knobs`.
+
+    Groups the optional tuning parameters so the function signature stays
+    within the 6-argument limit.
+    """
+
+    objective: str = "precision_at_50"
+    budget: int = 50
+    max_list_size: int | None = None
+
+
 async def optimize_tree_knobs(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     base_tree: JSONObject,
     threshold_knobs: list[ThresholdKnob],
     operator_knobs: list[OperatorKnob],
-    positive_controls: list[str],
-    negative_controls: list[str],
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    objective: str = "precision_at_50",
-    budget: int = 50,
-    max_list_size: int | None = None,
+    options: TreeOptimizationOptions | None = None,
 ) -> TreeOptimizationResult:
     """Run Optuna optimization over tree knobs.
 
+    :param ctx: Controls context (site, record type, controls).
     :param base_tree: ``PlanStepNode``-shaped dict (the template tree).
     :param threshold_knobs: Numeric parameter knobs on leaf steps.
     :param operator_knobs: Boolean operator knobs on combine nodes.
-    :param objective: Target metric name (e.g. ``precision_at_50``).
-    :param budget: Maximum number of Optuna trials.
-    :param max_list_size: Optional upper bound on result list size.
+    :param options: Optimization options (objective, budget, max_list_size).
     :returns: Optimization result with best trial and history.
     """
+    opts = options or TreeOptimizationOptions()
     try:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
     except ImportError:
         logger.exception("Optuna not installed — tree optimization unavailable")
-        return TreeOptimizationResult(objective=objective)
+        return TreeOptimizationResult(objective=opts.objective)
 
     start = time.monotonic()
     all_trials: list[TreeOptimizationTrial] = []
@@ -108,23 +112,14 @@ async def optimize_tree_knobs(
 
         modified_tree = _apply_knobs(base_tree, threshold_vals, operator_vals)
 
-        result = await run_controls_against_tree(
-            site_id=site_id,
-            record_type=record_type,
-            tree=modified_tree,
-            controls_search_name=controls_search_name,
-            controls_param_name=controls_param_name,
-            controls_value_format=controls_value_format,
-            positive_controls=positive_controls,
-            negative_controls=negative_controls,
-        )
+        result = await run_controls_against_tree(ctx, modified_tree)
 
         target = result.get("target", {})
         total_results = (
             safe_int(target.get("resultCount", 0)) if isinstance(target, dict) else 0
         )
 
-        if max_list_size is not None and total_results > max_list_size:
+        if opts.max_list_size is not None and total_results > opts.max_list_size:
             return -1.0
 
         pos = result.get("positive", {})
@@ -135,8 +130,8 @@ async def optimize_tree_knobs(
         neg_hits = (
             safe_int(neg.get("intersectionCount", 0)) if isinstance(neg, dict) else 0
         )
-        total_pos = len(positive_controls)
-        total_neg = len(negative_controls)
+        total_pos = len(ctx.positive_controls)
+        total_neg = len(ctx.negative_controls)
 
         cm = compute_confusion_matrix(
             positive_hits=pos_hits,
@@ -149,7 +144,7 @@ async def optimize_tree_knobs(
         random_prec = total_pos / total_results if total_results > 0 else 0.0
         enrichment = m.precision / random_prec if random_prec > 0 else 0.0
 
-        score = _select_metric(objective, metrics=m, enrichment=enrichment)
+        score = _select_metric(opts.objective, metrics=m, enrichment=enrichment)
 
         params: dict[str, float | str] = {**threshold_vals, **operator_vals}
         t = TreeOptimizationTrial(
@@ -164,7 +159,7 @@ async def optimize_tree_knobs(
 
         return score
 
-    for _i in range(budget):
+    for _i in range(opts.budget):
         trial = study.ask()
         score = await _objective(trial)
         study.tell(trial, score)
@@ -174,7 +169,7 @@ async def optimize_tree_knobs(
         best_trial=best_trial,
         all_trials=all_trials,
         total_time_seconds=elapsed,
-        objective=objective,
+        objective=opts.objective,
     )
 
 

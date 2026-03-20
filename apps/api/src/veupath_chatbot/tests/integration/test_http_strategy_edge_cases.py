@@ -13,7 +13,11 @@ import respx
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.compile import CompilationResult, CompiledStep
 from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
-from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
+from veupath_chatbot.tests.fixtures.wdk_responses import (
+    step_get_response,
+    strategy_get_response,
+    strategy_list_item,
+)
 
 # ---------------------------------------------------------------------------
 # Lazy fetch failure recovery
@@ -26,21 +30,22 @@ async def test_lazy_fetch_wdk_404_returns_empty_steps(
     """GET /strategies/{id} returns 200 with empty steps when WDK detail returns 404."""
     base = "https://plasmodb.org/plasmo/service"
 
-    # Sync to create summary-only projection
+    # Sync to create summary-only projection.
+    # Register 404 before sync so auto-import also gets 404 (gracefully handled).
     items = [strategy_list_item(strategy_id=700, name="Gone Strategy")]
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    # WDK detail returns 404 — auto-import catches this error gracefully;
+    # the lazy GET test below also uses this mock.
+    wdk_respx.get(f"{base}/users/guest/strategies/700").respond(
+        404, json={"status": "not_found", "message": "Strategy not found"}
+    )
 
     sync_resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
     )
     assert sync_resp.status_code == 200
     strategy_id = sync_resp.json()[0]["id"]
-
-    # WDK detail returns 404 (strategy deleted on WDK side)
-    wdk_respx.get(f"{base}/users/guest/strategies/700").respond(
-        404, json={"status": "not_found", "message": "Strategy not found"}
-    )
 
     # GET should still succeed, but with no steps (plan not populated)
     get_resp = await authed_client.get(f"/api/v1/strategies/{strategy_id}")
@@ -60,17 +65,17 @@ async def test_lazy_fetch_wdk_500_returns_empty_steps(
     items = [strategy_list_item(strategy_id=701, name="Broken Strategy")]
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    # WDK detail returns 500 — auto-import catches this error gracefully;
+    # the lazy GET test below also uses this mock.
+    wdk_respx.get(f"{base}/users/guest/strategies/701").respond(
+        500, json={"status": "server_error", "message": "Internal Server Error"}
+    )
 
     sync_resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
     )
     assert sync_resp.status_code == 200
     strategy_id = sync_resp.json()[0]["id"]
-
-    # WDK detail returns 500 (server error)
-    wdk_respx.get(f"{base}/users/guest/strategies/701").respond(
-        500, json={"status": "server_error", "message": "Internal Server Error"}
-    )
 
     get_resp = await authed_client.get(f"/api/v1/strategies/{strategy_id}")
     assert get_resp.status_code == 200
@@ -92,6 +97,23 @@ async def test_sync_prunes_orphaned_wdk_strategies(
     base = "https://plasmodb.org/plasmo/service"
 
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
+
+    # Auto-import gene set calls for all strategy IDs used in this test.
+    # All use rootStepId=100 (from strategy_list_item default).
+    for sid in (10, 20, 30):
+        wdk_respx.get(f"{base}/users/guest/strategies/{sid}").respond(
+            200, json=strategy_get_response(strategy_id=sid, step_ids=[100])
+        )
+    wdk_respx.post(f"{base}/users/guest/steps/100/reports/standard").respond(
+        200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
+    )
+    wdk_respx.get(f"{base}/users/guest/steps/100").respond(
+        200, json=step_get_response(step_id=100)
+    )
+    # Lazy-fetch triggers search details call for parameter normalisation.
+    wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
 
     # First sync: 3 strategies
     items_v1 = [
@@ -132,6 +154,21 @@ async def test_sync_idempotent_upsert_updates_name(
 
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
 
+    # Auto-import gene set calls for strategy 50 (rootStepId=100 by default).
+    wdk_respx.get(f"{base}/users/guest/strategies/50").respond(
+        200, json=strategy_get_response(strategy_id=50, step_ids=[100])
+    )
+    wdk_respx.post(f"{base}/users/guest/steps/100/reports/standard").respond(
+        200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
+    )
+    wdk_respx.get(f"{base}/users/guest/steps/100").respond(
+        200, json=step_get_response(step_id=100)
+    )
+    # Lazy-fetch triggers search details call for parameter normalisation.
+    wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
+
     # First sync
     items_v1 = [strategy_list_item(strategy_id=50, name="Original Name")]
     wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items_v1)
@@ -166,6 +203,22 @@ async def test_sync_filters_internal_strategy_names(
     base = "https://plasmodb.org/plasmo/service"
 
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
+
+    # Auto-import gene set calls for strategy 60 (the only non-internal one).
+    # rootStepId=100 by default from strategy_list_item.
+    wdk_respx.get(f"{base}/users/guest/strategies/60").respond(
+        200, json=strategy_get_response(strategy_id=60, step_ids=[100])
+    )
+    wdk_respx.post(f"{base}/users/guest/steps/100/reports/standard").respond(
+        200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
+    )
+    wdk_respx.get(f"{base}/users/guest/steps/100").respond(
+        200, json=step_get_response(step_id=100)
+    )
+    # Lazy-fetch triggers search details call for parameter normalisation.
+    wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
 
     items = [
         strategy_list_item(strategy_id=60, name="Real Strategy"),

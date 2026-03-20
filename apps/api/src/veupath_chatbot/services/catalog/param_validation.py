@@ -1,7 +1,8 @@
 """Validation of search parameter values."""
 
 from collections.abc import Awaitable, Callable
-from typing import cast
+from dataclasses import dataclass
+from typing import Protocol, cast
 
 import httpx
 
@@ -29,6 +30,29 @@ from .param_resolution import (
 )
 
 logger = get_logger(__name__)
+
+
+class _ResolveRecordTypeCallback(Protocol):
+    """Protocol for resolve_record_type_for_search callbacks."""
+
+    async def __call__(
+        self,
+        record_type: str | None,
+        search_name: str | None,
+        *,
+        require_match: bool = ...,
+        allow_fallback: bool = ...,
+    ) -> str | None: ...
+
+
+@dataclass(frozen=True)
+class ValidationCallbacks:
+    """Caller-provided callbacks for parameter validation."""
+
+    resolve_record_type_for_search: _ResolveRecordTypeCallback
+    find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
+    extract_vocab_options: Callable[[JSONObject], list[str]]
+
 
 # Truncate vocab option lists in validation error responses to keep
 # error payloads reasonably sized for the LLM and frontend display.
@@ -297,11 +321,7 @@ async def validate_parameters(
     record_type: str,
     search_name: str,
     parameters: JSONObject,
-    resolve_record_type_for_search: Callable[
-        [str | None, str | None, bool, bool], Awaitable[str | None]
-    ],
-    find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]],
-    extract_vocab_options: Callable[[JSONObject], list[str]],
+    callbacks: ValidationCallbacks,
 ) -> None:
     """Validate parameters against WDK search specs.
 
@@ -309,11 +329,13 @@ async def validate_parameters(
     the search is unknown, extra/unknown parameters are provided, or
     required parameters are missing.
     """
-    resolved_record_type = await resolve_record_type_for_search(
+    resolved_record_type = await callbacks.resolve_record_type_for_search(
         record_type, search_name, require_match=True, allow_fallback=True
     )
     if resolved_record_type is None:
-        record_type_hint = await find_record_type_hint(search_name, record_type)
+        record_type_hint = await callbacks.find_record_type_hint(
+            search_name, record_type
+        )
         raise ValidationError(
             title=f"Unknown or invalid search: {search_name}",
             detail="Search name not found in any record type.",
@@ -372,7 +394,7 @@ async def validate_parameters(
     if missing:
         valid_specs = [p for p in param_specs if isinstance(p, dict)]
         options = _build_missing_param_options(
-            valid_specs, missing, extract_vocab_options
+            valid_specs, missing, callbacks.extract_vocab_options
         )
         raise ValidationError(
             title="Missing required parameters",

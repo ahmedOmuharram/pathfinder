@@ -26,6 +26,53 @@ from veupath_chatbot.tests.fixtures.sse_collector import collect_chat_stream
 pytestmark = pytest.mark.live_wdk
 
 
+def _extract_wdk_step_id(r1) -> object | None:
+    """Extract the first WDK step ID from graph_snapshot SSE events.
+
+    :param r1: ChatStreamResult from the build phase.
+    :returns: WDK step ID value, or None.
+    """
+    for snapshot in r1.events_of_type("graph_snapshot"):
+        gs = snapshot.data.get("graphSnapshot")
+        if not isinstance(gs, dict):
+            continue
+        steps = gs.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, dict):
+                sid = step.get("wdkStepId")
+                if sid is not None:
+                    return sid
+    return None
+
+
+def _assert_result_count(r2) -> None:
+    """Assert that get_result_count returned a positive numeric count.
+
+    :param r2: ChatStreamResult from the count phase.
+    """
+    for start, end in r2.tool_calls:
+        if start.data.get("name") != "get_result_count":
+            continue
+        result_str = end.data.get("result", "{}")
+        try:
+            data = json.loads(result_str) if isinstance(result_str, str) else result_str
+        except json.JSONDecodeError, TypeError:
+            continue
+        if isinstance(data, dict):
+            count = (
+                data.get("count")
+                or data.get("resultCount")
+                or data.get("estimatedSize")
+            )
+            assert count is not None, f"Expected result count, got {data}"
+            assert isinstance(count, (int, float, str)), (
+                f"Expected numeric count, got {type(count)}"
+            )
+            assert int(count) > 0, f"Expected positive count, got {count}"
+
+
 class TestBuildAndSave:
     """Full flow from building a strategy to saving/pushing to WDK.
 
@@ -45,7 +92,7 @@ class TestBuildAndSave:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High","Medium"]',
                         },
-                        "display_name": "P. falciparum epitope genes",
+                        "inputs": {"display_name": "P. falciparum epitope genes"},
                     },
                 )
             ]
@@ -151,20 +198,7 @@ class TestGetResultCount:
 
         # Extract WDK step ID from the graph_snapshot SSE event.
         # The snapshot nests steps under data.graphSnapshot.steps.
-        wdk_step_id = None
-        for snapshot in r1.events_of_type("graph_snapshot"):
-            gs = snapshot.data.get("graphSnapshot")
-            if isinstance(gs, dict):
-                steps = gs.get("steps")
-                if isinstance(steps, list):
-                    for step in steps:
-                        if isinstance(step, dict):
-                            sid = step.get("wdkStepId")
-                            if sid is not None:
-                                wdk_step_id = sid
-                                break
-            if wdk_step_id is not None:
-                break
+        wdk_step_id = _extract_wdk_step_id(r1)
         assert wdk_step_id is not None, (
             "Could not extract WDK step ID from graph_snapshot events"
         )
@@ -194,29 +228,7 @@ class TestGetResultCount:
         assert r2.http_status == 202
         tool_names = [s.data.get("name") for s, _ in r2.tool_calls]
         assert "get_result_count" in tool_names
-
-        for start, end in r2.tool_calls:
-            if start.data.get("name") == "get_result_count":
-                result_str = end.data.get("result", "{}")
-                try:
-                    data = (
-                        json.loads(result_str)
-                        if isinstance(result_str, str)
-                        else result_str
-                    )
-                except json.JSONDecodeError, TypeError:
-                    continue
-                if isinstance(data, dict):
-                    count = (
-                        data.get("count")
-                        or data.get("resultCount")
-                        or data.get("estimatedSize")
-                    )
-                    assert count is not None, f"Expected result count, got {data}"
-                    assert isinstance(count, (int, float, str)), (
-                        f"Expected numeric count, got {type(count)}"
-                    )
-                    assert int(count) > 0, f"Expected positive count, got {count}"
+        _assert_result_count(r2)
 
 
 class TestToxoDBSearch:

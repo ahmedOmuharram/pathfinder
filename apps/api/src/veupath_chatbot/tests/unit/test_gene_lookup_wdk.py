@@ -18,40 +18,37 @@ from veupath_chatbot.services.gene_lookup.wdk import (
 # ---------------------------------------------------------------------------
 
 
+def _make_record(
+    *,
+    gene_source_id: str = "PF3D7_0100100",
+    primary_key: str = "PF3D7_0100100",
+    gene_name: str = "EMP1",
+    gene_product: str = "erythrocyte membrane protein",
+    gene_previous_ids: str = "",
+    pk_list: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    rec: dict[str, object] = {
+        "attributes": {
+            "primary_key": primary_key,
+            "gene_source_id": gene_source_id,
+            "gene_name": gene_name,
+            "gene_product": gene_product,
+            "organism": "Plasmodium falciparum 3D7",
+            "gene_type": "protein coding",
+            "gene_location_text": "Pf3D7_01_v3:100-200(+)",
+            "gene_previous_ids": gene_previous_ids,
+        },
+    }
+    if pk_list is not None:
+        rec["id"] = pk_list
+    return rec
+
+
 class TestParseWdkRecord:
     """Tests for parsing a single WDK record into a gene result dict."""
 
-    def _make_record(
-        self,
-        *,
-        gene_source_id: str = "PF3D7_0100100",
-        primary_key: str = "PF3D7_0100100",
-        gene_name: str = "EMP1",
-        gene_product: str = "erythrocyte membrane protein",
-        organism: str = "Plasmodium falciparum 3D7",
-        gene_type: str = "protein coding",
-        gene_location_text: str = "Pf3D7_01_v3:100-200(+)",
-        gene_previous_ids: str = "",
-        pk_list: list[dict[str, str]] | None = None,
-    ) -> dict[str, object]:
-        rec: dict[str, object] = {
-            "attributes": {
-                "primary_key": primary_key,
-                "gene_source_id": gene_source_id,
-                "gene_name": gene_name,
-                "gene_product": gene_product,
-                "organism": organism,
-                "gene_type": gene_type,
-                "gene_location_text": gene_location_text,
-                "gene_previous_ids": gene_previous_ids,
-            },
-        }
-        if pk_list is not None:
-            rec["id"] = pk_list
-        return rec
-
     def test_basic_parsing(self) -> None:
-        rec = self._make_record()
+        rec = _make_record()
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["geneId"] == "PF3D7_0100100"
@@ -62,7 +59,7 @@ class TestParseWdkRecord:
         assert result["location"] == "Pf3D7_01_v3:100-200(+)"
 
     def test_gene_id_from_pk_list(self) -> None:
-        rec = self._make_record(
+        rec = _make_record(
             gene_source_id="",
             primary_key="",
             pk_list=[
@@ -74,7 +71,7 @@ class TestParseWdkRecord:
         assert result["geneId"] == "PF3D7_FROM_PK"
 
     def test_gene_id_from_source_id_name(self) -> None:
-        rec = self._make_record(
+        rec = _make_record(
             gene_source_id="",
             primary_key="",
             pk_list=[
@@ -86,7 +83,7 @@ class TestParseWdkRecord:
         assert result["geneId"] == "PF3D7_SOURCE"
 
     def test_gene_id_from_gene_name_in_pk(self) -> None:
-        rec = self._make_record(
+        rec = _make_record(
             gene_source_id="",
             primary_key="",
             pk_list=[
@@ -99,7 +96,7 @@ class TestParseWdkRecord:
 
     def test_gene_source_id_takes_priority(self) -> None:
         """gene_source_id attribute is used as geneId over primary_key."""
-        rec = self._make_record(
+        rec = _make_record(
             gene_source_id="SRC_ID",
             primary_key="PK_ID",
         )
@@ -108,13 +105,13 @@ class TestParseWdkRecord:
         assert result["geneId"] == "SRC_ID"
 
     def test_fallback_to_primary_key_attribute(self) -> None:
-        rec = self._make_record(gene_source_id="", primary_key="PK_FALLBACK")
+        rec = _make_record(gene_source_id="", primary_key="PK_FALLBACK")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["geneId"] == "PK_FALLBACK"
 
     def test_html_tags_stripped(self) -> None:
-        rec = self._make_record(
+        rec = _make_record(
             gene_name="<em>EMP1</em>",
             gene_product="<b>erythrocyte</b> membrane protein",
         )
@@ -124,31 +121,31 @@ class TestParseWdkRecord:
         assert result["product"] == "erythrocyte membrane protein"
 
     def test_empty_gene_name_treated_as_empty(self) -> None:
-        rec = self._make_record(gene_name="")
+        rec = _make_record(gene_name="")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["geneName"] == ""
 
     def test_display_name_prefers_gene_name(self) -> None:
-        rec = self._make_record(gene_name="MyGene", gene_product="MyProduct")
+        rec = _make_record(gene_name="MyGene", gene_product="MyProduct")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["displayName"] == "MyGene"
 
     def test_display_name_falls_back_to_product(self) -> None:
-        rec = self._make_record(gene_name="", gene_product="MyProduct")
+        rec = _make_record(gene_name="", gene_product="MyProduct")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["displayName"] == "MyProduct"
 
     def test_display_name_falls_back_to_gene_id(self) -> None:
-        rec = self._make_record(gene_name="", gene_product="")
+        rec = _make_record(gene_name="", gene_product="")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["displayName"] == "PF3D7_0100100"
 
     def test_previous_ids_set(self) -> None:
-        rec = self._make_record(gene_previous_ids="OLD1, OLD2")
+        rec = _make_record(gene_previous_ids="OLD1, OLD2")
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result["previousIds"] == "OLD1, OLD2"

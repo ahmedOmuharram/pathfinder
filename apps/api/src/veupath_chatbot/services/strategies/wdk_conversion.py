@@ -83,14 +83,13 @@ def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
 
 
 def extract_operator(parameters: JSONObject) -> str | None:
-    if not parameters:
-        return None
-    for key, value in parameters.items():
-        if "operator" in str(key).lower():
-            if isinstance(value, str):
-                return value
-            if isinstance(value, list) and value:
-                return str(value[0])
+    for key, value in (parameters or {}).items():
+        if "operator" not in str(key).lower():
+            continue
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list) and value:
+            return str(value[0])
     return None
 
 
@@ -264,6 +263,60 @@ def build_snapshot_from_wdk(
     return ast, steps_data, step_counts
 
 
+async def _load_search_spec(
+    api: StrategyAPI,
+    record_type: str,
+    search_name: str,
+    context: JSONObject,
+) -> JSONObject:
+    """Load and unwrap search details for parameter normalization.
+
+    Tries the context-aware endpoint first; falls back to the plain endpoint.
+    Returns an empty dict when both fail.
+    """
+    try:
+        details = await api.client.get_search_details_with_params(
+            record_type,
+            search_name,
+            context=context,
+            expand_params=True,
+        )
+    except (AppError, ValueError, TypeError) as exc:
+        logger.warning(
+            "Failed to load search details with params during WDK sync",
+            record_type=record_type,
+            search_name=search_name,
+            error=str(exc),
+        )
+        try:
+            details = await api.client.get_search_details(
+                record_type, search_name, expand_params=True
+            )
+        except (AppError, ValueError, TypeError) as fallback_exc:
+            logger.warning(
+                "Failed to load search details during WDK sync",
+                record_type=record_type,
+                search_name=search_name,
+                error=str(fallback_exc),
+            )
+            return {}
+    raw = unwrap_search_data(details) or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _index_steps_by_id(steps_data: JSONArray) -> dict[str, JSONObject]:
+    """Build a dict mapping step id → step data from a steps array."""
+    steps_by_id: dict[str, JSONObject] = {}
+    for step_value in steps_data:
+        if not isinstance(step_value, dict):
+            continue
+        step_data = as_json_object(step_value)
+        step_id_value = step_data.get("id")
+        if step_id_value is not None:
+            steps_by_id[str(step_id_value)] = step_data
+    return steps_by_id
+
+
 async def normalize_synced_parameters(
     ast: StrategyAST,
     steps_data: JSONArray,
@@ -273,14 +326,7 @@ async def normalize_synced_parameters(
 
     Mutates AST nodes in place with normalized parameter values.
     """
-    steps_by_id: dict[str, JSONObject] = {}
-    for step_value in steps_data:
-        if not isinstance(step_value, dict):
-            continue
-        step_data = as_json_object(step_value)
-        step_id_value = step_data.get("id")
-        if step_id_value is not None:
-            steps_by_id[str(step_id_value)] = step_data
+    steps_by_id = _index_steps_by_id(steps_data)
     spec_cache: dict[tuple[str, str], JSONObject] = {}
 
     for step in ast.get_all_steps():
@@ -294,35 +340,9 @@ async def normalize_synced_parameters(
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
-            try:
-                details = await api.client.get_search_details_with_params(
-                    record_type,
-                    search_name,
-                    context=step.parameters or {},
-                    expand_params=True,
-                )
-            except (AppError, ValueError, TypeError) as exc:
-                logger.warning(
-                    "Failed to load search details with params during WDK sync",
-                    record_type=record_type,
-                    search_name=search_name,
-                    error=str(exc),
-                )
-                try:
-                    details = await api.client.get_search_details(
-                        record_type, search_name, expand_params=True
-                    )
-                except (AppError, ValueError, TypeError) as fallback_exc:
-                    logger.warning(
-                        "Failed to load search details during WDK sync",
-                        record_type=record_type,
-                        search_name=search_name,
-                        error=str(fallback_exc),
-                    )
-                    spec_cache[cache_key] = {}
-                    continue
-            details = unwrap_search_data(details) or {}
-            spec_cache[cache_key] = details if isinstance(details, dict) else {}
+            spec_cache[cache_key] = await _load_search_spec(
+                api, record_type, search_name, step.parameters or {}
+            )
 
         specs = adapt_param_specs(spec_cache.get(cache_key) or {})
         if not specs:

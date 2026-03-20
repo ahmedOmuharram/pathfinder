@@ -1,8 +1,9 @@
 """Results endpoints: records, record detail, attributes, distributions, refine."""
 
-from typing import Literal, cast
+from dataclasses import dataclass
+from typing import Annotated, Literal, cast
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.platform.errors import (
@@ -23,6 +24,24 @@ from veupath_chatbot.transport.http.schemas.steps import RecordDetailRequest
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Query parameter groups
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RecordQueryParams:
+    """Grouped query parameters for record listing endpoints."""
+
+    offset: int = Query(0, ge=0)
+    limit: int = Query(50, ge=1, le=500)
+    sort: str | None = None
+    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir")
+    attributes: str | None = None
+    filter_attribute: str | None = Query(None, alias="filterAttribute")
+    filter_value: str | None = Query(None, alias="filterValue")
 
 
 # ---------------------------------------------------------------------------
@@ -56,13 +75,7 @@ async def get_experiment_attributes(
 async def get_experiment_records(
     exp: ExperimentDep,
     user_id: CurrentUser,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    sort: str | None = None,
-    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir"),
-    attributes: str | None = None,
-    filter_attribute: str | None = Query(None, alias="filterAttribute"),
-    filter_value: str | None = Query(None, alias="filterValue"),
+    params: Annotated[RecordQueryParams, Depends()],
 ) -> JSONObject:
     """Get paginated result records for an experiment.
 
@@ -76,15 +89,15 @@ async def get_experiment_records(
 
     svc = _require_step(exp)
     attr_list: list[str] | None = None
-    if attributes:
-        attr_list = [a.strip() for a in attributes.split(",") if a.strip()]
+    if params.attributes:
+        attr_list = [a.strip() for a in params.attributes.split(",") if a.strip()]
 
-    if filter_attribute and filter_value is not None:
+    if params.filter_attribute and params.filter_value is not None:
         answer = await svc.get_records(
             offset=0,
             limit=10_000,
-            sort=sort,
-            direction=sort_dir,
+            sort=params.sort,
+            direction=params.sort_dir,
             attributes=attr_list,
         )
         raw_records = answer.get("records", [])
@@ -103,26 +116,29 @@ async def get_experiment_records(
         filtered: list[JSONValue] = []
         for r in classified:
             attrs = r.get("attributes")
-            if isinstance(attrs, dict) and attrs.get(filter_attribute) == filter_value:
+            if (
+                isinstance(attrs, dict)
+                and attrs.get(params.filter_attribute) == params.filter_value
+            ):
                 filtered.append(r)
-        page = filtered[offset : offset + limit]
+        page = filtered[params.offset : params.offset + params.limit]
         return {
             "records": cast("JSONValue", page),
             "meta": {
                 "totalCount": len(filtered),
                 "displayTotalCount": len(filtered),
                 "responseCount": len(page),
-                "pagination": {"offset": offset, "numRecords": limit},
+                "pagination": {"offset": params.offset, "numRecords": params.limit},
                 "attributes": cast("JSONValue", attr_list or []),
                 "tables": cast("JSONValue", []),
             },
         }
 
     answer = await svc.get_records(
-        offset=offset,
-        limit=limit,
-        sort=sort,
-        direction=sort_dir,
+        offset=params.offset,
+        limit=params.limit,
+        sort=params.sort,
+        direction=params.sort_dir,
         attributes=attr_list,
     )
 

@@ -15,6 +15,9 @@ import respx
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
+    AnalysisPollConfig,
+)
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     analysis_create_response,
@@ -331,8 +334,7 @@ class TestRunStepAnalysis:
             step_id=step_id,
             analysis_type="go-enrichment",
             parameters={"goAssociationsOntologies": "Biological Process"},
-            poll_interval=0.0,  # no real waiting in tests
-            max_wait=10.0,
+            poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
         # Verify result content
@@ -380,8 +382,7 @@ class TestRunStepAnalysis:
         result = await api.run_step_analysis(
             step_id=step_id,
             analysis_type="go-enrichment",
-            poll_interval=0.0,
-            max_wait=10.0,
+            poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
         assert result["resultSize"] == 42
@@ -439,8 +440,7 @@ class TestRunStepAnalysis:
             step_id=step_id,
             analysis_type="go-enrichment",
             parameters={"goAssociationsOntologies": "Biological Process"},
-            poll_interval=0.0,
-            max_wait=10.0,
+            poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
         assert result["resultSize"] == 42
@@ -491,8 +491,7 @@ class TestRunStepAnalysis:
         result = await api.run_step_analysis(
             step_id=step_id,
             analysis_type="go-enrichment",
-            poll_interval=0.0,
-            max_wait=10.0,
+            poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
         assert result["resultSize"] == 42
@@ -531,8 +530,7 @@ class TestRunStepAnalysis:
             await api.run_step_analysis(
                 step_id=step_id,
                 analysis_type="go-enrichment",
-                poll_interval=0.0,
-                max_wait=10.0,
+                poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
             )
 
     @respx.mock
@@ -564,8 +562,7 @@ class TestRunStepAnalysis:
             await api.run_step_analysis(
                 step_id=step_id,
                 analysis_type="go-enrichment",
-                poll_interval=0.0,
-                max_wait=10.0,
+                poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
             )
 
 

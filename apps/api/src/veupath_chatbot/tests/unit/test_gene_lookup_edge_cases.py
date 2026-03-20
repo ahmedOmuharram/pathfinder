@@ -25,7 +25,10 @@ from veupath_chatbot.services.gene_lookup.organism import (
     score_organism_match,
     suggest_organisms,
 )
-from veupath_chatbot.services.gene_lookup.result import build_gene_result
+from veupath_chatbot.services.gene_lookup.result import (
+    GeneResultInput,
+    build_gene_result,
+)
 from veupath_chatbot.services.gene_lookup.scoring import score_gene_relevance
 from veupath_chatbot.services.gene_lookup.site_search import (
     parse_site_search_docs,
@@ -82,15 +85,15 @@ class TestGeneIdSpecialChars:
     """Gene IDs with underscores, dots, hyphens, and other special chars."""
 
     def test_gene_id_with_dot(self) -> None:
-        result = build_gene_result(gene_id="TGME49_200.1")
+        result = build_gene_result(GeneResultInput(gene_id="TGME49_200.1"))
         assert result["geneId"] == "TGME49_200.1"
 
     def test_gene_id_with_hyphen(self) -> None:
-        result = build_gene_result(gene_id="PF3D7-0100100")
+        result = build_gene_result(GeneResultInput(gene_id="PF3D7-0100100"))
         assert result["geneId"] == "PF3D7-0100100"
 
     def test_gene_id_with_colon(self) -> None:
-        result = build_gene_result(gene_id="GeneDB:PF3D7_0100100")
+        result = build_gene_result(GeneResultInput(gene_id="GeneDB:PF3D7_0100100"))
         assert result["geneId"] == "GeneDB:PF3D7_0100100"
 
     def test_score_gene_id_with_dot(self) -> None:
@@ -553,18 +556,20 @@ class TestBuildGeneResultEdgeCases:
 
     def test_empty_gene_id(self) -> None:
         """Empty gene_id should still produce a result."""
-        result = build_gene_result(gene_id="")
+        result = build_gene_result(GeneResultInput(gene_id=""))
         assert result["geneId"] == ""
         assert result["displayName"] == ""
 
     def test_display_name_empty_string_falls_back_to_product(self) -> None:
         """Explicitly passing display_name='' should fall back to product."""
-        result = build_gene_result(gene_id="X", display_name="", product="my product")
+        result = build_gene_result(
+            GeneResultInput(gene_id="X", display_name="", product="my product")
+        )
         assert result["displayName"] == "my product"
 
     def test_matched_fields_empty_list_included(self) -> None:
         """Empty list should be included (unlike None)."""
-        result = build_gene_result(gene_id="X", matched_fields=[])
+        result = build_gene_result(GeneResultInput(gene_id="X", matched_fields=[]))
         assert "matchedFields" in result
         assert result["matchedFields"] == []
 

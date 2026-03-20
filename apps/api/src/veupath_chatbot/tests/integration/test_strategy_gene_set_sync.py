@@ -152,6 +152,23 @@ def _register_gene_id_fetch(
     wdk_respx.post(
         f"{_BASE}/users/guest/steps/{root_step_id}/reports/standard"
     ).respond(200, json=_step_report_response(gene_ids))
+    # _extract_step_search_context fetches step detail to get searchName/parameters
+    wdk_respx.get(f"{_BASE}/users/guest/steps/{root_step_id}").respond(
+        200,
+        json={
+            "id": root_step_id,
+            "searchName": "GenesByTaxon",
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'}
+            },
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        },
+    )
+    # Lazy-fetch of strategy detail triggers search details call for parameter
+    # normalisation; return empty to avoid full schema setup in tests.
+    wdk_respx.post(url__regex=rf"{_BASE}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
 
 
 # ---------------------------------------------------------------------------

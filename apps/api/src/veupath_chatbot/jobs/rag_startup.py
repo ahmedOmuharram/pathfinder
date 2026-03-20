@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from veupath_chatbot.integrations.vectorstore.ingest.public_strategies import (
+    IngestRunConfig,
     ingest_public_strategies,
 )
 from veupath_chatbot.integrations.vectorstore.ingest.wdk_catalog import (
@@ -63,13 +64,15 @@ async def start_rag_startup_ingestion_background() -> None:
 
                 # 2) Example plans from public strategies
                 await ingest_public_strategies(
-                    sites=None,
-                    reset=False,
-                    skip_existing=True,
-                    llm_model=llm_model,
-                    report_path=report_path,
-                    max_strategies_per_site=max_per_site,
-                    concurrency=conc,
+                    IngestRunConfig(
+                        sites=None,
+                        reset=False,
+                        skip_existing=True,
+                        llm_model=llm_model,
+                        report_path=report_path,
+                        max_strategies_per_site=max_per_site,
+                        concurrency=conc,
+                    )
                 )
             except RuntimeError as exc:
                 logger.warning(

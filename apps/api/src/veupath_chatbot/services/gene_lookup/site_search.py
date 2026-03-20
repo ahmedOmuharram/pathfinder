@@ -9,9 +9,32 @@ from veupath_chatbot.integrations.veupathdb.site_search import (
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
-from .result import build_gene_result
+from .result import GeneResultInput, build_gene_result
 
 SITE_SEARCH_FETCH_LIMIT = 50
+
+
+def _extract_gene_id(doc: dict[str, object]) -> str:
+    """Extract the gene ID from a site-search document."""
+    gene_id = strip_html_tags(str(doc.get("wdkPrimaryKeyString", ""))).strip()
+    if not gene_id:
+        pk = doc.get("primaryKey")
+        if isinstance(pk, list) and pk:
+            gene_id = str(pk[0]).strip()
+    return gene_id
+
+
+def _extract_matched_fields(doc: dict[str, object]) -> list[str]:
+    """Extract matched field names from a site-search document."""
+    found = doc.get("foundInFields")
+    if not isinstance(found, dict):
+        return []
+    matched_fields: list[str] = []
+    for field_key, field_values in found.items():
+        if isinstance(field_values, list) and field_values:
+            clean_key = field_key.replace("MULTITEXT__", "").replace("TEXT__", "")
+            matched_fields.append(clean_key)
+    return matched_fields
 
 
 def parse_site_search_docs(docs: list[object]) -> list[JSONObject]:
@@ -21,11 +44,7 @@ def parse_site_search_docs(docs: list[object]) -> list[JSONObject]:
         if not isinstance(doc, dict):
             continue
 
-        gene_id = strip_html_tags(str(doc.get("wdkPrimaryKeyString", ""))).strip()
-        if not gene_id:
-            pk = doc.get("primaryKey")
-            if isinstance(pk, list) and pk:
-                gene_id = str(pk[0]).strip()
+        gene_id = _extract_gene_id(doc)
         if not gene_id:
             continue
 
@@ -44,25 +63,17 @@ def parse_site_search_docs(docs: list[object]) -> list[JSONObject]:
         if not doc_organism and doc.get("organism"):
             doc_organism = normalize_organism(str(doc.get("organism", "")))
 
-        found = doc.get("foundInFields")
-        matched_fields: list[str] = []
-        if isinstance(found, dict):
-            for field_key, field_values in found.items():
-                if isinstance(field_values, list) and field_values:
-                    clean_key = field_key.replace("MULTITEXT__", "").replace(
-                        "TEXT__", ""
-                    )
-                    matched_fields.append(clean_key)
-
         results.append(
             build_gene_result(
-                gene_id=gene_id,
-                display_name=display_name,
-                organism=doc_organism,
-                product=doc_product,
-                gene_name=doc_gene_name,
-                gene_type=doc_gene_type,
-                matched_fields=matched_fields,
+                GeneResultInput(
+                    gene_id=gene_id,
+                    display_name=display_name,
+                    organism=doc_organism,
+                    product=doc_product,
+                    gene_name=doc_gene_name,
+                    gene_type=doc_gene_type,
+                    matched_fields=_extract_matched_fields(doc),
+                )
             )
         )
     return results

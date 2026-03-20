@@ -31,7 +31,7 @@ from veupath_chatbot.domain.parameters.vocab_utils import (
     numeric_equivalent,
 )
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.tests.fixtures.builders import make_param_spec
+from veupath_chatbot.tests.fixtures.builders import ParamSpecConfig, make_param_spec
 
 
 def _canonicalizer(*specs: ParamSpecNormalized) -> ParameterCanonicalizer:
@@ -467,18 +467,18 @@ class TestValueHelperEdgeCases:
 
     def test_validate_multi_count_max_zero(self) -> None:
         """max_selected=0 means no values are allowed."""
-        spec = make_param_spec(max_selected=0)
+        spec = make_param_spec(ParamSpecConfig(max_selected=0))
         with pytest.raises(ValidationError):
             validate_multi_count(spec, ["a"])
 
     def test_validate_multi_count_max_zero_empty_list(self) -> None:
         """max_selected=0 with empty list should pass."""
-        spec = make_param_spec(max_selected=0, min_selected=0)
+        spec = make_param_spec(ParamSpecConfig(max_selected=0, min_selected=0))
         validate_multi_count(spec, [])
 
     def test_handle_empty_non_vocab_with_none_value_raises(self) -> None:
         """Non-vocab type with None value should raise when allow_empty is False."""
-        spec = make_param_spec(param_type="number", allow_empty=False)
+        spec = make_param_spec(ParamSpecConfig(param_type="number", allow_empty=False))
         with pytest.raises(ValidationError) as exc_info:
             handle_empty(spec, None)
         assert "requires a value" in (exc_info.value.detail or "")
@@ -486,7 +486,7 @@ class TestValueHelperEdgeCases:
     def test_handle_empty_allows_all_types(self) -> None:
         """When allow_empty is True, always returns '' regardless of param_type."""
         for pt in ["string", "number", "multi-pick-vocabulary", "filter"]:
-            spec = make_param_spec(param_type=pt, allow_empty=True)
+            spec = make_param_spec(ParamSpecConfig(param_type=pt, allow_empty=True))
             assert handle_empty(spec, "anything") == ""
 
 
@@ -499,9 +499,11 @@ class TestCanonicalizerEdgeCases:
     def test_multi_pick_with_duplicates(self) -> None:
         """Duplicate values in multi-pick should be preserved (no dedup by default)."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["a", "A"], ["b", "B"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["a", "A"], ["b", "B"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["A", "A", "B"]})
@@ -512,9 +514,11 @@ class TestCanonicalizerEdgeCases:
     def test_multi_pick_empty_list(self) -> None:
         """Empty list for multi-pick with allow_empty should return empty string."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         c = _canonicalizer(spec)
         # Empty list -> decode_values returns [] -> values is [] ->
@@ -527,9 +531,11 @@ class TestCanonicalizerEdgeCases:
     def test_multi_pick_empty_list_without_allow_empty(self) -> None:
         """Empty list for multi-pick without allow_empty should fail."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            min_selected=1,
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                min_selected=1,
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -538,7 +544,7 @@ class TestCanonicalizerEdgeCases:
 
     def test_number_range_with_list_of_one(self) -> None:
         """List with one element is not a valid range."""
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": [42]})
@@ -546,7 +552,7 @@ class TestCanonicalizerEdgeCases:
 
     def test_number_range_with_empty_list(self) -> None:
         """Empty list is not a valid range."""
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": []})
@@ -554,7 +560,7 @@ class TestCanonicalizerEdgeCases:
 
     def test_number_range_set_value_raises(self) -> None:
         """Set is not a valid range type."""
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": {1, 10}})
@@ -562,28 +568,32 @@ class TestCanonicalizerEdgeCases:
 
     def test_input_dataset_empty_list_raises(self) -> None:
         """Empty list for input-dataset should raise."""
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": []})
         assert "single value" in (exc_info.value.detail or "")
 
     def test_filter_none_value_with_allow_empty(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter", allow_empty=True)
+        spec = make_param_spec(
+            ParamSpecConfig(name="p", param_type="filter", allow_empty=True)
+        )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": None})
         assert result["p"] == ""
 
     def test_unknown_param_type_preserves_value(self) -> None:
         """Unknown param types should preserve values as-is."""
-        spec = make_param_spec(name="p", param_type="totally_unknown")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="totally_unknown"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": {"complex": [1, 2]}})
         assert result["p"] == {"complex": [1, 2]}
 
     def test_none_value_for_unknown_type(self) -> None:
         """None value for unknown type goes through _handle_empty."""
-        spec = make_param_spec(name="p", param_type="totally_unknown", allow_empty=True)
+        spec = make_param_spec(
+            ParamSpecConfig(name="p", param_type="totally_unknown", allow_empty=True)
+        )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": None})
         assert result["p"] == ""
@@ -591,9 +601,11 @@ class TestCanonicalizerEdgeCases:
     def test_single_pick_with_json_array_string(self) -> None:
         """Single-pick with a JSON array string of one element should work."""
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["val", "Display"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["val", "Display"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": '["Display"]'})
@@ -601,7 +613,7 @@ class TestCanonicalizerEdgeCases:
 
     def test_tuple_scalar_raises_for_number(self) -> None:
         """Tuple is rejected for scalar types."""
-        spec = make_param_spec(name="p", param_type="number")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": (1, 2)})
@@ -609,7 +621,7 @@ class TestCanonicalizerEdgeCases:
 
     def test_set_scalar_raises_for_string(self) -> None:
         """Set is rejected for scalar types."""
-        spec = make_param_spec(name="p", param_type="string")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="string"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": {"a", "b"}})
@@ -625,9 +637,11 @@ class TestNormalizerEdgeCases:
     def test_multi_pick_empty_list_with_allow_empty(self) -> None:
         """Empty list produces JSON '[]' which is valid for allow_empty."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"p": []})
@@ -636,16 +650,18 @@ class TestNormalizerEdgeCases:
     def test_multi_pick_single_value_string(self) -> None:
         """Single string value should be decoded and normalized."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["val", "Display"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["val", "Display"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"p": "Display"})
         assert result["p"] == json.dumps(["val"])
 
     def test_range_tuple_produces_json_string(self) -> None:
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         n = _normalizer(spec)
         result = n.normalize({"p": (5, 15)})
         parsed = json.loads(result["p"])
@@ -653,35 +669,39 @@ class TestNormalizerEdgeCases:
 
     def test_filter_string_passthrough(self) -> None:
         """String filter values pass through as-is (not JSON-encoded)."""
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         n = _normalizer(spec)
         result = n.normalize({"p": "already_a_string"})
         assert result["p"] == "already_a_string"
 
     def test_unknown_type_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="mystery")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="mystery"))
         n = _normalizer(spec)
         result = n.normalize({"p": [1, 2, 3]})
         assert result["p"] == [1, 2, 3]
 
     def test_number_range_invalid_string_raises(self) -> None:
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             n.normalize({"p": "not a range"})
         assert "must be a range" in (exc_info.value.detail or "")
 
     def test_input_dataset_none_value_with_allow_empty(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset", allow_empty=True)
+        spec = make_param_spec(
+            ParamSpecConfig(name="p", param_type="input-dataset", allow_empty=True)
+        )
         n = _normalizer(spec)
         result = n.normalize({"p": None})
         assert result["p"] == ""
 
     def test_single_pick_none_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"p": None})
@@ -720,10 +740,12 @@ class TestLeafEnforcementEdgeCases:
     def test_deep_tree_leaf_expansion(self) -> None:
         """Selecting a top-level node should expand to the deepest leaf."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._deep_tree(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._deep_tree(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["Root"]})
@@ -732,10 +754,12 @@ class TestLeafEnforcementEdgeCases:
     def test_single_pick_leaf_enforcement_on_non_leaf(self) -> None:
         """Single-pick with count_only_leaves should reject non-leaf nodes."""
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._deep_tree(),
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._deep_tree(),
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -745,10 +769,12 @@ class TestLeafEnforcementEdgeCases:
     def test_leaf_enforcement_with_list_vocab(self) -> None:
         """List vocab should return empty from _expand_leaf_terms_for_match."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=[["a", "A"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=[["a", "A"]],
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -758,10 +784,12 @@ class TestLeafEnforcementEdgeCases:
     def test_leaf_enforcement_with_none_vocab(self) -> None:
         """None vocab with count_only_leaves should not expand (empty result -> error)."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=None,
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=None,
+            )
         )
         c = _canonicalizer(spec)
         # vocab is None -> match_vocab_value returns value as-is
@@ -781,7 +809,7 @@ class TestNormalizerVsCanonicalizerConsistency:
     """Verify both paths handle the same edge cases consistently."""
 
     def test_both_reject_unknown_params(self) -> None:
-        spec = make_param_spec(name="known")
+        spec = make_param_spec(ParamSpecConfig(name="known"))
         c = _canonicalizer(spec)
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -792,21 +820,21 @@ class TestNormalizerVsCanonicalizerConsistency:
         assert "does not exist" in (exc_info.value.detail or "")
 
     def test_both_skip_input_step(self) -> None:
-        spec = make_param_spec(name="step_id", param_type="input-step")
+        spec = make_param_spec(ParamSpecConfig(name="step_id", param_type="input-step"))
         c = _canonicalizer(spec)
         n = _normalizer(spec)
         assert c.canonicalize({"step_id": "123"}) == {}
         assert n.normalize({"step_id": "123"}) == {}
 
     def test_both_handle_none_params(self) -> None:
-        spec = make_param_spec(name="p")
+        spec = make_param_spec(ParamSpecConfig(name="p"))
         c = _canonicalizer(spec)
         n = _normalizer(spec)
         assert c.canonicalize(None) == {}
         assert n.normalize(None) == {}
 
     def test_both_reject_list_for_scalar(self) -> None:
-        spec = make_param_spec(name="p", param_type="number")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number"))
         c = _canonicalizer(spec)
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -818,9 +846,11 @@ class TestNormalizerVsCanonicalizerConsistency:
 
     def test_both_reject_multiple_single_pick(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["a", "A"], ["b", "B"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["a", "A"], ["b", "B"]],
+            )
         )
         c = _canonicalizer(spec)
         n = _normalizer(spec)

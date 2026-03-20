@@ -14,6 +14,7 @@ from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import resolve_record_type_from_steps
 from veupath_chatbot.services.strategies.build import (
+    BuildOptions,
     BuildResult,
     RootResolutionError,
     StepCountResult,
@@ -524,7 +525,7 @@ class TestBuildStrategy:
             api=api,
             site=site,
             site_id="plasmodb",
-            strategy_name="My Strategy",
+            options=BuildOptions(strategy_name="My Strategy"),
         )
 
         assert isinstance(result, BuildResult)
@@ -607,7 +608,7 @@ class TestBuildStrategy:
             api=api,
             site=site,
             site_id="plasmodb",
-            strategy_name="New Name",
+            options=BuildOptions(strategy_name="New Name"),
         )
 
         assert graph.name == "New Name"

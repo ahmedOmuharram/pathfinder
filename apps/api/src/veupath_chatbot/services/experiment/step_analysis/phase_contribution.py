@@ -5,7 +5,10 @@ import asyncio
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import ProgressCallback
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    ProgressCallback,
+)
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
     run_controls_against_tree,
@@ -16,7 +19,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _remove_leaf_from_tree,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     StepContribution,
     StepContributionVerdict,
     to_json,
@@ -32,15 +34,8 @@ _RECALL_HARMFUL_IMPROVEMENT = 0.02
 
 
 async def analyze_contributions(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
     baseline_metrics: JSONObject,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepContribution]:
@@ -92,16 +87,7 @@ async def analyze_contributions(
 
         try:
             async with sem:
-                raw = await run_controls_against_tree(
-                    site_id=site_id,
-                    record_type=record_type,
-                    tree=ablated_tree,
-                    controls_search_name=controls_search_name,
-                    controls_param_name=controls_param_name,
-                    controls_value_format=controls_value_format,
-                    positive_controls=positive_controls,
-                    negative_controls=negative_controls,
-                )
+                raw = await run_controls_against_tree(ctx, ablated_tree)
         except (AppError, ValueError, TypeError) as exc:
             logger.warning("Ablation failed", step=lid, error=str(exc))
             return None

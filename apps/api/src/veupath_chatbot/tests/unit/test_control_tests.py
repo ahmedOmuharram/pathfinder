@@ -13,6 +13,7 @@ All WDK calls are mocked. These tests validate:
 """
 
 import json
+from dataclasses import dataclass
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,6 +27,7 @@ from veupath_chatbot.services.control_helpers import (
     _get_total_count_for_step,
 )
 from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
     _run_intersection_control,
     resolve_controls_param_type,
     run_positive_negative_controls,
@@ -33,27 +35,32 @@ from veupath_chatbot.services.control_tests import (
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
 
+@dataclass
+class _MockApiIds:
+    """Mock WDK API return IDs for _make_mock_api."""
+
+    create_step_id: int = 100
+    create_combined_step_id: int = 200
+    create_strategy_id: int = 300
+    create_dataset_id: int = 999
+
+
 def _make_mock_api(
     *,
     step_count: int = 42,
     step_answer: JSONObject | None = None,
-    create_step_id: int = 100,
-    create_combined_step_id: int = 200,
-    create_strategy_id: int = 300,
-    create_dataset_id: int = 999,
     search_details: JSONObject | None = None,
+    ids: _MockApiIds | None = None,
 ) -> AsyncMock:
     """Build an AsyncMock that behaves like StrategyAPI.
 
     :param step_count: Number of mock steps (default: 42).
     :param step_answer: Mock step answer payload (default: None).
-    :param create_step_id: Mock create_step ID (default: 100).
-    :param create_combined_step_id: Mock create_combined_step ID (default: 200).
-    :param create_strategy_id: Mock create_strategy ID (default: 300).
-    :param create_dataset_id: Mock create_dataset ID (default: 999).
     :param search_details: Mock search details (default: None).
+    :param ids: Mock WDK step/strategy return IDs (default: _MockApiIds()).
 
     """
+    mock_ids = ids or _MockApiIds()
     api = AsyncMock(spec=StrategyAPI)
 
     # get_step_count returns an int
@@ -76,20 +83,22 @@ def _make_mock_api(
     api.get_step_answer = AsyncMock(return_value=default_answer)
 
     # create_step returns {"id": <step_id>}
-    api.create_step = AsyncMock(return_value={"id": create_step_id})
+    api.create_step = AsyncMock(return_value={"id": mock_ids.create_step_id})
 
     # create_combined_step returns {"id": <combined_step_id>}
-    api.create_combined_step = AsyncMock(return_value={"id": create_combined_step_id})
+    api.create_combined_step = AsyncMock(
+        return_value={"id": mock_ids.create_combined_step_id}
+    )
 
     # create_strategy returns {"id": <strategy_id>}
-    api.create_strategy = AsyncMock(return_value={"id": create_strategy_id})
+    api.create_strategy = AsyncMock(return_value={"id": mock_ids.create_strategy_id})
 
     # delete_strategy succeeds
     api.delete_strategy = AsyncMock(return_value=None)
     api.list_strategies = AsyncMock(return_value=[])
 
     # create_dataset returns dataset ID
-    api.create_dataset = AsyncMock(return_value=create_dataset_id)
+    api.create_dataset = AsyncMock(return_value=mock_ids.create_dataset_id)
 
     # client.get_search_details returns search details
     api.client = MagicMock()
@@ -266,9 +275,11 @@ class TestRunIntersectionControl:
         controls_step_resp = {"id": 51}
         api = _make_mock_api(
             step_count=3,
-            create_combined_step_id=60,
-            create_strategy_id=70,
-            create_dataset_id=12345,
+            ids=_MockApiIds(
+                create_combined_step_id=60,
+                create_strategy_id=70,
+                create_dataset_id=12345,
+            ),
             step_answer={
                 "meta": {"totalCount": 3},
                 "records": [
@@ -282,15 +293,15 @@ class TestRunIntersectionControl:
         mock_get_api.return_value = api
 
         result = await _run_intersection_control(
-            site_id="plasmodb",
-            record_type="transcript",
-            target_search_name="GenesByRNASeq",
-            target_parameters={"fold_change": "2"},
-            controls_search_name="GeneByLocusTag",
-            controls_param_name="ds_gene_ids",
+            IntersectionConfig(
+                site_id="plasmodb",
+                record_type="transcript",
+                target_search_name="GenesByRNASeq",
+                target_parameters={"fold_change": "2"},
+                controls_search_name="GeneByLocusTag",
+                controls_param_name="ds_gene_ids",
+            ),
             controls_ids=["PF3D7_001", "PF3D7_002", "PF3D7_003"],
-            controls_value_format="newline",
-            controls_extra_parameters=None,
         )
 
         # Dataset was created
@@ -349,15 +360,15 @@ class TestRunIntersectionControl:
         mock_get_api.return_value = api
 
         await _run_intersection_control(
-            site_id="plasmodb",
-            record_type="transcript",
-            target_search_name="SomeRNASearch",
-            target_parameters={"fold": "1"},
-            controls_search_name="SomeSearch",
-            controls_param_name="gene_list",
+            IntersectionConfig(
+                site_id="plasmodb",
+                record_type="transcript",
+                target_search_name="SomeRNASearch",
+                target_parameters={"fold": "1"},
+                controls_search_name="SomeSearch",
+                controls_param_name="gene_list",
+            ),
             controls_ids=["A", "B", "C"],
-            controls_value_format="newline",
-            controls_extra_parameters=None,
         )
 
         # No dataset created
@@ -378,15 +389,15 @@ class TestRunIntersectionControl:
 
         with pytest.raises(Exception, match="WDK boom"):
             await _run_intersection_control(
-                site_id="plasmodb",
-                record_type="transcript",
-                target_search_name="GenesByRNASeq",
-                target_parameters={},
-                controls_search_name="GeneByLocusTag",
-                controls_param_name="ds_gene_ids",
+                IntersectionConfig(
+                    site_id="plasmodb",
+                    record_type="transcript",
+                    target_search_name="GenesByRNASeq",
+                    target_parameters={},
+                    controls_search_name="GeneByLocusTag",
+                    controls_param_name="ds_gene_ids",
+                ),
                 controls_ids=["A"],
-                controls_value_format="newline",
-                controls_extra_parameters=None,
             )
 
         # Strategy was still cleaned up
@@ -423,15 +434,15 @@ class TestRunIntersectionControl:
         mock_get_api.return_value = api
 
         await _run_intersection_control(
-            site_id="plasmodb",
-            record_type="transcript",
-            target_search_name="SomeRNASearch",
-            target_parameters={"fold": "1"},
-            controls_search_name="SomeSearch",
-            controls_param_name="gene_list",
+            IntersectionConfig(
+                site_id="plasmodb",
+                record_type="transcript",
+                target_search_name="SomeRNASearch",
+                target_parameters={"fold": "1"},
+                controls_search_name="SomeSearch",
+                controls_param_name="gene_list",
+            ),
             controls_ids=["A", "B"],
-            controls_value_format="newline",
-            controls_extra_parameters=None,
         )
 
         # _run_intersection_control only cleans up its own temp strategy.
@@ -455,32 +466,20 @@ class TestRunIntersectionControl:
         api.create_step = AsyncMock(side_effect=_create_step_side_effect)
         mock_get_api.return_value = api
 
-        # First call
-        r1 = await _run_intersection_control(
+        _cfg = IntersectionConfig(
             site_id="plasmodb",
             record_type="transcript",
             target_search_name="GenesByRNASeq",
             target_parameters={"fold_change": "2"},
             controls_search_name="GeneByLocusTag",
             controls_param_name="ds_gene_ids",
-            controls_ids=["POS1"],
-            controls_value_format="newline",
-            controls_extra_parameters=None,
         )
+        # First call
+        r1 = await _run_intersection_control(_cfg, controls_ids=["POS1"])
         assert r1["targetStepId"] == 10  # first create_step call
 
         # Second call (simulating negative controls after positive)
-        r2 = await _run_intersection_control(
-            site_id="plasmodb",
-            record_type="transcript",
-            target_search_name="GenesByRNASeq",
-            target_parameters={"fold_change": "2"},
-            controls_search_name="GeneByLocusTag",
-            controls_param_name="ds_gene_ids",
-            controls_ids=["NEG1"],
-            controls_value_format="newline",
-            controls_extra_parameters=None,
-        )
+        r2 = await _run_intersection_control(_cfg, controls_ids=["NEG1"])
         assert r2["targetStepId"] == 30  # third create_step call (new target)
         # Total: 4 create_step calls (target+controls for each run)
         assert api.create_step.await_count == 4
@@ -669,9 +668,11 @@ class TestRunPositiveNegativeControls:
 
         api = _make_mock_api(
             step_count=5,
-            create_combined_step_id=200,
-            create_strategy_id=300,
-            create_dataset_id=888,
+            ids=_MockApiIds(
+                create_combined_step_id=200,
+                create_strategy_id=300,
+                create_dataset_id=888,
+            ),
             step_answer={
                 "meta": {"totalCount": 2},
                 "records": [
@@ -683,16 +684,18 @@ class TestRunPositiveNegativeControls:
         api.create_step = AsyncMock(side_effect=_create_step)
         mock_get_api.return_value = api
 
-        result = await run_positive_negative_controls(
+        _cfg = IntersectionConfig(
             site_id="plasmodb",
             record_type="transcript",
             target_search_name="GenesByRNASeq",
             target_parameters={"fold_change": "2"},
             controls_search_name="GeneByLocusTag",
             controls_param_name="ds_gene_ids",
+        )
+        result = await run_positive_negative_controls(
+            _cfg,
             positive_controls=["POS1", "POS2", "POS3"],
             negative_controls=["NEG1", "NEG2"],
-            controls_value_format="newline",
         )
 
         # Target info comes from the positive run's target step
@@ -730,12 +733,14 @@ class TestRunPositiveNegativeControls:
         mock_get_api.return_value = api
 
         result = await run_positive_negative_controls(
-            site_id="plasmodb",
-            record_type="transcript",
-            target_search_name="GenesByRNASeq",
-            target_parameters={},
-            controls_search_name="GeneByLocusTag",
-            controls_param_name="ds_gene_ids",
+            IntersectionConfig(
+                site_id="plasmodb",
+                record_type="transcript",
+                target_search_name="GenesByRNASeq",
+                target_parameters={},
+                controls_search_name="GeneByLocusTag",
+                controls_param_name="ds_gene_ids",
+            ),
         )
 
         assert result["positive"] is None
@@ -756,9 +761,11 @@ class TestRunPositiveNegativeControls:
         """When only negative controls given, target info comes from neg run."""
         api = _make_mock_api(
             step_count=42,
-            create_combined_step_id=200,
-            create_strategy_id=300,
-            create_dataset_id=888,
+            ids=_MockApiIds(
+                create_combined_step_id=200,
+                create_strategy_id=300,
+                create_dataset_id=888,
+            ),
             step_answer={
                 "meta": {"totalCount": 1},
                 "records": [
@@ -769,13 +776,16 @@ class TestRunPositiveNegativeControls:
         api.create_step = AsyncMock(side_effect=[{"id": 77}, {"id": 78}])
         mock_get_api.return_value = api
 
-        result = await run_positive_negative_controls(
+        _cfg = IntersectionConfig(
             site_id="plasmodb",
             record_type="transcript",
             target_search_name="GenesByRNASeq",
             target_parameters={},
             controls_search_name="GeneByLocusTag",
             controls_param_name="ds_gene_ids",
+        )
+        result = await run_positive_negative_controls(
+            _cfg,
             negative_controls=["NEG1", "NEG2"],
         )
 

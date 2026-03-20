@@ -5,7 +5,7 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
     _slug_token,
-    _suggest_citation_tag,
+    _suggest_tag,
     ensure_unique_citation_tags,
 )
 
@@ -36,93 +36,56 @@ class TestSlugToken:
 
 
 # ---------------------------------------------------------------------------
-# _suggest_citation_tag
+# _suggest_tag
 # ---------------------------------------------------------------------------
+
+
+def _c(
+    title: str = "",
+    authors: list[str] | None = None,
+    year: int | None = None,
+    doi: str | None = None,
+    pmid: str | None = None,
+) -> Citation:
+    """Build a minimal Citation for _suggest_tag tests."""
+    return Citation(
+        id="test",
+        source="web",
+        title=title,
+        authors=authors,
+        year=year,
+        doi=doi,
+        pmid=pmid,
+    )
 
 
 class TestSuggestCitationTag:
     def test_author_and_year(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Some Paper",
-            authors=["Smith, John"],
-            year=2020,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Some Paper", authors=["Smith, John"], year=2020))
         assert tag == "smith2020"
 
     def test_author_no_year(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Some Paper",
-            authors=["Smith, John"],
-            year=None,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Some Paper", authors=["Smith, John"]))
         assert tag == "smith"
 
     def test_title_first_word_with_year(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Malaria treatment overview",
-            authors=None,
-            year=2021,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Malaria treatment overview", year=2021))
         assert tag == "malaria2021"
 
     def test_title_slug_fallback(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Malaria",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Malaria"))
         assert tag == "malaria"
 
     def test_doi_fallback(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="",
-            authors=None,
-            year=None,
-            doi="10.1234/abc",
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(doi="10.1234/abc"))
         assert tag == "101234abc"
 
     def test_pmid_fallback(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid="12345678",
-            url=None,
-        )
+        tag = _suggest_tag(_c(pmid="12345678"))
         assert tag == "12345678"
 
     def test_source_fallback(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(Citation(id="test", source="web", title=""))
         assert tag == "web"
 
 

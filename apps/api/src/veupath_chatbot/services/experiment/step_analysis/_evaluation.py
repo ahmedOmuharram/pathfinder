@@ -12,6 +12,7 @@ from veupath_chatbot.services.control_tests import (
     resolve_controls_param_type,
 )
 from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
     coerce_step_id,
     extract_wdk_id,
     safe_int,
@@ -23,7 +24,6 @@ from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
 )
-from veupath_chatbot.services.experiment.types import ControlValueFormat
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
 logger = get_logger(__name__)
@@ -34,15 +34,8 @@ _MAX_CONTROL_IDS_FOR_ANSWER = 500
 
 
 async def run_controls_against_tree(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str] | None = None,
-    negative_controls: list[str] | None = None,
 ) -> JSONObject:
     """Materialise a ``PlanStepNode`` tree, intersect with controls, return metrics.
 
@@ -53,14 +46,14 @@ async def run_controls_against_tree(
     Returns the same shape as :func:`run_positive_negative_controls` so
     :func:`metrics_from_control_result` can consume it directly.
     """
-    api = get_strategy_api(site_id)
+    api = get_strategy_api(ctx.site_id)
 
-    pos = [s.strip() for s in (positive_controls or []) if s.strip()]
-    neg = [s.strip() for s in (negative_controls or []) if s.strip()]
+    pos = [s.strip() for s in ctx.positive_controls if s.strip()]
+    neg = [s.strip() for s in ctx.negative_controls if s.strip()]
 
     result: JSONObject = {
-        "siteId": site_id,
-        "recordType": record_type,
+        "siteId": ctx.site_id,
+        "recordType": ctx.record_type,
         "target": {"searchName": "__tree__", "resultCount": None},
         "positive": None,
         "negative": None,
@@ -72,26 +65,26 @@ async def run_controls_against_tree(
     ) -> JSONObject:
         """Materialise the tree, intersect with one control set, clean up."""
         root_tree = await _materialize_step_tree(
-            api, tree, record_type, site_id=site_id
+            api, tree, ctx.record_type, site_id=ctx.site_id
         )
 
         param_type = await resolve_controls_param_type(
             api,
-            record_type,
-            controls_search_name,
-            controls_param_name,
+            ctx.record_type,
+            ctx.controls_search_name,
+            ctx.controls_param_name,
         )
 
         controls_params: JSONObject = {}
         if param_type == "input-dataset":
             dataset_id = await api.create_dataset(control_ids)
-            controls_params[controls_param_name] = str(dataset_id)
+            controls_params[ctx.controls_param_name] = str(dataset_id)
         else:
-            controls_params[controls_param_name] = "\n".join(control_ids)
+            controls_params[ctx.controls_param_name] = "\n".join(control_ids)
 
         controls_step = await api.create_step(
-            record_type=record_type,
-            search_name=controls_search_name,
+            record_type=ctx.record_type,
+            search_name=ctx.controls_search_name,
             parameters=controls_params,
             custom_name=f"Controls ({label})",
         )
@@ -101,7 +94,7 @@ async def run_controls_against_tree(
             primary_step_id=root_tree.step_id,
             secondary_step_id=controls_step_id,
             boolean_operator="INTERSECT",
-            record_type=record_type,
+            record_type=ctx.record_type,
             custom_name=f"Tree \u2229 {label}",
         )
         combined_step_id = coerce_step_id(combined)

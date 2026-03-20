@@ -13,10 +13,13 @@ import pytest
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.services.chat.orchestrator import (
     _build_agent_context,
+    _EmitContext,
     _handle_cancellation,
     _handle_error,
     _run_stream_loop,
+    _TurnRequest,
 )
+from veupath_chatbot.services.chat.types import ChatTurnConfig
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -81,17 +84,15 @@ class TestBuildAgentContext:
                 AsyncMock(return_value=[]),
             ),
         ):
-            agent, effective_model = await _build_agent_context(
+            turn = _TurnRequest(
                 stream_id_str=stream_id,
                 site_id="plasmodb",
                 user_id=uuid4(),
                 model_message="Hello",
                 selected_nodes=None,
-                provider_override=None,
-                model_override=None,
-                reasoning_effort=None,
-                mentions=None,
-                projection=projection,
+            )
+            agent, effective_model = await _build_agent_context(
+                turn, projection, ChatTurnConfig()
             )
 
         assert agent is mock_agent
@@ -122,21 +123,17 @@ class TestBuildAgentContext:
                 AsyncMock(return_value=[]),
             ),
         ):
-            await _build_agent_context(
+            turn = _TurnRequest(
                 stream_id_str=stream_id,
                 site_id="plasmodb",
                 user_id=uuid4(),
                 model_message="Hello",
                 selected_nodes=None,
-                provider_override=None,
-                model_override=None,
-                reasoning_effort=None,
-                mentions=None,
-                projection=projection,
             )
+            await _build_agent_context(turn, projection, ChatTurnConfig())
 
-        call_kwargs = mock_create.call_args.kwargs
-        graph = call_kwargs["strategy_graph"]
+        agent_ctx = mock_create.call_args.args[0]
+        graph = agent_ctx.strategy_graph
         assert graph["id"] == stream_id
         assert graph["name"] == "My Strategy"
         assert graph["recordType"] == "transcript"
@@ -166,18 +163,16 @@ class TestBuildAgentContext:
                 mock_build,
             ),
         ):
-            await _build_agent_context(
+            turn = _TurnRequest(
                 stream_id_str=str(uuid4()),
                 site_id="plasmodb",
                 user_id=uuid4(),
                 model_message="Hello",
                 selected_nodes=None,
-                provider_override=None,
-                model_override=None,
-                reasoning_effort=None,
-                mentions=mentions,
-                projection=projection,
-                stream_repo=MagicMock(),
+            )
+            config = ChatTurnConfig(mentions=mentions)
+            await _build_agent_context(
+                turn, projection, config, stream_repo=MagicMock()
             )
 
         mock_build.assert_called_once()
@@ -201,25 +196,28 @@ class TestBuildAgentContext:
                 AsyncMock(return_value=[]),
             ),
         ):
-            await _build_agent_context(
+            turn = _TurnRequest(
                 stream_id_str=str(uuid4()),
                 site_id="plasmodb",
                 user_id=uuid4(),
                 model_message="Hello",
                 selected_nodes=None,
-                provider_override=None,
-                model_override=None,
-                reasoning_effort=None,
-                mentions=None,
-                projection=projection,
             )
+            await _build_agent_context(turn, projection, ChatTurnConfig())
 
-        call_kwargs = mock_create.call_args.kwargs
-        assert call_kwargs["mentioned_context"] is None
+        agent_ctx = mock_create.call_args.args[0]
+        assert agent_ctx.mentioned_context is None
 
     @pytest.mark.asyncio
     async def test_raises_when_not_configured(self) -> None:
         projection = _make_projection()
+        turn = _TurnRequest(
+            stream_id_str=str(uuid4()),
+            site_id="plasmodb",
+            user_id=uuid4(),
+            model_message="Hello",
+            selected_nodes=None,
+        )
 
         with (
             patch.dict(
@@ -234,18 +232,7 @@ class TestBuildAgentContext:
             ),
             pytest.raises(InternalError, match="not configured"),
         ):
-            await _build_agent_context(
-                stream_id_str=str(uuid4()),
-                site_id="plasmodb",
-                user_id=uuid4(),
-                model_message="Hello",
-                selected_nodes=None,
-                provider_override=None,
-                model_override=None,
-                reasoning_effort=None,
-                mentions=None,
-                projection=projection,
-            )
+            await _build_agent_context(turn, projection, ChatTurnConfig())
 
 
 # ── _run_stream_loop ─────────────────────────────────────────────────
@@ -273,11 +260,14 @@ class TestRunStreamLoop:
             "veupath_chatbot.services.chat.orchestrator.emit",
             mock_emit,
         ):
-            await _run_stream_loop(
+            emit_ctx = _EmitContext(
                 redis=redis,
                 session=session,
                 stream_id_str=stream_id,
                 operation_id=operation_id,
+            )
+            await _run_stream_loop(
+                emit_ctx,
                 site_id="plasmodb",
                 projection=projection,
                 stream_iter=_async_iter(stream_events),
@@ -312,11 +302,14 @@ class TestRunStreamLoop:
             "veupath_chatbot.services.chat.orchestrator.emit",
             mock_emit,
         ):
-            await _run_stream_loop(
+            emit_ctx = _EmitContext(
                 redis=redis,
                 session=session,
                 stream_id_str="stream_1",
                 operation_id="op_1",
+            )
+            await _run_stream_loop(
+                emit_ctx,
                 site_id="plasmodb",
                 projection=_make_projection(),
                 stream_iter=mixed_stream(),
@@ -343,11 +336,14 @@ class TestRunStreamLoop:
             "veupath_chatbot.services.chat.orchestrator.emit",
             mock_emit,
         ):
-            await _run_stream_loop(
+            emit_ctx = _EmitContext(
                 redis=redis,
                 session=session,
                 stream_id_str="stream_1",
                 operation_id="op_1",
+            )
+            await _run_stream_loop(
+                emit_ctx,
                 site_id="plasmodb",
                 projection=_make_projection(),
                 stream_iter=_async_iter(stream_events),

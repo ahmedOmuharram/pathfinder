@@ -2,18 +2,34 @@
 
 import html
 import re
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 from rapidfuzz import fuzz
 
+from veupath_chatbot.domain.research.citations import LiteratureFilters
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
 _MIN_QUERY_WORD_COUNT = 2
+
+
+@dataclass
+class LiteratureItemContext:
+    """Fields extracted from a literature result for filter evaluation."""
+
+    title: str
+    authors: list[str] | None
+    year: int | None
+    doi: str | None
+    pmid: str | None
+    journal: str | None
+
+
 _MIN_FILTERED_WORD_COUNT = 2
 _MIN_BIGRAM_WORD_COUNT = 2
 _HTTP_ACCEPTED = 202
@@ -55,19 +71,17 @@ def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | No
     :param max_authors: Maximum number of authors (-1 for no limit).
     :returns: Truncated list or None.
     """
-    if not isinstance(authors, list) or not authors:
-        return None
-    cleaned = [str(a) for a in authors if a is not None and str(a).strip()]
+    cleaned = (
+        [str(a) for a in authors if a is not None and str(a).strip()]
+        if isinstance(authors, list) and authors
+        else []
+    )
     if not cleaned:
         return None
-    if max_authors == -1:
+    if max_authors == -1 or len(cleaned) <= max_authors:
         return cleaned
     n = int(max_authors)
-    if n <= 0:
-        return ["et al."]
-    if len(cleaned) <= n:
-        return cleaned
-    return [*cleaned[:n], "et al."]
+    return ["et al."] if n <= 0 else [*cleaned[:n], "et al."]
 
 
 def truncate_text(text: str | None, max_chars: int) -> str | None:
@@ -82,9 +96,7 @@ def truncate_text(text: str | None, max_chars: int) -> str | None:
     t = text.strip()
     if not t:
         return None
-    if len(t) <= max_chars:
-        return t
-    return t[: max_chars - 1].rstrip() + "…"
+    return t if len(t) <= max_chars else t[: max_chars - 1].rstrip() + "…"
 
 
 def strip_tags(text: str) -> str:
@@ -109,17 +121,17 @@ def decode_ddg_redirect(href: str) -> str:
         return h
     if h.startswith("//"):
         h = "https:" + h
+    result = h
     try:
         u = urlparse(h)
         if "duckduckgo.com" in (u.netloc or "") and u.path.startswith("/l/"):
             qs = parse_qs(u.query or "")
             uddg = qs.get("uddg", [None])[0]
             if isinstance(uddg, str) and uddg:
-                return unquote(uddg)
+                result = unquote(uddg)
     except (ValueError, TypeError, KeyError) as exc:
         logger.debug("Failed to decode DDG redirect URL", error=str(exc))
-        return h
-    return h
+    return result
 
 
 _LOW_VALUE_QUERY_TOKENS = {
@@ -236,67 +248,48 @@ def rerank_score(query: str, item: JSONObject) -> tuple[float, dict[str, float]]
     return score, {"title": title_s, "abstract": abs_s, "journal": journal_s}
 
 
-def passes_filters(
-    *,
-    title: str,
-    authors: list[str] | None,
-    year: int | None,
-    doi: str | None,
-    pmid: str | None,
-    journal: str | None,
-    year_from: int | None,
-    year_to: int | None,
-    author_includes: str | None,
-    title_includes: str | None,
-    journal_includes: str | None,
-    doi_equals: str | None,
-    pmid_equals: str | None,
-    require_doi: bool,
-) -> bool:
+def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> bool:
     """Check if a literature result passes all filters.
 
-    :param title: Result title.
-    :param authors: Author list.
-    :param year: Publication year.
-    :param doi: DOI.
-    :param pmid: PubMed ID.
-    :param journal: Journal name.
-    :param year_from: Minimum year filter.
-    :param year_to: Maximum year filter.
-    :param author_includes: Author substring filter.
-    :param title_includes: Title substring filter.
-    :param journal_includes: Journal substring filter.
-    :param doi_equals: Exact DOI filter.
-    :param pmid_equals: Exact PMID filter.
-    :param require_doi: Whether DOI is required.
+    :param item: Item fields to check (title, authors, year, doi, pmid, journal).
+    :param filters: Filter criteria to apply.
     :returns: True if result passes all filters.
     """
-    if year_from is not None and (year is None or year < year_from):
-        return False
-    if year_to is not None and (year is None or year > year_to):
-        return False
-
-    if require_doi and not (isinstance(doi, str) and doi.strip()):
-        return False
-
-    if doi_equals is not None and norm_text(doi) != norm_text(doi_equals):
-        return False
-    if pmid_equals is not None and norm_text(pmid) != norm_text(pmid_equals):
-        return False
-
-    if title_includes is not None and norm_text(title_includes) not in norm_text(title):
-        return False
-    if journal_includes is not None and norm_text(journal_includes) not in norm_text(
-        journal
-    ):
-        return False
-    if author_includes is not None:
-        needle = norm_text(author_includes)
-        haystack = " ".join(norm_text(a) for a in (authors or []))
-        if needle not in haystack:
-            return False
-
-    return True
+    year_ok = (
+        filters.year_from is None
+        or (item.year is not None and item.year >= filters.year_from)
+    ) and (
+        filters.year_to is None
+        or (item.year is not None and item.year <= filters.year_to)
+    )
+    doi_ok = not filters.require_doi or (
+        isinstance(item.doi, str) and bool(item.doi.strip())
+    )
+    exact_ok = (
+        filters.doi_equals is None
+        or norm_text(item.doi) == norm_text(filters.doi_equals)
+    ) and (
+        filters.pmid_equals is None
+        or norm_text(item.pmid) == norm_text(filters.pmid_equals)
+    )
+    needle_author = (
+        norm_text(filters.author_includes)
+        if filters.author_includes is not None
+        else None
+    )
+    haystack = " ".join(norm_text(a) for a in (item.authors or []))
+    text_ok = (
+        (
+            filters.title_includes is None
+            or norm_text(filters.title_includes) in norm_text(item.title)
+        )
+        and (
+            filters.journal_includes is None
+            or norm_text(filters.journal_includes) in norm_text(item.journal)
+        )
+        and (needle_author is None or needle_author in haystack)
+    )
+    return year_ok and doi_ok and exact_ok and text_ok
 
 
 def dedupe_key(item: JSONObject) -> str:
@@ -308,15 +301,15 @@ def dedupe_key(item: JSONObject) -> str:
     pmid = item.get("pmid")
     doi = item.get("doi")
     url = item.get("url")
-    title = item.get("title")
-    year = item.get("year")
     if isinstance(pmid, str) and pmid.strip():
-        return f"pmid:{pmid.strip().lower()}"
-    if isinstance(doi, str) and doi.strip():
-        return f"doi:{doi.strip().lower()}"
-    if isinstance(url, str) and url.strip():
-        return f"url:{url.strip().lower()}"
-    return f"title:{norm_text(str(title))}|year:{year}"
+        key: str = f"pmid:{pmid.strip().lower()}"
+    elif isinstance(doi, str) and doi.strip():
+        key = f"doi:{doi.strip().lower()}"
+    elif isinstance(url, str) and url.strip():
+        key = f"url:{url.strip().lower()}"
+    else:
+        key = f"title:{norm_text(str(item.get('title')))}|year:{item.get('year')}"
+    return key
 
 
 _HEAD_LIMIT = 32 * 1024  # 32 KB — more than enough to capture <head>
@@ -372,17 +365,15 @@ async def fetch_page_summary(
     are present the longest ``<p>`` in the buffered content is used as a
     fallback.  Returns ``None`` for PDFs, Google Scholar links, or on error.
     """
-    if not isinstance(url, str) or not url.strip():
-        return None
-    u = url.strip()
-    if u.lower().endswith(".pdf"):
-        return None
-    if "scholar.google." in u:
+    u = url.strip() if isinstance(url, str) else ""
+    is_skippable = not u or u.lower().endswith(".pdf") or "scholar.google." in u
+    if is_skippable:
         return None
 
+    buf = ""
+    head_closed = False
+    fetch_error = False
     try:
-        buf = ""
-        head_closed = False
         async with client.stream(
             "GET",
             u,
@@ -399,14 +390,12 @@ async def fetch_page_summary(
                     break
     except httpx.HTTPError as exc:
         logger.debug("Failed to fetch page for summary extraction", error=str(exc))
-        return None
+        fetch_error = True
 
+    if fetch_error:
+        return None
     # --- Try meta descriptions (always in <head>) ---
     search_region = buf[: buf.lower().find("</head>") + 7] if head_closed else buf
     desc = _extract_meta_description(search_region)
-    if desc:
-        return truncate_text(desc, max_chars)
-
-    # --- Fallback: longest <p> from whatever we already buffered ---
-    best = _extract_best_paragraph(buf)
-    return truncate_text(best, max_chars) if best else None
+    text = desc or _extract_best_paragraph(buf)
+    return truncate_text(text, max_chars)

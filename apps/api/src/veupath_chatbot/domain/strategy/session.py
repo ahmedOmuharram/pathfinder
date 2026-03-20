@@ -241,14 +241,10 @@ def _build_node_from_step(
     kind = str(step.get("kind") or "").strip().lower()
     search_name = step.get("searchName")
     if not isinstance(search_name, str) or not search_name:
-        search_name = (
-            COMBINE_SEARCH_NAME if kind == "combine" else UNKNOWN_SEARCH_NAME
-        )
+        search_name = COMBINE_SEARCH_NAME if kind == "combine" else UNKNOWN_SEARCH_NAME
 
     parameters_raw = step.get("parameters")
-    parameters: JSONObject = (
-        parameters_raw if isinstance(parameters_raw, dict) else {}
-    )
+    parameters: JSONObject = parameters_raw if isinstance(parameters_raw, dict) else {}
     display_name = step.get("displayName")
     if not isinstance(display_name, str) or not display_name.strip():
         display_name = search_name

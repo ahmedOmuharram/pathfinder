@@ -12,10 +12,10 @@ _USER_A = uuid4()
 
 def _make_set(
     set_id: str = "gs-1",
+    *,
     site_id: str = "plasmo",
     gene_ids: list[str] | None = None,
     user_id: UUID | None = None,
-    created_at: datetime | None = None,
     source: str = "paste",
     name: str | None = None,
 ) -> GeneSet:
@@ -26,7 +26,7 @@ def _make_set(
         gene_ids=gene_ids if gene_ids is not None else ["GENE1", "GENE2"],
         source=source,
         user_id=user_id,
-        created_at=created_at or datetime.now(UTC),
+        created_at=datetime.now(UTC),
     )
 
 

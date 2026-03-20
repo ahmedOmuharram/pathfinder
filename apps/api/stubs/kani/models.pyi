@@ -13,7 +13,6 @@ class ChatRole(Enum):
 class MessagePart:
     """Abstract base class for message parts."""
 
-
 class FunctionCall:
     name: str
     arguments: str
@@ -27,7 +26,7 @@ class ToolCall:
     type: str
     function: FunctionCall
 
-    def __init__(self, *, id: str, type: str, function: FunctionCall) -> None: ...
+    def __init__(self, *, id: str, type: str, function: FunctionCall) -> None: ...  # noqa: A002
     @classmethod
     def from_function(
         cls, __name: str, /, *, call_id_: str | None = None, **kwargs: Any

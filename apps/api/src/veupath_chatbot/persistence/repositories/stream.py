@@ -1,5 +1,6 @@
 """Repository for stream (conversation) identity + projections."""
 
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
@@ -11,6 +12,32 @@ from sqlalchemy.orm import joinedload
 
 from veupath_chatbot.persistence.models import Operation, Stream, StreamProjection
 from veupath_chatbot.platform.types import JSONObject
+
+
+@dataclass
+class ProjectionUpdate:
+    """Partial update payload for a StreamProjection.
+
+    Only fields explicitly set to non-None (or flagged with ``*_set=True``)
+    are written. Use ``wdk_strategy_id_set=True`` to explicitly set that
+    field (even to ``None``), similarly for ``is_saved_set``,
+    ``result_count_set``, ``gene_set_id_set``.
+    """
+
+    name: str | None = None
+    record_type: str | None = None
+    wdk_strategy_id: int | None = None
+    wdk_strategy_id_set: bool = False
+    is_saved: bool | None = None
+    is_saved_set: bool = False
+    plan: JSONObject | None = None
+    step_count: int | None = None
+    result_count: int | None = None
+    result_count_set: bool = False
+    gene_set_id: str | None = None
+    gene_set_id_set: bool = False
+    gene_set_auto_imported: bool | None = None
+    model_id: str | None = field(default=None)
 
 
 class StreamRepository:
@@ -150,57 +177,42 @@ class StreamRepository:
         )
         return result.scalar_one_or_none()
 
-    async def update_projection(
-        self,
-        stream_id: UUID,
-        *,
-        name: str | None = None,
-        record_type: str | None = None,
-        wdk_strategy_id: int | None = None,
-        wdk_strategy_id_set: bool = False,
-        is_saved: bool | None = None,
-        is_saved_set: bool = False,
-        plan: JSONObject | None = None,
-        step_count: int | None = None,
-        result_count: int | None = None,
-        result_count_set: bool = False,
-        gene_set_id: str | None = None,
-        gene_set_id_set: bool = False,
-        gene_set_auto_imported: bool | None = None,
-    ) -> None:
-        """Dynamically update a StreamProjection based on provided kwargs.
+    async def update_projection(self, stream_id: UUID, upd: ProjectionUpdate) -> None:
+        """Dynamically update a StreamProjection based on provided fields.
 
         Steps and root_step_id are derived from plan at read time; only plan
         and a denormalized step_count are persisted on write.
         """
         values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
-        if name is not None:
+        if upd.name is not None:
             # Deduplicate rename against other projections for the same user+site.
             proj = await self.get_projection(stream_id)
             if proj and proj.stream:
-                name = await self._deduplicate_name(
+                upd.name = await self._deduplicate_name(
                     proj.stream.user_id,
                     proj.stream.site_id,
-                    name,
+                    upd.name,
                     exclude_stream_id=stream_id,
                 )
-            values["name"] = name
-        if record_type is not None:
-            values["record_type"] = record_type
-        if wdk_strategy_id_set:
-            values["wdk_strategy_id"] = wdk_strategy_id
-        if is_saved_set:
-            values["is_saved"] = bool(is_saved)
-        if plan is not None:
-            values["plan"] = plan
-        if step_count is not None:
-            values["step_count"] = step_count
-        if result_count_set:
-            values["result_count"] = result_count
-        if gene_set_id_set:
-            values["gene_set_id"] = gene_set_id
-        if gene_set_auto_imported is not None:
-            values["gene_set_auto_imported"] = gene_set_auto_imported
+            values["name"] = upd.name
+        if upd.record_type is not None:
+            values["record_type"] = upd.record_type
+        if upd.wdk_strategy_id_set:
+            values["wdk_strategy_id"] = upd.wdk_strategy_id
+        if upd.is_saved_set:
+            values["is_saved"] = bool(upd.is_saved)
+        if upd.plan is not None:
+            values["plan"] = upd.plan
+        if upd.step_count is not None:
+            values["step_count"] = upd.step_count
+        if upd.result_count_set:
+            values["result_count"] = upd.result_count
+        if upd.gene_set_id_set:
+            values["gene_set_id"] = upd.gene_set_id
+        if upd.gene_set_auto_imported is not None:
+            values["gene_set_auto_imported"] = upd.gene_set_auto_imported
+        if upd.model_id is not None:
+            values["model_id"] = upd.model_id
 
         await self.session.execute(
             update(StreamProjection)

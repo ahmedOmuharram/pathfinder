@@ -45,26 +45,43 @@ class IdMappingMixin(StrategyToolsBase):
         resolved = await self._resolve_record_type(record_type)
         if not search_name:
             return resolved
+        return await self._lookup_record_type_for_search(
+            search_name,
+            resolved,
+            require_match=require_match,
+            allow_fallback=allow_fallback,
+        )
 
+    async def _lookup_record_type_for_search(
+        self,
+        search_name: str,
+        resolved: str | None,
+        *,
+        require_match: bool,
+        allow_fallback: bool,
+    ) -> str | None:
         catalog = await self._get_catalog()
-
         # Fast path: search exists in the resolved record type.
         if resolved:
             searches = catalog.get_searches(resolved)
             if any(wdk_search_matches(s, search_name) for s in searches):
                 return resolved
-            if not allow_fallback:
-                return None if require_match else resolved
-
         if not allow_fallback:
             return None if require_match else resolved
-
         # Global lookup across all record types.
         found = catalog.find_record_type_for_search(search_name)
-        if found:
-            return found
+        return found or (None if require_match else resolved)
 
-        return None if require_match else resolved
+    def _scan_record_type_excluding(
+        self, catalog: SearchCatalog, search_name: str, exclude: str
+    ) -> str | None:
+        """Scan all record types except *exclude* for a search match."""
+        for rt_name, searches in catalog._searches.items():
+            if rt_name != exclude and any(
+                wdk_search_matches(s, search_name) for s in searches
+            ):
+                return rt_name
+        return None
 
     async def _find_record_type_hint(
         self, search_name: str, exclude: str | None = None
@@ -80,15 +97,8 @@ class IdMappingMixin(StrategyToolsBase):
             return None
 
         found = catalog.find_record_type_for_search(search_name)
-
         # If the result matches the excluded record type, fall back to
         # manual scanning (the catalog only returns the first match).
         if found and found == exclude:
-            for rt_name, searches in catalog._searches.items():
-                if rt_name == exclude:
-                    continue
-                if any(wdk_search_matches(s, search_name) for s in searches):
-                    return rt_name
-            return None
-
+            return self._scan_record_type_excluding(catalog, search_name, exclude)
         return found

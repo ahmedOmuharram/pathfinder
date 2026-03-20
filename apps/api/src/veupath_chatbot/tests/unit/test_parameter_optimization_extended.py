@@ -13,6 +13,9 @@ import pytest
 
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.parameter_optimization.callbacks import (
+    OptimizationCompletedEvent,
+    OptimizationStartedEvent,
+    TrialProgressEvent,
     emit_completed,
     emit_error,
     emit_started,
@@ -20,6 +23,7 @@ from veupath_chatbot.services.parameter_optimization.callbacks import (
 )
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
+    OptimizationInput,
     OptimizationResult,
     ParameterSpec,
     TrialResult,
@@ -49,15 +53,11 @@ from veupath_chatbot.services.parameter_optimization.trials import (
 def _trial(
     *,
     trial_number: int = 1,
-    parameters: dict[str, JSONValue] | None = None,
     score: float = 0.5,
     recall: float | None = 0.8,
     fpr: float | None = 0.1,
     result_count: int | None = 100,
-    positive_hits: int | None = None,
-    negative_hits: int | None = None,
-    total_positives: int | None = None,
-    total_negatives: int | None = None,
+    parameters: dict[str, JSONValue] | None = None,
 ) -> TrialResult:
     return TrialResult(
         trial_number=trial_number,
@@ -66,10 +66,6 @@ def _trial(
         recall=recall,
         false_positive_rate=fpr,
         result_count=result_count,
-        positive_hits=positive_hits,
-        negative_hits=negative_hits,
-        total_positives=total_positives,
-        total_negatives=total_negatives,
     )
 
 
@@ -117,16 +113,23 @@ def _make_wdk_result(
     }
 
 
-COMMON_KWARGS: dict[str, Any] = {
-    "site_id": "plasmodb",
-    "record_type": "transcript",
-    "search_name": "TestSearch",
-    "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
-    "controls_search_name": "GeneByLocusTag",
-    "controls_param_name": "ds_gene_ids",
-    "positive_controls": [f"POS_{i}" for i in range(10)],
-    "negative_controls": [f"NEG_{i}" for i in range(8)],
-}
+def _common_inp(
+    parameter_space: list[ParameterSpec],
+    **overrides: Any,
+) -> OptimizationInput:
+    """Build a minimal OptimizationInput for testing with optional overrides."""
+    defaults: dict[str, Any] = {
+        "site_id": "plasmodb",
+        "record_type": "transcript",
+        "search_name": "TestSearch",
+        "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
+        "controls_search_name": "GeneByLocusTag",
+        "controls_param_name": "ds_gene_ids",
+        "positive_controls": [f"POS_{i}" for i in range(10)],
+        "negative_controls": [f"NEG_{i}" for i in range(8)],
+    }
+    defaults.update(overrides)
+    return OptimizationInput(parameter_space=parameter_space, **defaults)
 
 
 WDK_PATCH = (
@@ -603,12 +606,12 @@ class TestComputeSensitivityExtended:
 
 class TestTrialToJson:
     def test_basic_serialization(self) -> None:
-        t = _trial(
+        t = TrialResult(
             trial_number=3,
             parameters={"fc": 2.5},
             score=0.87654,
             recall=0.91234,
-            fpr=0.05678,
+            false_positive_rate=0.05678,
             result_count=150,
             positive_hits=9,
             negative_hits=1,
@@ -628,9 +631,12 @@ class TestTrialToJson:
         assert j["totalNegatives"] == 8
 
     def test_none_values(self) -> None:
-        t = _trial(
+        t = TrialResult(
+            trial_number=1,
+            parameters={},
+            score=0.5,
             recall=None,
-            fpr=None,
+            false_positive_rate=None,
             result_count=None,
             positive_hits=None,
             negative_hits=None,
@@ -1084,14 +1090,16 @@ class TestCallbacks:
 
         await emit_started(
             capture,
-            optimization_id="opt_1",
-            search_name="GenesByRNASeq",
-            record_type="transcript",
-            budget=30,
-            objective="f1",
-            positive_controls_count=10,
-            negative_controls_count=5,
-            param_space_json=[{"name": "fc", "type": "numeric"}],
+            OptimizationStartedEvent(
+                optimization_id="opt_1",
+                search_name="GenesByRNASeq",
+                record_type="transcript",
+                budget=30,
+                objective="f1",
+                positive_controls_count=10,
+                negative_controls_count=5,
+                param_space_json=[{"name": "fc", "type": "numeric"}],
+            ),
         )
 
         assert len(events) == 1
@@ -1125,12 +1133,14 @@ class TestCallbacks:
 
         await emit_trial_progress(
             capture,
-            optimization_id="opt_1",
-            trial_num=2,
-            budget=30,
-            trial_json=_trial_to_json(_trial(trial_number=2, score=0.7)),
-            best_trial=best,
-            recent_trials=recent,
+            TrialProgressEvent(
+                optimization_id="opt_1",
+                trial_num=2,
+                budget=30,
+                trial_json=_trial_to_json(_trial(trial_number=2, score=0.7)),
+                best_trial=best,
+                recent_trials=recent,
+            ),
         )
 
         assert len(events) == 1
@@ -1158,12 +1168,14 @@ class TestCallbacks:
 
         await emit_trial_progress(
             capture,
-            optimization_id="opt_1",
-            trial_num=1,
-            budget=10,
-            trial_json={"trialNumber": 1},
-            best_trial=None,
-            recent_trials=[],
+            TrialProgressEvent(
+                optimization_id="opt_1",
+                trial_num=1,
+                budget=10,
+                trial_json={"trialNumber": 1},
+                best_trial=None,
+                recent_trials=[],
+            ),
         )
 
         data = events[0]["data"]
@@ -1202,14 +1214,16 @@ class TestCallbacks:
 
         await emit_completed(
             capture,
-            optimization_id="opt_done",
-            status="completed",
-            budget=30,
-            trials=[t],
-            best_trial=t,
-            pareto=[t],
-            sensitivity={"fc": 0.8},
-            elapsed=12.345,
+            OptimizationCompletedEvent(
+                optimization_id="opt_done",
+                status="completed",
+                budget=30,
+                trials=[t],
+                best_trial=t,
+                pareto=[t],
+                sensitivity={"fc": 0.8},
+                elapsed=12.345,
+            ),
         )
 
         assert len(events) == 1
@@ -1240,14 +1254,16 @@ class TestCallbacks:
 
         await emit_completed(
             capture,
-            optimization_id="opt_none",
-            status="error",
-            budget=10,
-            trials=[],
-            best_trial=None,
-            pareto=[],
-            sensitivity={},
-            elapsed=0.5,
+            OptimizationCompletedEvent(
+                optimization_id="opt_none",
+                status="error",
+                budget=10,
+                trials=[],
+                best_trial=None,
+                pareto=[],
+                sensitivity={},
+                elapsed=0.5,
+            ),
         )
 
         data = events[0]["data"]
@@ -1279,8 +1295,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1312,8 +1327,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1333,23 +1347,22 @@ class TestOptimizeSearchParametersExtended:
             ),
         ]
         cfg = OptimizationConfig(budget=1, objective="f1", method="random")
-        kwargs = {
-            **COMMON_KWARGS,
-            "fixed_parameters": cast(
-                "JSONObject",
-                {"organism": "P. falciparum", "empty": "", "null_val": None},
-            ),
-        }
 
         with patch(WDK_PATCH, mock_wdk):
             await optimize_search_parameters(
-                **kwargs,
-                parameter_space=specs,
+                _common_inp(
+                    specs,
+                    fixed_parameters=cast(
+                        "JSONObject",
+                        {"organism": "P. falciparum", "empty": "", "null_val": None},
+                    ),
+                ),
                 config=cfg,
             )
 
-        call_kwargs = mock_wdk.call_args.kwargs
-        target_params = call_kwargs["target_parameters"]
+        # run_positive_negative_controls takes IntersectionConfig as first positional arg
+        call_config = mock_wdk.call_args.args[0]
+        target_params = call_config.target_parameters
         assert "organism" in target_params
         assert "empty" not in target_params
         assert "null_val" not in target_params
@@ -1366,8 +1379,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1388,8 +1400,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 progress_callback=None,
             )
@@ -1411,8 +1422,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1432,8 +1442,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1452,8 +1461,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1480,8 +1488,7 @@ class TestOptimizeSearchParametersExtended:
             cfg = OptimizationConfig(budget=1, objective=objective, method="random")
             with patch(WDK_PATCH, AsyncMock(return_value=wdk_result)):
                 result = await optimize_search_parameters(
-                    **COMMON_KWARGS,
-                    parameter_space=specs,
+                    _common_inp(specs),
                     config=cfg,
                 )
             if result.best_trial:
@@ -1510,8 +1517,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1526,7 +1532,7 @@ class TestOptimizeSearchParametersExtended:
         """Identical param combos should be served from cache, not re-evaluated."""
         call_count = 0
 
-        async def counting_wdk(**kwargs: Any) -> JSONObject:
+        async def counting_wdk(*args: Any, **kwargs: Any) -> JSONObject:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)
@@ -1539,8 +1545,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, counting_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -1565,8 +1570,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 progress_callback=capture,
             )
@@ -1598,8 +1602,7 @@ class TestOptimizeSearchParametersExtended:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 progress_callback=capture,
             )

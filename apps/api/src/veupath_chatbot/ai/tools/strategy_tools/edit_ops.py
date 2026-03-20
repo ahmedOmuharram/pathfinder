@@ -9,7 +9,10 @@ from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.catalog.param_validation import validate_parameters
+from veupath_chatbot.services.catalog.param_validation import (
+    ValidationCallbacks,
+    validate_parameters,
+)
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 
@@ -23,14 +26,12 @@ class StrategyEditOps(StrategyToolsHelpers):
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
     ) -> JSONObject:
         """Delete a step from the graph (and dependent steps)."""
-        graph = self._get_graph(graph_id)
-        if not graph:
-            return self._graph_not_found(graph_id)
-        if step_id not in graph.steps:
-            return self._step_not_found(step_id)
+        result = self._get_graph_and_step(graph_id, step_id)
+        if isinstance(result, dict):
+            return result
+        graph, _ = result
 
         to_remove = _find_dependent_steps(graph, step_id)
-
         remaining = {sid for sid in graph.steps if sid not in to_remove}
         if not remaining:
             return tool_error(
@@ -91,6 +92,58 @@ class StrategyEditOps(StrategyToolsHelpers):
         step.display_name = new_name
         return self._step_ok_response(graph, step)
 
+    async def _apply_step_updates(
+        self,
+        graph: object,
+        step: PlanStepNode,
+        search_name: str | None,
+        parameters: JSONObject | None,
+        operator: str | None,
+        display_name: str | None,
+    ) -> JSONObject | None:
+        """Apply update fields to a step. Returns an error payload or None on success."""
+        substantive_change = False
+
+        if search_name:
+            step.search_name = search_name
+            substantive_change = True
+
+        if parameters is not None:
+            error = await self._validate_and_set_params(graph, step, parameters)
+            if error is not None:
+                return error
+            substantive_change = True
+
+        if operator is not None:
+            error = self._validate_and_set_operator(step, step.id, operator)
+            if error is not None:
+                return error
+            substantive_change = True
+
+        if display_name:
+            step.display_name = display_name
+
+        if substantive_change:
+            graph.invalidate_build()
+
+        return None
+
+    async def _get_plan_step(
+        self, graph_id: str | None, step_id: str
+    ) -> tuple[object, PlanStepNode] | JSONObject:
+        """Resolve graph + step and assert step is a PlanStepNode."""
+        result = self._get_graph_and_step(graph_id, step_id)
+        if isinstance(result, dict):
+            return result
+        graph, step = result
+        if not isinstance(step, PlanStepNode):
+            return tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "Unsupported step object.",
+                stepId=step_id,
+            )
+        return graph, step
+
     @ai_function()
     async def update_step(
         self,
@@ -111,43 +164,19 @@ class StrategyEditOps(StrategyToolsHelpers):
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
     ) -> JSONObject:
         """Update an existing strategy step's search, parameters, operator, or display name."""
-        result = self._get_graph_and_step(graph_id, step_id)
-        if isinstance(result, dict):
-            return result
-        graph, step = result
+        resolved = await self._get_plan_step(graph_id, step_id)
+        if isinstance(resolved, dict):
+            return resolved
+        graph, step = resolved
 
-        if not isinstance(step, PlanStepNode):
-            return tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "Unsupported step object.",
-                stepId=step_id,
-            )
-
-        substantive_change = False
-
-        if search_name:
-            step.search_name = search_name
-            substantive_change = True
-
-        if parameters is not None:
-            error = await self._validate_and_set_params(graph, step, parameters)
-            if error is not None:
-                return error
-            substantive_change = True
-
-        if operator is not None:
-            error = self._validate_and_set_operator(step, step_id, operator)
-            if error is not None:
-                return error
-            substantive_change = True
-
-        if display_name:
-            step.display_name = display_name
-
-        if substantive_change:
-            graph.invalidate_build()
-
-        return self._step_ok_response(graph, step)
+        apply_error = await self._apply_step_updates(
+            graph, step, search_name, parameters, operator, display_name
+        )
+        return (
+            apply_error
+            if apply_error is not None
+            else self._step_ok_response(graph, step)
+        )
 
     async def _validate_and_set_params(
         self,
@@ -166,9 +195,11 @@ class StrategyEditOps(StrategyToolsHelpers):
                 record_type=record_type,
                 search_name=step.search_name,
                 parameters=parameters,
-                resolve_record_type_for_search=self._find_record_type_for_search,
-                find_record_type_hint=self._find_record_type_hint,
-                extract_vocab_options=self._extract_vocab_options,
+                callbacks=ValidationCallbacks(
+                    resolve_record_type_for_search=self._find_record_type_for_search,
+                    find_record_type_hint=self._find_record_type_hint,
+                    extract_vocab_options=self._extract_vocab_options,
+                ),
             )
         except ValidationError as exc:
             return self._validation_error_payload(

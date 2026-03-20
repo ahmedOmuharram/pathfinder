@@ -60,6 +60,19 @@ def _write_jsonl(path: Path, obj: JSONObject) -> None:
 
 
 @dataclass
+class IngestRunConfig:
+    """Run-level options for :func:`ingest_public_strategies`."""
+
+    sites: list[str] | None = None
+    reset: bool = False
+    llm_model: str = "gpt-4.1-nano"
+    report_path: Path = Path("ingest_public_strategies_report.jsonl")
+    max_strategies_per_site: int | None = None
+    concurrency: int | None = None
+    skip_existing: bool = True
+
+
+@dataclass
 class IngestSiteConfig:
     """Configuration bundle for :func:`ingest_site`."""
 
@@ -297,16 +310,8 @@ async def ingest_site(cfg: IngestSiteConfig) -> None:
             )
 
 
-async def ingest_public_strategies(
-    *,
-    sites: list[str] | None,
-    reset: bool = False,
-    llm_model: str = "gpt-4.1-nano",
-    report_path: Path = Path("ingest_public_strategies_report.jsonl"),
-    max_strategies_per_site: int | None = None,
-    concurrency: int | None = None,
-    skip_existing: bool = True,
-) -> None:
+async def ingest_public_strategies(run_cfg: IngestRunConfig) -> None:
+    """Ingest public strategies for all (or selected) VEuPathDB sites."""
     settings = get_settings()
     if not settings.openai_api_key:
         msg = "openai_api_key is required (embeddings + name/description generation)"
@@ -315,7 +320,7 @@ async def ingest_public_strategies(
     store = QdrantStore.from_settings()
     dim = await get_embedding_dim(settings.embeddings_model)
 
-    if reset:
+    if run_cfg.reset:
         await store.reset_collections(EXAMPLE_PLANS_V1)
 
     await store.ensure_collection(name=EXAMPLE_PLANS_V1, vector_size=dim)
@@ -323,20 +328,25 @@ async def ingest_public_strategies(
 
     router = get_site_router()
     all_sites = [s.id for s in router.list_sites()]
+    sites = run_cfg.sites
     selected = all_sites if not sites else [s for s in all_sites if s in set(sites)]
 
-    conc = concurrency if concurrency is not None else max(1, int(os.cpu_count() or 1))
+    conc = (
+        run_cfg.concurrency
+        if run_cfg.concurrency is not None
+        else max(1, int(os.cpu_count() or 1))
+    )
 
     _write_jsonl(
-        report_path,
+        run_cfg.report_path,
         {
             "ts": _now_ts(),
             "level": "run",
             "stage": "start",
             "sites": cast("JSONValue", selected),
-            "llmModel": str(llm_model),
-            "skipExisting": bool(skip_existing),
-            "maxStrategiesPerSite": max_strategies_per_site,
+            "llmModel": str(run_cfg.llm_model),
+            "skipExisting": bool(run_cfg.skip_existing),
+            "maxStrategiesPerSite": run_cfg.max_strategies_per_site,
             "concurrency": conc,
         },
     )
@@ -347,17 +357,17 @@ async def ingest_public_strategies(
             site_id=site_id,
             store=store,
             embedder=embedder,
-            llm_model=str(llm_model),
-            report_path=report_path,
-            max_strategies=max_strategies_per_site,
+            llm_model=str(run_cfg.llm_model),
+            report_path=run_cfg.report_path,
+            max_strategies=run_cfg.max_strategies_per_site,
             concurrency=conc,
-            skip_existing=bool(skip_existing) and (not bool(reset)),
+            skip_existing=bool(run_cfg.skip_existing) and (not bool(run_cfg.reset)),
         )
         try:
             await ingest_site(cfg)
         except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
             _write_jsonl(
-                report_path,
+                run_cfg.report_path,
                 {
                     "ts": _now_ts(),
                     "siteId": site_id,
@@ -369,7 +379,7 @@ async def ingest_public_strategies(
             )
             continue
 
-    _write_jsonl(report_path, {"ts": _now_ts(), "level": "run", "stage": "end"})
+    _write_jsonl(run_cfg.report_path, {"ts": _now_ts(), "level": "run", "stage": "end"})
 
 
 async def _cli_async(argv: list[str] | None = None) -> None:
@@ -402,13 +412,15 @@ async def _cli_async(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     await ingest_public_strategies(
-        sites=parse_sites(args.sites),
-        reset=bool(args.reset),
-        skip_existing=bool(args.skip_existing),
-        llm_model=str(args.llm_model),
-        report_path=Path(str(args.report_path)),
-        max_strategies_per_site=args.max_strategies_per_site,
-        concurrency=args.concurrency,
+        IngestRunConfig(
+            sites=parse_sites(args.sites),
+            reset=bool(args.reset),
+            skip_existing=bool(args.skip_existing),
+            llm_model=str(args.llm_model),
+            report_path=Path(str(args.report_path)),
+            max_strategies_per_site=args.max_strategies_per_site,
+            concurrency=args.concurrency,
+        )
     )
 
 

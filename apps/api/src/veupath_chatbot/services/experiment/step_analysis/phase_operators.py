@@ -6,7 +6,10 @@ from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import ProgressCallback
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    ProgressCallback,
+)
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
     _f1_from_counts,
@@ -18,7 +21,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _node_id,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     OperatorComparison,
     OperatorVariant,
     to_json,
@@ -34,15 +36,8 @@ logger = get_logger(__name__)
 
 
 async def compare_operators(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
     progress_callback: ProgressCallback | None = None,
 ) -> list[OperatorComparison]:
     """For each combine node, evaluate INTERSECT, UNION, MINUS and recommend.
@@ -84,16 +79,7 @@ async def compare_operators(
             subtree = _build_subtree_with_operator(_cnode, op)
             try:
                 async with sem:
-                    raw = await run_controls_against_tree(
-                        site_id=site_id,
-                        record_type=record_type,
-                        tree=subtree,
-                        controls_search_name=controls_search_name,
-                        controls_param_name=controls_param_name,
-                        controls_value_format=controls_value_format,
-                        positive_controls=positive_controls,
-                        negative_controls=negative_controls,
-                    )
+                    raw = await run_controls_against_tree(ctx, subtree)
             except (AppError, ValueError, TypeError) as exc:
                 logger.warning(
                     "Operator comparison failed", node=_cid, op=op, error=str(exc)

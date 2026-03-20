@@ -15,7 +15,11 @@ import httpx
 import pytest
 import respx
 
-from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
+from veupath_chatbot.tests.fixtures.wdk_responses import (
+    step_get_response,
+    strategy_get_response,
+    strategy_list_item,
+)
 
 _BASE = "https://plasmodb.org/plasmo/service"
 
@@ -28,6 +32,21 @@ def _setup_wdk(
     items = [strategy_list_item(strategy_id=strategy_id, name=name)]
     wdk_respx.get(f"{_BASE}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{_BASE}/users/guest/strategies").respond(200, json=items)
+    # Auto-import gene set calls: strategy detail, step report, step detail
+    wdk_respx.get(f"{_BASE}/users/guest/strategies/{strategy_id}").respond(
+        200, json=strategy_get_response(strategy_id=strategy_id, step_ids=[100])
+    )
+    wdk_respx.post(f"{_BASE}/users/guest/steps/100/reports/standard").respond(
+        200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
+    )
+    wdk_respx.get(f"{_BASE}/users/guest/steps/100").respond(
+        200, json=step_get_response(step_id=100)
+    )
+    # Lazy-fetch of strategy detail triggers search details call for parameter
+    # normalisation during GET /strategies/{id}; return empty schema.
+    wdk_respx.post(url__regex=rf"{_BASE}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
 
 
 async def _sync_and_get_id(

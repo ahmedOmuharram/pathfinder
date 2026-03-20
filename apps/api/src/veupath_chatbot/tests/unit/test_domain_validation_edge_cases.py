@@ -6,7 +6,7 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
     _slug_token,
-    _suggest_citation_tag,
+    _suggest_tag,
     ensure_unique_citation_tags,
 )
 
@@ -53,21 +53,32 @@ class TestSlugTokenEdgeCases:
 
 
 # ===========================================================================
-# 2. _suggest_citation_tag edge cases
+# 2. _suggest_tag edge cases
 # ===========================================================================
+
+
+def _c(
+    title: str = "",
+    authors: list[str] | None = None,
+    year: int | None = None,
+    doi: str | None = None,
+    pmid: str | None = None,
+) -> Citation:
+    """Build a minimal Citation for _suggest_tag tests."""
+    return Citation(
+        id="test",
+        source="web",
+        title=title,
+        authors=authors,
+        year=year,
+        doi=doi,
+        pmid=pmid,
+    )
 
 
 class TestSuggestCitationTagEdgeCases:
     def test_empty_authors_list(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Title",
-            authors=[],
-            year=2020,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Title", authors=[], year=2020))
         # Empty authors list -> first_author is None -> falls to title
         assert tag == "title2020"
 
@@ -78,68 +89,30 @@ class TestSuggestCitationTagEdgeCases:
         "   ".split(",")[0].split() returns [] and [0] was called on it.
         Fixed by checking parts list before indexing.
         """
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Title",
-            authors=["   "],
-            year=2020,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Title", authors=["   "], year=2020))
         # Whitespace author -> empty first_last -> falls to title-based tag
         assert tag == "title2020"
 
     def test_author_non_string_in_list(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="Title",
-            authors=[42],  # type: ignore[list-item]
-            year=2020,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="Title", authors=[42], year=2020))  # type: ignore[list-item]
         # authors[0] is 42 (int), not a str, so first_author = None
         # Falls through to title-based tag
         assert isinstance(tag, str)
 
     def test_no_title_no_authors_with_url(self) -> None:
-        tag = _suggest_citation_tag(
-            source="web",
-            title="",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            url="https://example.com/path",
+        tag = _suggest_tag(
+            Citation(id="test", source="web", title="", url="https://example.com/path")
         )
         assert isinstance(tag, str)
         assert len(tag) > 0
 
     def test_all_empty_fallback_to_source(self) -> None:
-        tag = _suggest_citation_tag(
-            source="europepmc",
-            title="",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(Citation(id="test", source="europepmc", title=""))
         assert tag == "europepmc"
 
     def test_title_with_only_special_chars(self) -> None:
         """Title that slugs to empty should fallback."""
-        tag = _suggest_citation_tag(
-            source="web",
-            title="!@#$%",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            url=None,
-        )
+        tag = _suggest_tag(_c(title="!@#$%"))
         # title.split()[0] = "!@#$%", _slug_token("!@#$%") = "" -> empty
         # title_slug = _slug_token("!@#$%", max_len=20) = "" -> empty
         # stable = _slug_token(None, max_len=20) = "" -> empty

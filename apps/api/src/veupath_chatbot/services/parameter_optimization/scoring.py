@@ -41,6 +41,40 @@ def _to_int(v: JSONValue) -> int | None:
     return None
 
 
+def _score_mcc(r: float, specificity: float, raw_fpr: float) -> float:
+    """Approximate MCC via TPR*TNR - FPR*FNR divided by sqrt of four products."""
+    tpr, tnr, fpr_val, fnr = r, specificity, raw_fpr, 1.0 - r
+    num = tpr * tnr - fpr_val * fnr
+    denom = ((tpr + fpr_val) * (tpr + fnr) * (tnr + fpr_val) * (tnr + fnr)) ** 0.5
+    return (num / denom) if denom > _MCC_ZERO_GUARD_EPSILON else 0.0
+
+
+def _score_for_objective(
+    r: float,
+    precision: float,
+    specificity: float,
+    raw_fpr: float,
+    cfg: OptimizationConfig,
+) -> float:
+    """Compute the raw (pre-penalty) score for *cfg.objective*."""
+    f1_denom = precision + r
+    fb_denom = cfg.beta**2 * precision + r
+    scores: dict[str, float] = {
+        "recall": r,
+        "precision": precision,
+        "specificity": specificity,
+        "balanced_accuracy": (r + specificity) / 2.0,
+        "mcc": _score_mcc(r, specificity, raw_fpr),
+        "youdens_j": r + specificity - 1.0,
+        "f1": (2 * precision * r / f1_denom) if f1_denom > 0 else 0.0,
+        "f_beta": (
+            ((1 + cfg.beta**2) * precision * r / fb_denom) if fb_denom > 0 else 0.0
+        ),
+        "custom": cfg.recall_weight * r - cfg.precision_weight * raw_fpr,
+    }
+    return scores.get(cfg.objective, r)
+
+
 def _compute_score(
     recall: float | None,
     fpr: float | None,
@@ -62,37 +96,7 @@ def _compute_score(
     else:
         precision = specificity
 
-    match cfg.objective:
-        case "recall":
-            base = r
-        case "precision":
-            base = precision
-        case "specificity":
-            base = specificity
-        case "balanced_accuracy":
-            base = (r + specificity) / 2.0
-        case "mcc":
-            # Approximation from recall and specificity when only aggregate rates
-            # are available: MCC = (TPR*TNR - FPR*FNR) / sqrt((TPR+FPR)*(TPR+FNR)*(TNR+FPR)*(TNR+FNR))
-            tpr, tnr, fpr_val, fnr = r, specificity, raw_fpr, 1.0 - r
-            num = tpr * tnr - fpr_val * fnr
-            denom = (
-                (tpr + fpr_val) * (tpr + fnr) * (tnr + fpr_val) * (tnr + fnr)
-            ) ** 0.5
-            base = (num / denom) if denom > _MCC_ZERO_GUARD_EPSILON else 0.0
-        case "youdens_j":
-            base = r + specificity - 1.0
-        case "f1":
-            denom = precision + r
-            base = (2 * precision * r / denom) if denom > 0 else 0.0
-        case "f_beta":
-            b2 = cfg.beta**2
-            denom = b2 * precision + r
-            base = ((1 + b2) * precision * r / denom) if denom > 0 else 0.0
-        case "custom":
-            base = cfg.recall_weight * r - cfg.precision_weight * raw_fpr
-        case _:
-            base = r
+    base = _score_for_objective(r, precision, specificity, raw_fpr, cfg)
 
     # Apply optional result-count penalty (tiebreaker for large result sets).
     if cfg.result_count_penalty > 0 and result_count is not None and result_count > 0:
@@ -120,10 +124,11 @@ def _compute_sensitivity(
     param_names = [p.name for p in param_specs]
     zeros = dict.fromkeys(param_names, 0.0)
 
-    if study is None:
-        return zeros
-
-    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    completed = (
+        [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+        if study is not None
+        else []
+    )
     if len(completed) < _MIN_COMPLETED_TRIALS:
         return zeros
 

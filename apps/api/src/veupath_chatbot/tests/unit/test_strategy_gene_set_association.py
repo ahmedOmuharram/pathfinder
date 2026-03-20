@@ -33,7 +33,6 @@ def _make_projection(
     gene_set_auto_imported: bool = False,
     name: str = "Test Strategy",
     site_id: str = "PlasmoDB",
-    record_type: str = "transcript",
 ) -> MagicMock:
     proj = MagicMock(spec=StreamProjection)
     proj.stream_id = stream_id or uuid4()
@@ -42,7 +41,7 @@ def _make_projection(
     proj.gene_set_auto_imported = gene_set_auto_imported
     proj.name = name
     proj.site_id = site_id
-    proj.record_type = record_type
+    proj.record_type = "transcript"
     proj.stream = MagicMock()
     proj.stream.user_id = _USER
     proj.stream.site_id = site_id
@@ -216,7 +215,7 @@ class TestAutoImportGeneSet:
         gene_set_svc.create.assert_called_once()
         call_kwargs = gene_set_svc.create.call_args.kwargs
         assert call_kwargs["source"] == "strategy"
-        assert call_kwargs["wdk_strategy_id"] == 55
+        assert call_kwargs["wdk"].wdk_strategy_id == 55
 
     @pytest.mark.asyncio
     async def test_gene_set_name_matches_strategy(self) -> None:

@@ -9,7 +9,11 @@ from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import ProgressCallback, safe_float
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    ProgressCallback,
+    safe_float,
+)
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
     _f1_from_counts,
@@ -19,7 +23,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _node_id,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     ParameterSensitivity,
     ParameterSweepPoint,
     to_json,
@@ -59,16 +62,45 @@ def _safe_float(v: object) -> float | None:
     return result
 
 
-async def _discover_numeric_params(
+def _build_param_spec(
+    p: JSONObject,
+    node_params: JSONObject,
+) -> _NumericParamSpec | None:
+    """Build a numeric param spec dict from a WDK param object, or None if not numeric."""
+    pname = str(p.get("name", ""))
+    ptype = str(p.get("type", ""))
+    if ptype not in ("number", "string"):
+        return None
+    if not (p.get("isNumber") is True or ptype == "number"):
+        return None
+
+    min_val = _safe_float(p.get("min"))
+    max_val = _safe_float(p.get("max"))
+    current = _safe_float(node_params.get(pname))
+    initial = _safe_float(p.get("initialDisplayValue"))
+    ref = current if current is not None else initial
+
+    if min_val is None:
+        min_val = 0.0 if (ref is not None and ref >= 0) else (ref * 10 if ref else 0.0)
+    if max_val is None:
+        max_val = ref * 10 if (ref is not None and ref > 0) else 100.0
+    if min_val >= max_val:
+        max_val = min_val + 1.0
+
+    return {
+        "name": pname,
+        "min": min_val,
+        "max": max_val,
+        "current": ref if ref is not None else (min_val + max_val) / 2,
+    }
+
+
+async def _fetch_search_params(
     site_id: str,
     record_type: str,
-    leaf: JSONObject,
-) -> list[_NumericParamSpec]:
-    """Discover numeric parameters on a leaf from WDK metadata."""
-    search_name = str(leaf.get("searchName", ""))
-    if not search_name:
-        return []
-
+    search_name: str,
+) -> list[object] | None:
+    """Fetch WDK search parameter list, or None on failure."""
     api = get_strategy_api(site_id)
     try:
         details = await api.client.get_search_details(record_type, search_name)
@@ -79,55 +111,39 @@ async def _discover_numeric_params(
             record_type=record_type,
             error=str(exc),
         )
-        return []
-
+        return None
     search_data = details.get("searchData") if isinstance(details, dict) else None
     if not isinstance(search_data, dict):
-        return []
-
+        return None
     params = search_data.get("parameters")
-    if not isinstance(params, list):
+    return params if isinstance(params, list) else None
+
+
+async def _discover_numeric_params(
+    site_id: str,
+    record_type: str,
+    leaf: JSONObject,
+) -> list[_NumericParamSpec]:
+    """Discover numeric parameters on a leaf from WDK metadata."""
+    search_name = str(leaf.get("searchName", ""))
+    if not search_name:
         return []
 
-    result: list[_NumericParamSpec] = []
+    params = await _fetch_search_params(site_id, record_type, search_name)
+    if params is None:
+        return []
+
     node_params = leaf.get("parameters", {})
     if not isinstance(node_params, dict):
         node_params = {}
 
+    result: list[_NumericParamSpec] = []
     for p in params:
         if not isinstance(p, dict):
             continue
-        pname = str(p.get("name", ""))
-        ptype = str(p.get("type", ""))
-        if ptype not in ("number", "string"):
-            continue
-        is_number = p.get("isNumber") is True or ptype == "number"
-        if not is_number:
-            continue
-
-        min_val = _safe_float(p.get("min"))
-        max_val = _safe_float(p.get("max"))
-        current = _safe_float(node_params.get(pname))
-        initial = _safe_float(p.get("initialDisplayValue"))
-        ref = current if current is not None else initial
-
-        if min_val is None:
-            min_val = (
-                0.0 if (ref is not None and ref >= 0) else (ref * 10 if ref else 0.0)
-            )
-        if max_val is None:
-            max_val = ref * 10 if (ref is not None and ref > 0) else 100.0
-        if min_val >= max_val:
-            max_val = min_val + 1.0
-
-        result.append(
-            {
-                "name": pname,
-                "min": min_val,
-                "max": max_val,
-                "current": ref if ref is not None else (min_val + max_val) / 2,
-            }
-        )
+        spec = _build_param_spec(p, node_params)
+        if spec is not None:
+            result.append(spec)
 
     return result
 
@@ -336,13 +352,7 @@ async def _eval_sweep_value(
     pname: str,
     tree: JSONObject,
     sem: asyncio.Semaphore,
-    site_id: str,
-    record_type: str,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
+    ctx: ControlsContext,
 ) -> ParameterSweepPoint | None:
     """Evaluate a single parameter value by running controls against a patched tree."""
     modified = copy.deepcopy(tree)
@@ -359,16 +369,7 @@ async def _eval_sweep_value(
 
     try:
         async with sem:
-            raw = await run_controls_against_tree(
-                site_id=site_id,
-                record_type=record_type,
-                tree=modified,
-                controls_search_name=controls_search_name,
-                controls_param_name=controls_param_name,
-                controls_value_format=controls_value_format,
-                positive_controls=positive_controls,
-                negative_controls=negative_controls,
-            )
+            raw = await run_controls_against_tree(ctx, modified)
     except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Sensitivity sweep point failed",
@@ -395,15 +396,8 @@ async def _eval_sweep_value(
 
 
 async def sweep_parameters(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
     progress_callback: ProgressCallback | None = None,
 ) -> list[ParameterSensitivity]:
     """Sweep numeric params on each leaf across their WDK-declared range.
@@ -419,7 +413,7 @@ async def sweep_parameters(
     if not leaves:
         return []
 
-    all_specs = await _collect_sweep_specs(site_id, record_type, leaves)
+    all_specs = await _collect_sweep_specs(ctx.site_id, ctx.record_type, leaves)
     if not all_specs:
         return []
 
@@ -456,23 +450,7 @@ async def sweep_parameters(
                 }
             )
 
-        tasks = [
-            _eval_sweep_value(
-                v,
-                lid,
-                pname,
-                tree,
-                sem,
-                site_id,
-                record_type,
-                controls_search_name,
-                controls_param_name,
-                controls_value_format,
-                positive_controls,
-                negative_controls,
-            )
-            for v in sweep_values
-        ]
+        tasks = [_eval_sweep_value(v, lid, pname, tree, sem, ctx) for v in sweep_values]
         points = await asyncio.gather(*tasks)
         sweep_points = [p for p in points if p is not None]
         sweep_points.sort(key=lambda p: p.value)

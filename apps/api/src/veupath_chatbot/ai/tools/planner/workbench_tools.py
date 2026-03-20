@@ -4,6 +4,7 @@ from typing import Annotated, cast, get_args
 from uuid import UUID, uuid4
 
 from kani import AIParam, ai_function
+from pydantic import BaseModel
 
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
@@ -15,6 +16,32 @@ from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
 
 logger = get_logger(__name__)
+
+
+class WdkSourceSpec(BaseModel):
+    """Optional WDK provenance for a gene set.
+
+    Groups the WDK-linked fields into a single parameter so the
+    ``create_workbench_gene_set`` AI function stays within the
+    six-argument limit.
+    """
+
+    search_name: Annotated[
+        str | None,
+        AIParam(desc="WDK search name if this gene set comes from a strategy search"),
+    ] = None
+    parameters: Annotated[
+        dict[str, str] | None,
+        AIParam(desc="WDK search parameters if from a strategy search"),
+    ] = None
+    wdk_strategy_id: Annotated[
+        int | None,
+        AIParam(desc="WDK strategy ID if this gene set is from a built strategy"),
+    ] = None
+    wdk_step_id: Annotated[
+        int | None,
+        AIParam(desc="WDK step ID if this gene set is from a specific step"),
+    ] = None
 
 
 class WorkbenchToolsMixin:
@@ -42,28 +69,16 @@ class WorkbenchToolsMixin:
                 )
             ),
         ],
-        search_name: Annotated[
-            str | None,
-            AIParam(
-                desc="WDK search name if this gene set comes from a strategy search"
-            ),
-        ] = None,
         record_type: Annotated[
             str,
             AIParam(desc="Record type (default 'transcript')"),
         ] = "transcript",
         *,
-        parameters: Annotated[
-            dict[str, str] | None,
-            AIParam(desc="WDK search parameters if from a strategy search"),
-        ] = None,
-        wdk_strategy_id: Annotated[
-            int | None,
-            AIParam(desc="WDK strategy ID if this gene set is from a built strategy"),
-        ] = None,
-        wdk_step_id: Annotated[
-            int | None,
-            AIParam(desc="WDK step ID if this gene set is from a specific step"),
+        wdk_source: Annotated[
+            WdkSourceSpec | None,
+            AIParam(
+                desc="Optional WDK provenance (search name, parameters, strategy ID, step ID)"
+            ),
         ] = None,
     ) -> JSONObject:
         """Create a gene set in the user's Workbench for further analysis.
@@ -84,7 +99,10 @@ class WorkbenchToolsMixin:
                 ErrorCode.VALIDATION_ERROR,
                 "gene_ids must contain at least one gene ID.",
             )
-        source: GeneSetSource = "strategy" if wdk_strategy_id is not None else "paste"
+        src = wdk_source or WdkSourceSpec()
+        source: GeneSetSource = (
+            "strategy" if src.wdk_strategy_id is not None else "paste"
+        )
         gs = GeneSet(
             id=str(uuid4()),
             name=name,
@@ -92,11 +110,11 @@ class WorkbenchToolsMixin:
             gene_ids=gene_ids,
             source=source,
             user_id=self.user_id,
-            wdk_strategy_id=wdk_strategy_id,
-            wdk_step_id=wdk_step_id,
-            search_name=search_name,
+            wdk_strategy_id=src.wdk_strategy_id,
+            wdk_step_id=src.wdk_step_id,
+            search_name=src.search_name,
             record_type=record_type,
-            parameters=parameters,
+            parameters=src.parameters,
         )
         get_gene_set_store().save(gs)
         logger.info(

@@ -59,12 +59,19 @@ class StepBuilderMixin(StrategyToolsBase):
     def _match_vocab_value(
         self, vocabulary: JSONObject | JSONArray, value: JSONValue
     ) -> str:
-        if value is None:
-            return ""
-        target = str(value)
+        target = "" if value is None else str(value)
         if not target or not vocabulary:
             return target
         entries = flatten_vocab(vocabulary, prefer_term=False)
+        exact = self._match_vocab_exact(entries, target)
+        return (
+            exact
+            if exact is not None
+            else self._match_vocab_normalized(entries, target)
+        )
+
+    def _match_vocab_exact(self, entries: list[JSONObject], target: str) -> str | None:
+        """Return the vocab value for an exact match against display or value."""
         for entry in entries:
             display = entry.get("display")
             raw_value = entry.get("value")
@@ -72,6 +79,10 @@ class StepBuilderMixin(StrategyToolsBase):
                 return raw_value or display or target
             if target == raw_value:
                 return raw_value or target
+        return None
+
+    def _match_vocab_normalized(self, entries: list[JSONObject], target: str) -> str:
+        """Return the vocab value for a normalized match, or target if no match."""
         normalized_target = normalize_vocab_key(target)
         for entry in entries:
             display = entry.get("display")
@@ -106,31 +117,9 @@ class StepBuilderMixin(StrategyToolsBase):
     def _find_vocab_node_for_match(
         self, node: JSONObject, match: str
     ) -> JSONObject | None:
-        data_raw = node.get("data")
-        data = data_raw if isinstance(data_raw, dict) else {}
-        value_raw = data.get("value")
-        id_raw = data.get("id")
-        term_raw = data.get("term")
-        name_raw = data.get("name")
-        display_raw = data.get("display")
-        candidates: list[JSONValue] = []
-        if value_raw is not None:
-            candidates.append(value_raw)
-        if id_raw is not None:
-            candidates.append(id_raw)
-        if term_raw is not None:
-            candidates.append(term_raw)
-        if name_raw is not None:
-            candidates.append(name_raw)
-        if display_raw is not None:
-            candidates.append(display_raw)
-        for candidate in candidates:
-            if match == str(candidate):
-                return node
-        normalized = normalize_vocab_key(match)
-        for candidate in candidates:
-            if normalize_vocab_key(str(candidate)) == normalized:
-                return node
+        candidates = self._collect_node_candidates(node)
+        if self._candidates_match(candidates, match):
+            return node
         children_raw = node.get("children")
         children = children_raw if isinstance(children_raw, list) else []
         for child in children:
@@ -139,6 +128,28 @@ class StepBuilderMixin(StrategyToolsBase):
                 if found:
                     return found
         return None
+
+    def _collect_node_candidates(self, node: JSONObject) -> list[JSONValue]:
+        """Collect candidate identifier values from a vocabulary node's data."""
+        data_raw = node.get("data")
+        data = data_raw if isinstance(data_raw, dict) else {}
+        candidates: list[JSONValue] = []
+        for key in ("value", "id", "term", "name", "display"):
+            val = data.get(key)
+            if val is not None:
+                candidates.append(val)
+        return candidates
+
+    def _candidates_match(self, candidates: list[JSONValue], match: str) -> bool:
+        """Check if any candidate matches exactly or after normalization."""
+        for candidate in candidates:
+            if match == str(candidate):
+                return True
+        normalized = normalize_vocab_key(match)
+        for candidate in candidates:
+            if normalize_vocab_key(str(candidate)) == normalized:
+                return True
+        return False
 
     def _collect_leaf_terms(self, node: JSONObject) -> list[str]:
         children_raw = node.get("children")

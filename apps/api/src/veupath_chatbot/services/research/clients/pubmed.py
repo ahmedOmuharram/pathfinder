@@ -5,13 +5,17 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     BaseClient,
     build_response,
-    make_citation,
 )
 from veupath_chatbot.services.research.utils import strip_tags, truncate_text
 
@@ -96,7 +100,11 @@ class PubmedClient(BaseClient):
                 if include_abstract:
                     efetch = await client.get(
                         "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
-                        params={"db": "pubmed", "id": ",".join(pmids), "retmode": "xml"},
+                        params={
+                            "db": "pubmed",
+                            "id": ",".join(pmids),
+                            "retmode": "xml",
+                        },
                     )
                     efetch.raise_for_status()
                     xml = efetch.text or ""
@@ -180,14 +188,15 @@ class PubmedClient(BaseClient):
             "abstract": abstract,
             "snippet": abstract or journal,
         }
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id("pubmed"),
             source="pubmed",
-            id_prefix="pubmed",
             title=title or url_item,
             url=url_item,
             authors=authors,
             year=year,
             pmid=pmid,
             snippet=abstract or journal,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

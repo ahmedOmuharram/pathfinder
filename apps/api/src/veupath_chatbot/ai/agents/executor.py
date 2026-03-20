@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import dataclass, field
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from veupath_chatbot.ai.models.catalog import get_model_entry
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
     delegate_strategy_subtasks as subkani_delegate_strategy_subtasks,
 )
+from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.ai.prompts.executor_prompt import build_agent_system_prompt
 from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
@@ -30,6 +32,7 @@ from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.gene_sets import GeneSetService
+from veupath_chatbot.services.gene_sets.operations import GeneSetWdkContext
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.research import (
     LiteratureSearchService,
@@ -42,6 +45,20 @@ from veupath_chatbot.services.strategies.build import (
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class AgentContext:
+    """Context for building a PathfinderAgent."""
+
+    site_id: str
+    user_id: UUID | None = None
+    chat_history: list[ChatMessage] = field(default_factory=list)
+    strategy_graph: JSONObject | None = None
+    selected_nodes: JSONObject | None = None
+    mentioned_context: str | None = None
+    disable_rag: bool = False
+    desired_response_tokens: int | None = None
 
 
 def _merge_auto_build(original_text: str | None, extra: JSONObject) -> str:
@@ -74,48 +91,41 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
 
     functions: dict[str, AIFunction]
 
-    def __init__(
-        self,
-        engine: BaseEngine,
-        site_id: str,
-        user_id: UUID | None = None,
-        chat_history: list[ChatMessage] | None = None,
-        strategy_graph: JSONObject | None = None,
-        selected_nodes: JSONObject | None = None,
-        mentioned_context: str | None = None,
-        *,
-        disable_rag: bool = False,
-        desired_response_tokens: int | None = None,
-    ) -> None:
+    def __init__(self, engine: BaseEngine, context: AgentContext) -> None:
+        site_id = context.site_id
         self.site_id = site_id
-        self.user_id = user_id
+        self.user_id = context.user_id
         self.strategy_session = build_strategy_session(
-            site_id=site_id, strategy_graph=strategy_graph
+            site_id=site_id, strategy_graph=context.strategy_graph
         )
 
         self.catalog_tools = CatalogTools()
-        self.catalog_rag_tools = CatalogRagTools(site_id=site_id, disabled=disable_rag)
+        self.catalog_rag_tools = CatalogRagTools(
+            site_id=site_id, disabled=context.disable_rag
+        )
         self.example_plans_rag_tools = ExamplePlansRagTools(
-            site_id=site_id, disabled=disable_rag
+            site_id=site_id, disabled=context.disable_rag
         )
         self.strategy_tools = StrategyTools(self.strategy_session)
         self.execution_tools = ExecutionTools(self.strategy_session)
         self.result_tools = ResultTools(self.strategy_session)
-        self.conversation_tools = ConversationTools(self.strategy_session, user_id)
+        self.conversation_tools = ConversationTools(
+            self.strategy_session, context.user_id
+        )
         self.web_search_service = WebSearchService()
         self.literature_search_service = LiteratureSearchService()
 
         system_prompt = build_agent_system_prompt(
             site_id=site_id,
-            selected_nodes=selected_nodes,
-            mentioned_context=mentioned_context,
+            selected_nodes=context.selected_nodes,
+            mentioned_context=context.mentioned_context,
         )
 
         super().__init__(
             engine=engine,
             system_prompt=system_prompt,
-            chat_history=chat_history or [],
-            desired_response_tokens=desired_response_tokens,
+            chat_history=context.chat_history,
+            desired_response_tokens=context.desired_response_tokens,
         )
         self.event_queue: asyncio.Queue[JSONObject] | None = None
         # Cancellation signal - set by stream_chat when the client disconnects.
@@ -162,10 +172,11 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         if not graph:
             return result
 
-        if len(graph.roots) != 1:
-            return self._handle_multi_root(result, graph)
-
-        return await self._auto_build(result, graph)
+        return (
+            self._handle_multi_root(result, graph)
+            if len(graph.roots) != 1
+            else await self._auto_build(result, graph)
+        )
 
     def _handle_multi_root(
         self, result: FunctionCallResult, graph: object
@@ -260,8 +271,10 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                     site_id=self.site_id,
                     gene_ids=[],
                     source="strategy",
-                    wdk_strategy_id=build_result.wdk_strategy_id,
-                    record_type=graph.record_type,
+                    wdk=GeneSetWdkContext(
+                        wdk_strategy_id=build_result.wdk_strategy_id,
+                        record_type=graph.record_type,
+                    ),
                 )
                 await svc.flush(gs.id)
 
@@ -345,13 +358,16 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
 
         return await subkani_delegate_strategy_subtasks(
             goal=goal,
-            site_id=self.site_id,
-            strategy_session=self.strategy_session,
+            context=SubkaniContext(
+                site_id=self.site_id,
+                strategy_session=self.strategy_session,
+                chat_history=self.chat_history,
+                emit_event=self._emit_event,
+                subkani_timeout_seconds=0,
+                engine_factory=_engine_factory,
+            ),
             strategy_tools=self.strategy_tools,
-            emit_event=self._emit_event,
-            chat_history=self.chat_history,
             plan=plan,
-            engine_factory=_engine_factory,
         )
 
 

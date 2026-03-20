@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.evaluation import re_evaluate
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.sweep_service import (
     _tree_has_parameter,
     compute_sweep_values,
@@ -533,9 +535,9 @@ class TestRunSweepPointTree:
 
         captured_tree = None
 
-        async def _capture_tree(**kwargs: object) -> dict:  # type: ignore[type-arg]
+        async def _capture_tree(ctx: ControlsContext, tree: JSONObject) -> JSONObject:
             nonlocal captured_tree
-            captured_tree = kwargs.get("tree")
+            captured_tree = tree
             return mock_result
 
         with patch(

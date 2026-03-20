@@ -4,12 +4,16 @@ import re
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
-    make_citation,
 )
 from veupath_chatbot.services.research.utils import strip_tags, truncate_text
 
@@ -71,11 +75,12 @@ class ArxivClient(StandardClient):
             "abstract": truncate_text(abstract, abstract_max_chars) or "",
             "snippet": abstract,
         }
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id("arxiv"),
             source="arxiv",
-            id_prefix="arxiv",
             title=title or (url_item or "arXiv result"),
             url=url_item,
             snippet=abstract,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

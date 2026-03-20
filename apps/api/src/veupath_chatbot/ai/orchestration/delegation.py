@@ -47,9 +47,7 @@ def _canon(value: JSONValue) -> JSONValue:
         }
     if isinstance(value, list):
         return [_canon(v) for v in value]
-    if isinstance(value, str):
-        return value.strip()
-    return value
+    return value.strip() if isinstance(value, str) else value
 
 
 def _get_field(node: JSONObject, *keys: str, default: JSONValue = None) -> JSONValue:
@@ -146,10 +144,11 @@ class _PlanCompiler:
             )
 
         left_node, right_node, error = self._resolve_combine_inputs(node)
-        if error is not None:
-            return error
-
-        dep_ids, dep_error = self._compile_dependencies(left_node, right_node)
+        dep_ids, dep_error = (
+            self._compile_dependencies(left_node, right_node)
+            if error is None
+            else ([], error)
+        )
         if dep_error is not None:
             return dep_error
         left_id, right_id = dep_ids[0], dep_ids[1]
@@ -194,8 +193,6 @@ class _PlanCompiler:
         Returns (left_node, right_node, error_or_none).
         """
         inputs_raw = _get_field(node, "inputs")
-        left = _get_field(node, "left")
-        right = _get_field(node, "right")
         if inputs_raw is not None:
             if (
                 not isinstance(inputs_raw, list)
@@ -211,29 +208,32 @@ class _PlanCompiler:
                     ),
                 )
             return inputs_raw[0], inputs_raw[1], None
-        if left is None or right is None:
-            return (
-                None,
-                None,
-                self._plan_error(
-                    "Invalid combine inputs.",
-                    "Combine node requires left and right child nodes.",
-                    nodeId=node.get("id"),
-                ),
+        left = _get_field(node, "left")
+        right = _get_field(node, "right")
+        error = (
+            self._plan_error(
+                "Invalid combine inputs.",
+                "Combine node requires left and right child nodes.",
+                nodeId=node.get("id"),
             )
-        return left, right, None
+            if left is None or right is None
+            else None
+        )
+        return left, right, error
 
     def _compile_task_node(self, node: JSONObject) -> str | JSONObject:
         """Compile a task node into the DAG."""
         task_text = str(_get_field(node, "task", "text") or "").strip()
+        context = _get_field(node, "context", "parameters", "params")
+        instructions = str(_get_field(node, "instructions") or "").strip()
+        input_node = _get_field(node, "input")
+
         if not task_text:
             return self._plan_error(
                 "Invalid task node.",
                 "Task node requires a non-empty 'task' string.",
                 nodeId=node.get("id"),
             )
-        instructions = str(_get_field(node, "instructions") or "").strip()
-        context = _get_field(node, "context", "parameters", "params")
         if context is not None and not isinstance(
             context, (dict, list, str, int, float, bool)
         ):
@@ -246,14 +246,11 @@ class _PlanCompiler:
                 nodeId=node.get("id"),
                 contextType=type(context).__name__,
             )
-        input_node = _get_field(node, "input")
         dep_ids, error = (
             self._compile_dependencies(input_node)
             if input_node is not None
             else ([], None)
         )
-        if error is not None:
-            return error
         task_depends_json: JSONArray = cast("JSONArray", dep_ids)
         task_node_data: JSONObject = {
             "kind": "task",
@@ -269,12 +266,16 @@ class _PlanCompiler:
             "context": context,
             "depends_on": task_depends_json,
         }
-        return _get_or_create_node_id(
-            task_signature_obj,
-            self.tasks,
-            task_node_data,
-            self._seen_signatures,
-            self._new_id,
+        return (
+            error
+            if error is not None
+            else _get_or_create_node_id(
+                task_signature_obj,
+                self.tasks,
+                task_node_data,
+                self._seen_signatures,
+                self._new_id,
+            )
         )
 
     def compile_node(self, node: JSONValue) -> str | JSONObject:
@@ -295,19 +296,19 @@ class _PlanCompiler:
                     "Provide a full node object with 'type'."
                 ),
             )
-
-        if node_type in ("combine", "op", "operator"):
-            return self._compile_combine_node(node, node_type)
-
-        if node_type in ("task", "step", "subtask"):
-            return self._compile_task_node(node)
-
-        return self._plan_error(
-            "Invalid node type.",
-            "Node 'type' must be either 'task' or 'combine'.",
-            nodeId=node.get("id"),
-            nodeType=node_type,
+        compiled: str | JSONObject = (
+            self._compile_combine_node(node, node_type)
+            if node_type in ("combine", "op", "operator")
+            else self._compile_task_node(node)
+            if node_type in ("task", "step", "subtask")
+            else self._plan_error(
+                "Invalid node type.",
+                "Node 'type' must be either 'task' or 'combine'.",
+                nodeId=node.get("id"),
+                nodeType=node_type,
+            )
         )
+        return compiled
 
 
 def _build_nodes_by_id(node_list: JSONArray) -> dict[str, JSONObject]:
@@ -371,32 +372,35 @@ def build_delegation_plan(
         )
 
     if not isinstance(plan, dict):
-        return plan_error(
+        compiler_result: str | JSONObject = plan_error(
             "plan is required when delegating.",
             "Provide a nested plan object as 'plan'.",
         )
+    else:
+        compiler = _PlanCompiler(goal)
+        compiler_result = compiler.compile_node(plan)
 
-    compiler = _PlanCompiler(goal)
-    root_id = compiler.compile_node(plan)
-    if isinstance(root_id, dict):
-        return root_id
+    if isinstance(compiler_result, dict):
+        return compiler_result
 
+    root_id: str = compiler_result
     nodes_by_id: dict[str, JSONObject] = {}
     nodes_by_id.update(_build_nodes_by_id(compiler.tasks))
     nodes_by_id.update(_build_nodes_by_id(compiler.combines))
 
     all_ids = set(nodes_by_id.keys())
-    if root_id not in all_ids:
-        return plan_error(
+    dependents: dict[str, list[str]] = {node_id: [] for node_id in all_ids}
+    validation_error: JSONObject | None = (
+        plan_error(
             "Invalid root node.",
             "Root id missing after compilation.",
             rootId=root_id,
         )
-
-    dependents: dict[str, list[str]] = {node_id: [] for node_id in all_ids}
-    cycle_error = _validate_dag(all_ids, nodes_by_id, dependents, plan_error)
-    if cycle_error is not None:
-        return cycle_error
+        if root_id not in all_ids
+        else _validate_dag(all_ids, nodes_by_id, dependents, plan_error)
+    )
+    if validation_error is not None:
+        return validation_error
 
     return DelegationPlan(
         goal=goal,

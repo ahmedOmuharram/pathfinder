@@ -496,25 +496,17 @@ def _handle_message_end(
             "registeredToolCount": data.get("registeredToolCount", 0),
             "llmCallCount": data.get("llmCallCount", 0),
             "subKaniPromptTokens": data.get("subKaniPromptTokens", 0),
-            "subKaniCompletionTokens": data.get(
-                "subKaniCompletionTokens", 0
-            ),
+            "subKaniCompletionTokens": data.get("subKaniCompletionTokens", 0),
             "subKaniCallCount": data.get("subKaniCallCount", 0),
             "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
             "modelId": data.get("modelId", ""),
         }
         for i in range(len(messages) - 1, -1, -1):
-            if (
-                messages[i]["role"] == "user"
-                and "tokenUsage" not in messages[i]
-            ):
+            if messages[i]["role"] == "user" and "tokenUsage" not in messages[i]:
                 messages[i]["tokenUsage"] = token_usage
                 break
         for i in range(len(messages) - 1, -1, -1):
-            if (
-                messages[i]["role"] == "assistant"
-                and "tokenUsage" not in messages[i]
-            ):
+            if messages[i]["role"] == "assistant" and "tokenUsage" not in messages[i]:
                 messages[i]["tokenUsage"] = token_usage
                 break
     turn.reset()

@@ -4,9 +4,10 @@ Thin transport layer: parse HTTP request, call service, return HTTP response.
 All business logic lives in ``services.gene_sets.operations``.
 """
 
-from typing import Literal, cast, get_args
+from dataclasses import dataclass
+from typing import Annotated, Literal, cast, get_args
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from veupath_chatbot.platform.errors import (
     InternalError,
@@ -18,13 +19,17 @@ from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.services.gene_sets.confidence import (
+    GeneClassification,
     compute_gene_confidence,
 )
 from veupath_chatbot.services.gene_sets.ensemble import (
     EnsembleScore,
     compute_ensemble_scores,
 )
-from veupath_chatbot.services.gene_sets.operations import GeneSetService
+from veupath_chatbot.services.gene_sets.operations import (
+    GeneSetService,
+    GeneSetWdkContext,
+)
 from veupath_chatbot.services.gene_sets.reverse_search import (
     GeneSetCandidate,
     rank_gene_sets_by_recall,
@@ -48,6 +53,24 @@ from veupath_chatbot.transport.http.schemas.steps import RecordDetailRequest
 
 router = APIRouter(prefix="/api/v1/gene-sets", tags=["gene-sets"])
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Query parameter groups
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RecordQueryParams:
+    """Grouped query parameters for record listing endpoints."""
+
+    offset: int = Query(0, ge=0)
+    limit: int = Query(50, ge=1, le=500)
+    sort: str | None = None
+    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir")
+    attributes: str | None = None
+    filter_attribute: str | None = Query(None, alias="filterAttribute")
+    filter_value: str | None = Query(None, alias="filterValue")
 
 
 # ---------------------------------------------------------------------------
@@ -110,11 +133,13 @@ async def create_gene_set(
         site_id=body.site_id,
         gene_ids=body.gene_ids,
         source=body.source,
-        wdk_strategy_id=body.wdk_strategy_id,
-        wdk_step_id=body.wdk_step_id,
-        search_name=body.search_name,
-        record_type=body.record_type,
-        parameters=body.parameters,
+        wdk=GeneSetWdkContext(
+            wdk_strategy_id=body.wdk_strategy_id,
+            wdk_step_id=body.wdk_step_id,
+            search_name=body.search_name,
+            record_type=body.record_type,
+            parameters=body.parameters,
+        ),
     )
     return _to_response(gs)
 
@@ -289,13 +314,7 @@ async def get_gene_set_attributes(
 async def get_gene_set_records(
     gene_set_id: str,
     user_id: CurrentUser,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
-    sort: str | None = None,
-    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir"),
-    attributes: str | None = None,
-    filter_attribute: str | None = Query(None, alias="filterAttribute"),
-    filter_value: str | None = Query(None, alias="filterValue"),
+    params: Annotated[RecordQueryParams, Depends()],
 ) -> JSONObject:
     """Get paginated result records for a gene set."""
     try:
@@ -306,16 +325,16 @@ async def get_gene_set_records(
         raise _no_strategy(exc) from exc
 
     attr_list: list[str] | None = None
-    if attributes:
-        attr_list = [a.strip() for a in attributes.split(",") if a.strip()]
+    if params.attributes:
+        attr_list = [a.strip() for a in params.attributes.split(",") if a.strip()]
 
     # When filtering, fetch all records for the step and filter server-side.
-    if filter_attribute and filter_value is not None:
+    if params.filter_attribute and params.filter_value is not None:
         answer = await svc.get_records(
             offset=0,
             limit=10_000,
-            sort=sort,
-            direction=sort_dir,
+            sort=params.sort,
+            direction=params.sort_dir,
             attributes=attr_list,
         )
         records = answer.get("records", [])
@@ -326,26 +345,29 @@ async def get_gene_set_records(
             if not isinstance(r, dict):
                 continue
             attrs = r.get("attributes")
-            if isinstance(attrs, dict) and attrs.get(filter_attribute) == filter_value:
+            if (
+                isinstance(attrs, dict)
+                and attrs.get(params.filter_attribute) == params.filter_value
+            ):
                 filtered.append(r)
-        page = filtered[offset : offset + limit]
+        page = filtered[params.offset : params.offset + params.limit]
         return {
             "records": cast("JSONValue", page),
             "meta": {
                 "totalCount": len(filtered),
                 "displayTotalCount": len(filtered),
                 "responseCount": len(page),
-                "pagination": {"offset": offset, "numRecords": limit},
+                "pagination": {"offset": params.offset, "numRecords": params.limit},
                 "attributes": cast("JSONValue", attr_list or []),
                 "tables": cast("JSONValue", []),
             },
         }
 
     return await svc.get_records(
-        offset=offset,
-        limit=limit,
-        sort=sort,
-        direction=sort_dir,
+        offset=params.offset,
+        limit=params.limit,
+        sort=params.sort,
+        direction=params.sort_dir,
         attributes=attr_list,
     )
 
@@ -399,10 +421,12 @@ async def gene_confidence(
 ) -> list[GeneConfidenceScoreResponse]:
     """Compute per-gene composite confidence scores from classification data."""
     scores = compute_gene_confidence(
-        tp_ids=body.tp_ids,
-        fp_ids=body.fp_ids,
-        fn_ids=body.fn_ids,
-        tn_ids=body.tn_ids,
+        GeneClassification(
+            tp_ids=body.tp_ids,
+            fp_ids=body.fp_ids,
+            fn_ids=body.fn_ids,
+            tn_ids=body.tn_ids,
+        ),
         ensemble_scores=body.ensemble_scores,
         enrichment_gene_counts=body.enrichment_gene_counts,
         max_enrichment_terms=body.max_enrichment_terms,

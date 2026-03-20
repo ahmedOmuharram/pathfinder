@@ -6,10 +6,14 @@ from typing import cast
 
 import httpx
 
-from veupath_chatbot.domain.research.citations import ensure_unique_citation_tags
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+    ensure_unique_citation_tags,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.research.clients._base import make_citation
 from veupath_chatbot.services.research.utils import (
     BROWSER_USER_AGENT,
     candidate_queries,
@@ -125,13 +129,14 @@ class WebSearchService:
             snippet_raw = item.get("summary") or item.get("snippet")
             snippet = snippet_raw if isinstance(snippet_raw, str) else None
             citations.append(
-                make_citation(
+                Citation(
+                    id=_new_citation_id("web"),
                     source="web",
-                    id_prefix="web",
                     title=title,
                     url=url_raw if isinstance(url_raw, str) else None,
                     snippet=snippet,
-                )
+                    accessed_at=_now_iso(),
+                ).to_dict()
             )
         ensure_unique_citation_tags(citations)
         payload: JSONObject = {
@@ -164,12 +169,18 @@ class WebSearchService:
         }
         last_html = ""
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers=headers
+            ) as client:
                 for cand in candidate_queries(q):
-                    resp = await client.get(url, params={"q": cand}, follow_redirects=True)
+                    resp = await client.get(
+                        url, params={"q": cand}, follow_redirects=True
+                    )
                     attempts_raw = diag.get("attempts")
                     attempts = (
-                        int(attempts_raw) if isinstance(attempts_raw, (int, float)) else 0
+                        int(attempts_raw)
+                        if isinstance(attempts_raw, (int, float))
+                        else 0
                     )
                     diag["attempts"] = attempts + 1
                     status_codes_raw = diag.get("statusCodes")

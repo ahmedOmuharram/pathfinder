@@ -17,12 +17,19 @@ from uuid import uuid4
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.experiment.cross_validation import run_cross_validation
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.experiment.cross_validation import (
+    CrossValidationOptions,
+    run_cross_validation,
+)
 from veupath_chatbot.services.experiment.enrichment_parser import (
     upsert_enrichment_result,
 )
 from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
     ProgressCallback,
     extract_and_enrich_genes,
 )
@@ -37,7 +44,10 @@ from veupath_chatbot.services.experiment.rank_metrics import (
     compute_rank_metrics,
     fetch_ordered_result_ids,
 )
-from veupath_chatbot.services.experiment.robustness import compute_robustness
+from veupath_chatbot.services.experiment.robustness import (
+    BootstrapOptions,
+    compute_robustness,
+)
 from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
     run_step_analysis,
@@ -46,9 +56,11 @@ from veupath_chatbot.services.experiment.store import (
     ExperimentStore,
     get_experiment_store,
 )
-from veupath_chatbot.services.experiment.tree_knobs import optimize_tree_knobs
+from veupath_chatbot.services.experiment.tree_knobs import (
+    TreeOptimizationOptions,
+    optimize_tree_knobs,
+)
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     Experiment,
     ExperimentConfig,
     ExperimentMetrics,
@@ -61,6 +73,7 @@ from veupath_chatbot.services.gene_sets.operations import (
 )
 from veupath_chatbot.services.parameter_optimization import (
     OptimizationConfig,
+    OptimizationInput,
     ParameterSpec,
     optimize_search_parameters,
     result_to_json,
@@ -83,16 +96,19 @@ async def _run_single_step_controls(
     parameters: JSONObject,
 ) -> JSONObject:
     """Run single-step control tests with the given parameters."""
-    return await run_positive_negative_controls(
+    intersection_config = IntersectionConfig(
         site_id=config.site_id,
         record_type=config.record_type,
         target_search_name=config.search_name,
         target_parameters=parameters,
         controls_search_name=config.controls_search_name,
         controls_param_name=config.controls_param_name,
+        controls_value_format=config.controls_value_format,
+    )
+    return await run_positive_negative_controls(
+        intersection_config,
         positive_controls=config.positive_controls or None,
         negative_controls=config.negative_controls or None,
-        controls_value_format=config.controls_value_format,
     )
 
 
@@ -146,17 +162,18 @@ async def _phase_evaluate(
         )
     elif config.is_tree_mode:
         tree_dict: JSONObject = cast("JSONObject", config.step_tree)
-        cvf: ControlValueFormat = config.controls_value_format
 
         result = await run_controls_against_tree(
-            site_id=config.site_id,
-            record_type=config.record_type,
-            tree=tree_dict,
-            controls_search_name=config.controls_search_name,
-            controls_param_name=config.controls_param_name,
-            controls_value_format=cvf,
-            positive_controls=config.positive_controls or [],
-            negative_controls=config.negative_controls or [],
+            ControlsContext(
+                site_id=config.site_id,
+                record_type=config.record_type,
+                controls_search_name=config.controls_search_name,
+                controls_param_name=config.controls_param_name,
+                controls_value_format=config.controls_value_format,
+                positive_controls=config.positive_controls or [],
+                negative_controls=config.negative_controls or [],
+            ),
+            tree_dict,
         )
     else:
         result = await _run_single_step_controls(config, config.parameters)
@@ -175,9 +192,7 @@ async def _phase_step_analysis(
     emit: EmitFn,
     store: ExperimentStore,
     tree: JSONObject,
-    cvf: ControlValueFormat,
     baseline_result: JSONObject,
-    metrics: ExperimentMetrics,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
 
@@ -188,24 +203,26 @@ async def _phase_step_analysis(
         msg = data.get("message", "") if isinstance(data, dict) else ""
         await emit("step_analysis", message=str(msg), stepAnalysisProgress=data)
 
-    experiment.step_analysis = await run_step_analysis(
+    ctx = ControlsContext(
         site_id=config.site_id,
         record_type=config.record_type,
-        tree=tree,
         controls_search_name=config.controls_search_name,
         controls_param_name=config.controls_param_name,
-        controls_value_format=cvf,
+        controls_value_format=config.controls_value_format,
         positive_controls=config.positive_controls or [],
         negative_controls=config.negative_controls or [],
-        baseline_result=baseline_result,
+    )
+    experiment.step_analysis = await run_step_analysis(
+        ctx,
+        tree,
+        baseline_result,
         phases=config.step_analysis_phases,
         progress_callback=_progress,
     )
     store.save(experiment)
 
-    await emit(
-        "step_analysis", message="Step analysis complete", metrics=to_json(metrics)
-    )
+    metrics_json = to_json(experiment.metrics) if experiment.metrics else {}
+    await emit("step_analysis", message="Step analysis complete", metrics=metrics_json)
 
 
 async def _phase_persist_strategy(
@@ -226,7 +243,7 @@ async def _phase_persist_strategy(
         experiment.wdk_strategy_id = raw_sid if isinstance(raw_sid, int) else None
         experiment.wdk_step_id = raw_step if isinstance(raw_step, int) else None
         store.save(experiment)
-    except (AppError, ValueError, TypeError) as exc:
+    except (AppError, ValueError, TypeError, RuntimeError) as exc:
         logger.warning(
             "Failed to persist WDK strategy for experiment",
             experiment_id=experiment.id,
@@ -304,8 +321,9 @@ async def _phase_robustness(
                 result_ids=ordered_ids,
                 positive_ids=config.positive_controls or [],
                 negative_ids=config.negative_controls or [],
-                n_bootstrap=200,
-                include_rank_metrics=is_ranked,
+                options=BootstrapOptions(
+                    n_bootstrap=200, include_rank_metrics=is_ranked
+                ),
             )
             store.save(experiment)
     except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
@@ -376,16 +394,18 @@ async def _phase_optimize_parameters(
         )
 
     opt_result = await optimize_search_parameters(
-        site_id=config.site_id,
-        record_type=config.record_type,
-        search_name=config.search_name,
-        fixed_parameters=fixed_params,
-        parameter_space=opt_param_space,
-        controls_search_name=config.controls_search_name,
-        controls_param_name=config.controls_param_name,
-        positive_controls=config.positive_controls or None,
-        negative_controls=config.negative_controls or None,
-        controls_value_format=config.controls_value_format,
+        OptimizationInput(
+            site_id=config.site_id,
+            record_type=config.record_type,
+            search_name=config.search_name,
+            fixed_parameters=fixed_params,
+            parameter_space=opt_param_space,
+            controls_search_name=config.controls_search_name,
+            controls_param_name=config.controls_param_name,
+            positive_controls=config.positive_controls or None,
+            negative_controls=config.negative_controls or None,
+            controls_value_format=config.controls_value_format,
+        ),
         config=OptimizationConfig(
             budget=config.optimization_budget,
             objective=config.optimization_objective,
@@ -416,26 +436,30 @@ async def _phase_optimize_tree_knobs(
     emit: EmitFn,
     store: ExperimentStore,
     tree: JSONObject,
-    cvf: ControlValueFormat,
 ) -> None:
     """Optimize threshold parameters and boolean operators across a strategy tree."""
     try:
         await emit("optimizing", message="Optimizing strategy tree knobs...")
 
-        tree_opt_result = await optimize_tree_knobs(
+        ctx = ControlsContext(
             site_id=config.site_id,
             record_type=config.record_type,
-            base_tree=tree,
-            threshold_knobs=config.threshold_knobs or [],
-            operator_knobs=config.operator_knobs or [],
-            positive_controls=config.positive_controls or [],
-            negative_controls=config.negative_controls or [],
             controls_search_name=config.controls_search_name,
             controls_param_name=config.controls_param_name,
-            controls_value_format=cvf,
-            objective=config.tree_optimization_objective,
-            budget=config.tree_optimization_budget,
-            max_list_size=config.max_list_size,
+            controls_value_format=config.controls_value_format,
+            positive_controls=config.positive_controls or [],
+            negative_controls=config.negative_controls or [],
+        )
+        tree_opt_result = await optimize_tree_knobs(
+            ctx,
+            tree,
+            config.threshold_knobs or [],
+            config.operator_knobs or [],
+            TreeOptimizationOptions(
+                objective=config.tree_optimization_objective,
+                budget=config.tree_optimization_budget,
+                max_list_size=config.max_list_size,
+            ),
         )
         experiment.tree_optimization = tree_opt_result
         store.save(experiment)
@@ -458,10 +482,7 @@ async def _phase_cross_validate(
     experiment: Experiment,
     emit: EmitFn,
     store: ExperimentStore,
-    *,
-    metrics: ExperimentMetrics,
     final_tree: JSONObject | None,
-    cvf: ControlValueFormat,
 ) -> None:
     """Run k-fold cross-validation (tree or single-step)."""
     await emit(
@@ -477,20 +498,25 @@ async def _phase_cross_validate(
             cvTotalFolds=total,
         )
 
-    experiment.cross_validation = await run_cross_validation(
+    ctx = ControlsContext(
         site_id=config.site_id,
         record_type=config.record_type,
         controls_search_name=config.controls_search_name,
         controls_param_name=config.controls_param_name,
-        controls_value_format=cvf,
-        positive_controls=config.positive_controls,
-        negative_controls=config.negative_controls,
-        tree=final_tree,
-        search_name=config.search_name if final_tree is None else None,
-        parameters=config.parameters if final_tree is None else None,
-        k=config.k_folds,
-        full_metrics=metrics,
-        progress_callback=_cv_progress,
+        controls_value_format=config.controls_value_format,
+        positive_controls=config.positive_controls or [],
+        negative_controls=config.negative_controls or [],
+    )
+    experiment.cross_validation = await run_cross_validation(
+        ctx,
+        final_tree,
+        config.search_name if final_tree is None else None,
+        config.parameters if final_tree is None else None,
+        CrossValidationOptions(
+            k=config.k_folds,
+            full_metrics=experiment.metrics,
+            progress_callback=_cv_progress,
+        ),
     )
     store.save(experiment)
 
@@ -589,7 +615,6 @@ async def run_experiment(
         tree_dict: JSONObject = (
             cast("JSONObject", config.step_tree) if config.is_tree_mode else {}
         )
-        cvf: ControlValueFormat = config.controls_value_format
         final_tree: JSONObject | None = tree_dict if config.is_tree_mode else None
 
         # Phase 2: Step analysis (multi-step only)
@@ -600,9 +625,7 @@ async def run_experiment(
                 _emit,
                 store,
                 tree_dict,
-                cvf,
                 result,
-                metrics,
             )
 
         # Phase 3: Persist WDK strategy for result exploration
@@ -640,7 +663,7 @@ async def run_experiment(
         has_tree_knobs = bool(config.threshold_knobs or config.operator_knobs)
         if config.is_tree_mode and has_tree_knobs and final_tree is not None:
             await _phase_optimize_tree_knobs(
-                config, experiment, _emit, store, tree_dict, cvf
+                config, experiment, _emit, store, tree_dict
             )
 
         # Phase 8: Cross-validation
@@ -654,9 +677,7 @@ async def run_experiment(
                 experiment,
                 _emit,
                 store,
-                metrics=metrics,
-                final_tree=final_tree,
-                cvf=cvf,
+                final_tree,
             )
 
         # Phase 9: Enrichment analysis

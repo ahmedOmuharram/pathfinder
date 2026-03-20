@@ -12,6 +12,7 @@ from veupath_chatbot.platform.errors import (
 )
 from veupath_chatbot.services.gene_sets.operations import (
     GeneSetService,
+    GeneSetWdkContext,
     count_steps_in_tree,
     fetch_gene_ids_from_step,
     resolve_root_step_id,
@@ -24,29 +25,26 @@ _USER = uuid4()
 
 def _make_set(
     set_id: str = "gs-1",
-    site_id: str = "plasmo",
+    *,
     gene_ids: list[str] | None = None,
-    user_id=_USER,
+    user_id: object = None,
+    site_id: str = "plasmo",
+    wdk: GeneSetWdkContext | None = None,
     name: str = "Test",
-    source: str = "paste",
-    wdk_strategy_id: int | None = None,
-    wdk_step_id: int | None = None,
-    search_name: str | None = None,
-    record_type: str | None = None,
-    parameters: dict[str, str] | None = None,
 ) -> GeneSet:
+    ctx = wdk or GeneSetWdkContext()
     return GeneSet(
         id=set_id,
         name=name,
         site_id=site_id,
         gene_ids=gene_ids if gene_ids is not None else ["G1", "G2"],
-        source=source,
-        user_id=user_id,
-        wdk_strategy_id=wdk_strategy_id,
-        wdk_step_id=wdk_step_id,
-        search_name=search_name,
-        record_type=record_type,
-        parameters=parameters,
+        source="paste",
+        user_id=user_id if user_id is not None else _USER,
+        wdk_strategy_id=ctx.wdk_strategy_id,
+        wdk_step_id=ctx.wdk_step_id,
+        search_name=ctx.search_name,
+        record_type=ctx.record_type,
+        parameters=ctx.parameters,
     )
 
 
@@ -343,7 +341,7 @@ class TestCreate:
             site_id="plasmo",
             gene_ids=[],
             source="strategy",
-            wdk_strategy_id=100,
+            wdk=GeneSetWdkContext(wdk_strategy_id=100),
         )
         assert result.wdk_step_id == 42
         assert result.gene_ids == ["RESOLVED_G1"]
@@ -359,7 +357,7 @@ class TestCreate:
             site_id="plasmo",
             gene_ids=["G1"],
             source="paste",
-            wdk_strategy_id=100,
+            wdk=GeneSetWdkContext(wdk_strategy_id=100),
         )
         # Should not attempt resolution since gene_ids are provided
         assert result.gene_ids == ["G1"]
@@ -447,7 +445,9 @@ class TestGetStepResultsService:
         mock_get_api.return_value = mock_api
 
         store = GeneSetStore()
-        gs = _make_set(wdk_step_id=42, record_type="gene")
+        gs = _make_set(
+            wdk=GeneSetWdkContext(wdk_step_id=42, record_type="gene"),
+        )
         store.save(gs)
         svc = GeneSetService(store)
 
@@ -457,7 +457,7 @@ class TestGetStepResultsService:
 
     async def test_raises_when_no_wdk_step(self) -> None:
         store = GeneSetStore()
-        gs = _make_set(wdk_step_id=None)
+        gs = _make_set(wdk=GeneSetWdkContext(wdk_step_id=None))
         store.save(gs)
         svc = GeneSetService(store)
 
@@ -480,10 +480,12 @@ class TestRunEnrichment:
 
         store = GeneSetStore()
         gs = _make_set(
-            wdk_step_id=42,
-            search_name="GenesByKeyword",
-            record_type="gene",
-            parameters={"keyword": "kinase"},
+            wdk=GeneSetWdkContext(
+                wdk_step_id=42,
+                search_name="GenesByKeyword",
+                record_type="gene",
+                parameters={"keyword": "kinase"},
+            ),
         )
         store.save(gs)
         svc = GeneSetService(store)
@@ -498,7 +500,7 @@ class TestRunEnrichment:
         mock_svc.run_batch.return_value = ([], ["go_enrichment: failed"])
 
         store = GeneSetStore()
-        gs = _make_set(wdk_step_id=42)
+        gs = _make_set(wdk=GeneSetWdkContext(wdk_step_id=42))
         store.save(gs)
         svc = GeneSetService(store)
 

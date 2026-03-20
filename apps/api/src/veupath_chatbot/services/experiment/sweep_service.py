@@ -18,7 +18,11 @@ from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import (
     cleanup_internal_control_test_strategies,
 )
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.metrics import metrics_from_control_result
 from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
@@ -170,15 +174,17 @@ async def run_sweep_point(
             modified_params[param_name] = value
             result = await asyncio.wait_for(
                 run_positive_negative_controls(
-                    site_id=exp.config.site_id,
-                    record_type=exp.config.record_type,
-                    target_search_name=exp.config.search_name,
-                    target_parameters=modified_params,
-                    controls_search_name=exp.config.controls_search_name,
-                    controls_param_name=exp.config.controls_param_name,
+                    IntersectionConfig(
+                        site_id=exp.config.site_id,
+                        record_type=exp.config.record_type,
+                        target_search_name=exp.config.search_name,
+                        target_parameters=modified_params,
+                        controls_search_name=exp.config.controls_search_name,
+                        controls_param_name=exp.config.controls_param_name,
+                        controls_value_format=exp.config.controls_value_format,
+                    ),
                     positive_controls=exp.config.positive_controls or None,
                     negative_controls=exp.config.negative_controls or None,
-                    controls_value_format=exp.config.controls_value_format,
                     skip_cleanup=True,
                 ),
                 timeout=SWEEP_POINT_TIMEOUT_S,
@@ -228,14 +234,16 @@ async def _run_sweep_point_tree(
 
     return await asyncio.wait_for(
         run_controls_against_tree(
-            site_id=exp.config.site_id,
-            record_type=exp.config.record_type,
-            tree=tree,
-            controls_search_name=exp.config.controls_search_name,
-            controls_param_name=exp.config.controls_param_name,
-            controls_value_format=exp.config.controls_value_format,
-            positive_controls=exp.config.positive_controls or None,
-            negative_controls=exp.config.negative_controls or None,
+            ControlsContext(
+                site_id=exp.config.site_id,
+                record_type=exp.config.record_type,
+                controls_search_name=exp.config.controls_search_name,
+                controls_param_name=exp.config.controls_param_name,
+                controls_value_format=exp.config.controls_value_format,
+                positive_controls=exp.config.positive_controls or [],
+                negative_controls=exp.config.negative_controls or [],
+            ),
+            tree,
         ),
         timeout=SWEEP_POINT_TIMEOUT_S,
     )

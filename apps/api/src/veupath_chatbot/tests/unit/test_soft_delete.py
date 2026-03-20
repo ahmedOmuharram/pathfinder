@@ -4,7 +4,10 @@ from uuid import UUID
 
 import pytest
 
-from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.persistence.repositories.stream import (
+    ProjectionUpdate,
+    StreamRepository,
+)
 
 
 class TestDismissProjection:
@@ -20,8 +23,7 @@ class TestDismissProjection:
         )
         await stream_repo.update_projection(
             stream.id,
-            wdk_strategy_id=100,
-            wdk_strategy_id_set=True,
+            ProjectionUpdate(wdk_strategy_id=100, wdk_strategy_id_set=True),
         )
 
         await stream_repo.dismiss(stream.id)
@@ -78,9 +80,11 @@ class TestRestoreProjection:
         )
         await stream_repo.update_projection(
             stream.id,
-            plan={"root": {"searchName": "test"}},
-            wdk_strategy_id=100,
-            wdk_strategy_id_set=True,
+            ProjectionUpdate(
+                plan={"root": {"searchName": "test"}},
+                wdk_strategy_id=100,
+                wdk_strategy_id_set=True,
+            ),
         )
         await stream_repo.dismiss(stream.id)
         await stream_repo.restore(stream.id)

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.services.workbench_chat import orchestrator
 
 
@@ -29,6 +30,12 @@ class TestStartWorkbenchChatStream:
         mock_stream_repo.session = AsyncMock()
         mock_stream_repo.session.commit = AsyncMock()
 
+        context = ChatContext(
+            user_id=user_id,
+            user_repo=mock_user_repo,
+            stream_repo=mock_stream_repo,
+        )
+
         with (
             patch(
                 "veupath_chatbot.services.workbench_chat.orchestrator.emit",
@@ -42,9 +49,7 @@ class TestStartWorkbenchChatStream:
                 message="Interpret these results",
                 site_id="plasmodb",
                 experiment_id="exp-1",
-                user_id=user_id,
-                user_repo=mock_user_repo,
-                stream_repo=mock_stream_repo,
+                context=context,
             )
 
         assert op_id.startswith("op_")
@@ -69,6 +74,12 @@ class TestStartWorkbenchChatStream:
         mock_stream_repo.session = AsyncMock()
         mock_stream_repo.session.commit = AsyncMock()
 
+        context = ChatContext(
+            user_id=user_id,
+            user_repo=mock_user_repo,
+            stream_repo=mock_stream_repo,
+        )
+
         with (
             patch(
                 "veupath_chatbot.services.workbench_chat.orchestrator.emit",
@@ -82,9 +93,7 @@ class TestStartWorkbenchChatStream:
                 message="What are the false positives?",
                 site_id="plasmodb",
                 experiment_id="exp-1",
-                user_id=user_id,
-                user_repo=mock_user_repo,
-                stream_repo=mock_stream_repo,
+                context=context,
             )
 
         assert stream_id == str(existing_stream.id)

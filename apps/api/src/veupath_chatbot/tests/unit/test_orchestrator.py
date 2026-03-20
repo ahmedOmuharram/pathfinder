@@ -13,6 +13,7 @@ import pytest
 from veupath_chatbot.services.chat.orchestrator import (
     start_chat_stream,
 )
+from veupath_chatbot.services.chat.types import ChatContext
 
 # ---------------------------------------------------------------------------
 # start_chat_stream (CQRS version)
@@ -21,6 +22,29 @@ from veupath_chatbot.services.chat.orchestrator import (
 
 def _make_fake_stream(stream_id: UUID | None = None) -> SimpleNamespace:
     return SimpleNamespace(id=stream_id or uuid4())
+
+
+def _make_context(
+    user_id: UUID,
+    stream: Any,
+    *,
+    stream_not_found: bool = False,
+) -> tuple[Any, Any, ChatContext]:
+    user_repo = MagicMock()
+    user_repo.get_or_create = AsyncMock(return_value=None)
+
+    stream_repo = MagicMock()
+    stream_repo.get_by_id = AsyncMock(return_value=None if stream_not_found else stream)
+    stream_repo.create = AsyncMock(return_value=stream)
+    stream_repo.register_operation = AsyncMock()
+    stream_repo.session = AsyncMock()
+
+    context = ChatContext(
+        user_id=user_id,
+        user_repo=user_repo,
+        stream_repo=stream_repo,
+    )
+    return user_repo, stream_repo, context
 
 
 class TestStartChatStream:
@@ -40,15 +64,7 @@ class TestStartChatStream:
     async def test_returns_operation_and_stream_ids(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, _, context = _make_context(user_id, stream)
 
         mock_emit = AsyncMock(return_value="1234-0")
 
@@ -69,9 +85,7 @@ class TestStartChatStream:
                 message="Hello",
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             assert operation_id.startswith("op_")
@@ -81,15 +95,7 @@ class TestStartChatStream:
     async def test_calls_get_or_create_user(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        user_repo, _, context = _make_context(user_id, stream)
 
         with (
             patch(
@@ -108,9 +114,7 @@ class TestStartChatStream:
                 message="Hello",
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             user_repo.get_or_create.assert_called_once_with(user_id)
@@ -119,15 +123,7 @@ class TestStartChatStream:
     async def test_emits_user_message_to_redis(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, _, context = _make_context(user_id, stream)
 
         mock_emit = AsyncMock(return_value="1234-0")
 
@@ -148,9 +144,7 @@ class TestStartChatStream:
                 message="Hello world",
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             # emit was called with user_message type
@@ -164,15 +158,7 @@ class TestStartChatStream:
     async def test_registers_operation(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, stream_repo, context = _make_context(user_id, stream)
 
         with (
             patch(
@@ -191,9 +177,7 @@ class TestStartChatStream:
                 message="Hello",
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             stream_repo.register_operation.assert_called_once_with(
@@ -204,15 +188,9 @@ class TestStartChatStream:
     async def test_creates_stream_when_not_found(self) -> None:
         new_stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=None)
-        stream_repo.create = AsyncMock(return_value=new_stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, stream_repo, context = _make_context(
+            user_id, new_stream, stream_not_found=True
+        )
 
         with (
             patch(
@@ -231,9 +209,7 @@ class TestStartChatStream:
                 message="Hello",
                 site_id="plasmodb",
                 strategy_id=uuid4(),
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             stream_repo.create.assert_called_once()
@@ -243,15 +219,7 @@ class TestStartChatStream:
     async def test_launches_background_producer(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, _, context = _make_context(user_id, stream)
 
         mock_create_task = MagicMock()
 
@@ -273,9 +241,7 @@ class TestStartChatStream:
                 message="Hello",
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             mock_create_task.assert_called_once()
@@ -284,15 +250,7 @@ class TestStartChatStream:
     async def test_selected_nodes_parsed_from_message(self) -> None:
         stream = _make_fake_stream()
         user_id = uuid4()
-
-        user_repo = MagicMock()
-        user_repo.get_or_create = AsyncMock(return_value=None)
-
-        stream_repo = MagicMock()
-        stream_repo.get_by_id = AsyncMock(return_value=stream)
-        stream_repo.create = AsyncMock(return_value=stream)
-        stream_repo.register_operation = AsyncMock()
-        stream_repo.session = AsyncMock()
+        _, _, context = _make_context(user_id, stream)
 
         def capture_create_task(coro: Any) -> MagicMock:
             # Close the coroutine to avoid warnings.
@@ -318,9 +276,7 @@ class TestStartChatStream:
                 message='__NODE__{"stepId":"s1"}\nModify this step',
                 site_id="plasmodb",
                 strategy_id=None,
-                user_id=user_id,
-                user_repo=user_repo,
-                stream_repo=stream_repo,
+                context=context,
             )
 
             # Verify the operation was registered and returned.

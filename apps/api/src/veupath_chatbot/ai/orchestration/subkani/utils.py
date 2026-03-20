@@ -196,13 +196,12 @@ def format_dependency_context(
 ) -> str | None:
     """Format dependency context for a subtask prompt."""
     task_obj = tasks_by_id.get(task_id)
-    if not isinstance(task_obj, dict):
-        return None
-    task_dict = as_json_object(task_obj)
-    deps_value = task_dict.get("depends_on")
-    if not isinstance(deps_value, list):
-        return None
-    deps = as_json_array(deps_value)
+    deps_value = (
+        as_json_object(task_obj).get("depends_on")
+        if isinstance(task_obj, dict)
+        else None
+    )
+    deps = as_json_array(deps_value) if isinstance(deps_value, list) else []
     if not deps:
         return None
 
@@ -246,13 +245,13 @@ def format_task_context(context: JSONValue) -> str | None:
     if context is None:
         return None
     if isinstance(context, str):
-        txt = context.strip()
-        return txt or None
+        return context.strip() or None
     try:
-        return json.dumps(context, ensure_ascii=True, indent=2, sort_keys=True)
+        result = json.dumps(context, ensure_ascii=True, indent=2, sort_keys=True)
     except (TypeError, ValueError) as exc:
         logger.debug("Failed to serialize task context as JSON", error=str(exc))
-        return str(context).strip() or None
+        result = str(context).strip()
+    return result or None
 
 
 def extract_primary_step_id(result: JSONObject | None) -> str | None:
@@ -268,12 +267,15 @@ def extract_primary_step_id(result: JSONObject | None) -> str | None:
     if isinstance(subtree_root, str) and subtree_root:
         return subtree_root
     steps = result.get("steps")
-    if not isinstance(steps, list):
-        return None
-    for step in reversed(steps):
-        if not isinstance(step, dict):
-            continue
-        step_id = step.get("stepId") or step.get("id")
-        if step_id:
-            return str(step_id)
-    return None
+    return (
+        next(
+            (
+                str(step.get("stepId") or step.get("id"))
+                for step in reversed(steps)
+                if isinstance(step, dict) and (step.get("stepId") or step.get("id"))
+            ),
+            None,
+        )
+        if isinstance(steps, list)
+        else None
+    )

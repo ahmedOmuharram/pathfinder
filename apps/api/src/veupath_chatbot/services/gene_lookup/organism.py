@@ -8,6 +8,81 @@ from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
 _MIN_WORDS_FOR_COMPACT_CODE = 2
 
 
+def _compact_code(o: str) -> str:
+    """Compute a compact organism code from organism name words."""
+    o_words = o.split()
+    if len(o_words) < _MIN_WORDS_FOR_COMPACT_CODE:
+        return ""
+    gs_initials = o_words[0][0] + o_words[1][0]
+    strain_part = "".join(o_words[2:])
+    return (gs_initials + strain_part).lower()
+
+
+def _normalise_query_code(q: str) -> str:
+    """Strip spaces/dots/hyphens/underscores and trailing wildcards from a query."""
+    return (
+        q.replace(" ", "")
+        .replace(".", "")
+        .replace("-", "")
+        .replace("_", "")
+        .rstrip("*")
+    )
+
+
+def _match_compact_code(q_nospace: str, compact: str) -> float:
+    """Return score for an exact-or-near match between q_nospace and compact."""
+    if q_nospace == compact:
+        return 0.75
+    if q_nospace.startswith(compact) and len(q_nospace) <= len(compact) + 2:
+        return 0.72
+    return 0.0
+
+
+def _score_underscore_prefix(q: str, compact: str) -> float:
+    """Score match via the first underscore-delimited prefix of the query."""
+    if "_" not in q:
+        return 0.0
+    prefix = q.split("_", 1)[0].replace(".", "").replace("-", "").lower()
+    if prefix == compact:
+        return 0.72
+    return (
+        0.68 if prefix.startswith(compact) and len(prefix) <= len(compact) + 2 else 0.0
+    )
+
+
+def _score_compact_code_match(q: str, o: str) -> float:
+    """Score match against organism compact code (e.g. 'pf3d7' for 'Plasmodium falciparum 3D7')."""
+    compact = _compact_code(o)
+    if not compact:
+        return 0.0
+    q_nospace = _normalise_query_code(q)
+    score = _match_compact_code(q_nospace, compact)
+    return score or _score_underscore_prefix(q, compact)
+
+
+def _score_token_overlap(q_tokens: set[str], o_tokens: set[str]) -> float:
+    """Score token-level overlap between query and organism token sets."""
+    if not q_tokens:
+        return 0.0
+    if q_tokens.issubset(o_tokens):
+        return 0.65
+    return 0.55 if all(any(qt in ot for ot in o_tokens) for qt in q_tokens) else 0.0
+
+
+def _score_literal_match(q: str, o: str) -> float | None:
+    """Return a score if query has an exact/substring/abbreviation match, else None."""
+    if q == o or q in o:
+        return 1.0 if q == o else 0.85
+    abbrev_match = re.match(r"^([a-z])\.?\s+(.+)$", q)
+    if (
+        abbrev_match
+        and o.startswith(abbrev_match.group(1))
+        and abbrev_match.group(2) in o
+    ):
+        return 0.80
+    return None
+
+
 def score_organism_match(query: str, organism: str) -> float:
     """Score how well *query* matches *organism* (0.0 = no match, 1.0 = exact).
 
@@ -19,52 +94,17 @@ def score_organism_match(query: str, organism: str) -> float:
 
     if not q or not o:
         return 0.0
-    if q == o:
-        return 1.0
-    if q in o:
-        return 0.85
 
-    abbrev_match = re.match(r"^([a-z])\.?\s+(.+)$", q)
-    if abbrev_match:
-        genus_initial = abbrev_match.group(1)
-        rest = abbrev_match.group(2)
-        if o.startswith(genus_initial) and rest in o:
-            return 0.80
+    literal = _score_literal_match(q, o)
+    if literal is not None:
+        return literal
 
-    o_words = o.split()
-    if len(o_words) >= _MIN_WORDS_FOR_COMPACT_CODE:
-        gs_initials = o_words[0][0] + o_words[1][0]
-        strain_part = "".join(o_words[2:])
-        compact = (gs_initials + strain_part).lower()
-        q_nospace = (
-            q.replace(" ", "")
-            .replace(".", "")
-            .replace("-", "")
-            .replace("_", "")
-            .rstrip("*")
-        )
-
-        if q_nospace == compact:
-            return 0.75
-        if q_nospace.startswith(compact) and len(q_nospace) <= len(compact) + 2:
-            return 0.72
-
-        if "_" in q:
-            prefix = q.split("_", 1)[0].replace(".", "").replace("-", "").lower()
-            if prefix == compact:
-                return 0.72
-            if prefix.startswith(compact) and len(prefix) <= len(compact) + 2:
-                return 0.68
-
-    q_tokens = set(q.split())
-    o_tokens = set(o.split())
-    if q_tokens and q_tokens.issubset(o_tokens):
-        return 0.65
-
-    if q_tokens and all(any(qt in ot for ot in o_tokens) for qt in q_tokens):
-        return 0.55
-
-    return 0.0
+    compact_score = _score_compact_code_match(q, o)
+    return (
+        compact_score
+        if compact_score > 0
+        else _score_token_overlap(set(q.split()), set(o.split()))
+    )
 
 
 def suggest_organisms(

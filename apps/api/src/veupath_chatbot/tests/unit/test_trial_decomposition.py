@@ -573,7 +573,7 @@ class TestRunTrialLoopIntegration:
     async def test_cancellation(self) -> None:
         call_count = 0
 
-        async def _counting_wdk(**kwargs: Any) -> JSONObject:
+        async def _counting_wdk(_config: Any, **kwargs: Any) -> JSONObject:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)

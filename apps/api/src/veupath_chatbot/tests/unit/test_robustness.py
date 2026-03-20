@@ -4,6 +4,7 @@ import random
 from collections import defaultdict
 
 from veupath_chatbot.services.experiment.robustness import (
+    BootstrapOptions,
     _ci_from_samples,
     _collect_classification_metrics,
     _mean_jaccard,
@@ -137,8 +138,7 @@ class TestComputeRobustness:
             result_ids,
             positive_ids,
             negative_ids,
-            n_bootstrap=10,
-            seed=42,
+            BootstrapOptions(n_bootstrap=10, seed=42),
         )
         assert br.n_iterations == 10
         assert "sensitivity" in br.metric_cis
@@ -154,9 +154,7 @@ class TestComputeRobustness:
             result_ids,
             positive_ids,
             negative_ids,
-            n_bootstrap=10,
-            k_values=[10],
-            seed=42,
+            BootstrapOptions(n_bootstrap=10, k_values=[10], seed=42),
         )
         assert "precision_at_10" in br.rank_metric_cis
         assert "recall_at_10" in br.rank_metric_cis
@@ -170,8 +168,7 @@ class TestComputeRobustness:
             result_ids,
             positive_ids,
             negative_ids,
-            n_bootstrap=20,
-            seed=42,
+            BootstrapOptions(n_bootstrap=20, seed=42),
         )
         assert 0.0 <= br.top_k_stability <= 1.0
 
@@ -181,8 +178,12 @@ class TestComputeRobustness:
             ["g1", "g2"],
             ["n1"],
         )
-        br1 = compute_robustness(*args, n_bootstrap=50, seed=123)
-        br2 = compute_robustness(*args, n_bootstrap=50, seed=123)
+        br1 = compute_robustness(
+            *args, options=BootstrapOptions(n_bootstrap=50, seed=123)
+        )
+        br2 = compute_robustness(
+            *args, options=BootstrapOptions(n_bootstrap=50, seed=123)
+        )
         assert br1.metric_cis["sensitivity"].mean == br2.metric_cis["sensitivity"].mean
 
     def test_skip_rank_metrics(self) -> None:
@@ -191,9 +192,7 @@ class TestComputeRobustness:
             result_ids,
             ["g1"],
             ["n1"],
-            n_bootstrap=10,
-            include_rank_metrics=False,
-            seed=42,
+            BootstrapOptions(n_bootstrap=10, include_rank_metrics=False, seed=42),
         )
         assert br.rank_metric_cis == {}
         assert br.top_k_stability == 0.0
@@ -208,9 +207,7 @@ class TestComputeRobustness:
             result_ids,
             positive_ids,
             negative_ids,
-            n_bootstrap=10,
-            seed=42,
-            alternative_negatives=alt_negs,
+            BootstrapOptions(n_bootstrap=10, seed=42, alternative_negatives=alt_negs),
         )
         assert len(br.negative_set_sensitivity) == 1
         assert br.negative_set_sensitivity[0].label == "random"

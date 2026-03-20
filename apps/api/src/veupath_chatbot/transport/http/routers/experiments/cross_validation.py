@@ -8,8 +8,10 @@ from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.cross_validation import (
+    CrossValidationOptions,
     run_cross_validation,
 )
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
@@ -28,22 +30,27 @@ async def run_cv(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Run cross-validation on an existing experiment."""
+    ctx = ControlsContext(
+        site_id=exp.config.site_id,
+        record_type=exp.config.record_type,
+        controls_search_name=exp.config.controls_search_name,
+        controls_param_name=exp.config.controls_param_name,
+        controls_value_format=exp.config.controls_value_format,
+        positive_controls=exp.config.positive_controls or [],
+        negative_controls=exp.config.negative_controls or [],
+    )
     try:
         cv = await run_cross_validation(
-            site_id=exp.config.site_id,
-            record_type=exp.config.record_type,
-            controls_search_name=exp.config.controls_search_name,
-            controls_param_name=exp.config.controls_param_name,
-            controls_value_format=exp.config.controls_value_format,
-            positive_controls=exp.config.positive_controls,
-            negative_controls=exp.config.negative_controls,
+            ctx,
             tree=(
                 exp.config.step_tree if isinstance(exp.config.step_tree, dict) else None
             ),
             search_name=exp.config.search_name if not exp.config.is_tree_mode else None,
             parameters=exp.config.parameters if not exp.config.is_tree_mode else None,
-            k=request.k_folds,
-            full_metrics=exp.metrics,
+            options=CrossValidationOptions(
+                k=request.k_folds,
+                full_metrics=exp.metrics,
+            ),
         )
     except WDKError:
         raise

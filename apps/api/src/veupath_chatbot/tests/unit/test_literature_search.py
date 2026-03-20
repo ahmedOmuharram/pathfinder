@@ -5,16 +5,22 @@ function tests for dedupe_key, passes_filters, limit_authors, truncate_text,
 and rerank_score.
 """
 
+from dataclasses import dataclass, field
 from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+from veupath_chatbot.domain.research.citations import (
+    LiteratureFilters,
+    LiteratureOutputOptions,
+)
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.research.literature_search import (
     LiteratureSearchService,
 )
 from veupath_chatbot.services.research.utils import (
+    LiteratureItemContext,
     dedupe_key,
     limit_authors,
     passes_filters,
@@ -27,31 +33,36 @@ from veupath_chatbot.services.research.utils import (
 # ---------------------------------------------------------------------------
 
 
-def _result(
-    *,
-    title: str = "Paper",
-    doi: str | None = "10.1234/test",
-    pmid: str | None = None,
-    year: int | None = 2022,
-    authors: list[str] | None = None,
-    abstract: str | None = None,
-    journal: str | None = None,
-    url: str | None = None,
-) -> JSONObject:
+@dataclass
+class _ResultSpec:
+    title: str = "Paper"
+    doi: str | None = "10.1234/test"
+    pmid: str | None = None
+    year: int | None = 2022
+    authors: list[str] | None = field(default=None)
+    abstract: str | None = None
+    journal: str | None = None
+    url: str | None = None
+
+
+_DEFAULT_RESULT_SPEC = _ResultSpec()
+
+
+def _result(spec: _ResultSpec = _DEFAULT_RESULT_SPEC) -> JSONObject:
     """Build a minimal result dict."""
-    r: JSONObject = {"title": title, "year": year}
-    if doi is not None:
-        r["doi"] = doi
-    if pmid is not None:
-        r["pmid"] = pmid
-    if authors is not None:
-        r["authors"] = cast("JSONValue", authors)
-    if abstract is not None:
-        r["abstract"] = abstract
-    if journal is not None:
-        r["journalTitle"] = journal
-    if url is not None:
-        r["url"] = url
+    r: JSONObject = {"title": spec.title, "year": spec.year}
+    if spec.doi is not None:
+        r["doi"] = spec.doi
+    if spec.pmid is not None:
+        r["pmid"] = spec.pmid
+    if spec.authors is not None:
+        r["authors"] = cast("JSONValue", spec.authors)
+    if spec.abstract is not None:
+        r["abstract"] = spec.abstract
+    if spec.journal is not None:
+        r["journalTitle"] = spec.journal
+    if spec.url is not None:
+        r["url"] = spec.url
     return r
 
 
@@ -138,7 +149,7 @@ class TestSingleSourceDispatch:
     async def test_single_source_calls_only_that_client(self) -> None:
         svc = _make_service()
         payload = _source_payload(
-            [_result(title="Malaria paper", doi="10.1/epmc")],
+            [_result(_ResultSpec(title="Malaria paper", doi="10.1/epmc"))],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
@@ -195,7 +206,7 @@ class TestErrorTolerance:
     async def test_one_provider_fails_others_succeed(self) -> None:
         svc = _make_service()
         good_payload = _source_payload(
-            [_result(title="Good paper", doi="10.1/good")],
+            [_result(_ResultSpec(title="Good paper", doi="10.1/good"))],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", good_payload)
@@ -231,11 +242,11 @@ class TestDeduplicationByDoi:
         svc = _make_service()
         shared_doi = "10.1234/shared"
         epmc_payload = _source_payload(
-            [_result(title="Paper from EPMC", doi=shared_doi)],
+            [_result(_ResultSpec(title="Paper from EPMC", doi=shared_doi))],
             source="europepmc",
         )
         crossref_payload = _source_payload(
-            [_result(title="Paper from Crossref", doi=shared_doi)],
+            [_result(_ResultSpec(title="Paper from Crossref", doi=shared_doi))],
             source="crossref",
         )
         _patch_client(svc, "_europepmc", epmc_payload)
@@ -264,11 +275,11 @@ class TestDeduplicationByPmid:
     async def test_same_pmid_deduped(self) -> None:
         svc = _make_service()
         epmc_payload = _source_payload(
-            [_result(title="From EPMC", doi=None, pmid="99999")],
+            [_result(_ResultSpec(title="From EPMC", doi=None, pmid="99999"))],
             source="europepmc",
         )
         pubmed_payload = _source_payload(
-            [_result(title="From Pubmed", doi=None, pmid="99999")],
+            [_result(_ResultSpec(title="From Pubmed", doi=None, pmid="99999"))],
             source="pubmed",
         )
         _patch_client(svc, "_europepmc", epmc_payload)
@@ -298,9 +309,9 @@ class TestYearFiltering:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="Old", doi="10.1/old", year=2018),
-                _result(title="In range", doi="10.1/ok", year=2021),
-                _result(title="Too new", doi="10.1/new", year=2025),
+                _result(_ResultSpec(title="Old", doi="10.1/old", year=2018)),
+                _result(_ResultSpec(title="In range", doi="10.1/ok", year=2021)),
+                _result(_ResultSpec(title="Too new", doi="10.1/new", year=2025)),
             ],
             source="europepmc",
         )
@@ -309,8 +320,7 @@ class TestYearFiltering:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            year_from=2020,
-            year_to=2023,
+            filters=LiteratureFilters(year_from=2020, year_to=2023),
         )
 
         results = result["results"]
@@ -330,8 +340,16 @@ class TestAuthorFiltering:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="By Smith", doi="10.1/smith", authors=["John Smith"]),
-                _result(title="By Jones", doi="10.1/jones", authors=["Jane Jones"]),
+                _result(
+                    _ResultSpec(
+                        title="By Smith", doi="10.1/smith", authors=["John Smith"]
+                    )
+                ),
+                _result(
+                    _ResultSpec(
+                        title="By Jones", doi="10.1/jones", authors=["Jane Jones"]
+                    )
+                ),
             ],
             source="europepmc",
         )
@@ -340,7 +358,7 @@ class TestAuthorFiltering:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            author_includes="Smith",
+            filters=LiteratureFilters(author_includes="Smith"),
         )
 
         results = result["results"]
@@ -360,8 +378,8 @@ class TestTitleFiltering:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="Malaria vaccine trial", doi="10.1/m"),
-                _result(title="Cancer treatment", doi="10.1/c"),
+                _result(_ResultSpec(title="Malaria vaccine trial", doi="10.1/m")),
+                _result(_ResultSpec(title="Cancer treatment", doi="10.1/c")),
             ],
             source="europepmc",
         )
@@ -370,7 +388,7 @@ class TestTitleFiltering:
         result = await svc.search(
             "vaccine",
             source="europepmc",
-            title_includes="malaria",
+            filters=LiteratureFilters(title_includes="malaria"),
         )
 
         results = result["results"]
@@ -391,8 +409,8 @@ class TestDoiExactMatch:
         target_doi = "10.1234/target"
         payload = _source_payload(
             [
-                _result(title="Target", doi=target_doi),
-                _result(title="Other", doi="10.1234/other"),
+                _result(_ResultSpec(title="Target", doi=target_doi)),
+                _result(_ResultSpec(title="Other", doi="10.1234/other")),
             ],
             source="europepmc",
         )
@@ -401,7 +419,7 @@ class TestDoiExactMatch:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            doi_equals=target_doi,
+            filters=LiteratureFilters(doi_equals=target_doi),
         )
 
         results = result["results"]
@@ -421,17 +439,17 @@ class TestRequireDoi:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="Has DOI", doi="10.1/yes"),
-                _result(title="No DOI", doi=None, url="http://example.com"),
+                _result(_ResultSpec(title="Has DOI", doi="10.1/yes")),
+                _result(
+                    _ResultSpec(title="No DOI", doi=None, url="http://example.com")
+                ),
             ],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
 
         result = await svc.search(
-            "malaria",
-            source="europepmc",
-            require_doi=True,
+            "malaria", source="europepmc", filters=LiteratureFilters(require_doi=True)
         )
 
         results = result["results"]
@@ -451,9 +469,9 @@ class TestSortByNewest:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="Old", doi="10.1/a", year=2015),
-                _result(title="Newest", doi="10.1/b", year=2025),
-                _result(title="Mid", doi="10.1/c", year=2020),
+                _result(_ResultSpec(title="Old", doi="10.1/a", year=2015)),
+                _result(_ResultSpec(title="Newest", doi="10.1/b", year=2025)),
+                _result(_ResultSpec(title="Mid", doi="10.1/c", year=2020)),
             ],
             source="europepmc",
         )
@@ -478,8 +496,8 @@ class TestSortByRelevance:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="malaria vaccine efficacy", doi="10.1/a"),
-                _result(title="unrelated topic", doi="10.1/b"),
+                _result(_ResultSpec(title="malaria vaccine efficacy", doi="10.1/a")),
+                _result(_ResultSpec(title="unrelated topic", doi="10.1/b")),
             ],
             source="europepmc",
         )
@@ -509,7 +527,7 @@ class TestSortByRelevance:
     async def test_relevance_no_scores_for_single_source(self) -> None:
         svc = _make_service()
         payload = _source_payload(
-            [_result(title="Paper", doi="10.1/a")],
+            [_result(_ResultSpec(title="Paper", doi="10.1/a"))],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
@@ -535,7 +553,9 @@ class TestSortByRelevance:
 class TestLimit:
     async def test_limit_caps_results(self) -> None:
         svc = _make_service()
-        many_results = [_result(title=f"Paper {i}", doi=f"10.1/{i}") for i in range(10)]
+        many_results = [
+            _result(_ResultSpec(title=f"Paper {i}", doi=f"10.1/{i}")) for i in range(10)
+        ]
         payload = _source_payload(many_results, source="europepmc")
         _patch_client(svc, "_europepmc", payload)
 
@@ -554,8 +574,8 @@ class TestLimit:
 class TestCitationOrdering:
     async def test_citations_match_result_order(self) -> None:
         svc = _make_service()
-        r1 = _result(title="First", doi="10.1/first")
-        r2 = _result(title="Second", doi="10.1/second")
+        r1 = _result(_ResultSpec(title="First", doi="10.1/first"))
+        r2 = _result(_ResultSpec(title="Second", doi="10.1/second"))
         c1 = _citation(title="First", doi="10.1/first")
         c2 = _citation(title="Second", doi="10.1/second")
         payload = _source_payload([r1, r2], citations=[c1, c2], source="europepmc")
@@ -587,16 +607,22 @@ class TestAuthorLimiting:
         payload = _source_payload(
             [
                 _result(
-                    title="Multi-author",
-                    doi="10.1/multi",
-                    authors=["Alice", "Bob", "Carol", "Dave"],
+                    _ResultSpec(
+                        title="Multi-author",
+                        doi="10.1/multi",
+                        authors=["Alice", "Bob", "Carol", "Dave"],
+                    )
                 ),
             ],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
 
-        result = await svc.search("malaria", source="europepmc", max_authors=2)
+        result = await svc.search(
+            "malaria",
+            source="europepmc",
+            options=LiteratureOutputOptions(max_authors=2),
+        )
 
         results = result["results"]
         assert isinstance(results, list)
@@ -621,7 +647,11 @@ class TestAbstractTruncation:
         svc = _make_service()
         long_abstract = "A" * 5000
         payload = _source_payload(
-            [_result(title="Paper", doi="10.1/abs", abstract=long_abstract)],
+            [
+                _result(
+                    _ResultSpec(title="Paper", doi="10.1/abs", abstract=long_abstract)
+                )
+            ],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
@@ -629,8 +659,9 @@ class TestAbstractTruncation:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            include_abstract=True,
-            abstract_max_chars=500,
+            options=LiteratureOutputOptions(
+                include_abstract=True, abstract_max_chars=500
+            ),
         )
 
         results = result["results"]
@@ -646,7 +677,13 @@ class TestAbstractTruncation:
         svc = _make_service()
         short_abstract = "This is a short abstract."
         payload = _source_payload(
-            [_result(title="Paper", doi="10.1/short", abstract=short_abstract)],
+            [
+                _result(
+                    _ResultSpec(
+                        title="Paper", doi="10.1/short", abstract=short_abstract
+                    )
+                )
+            ],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
@@ -654,8 +691,9 @@ class TestAbstractTruncation:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            include_abstract=True,
-            abstract_max_chars=2000,
+            options=LiteratureOutputOptions(
+                include_abstract=True, abstract_max_chars=2000
+            ),
         )
 
         results = result["results"]
@@ -723,236 +761,273 @@ class TestDedupeKey:
 class TestPassesFilters:
     def test_no_filters_passes(self) -> None:
         assert passes_filters(
-            title="Paper",
-            authors=None,
-            year=2022,
-            doi="10.1/x",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Paper",
+                authors=None,
+                year=2022,
+                doi="10.1/x",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_year_from_rejects_old(self) -> None:
         assert not passes_filters(
-            title="Old",
-            authors=None,
-            year=2010,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=2015,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Old", authors=None, year=2010, doi=None, pmid=None, journal=None
+            ),
+            LiteratureFilters(
+                year_from=2015,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_year_to_rejects_new(self) -> None:
         assert not passes_filters(
-            title="New",
-            authors=None,
-            year=2025,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=2023,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="New", authors=None, year=2025, doi=None, pmid=None, journal=None
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=2023,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_year_none_rejected_by_year_from(self) -> None:
         assert not passes_filters(
-            title="No year",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=2020,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="No year",
+                authors=None,
+                year=None,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=2020,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_require_doi_rejects_none(self) -> None:
         assert not passes_filters(
-            title="No DOI",
-            authors=None,
-            year=2022,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=True,
+            LiteratureItemContext(
+                title="No DOI",
+                authors=None,
+                year=2022,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=True,
+            ),
         )
 
     def test_doi_equals_exact(self) -> None:
         assert passes_filters(
-            title="X",
-            authors=None,
-            year=2022,
-            doi="10.1/match",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals="10.1/match",
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="X",
+                authors=None,
+                year=2022,
+                doi="10.1/match",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals="10.1/match",
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_doi_equals_case_insensitive(self) -> None:
         assert passes_filters(
-            title="X",
-            authors=None,
-            year=2022,
-            doi="10.1/MATCH",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals="10.1/match",
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="X",
+                authors=None,
+                year=2022,
+                doi="10.1/MATCH",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals="10.1/match",
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_doi_equals_rejects_mismatch(self) -> None:
         assert not passes_filters(
-            title="X",
-            authors=None,
-            year=2022,
-            doi="10.1/other",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals="10.1/match",
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="X",
+                authors=None,
+                year=2022,
+                doi="10.1/other",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals="10.1/match",
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_pmid_equals(self) -> None:
         assert passes_filters(
-            title="X",
-            authors=None,
-            year=2022,
-            doi=None,
-            pmid="12345",
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals="12345",
-            require_doi=False,
+            LiteratureItemContext(
+                title="X", authors=None, year=2022, doi=None, pmid="12345", journal=None
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals="12345",
+                require_doi=False,
+            ),
         )
 
     def test_title_includes_case_insensitive(self) -> None:
         assert passes_filters(
-            title="Malaria Vaccine Trial",
-            authors=None,
-            year=2022,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes="malaria",
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Malaria Vaccine Trial",
+                authors=None,
+                year=2022,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes="malaria",
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_journal_includes(self) -> None:
         assert passes_filters(
-            title="Paper",
-            authors=None,
-            year=2022,
-            doi=None,
-            pmid=None,
-            journal="Nature Medicine",
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes="nature",
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Paper",
+                authors=None,
+                year=2022,
+                doi=None,
+                pmid=None,
+                journal="Nature Medicine",
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes="nature",
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_author_includes_substring(self) -> None:
         assert passes_filters(
-            title="Paper",
-            authors=["John Smith", "Jane Doe"],
-            year=2022,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes="Smith",
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Paper",
+                authors=["John Smith", "Jane Doe"],
+                year=2022,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes="Smith",
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_author_includes_no_match(self) -> None:
         assert not passes_filters(
-            title="Paper",
-            authors=["John Smith"],
-            year=2022,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes="Jones",
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="Paper",
+                authors=["John Smith"],
+                year=2022,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes="Jones",
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
 
@@ -1079,9 +1154,15 @@ class TestSearchCombinedFilters:
         svc = _make_service()
         payload = _source_payload(
             [
-                _result(title="P1", doi="10.1/p1", year=2021, authors=["Smith"]),
-                _result(title="P2", doi="10.1/p2", year=2018, authors=["Smith"]),
-                _result(title="P3", doi="10.1/p3", year=2021, authors=["Jones"]),
+                _result(
+                    _ResultSpec(title="P1", doi="10.1/p1", year=2021, authors=["Smith"])
+                ),
+                _result(
+                    _ResultSpec(title="P2", doi="10.1/p2", year=2018, authors=["Smith"])
+                ),
+                _result(
+                    _ResultSpec(title="P3", doi="10.1/p3", year=2021, authors=["Jones"])
+                ),
             ],
             source="europepmc",
         )
@@ -1090,8 +1171,7 @@ class TestSearchCombinedFilters:
         result = await svc.search(
             "test",
             source="europepmc",
-            year_from=2020,
-            author_includes="Smith",
+            filters=LiteratureFilters(year_from=2020, author_includes="Smith"),
         )
 
         results = result["results"]
@@ -1103,7 +1183,7 @@ class TestSearchCombinedFilters:
     async def test_response_includes_filters_metadata(self) -> None:
         svc = _make_service()
         payload = _source_payload(
-            [_result(title="Paper", doi="10.1/x")],
+            [_result(_ResultSpec(title="Paper", doi="10.1/x"))],
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
@@ -1111,9 +1191,7 @@ class TestSearchCombinedFilters:
         result = await svc.search(
             "malaria",
             source="europepmc",
-            year_from=2020,
-            year_to=2024,
-            require_doi=True,
+            filters=LiteratureFilters(year_from=2020, year_to=2024, require_doi=True),
         )
 
         filters = result.get("filters")

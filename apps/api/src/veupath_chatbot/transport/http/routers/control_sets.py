@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.persistence.models import ControlSet
+from veupath_chatbot.persistence.repositories.control_set import ControlSetCreate
 from veupath_chatbot.platform.errors import NotFoundError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.transport.http.deps import ControlSetRepo, CurrentUser
@@ -123,16 +124,18 @@ async def create_control_set(
 ) -> ControlSetResponse:
     """Create a new control set."""
     cs = await repo.create(
-        name=body.name,
-        site_id=body.site_id,
-        record_type=body.record_type,
-        positive_ids=body.positive_ids,
-        negative_ids=body.negative_ids,
-        source=body.source,
-        tags=body.tags,
-        provenance_notes=body.provenance_notes,
-        is_public=body.is_public,
-        user_id=user_id,
+        ControlSetCreate(
+            name=body.name,
+            site_id=body.site_id,
+            record_type=body.record_type,
+            positive_ids=body.positive_ids,
+            negative_ids=body.negative_ids,
+            source=body.source,
+            tags=body.tags or [],
+            provenance_notes=body.provenance_notes,
+            is_public=body.is_public,
+            user_id=user_id,
+        )
     )
     return _serialize(cs)
 

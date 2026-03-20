@@ -13,7 +13,7 @@ from kani import ChatMessage
 from kani.internal import FunctionCallResult
 from kani.models import FunctionCall
 
-from veupath_chatbot.ai.agents.executor import PathfinderAgent
+from veupath_chatbot.ai.agents.executor import AgentContext, PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.compile import (
@@ -32,7 +32,7 @@ def _make_agent(*, site_id: str = "plasmodb") -> PathfinderAgent:
     """Create a PathfinderAgent with a MockEngine and event queue."""
     agent = PathfinderAgent(
         engine=MockEngine(site_id=site_id),
-        site_id=site_id,
+        context=AgentContext(site_id=site_id),
     )
     agent.event_queue = asyncio.Queue()
     return agent

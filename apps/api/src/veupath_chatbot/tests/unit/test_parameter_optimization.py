@@ -13,6 +13,7 @@ import pytest
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.parameter_optimization import (
     OptimizationConfig,
+    OptimizationInput,
     OptimizationResult,
     ParameterSpec,
     TrialResult,
@@ -80,16 +81,23 @@ def _make_wdk_result(
     }
 
 
-COMMON_KWARGS: dict[str, Any] = {
-    "site_id": "plasmodb",
-    "record_type": "transcript",
-    "search_name": "TestSearch",
-    "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
-    "controls_search_name": "GeneByLocusTag",
-    "controls_param_name": "ds_gene_ids",
-    "positive_controls": [f"POS_{i}" for i in range(10)],
-    "negative_controls": [f"NEG_{i}" for i in range(8)],
-}
+def _common_inp(
+    parameter_space: list[ParameterSpec],
+    **overrides: Any,
+) -> OptimizationInput:
+    """Build a minimal OptimizationInput for testing with optional overrides."""
+    defaults: dict[str, Any] = {
+        "site_id": "plasmodb",
+        "record_type": "transcript",
+        "search_name": "TestSearch",
+        "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
+        "controls_search_name": "GeneByLocusTag",
+        "controls_param_name": "ds_gene_ids",
+        "positive_controls": [f"POS_{i}" for i in range(10)],
+        "negative_controls": [f"NEG_{i}" for i in range(8)],
+    }
+    defaults.update(overrides)
+    return OptimizationInput(parameter_space=parameter_space, **defaults)
 
 
 class TestComputeScore:
@@ -307,8 +315,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -331,8 +338,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -356,8 +362,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -370,7 +375,7 @@ class TestOptimizeSearchParameters:
         """Some trials succeed, some fail → bestTrial from successful ones."""
         call_count = 0
 
-        async def _mixed_wdk(**kwargs: Any) -> JSONObject:
+        async def _mixed_wdk(*args: Any, **kwargs: Any) -> JSONObject:
             nonlocal call_count
             call_count += 1
             if call_count % 2 == 0:
@@ -387,8 +392,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, _mixed_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -406,7 +410,7 @@ class TestOptimizeSearchParameters:
         """Cancel after a few trials → status 'cancelled', partial results."""
         call_count = 0
 
-        async def _slow_wdk(**kwargs: Any) -> JSONObject:
+        async def _slow_wdk(*args: Any, **kwargs: Any) -> JSONObject:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)
@@ -429,8 +433,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, _slow_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 check_cancelled=lambda: call_count >= cancel_after,
             )
@@ -457,8 +460,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 progress_callback=capture_event,
             )
@@ -490,8 +492,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
                 progress_callback=capture_event,
             )
@@ -527,8 +528,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -551,8 +551,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -573,8 +572,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -595,8 +593,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -617,8 +614,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -637,12 +633,10 @@ class TestOptimizeSearchParameters:
             )
         ]
         cfg = OptimizationConfig(budget=3, objective="f1", method="random")
-        kwargs = {**COMMON_KWARGS, "positive_controls": None, "negative_controls": None}
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **kwargs,
-                parameter_space=specs,
+                _common_inp(specs, positive_controls=None, negative_controls=None),
                 config=cfg,
             )
 
@@ -661,8 +655,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -686,8 +679,7 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             result = await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
@@ -709,13 +701,13 @@ class TestOptimizeSearchParameters:
 
         with patch(WDK_PATCH, mock_wdk):
             await optimize_search_parameters(
-                **COMMON_KWARGS,
-                parameter_space=specs,
+                _common_inp(specs),
                 config=cfg,
             )
 
         # Check the WDK was called with merged params
-        call_kwargs = mock_wdk.call_args.kwargs
-        target_params = call_kwargs["target_parameters"]
+        # run_positive_negative_controls takes IntersectionConfig as first positional arg
+        call_config = mock_wdk.call_args.args[0]
+        target_params = call_config.target_parameters
         assert "organism" in target_params  # from fixed_parameters
         assert "fold_change" in target_params  # from optimised params

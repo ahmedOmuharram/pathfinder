@@ -22,10 +22,10 @@ def _make_metrics(
     fp: int = 2,
     fn: int = 2,
     tn: int = 18,
-    precision: float = 0.8,
-    recall: float = 0.8,
-    specificity: float = 0.9,
 ) -> ExperimentMetrics:
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
     return ExperimentMetrics(
         confusion_matrix=ConfusionMatrix(
             true_positives=tp,
@@ -189,7 +189,7 @@ class TestSelectMetric:
         assert abs(result - expected) < 1e-10
 
     def test_f1_zero_denom(self) -> None:
-        m = _make_metrics(precision=0.0, recall=0.0)
+        m = _make_metrics(tp=0, fp=2, fn=2, tn=18)
         assert _select_metric("f1", metrics=m, enrichment=2.0) == 0.0
 
     def test_mcc_objective(self) -> None:
@@ -199,9 +199,7 @@ class TestSelectMetric:
         assert abs(result - expected) < 1e-10
 
     def test_mcc_zero_denom(self) -> None:
-        m = _make_metrics(
-            tp=0, fp=0, fn=0, tn=0, precision=0.0, recall=0.0, specificity=0.0
-        )
+        m = _make_metrics(tp=0, fp=0, fn=0, tn=0)
         assert _select_metric("mcc", metrics=m, enrichment=2.0) == 0.0
 
     def test_unknown_objective_defaults_to_precision(self) -> None:

@@ -3,7 +3,9 @@
 import httpx
 import respx
 
+from veupath_chatbot.domain.research.citations import LiteratureFilters
 from veupath_chatbot.services.research.utils import (
+    LiteratureItemContext,
     candidate_queries,
     decode_ddg_redirect,
     dedupe_key,
@@ -309,79 +311,143 @@ class TestRerankScore:
 # ---------------------------------------------------------------------------
 
 
-class TestPassesFilters:
-    def _defaults(self, **overrides: object) -> dict:
-        base = {
-            "title": "Test",
-            "authors": None,
-            "year": 2020,
-            "doi": "10.1234/x",
-            "pmid": "123",
-            "journal": "Nature",
-            "year_from": None,
-            "year_to": None,
-            "author_includes": None,
-            "title_includes": None,
-            "journal_includes": None,
-            "doi_equals": None,
-            "pmid_equals": None,
-            "require_doi": False,
-        }
-        base.update(overrides)
-        return base
+_DEFAULT_ITEM = LiteratureItemContext(
+    title="Test",
+    authors=None,
+    year=2020,
+    doi="10.1234/x",
+    pmid="123",
+    journal="Nature",
+)
 
+
+class TestPassesFilters:
     def test_passes_with_no_filters(self) -> None:
-        assert passes_filters(**self._defaults()) is True
+        assert passes_filters(_DEFAULT_ITEM, LiteratureFilters()) is True
 
     def test_year_from_filter(self) -> None:
-        assert passes_filters(**self._defaults(year_from=2019)) is True
-        assert passes_filters(**self._defaults(year_from=2021)) is False
+        assert passes_filters(_DEFAULT_ITEM, LiteratureFilters(year_from=2019)) is True
+        assert passes_filters(_DEFAULT_ITEM, LiteratureFilters(year_from=2021)) is False
 
     def test_year_to_filter(self) -> None:
-        assert passes_filters(**self._defaults(year_to=2021)) is True
-        assert passes_filters(**self._defaults(year_to=2019)) is False
+        assert passes_filters(_DEFAULT_ITEM, LiteratureFilters(year_to=2021)) is True
+        assert passes_filters(_DEFAULT_ITEM, LiteratureFilters(year_to=2019)) is False
 
     def test_year_none_fails_year_filter(self) -> None:
-        assert passes_filters(**self._defaults(year=None, year_from=2019)) is False
+        item = LiteratureItemContext(
+            title="Test",
+            authors=None,
+            year=None,
+            doi="10.1234/x",
+            pmid="123",
+            journal="Nature",
+        )
+        assert passes_filters(item, LiteratureFilters(year_from=2019)) is False
 
     def test_require_doi(self) -> None:
-        assert passes_filters(**self._defaults(require_doi=True)) is True
-        assert passes_filters(**self._defaults(require_doi=True, doi=None)) is False
-        assert passes_filters(**self._defaults(require_doi=True, doi="")) is False
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(require_doi=True)) is True
+        )
+        item_no_doi = LiteratureItemContext(
+            title="Test",
+            authors=None,
+            year=2020,
+            doi=None,
+            pmid="123",
+            journal="Nature",
+        )
+        assert passes_filters(item_no_doi, LiteratureFilters(require_doi=True)) is False
+        item_empty_doi = LiteratureItemContext(
+            title="Test", authors=None, year=2020, doi="", pmid="123", journal="Nature"
+        )
+        assert (
+            passes_filters(item_empty_doi, LiteratureFilters(require_doi=True)) is False
+        )
 
     def test_doi_equals(self) -> None:
-        assert passes_filters(**self._defaults(doi_equals="10.1234/x")) is True
-        assert passes_filters(**self._defaults(doi_equals="10.9999/y")) is False
-
-    def test_pmid_equals(self) -> None:
-        assert passes_filters(**self._defaults(pmid_equals="123")) is True
-        assert passes_filters(**self._defaults(pmid_equals="999")) is False
-
-    def test_title_includes(self) -> None:
-        assert passes_filters(**self._defaults(title_includes="test")) is True
-        assert passes_filters(**self._defaults(title_includes="absent")) is False
-
-    def test_journal_includes(self) -> None:
-        assert passes_filters(**self._defaults(journal_includes="nature")) is True
-        assert passes_filters(**self._defaults(journal_includes="science")) is False
-
-    def test_author_includes(self) -> None:
         assert (
-            passes_filters(
-                **self._defaults(
-                    authors=["Alice Smith", "Bob"], author_includes="alice"
-                )
-            )
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(doi_equals="10.1234/x"))
             is True
         )
         assert (
-            passes_filters(**self._defaults(authors=["Alice"], author_includes="bob"))
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(doi_equals="10.9999/y"))
+            is False
+        )
+
+    def test_pmid_equals(self) -> None:
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(pmid_equals="123")) is True
+        )
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(pmid_equals="999")) is False
+        )
+
+    def test_title_includes(self) -> None:
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(title_includes="test"))
+            is True
+        )
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(title_includes="absent"))
+            is False
+        )
+
+    def test_journal_includes(self) -> None:
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(journal_includes="nature"))
+            is True
+        )
+        assert (
+            passes_filters(_DEFAULT_ITEM, LiteratureFilters(journal_includes="science"))
+            is False
+        )
+
+    def test_author_includes(self) -> None:
+        item_with_authors = LiteratureItemContext(
+            title="Test",
+            authors=["Alice Smith", "Bob"],
+            year=2020,
+            doi="10.1234/x",
+            pmid="123",
+            journal="Nature",
+        )
+        assert (
+            passes_filters(
+                item_with_authors,
+                LiteratureFilters(author_includes="alice"),
+            )
+            is True
+        )
+        item_alice = LiteratureItemContext(
+            title="Test",
+            authors=["Alice"],
+            year=2020,
+            doi="10.1234/x",
+            pmid="123",
+            journal="Nature",
+        )
+        assert (
+            passes_filters(
+                item_alice,
+                LiteratureFilters(author_includes="bob"),
+            )
             is False
         )
 
     def test_author_includes_with_none_authors(self) -> None:
+        item_no_authors = LiteratureItemContext(
+            title="Test",
+            authors=None,
+            year=2020,
+            doi="10.1234/x",
+            pmid="123",
+            journal="Nature",
+        )
         assert (
-            passes_filters(**self._defaults(authors=None, author_includes="alice"))
+            passes_filters(
+                item_no_authors,
+                LiteratureFilters(author_includes="alice"),
+            )
             is False
         )
 

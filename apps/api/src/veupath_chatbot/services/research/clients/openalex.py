@@ -4,12 +4,16 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
-    make_citation,
 )
 from veupath_chatbot.services.research.utils import truncate_text
 
@@ -98,14 +102,15 @@ class OpenAlexClient(StandardClient):
             "abstract": abstract,
             "snippet": abstract or journal,
         }
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id("openalex"),
             source="openalex",
-            id_prefix="openalex",
             title=title or (url_item or "OpenAlex result"),
             url=result_url,
             authors=authors,
             year=year,
             doi=doi,
             snippet=abstract or journal,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

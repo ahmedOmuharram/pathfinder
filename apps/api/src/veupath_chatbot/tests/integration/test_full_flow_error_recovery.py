@@ -64,7 +64,7 @@ class TestInvalidParameterRecovery:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High"]',
                         },
-                        "display_name": "Epitope genes (corrected)",
+                        "inputs": {"display_name": "Epitope genes (corrected)"},
                     },
                 )
             ]

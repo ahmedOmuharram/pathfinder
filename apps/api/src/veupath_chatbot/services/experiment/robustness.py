@@ -7,6 +7,7 @@ no additional WDK API calls required.
 
 import random
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.experiment.metrics import (
@@ -30,35 +31,35 @@ class _SeededRNG(random.Random):
     """Deterministic PRNG for statistical sampling (not security use)."""
 
 
+@dataclass
+class BootstrapOptions:
+    """Options for bootstrap robustness computation."""
+
+    n_bootstrap: int = 200
+    k_values: list[int] = field(default_factory=lambda: list(DEFAULT_K_VALUES))
+    seed: int = 42
+    alternative_negatives: dict[str, list[str]] | None = None
+    include_rank_metrics: bool = True
+
+
 def compute_robustness(
     result_ids: list[str],
     positive_ids: list[str],
     negative_ids: list[str],
-    *,
-    n_bootstrap: int = 200,
-    k_values: list[int] | None = None,
-    seed: int = 42,
-    alternative_negatives: dict[str, list[str]] | None = None,
-    include_rank_metrics: bool = True,
+    options: BootstrapOptions | None = None,
 ) -> BootstrapResult:
     """Compute bootstrap confidence intervals for classification (and optionally rank) metrics.
 
     :param result_ids: Ordered gene IDs from the strategy result.
     :param positive_ids: Positive control gene IDs.
     :param negative_ids: Negative control gene IDs.
-    :param n_bootstrap: Number of bootstrap iterations.
-    :param k_values: K values for Precision/Recall/Enrichment@K.
-    :param seed: Random seed for reproducibility.
-    :param alternative_negatives: Optional map of label -> negative IDs for
-        negative-set sensitivity analysis.
-    :param include_rank_metrics: When ``False``, skip rank metric CIs and
-        top-K stability — only classification CIs are computed.
+    :param options: Bootstrap options (n_bootstrap, k_values, seed, etc.).
     :returns: Bootstrap robustness result.
     """
-    if k_values is None:
-        k_values = DEFAULT_K_VALUES
+    opts = options or BootstrapOptions()
+    k_values = opts.k_values or list(DEFAULT_K_VALUES)
 
-    rng = _SeededRNG(seed)
+    rng = _SeededRNG(opts.seed)
 
     metric_samples: dict[str, list[float]] = defaultdict(list)
     rank_metric_samples: dict[str, list[float]] = defaultdict(list)
@@ -67,11 +68,11 @@ def compute_robustness(
     pos_list = list(positive_ids)
     neg_list = list(negative_ids)
 
-    for _ in range(n_bootstrap):
+    for _ in range(opts.n_bootstrap):
         boot_pos = _resample(pos_list, rng)
         boot_neg = _resample(neg_list, rng)
 
-        if include_rank_metrics:
+        if opts.include_rank_metrics:
             boot_pos_set = set(boot_pos)
             boot_neg_set = set(boot_neg)
             rm = compute_rank_metrics(
@@ -110,8 +111,8 @@ def compute_robustness(
     top_k_stability = _mean_jaccard(top_k_sets) if top_k_sets else 0.0
 
     neg_variants: list[NegativeSetVariant] = []
-    if include_rank_metrics and alternative_negatives:
-        for label, alt_neg in alternative_negatives.items():
+    if opts.include_rank_metrics and opts.alternative_negatives:
+        for label, alt_neg in opts.alternative_negatives.items():
             rm = compute_rank_metrics(
                 result_ids=result_ids,
                 positive_ids=set(positive_ids),
@@ -127,7 +128,7 @@ def compute_robustness(
             )
 
     return BootstrapResult(
-        n_iterations=n_bootstrap,
+        n_iterations=opts.n_bootstrap,
         metric_cis=metric_cis,
         rank_metric_cis=rank_metric_cis,
         top_k_stability=top_k_stability,

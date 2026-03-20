@@ -7,7 +7,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import cast
+from typing import Protocol, cast
 
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
@@ -23,18 +23,66 @@ from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.catalog.param_validation import validate_parameters
+from veupath_chatbot.services.catalog.param_validation import (
+    ValidationCallbacks,
+    validate_parameters,
+)
 
 logger = get_logger(__name__)
 
 COMBINE_PLACEHOLDER_SEARCH_NAME = COMBINE_SEARCH_NAME
 
+
+class ResolveRecordTypeFn(Protocol):
+    """Protocol for resolve_record_type_for_search callbacks."""
+
+    async def __call__(
+        self,
+        record_type: str | None,
+        search_name: str | None,
+        *,
+        require_match: bool = ...,
+        allow_fallback: bool = ...,
+    ) -> str | None: ...
+
+
 # Callback type aliases for injected dependencies.
-ResolveRecordTypeFn = Callable[
-    [str | None, str | None, bool, bool], Awaitable[str | None]
-]
 FindRecordTypeHintFn = Callable[[str, str | None], Awaitable[str | None]]
 ExtractVocabOptionsFn = Callable[[JSONObject], list[str]]
+
+
+@dataclass
+class StepSpec:
+    """Specification for creating a strategy step.
+
+    Bundles all step-specific inputs to keep :func:`create_step` under the
+    six-argument limit while preserving a clear call-site interface.
+    """
+
+    search_name: str | None = None
+    parameters: JSONObject | None = None
+    record_type: str | None = None
+    primary_input_step_id: str | None = None
+    secondary_input_step_id: str | None = None
+    operator: str | None = None
+    display_name: str | None = None
+    upstream: int | None = None
+    downstream: int | None = None
+    strand: str | None = None
+
+
+@dataclass
+class StepCreationCallbacks:
+    """Injected I/O dependencies for :func:`create_step`.
+
+    Bundles the four callback functions so the top-level signature stays
+    within the six-argument limit.
+    """
+
+    resolve_record_type_for_search: ResolveRecordTypeFn
+    find_record_type_hint: FindRecordTypeHintFn
+    extract_vocab_options: ExtractVocabOptionsFn
+    validation_error_payload: Callable[[ValidationError], JSONObject]
 
 
 @dataclass
@@ -99,6 +147,66 @@ def coerce_wdk_boolean_question_params(
     return None, None, None
 
 
+def _validate_primary_input(
+    graph: StrategyGraph,
+    primary_input_step_id: str | None,
+) -> tuple[PlanStepNode | None, JSONObject | None]:
+    """Resolve primary input step, returning (step, error_or_none)."""
+    if not primary_input_step_id:
+        return None, None
+    step = graph.get_step(primary_input_step_id)
+    if step:
+        return step, None
+    return None, tool_error(
+        ErrorCode.STEP_NOT_FOUND,
+        "Primary input step not found.",
+        graphId=graph.id,
+        stepId=primary_input_step_id,
+    )
+
+
+def _check_secondary_preconditions(
+    graph: StrategyGraph,
+    primary_input: PlanStepNode | None,
+    operator: str | None,
+) -> JSONObject | None:
+    """Check preconditions for secondary input: primary present and operator provided."""
+    if primary_input is None:
+        return tool_error(
+            ErrorCode.INVALID_STRATEGY,
+            "secondary_input_step_id requires primary_input_step_id.",
+            graphId=graph.id,
+        )
+    if not operator:
+        return tool_error(
+            ErrorCode.INVALID_STRATEGY,
+            "operator is required when secondary_input_step_id is provided.",
+            graphId=graph.id,
+        )
+    return None
+
+
+def _validate_secondary_input(
+    graph: StrategyGraph,
+    primary_input: PlanStepNode | None,
+    secondary_input_step_id: str | None,
+    operator: str | None,
+) -> tuple[PlanStepNode | None, JSONObject | None]:
+    """Resolve secondary input step and validate preconditions, returning (step, error_or_none)."""
+    if not secondary_input_step_id:
+        return None, None
+    step = graph.get_step(secondary_input_step_id)
+    if not step:
+        return None, tool_error(
+            ErrorCode.STEP_NOT_FOUND,
+            "Secondary input step not found.",
+            graphId=graph.id,
+            stepId=secondary_input_step_id,
+        )
+    precond_error = _check_secondary_preconditions(graph, primary_input, operator)
+    return (None, precond_error) if precond_error else (step, None)
+
+
 def _validate_inputs(
     graph: StrategyGraph,
     primary_input_step_id: str | None,
@@ -110,55 +218,15 @@ def _validate_inputs(
     :returns: (primary_input, secondary_input, error_or_none).
         If error is not None, the caller should return it immediately.
     """
-    primary_input = None
-    secondary_input = None
+    primary_input, primary_error = _validate_primary_input(graph, primary_input_step_id)
+    if primary_error is not None:
+        return None, None, primary_error
 
-    if primary_input_step_id:
-        primary_input = graph.get_step(primary_input_step_id)
-        if not primary_input:
-            return (
-                None,
-                None,
-                tool_error(
-                    ErrorCode.STEP_NOT_FOUND,
-                    "Primary input step not found.",
-                    graphId=graph.id,
-                    stepId=primary_input_step_id,
-                ),
-            )
-    if secondary_input_step_id:
-        secondary_input = graph.get_step(secondary_input_step_id)
-        if not secondary_input:
-            return (
-                None,
-                None,
-                tool_error(
-                    ErrorCode.STEP_NOT_FOUND,
-                    "Secondary input step not found.",
-                    graphId=graph.id,
-                    stepId=secondary_input_step_id,
-                ),
-            )
-        if primary_input is None:
-            return (
-                None,
-                None,
-                tool_error(
-                    ErrorCode.INVALID_STRATEGY,
-                    "secondary_input_step_id requires primary_input_step_id.",
-                    graphId=graph.id,
-                ),
-            )
-        if not operator:
-            return (
-                None,
-                None,
-                tool_error(
-                    ErrorCode.INVALID_STRATEGY,
-                    "operator is required when secondary_input_step_id is provided.",
-                    graphId=graph.id,
-                ),
-            )
+    secondary_input, secondary_error = _validate_secondary_input(
+        graph, primary_input, secondary_input_step_id, operator
+    )
+    if secondary_error is not None:
+        return None, None, secondary_error
 
     return primary_input, secondary_input, None
 
@@ -212,10 +280,7 @@ async def _resolve_search_and_validate_params(
     resolved_record_type: str,
     search_name: str,
     parameters: JSONObject,
-    resolve_record_type_for_search: ResolveRecordTypeFn,
-    find_record_type_hint: FindRecordTypeHintFn,
-    extract_vocab_options: ExtractVocabOptionsFn,
-    validation_error_payload: Callable[[ValidationError], JSONObject],
+    callbacks: StepCreationCallbacks,
 ) -> tuple[str, JSONObject | None]:
     """Resolve record type for a search and validate its parameters.
 
@@ -223,11 +288,11 @@ async def _resolve_search_and_validate_params(
 
     :returns: (resolved_record_type, error_or_none).
     """
-    rt = await resolve_record_type_for_search(
+    rt = await callbacks.resolve_record_type_for_search(
         resolved_record_type, search_name, require_match=True, allow_fallback=True
     )
     if rt is None:
-        record_type_hint = await find_record_type_hint(
+        record_type_hint = await callbacks.find_record_type_hint(
             search_name, resolved_record_type
         )
         return resolved_record_type, tool_error(
@@ -244,12 +309,14 @@ async def _resolve_search_and_validate_params(
             record_type=rt,
             search_name=search_name,
             parameters=parameters,
-            resolve_record_type_for_search=resolve_record_type_for_search,
-            find_record_type_hint=find_record_type_hint,
-            extract_vocab_options=extract_vocab_options,
+            callbacks=ValidationCallbacks(
+                resolve_record_type_for_search=callbacks.resolve_record_type_for_search,
+                find_record_type_hint=callbacks.find_record_type_hint,
+                extract_vocab_options=callbacks.extract_vocab_options,
+            ),
         )
     except ValidationError as exc:
-        return rt, validation_error_payload(exc)
+        return rt, callbacks.validation_error_payload(exc)
 
     return rt, None
 
@@ -258,14 +325,10 @@ async def _validate_leaf_or_transform(
     *,
     graph: StrategyGraph,
     site_id: str,
-    resolved_record_type: str,
     search_name: str,
     parameters: JSONObject,
     is_transform: bool,
-    resolve_record_type_for_search: ResolveRecordTypeFn,
-    find_record_type_hint: FindRecordTypeHintFn,
-    extract_vocab_options: ExtractVocabOptionsFn,
-    validation_error_payload: Callable[[ValidationError], JSONObject],
+    callbacks: StepCreationCallbacks,
 ) -> JSONObject | None:
     """Validate a leaf or transform step. Returns error payload or None on success.
 
@@ -273,17 +336,18 @@ async def _validate_leaf_or_transform(
     then kind-specific checks:
     - Leaf: fold-change duplicate sample guard.
     - Transform: confirm the search accepts an input step.
+
+    Callers must invoke ``_resolve_and_set_record_type`` before this function;
+    the resolved type is read from ``graph.record_type``.
     """
+    resolved_record_type = graph.record_type or "gene"
     rt, error = await _resolve_search_and_validate_params(
         graph=graph,
         site_id=site_id,
         resolved_record_type=resolved_record_type,
         search_name=search_name,
         parameters=parameters,
-        resolve_record_type_for_search=resolve_record_type_for_search,
-        find_record_type_hint=find_record_type_hint,
-        extract_vocab_options=extract_vocab_options,
-        validation_error_payload=validation_error_payload,
+        callbacks=callbacks,
     )
     if error is not None:
         return error
@@ -383,24 +447,147 @@ def _validate_cross_organism_intersect(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_inputs_from_spec(
+    spec: StepSpec,
+    parameters: JSONObject,
+) -> tuple[str | None, str | None, str | None]:
+    """Return (primary_input_step_id, secondary_input_step_id, operator).
+
+    Applies WDK boolean-question param coercion when no structural inputs were given.
+    """
+    primary_input_step_id = spec.primary_input_step_id
+    secondary_input_step_id = spec.secondary_input_step_id
+    operator = spec.operator
+
+    if not primary_input_step_id and not secondary_input_step_id and not operator:
+        left, right, op = coerce_wdk_boolean_question_params(parameters=parameters)
+        if left and right and op:
+            return left, right, op
+
+    return primary_input_step_id, secondary_input_step_id, operator
+
+
+def _validate_inputs_and_roots(
+    graph: StrategyGraph,
+    primary_input_step_id: str | None,
+    secondary_input_step_id: str | None,
+    operator: str | None,
+) -> tuple[PlanStepNode | None, PlanStepNode | None, JSONObject | None]:
+    """Resolve input steps and validate root status. Returns (primary, secondary, error)."""
+    primary_input, secondary_input, error = _validate_inputs(
+        graph, primary_input_step_id, secondary_input_step_id, operator
+    )
+    if error is not None:
+        return None, None, error
+
+    for step_node, step_id in (
+        (primary_input, primary_input_step_id),
+        (secondary_input, secondary_input_step_id),
+    ):
+        if step_node is not None and step_id is not None and step_id not in graph.roots:
+            root_error = _validate_root_status(graph, step_id)
+            if root_error is not None:
+                return None, None, root_error
+
+    return primary_input, secondary_input, None
+
+
+def _resolve_search_name(
+    graph: StrategyGraph,
+    spec_search_name: str | None,
+    *,
+    is_binary: bool,
+) -> tuple[str, JSONObject | None]:
+    """Resolve the effective search name, returning (name, error_or_none)."""
+    if spec_search_name:
+        return spec_search_name, None
+    if is_binary:
+        return COMBINE_PLACEHOLDER_SEARCH_NAME, None
+    return "", tool_error(
+        ErrorCode.INVALID_STRATEGY,
+        "search_name is required for leaf and transform steps.",
+        graphId=graph.id,
+    )
+
+
+@dataclass
+class _StepInputs:
+    """Resolved step input nodes, operator, and parameters for validation."""
+
+    primary: PlanStepNode | None
+    secondary: PlanStepNode | None
+    operator: str | None
+    params: JSONObject | None = None
+
+
+async def _validate_step_by_kind(
+    *,
+    graph: StrategyGraph,
+    site_id: str,
+    search_name: str,
+    inputs: _StepInputs,
+    parsed_op: object,
+    callbacks: StepCreationCallbacks,
+) -> JSONObject | None:
+    """Validate a step based on its kind (leaf/transform vs binary)."""
+    is_binary = inputs.primary is not None and inputs.secondary is not None
+    if not is_binary:
+        return await _validate_leaf_or_transform(
+            graph=graph,
+            site_id=site_id,
+            search_name=search_name,
+            parameters=inputs.params or {},
+            is_transform=inputs.primary is not None,
+            callbacks=callbacks,
+        )
+    return (
+        _validate_cross_organism_intersect(graph, inputs.primary, inputs.secondary)
+        if parsed_op == CombineOp.INTERSECT and inputs.primary and inputs.secondary
+        else None
+    )
+
+
+async def _resolve_search_name_and_validate(
+    *,
+    graph: StrategyGraph,
+    site_id: str,
+    spec_search_name: str | None,
+    inputs: _StepInputs,
+    callbacks: StepCreationCallbacks,
+) -> tuple[str, object, JSONObject | None]:
+    """Resolve search_name, parse operator, and run step validation.
+
+    :returns: (search_name, parsed_op, error_or_none).
+    """
+    is_binary = inputs.primary is not None and inputs.secondary is not None
+    search_name, name_error = _resolve_search_name(
+        graph, spec_search_name, is_binary=is_binary
+    )
+    if name_error is not None:
+        return search_name, None, name_error
+
+    parsed_op = (
+        parse_op(inputs.operator)
+        if inputs.secondary is not None and inputs.operator
+        else None
+    )
+    step_error = await _validate_step_by_kind(
+        graph=graph,
+        site_id=site_id,
+        search_name=search_name,
+        inputs=inputs,
+        parsed_op=parsed_op,
+        callbacks=callbacks,
+    )
+    return search_name, parsed_op, step_error
+
+
 async def create_step(
     *,
     graph: StrategyGraph,
     site_id: str,
-    search_name: str | None = None,
-    parameters: JSONObject | None = None,
-    record_type: str | None = None,
-    primary_input_step_id: str | None = None,
-    secondary_input_step_id: str | None = None,
-    operator: str | None = None,
-    display_name: str | None = None,
-    upstream: int | None = None,
-    downstream: int | None = None,
-    strand: str | None = None,
-    resolve_record_type_for_search: ResolveRecordTypeFn,
-    find_record_type_hint: FindRecordTypeHintFn,
-    extract_vocab_options: ExtractVocabOptionsFn,
-    validation_error_payload: Callable[[ValidationError], JSONObject],
+    spec: StepSpec,
+    callbacks: StepCreationCallbacks,
 ) -> StepCreationResult:
     """Create a new strategy step with full validation.
 
@@ -411,85 +598,44 @@ async def create_step(
 
     :returns: StepCreationResult with either step/step_id or error.
     """
-    parameters = parameters or {}
+    parameters: JSONObject = spec.parameters or {}
+    primary_input_step_id, secondary_input_step_id, operator = (
+        _resolve_inputs_from_spec(spec, parameters)
+    )
 
-    # WDK compatibility: if caller encoded a boolean combine as WDK boolean-question
-    # parameters, translate it into structural inputs.
-    if not primary_input_step_id and not secondary_input_step_id and not operator:
-        left, right, op = coerce_wdk_boolean_question_params(parameters=parameters)
-        if left and right and op:
-            primary_input_step_id = left
-            secondary_input_step_id = right
-            operator = op
-
-    # Validate and resolve input steps.
-    primary_input, secondary_input, error = _validate_inputs(
+    # Validate and resolve input steps (including root-status check).
+    primary_input, secondary_input, error = _validate_inputs_and_roots(
         graph, primary_input_step_id, secondary_input_step_id, operator
     )
     if error is not None:
         return _error_result(error)
 
-    # Validate root status for input steps.
-    for step_node, step_id in (
-        (primary_input, primary_input_step_id),
-        (secondary_input, secondary_input_step_id),
-    ):
-        if step_node is not None and step_id is not None and step_id not in graph.roots:
-            root_error = _validate_root_status(graph, step_id)
-            if root_error is not None:
-                return _error_result(root_error)
-
-    # Resolve record type.
-    resolved_record_type = await _resolve_and_set_record_type(
-        graph, record_type, search_name, resolve_record_type_for_search
+    # Resolve record type (mutates graph in-place; return value unused here).
+    await _resolve_and_set_record_type(
+        graph,
+        spec.record_type,
+        spec.search_name,
+        callbacks.resolve_record_type_for_search,
     )
 
-    # Determine search_name requirement.
-    is_binary = primary_input is not None and secondary_input is not None
-    if not search_name:
-        if is_binary:
-            search_name = COMBINE_PLACEHOLDER_SEARCH_NAME
-        else:
-            return _error_result(
-                tool_error(
-                    ErrorCode.INVALID_STRATEGY,
-                    "search_name is required for leaf and transform steps.",
-                    graphId=graph.id,
-                )
-            )
+    search_name, parsed_op, step_error = await _resolve_search_name_and_validate(
+        graph=graph,
+        site_id=site_id,
+        spec_search_name=spec.search_name,
+        inputs=_StepInputs(
+            primary=primary_input,
+            secondary=secondary_input,
+            operator=operator,
+            params=parameters,
+        ),
+        callbacks=callbacks,
+    )
+    if step_error is not None:
+        return _error_result(step_error)
 
-    # Validate leaf and transform steps (binary steps skip this).
-    if not is_binary:
-        step_error = await _validate_leaf_or_transform(
-            graph=graph,
-            site_id=site_id,
-            resolved_record_type=resolved_record_type,
-            search_name=search_name,
-            parameters=parameters,
-            is_transform=primary_input is not None,
-            resolve_record_type_for_search=resolve_record_type_for_search,
-            find_record_type_hint=find_record_type_hint,
-            extract_vocab_options=extract_vocab_options,
-            validation_error_payload=validation_error_payload,
-        )
-        if step_error is not None:
-            return _error_result(step_error)
-
-    # Parse operator and build colocation params.
-    parsed_op = parse_op(operator) if secondary_input is not None and operator else None
-    colocation = ColocationParams.from_raw(parsed_op, upstream, downstream, strand)
-
-    # Cross-organism combine guard.
-    if (
-        parsed_op == CombineOp.INTERSECT
-        and primary_input is not None
-        and secondary_input is not None
-    ):
-        organism_error = _validate_cross_organism_intersect(
-            graph, primary_input, secondary_input
-        )
-        if organism_error is not None:
-            return _error_result(organism_error)
+    colocation = ColocationParams.from_raw(
+        parsed_op, spec.upstream, spec.downstream, spec.strand
+    )
 
     # Build and add the step.
     step = PlanStepNode(
@@ -499,7 +645,7 @@ async def create_step(
         secondary_input=secondary_input,
         operator=parsed_op,
         colocation_params=colocation,
-        display_name=display_name or search_name,
+        display_name=spec.display_name or search_name,
     )
 
     step_id = graph.add_step(step)

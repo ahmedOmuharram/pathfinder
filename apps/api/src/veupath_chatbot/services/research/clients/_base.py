@@ -3,10 +3,6 @@
 from typing import cast
 
 from veupath_chatbot.domain.research.citations import (
-    Citation,
-    CitationSource,
-    _new_citation_id,
-    _now_iso,
     ensure_unique_citation_tags,
 )
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
@@ -82,33 +78,6 @@ class StandardClient(BaseClient):
 
     async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
         raise NotImplementedError
-
-
-def make_citation(
-    *,
-    source: CitationSource,
-    id_prefix: str,
-    title: str,
-    url: str | None = None,
-    authors: list[str] | None = None,
-    year: int | None = None,
-    doi: str | None = None,
-    pmid: str | None = None,
-    snippet: str | None = None,
-) -> JSONObject:
-    """Build a citation dict from common fields."""
-    return Citation(
-        id=_new_citation_id(id_prefix),
-        source=source,
-        title=title,
-        url=url,
-        authors=authors,
-        year=year,
-        doi=doi,
-        pmid=pmid,
-        snippet=snippet,
-        accessed_at=_now_iso(),
-    ).to_dict()
 
 
 def build_response(

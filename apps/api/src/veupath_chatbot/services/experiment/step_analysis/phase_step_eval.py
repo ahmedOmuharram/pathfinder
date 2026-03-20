@@ -5,8 +5,14 @@ import asyncio
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.experiment.helpers import ProgressCallback
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    ProgressCallback,
+)
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
     run_controls_against_tree,
@@ -17,7 +23,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _node_id,
 )
 from veupath_chatbot.services.experiment.types import (
-    ControlValueFormat,
     StepEvaluation,
     to_json,
 )
@@ -26,15 +31,8 @@ logger = get_logger(__name__)
 
 
 async def evaluate_steps(
-    *,
-    site_id: str,
-    record_type: str,
+    ctx: ControlsContext,
     tree: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
-    controls_value_format: ControlValueFormat,
-    positive_controls: list[str],
-    negative_controls: list[str],
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepEvaluation]:
     """Evaluate each leaf step against controls, preserving ancestor transforms.
@@ -83,31 +81,24 @@ async def evaluate_steps(
         try:
             async with sem:
                 if branch is not None and has_transforms:
-                    raw = await run_controls_against_tree(
-                        site_id=site_id,
-                        record_type=record_type,
-                        tree=branch,
-                        controls_search_name=controls_search_name,
-                        controls_param_name=controls_param_name,
-                        controls_value_format=controls_value_format,
-                        positive_controls=positive_controls,
-                        negative_controls=negative_controls,
-                    )
+                    raw = await run_controls_against_tree(ctx, branch)
                 else:
                     raw_params = leaf.get("parameters")
                     parameters: JSONObject = (
                         raw_params if isinstance(raw_params, dict) else {}
                     )
                     raw = await run_positive_negative_controls(
-                        site_id=site_id,
-                        record_type=record_type,
-                        target_search_name=search_name,
-                        target_parameters=parameters,
-                        controls_search_name=controls_search_name,
-                        controls_param_name=controls_param_name,
-                        controls_value_format=controls_value_format,
-                        positive_controls=positive_controls,
-                        negative_controls=negative_controls,
+                        IntersectionConfig(
+                            site_id=ctx.site_id,
+                            record_type=ctx.record_type,
+                            target_search_name=search_name,
+                            target_parameters=parameters,
+                            controls_search_name=ctx.controls_search_name,
+                            controls_param_name=ctx.controls_param_name,
+                            controls_value_format=ctx.controls_value_format,
+                        ),
+                        positive_controls=ctx.positive_controls,
+                        negative_controls=ctx.negative_controls,
                     )
         except (AppError, ValueError, TypeError) as exc:
             logger.warning("Step evaluation failed", step=lid, error=str(exc))

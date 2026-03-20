@@ -13,24 +13,26 @@ from ``veupath_chatbot.ai``.
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole, Kani
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.ai.agents.factory import EngineConfig
+from veupath_chatbot.ai.agents.factory import AgentContext, EngineConfig
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import Stream, StreamProjection
-from veupath_chatbot.persistence.repositories import StreamRepository, UserRepository
+from veupath_chatbot.persistence.repositories import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.events import emit, read_stream_messages
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
-from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.mention_context import build_mention_context
 from veupath_chatbot.services.chat.streaming import stream_chat
+from veupath_chatbot.services.chat.types import ChatContext, ChatTurnConfig
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
 from veupath_chatbot.transport.http.schemas.sse import ModelSelectedEventData
 
@@ -45,6 +47,27 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 _create_agent_holder: dict[str, Callable[..., Kani]] = {}
 _resolve_model_id_holder: dict[str, Callable[..., str]] = {}
+
+
+@dataclass
+class _EmitContext:
+    """Context for emitting events to a Redis stream."""
+
+    redis: Redis
+    session: AsyncSession
+    stream_id_str: str
+    operation_id: str
+
+
+@dataclass
+class _TurnRequest:
+    """Immutable identifiers and payload for a single chat turn."""
+
+    stream_id_str: str
+    site_id: str
+    user_id: UUID
+    model_message: str
+    selected_nodes: JSONObject | None
 
 
 def configure(
@@ -109,23 +132,8 @@ async def start_chat_stream(
     message: str,
     site_id: str,
     strategy_id: UUID | None,
-    user_id: UUID,
-    user_repo: UserRepository,
-    stream_repo: StreamRepository,
-    # Per-request model overrides
-    provider_override: ModelProvider | None = None,
-    model_override: str | None = None,
-    reasoning_effort: ReasoningEffort | None = None,
-    mentions: list[dict[str, str]] | None = None,
-    # Thesis experiment controls
-    disable_rag: bool = False,
-    disabled_tools: list[str] | None = None,
-    temperature: float | None = None,
-    seed: int | None = None,
-    # Per-model tuning overrides
-    context_size: int | None = None,
-    response_tokens: int | None = None,
-    reasoning_budget: int | None = None,
+    context: ChatContext,
+    config: ChatTurnConfig | None = None,
 ) -> tuple[str, str]:
     """Start a background chat operation and return its identifiers.
 
@@ -137,11 +145,13 @@ async def start_chat_stream(
     resolution, operation registration, user_message emission).
     All heavy lifting is deferred into the background producer.
     """
-    await user_repo.get_or_create(user_id)
+    cfg = config or ChatTurnConfig()
+
+    await context.user_repo.get_or_create(context.user_id)
 
     stream = await _ensure_stream(
-        stream_repo,
-        user_id=user_id,
+        context.stream_repo,
+        user_id=context.user_id,
         site_id=site_id,
         stream_id=strategy_id,
     )
@@ -157,38 +167,31 @@ async def start_chat_stream(
         operation_id,
         "user_message",
         {"content": message, "messageId": str(uuid4())},
-        session=stream_repo.session,
+        session=context.stream_repo.session,
     )
 
     # Register the operation in PostgreSQL for client discovery.
-    await stream_repo.register_operation(operation_id, stream.id, "chat")
+    await context.stream_repo.register_operation(operation_id, stream.id, "chat")
 
     # Commit before launching the background producer — it creates its own
     # session and must be able to read the Stream/StreamProjection/Operation.
-    await stream_repo.session.commit()
+    await context.stream_repo.session.commit()
 
     selected_nodes, model_message = parse_selected_nodes(message)
+    turn = _TurnRequest(
+        stream_id_str=stream_id_str,
+        site_id=site_id,
+        user_id=context.user_id,
+        model_message=model_message,
+        selected_nodes=selected_nodes,
+    )
 
     # Launch the background producer as an asyncio task.
     task = asyncio.create_task(
         _chat_producer(
-            stream_id_str=stream_id_str,
             operation_id=operation_id,
-            site_id=site_id,
-            user_id=user_id,
-            model_message=model_message,
-            selected_nodes=selected_nodes,
-            provider_override=provider_override,
-            model_override=model_override,
-            reasoning_effort=reasoning_effort,
-            mentions=mentions,
-            disable_rag=disable_rag,
-            disabled_tools=disabled_tools,
-            temperature=temperature,
-            seed=seed,
-            context_size=context_size,
-            response_tokens=response_tokens,
-            reasoning_budget=reasoning_budget,
+            turn=turn,
+            config=cfg,
         )
     )
     _active_tasks[operation_id] = task
@@ -198,26 +201,10 @@ async def start_chat_stream(
 
 
 async def _build_agent_context(
-    *,
-    stream_id_str: str,
-    site_id: str,
-    user_id: UUID,
-    model_message: str,
-    selected_nodes: JSONObject | None,
-    provider_override: ModelProvider | None,
-    model_override: str | None,
-    reasoning_effort: ReasoningEffort | None,
-    mentions: list[dict[str, str]] | None,
+    turn: _TurnRequest,
     projection: StreamProjection,
+    config: ChatTurnConfig,
     stream_repo: StreamRepository | None = None,
-    # Thesis experiment controls
-    disable_rag: bool = False,
-    temperature: float | None = None,
-    seed: int | None = None,
-    # Per-model tuning overrides
-    context_size: int | None = None,
-    response_tokens: int | None = None,
-    reasoning_budget: int | None = None,
 ) -> tuple[Kani, str]:
     """Build the agent and resolve the effective model.
 
@@ -235,15 +222,17 @@ async def _build_agent_context(
 
     # Build rich context from @-mentions.
     mentioned_context: str | None = None
-    if mentions and stream_repo is not None:
-        mentioned_context = await build_mention_context(mentions, stream_repo) or None
+    if config.mentions and stream_repo is not None:
+        mentioned_context = (
+            await build_mention_context(config.mentions, stream_repo) or None
+        )
 
     # Build chat history from Redis (not from DB).
-    history = await _build_chat_history_from_redis(stream_id_str)
+    history = await _build_chat_history_from_redis(turn.stream_id_str)
 
     # Build strategy graph payload from projection.
     strategy_graph_payload: JSONObject = {
-        "id": stream_id_str,
+        "id": turn.stream_id_str,
         "name": projection.name,
         "plan": projection.plan,
         "steps": projection.steps,
@@ -254,40 +243,37 @@ async def _build_agent_context(
 
     # Resolve the effective model.
     effective_model: str = _resolve_model_id_holder["v"](
-        model_override=model_override,
+        model_override=config.model_override,
         persisted_model_id=projection.model_id,
     )
 
     engine_cfg = EngineConfig(
-        provider_override=provider_override,
+        provider_override=config.provider_override,
         model_override=effective_model,
-        reasoning_effort=reasoning_effort,
-        temperature=temperature,
-        seed=seed,
-        context_size=context_size,
-        reasoning_budget=reasoning_budget,
+        reasoning_effort=config.reasoning_effort,
+        temperature=config.temperature,
+        seed=config.seed,
+        context_size=config.context_size,
+        reasoning_budget=config.reasoning_budget,
     )
-    agent = _create_agent_holder["v"](
-        site_id=site_id,
-        user_id=user_id,
+    agent_ctx = AgentContext(
+        site_id=turn.site_id,
+        user_id=turn.user_id,
         chat_history=history,
         strategy_graph=strategy_graph_payload,
-        selected_nodes=selected_nodes,
-        engine_config=engine_cfg,
+        selected_nodes=turn.selected_nodes,
         mentioned_context=mentioned_context,
-        disable_rag=disable_rag,
-        response_tokens=response_tokens,
+        disable_rag=config.disable_rag,
+        desired_response_tokens=config.response_tokens,
     )
+    agent = _create_agent_holder["v"](agent_ctx, engine_config=engine_cfg)
 
     return agent, effective_model
 
 
 async def _run_stream_loop(
+    emit_ctx: _EmitContext,
     *,
-    redis: Redis,
-    session: AsyncSession,
-    stream_id_str: str,
-    operation_id: str,
     site_id: str,
     projection: StreamProjection,
     stream_iter: AsyncIterator[JSONObject],
@@ -318,7 +304,7 @@ async def _run_stream_loop(
             )
 
     strategy_payload: JSONObject = {
-        "id": stream_id_str,
+        "id": emit_ctx.stream_id_str,
         "name": projection.name,
         "title": projection.name,
         "description": description,
@@ -329,12 +315,12 @@ async def _run_stream_loop(
         "wdkUrl": wdk_url,
     }
     await emit(
-        redis,
-        stream_id_str,
-        operation_id,
+        emit_ctx.redis,
+        emit_ctx.stream_id_str,
+        emit_ctx.operation_id,
         "message_start",
-        {"strategyId": stream_id_str, "strategy": strategy_payload},
-        session=session,
+        {"strategyId": emit_ctx.stream_id_str, "strategy": strategy_payload},
+        session=emit_ctx.session,
     )
 
     async for event_value in stream_iter:
@@ -346,15 +332,15 @@ async def _run_stream_loop(
         event_data = event_data_raw if isinstance(event_data_raw, dict) else {}
 
         await emit(
-            redis,
-            stream_id_str,
-            operation_id,
+            emit_ctx.redis,
+            emit_ctx.stream_id_str,
+            emit_ctx.operation_id,
             event_type,
             event_data,
-            session=session,
+            session=emit_ctx.session,
         )
 
-    await stream_repo.complete_operation(operation_id)
+    await stream_repo.complete_operation(emit_ctx.operation_id)
 
 
 async def _handle_cancellation(
@@ -411,37 +397,21 @@ async def _handle_error(
 
 async def _chat_producer(
     *,
-    stream_id_str: str,
     operation_id: str,
-    site_id: str,
-    user_id: UUID,
-    model_message: str,
-    selected_nodes: JSONObject | None,
-    provider_override: ModelProvider | None,
-    model_override: str | None,
-    reasoning_effort: ReasoningEffort | None,
-    mentions: list[dict[str, str]] | None,
-    # Thesis experiment controls
-    disable_rag: bool = False,
-    disabled_tools: list[str] | None = None,
-    temperature: float | None = None,
-    seed: int | None = None,
-    # Per-model tuning overrides
-    context_size: int | None = None,
-    response_tokens: int | None = None,
-    reasoning_budget: int | None = None,
+    turn: _TurnRequest,
+    config: ChatTurnConfig,
 ) -> None:
     """Background task: run the LLM agent and emit every event to Redis."""
     redis = get_redis()
 
     async with async_session_factory() as session:
         bg_stream_repo = StreamRepository(session)
-        projection = await bg_stream_repo.get_projection(UUID(stream_id_str))
+        projection = await bg_stream_repo.get_projection(UUID(turn.stream_id_str))
 
         if not projection:
             await emit(
                 redis,
-                stream_id_str,
+                turn.stream_id_str,
                 operation_id,
                 "error",
                 {"error": "Stream not found"},
@@ -451,48 +421,35 @@ async def _chat_producer(
             return
 
         agent, effective_model = await _build_agent_context(
-            stream_id_str=stream_id_str,
-            site_id=site_id,
-            user_id=user_id,
-            model_message=model_message,
-            selected_nodes=selected_nodes,
-            provider_override=provider_override,
-            model_override=model_override,
-            reasoning_effort=reasoning_effort,
-            mentions=mentions,
-            projection=projection,
-            stream_repo=bg_stream_repo,
-            disable_rag=disable_rag,
-            temperature=temperature,
-            seed=seed,
-            context_size=context_size,
-            response_tokens=response_tokens,
-            reasoning_budget=reasoning_budget,
+            turn, projection, config, bg_stream_repo
         )
 
         # Remove user-disabled tools from the agent.
-        if disabled_tools:
-            for tool_name in disabled_tools:
+        if config.disabled_tools:
+            for tool_name in config.disabled_tools:
                 agent.functions.pop(tool_name, None)
 
         await emit(
             redis,
-            stream_id_str,
+            turn.stream_id_str,
             operation_id,
             "model_selected",
             ModelSelectedEventData(modelId=effective_model).model_dump(by_alias=True),
             session=session,
         )
 
-        stream_iter = stream_chat(agent, model_message, model_id=effective_model)
+        stream_iter = stream_chat(agent, turn.model_message, model_id=effective_model)
+        emit_ctx = _EmitContext(
+            redis=redis,
+            session=session,
+            stream_id_str=turn.stream_id_str,
+            operation_id=operation_id,
+        )
 
         try:
             await _run_stream_loop(
-                redis=redis,
-                session=session,
-                stream_id_str=stream_id_str,
-                operation_id=operation_id,
-                site_id=site_id,
+                emit_ctx,
+                site_id=turn.site_id,
                 projection=projection,
                 stream_iter=stream_iter,
                 stream_repo=bg_stream_repo,
@@ -501,7 +458,7 @@ async def _chat_producer(
             await _handle_cancellation(
                 redis=redis,
                 session=session,
-                stream_id_str=stream_id_str,
+                stream_id_str=turn.stream_id_str,
                 operation_id=operation_id,
                 stream_repo=bg_stream_repo,
             )
@@ -511,7 +468,7 @@ async def _chat_producer(
                 error=e,
                 redis=redis,
                 session=session,
-                stream_id_str=stream_id_str,
+                stream_id_str=turn.stream_id_str,
                 operation_id=operation_id,
                 stream_repo=bg_stream_repo,
             )

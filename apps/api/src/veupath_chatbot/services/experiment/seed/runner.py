@@ -10,10 +10,12 @@ with a semaphore to cap the number of parallel WDK requests.
 import asyncio
 import time
 from collections.abc import AsyncIterator
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, NoReturn
 from uuid import UUID
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.persistence.repositories.control_set import ControlSetCreate
 from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -32,7 +34,23 @@ logger = get_logger(__name__)
 _MAX_CONCURRENT_SEEDS = 10
 
 
-def _raise_missing_strategy_id(seed_name: str) -> None:
+@dataclass
+class _SeedRunContext:
+    """Shared execution infrastructure for seed processing.
+
+    Groups the four per-run resources that ``_process_single_seed`` needs
+    to keep its parameter count within the 6-argument limit.
+    """
+
+    total: int
+    semaphore: asyncio.Semaphore
+    queue: asyncio.Queue[JSONObject | None]
+    stream_repo: Any
+    control_set_repo: Any
+    user_id: UUID
+
+
+def _raise_missing_strategy_id(seed_name: str) -> NoReturn:
     """Raise StrategyCompilationError when WDK does not return a strategy ID."""
     msg = f"WDK did not return a strategy ID for '{seed_name}'"
     raise StrategyCompilationError(msg)
@@ -41,26 +59,20 @@ def _raise_missing_strategy_id(seed_name: str) -> None:
 async def _process_single_seed(
     i: int,
     seed: Any,
-    *,
-    total: int,
-    semaphore: asyncio.Semaphore,
-    queue: asyncio.Queue[JSONObject | None],
-    stream_repo: Any,
-    control_set_repo: Any,
-    user_id: UUID,
+    ctx: _SeedRunContext,
 ) -> tuple[bool, bool]:
     """Process a single seed. Returns (strategy_ok, control_set_ok)."""
     idx = i + 1
-    async with semaphore:
-        await queue.put(
+    async with ctx.semaphore:
+        await ctx.queue.put(
             {
                 "type": "seed_progress",
                 "data": {
                     "phase": "running",
                     "current": idx,
-                    "total": total,
+                    "total": ctx.total,
                     "name": seed.name,
-                    "message": f"[{idx}/{total}] Creating strategy: {seed.name}",
+                    "message": f"[{idx}/{ctx.total}] Creating strategy: {seed.name}",
                 },
             }
         )
@@ -88,52 +100,54 @@ async def _process_single_seed(
                 wdk_id=wdk_strategy_id,
                 site_id=seed.site_id,
                 api=api,
-                stream_repo=stream_repo,
-                user_id=user_id,
+                stream_repo=ctx.stream_repo,
+                user_id=ctx.user_id,
             )
 
             elapsed_strategy = time.monotonic() - t0
-            await queue.put(
+            await ctx.queue.put(
                 {
                     "type": "seed_strategy_complete",
                     "data": {
                         "current": idx,
-                        "total": total,
+                        "total": ctx.total,
                         "name": seed.name,
                         "wdkStrategyId": wdk_strategy_id,
                         "elapsed": round(elapsed_strategy, 1),
-                        "message": f"[{idx}/{total}] Strategy created: {seed.name}",
+                        "message": f"[{idx}/{ctx.total}] Strategy created: {seed.name}",
                     },
                 }
             )
 
             cs = seed.control_set
-            await control_set_repo.create(
-                name=cs.name,
-                site_id=seed.site_id,
-                record_type=seed.record_type,
-                positive_ids=cs.positive_ids,
-                negative_ids=cs.negative_ids,
-                source="curation",
-                tags=cs.tags,
-                provenance_notes=cs.provenance_notes,
-                is_public=True,
-                user_id=user_id,
+            await ctx.control_set_repo.create(
+                ControlSetCreate(
+                    name=cs.name,
+                    site_id=seed.site_id,
+                    record_type=seed.record_type,
+                    positive_ids=cs.positive_ids,
+                    negative_ids=cs.negative_ids,
+                    source="curation",
+                    tags=cs.tags or [],
+                    provenance_notes=cs.provenance_notes,
+                    is_public=True,
+                    user_id=ctx.user_id,
+                )
             )
 
         except Exception as exc:
             elapsed = time.monotonic() - t0
             logger.exception("Seed failed", name=seed.name, error=str(exc))
-            await queue.put(
+            await ctx.queue.put(
                 {
                     "type": "seed_item_error",
                     "data": {
                         "current": idx,
-                        "total": total,
+                        "total": ctx.total,
                         "name": seed.name,
                         "error": str(exc),
                         "elapsed": round(elapsed, 1),
-                        "message": f"[{idx}/{total}] Failed: {seed.name} — {exc}",
+                        "message": f"[{idx}/{ctx.total}] Failed: {seed.name} — {exc}",
                     },
                 }
             )
@@ -170,6 +184,14 @@ async def run_seed(
 
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SEEDS)
     queue: asyncio.Queue[JSONObject | None] = asyncio.Queue()
+    run_ctx = _SeedRunContext(
+        total=total,
+        semaphore=semaphore,
+        queue=queue,
+        stream_repo=stream_repo,
+        control_set_repo=control_set_repo,
+        user_id=user_id,
+    )
 
     async def _run_all() -> list[tuple[bool, bool]]:
         """Launch all seeds concurrently, signal completion via sentinel."""
@@ -177,18 +199,7 @@ async def run_seed(
         try:
             async with asyncio.TaskGroup() as tg:
                 tasks = [
-                    tg.create_task(
-                        _process_single_seed(
-                            i,
-                            seed,
-                            total=total,
-                            semaphore=semaphore,
-                            queue=queue,
-                            stream_repo=stream_repo,
-                            control_set_repo=control_set_repo,
-                            user_id=user_id,
-                        )
-                    )
+                    tg.create_task(_process_single_seed(i, seed, run_ctx))
                     for i, seed in enumerate(seeds)
                 ]
             results = [t.result() for t in tasks]

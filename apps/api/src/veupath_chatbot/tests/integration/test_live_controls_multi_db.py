@@ -29,6 +29,7 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
     _run_intersection_control,
     run_positive_negative_controls,
 )
@@ -247,17 +248,16 @@ class TestIntersectionMultiDb:
     @pytest.mark.asyncio
     async def test_plasmodb_positive_intersection(self) -> None:
         """All 10 P. falciparum genes should intersect with GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=PLASMO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=PLASMO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=PLASMO_POSITIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, PLASMO_POSITIVE)
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -280,17 +280,16 @@ class TestIntersectionMultiDb:
     @pytest.mark.asyncio
     async def test_toxodb_positive_intersection(self) -> None:
         """All 10 T. gondii genes should intersect with GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=TOXO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TOXO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=TOXO_POSITIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, TOXO_POSITIVE)
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -313,17 +312,16 @@ class TestIntersectionMultiDb:
     @pytest.mark.asyncio
     async def test_fungidb_positive_intersection(self) -> None:
         """All 10 A. fumigatus genes should intersect with GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=FUNGI_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=FUNGI_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=FUNGI_POSITIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, FUNGI_POSITIVE)
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -346,17 +344,16 @@ class TestIntersectionMultiDb:
     @pytest.mark.asyncio
     async def test_tritrypdb_positive_intersection(self) -> None:
         """All 10 T. brucei genes should intersect with GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=TRITRYP_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TRITRYP_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=TRITRYP_POSITIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, TRITRYP_POSITIVE)
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -393,17 +390,16 @@ class TestNegativeControlsMultiDb:
     @pytest.mark.asyncio
     async def test_plasmodb_negative_no_intersection(self) -> None:
         """T. gondii genes should NOT appear in P. falciparum GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=PLASMO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=PLASMO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=PLASMO_NEGATIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, PLASMO_NEGATIVE)
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(PLASMO_NEGATIVE)
@@ -418,17 +414,16 @@ class TestNegativeControlsMultiDb:
     @pytest.mark.asyncio
     async def test_toxodb_negative_no_intersection(self) -> None:
         """P. falciparum genes should NOT appear in T. gondii GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=TOXO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TOXO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=TOXO_NEGATIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, TOXO_NEGATIVE)
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(TOXO_NEGATIVE)
@@ -443,17 +438,16 @@ class TestNegativeControlsMultiDb:
     @pytest.mark.asyncio
     async def test_fungidb_negative_no_intersection(self) -> None:
         """P. falciparum genes should NOT appear in A. fumigatus GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=FUNGI_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=FUNGI_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=FUNGI_NEGATIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, FUNGI_NEGATIVE)
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(FUNGI_NEGATIVE)
@@ -468,17 +462,16 @@ class TestNegativeControlsMultiDb:
     @pytest.mark.asyncio
     async def test_tritrypdb_negative_no_intersection(self) -> None:
         """P. falciparum genes should NOT appear in T. brucei GenesByTaxon."""
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=TRITRYP_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TRITRYP_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=TRITRYP_NEGATIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, TRITRYP_NEGATIVE)
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(TRITRYP_NEGATIVE)
@@ -507,16 +500,19 @@ class TestFullControlFlowMultiDb:
     @pytest.mark.asyncio
     async def test_plasmodb_full_flow(self) -> None:
         """PlasmoDB: positive recall ~1.0, negative FPR == 0.0."""
-        result = await run_positive_negative_controls(
+        config = IntersectionConfig(
             site_id=PLASMO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=PLASMO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
+        )
+        result = await run_positive_negative_controls(
+            config,
             positive_controls=PLASMO_POSITIVE,
             negative_controls=PLASMO_NEGATIVE,
-            controls_value_format="newline",
         )
 
         _print_full_flow_result("PlasmoDB", result)
@@ -525,16 +521,19 @@ class TestFullControlFlowMultiDb:
     @pytest.mark.asyncio
     async def test_toxodb_full_flow(self) -> None:
         """ToxoDB: positive recall ~1.0, negative FPR == 0.0."""
-        result = await run_positive_negative_controls(
+        config = IntersectionConfig(
             site_id=TOXO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TOXO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
+        )
+        result = await run_positive_negative_controls(
+            config,
             positive_controls=TOXO_POSITIVE,
             negative_controls=TOXO_NEGATIVE,
-            controls_value_format="newline",
         )
 
         _print_full_flow_result("ToxoDB", result)
@@ -543,16 +542,19 @@ class TestFullControlFlowMultiDb:
     @pytest.mark.asyncio
     async def test_fungidb_full_flow(self) -> None:
         """FungiDB: positive recall ~1.0, negative FPR == 0.0."""
-        result = await run_positive_negative_controls(
+        config = IntersectionConfig(
             site_id=FUNGI_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=FUNGI_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
+        )
+        result = await run_positive_negative_controls(
+            config,
             positive_controls=FUNGI_POSITIVE,
             negative_controls=FUNGI_NEGATIVE,
-            controls_value_format="newline",
         )
 
         _print_full_flow_result("FungiDB", result)
@@ -561,16 +563,19 @@ class TestFullControlFlowMultiDb:
     @pytest.mark.asyncio
     async def test_tritrypdb_full_flow(self) -> None:
         """TriTrypDB: positive recall ~1.0, negative FPR == 0.0."""
-        result = await run_positive_negative_controls(
+        config = IntersectionConfig(
             site_id=TRITRYP_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=TRITRYP_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
+        )
+        result = await run_positive_negative_controls(
+            config,
             positive_controls=TRITRYP_POSITIVE,
             negative_controls=TRITRYP_NEGATIVE,
-            controls_value_format="newline",
         )
 
         _print_full_flow_result("TriTrypDB", result)
@@ -595,17 +600,16 @@ class TestLargeControlSets:
         """All 50 P. falciparum genes should intersect with GenesByTaxon."""
         assert len(PLASMO_LARGE_POSITIVE) == 50
 
-        result = await _run_intersection_control(
+        config = IntersectionConfig(
             site_id=PLASMO_SITE_ID,
             record_type=RECORD_TYPE,
             target_search_name="GenesByTaxon",
             target_parameters=PLASMO_TARGET_PARAMS,
             controls_search_name=CONTROLS_SEARCH_NAME,
             controls_param_name=CONTROLS_PARAM_NAME,
-            controls_ids=PLASMO_LARGE_POSITIVE,
-            controls_value_format="newline",
-            controls_extra_parameters=None,
+            controls_value_format=CONTROLS_VALUE_FORMAT,
         )
+        result = await _run_intersection_control(config, PLASMO_LARGE_POSITIVE)
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)

@@ -4,12 +4,14 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.research.clients._base import (
-    StandardClient,
-    make_citation,
-)
+from veupath_chatbot.services.research.clients._base import StandardClient
 
 
 class CrossrefClient(StandardClient):
@@ -22,7 +24,9 @@ class CrossrefClient(StandardClient):
         params = {"query": query, "rows": str(limit)}
         headers = {"User-Agent": "pathfinder-planner/1.0 (mailto:unknown@example.com)"}
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers=headers
+            ) as client:
                 resp = await client.get(url, params=params, follow_redirects=True)
                 resp.raise_for_status()
                 payload = resp.json()
@@ -98,14 +102,15 @@ class CrossrefClient(StandardClient):
             "journalTitle": journal,
             "snippet": journal,
         }
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id("crossref"),
             source="crossref",
-            id_prefix="crossref",
             title=title or (url_item or "Crossref result"),
             url=result_url,
             authors=authors,
             year=year_i,
             doi=doi,
             snippet=journal,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

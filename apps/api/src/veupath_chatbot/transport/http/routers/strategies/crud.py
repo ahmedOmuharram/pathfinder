@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
+from veupath_chatbot.persistence.repositories.stream import ProjectionUpdate
 from veupath_chatbot.platform.errors import (
     ErrorCode,
     NotFoundError,
@@ -79,9 +80,11 @@ async def create_strategy(
     )
     await stream_repo.update_projection(
         stream.id,
-        plan=plan,
-        record_type=strategy_ast.record_type,
-        step_count=len(strategy_ast.get_all_steps()),
+        ProjectionUpdate(
+            plan=plan,
+            record_type=strategy_ast.record_type,
+            step_count=len(strategy_ast.get_all_steps()),
+        ),
     )
 
     projection = await stream_repo.get_projection(stream.id)
@@ -140,14 +143,16 @@ async def update_strategy(
 
     await stream_repo.update_projection(
         strategyId,
-        name=request.name,
-        plan=plan,
-        record_type=record_type,
-        wdk_strategy_id=request.wdk_strategy_id,
-        wdk_strategy_id_set=wdk_strategy_id_set,
-        is_saved=request.is_saved,
-        is_saved_set=is_saved_set,
-        step_count=len(strategy_ast.get_all_steps()) if strategy_ast else None,
+        ProjectionUpdate(
+            name=request.name,
+            plan=plan,
+            record_type=record_type,
+            wdk_strategy_id=request.wdk_strategy_id,
+            wdk_strategy_id_set=wdk_strategy_id_set,
+            is_saved=request.is_saved,
+            is_saved_set=is_saved_set,
+            step_count=len(strategy_ast.get_all_steps()) if strategy_ast else None,
+        ),
     )
 
     # Re-fetch updated projection.

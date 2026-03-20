@@ -7,7 +7,11 @@ open strategy flows, and state transitions.
 import httpx
 import respx
 
-from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
+from veupath_chatbot.tests.fixtures.wdk_responses import (
+    step_get_response,
+    strategy_get_response,
+    strategy_list_item,
+)
 
 # ---------------------------------------------------------------------------
 # Multi-step strategy CRUD
@@ -180,6 +184,21 @@ async def test_delete_wdk_linked_strategy_does_not_call_wdk_by_default(
     items = [strategy_list_item(strategy_id=800, name="WDK To Delete")]
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    # Auto-import gene set calls: strategy detail, step report, step detail
+    wdk_respx.get(f"{base}/users/guest/strategies/800").respond(
+        200, json=strategy_get_response(strategy_id=800, step_ids=[100])
+    )
+    wdk_respx.post(f"{base}/users/guest/steps/100/reports/standard").respond(
+        200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
+    )
+    wdk_respx.get(f"{base}/users/guest/steps/100").respond(
+        200, json=step_get_response(step_id=100)
+    )
+    # Lazy-fetch of strategy detail triggers search details call for parameter
+    # normalisation during GET /strategies/{id}; return empty schema.
+    wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
 
     sync_resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -309,6 +328,9 @@ async def test_open_wdk_strategy_imports_full_plan(
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})
+    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
     wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
 
     # Open the WDK strategy
@@ -372,6 +394,9 @@ async def test_open_same_wdk_strategy_twice_reuses_projection(
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})
+    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
+        200, json={"searchData": {}}
+    )
     wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
 
     # Open once

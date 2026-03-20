@@ -4,12 +4,16 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
-    make_citation,
 )
 from veupath_chatbot.services.research.utils import truncate_text
 
@@ -104,9 +108,9 @@ class EuropePmcClient(StandardClient):
             "abstract": abstract,
             "snippet": journal,
         }
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id("epmc"),
             source="europepmc",
-            id_prefix="epmc",
             title=title or (link or "Europe PMC result"),
             url=link,
             authors=authors,
@@ -114,5 +118,6 @@ class EuropePmcClient(StandardClient):
             doi=doi,
             pmid=pmid,
             snippet=abstract or journal,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

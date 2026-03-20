@@ -435,7 +435,6 @@ class TestPhaseCrossValidate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        metrics = _make_metrics()
         sentinel = object()
 
         with patch(
@@ -448,9 +447,7 @@ class TestPhaseCrossValidate:
                 experiment,
                 _noop_emit,
                 store,
-                metrics=metrics,
                 final_tree=None,
-                cvf="newline",
             )
 
         mock_cv.assert_awaited_once()
@@ -466,7 +463,6 @@ class TestPhaseCrossValidate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        metrics = _make_metrics()
         sentinel = object()
 
         with patch(
@@ -479,15 +475,13 @@ class TestPhaseCrossValidate:
                 experiment,
                 _noop_emit,
                 store,
-                metrics=metrics,
                 final_tree=tree,
-                cvf="newline",
             )
 
         mock_cv.assert_awaited_once()
-        # Verify tree was passed through
-        call_kwargs = mock_cv.call_args.kwargs
-        assert call_kwargs["tree"] is tree
+        # Verify tree was passed through as the second positional arg
+        call_args = mock_cv.call_args.args
+        assert call_args[1] is tree
         assert experiment.cross_validation is sentinel
 
 

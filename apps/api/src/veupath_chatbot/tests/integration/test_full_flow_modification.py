@@ -26,6 +26,26 @@ from veupath_chatbot.tests.fixtures.sse_collector import collect_chat_stream
 pytestmark = pytest.mark.live_wdk
 
 
+def _step_id_from_dict(data: object) -> str | None:
+    """Extract a step ID from a parsed JSON dict returned by a tool call.
+
+    :param data: Parsed tool-call result (dict expected).
+    :returns: Step ID string, or None.
+    """
+    if not isinstance(data, dict):
+        return None
+    direct = data.get("stepId") or data.get("id")
+    if direct:
+        return str(direct)
+    steps = data.get("steps") or data.get("data") or []
+    nested = (
+        (steps[0].get("stepId") or steps[0].get("id"))
+        if isinstance(steps, list) and steps and isinstance(steps[0], dict)
+        else None
+    )
+    return str(nested) if nested else None
+
+
 def _extract_step_id_from_result(result) -> str | None:
     """Extract the first step ID from tool call results or strategy_update events.
 
@@ -33,27 +53,16 @@ def _extract_step_id_from_result(result) -> str | None:
     :returns: First step ID found, or None.
     """
     for start, end in result.tool_calls:
-        if start.data.get("name") in ("create_step", "list_current_steps"):
-            result_str = end.data.get("result", "{}")
-            try:
-                data = (
-                    json.loads(result_str)
-                    if isinstance(result_str, str)
-                    else result_str
-                )
-            except json.JSONDecodeError, TypeError:
-                continue
-            if isinstance(data, dict):
-                sid = data.get("stepId") or data.get("id")
-                if sid:
-                    return str(sid)
-                steps = data.get("steps") or data.get("data") or []
-                if isinstance(steps, list) and steps:
-                    first = steps[0]
-                    if isinstance(first, dict):
-                        sid = first.get("stepId") or first.get("id")
-                        if sid:
-                            return str(sid)
+        if start.data.get("name") not in ("create_step", "list_current_steps"):
+            continue
+        result_str = end.data.get("result", "{}")
+        try:
+            data = json.loads(result_str) if isinstance(result_str, str) else result_str
+        except json.JSONDecodeError, TypeError:
+            continue
+        sid = _step_id_from_dict(data)
+        if sid:
+            return sid
 
     for evt in result.events_of_type("strategy_update"):
         step = evt.data.get("step", {})
@@ -98,7 +107,7 @@ class TestUpdateParameters:
                                 "hard_floor": "5271.566971799924622138383777958655190582",
                                 "protein_coding_only": "yes",
                             },
-                            "display_name": "Gametocyte expression (fc=2)",
+                            "inputs": {"display_name": "Gametocyte expression (fc=2)"},
                         },
                     )
                 ]
@@ -185,7 +194,7 @@ class TestDeleteStep:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High"]',
                         },
-                        "display_name": "Epitope genes (High)",
+                        "inputs": {"display_name": "Epitope genes (High)"},
                     },
                 )
             ]
@@ -202,7 +211,7 @@ class TestDeleteStep:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["Low"]',
                         },
-                        "display_name": "Epitope genes (Low)",
+                        "inputs": {"display_name": "Epitope genes (Low)"},
                     },
                 )
             ]

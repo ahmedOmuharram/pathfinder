@@ -14,4 +14,4 @@ class AnthropicThinkingPart(MessagePart):
 class AnthropicUnknownPart(MessagePart):
     type: str
     data: dict[str, Any]
-    def __init__(self, *, type: str, data: dict[str, Any]) -> None: ...
+    def __init__(self, *, type: str, data: dict[str, Any]) -> None: ...  # noqa: A002

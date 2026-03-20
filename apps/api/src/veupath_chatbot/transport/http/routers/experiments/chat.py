@@ -5,7 +5,9 @@ from fastapi import APIRouter
 from veupath_chatbot.platform.events import read_stream_messages
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.services.workbench_chat.orchestrator import (
+    WorkbenchTurnConfig,
     start_workbench_chat_stream,
 )
 from veupath_chatbot.transport.http.deps import CurrentUser, StreamRepo, UserRepo
@@ -30,16 +32,22 @@ async def workbench_chat(
     Returns operation ID for SSE subscription via
     GET /operations/{operationId}/subscribe.
     """
+    context = ChatContext(
+        user_id=user_id,
+        user_repo=user_repo,
+        stream_repo=stream_repo,
+    )
+    config = WorkbenchTurnConfig(
+        provider_override=body.provider,
+        model_override=body.model_id,
+        reasoning_effort=body.reasoning_effort,
+    )
     op_id, stream_id = await start_workbench_chat_stream(
         message=body.message,
         site_id=body.site_id,
         experiment_id=experiment_id,
-        user_id=user_id,
-        user_repo=user_repo,
-        stream_repo=stream_repo,
-        provider_override=body.provider,
-        model_override=body.model_id,
-        reasoning_effort=body.reasoning_effort,
+        context=context,
+        config=config,
     )
     return WorkbenchChatResponse(operationId=op_id, streamId=stream_id)
 

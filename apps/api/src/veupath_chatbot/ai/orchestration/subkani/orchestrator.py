@@ -6,7 +6,8 @@ workflow out of the main agent runtime to keep concerns separated.
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import cast
 
 from kani.engines.base import BaseEngine
@@ -33,10 +34,11 @@ from veupath_chatbot.ai.orchestration.subkani.utils import (
     format_task_context,
     get_round_result,
 )
+from veupath_chatbot.ai.orchestration.types import EmitEvent, SubkaniContext
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
-from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.config import Settings, get_settings
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
@@ -47,10 +49,33 @@ from veupath_chatbot.transport.http.schemas.sse import (
 
 logger = get_logger(__name__)
 
-EmitEvent = Callable[[JSONObject], Awaitable[None]]
-
 _MAX_SUBKANI_RETRIES = 5
 _LAST_RETRY_INDEX = _MAX_SUBKANI_RETRIES - 1
+
+
+@dataclass
+class SubkaniRunState:
+    """State for a single subkani run attempt."""
+
+    sub_kani: SubtaskAgent
+    task: str
+    graph_id: str
+    subkani_model_id: str
+    prompt: str
+
+
+@dataclass
+class DelegationRunData:
+    """Aggregated data from a delegation run for response construction."""
+
+    graph: object
+    graph_id: str | None
+    graph_name: str
+    graph_description: str
+    normalized: JSONArray
+    normalized_combines: JSONArray
+    results: JSONArray
+    start: float
 
 
 def _derive_model_id(engine: BaseEngine) -> str:
@@ -63,11 +88,11 @@ def _derive_model_id(engine: BaseEngine) -> str:
     return model
 
 
-def _clean_chat_history(chat_history: list[ChatMessage]) -> list[ChatMessage]:
+def _clean_chat_history(context: SubkaniContext) -> list[ChatMessage]:
     """Remove tool-related messages from chat history for sub-kani use."""
     return [
         message
-        for message in chat_history
+        for message in context.chat_history
         if message.role != ChatRole.FUNCTION
         and not getattr(message, "tool_calls", None)
         and getattr(message, "tool_call_id", None) is None
@@ -92,7 +117,7 @@ def _resolve_graph_id(
 
 
 def _create_subkani_engine(
-    settings: object,
+    settings: Settings,
     engine_factory: Callable[[], BaseEngine] | None,
 ) -> BaseEngine:
     """Create the engine for a sub-kani agent."""
@@ -218,30 +243,25 @@ async def run_subkani_task(
     *,
     task: str,
     goal: str,
-    site_id: str,
-    strategy_session: StrategySession,
+    context: SubkaniContext,
     graph_id: str | None,
     dependency_context: str | None,
-    chat_history: list[ChatMessage],
-    emit_event: EmitEvent,
-    subkani_timeout_seconds: int,
-    engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
-    engine = _create_subkani_engine(settings, engine_factory)
+    engine = _create_subkani_engine(settings, context.engine_factory)
     subkani_model_id = _derive_model_id(engine)
-    graph_id = _resolve_graph_id(strategy_session, graph_id)
-    clean_history = _clean_chat_history(chat_history)
+    resolved_graph_id = _resolve_graph_id(context.strategy_session, graph_id)
+    clean_history = _clean_chat_history(context)
 
     sub_kani = SubtaskAgent(
         engine=engine,
-        site_id=site_id,
-        session=strategy_session,
-        graph_id=graph_id,
+        site_id=context.site_id,
+        session=context.strategy_session,
+        graph_id=resolved_graph_id,
         chat_history=clean_history,
     )
 
-    await emit_event(
+    await context.emit_event(
         {
             "type": "subkani_task_start",
             "data": SubKaniTaskStartEventData(
@@ -252,100 +272,92 @@ async def run_subkani_task(
     prompt = build_subkani_round_prompt(
         task=task,
         goal=goal,
-        graph_id=str(graph_id),
+        graph_id=str(resolved_graph_id),
         dependency_context=dependency_context,
     )
 
-    return await _run_subkani_retry_loop(
+    run_state = SubkaniRunState(
         sub_kani=sub_kani,
         task=task,
-        graph_id=graph_id,
+        graph_id=resolved_graph_id,
         subkani_model_id=subkani_model_id,
-        strategy_session=strategy_session,
-        emit_event=emit_event,
-        subkani_timeout_seconds=subkani_timeout_seconds,
         prompt=prompt,
     )
+    return await _run_subkani_retry_loop(run_state=run_state, context=context)
 
 
 async def _run_subkani_retry_loop(
     *,
-    sub_kani: SubtaskAgent,
-    task: str,
-    graph_id: str,
-    subkani_model_id: str,
-    strategy_session: StrategySession,
-    emit_event: EmitEvent,
-    subkani_timeout_seconds: int,
-    prompt: str,
+    run_state: SubkaniRunState,
+    context: SubkaniContext,
 ) -> JSONObject:
     """Execute the sub-kani with retry logic for no-step results."""
     created_steps: JSONArray = []
     emitted_step_ids: set[str] = set()
     last_errors: list[str] = []
 
-    graph = strategy_session.get_graph(graph_id)
+    graph = context.strategy_session.get_graph(run_state.graph_id)
     roots_before: set[str] = set(graph.roots) if graph else set()
+    prompt = run_state.prompt
 
     for attempt in range(_MAX_SUBKANI_RETRIES):
         try:
             _, round_steps, round_errors = await asyncio.wait_for(
                 consume_subkani_round(
-                    sub_kani=sub_kani,
-                    emit_event=emit_event,
-                    task=task,
+                    sub_kani=run_state.sub_kani,
+                    emit_event=context.emit_event,
+                    task=run_state.task,
                     round_prompt=prompt,
                 ),
-                timeout=subkani_timeout_seconds,
+                timeout=context.subkani_timeout_seconds,
             )
         except TimeoutError:
-            await emit_event(
+            await context.emit_event(
                 {
                     "type": "subkani_task_end",
                     "data": SubKaniTaskEndEventData(
-                        task=task,
+                        task=run_state.task,
                         status="timeout",
-                        modelId=subkani_model_id,
+                        modelId=run_state.subkani_model_id,
                     ).model_dump(by_alias=True),
                 }
             )
-            return {"task": task, "steps": [], "notes": "timeout"}
+            return {"task": run_state.task, "steps": [], "notes": "timeout"}
 
         last_errors = round_errors
         created_steps.extend(round_steps)
         if created_steps:
             return await _finalize_successful_run(
-                task=task,
-                graph_id=graph_id,
-                subkani_model_id=subkani_model_id,
-                strategy_session=strategy_session,
-                emit_event=emit_event,
+                run_state=run_state,
+                context=context,
                 created_steps=created_steps,
                 emitted_step_ids=emitted_step_ids,
                 roots_before=roots_before,
             )
 
         if attempt < _LAST_RETRY_INDEX:
-            await emit_event(
+            await context.emit_event(
                 {
                     "type": "subkani_task_retry",
-                    "data": {"task": task, "attempt": attempt + 2},
+                    "data": {"task": run_state.task, "attempt": attempt + 2},
                 }
             )
-            prompt = _build_retry_prompt(task, graph_id, last_errors)
+            prompt = _build_retry_prompt(
+                run_state.task, run_state.graph_id, last_errors
+            )
 
-    await emit_event(
+    await context.emit_event(
         {
             "type": "subkani_task_end",
             "data": SubKaniTaskEndEventData(
-                task=task,
+                task=run_state.task,
                 status="no_steps",
-                modelId=subkani_model_id,
+                modelId=run_state.subkani_model_id,
             ).model_dump(by_alias=True),
         }
     )
     return {
-        "task": task,
+        "task": run_state.task,
         "steps": [],
         "notes": "no_steps",
         "errors": cast("JSONArray", last_errors),
@@ -354,30 +366,27 @@ async def _run_subkani_retry_loop(
 
 async def _finalize_successful_run(
     *,
-    task: str,
-    graph_id: str,
-    subkani_model_id: str,
-    strategy_session: StrategySession,
-    emit_event: EmitEvent,
+    run_state: SubkaniRunState,
+    context: SubkaniContext,
     created_steps: JSONArray,
     emitted_step_ids: set[str],
     roots_before: set[str],
 ) -> JSONObject:
     """Finalize a successful sub-kani run: emit events and return result."""
-    graph = strategy_session.get_graph(graph_id)
+    graph = context.strategy_session.get_graph(run_state.graph_id)
     await _emit_step_events(
         created_steps=created_steps,
         emitted_step_ids=emitted_step_ids,
         graph=graph,
-        graph_id=graph_id,
-        emit_event=emit_event,
+        graph_id=run_state.graph_id,
+        emit_event=context.emit_event,
     )
     roots_after: set[str] = set(graph.roots) if graph else set()
     new_roots = roots_after - roots_before
     if len(new_roots) != 1:
         logger.warning(
             "Sub-kani subtree-root contract violation",
-            task=task,
+            task=run_state.task,
             new_roots=sorted(new_roots),
             expected=1,
             actual=len(new_roots),
@@ -385,12 +394,12 @@ async def _finalize_successful_run(
     subtree_root = next(iter(new_roots)) if len(new_roots) == 1 else None
 
     await _emit_task_end(
-        task=task,
-        subkani_model_id=subkani_model_id,
-        emit_event=emit_event,
+        task=run_state.task,
+        subkani_model_id=run_state.subkani_model_id,
+        emit_event=context.emit_event,
     )
     result: JSONObject = {
-        "task": task,
+        "task": run_state.task,
         "steps": created_steps,
         "notes": "created",
     }
@@ -502,16 +511,12 @@ async def _run_task_node(
     node_id: str,
     node: JSONObject,
     goal: str,
-    site_id: str,
-    strategy_session: StrategySession,
+    context: SubkaniContext,
     graph_id: str | None,
     dependency_context: str | None,
-    chat_history: list[ChatMessage],
-    emit_event: EmitEvent,
-    settings: object,
-    engine_factory: Callable[[], BaseEngine] | None,
 ) -> JSONObject:
     """Execute a task node by running a sub-kani."""
+    settings = get_settings()
     task_text = str(node.get("task") or "").strip()
     instructions = str(node.get("instructions") or "").strip()
     if instructions:
@@ -523,18 +528,21 @@ async def _run_task_node(
             + "Planner-provided context (JSON/text):\n"
             + extra_context
         )
+    task_context = SubkaniContext(
+        site_id=context.site_id,
+        strategy_session=context.strategy_session,
+        chat_history=context.chat_history,
+        emit_event=context.emit_event,
+        subkani_timeout_seconds=settings.subkani_timeout_seconds,
+        engine_factory=context.engine_factory,
+    )
     try:
         result = await run_subkani_task(
             task=task_text,
             goal=goal,
-            site_id=site_id,
-            strategy_session=strategy_session,
+            context=task_context,
             graph_id=graph_id,
             dependency_context=dependency_context,
-            chat_history=chat_history,
-            emit_event=emit_event,
-            subkani_timeout_seconds=settings.subkani_timeout_seconds,
-            engine_factory=engine_factory,
         )
     except (OSError, ValueError, TypeError, KeyError, TimeoutError) as exc:
         logger.error(
@@ -562,13 +570,9 @@ async def _run_task_node(
 async def delegate_strategy_subtasks(
     *,
     goal: str,
-    site_id: str,
-    strategy_session: StrategySession,
+    context: SubkaniContext,
     strategy_tools: StrategyTools,
-    emit_event: EmitEvent,
-    chat_history: list[ChatMessage],
     plan: JSONObject | None = None,
-    engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
     compiled = build_delegation_plan(goal=goal, plan=plan)
@@ -588,19 +592,19 @@ async def delegate_strategy_subtasks(
     dependents = compiled.dependents
 
     graph_name, graph_description = derive_graph_metadata(goal)
-    graph = strategy_session.get_graph(None)
+    graph = context.strategy_session.get_graph(None)
     graph_id = graph.id if graph else None
     if not graph:
-        graph = strategy_session.create_graph(graph_name)
+        graph = context.strategy_session.create_graph(graph_name)
         graph_id = graph.id
-    await emit_event(
+    await context.emit_event(
         {
             "type": "graph_snapshot",
             "data": {"graphSnapshot": strategy_tools._build_graph_snapshot(graph)},
         }
     )
 
-    logger.info("Spawning sub-kanis", count=len(normalized), site_id=site_id)
+    logger.info("Spawning sub-kanis", count=len(normalized), site_id=context.site_id)
     start = time.monotonic()
 
     results_by_id: dict[str, JSONObject] = {}
@@ -615,20 +619,15 @@ async def delegate_strategy_subtasks(
                 combine=node,
                 results_by_id=results_by_id,
                 strategy_tools=strategy_tools,
-                emit_event=emit_event,
+                emit_event=context.emit_event,
             )
         return await _run_task_node(
             node_id=node_id,
             node=node,
             goal=goal,
-            site_id=site_id,
-            strategy_session=strategy_session,
+            context=context,
             graph_id=graph_id,
             dependency_context=dependency_context,
-            chat_history=chat_history,
-            emit_event=emit_event,
-            settings=settings,
-            engine_factory=engine_factory,
         )
 
     results, _results_by_id = await run_nodes_with_dependencies(
@@ -640,8 +639,7 @@ async def delegate_strategy_subtasks(
         results_by_id=results_by_id,
     )
 
-    return await _build_delegation_response(
-        goal=goal,
+    run_data = DelegationRunData(
         graph=graph,
         graph_id=graph_id,
         graph_name=graph_name,
@@ -650,72 +648,73 @@ async def delegate_strategy_subtasks(
         normalized_combines=normalized_combines,
         results=results,
         start=start,
+    )
+    return await _build_delegation_response(
+        goal=goal,
+        run_data=run_data,
         strategy_tools=strategy_tools,
-        emit_event=emit_event,
+        emit_event=context.emit_event,
     )
 
 
 async def _build_delegation_response(
     *,
     goal: str,
-    graph: object,
-    graph_id: str | None,
-    graph_name: str,
-    graph_description: str,
-    normalized: JSONArray,
-    normalized_combines: JSONArray,
-    results: JSONArray,
-    start: float,
+    run_data: DelegationRunData,
     strategy_tools: StrategyTools,
     emit_event: EmitEvent,
 ) -> JSONObject:
     """Build the final delegation response from results."""
     task_results: JSONArray = [
         cast("JSONValue", r)
-        for r in results
+        for r in run_data.results
         if isinstance(r, dict) and r.get("kind") == "task"
     ]
     validated, rejected = partition_task_results(task_results)
 
     logger.info(
         "Sub-kani tasks completed",
-        duration_ms=int((time.monotonic() - start) * 1000),
+        duration_ms=int((time.monotonic() - run_data.start) * 1000),
         results=len(validated),
         rejected=len(rejected),
     )
 
     combine_results: JSONArray = [
         cast("JSONValue", r)
-        for r in results
+        for r in run_data.results
         if isinstance(r, dict) and r.get("kind") == "combine" and r.get("stepId")
     ]
     combine_errors: JSONArray = [
         cast("JSONValue", r)
-        for r in results
+        for r in run_data.results
         if isinstance(r, dict)
         and r.get("kind") == "combine"
         and (r.get("ok") is False or r.get("error"))
     ]
 
-    if isinstance(graph, StrategyGraph) and graph.current_strategy:
-        graph.current_strategy.name = graph_name
-        graph.current_strategy.description = graph_description
-        graph.name = graph_name
-        graph.save_history("Updated strategy metadata from delegation")
+    if isinstance(run_data.graph, StrategyGraph) and run_data.graph.current_strategy:
+        run_data.graph.current_strategy.name = run_data.graph_name
+        run_data.graph.current_strategy.description = run_data.graph_description
+        run_data.graph.name = run_data.graph_name
+        run_data.graph.save_history("Updated strategy metadata from delegation")
         await emit_event(
             {
                 "type": "graph_snapshot",
-                "data": {"graphSnapshot": strategy_tools._build_graph_snapshot(graph)},
+                "data": {
+                    "graphSnapshot": strategy_tools._build_graph_snapshot(
+                        run_data.graph
+                    )
+                },
             }
         )
 
     return {
         "goal": goal,
-        "tasks": normalized,
-        "graphId": graph_id,
-        "graphName": graph_name,
-        "graphDescription": graph_description,
-        "combines": normalized_combines,
+        "tasks": run_data.normalized,
+        "graphId": run_data.graph_id,
+        "graphName": run_data.graph_name,
+        "graphDescription": run_data.graph_description,
+        "combines": run_data.normalized_combines,
         "combineResults": combine_results,
         "combineErrors": combine_errors,
         "results": validated,

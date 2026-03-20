@@ -6,12 +6,16 @@ from typing import Literal
 
 import httpx
 
+from veupath_chatbot.domain.research.citations import (
+    Citation,
+    _new_citation_id,
+    _now_iso,
+)
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     BaseClient,
     build_response,
-    make_citation,
 )
 from veupath_chatbot.services.research.utils import (
     BROWSER_USER_AGENT,
@@ -83,7 +87,9 @@ class PreprintClient(BaseClient):
         params = {"q": f"site:{site} {query}"}
         headers = {"User-Agent": "pathfinder-planner/1.0"}
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers=headers
+            ) as client:
                 resp = await client.get(ddg_url, params=params, follow_redirects=True)
                 resp.raise_for_status()
                 html = resp.text or ""
@@ -120,10 +126,11 @@ class PreprintClient(BaseClient):
         source = self._current_source
 
         result: JSONObject = {"title": title, "url": url_str, "snippet": None}
-        citation = make_citation(
+        citation = Citation(
+            id=_new_citation_id(source),
             source=source,
-            id_prefix=source,
             title=title or (url_str or f"{source} result"),
             url=url_str,
-        )
+            accessed_at=_now_iso(),
+        ).to_dict()
         return result, citation

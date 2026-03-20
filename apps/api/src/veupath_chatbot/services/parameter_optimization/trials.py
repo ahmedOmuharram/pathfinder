@@ -10,9 +10,13 @@ import optuna
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
 from veupath_chatbot.services.experiment.types import ControlValueFormat
 from veupath_chatbot.services.parameter_optimization.callbacks import (
+    TrialProgressEvent,
     emit_error,
     emit_trial_progress,
 )
@@ -61,31 +65,28 @@ def _create_sampler(
     Grid search may reduce *budget* if the total number of combinations
     is smaller than the requested budget.
     """
-    match cfg.method:
-        case "bayesian":
-            return optuna.samplers.TPESampler(seed=42), budget
-        case "grid":
-            grid: dict[str, list[float | int | str]] = {}
-            for p in parameter_space:
-                if p.param_type == "categorical" and p.choices:
-                    grid[p.name] = list(p.choices)
-                elif p.param_type == "integer":
-                    lo, hi = int(p.min_value or 0), int(p.max_value or 10)
-                    st = int(p.step) if p.step else max(1, (hi - lo) // 10)
-                    grid[p.name] = list(range(lo, hi + 1, st))
-                else:  # numeric
-                    lo_f, hi_f = p.min_value or 0.0, p.max_value or 1.0
-                    n_levels = min(10, budget)
-                    step_size = (hi_f - lo_f) / max(n_levels - 1, 1)
-                    grid[p.name] = [lo_f + i * step_size for i in range(n_levels)]
-            total_combos: int = 1
-            for v in grid.values():
-                total_combos *= len(v)
-            return optuna.samplers.GridSampler(grid), int(min(total_combos, budget))
-        case "random":
-            return optuna.samplers.RandomSampler(seed=42), budget
-        case _:
-            return optuna.samplers.TPESampler(seed=42), budget
+    if cfg.method == "grid":
+        grid: dict[str, list[float | int | str]] = {}
+        for p in parameter_space:
+            if p.param_type == "categorical" and p.choices:
+                grid[p.name] = list(p.choices)
+            elif p.param_type == "integer":
+                lo, hi = int(p.min_value or 0), int(p.max_value or 10)
+                st = int(p.step) if p.step else max(1, (hi - lo) // 10)
+                grid[p.name] = list(range(lo, hi + 1, st))
+            else:  # numeric
+                lo_f, hi_f = p.min_value or 0.0, p.max_value or 1.0
+                n_levels = min(10, budget)
+                step_size = (hi_f - lo_f) / max(n_levels - 1, 1)
+                grid[p.name] = [lo_f + i * step_size for i in range(n_levels)]
+        total_combos: int = 1
+        for v in grid.values():
+            total_combos *= len(v)
+        return optuna.samplers.GridSampler(grid), int(min(total_combos, budget))
+    if cfg.method == "random":
+        return optuna.samplers.RandomSampler(seed=42), budget
+    # "bayesian" or any unrecognised method → TPE
+    return optuna.samplers.TPESampler(seed=42), budget
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +304,14 @@ async def _emit_trial_result(
 
     await emit_trial_progress(
         ctx.progress_callback,
-        optimization_id=ctx.optimization_id,
-        trial_num=trial_num,
-        budget=ctx.budget,
-        trial_json=trial_json,
-        best_trial=ctx.best_trial,
-        recent_trials=ctx.trials[-5:],
+        TrialProgressEvent(
+            optimization_id=ctx.optimization_id,
+            trial_num=trial_num,
+            budget=ctx.budget,
+            trial_json=trial_json,
+            best_trial=ctx.best_trial,
+            recent_trials=ctx.trials[-5:],
+        ),
     )
 
 
@@ -354,17 +357,19 @@ async def _evaluate_trial(
         wdk_result: JSONObject | None = None
         try:
             wdk_result = await run_positive_negative_controls(
-                site_id=ctx.site_id,
-                record_type=ctx.record_type,
-                target_search_name=ctx.search_name,
-                target_parameters=trial_params,
-                controls_search_name=ctx.controls_search_name,
-                controls_param_name=ctx.controls_param_name,
+                IntersectionConfig(
+                    site_id=ctx.site_id,
+                    record_type=ctx.record_type,
+                    target_search_name=ctx.search_name,
+                    target_parameters=trial_params,
+                    controls_search_name=ctx.controls_search_name,
+                    controls_param_name=ctx.controls_param_name,
+                    controls_value_format=ctx.controls_value_format,
+                    controls_extra_parameters=ctx.controls_extra_parameters,
+                    id_field=ctx.id_field,
+                ),
                 positive_controls=ctx.positive_controls,
                 negative_controls=ctx.negative_controls,
-                controls_value_format=ctx.controls_value_format,
-                controls_extra_parameters=ctx.controls_extra_parameters,
-                id_field=ctx.id_field,
             )
         except (AppError, ValueError, TypeError, KeyError) as trial_exc:
             wdk_error = str(trial_exc)
@@ -480,6 +485,19 @@ class _TrialOutcome:
     is_failure: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _TrialEvalInput:
+    """Inputs for a single trial evaluation (groups the per-trial data)."""
+
+    ot: optuna.trial.Trial
+    params: dict[str, JSONValue]
+    wdk_result: JSONObject | None
+    wdk_error: str
+    trial_num: int
+    n_positives: int
+    n_negatives: int
+
+
 def _unpack_gather_result(
     raw_result: tuple[JSONObject | None, str] | BaseException,
     trial_num: int,
@@ -507,49 +525,42 @@ def _unpack_gather_result(
 
 
 def _process_single_trial(
-    *,
     ctx: _TrialContext,
-    ot: optuna.trial.Trial,
-    params: dict[str, JSONValue],
-    wdk_result: JSONObject | None,
-    wdk_error: str,
-    trial_num: int,
-    n_positives: int,
-    n_negatives: int,
+    inp: _TrialEvalInput,
 ) -> _TrialOutcome:
     """Process a single trial result: build TrialResult and report to Optuna."""
-    if wdk_result is None:
-        ctx.study.tell(ot, state=optuna.trial.TrialState.FAIL)
+    if inp.wdk_result is None:
+        ctx.study.tell(inp.ot, state=optuna.trial.TrialState.FAIL)
         return _TrialOutcome(
             trial_result=_build_failed_trial(
-                trial_number=trial_num,
-                params=params,
-                n_positives=n_positives,
-                n_negatives=n_negatives,
+                trial_number=inp.trial_num,
+                params=inp.params,
+                n_positives=inp.n_positives,
+                n_negatives=inp.n_negatives,
             ),
-            wdk_error=wdk_error,
+            wdk_error=inp.wdk_error,
             grid_exhausted=False,
             is_failure=True,
         )
 
     trial_result = _build_successful_trial(
-        trial_number=trial_num,
-        params=params,
-        wdk_result=wdk_result,
+        trial_number=inp.trial_num,
+        params=inp.params,
+        wdk_result=inp.wdk_result,
         cfg=ctx.cfg,
-        n_positives=n_positives,
-        n_negatives=n_negatives,
+        n_positives=inp.n_positives,
+        n_negatives=inp.n_negatives,
     )
 
     grid_exhausted = False
     try:
-        ctx.study.tell(ot, trial_result.score)
+        ctx.study.tell(inp.ot, trial_result.score)
     except RuntimeError as tell_exc:
         if "stop" in str(tell_exc).lower():
             logger.info(
                 "Grid sampler exhausted search space",
                 optimization_id=ctx.optimization_id,
-                trial=trial_num,
+                trial=inp.trial_num,
             )
             grid_exhausted = True
         else:
@@ -557,7 +568,7 @@ def _process_single_trial(
 
     return _TrialOutcome(
         trial_result=trial_result,
-        wdk_error=wdk_error,
+        wdk_error=inp.wdk_error,
         grid_exhausted=grid_exhausted,
         is_failure=False,
     )
@@ -634,33 +645,42 @@ async def _handle_successful_outcome(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _BatchInput:
+    """Inputs for processing a batch of trials."""
+
+    optuna_trials: list[optuna.trial.Trial]
+    batch_params: list[dict[str, JSONValue]]
+    wdk_results: list[tuple[JSONObject | None, str] | BaseException]
+    trial_idx: int
+    n_positives: int
+    n_negatives: int
+
+
 async def _process_batch(
     ctx: _TrialContext,
     state: _LoopState,
-    optuna_trials: list[optuna.trial.Trial],
-    batch_params: list[dict[str, JSONValue]],
-    wdk_results: list[tuple[JSONObject | None, str] | BaseException],
-    trial_idx: int,
-    n_positives: int,
-    n_negatives: int,
+    batch: _BatchInput,
 ) -> bool:
     """Process all results in a batch. Returns True if the loop should stop."""
-    for i, raw_result in enumerate(wdk_results):
-        trial_num = trial_idx + i + 1
+    for i, raw_result in enumerate(batch.wdk_results):
+        trial_num = batch.trial_idx + i + 1
         wdk_result, wdk_error = _unpack_gather_result(
             raw_result,
             trial_num,
-            batch_params[i],
+            batch.batch_params[i],
         )
         outcome = _process_single_trial(
-            ctx=ctx,
-            ot=optuna_trials[i],
-            params=batch_params[i],
-            wdk_result=wdk_result,
-            wdk_error=wdk_error,
-            trial_num=trial_num,
-            n_positives=n_positives,
-            n_negatives=n_negatives,
+            ctx,
+            _TrialEvalInput(
+                ot=batch.optuna_trials[i],
+                params=batch.batch_params[i],
+                wdk_result=wdk_result,
+                wdk_error=wdk_error,
+                trial_num=trial_num,
+                n_positives=batch.n_positives,
+                n_negatives=batch.n_negatives,
+            ),
         )
         ctx.trials.append(outcome.trial_result)
 
@@ -718,12 +738,14 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
             should_stop = await _process_batch(
                 ctx,
                 state,
-                optuna_trials,
-                batch_params,
-                wdk_results,
-                trial_idx,
-                n_positives,
-                n_negatives,
+                _BatchInput(
+                    optuna_trials=optuna_trials,
+                    batch_params=batch_params,
+                    wdk_results=wdk_results,
+                    trial_idx=trial_idx,
+                    n_positives=n_positives,
+                    n_negatives=n_negatives,
+                ),
             )
             if should_stop:
                 if state.abort_result:

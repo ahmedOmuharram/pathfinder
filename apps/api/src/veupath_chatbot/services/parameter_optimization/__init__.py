@@ -8,6 +8,7 @@ continue to work unchanged.
 from veupath_chatbot.services.parameter_optimization.config import (
     CancelCheck,
     OptimizationConfig,
+    OptimizationInput,
     OptimizationMethod,
     OptimizationResult,
     ParameterSpec,
@@ -28,6 +29,7 @@ from veupath_chatbot.services.parameter_optimization.scoring import (
 __all__ = [
     "CancelCheck",
     "OptimizationConfig",
+    "OptimizationInput",
     "OptimizationMethod",
     "OptimizationResult",
     "ParameterSpec",

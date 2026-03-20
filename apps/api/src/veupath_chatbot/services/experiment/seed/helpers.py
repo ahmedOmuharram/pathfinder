@@ -8,6 +8,7 @@ Each seed file may still define site-specific helpers locally.
 """
 
 import json
+from dataclasses import dataclass
 
 
 def org(names: list[str]) -> str:
@@ -182,31 +183,42 @@ def taxon_params(organism: str) -> dict[str, str]:
     return {"organism": org([organism])}
 
 
+@dataclass
+class RNASeqOptions:
+    """Optional parameters for RNA-Seq fold-change searches.
+
+    Groups the parameters that have site-specific or per-call defaults so
+    :func:`rnaseq_fc_params` stays within the 6-argument limit.
+    """
+
+    hard_floor: str = "0"
+    fold_change: str = "2"
+    protein_coding: str = "yes"
+    ref_op: str = "average1"
+    comp_op: str = "average1"
+
+
 def rnaseq_fc_params(
-    *,
     dataset_url: str,
     profileset: str,
     direction: str,
     ref_samples: list[str],
     comp_samples: list[str],
-    fold_change: str = "2",
-    hard_floor: str,
-    protein_coding: str = "yes",
-    ref_op: str = "average1",
-    comp_op: str = "average1",
+    options: RNASeqOptions | None = None,
 ) -> dict[str, str]:
     """Build RNA-Seq fold-change search parameters."""
+    opts = options or RNASeqOptions()
     return {
         "dataset_url": dataset_url,
         "profileset_generic": profileset,
         "regulated_dir": direction,
         "samples_fc_ref_generic": json.dumps(ref_samples),
-        "min_max_avg_ref": ref_op,
+        "min_max_avg_ref": opts.ref_op,
         "samples_fc_comp_generic": json.dumps(comp_samples),
-        "min_max_avg_comp": comp_op,
-        "fold_change": fold_change,
-        "hard_floor": hard_floor,
-        "protein_coding_only": protein_coding,
+        "min_max_avg_comp": opts.comp_op,
+        "fold_change": opts.fold_change,
+        "hard_floor": opts.hard_floor,
+        "protein_coding_only": opts.protein_coding,
     }
 
 

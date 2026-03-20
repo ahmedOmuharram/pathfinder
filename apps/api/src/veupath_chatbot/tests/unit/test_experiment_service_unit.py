@@ -4,6 +4,7 @@ Tests phase sequencing, error handling, partial state on failure,
 and edge cases in the experiment lifecycle.
 """
 
+from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,34 +26,42 @@ from veupath_chatbot.services.experiment.types import (
 )
 
 
+@dataclass
+class _CfgExtras:
+    """Optional overrides for :func:`_cfg`."""
+
+    enable_cross_validation: bool = False
+    enrichment_types: list[str] | None = None
+    sort_attribute: str | None = None
+    positive_controls: list[str] | None = None
+    negative_controls: list[str] | None = field(default=None)
+
+
 def _cfg(
     mode: str = "single",
     search_name: str = "GenesByTextSearch",
     step_tree: dict[str, Any] | None = None,
-    enable_cross_validation: bool = False,
-    enrichment_types: list[str] | None = None,
-    sort_attribute: str | None = None,
-    positive_controls: list[str] | None = None,
-    negative_controls: list[str] | None = None,
+    extras: _CfgExtras | None = None,
 ) -> ExperimentConfig:
+    ex = extras or _CfgExtras()
     return ExperimentConfig(
         site_id="plasmodb",
         record_type="gene",
         search_name=search_name,
         parameters={"text_expression": "kinase"},
         positive_controls=["g1", "g2", "g3"]
-        if positive_controls is None
-        else positive_controls,
+        if ex.positive_controls is None
+        else ex.positive_controls,
         negative_controls=["n1", "n2"]
-        if negative_controls is None
-        else negative_controls,
+        if ex.negative_controls is None
+        else ex.negative_controls,
         controls_search_name="GeneByLocusTag",
         controls_param_name="single_gene_id",
         mode=mode,
         step_tree=step_tree,
-        enable_cross_validation=enable_cross_validation,
-        enrichment_types=enrichment_types or [],
-        sort_attribute=sort_attribute,
+        enable_cross_validation=ex.enable_cross_validation,
+        enrichment_types=ex.enrichment_types or [],
+        sort_attribute=ex.sort_attribute,
         name="Test Experiment",
     )
 
@@ -324,14 +333,16 @@ class TestPhaseRankMetrics:
         emit.assert_not_awaited()
 
     async def test_skips_when_no_wdk_step_id(self) -> None:
-        exp = Experiment(id="exp_001", config=_cfg(sort_attribute="mean"))
+        exp = Experiment(
+            id="exp_001", config=_cfg(extras=_CfgExtras(sort_attribute="mean"))
+        )
         exp.wdk_step_id = None
         store = ExperimentStore()
         emit = AsyncMock()
 
         with patch("veupath_chatbot.platform.store.spawn"):
             result = await _phase_rank_metrics(
-                _cfg(sort_attribute="mean"), exp, emit, store
+                _cfg(extras=_CfgExtras(sort_attribute="mean")), exp, emit, store
             )
 
         assert result == []
@@ -379,7 +390,7 @@ class TestPhaseEnrich:
     ) -> None:
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
 
-        await run_experiment(_cfg(enrichment_types=["go_process"]))
+        await run_experiment(_cfg(extras=_CfgExtras(enrichment_types=["go_process"])))
         mock_enrich.assert_awaited_once()
 
     @patch("veupath_chatbot.platform.store.spawn")
@@ -404,7 +415,7 @@ class TestPhaseEnrich:
     ) -> None:
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
 
-        await run_experiment(_cfg(enrichment_types=[]))
+        await run_experiment(_cfg(extras=_CfgExtras(enrichment_types=[])))
         mock_enrich.assert_not_awaited()
 
 
@@ -436,7 +447,7 @@ class TestCrossValidationGating:
     ) -> None:
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
 
-        await run_experiment(_cfg(enable_cross_validation=False))
+        await run_experiment(_cfg(extras=_CfgExtras(enable_cross_validation=False)))
         mock_cv.assert_not_awaited()
 
     @patch("veupath_chatbot.platform.store.spawn")
@@ -464,9 +475,11 @@ class TestCrossValidationGating:
 
         await run_experiment(
             _cfg(
-                enable_cross_validation=True,
-                positive_controls=[],
-                negative_controls=["n1"],
+                extras=_CfgExtras(
+                    enable_cross_validation=True,
+                    positive_controls=[],
+                    negative_controls=["n1"],
+                )
             )
         )
         mock_cv.assert_not_awaited()
@@ -495,9 +508,11 @@ class TestCrossValidationGating:
 
         await run_experiment(
             _cfg(
-                enable_cross_validation=True,
-                positive_controls=["g1", "g2"],
-                negative_controls=["n1"],
+                extras=_CfgExtras(
+                    enable_cross_validation=True,
+                    positive_controls=["g1", "g2"],
+                    negative_controls=["n1"],
+                )
             )
         )
         mock_cv.assert_awaited_once()

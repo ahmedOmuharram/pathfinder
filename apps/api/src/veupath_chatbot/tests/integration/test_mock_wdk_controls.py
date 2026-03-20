@@ -21,6 +21,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
     _run_intersection_control,
     run_positive_negative_controls,
 )
@@ -162,19 +163,16 @@ def _mock_list_strategies(
     )
 
 
-def _common_kwargs(controls_ids: list[str]) -> dict:
-    """Return the kwargs dict for _run_intersection_control."""
-    return {
-        "site_id": SITE_ID,
-        "record_type": RECORD_TYPE,
-        "target_search_name": TARGET_SEARCH_NAME,
-        "target_parameters": TARGET_PARAMETERS,
-        "controls_search_name": CONTROLS_SEARCH_NAME,
-        "controls_param_name": CONTROLS_PARAM_NAME,
-        "controls_ids": controls_ids,
-        "controls_value_format": "newline",
-        "controls_extra_parameters": None,
-    }
+def _common_config() -> IntersectionConfig:
+    """Return a base IntersectionConfig for _run_intersection_control tests."""
+    return IntersectionConfig(
+        site_id=SITE_ID,
+        record_type=RECORD_TYPE,
+        target_search_name=TARGET_SEARCH_NAME,
+        target_parameters=TARGET_PARAMETERS,
+        controls_search_name=CONTROLS_SEARCH_NAME,
+        controls_param_name=CONTROLS_PARAM_NAME,
+    )
 
 
 def _setup_full_intersection(
@@ -248,7 +246,7 @@ class TestSingleIntersectionControl:
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
-                **_common_kwargs(POSITIVE_CONTROLS)
+                _common_config(), controls_ids=POSITIVE_CONTROLS
             )
 
         assert result["targetStepId"] == TARGET_STEP_ID
@@ -273,7 +271,7 @@ class TestSingleIntersectionControl:
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
-                **_common_kwargs(NEGATIVE_CONTROLS)
+                _common_config(), controls_ids=NEGATIVE_CONTROLS
             )
 
         assert result["intersectionCount"] == 0
@@ -294,7 +292,9 @@ class TestSingleIntersectionControl:
         api = _make_api()
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS[:3]))
+            await _run_intersection_control(
+                _common_config(), controls_ids=POSITIVE_CONTROLS[:3]
+            )
 
         # Verify that a DELETE was issued against the strategies endpoint
         delete_calls = [
@@ -319,7 +319,9 @@ class TestSingleIntersectionControl:
         api = _make_api()
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
+            await _run_intersection_control(
+                _common_config(), controls_ids=POSITIVE_CONTROLS
+            )
 
         dataset_calls = [
             c
@@ -346,7 +348,9 @@ class TestSingleIntersectionControl:
         api = _make_api()
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS[:3]))
+            await _run_intersection_control(
+                _common_config(), controls_ids=POSITIVE_CONTROLS[:3]
+            )
 
         dataset_calls = [
             c
@@ -437,15 +441,9 @@ class TestPositiveNegativeControls:
             patch(PATCH_FIND_RT, find_rt),
         ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                _common_config(),
                 positive_controls=POSITIVE_CONTROLS,
                 negative_controls=NEGATIVE_CONTROLS,
-                controls_value_format="newline",
             )
 
         assert result["siteId"] == SITE_ID
@@ -512,15 +510,8 @@ class TestPositiveNegativeControls:
             patch(PATCH_FIND_RT, find_rt),
         ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                _common_config(),
                 positive_controls=POSITIVE_CONTROLS,
-                negative_controls=None,
-                controls_value_format="newline",
             )
 
         assert result["positive"] is not None
@@ -556,7 +547,9 @@ class TestErrorHandling:
             patch(PATCH_FIND_RT, find_rt),
             pytest.raises(WDKError) as exc_info,
         ):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
+            await _run_intersection_control(
+                _common_config(), controls_ids=POSITIVE_CONTROLS
+            )
 
         assert exc_info.value.status == 422
 
@@ -590,7 +583,9 @@ class TestErrorHandling:
             patch(PATCH_FIND_RT, find_rt),
             pytest.raises(WDKError) as exc_info,
         ):
-            await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
+            await _run_intersection_control(
+                _common_config(), controls_ids=POSITIVE_CONTROLS
+            )
 
         assert exc_info.value.status == 500
 
@@ -640,7 +635,7 @@ class TestErrorHandling:
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
-                **_common_kwargs(POSITIVE_CONTROLS)
+                _common_config(), controls_ids=POSITIVE_CONTROLS
             )
 
         # Counts are None because the 500 was caught by _get_total_count_for_step
@@ -717,15 +712,9 @@ class TestEmptyResults:
             patch(PATCH_FIND_RT, find_rt),
         ):
             result = await run_positive_negative_controls(
-                site_id=SITE_ID,
-                record_type=RECORD_TYPE,
-                target_search_name=TARGET_SEARCH_NAME,
-                target_parameters=TARGET_PARAMETERS,
-                controls_search_name=CONTROLS_SEARCH_NAME,
-                controls_param_name=CONTROLS_PARAM_NAME,
+                _common_config(),
                 positive_controls=POSITIVE_CONTROLS,
                 negative_controls=NEGATIVE_CONTROLS,
-                controls_value_format="newline",
             )
 
         target = result["target"]
@@ -759,7 +748,7 @@ class TestEmptyResults:
         find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
-                **_common_kwargs(POSITIVE_CONTROLS)
+                _common_config(), controls_ids=POSITIVE_CONTROLS
             )
 
         assert result["targetResultCount"] == 0

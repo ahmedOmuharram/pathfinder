@@ -14,40 +14,34 @@ from veupath_chatbot.services.gene_lookup.site_search import (
 # ---------------------------------------------------------------------------
 
 
+def _make_doc(
+    gene_id: str = "PF3D7_0100100",
+    *,
+    organism: str = "Plasmodium falciparum 3D7",
+    product: str = "erythrocyte membrane protein",
+    gene_name: str = "PfEMP1",
+    gene_type: str = "protein coding",
+    extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    doc: dict[str, object] = {
+        "wdkPrimaryKeyString": gene_id,
+        "summaryFieldData": {
+            "TEXT__gene_organism_full": organism,
+            "TEXT__gene_product": product,
+            "TEXT__gene_name": gene_name,
+            "TEXT__gene_type": gene_type,
+        },
+    }
+    if extra:
+        doc.update(extra)
+    return doc
+
+
 class TestParseSiteSearchDocs:
     """Tests for converting raw site-search documents into gene dicts."""
 
-    def _make_doc(
-        self,
-        gene_id: str = "PF3D7_0100100",
-        *,
-        organism: str = "Plasmodium falciparum 3D7",
-        product: str = "erythrocyte membrane protein",
-        gene_name: str = "PfEMP1",
-        gene_type: str = "protein coding",
-        hyperlink_name: str = "",
-        found_in_fields: dict[str, list[str]] | None = None,
-        primary_key: list[str] | None = None,
-    ) -> dict[str, object]:
-        doc: dict[str, object] = {
-            "wdkPrimaryKeyString": gene_id,
-            "summaryFieldData": {
-                "TEXT__gene_organism_full": organism,
-                "TEXT__gene_product": product,
-                "TEXT__gene_name": gene_name,
-                "TEXT__gene_type": gene_type,
-            },
-        }
-        if hyperlink_name:
-            doc["hyperlinkName"] = hyperlink_name
-        if found_in_fields is not None:
-            doc["foundInFields"] = found_in_fields
-        if primary_key is not None:
-            doc["primaryKey"] = primary_key
-        return doc
-
     def test_basic_parsing(self) -> None:
-        docs = [self._make_doc()]
+        docs = [_make_doc()]
         results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 1
         r = results[0]
@@ -58,7 +52,7 @@ class TestParseSiteSearchDocs:
         assert r["geneType"] == "protein coding"
 
     def test_html_tags_stripped_from_fields(self) -> None:
-        doc = self._make_doc(
+        doc = _make_doc(
             gene_id="<em>PF3D7_0100100</em>",
             product="<em>erythrocyte</em> membrane protein",
             gene_name="<b>PfEMP1</b>",
@@ -69,14 +63,14 @@ class TestParseSiteSearchDocs:
         assert results[0]["geneName"] == "PfEMP1"
 
     def test_fallback_to_primary_key_list(self) -> None:
-        doc = self._make_doc()
+        doc = _make_doc()
         doc["wdkPrimaryKeyString"] = ""
         doc["primaryKey"] = ["PF3D7_0200200"]
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["geneId"] == "PF3D7_0200200"
 
     def test_skip_doc_without_gene_id(self) -> None:
-        doc = self._make_doc(gene_id="")
+        doc = _make_doc(gene_id="")
         doc["primaryKey"] = []
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results == []
@@ -94,26 +88,28 @@ class TestParseSiteSearchDocs:
         assert results[0]["product"] == ""
 
     def test_hyperlink_name_used_as_display_name(self) -> None:
-        doc = self._make_doc(hyperlink_name="My Gene Display Name")
+        doc = _make_doc(extra={"hyperlinkName": "My Gene Display Name"})
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "My Gene Display Name"
 
     def test_display_name_fallback_chain(self) -> None:
         # No hyperlinkName, no gene_name => falls back to product
-        doc = self._make_doc(gene_name="", hyperlink_name="")
+        doc = _make_doc(gene_name="")
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "erythrocyte membrane protein"
 
     def test_display_name_fallback_to_gene_name(self) -> None:
-        doc = self._make_doc(hyperlink_name="", gene_name="MyGene")
+        doc = _make_doc(gene_name="MyGene")
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "MyGene"
 
     def test_found_in_fields_parsed(self) -> None:
-        doc = self._make_doc(
-            found_in_fields={
-                "TEXT__gene_product": ["match1"],
-                "MULTITEXT__gene_Notes": ["note1"],
+        doc = _make_doc(
+            extra={
+                "foundInFields": {
+                    "TEXT__gene_product": ["match1"],
+                    "MULTITEXT__gene_Notes": ["note1"],
+                }
             }
         )
         results = parse_site_search_docs(cast("list[object]", [doc]))
@@ -123,10 +119,12 @@ class TestParseSiteSearchDocs:
         assert "gene_Notes" in matched
 
     def test_found_in_fields_skips_empty_values(self) -> None:
-        doc = self._make_doc(
-            found_in_fields={
-                "TEXT__gene_product": [],  # empty => skip
-                "TEXT__gene_name": ["match"],
+        doc = _make_doc(
+            extra={
+                "foundInFields": {
+                    "TEXT__gene_product": [],  # empty => skip
+                    "TEXT__gene_name": ["match"],
+                }
             }
         )
         results = parse_site_search_docs(cast("list[object]", [doc]))
@@ -137,16 +135,16 @@ class TestParseSiteSearchDocs:
 
     def test_organism_fallback_to_doc_level(self) -> None:
         """When summary organism is empty, fall back to doc-level organism."""
-        doc = self._make_doc(organism="")
+        doc = _make_doc(organism="")
         doc["organism"] = "Toxoplasma gondii ME49"
         results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["organism"] == "Toxoplasma gondii ME49"
 
     def test_multiple_docs(self) -> None:
         docs = [
-            self._make_doc(gene_id="GENE_A"),
-            self._make_doc(gene_id="GENE_B"),
-            self._make_doc(gene_id="GENE_C"),
+            _make_doc(gene_id="GENE_A"),
+            _make_doc(gene_id="GENE_B"),
+            _make_doc(gene_id="GENE_C"),
         ]
         results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 3

@@ -5,6 +5,7 @@ create, run, poll, and retrieve step analysis results.
 """
 
 import asyncio
+from dataclasses import dataclass
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.platform.errors import InternalError
@@ -12,6 +13,16 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class AnalysisPollConfig:
+    """Polling options for :meth:`AnalysisMixin.run_step_analysis`."""
+
+    poll_interval: float = 2.0
+    max_wait: float = 300.0
+    max_retries: int = 3
+
 
 # Background tasks kept alive to prevent garbage collection.
 _background_tasks: set[asyncio.Task[None]] = set()
@@ -226,10 +237,7 @@ class AnalysisMixin(StrategyAPIBase):
         analysis_type: str,
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
-        *,
-        poll_interval: float = 2.0,
-        max_wait: float = 300.0,
-        max_retries: int = 3,
+        poll_config: AnalysisPollConfig | None = None,
     ) -> JSONObject:
         """Create, run, and wait for a WDK step analysis to complete.
 
@@ -250,13 +258,12 @@ class AnalysisMixin(StrategyAPIBase):
         :param analysis_type: Analysis plugin name (e.g. ``go-enrichment``).
         :param parameters: Analysis parameters.
         :param custom_name: Optional display name.
-        :param poll_interval: Seconds between status polls.
-        :param max_wait: Maximum seconds to wait before giving up.
-        :param max_retries: Maximum re-run attempts for retriable statuses.
+        :param poll_config: Polling options (interval, max_wait, max_retries).
         :returns: Analysis result JSON.
         :raises InternalError: If the analysis fails or times out.
         """
         await self._ensure_session()
+        cfg = poll_config or AnalysisPollConfig()
 
         # Phase 0: Warm up step answer
         await self._warmup_step(step_id)
@@ -271,7 +278,7 @@ class AnalysisMixin(StrategyAPIBase):
 
         # Phase 3: Poll for completion (raises on failure/timeout)
         await self._poll_analysis(
-            step_id, analysis_id, poll_interval, max_wait, max_retries
+            step_id, analysis_id, cfg.poll_interval, cfg.max_wait, cfg.max_retries
         )
 
         # Phase 4: Retrieve results

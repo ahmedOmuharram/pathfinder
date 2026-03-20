@@ -8,6 +8,7 @@ that the seed files previously produced with their local definitions.
 import json
 
 from veupath_chatbot.services.experiment.seed.helpers import (
+    RNASeqOptions,
     ec_search_params,
     exon_count_params,
     gene_type_params,
@@ -244,8 +245,7 @@ class TestRnaseqFcParams:
             direction="up-regulated",
             ref_samples=["Control"],
             comp_samples=["Treatment"],
-            fold_change="2",
-            hard_floor="100.0",
+            options=RNASeqOptions(fold_change="2", hard_floor="100.0"),
         )
         assert result == {
             "dataset_url": "https://example.org/dataset",
@@ -267,11 +267,13 @@ class TestRnaseqFcParams:
             direction="down-regulated",
             ref_samples=["A", "B"],
             comp_samples=["C"],
-            fold_change="3",
-            hard_floor="50.0",
-            protein_coding="no",
-            ref_op="max",
-            comp_op="min",
+            options=RNASeqOptions(
+                fold_change="3",
+                hard_floor="50.0",
+                protein_coding="no",
+                ref_op="max",
+                comp_op="min",
+            ),
         )
         assert result["min_max_avg_ref"] == "max"
         assert result["min_max_avg_comp"] == "min"

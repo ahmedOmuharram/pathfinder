@@ -26,6 +26,62 @@ from veupath_chatbot.tests.fixtures.sse_collector import collect_chat_stream
 pytestmark = pytest.mark.live_wdk
 
 
+def _parse_tool_result(result_str: object) -> object:
+    """Parse a tool result string (or pass-through if already deserialized).
+
+    :param result_str: Raw result from a tool call event.
+    :returns: Parsed object, or empty dict on failure.
+    """
+    if isinstance(result_str, str):
+        try:
+            return json.loads(result_str)
+        except json.JSONDecodeError, TypeError:
+            return {}
+    return result_str if result_str is not None else {}
+
+
+def _step_id_from_list_result(result_data: object) -> object | None:
+    """Extract the first step ID from a list_current_steps result.
+
+    :param result_data: Parsed tool result (dict or list).
+    :returns: Step ID value, or None.
+    """
+    if isinstance(result_data, dict):
+        steps = result_data.get("steps") or result_data.get("data") or []
+        if isinstance(steps, list) and steps:
+            first_step = steps[0]
+            if isinstance(first_step, dict):
+                return first_step.get("stepId") or first_step.get("id")
+    elif isinstance(result_data, list) and result_data:
+        first_step = result_data[0]
+        if isinstance(first_step, dict):
+            return first_step.get("stepId") or first_step.get("id")
+    return None
+
+
+def _extract_step_id_from_stream(r1) -> object | None:
+    """Extract the first step ID from list_current_steps calls or strategy_update events.
+
+    :param r1: ChatStreamResult from the first phase.
+    :returns: Step ID value, or None.
+    """
+    for start, end in r1.tool_calls:
+        if start.data.get("name") == "list_current_steps":
+            result_data = _parse_tool_result(end.data.get("result", "{}"))
+            sid = _step_id_from_list_result(result_data)
+            if sid is not None:
+                return sid
+            break
+
+    for evt in r1.events_of_type("strategy_update"):
+        step_data = evt.data.get("step", {})
+        if isinstance(step_data, dict):
+            sid = step_data.get("stepId")
+            if sid:
+                return sid
+    return None
+
+
 class TestCombineIntersect:
     """Build a strategy: (epitope genes) INTERSECT (expression genes).
 
@@ -58,7 +114,7 @@ class TestCombineIntersect:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High","Medium"]',
                         },
-                        "display_name": "Epitope genes",
+                        "inputs": {"display_name": "Epitope genes"},
                     },
                 )
             ]
@@ -104,7 +160,7 @@ class TestCombineIntersect:
                             "hard_floor": "5271.566971799924622138383777958655190582",
                             "protein_coding_only": "yes",
                         },
-                        "display_name": "Gametocyte V up-regulated",
+                        "inputs": {"display_name": "Gametocyte V up-regulated"},
                     },
                 )
             ]
@@ -198,7 +254,7 @@ class TestSearchPlusTransform:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High","Medium"]',
                         },
-                        "display_name": "P. falciparum epitope genes",
+                        "inputs": {"display_name": "P. falciparum epitope genes"},
                     },
                 )
             ]
@@ -247,7 +303,7 @@ class TestSearchPlusTransform:
                                 "organism": '["Plasmodium falciparum 3D7"]',
                                 "epitope_confidence": '["High","Medium"]',
                             },
-                            "display_name": "P. falciparum epitope genes",
+                            "inputs": {"display_name": "P. falciparum epitope genes"},
                         },
                     )
                 ]
@@ -275,40 +331,7 @@ class TestSearchPlusTransform:
         assert strategy_id
 
         # Extract the step ID from list_current_steps result
-        step_id = None
-        for start, end in r1.tool_calls:
-            if start.data.get("name") == "list_current_steps":
-                result_str = end.data.get("result", "{}")
-                try:
-                    result_data = (
-                        json.loads(result_str)
-                        if isinstance(result_str, str)
-                        else result_str
-                    )
-                except json.JSONDecodeError, TypeError:
-                    result_data = {}
-                # Extract step IDs from the result
-                if isinstance(result_data, dict):
-                    steps = result_data.get("steps") or result_data.get("data") or []
-                    if isinstance(steps, list) and steps:
-                        first_step = steps[0]
-                        if isinstance(first_step, dict):
-                            step_id = first_step.get("stepId") or first_step.get("id")
-                elif isinstance(result_data, list) and result_data:
-                    first_step = result_data[0]
-                    if isinstance(first_step, dict):
-                        step_id = first_step.get("stepId") or first_step.get("id")
-                break
-
-        if step_id is None:
-            # Fall back: check strategy_update events for step IDs
-            for evt in r1.events_of_type("strategy_update"):
-                step_data = evt.data.get("step", {})
-                if isinstance(step_data, dict):
-                    step_id = step_data.get("stepId")
-                    if step_id:
-                        break
-
+        step_id = _extract_step_id_from_stream(r1)
         assert step_id, "Could not determine step ID for transform input"
 
         # Phase 2: Add ortholog transform
@@ -323,8 +346,10 @@ class TestSearchPlusTransform:
                             "parameters": {
                                 "organism": '["Plasmodium vivax P01"]',
                             },
-                            "primary_input_step_id": str(step_id),
-                            "display_name": "P. vivax orthologs",
+                            "inputs": {
+                                "primary_input_step_id": str(step_id),
+                                "display_name": "P. vivax orthologs",
+                            },
                         },
                     )
                 ]
@@ -394,7 +419,7 @@ class TestThreeStepStrategy:
                                 "organism": '["Plasmodium falciparum 3D7"]',
                                 "epitope_confidence": '["High"]',
                             },
-                            "display_name": "High-confidence epitope genes",
+                            "inputs": {"display_name": "High-confidence epitope genes"},
                         },
                     )
                 ]
@@ -411,7 +436,7 @@ class TestThreeStepStrategy:
                                 "organism": '["Plasmodium falciparum 3D7"]',
                                 "epitope_confidence": '["Low"]',
                             },
-                            "display_name": "Low-confidence epitope genes",
+                            "inputs": {"display_name": "Low-confidence epitope genes"},
                         },
                     )
                 ]

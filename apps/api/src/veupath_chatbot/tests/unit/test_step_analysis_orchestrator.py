@@ -1,5 +1,7 @@
 """Unit tests for step_analysis.orchestrator -- enrichment/movement logic."""
 
+from dataclasses import dataclass
+
 from veupath_chatbot.services.experiment.step_analysis.orchestrator import (
     _enrich_contributions_with_narrative,
     _enrich_step_evals_with_movement,
@@ -14,25 +16,33 @@ from veupath_chatbot.services.experiment.types import (
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class _StepEvalCounts:
+    """Hit counts for _make_step_evaluation."""
+
+    pos_hits: int = 5
+    pos_total: int = 10
+    neg_hits: int = 2
+    neg_total: int = 20
+
+
 def _make_step_evaluation(
     *,
     step_id: str = "s1",
-    pos_hits: int = 5,
-    pos_total: int = 10,
-    neg_hits: int = 2,
-    neg_total: int = 20,
+    counts: _StepEvalCounts | None = None,
     recall: float = 0.5,
     fpr: float = 0.1,
 ) -> StepEvaluation:
+    c = counts or _StepEvalCounts()
     return StepEvaluation(
         step_id=step_id,
         search_name=f"Search_{step_id}",
         display_name=f"Step {step_id}",
         result_count=100,
-        positive_hits=pos_hits,
-        positive_total=pos_total,
-        negative_hits=neg_hits,
-        negative_total=neg_total,
+        positive_hits=c.pos_hits,
+        positive_total=c.pos_total,
+        negative_hits=c.neg_hits,
+        negative_total=c.neg_total,
         recall=recall,
         false_positive_rate=fpr,
     )
@@ -69,7 +79,11 @@ class TestEnrichStepEvalsWithMovement:
     def test_movement_fields_calculated(self) -> None:
         baseline = _baseline_result(pos_hits=8, pos_total=10, neg_hits=3)
         # baseline: TP=8, FP=3, FN=10-8=2
-        step_evals = [_make_step_evaluation(pos_hits=6, pos_total=10, neg_hits=4)]
+        step_evals = [
+            _make_step_evaluation(
+                counts=_StepEvalCounts(pos_hits=6, pos_total=10, neg_hits=4)
+            )
+        ]
         enriched = _enrich_step_evals_with_movement(step_evals, baseline)
 
         assert len(enriched) == 1
@@ -93,8 +107,14 @@ class TestEnrichStepEvalsWithMovement:
     def test_multiple_step_evals(self) -> None:
         baseline = _baseline_result(pos_hits=5, pos_total=10, neg_hits=2)
         step_evals = [
-            _make_step_evaluation(step_id="s1", pos_hits=5, pos_total=10, neg_hits=2),
-            _make_step_evaluation(step_id="s2", pos_hits=3, pos_total=10, neg_hits=1),
+            _make_step_evaluation(
+                step_id="s1",
+                counts=_StepEvalCounts(pos_hits=5, pos_total=10, neg_hits=2),
+            ),
+            _make_step_evaluation(
+                step_id="s2",
+                counts=_StepEvalCounts(pos_hits=3, pos_total=10, neg_hits=1),
+            ),
         ]
         enriched = _enrich_step_evals_with_movement(step_evals, baseline)
         assert len(enriched) == 2
@@ -115,7 +135,9 @@ class TestEnrichStepEvalsWithMovement:
 
     def test_empty_baseline(self) -> None:
         """When baseline has no controls data, baseline counts are all 0."""
-        step_evals = [_make_step_evaluation(pos_hits=5, neg_hits=2)]
+        step_evals = [
+            _make_step_evaluation(counts=_StepEvalCounts(pos_hits=5, neg_hits=2))
+        ]
         enriched = _enrich_step_evals_with_movement(step_evals, {})
         # baseline TP=0, FP=0, FN=0-0=0
         ev = enriched[0]

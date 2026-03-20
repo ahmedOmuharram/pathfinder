@@ -12,17 +12,18 @@ from typing import cast
 import optuna
 
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
-from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.platform.types import JSONArray, JSONValue
 from veupath_chatbot.services.parameter_optimization.callbacks import (
+    OptimizationCompletedEvent,
+    OptimizationStartedEvent,
     emit_completed,
     emit_started,
 )
 from veupath_chatbot.services.parameter_optimization.config import (
     CancelCheck,
     OptimizationConfig,
+    OptimizationInput,
     OptimizationResult,
-    ParameterSpec,
     ProgressCallback,
 )
 from veupath_chatbot.services.parameter_optimization.trials import (
@@ -38,19 +39,7 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 async def optimize_search_parameters(
-    *,
-    site_id: str,
-    record_type: str,
-    search_name: str,
-    fixed_parameters: dict[str, JSONValue],
-    parameter_space: list[ParameterSpec],
-    controls_search_name: str,
-    controls_param_name: str,
-    positive_controls: list[str] | None = None,
-    negative_controls: list[str] | None = None,
-    controls_value_format: ControlValueFormat = "newline",
-    controls_extra_parameters: JSONObject | None = None,
-    id_field: str | None = None,
+    inp: OptimizationInput,
     config: OptimizationConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     check_cancelled: CancelCheck | None = None,
@@ -64,7 +53,7 @@ async def optimize_search_parameters(
     optimization_id = f"opt_{int(time.time() * 1000)}"
     start_time = time.monotonic()
 
-    sampler, budget = _create_sampler(cfg, parameter_space, cfg.budget)
+    sampler, budget = _create_sampler(cfg, inp.parameter_space, cfg.budget)
 
     param_space_json: JSONArray = [
         {
@@ -75,37 +64,39 @@ async def optimize_search_parameters(
             "logScale": p.log_scale,
             "choices": cast("JSONValue", p.choices),
         }
-        for p in parameter_space
+        for p in inp.parameter_space
     ]
 
     if progress_callback:
         await emit_started(
             progress_callback,
-            optimization_id=optimization_id,
-            search_name=search_name,
-            record_type=record_type,
-            budget=budget,
-            objective=cfg.objective,
-            positive_controls_count=len(positive_controls or []),
-            negative_controls_count=len(negative_controls or []),
-            param_space_json=param_space_json,
+            OptimizationStartedEvent(
+                optimization_id=optimization_id,
+                search_name=inp.search_name,
+                record_type=inp.record_type,
+                budget=budget,
+                objective=cfg.objective,
+                positive_controls_count=len(inp.positive_controls or []),
+                negative_controls_count=len(inp.negative_controls or []),
+                param_space_json=param_space_json,
+            ),
         )
 
     study = optuna.create_study(direction="maximize", sampler=sampler)
 
     ctx = _TrialContext(
-        site_id=site_id,
-        record_type=record_type,
-        search_name=search_name,
-        fixed_parameters=fixed_parameters,
-        parameter_space=parameter_space,
-        controls_search_name=controls_search_name,
-        controls_param_name=controls_param_name,
-        positive_controls=positive_controls,
-        negative_controls=negative_controls,
-        controls_value_format=controls_value_format,
-        controls_extra_parameters=controls_extra_parameters,
-        id_field=id_field,
+        site_id=inp.site_id,
+        record_type=inp.record_type,
+        search_name=inp.search_name,
+        fixed_parameters=inp.fixed_parameters,
+        parameter_space=inp.parameter_space,
+        controls_search_name=inp.controls_search_name,
+        controls_param_name=inp.controls_param_name,
+        positive_controls=inp.positive_controls,
+        negative_controls=inp.negative_controls,
+        controls_value_format=inp.controls_value_format,
+        controls_extra_parameters=inp.controls_extra_parameters,
+        id_field=inp.id_field,
         cfg=cfg,
         optimization_id=optimization_id,
         budget=budget,
@@ -121,14 +112,16 @@ async def optimize_search_parameters(
     if progress_callback and result.status != "error":
         await emit_completed(
             progress_callback,
-            optimization_id=optimization_id,
-            status=result.status,
-            budget=budget,
-            trials=result.all_trials,
-            best_trial=result.best_trial,
-            pareto=result.pareto_frontier,
-            sensitivity=result.sensitivity,
-            elapsed=result.total_time_seconds,
+            OptimizationCompletedEvent(
+                optimization_id=optimization_id,
+                status=result.status,
+                budget=budget,
+                trials=result.all_trials,
+                best_trial=result.best_trial,
+                pareto=result.pareto_frontier,
+                sensitivity=result.sensitivity,
+                elapsed=result.total_time_seconds,
+            ),
         )
 
     return result

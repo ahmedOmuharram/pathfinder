@@ -113,7 +113,13 @@ class SearchCatalog:
                     record_types=len(self._record_types),
                     total_searches=sum(len(s) for s in self._searches.values()),
                 )
-            except (httpx.HTTPError, OSError, RuntimeError, TypeError, DataParsingError) as e:
+            except (
+                httpx.HTTPError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                DataParsingError,
+            ) as e:
                 logger.exception(
                     "Failed to load catalog", site_id=self.site_id, error=str(e)
                 )
@@ -265,7 +271,13 @@ class DiscoveryService:
         async def load_site(site_id: str) -> None:
             try:
                 await self.get_catalog(site_id)
-            except (httpx.HTTPError, OSError, RuntimeError, TypeError, DataParsingError) as e:
+            except (
+                httpx.HTTPError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                DataParsingError,
+            ) as e:
                 logger.warning("Failed to preload site", site_id=site_id, error=str(e))
 
         await asyncio.gather(*[load_site(s.id) for s in sites])

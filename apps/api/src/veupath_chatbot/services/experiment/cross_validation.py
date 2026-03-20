@@ -9,12 +9,17 @@ import math
 import operator
 import random
 from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
 from typing import Any
 
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
@@ -25,7 +30,6 @@ from veupath_chatbot.services.experiment.step_analysis import (
 )
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
-    ControlValueFormat,
     CrossValidationResult,
     ExperimentMetrics,
     FoldMetrics,
@@ -40,6 +44,15 @@ _MIN_CONTROLS_FOR_FOLD = 2
 
 ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 """Async callback(fold_index, total_folds) for progress reporting."""
+
+
+@dataclass
+class CrossValidationOptions:
+    """Options for k-fold cross-validation."""
+
+    k: int = 5
+    full_metrics: ExperimentMetrics | None = None
+    progress_callback: ProgressCallback | None = field(default=None, compare=False)
 
 
 class _SeededRNG(random.Random):
@@ -236,29 +249,27 @@ async def _run_kfold(
 
 
 async def run_cross_validation(
-    *,
-    site_id: str,
-    record_type: str,
-    controls_search_name: str,
-    controls_param_name: str,
-    positive_controls: list[str],
-    negative_controls: list[str],
-    controls_value_format: ControlValueFormat = "newline",
-    # Single-step params (required when tree is None):
-    search_name: str | None = None,
-    parameters: JSONObject | None = None,
-    # Tree-mode param (when provided, uses tree evaluation):
-    tree: JSONObject | None = None,
-    k: int = 5,
-    full_metrics: ExperimentMetrics | None = None,
-    progress_callback: ProgressCallback | None = None,
+    ctx: ControlsContext,
+    tree: JSONObject | None,
+    search_name: str | None,
+    parameters: JSONObject | None,
+    options: CrossValidationOptions | None = None,
 ) -> CrossValidationResult:
     """Run k-fold cross-validation on control gene lists.
 
     When *tree* is provided, evaluates each fold against the full strategy
     tree.  Otherwise, evaluates using the single-step *search_name* +
     *parameters*.
+
+    :param ctx: Shared controls context (site, record type, controls config,
+        positive/negative controls).
+    :param tree: Strategy tree dict for tree-mode evaluation, or ``None`` for
+        single-step mode.
+    :param search_name: WDK search name (single-step mode only).
+    :param parameters: WDK search parameters (single-step mode only).
+    :param options: Cross-validation options (k, full_metrics, progress_callback).
     """
+    opts = options or CrossValidationOptions()
     evaluator: FoldEvaluator
 
     if tree is not None:
@@ -266,16 +277,16 @@ async def run_cross_validation(
         async def _evaluate_tree(
             pos: list[str] | None, neg: list[str] | None
         ) -> JSONObject:
-            return await run_controls_against_tree(
-                site_id=site_id,
-                record_type=record_type,
-                tree=tree,
-                controls_search_name=controls_search_name,
-                controls_param_name=controls_param_name,
-                controls_value_format=controls_value_format,
-                positive_controls=pos,
-                negative_controls=neg,
+            fold_ctx = ControlsContext(
+                site_id=ctx.site_id,
+                record_type=ctx.record_type,
+                controls_search_name=ctx.controls_search_name,
+                controls_param_name=ctx.controls_param_name,
+                controls_value_format=ctx.controls_value_format,
+                positive_controls=pos or [],
+                negative_controls=neg or [],
             )
+            return await run_controls_against_tree(fold_ctx, tree)
 
         evaluator = _evaluate_tree
     else:
@@ -286,28 +297,32 @@ async def run_cross_validation(
         _search_name = search_name
         _parameters = parameters
 
+        _intersection_cfg = IntersectionConfig(
+            site_id=ctx.site_id,
+            record_type=ctx.record_type,
+            target_search_name=_search_name,
+            target_parameters=_parameters,
+            controls_search_name=ctx.controls_search_name,
+            controls_param_name=ctx.controls_param_name,
+            controls_value_format=ctx.controls_value_format,
+        )
+
         async def _evaluate_single(
             pos: list[str] | None, neg: list[str] | None
         ) -> JSONObject:
             return await run_positive_negative_controls(
-                site_id=site_id,
-                record_type=record_type,
-                target_search_name=_search_name,
-                target_parameters=_parameters,
-                controls_search_name=controls_search_name,
-                controls_param_name=controls_param_name,
+                _intersection_cfg,
                 positive_controls=pos,
                 negative_controls=neg,
-                controls_value_format=controls_value_format,
             )
 
         evaluator = _evaluate_single
 
     return await _run_kfold(
-        positive_controls=positive_controls,
-        negative_controls=negative_controls,
+        positive_controls=ctx.positive_controls,
+        negative_controls=ctx.negative_controls,
         evaluator=evaluator,
-        k=k,
-        full_metrics=full_metrics,
-        progress_callback=progress_callback,
+        k=opts.k,
+        full_metrics=opts.full_metrics,
+        progress_callback=opts.progress_callback,
     )

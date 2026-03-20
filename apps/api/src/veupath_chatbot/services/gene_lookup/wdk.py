@@ -14,7 +14,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
-from .result import DEFAULT_GENE_ATTRIBUTES, build_gene_result
+from .result import DEFAULT_GENE_ATTRIBUTES, GeneResultInput, build_gene_result
 
 logger = get_logger(__name__)
 
@@ -76,15 +76,40 @@ def _parse_wdk_record(rec: JSONObject) -> JSONObject | None:
     previous_ids = str(rec_attrs.get("gene_previous_ids", ""))
 
     return build_gene_result(
-        gene_id=gene_source_id or gene_id,
-        display_name=gene_name or product or gene_id,
-        organism=org,
-        product=product,
-        gene_name=gene_name,
-        gene_type=gene_type,
-        location=location,
-        previous_ids=previous_ids or "",
+        GeneResultInput(
+            gene_id=gene_source_id or gene_id,
+            display_name=gene_name or product or gene_id,
+            organism=org,
+            product=product,
+            gene_name=gene_name,
+            gene_type=gene_type,
+            location=location,
+            previous_ids=previous_ids or "",
+        )
     )
+
+
+def _accumulate_text_answer(
+    answer: object,
+    all_results: list[JSONObject],
+    wdk_total: int,
+) -> int:
+    """Parse a WDK GenesByText answer and accumulate results. Returns updated wdk_total."""
+    if not isinstance(answer, dict):
+        return wdk_total
+    meta = answer.get("meta")
+    if isinstance(meta, dict):
+        mt = meta.get("totalCount")
+        if isinstance(mt, int):
+            wdk_total = max(wdk_total, mt)
+    raw_records = answer.get("records")
+    if isinstance(raw_records, list):
+        for rec in raw_records:
+            if isinstance(rec, dict):
+                parsed = _parse_wdk_record(rec)
+                if parsed:
+                    all_results.append(parsed)
+    return wdk_total
 
 
 async def fetch_wdk_text_genes(
@@ -127,26 +152,7 @@ async def fetch_wdk_text_genes(
                 },
             ),
         )
-        if not isinstance(answer, dict):
-            continue
-
-        meta = answer.get("meta")
-        if isinstance(meta, dict):
-            mt = meta.get("totalCount")
-            if isinstance(mt, int):
-                wdk_total = max(wdk_total, mt)
-
-        raw_records = answer.get("records")
-        if not isinstance(raw_records, list):
-            continue
-
-        for rec in raw_records:
-            if not isinstance(rec, dict):
-                continue
-            parsed = _parse_wdk_record(rec)
-            if parsed:
-                all_results.append(parsed)
-
+        wdk_total = _accumulate_text_answer(answer, all_results, wdk_total)
         if len(all_results) >= limit:
             break
 
@@ -154,6 +160,90 @@ async def fetch_wdk_text_genes(
     return WdkTextResult(
         records=records,
         total_count=max(wdk_total, len(records)),
+    )
+
+
+_EMPTY_GENE_RESULT: JSONObject = {"records": [], "totalCount": 0}
+
+
+def _build_gene_result_from_answer(answer: object) -> JSONObject:
+    """Build the final gene result from a WDK answer (or error dict from _fetch_gene_answer)."""
+    if not isinstance(answer, dict):
+        return _EMPTY_GENE_RESULT
+    # _fetch_gene_answer returns an error dict when dataset creation fails
+    if "error" in answer and "records" in answer:
+        return answer
+    raw_records = answer.get("records")
+    return (
+        _parse_records_to_result(answer, raw_records)
+        if isinstance(raw_records, list)
+        else _EMPTY_GENE_RESULT
+    )
+
+
+def _parse_records_to_result(
+    answer: dict[str, object], raw_records: list[object]
+) -> JSONObject:
+    """Parse raw WDK records into the final gene result dict."""
+    records: list[JSONObject] = []
+    for rec in raw_records:
+        if isinstance(rec, dict):
+            parsed = _parse_wdk_record(rec)
+            if parsed:
+                records.append(parsed)
+    meta = answer.get("meta") or {}
+    total = (
+        meta.get("totalCount", len(records)) if isinstance(meta, dict) else len(records)
+    )
+    return cast("JSONObject", {"records": records, "totalCount": total})
+
+
+def _empty_gene_result(error: str | None = None) -> JSONObject:
+    """Return an empty gene result dict, optionally with an error message."""
+    if error:
+        return {"records": [], "totalCount": 0, "error": error}
+    return _EMPTY_GENE_RESULT
+
+
+async def _fetch_gene_answer(
+    client: VEuPathDBClient,
+    gene_ids: list[str],
+    record_type: str,
+    search_name: str,
+    param_name: str,
+    attrs: list[str],
+) -> JSONObject | None:
+    """Create a WDK dataset for gene_ids and run a standard reporter query.
+
+    Returns the raw answer dict, or None / error-dict if a step fails.
+    Returns a JSONObject with 'error' key on dataset failure.
+    """
+    dataset_resp = await client.post(
+        "/users/current/datasets",
+        json=cast(
+            "JSONObject",
+            {"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
+        ),
+    )
+    if not isinstance(dataset_resp, dict):
+        return cast(
+            "JSONObject", _empty_gene_result("Failed to create dataset for ID lookup.")
+        )
+    dataset_id = dataset_resp.get("id")
+    if dataset_id is None:
+        return cast(
+            "JSONObject", _empty_gene_result("Dataset creation returned no ID.")
+        )
+
+    return await client.post(
+        f"/record-types/{record_type}/searches/{search_name}/reports/standard",
+        json=cast(
+            "JSONObject",
+            {
+                "searchConfig": {"parameters": {param_name: str(dataset_id)}},
+                "reportConfig": {"attributes": attrs, "tables": []},
+            },
+        ),
     )
 
 
@@ -175,7 +265,7 @@ async def resolve_gene_ids(
     users via session cookies).
     """
     if not gene_ids:
-        return {"records": [], "totalCount": 0}
+        return _empty_gene_result()
 
     router = get_site_router()
     site = router.get_site(site_id)
@@ -193,41 +283,8 @@ async def resolve_gene_ids(
     attrs = attributes or DEFAULT_GENE_ATTRIBUTES
 
     try:
-        dataset_resp = await client.post(
-            "/users/current/datasets",
-            json=cast(
-                "JSONObject",
-                {"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
-            ),
-        )
-        if not isinstance(dataset_resp, dict):
-            return {
-                "records": [],
-                "totalCount": 0,
-                "error": "Failed to create dataset for ID lookup.",
-            }
-        dataset_id = dataset_resp.get("id")
-        if dataset_id is None:
-            return {
-                "records": [],
-                "totalCount": 0,
-                "error": "Dataset creation returned no ID.",
-            }
-
-        answer = await client.post(
-            f"/record-types/{record_type}/searches/{search_name}/reports/standard",
-            json=cast(
-                "JSONObject",
-                {
-                    "searchConfig": {
-                        "parameters": {param_name: str(dataset_id)},
-                    },
-                    "reportConfig": {
-                        "attributes": attrs,
-                        "tables": [],
-                    },
-                },
-            ),
+        answer = await _fetch_gene_answer(
+            client, gene_ids, record_type, search_name, param_name, attrs
         )
     except (AppError, ValueError, TypeError) as exc:
         logger.warning(
@@ -236,32 +293,8 @@ async def resolve_gene_ids(
             gene_ids_count=len(gene_ids),
             error=str(exc),
         )
-        return {
-            "records": [],
-            "totalCount": 0,
-            "error": f"WDK lookup failed: {exc}",
-        }
+        return _empty_gene_result(f"WDK lookup failed: {exc}")
     finally:
         await client.close()
 
-    if not isinstance(answer, dict):
-        return {"records": [], "totalCount": 0}
-
-    raw_records = answer.get("records")
-    if not isinstance(raw_records, list):
-        return {"records": [], "totalCount": 0}
-
-    records: list[JSONObject] = []
-    for rec in raw_records:
-        if not isinstance(rec, dict):
-            continue
-        parsed = _parse_wdk_record(rec)
-        if parsed:
-            records.append(parsed)
-
-    meta = answer.get("meta") or {}
-    total = (
-        meta.get("totalCount", len(records)) if isinstance(meta, dict) else len(records)
-    )
-
-    return cast("JSONObject", {"records": records, "totalCount": total})
+    return _build_gene_result_from_answer(answer)

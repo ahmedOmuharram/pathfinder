@@ -1,7 +1,9 @@
 """Run delegation graph nodes respecting dependency ordering."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass
+from typing import Any
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
@@ -13,6 +15,17 @@ from veupath_chatbot.platform.types import (
 )
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SchedulerState:
+    """Shared state for the dependency-aware node scheduler."""
+
+    nodes_by_id: dict[str, JSONObject]
+    format_dependency_context: Callable[..., str | None]
+    results_by_id: dict[str, JSONObject]
+    guarded_run: Callable[..., Coroutine[Any, Any, JSONObject]]
+    max_concurrency: int
 
 
 def _compute_remaining_deps(
@@ -35,37 +48,22 @@ def _compute_remaining_deps(
 
 async def _schedule_and_run(
     *,
-    nodes_by_id: dict[str, JSONObject],
+    state: SchedulerState,
     dependents: dict[str, list[str]],
     remaining_deps: dict[str, set[str]],
-    max_concurrency: int,
-    run_node: Callable[[str, JSONObject, str | None], Awaitable[JSONObject]],
-    format_dependency_context: Callable[..., str | None],
-    results_by_id: dict[str, JSONObject],
 ) -> tuple[JSONArray, set[str]]:
     """Run nodes with concurrency control and dependency tracking."""
     ready = [node_id for node_id, deps in remaining_deps.items() if not deps]
     running: dict[asyncio.Task[JSONObject], str] = {}
     results: JSONArray = []
     all_scheduled: set[str] = set()
-    semaphore = asyncio.Semaphore(max(1, int(max_concurrency)))
-
-    async def guarded_run(
-        node_id: str, node: JSONObject, dependency_context: str | None
-    ) -> JSONObject:
-        async with semaphore:
-            return await run_node(node_id, node, dependency_context)
 
     while ready or running:
         _launch_ready_nodes(
-            ready,
-            running,
-            all_scheduled,
-            nodes_by_id,
-            format_dependency_context,
-            results_by_id,
-            guarded_run,
-            max_concurrency,
+            ready=ready,
+            running=running,
+            all_scheduled=all_scheduled,
+            state=state,
         )
 
         if not running:
@@ -79,7 +77,7 @@ async def _schedule_and_run(
             result = finished.result()
             results.append(result)
             if isinstance(result, dict):
-                results_by_id[finished_id] = result
+                state.results_by_id[finished_id] = result
             for child in dependents.get(finished_id, []):
                 remaining_deps[child].discard(finished_id)
                 if not remaining_deps[child]:
@@ -89,27 +87,24 @@ async def _schedule_and_run(
 
 
 def _launch_ready_nodes(
+    *,
     ready: list[str],
     running: dict[asyncio.Task[JSONObject], str],
     all_scheduled: set[str],
-    nodes_by_id: dict[str, JSONObject],
-    format_dependency_context: Callable[..., str | None],
-    results_by_id: dict[str, JSONObject],
-    guarded_run: Callable[..., Awaitable[JSONObject]],
-    max_concurrency: int,
+    state: SchedulerState,
 ) -> None:
     """Launch as many ready nodes as concurrency allows."""
-    while ready and len(running) < max(1, int(max_concurrency)):
+    while ready and len(running) < max(1, int(state.max_concurrency)):
         node_id = ready.pop()
         all_scheduled.add(node_id)
-        node = nodes_by_id[node_id]
-        dependency_context = format_dependency_context(
+        node = state.nodes_by_id[node_id]
+        dependency_context = state.format_dependency_context(
             task_id=node_id,
-            tasks_by_id=nodes_by_id,
-            results_by_id=results_by_id,
+            tasks_by_id=state.nodes_by_id,
+            results_by_id=state.results_by_id,
         )
-        running_task = asyncio.create_task(
-            guarded_run(node_id, node, dependency_context)
+        running_task: asyncio.Task[JSONObject] = asyncio.create_task(
+            state.guarded_run(node_id, node, dependency_context)
         )
         running[running_task] = node_id
 
@@ -129,14 +124,26 @@ async def run_nodes_with_dependencies(
     if results_by_id is None:
         results_by_id = {}
 
-    results, all_scheduled = await _schedule_and_run(
+    semaphore = asyncio.Semaphore(max(1, int(max_concurrency)))
+
+    async def guarded_run(
+        node_id: str, node: JSONObject, dependency_context: str | None
+    ) -> JSONObject:
+        async with semaphore:
+            return await run_node(node_id, node, dependency_context)
+
+    state = SchedulerState(
         nodes_by_id=nodes_by_id,
-        dependents=dependents,
-        remaining_deps=remaining_deps,
-        max_concurrency=max_concurrency,
-        run_node=run_node,
         format_dependency_context=format_dependency_context,
         results_by_id=results_by_id,
+        guarded_run=guarded_run,
+        max_concurrency=max_concurrency,
+    )
+
+    results, all_scheduled = await _schedule_and_run(
+        state=state,
+        dependents=dependents,
+        remaining_deps=remaining_deps,
     )
 
     # Report any nodes that were never scheduled (circular dependency)

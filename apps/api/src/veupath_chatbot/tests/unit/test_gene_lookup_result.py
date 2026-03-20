@@ -2,6 +2,7 @@
 
 from veupath_chatbot.services.gene_lookup.result import (
     DEFAULT_GENE_ATTRIBUTES,
+    GeneResultInput,
     build_gene_result,
 )
 
@@ -10,7 +11,7 @@ class TestBuildGeneResult:
     """Tests for the standardized gene result builder."""
 
     def test_minimal_gene_id_only(self) -> None:
-        result = build_gene_result(gene_id="PF3D7_0100100")
+        result = build_gene_result(GeneResultInput(gene_id="PF3D7_0100100"))
         assert result["geneId"] == "PF3D7_0100100"
         # displayName falls back to gene_id when product is empty
         assert result["displayName"] == "PF3D7_0100100"
@@ -25,15 +26,17 @@ class TestBuildGeneResult:
 
     def test_all_fields_populated(self) -> None:
         result = build_gene_result(
-            gene_id="PF3D7_0100100",
-            display_name="circumsporozoite protein",
-            organism="Plasmodium falciparum 3D7",
-            product="circumsporozoite (CS) protein",
-            gene_name="CSP",
-            gene_type="protein coding",
-            location="chr1:100-200(+)",
-            previous_ids="old_id_1, old_id_2",
-            matched_fields=["gene_source_id", "gene_product"],
+            GeneResultInput(
+                gene_id="PF3D7_0100100",
+                display_name="circumsporozoite protein",
+                organism="Plasmodium falciparum 3D7",
+                product="circumsporozoite (CS) protein",
+                gene_name="CSP",
+                gene_type="protein coding",
+                location="chr1:100-200(+)",
+                previous_ids="old_id_1, old_id_2",
+                matched_fields=["gene_source_id", "gene_product"],
+            )
         )
         assert result["geneId"] == "PF3D7_0100100"
         assert result["displayName"] == "circumsporozoite protein"
@@ -47,33 +50,34 @@ class TestBuildGeneResult:
 
     def test_display_name_falls_back_to_product(self) -> None:
         result = build_gene_result(
-            gene_id="PF3D7_0100100",
-            product="some product",
+            GeneResultInput(gene_id="PF3D7_0100100", product="some product")
         )
         assert result["displayName"] == "some product"
 
     def test_display_name_falls_back_to_gene_id(self) -> None:
-        result = build_gene_result(gene_id="PF3D7_0100100")
+        result = build_gene_result(GeneResultInput(gene_id="PF3D7_0100100"))
         assert result["displayName"] == "PF3D7_0100100"
 
     def test_display_name_prefers_explicit_over_product(self) -> None:
         result = build_gene_result(
-            gene_id="PF3D7_0100100",
-            display_name="my display",
-            product="some product",
+            GeneResultInput(
+                gene_id="PF3D7_0100100",
+                display_name="my display",
+                product="some product",
+            )
         )
         assert result["displayName"] == "my display"
 
     def test_previous_ids_omitted_when_empty(self) -> None:
-        result = build_gene_result(gene_id="X", previous_ids="")
+        result = build_gene_result(GeneResultInput(gene_id="X", previous_ids=""))
         assert "previousIds" not in result
 
     def test_matched_fields_omitted_when_none(self) -> None:
-        result = build_gene_result(gene_id="X", matched_fields=None)
+        result = build_gene_result(GeneResultInput(gene_id="X", matched_fields=None))
         assert "matchedFields" not in result
 
     def test_matched_fields_included_when_empty_list(self) -> None:
-        result = build_gene_result(gene_id="X", matched_fields=[])
+        result = build_gene_result(GeneResultInput(gene_id="X", matched_fields=[]))
         assert result["matchedFields"] == []
 
 

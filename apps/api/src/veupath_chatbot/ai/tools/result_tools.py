@@ -50,50 +50,37 @@ class ResultTools:
 
         The URL can be used to download results in the specified format.
         """
-        validation_error = _validate_step_id(wdk_step_id)
+        validation_error = _validate_download_url_inputs(
+            wdk_step_id, output_format, attributes
+        )
         if validation_error is not None:
             return validation_error
-        validation_error = _validate_download_format(output_format)
-        if validation_error is not None:
-            return validation_error
-        if attributes is not None:
-            validation_error = _validate_attributes(attributes)
-            if validation_error is not None:
-                return validation_error
 
-        try:
-            results_api = self.results_api or get_results_api(self.session.site_id)
-            url = await results_api.get_download_url(
-                step_id=wdk_step_id,
-                output_format=output_format,
-                attributes=attributes,
-            )
-        except WDKError as e:
-            return handle_wdk_step_error(
-                e,
-                wdk_step_id=wdk_step_id,
-                action="download",
-                fallback_message="generating the download URL",
-            )
-        except (OSError, ValueError, TypeError) as e:
-            return tool_error(
-                ErrorCode.WDK_ERROR,
-                "Failed to generate download URL from VEuPathDB.",
-                wdk_step_id=wdk_step_id,
-                detail=str(e),
-            )
-
-        if not isinstance(url, str) or not url:
-            return tool_error(
-                ErrorCode.WDK_ERROR,
-                "VEuPathDB did not provide a usable download URL for this step. "
-                "This usually means the temporary result is still being prepared "
-                "or the upstream payload shape changed.",
-                wdk_step_id=wdk_step_id,
-                output_format=output_format,
+        url_or_error = await _fetch_download_url(
+            self.results_api or get_results_api(self.session.site_id),
+            wdk_step_id,
+            output_format,
+            attributes,
+        )
+        if (
+            isinstance(url_or_error, dict)
+            or not isinstance(url_or_error, str)
+            or not url_or_error
+        ):
+            return (
+                url_or_error
+                if isinstance(url_or_error, dict)
+                else tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB did not provide a usable download URL for this step. "
+                    "This usually means the temporary result is still being prepared "
+                    "or the upstream payload shape changed.",
+                    wdk_step_id=wdk_step_id,
+                    output_format=output_format,
+                )
             )
         return {
-            "downloadUrl": url,
+            "downloadUrl": url_or_error,
             "format": output_format,
             "stepId": wdk_step_id,
         }
@@ -108,47 +95,113 @@ class ResultTools:
 
         Returns the first N records to show the user what data is available.
         """
-        validation_error = _validate_step_id(wdk_step_id)
+        validation_error = _validate_sample_inputs(wdk_step_id, limit)
         if validation_error is not None:
             return validation_error
-        if not isinstance(limit, int) or limit < 1 or limit > _MAX_SAMPLE_LIMIT:
-            return tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                f"limit must be an integer between 1 and {_MAX_SAMPLE_LIMIT}.",
-                limit=limit,
-                min=1,
-                max=_MAX_SAMPLE_LIMIT,
-            )
 
-        try:
-            strategy_api = self.strategy_api or get_strategy_api(self.session.site_id)
-            preview_raw = await strategy_api.get_step_answer(
-                step_id=wdk_step_id,
-                pagination={"offset": 0, "numRecords": limit},
+        preview_or_error = await _fetch_step_preview(
+            self.strategy_api or get_strategy_api(self.session.site_id),
+            wdk_step_id,
+            limit,
+        )
+        if (
+            not isinstance(preview_or_error, dict)
+            or preview_or_error.get("ok") is False
+        ):
+            return (
+                preview_or_error
+                if isinstance(preview_or_error, dict)
+                else tool_error(
+                    ErrorCode.WDK_ERROR,
+                    "VEuPathDB returned unexpected response format.",
+                    wdk_step_id=wdk_step_id,
+                )
             )
-        except WDKError as e:
-            return handle_wdk_step_error(
-                e,
-                wdk_step_id=wdk_step_id,
-                action="read",
-                fallback_message="reading step records",
-            )
-        except (OSError, ValueError, TypeError) as e:
-            return tool_error(
-                ErrorCode.WDK_ERROR,
-                "Failed to fetch sample records from VEuPathDB.",
-                wdk_step_id=wdk_step_id,
-                detail=str(e),
-            )
+        return _extract_sample_response(preview_or_error)
 
-        if not isinstance(preview_raw, dict):
-            return tool_error(
-                ErrorCode.WDK_ERROR,
-                "VEuPathDB returned unexpected response format.",
-                wdk_step_id=wdk_step_id,
-            )
 
-        return _extract_sample_response(preview_raw)
+def _validate_download_url_inputs(
+    wdk_step_id: int,
+    output_format: str,
+    attributes: list[str] | None,
+) -> JSONObject | None:
+    """Validate all inputs for get_download_url. Returns error payload or None."""
+    err = _validate_step_id(wdk_step_id) or _validate_download_format(output_format)
+    if err is not None:
+        return err
+    return _validate_attributes(attributes) if attributes is not None else None
+
+
+async def _fetch_download_url(
+    results_api: TemporaryResultsAPI,
+    wdk_step_id: int,
+    output_format: str,
+    attributes: list[str] | None,
+) -> str | JSONObject:
+    """Fetch download URL from VEuPathDB. Returns URL string or error payload dict."""
+    try:
+        return await results_api.get_download_url(
+            step_id=wdk_step_id,
+            output_format=output_format,
+            attributes=attributes,
+        )
+    except WDKError as e:
+        return handle_wdk_step_error(
+            e,
+            wdk_step_id=wdk_step_id,
+            action="download",
+            fallback_message="generating the download URL",
+        )
+    except (OSError, ValueError, TypeError) as e:
+        return tool_error(
+            ErrorCode.WDK_ERROR,
+            "Failed to generate download URL from VEuPathDB.",
+            wdk_step_id=wdk_step_id,
+            detail=str(e),
+        )
+
+
+def _validate_sample_inputs(wdk_step_id: int, limit: int) -> JSONObject | None:
+    """Validate inputs for get_sample_records. Returns error payload or None."""
+    err = _validate_step_id(wdk_step_id)
+    if err is not None:
+        return err
+    if not isinstance(limit, int) or limit < 1 or limit > _MAX_SAMPLE_LIMIT:
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            f"limit must be an integer between 1 and {_MAX_SAMPLE_LIMIT}.",
+            limit=limit,
+            min=1,
+            max=_MAX_SAMPLE_LIMIT,
+        )
+    return None
+
+
+async def _fetch_step_preview(
+    strategy_api: StrategyAPI,
+    wdk_step_id: int,
+    limit: int,
+) -> dict[str, JSONValue] | JSONObject:
+    """Fetch step answer from VEuPathDB. Returns raw response dict or error payload."""
+    try:
+        return await strategy_api.get_step_answer(
+            step_id=wdk_step_id,
+            pagination={"offset": 0, "numRecords": limit},
+        )
+    except WDKError as e:
+        return handle_wdk_step_error(
+            e,
+            wdk_step_id=wdk_step_id,
+            action="read",
+            fallback_message="reading step records",
+        )
+    except (OSError, ValueError, TypeError) as e:
+        return tool_error(
+            ErrorCode.WDK_ERROR,
+            "Failed to fetch sample records from VEuPathDB.",
+            wdk_step_id=wdk_step_id,
+            detail=str(e),
+        )
 
 
 def _validate_step_id(wdk_step_id: int) -> JSONObject | None:

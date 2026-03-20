@@ -12,15 +12,16 @@ layer never imports from ``veupath_chatbot.ai``.
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole, Kani
 
+from veupath_chatbot.ai.agents.factory import EngineConfig
 from veupath_chatbot.ai.prompts.workbench_chat import (
     build_workbench_system_prompt,
 )
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
-from veupath_chatbot.persistence.repositories.user import UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.events import emit, read_stream_messages
@@ -28,6 +29,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
 from veupath_chatbot.services.chat.streaming import stream_chat
+from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import to_json
 
@@ -42,6 +44,26 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 _create_workbench_agent_holder: dict[str, Callable[..., Kani]] = {}
 _resolve_model_id_holder: dict[str, Callable[..., str]] = {}
+
+
+@dataclass
+class WorkbenchTurnConfig:
+    """Per-turn model configuration for a workbench chat operation."""
+
+    provider_override: ModelProvider | None = None
+    model_override: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
+
+
+@dataclass
+class _WorkbenchProducerIds:
+    """Immutable stream/operation/site identifiers for the background producer."""
+
+    stream_id_str: str
+    operation_id: str
+    site_id: str
+    experiment_id: str
+    user_id: UUID
 
 
 def configure(
@@ -69,12 +91,8 @@ async def start_workbench_chat_stream(
     message: str,
     site_id: str,
     experiment_id: str,
-    user_id: UUID,
-    user_repo: UserRepository,
-    stream_repo: StreamRepository,
-    provider_override: ModelProvider | None = None,
-    model_override: str | None = None,
-    reasoning_effort: ReasoningEffort | None = None,
+    context: ChatContext,
+    config: WorkbenchTurnConfig | None = None,
 ) -> tuple[str, str]:
     """Start a background workbench chat operation and return its identifiers.
 
@@ -86,13 +104,17 @@ async def start_workbench_chat_stream(
     resolution, operation registration, user_message emission).
     All heavy lifting is deferred into the background producer.
     """
-    await user_repo.get_or_create(user_id)
+    cfg = config or WorkbenchTurnConfig()
+
+    await context.user_repo.get_or_create(context.user_id)
 
     # Find existing stream for this experiment or create a new one.
-    stream = await stream_repo.find_by_experiment(user_id, experiment_id)
+    stream = await context.stream_repo.find_by_experiment(
+        context.user_id, experiment_id
+    )
     if stream is None:
-        stream = await stream_repo.create(
-            user_id=user_id,
+        stream = await context.stream_repo.create(
+            user_id=context.user_id,
             site_id=site_id,
             experiment_id=experiment_id,
         )
@@ -108,29 +130,29 @@ async def start_workbench_chat_stream(
         operation_id,
         "user_message",
         {"content": message, "messageId": str(uuid4())},
-        session=stream_repo.session,
+        session=context.stream_repo.session,
     )
 
     # Register the operation in PostgreSQL for client discovery.
-    await stream_repo.register_operation(operation_id, stream.id, "workbench_chat")
+    await context.stream_repo.register_operation(
+        operation_id, stream.id, "workbench_chat"
+    )
 
     # Commit before launching the background producer — it creates its own
     # session and must be able to read the Stream/StreamProjection/Operation.
-    await stream_repo.session.commit()
+    await context.stream_repo.session.commit()
+
+    ids = _WorkbenchProducerIds(
+        stream_id_str=stream_id_str,
+        operation_id=operation_id,
+        site_id=site_id,
+        experiment_id=experiment_id,
+        user_id=context.user_id,
+    )
 
     # Launch the background producer as an asyncio task.
     task = asyncio.create_task(
-        _workbench_chat_producer(
-            stream_id_str=stream_id_str,
-            operation_id=operation_id,
-            site_id=site_id,
-            experiment_id=experiment_id,
-            user_id=user_id,
-            message=message,
-            provider_override=provider_override,
-            model_override=model_override,
-            reasoning_effort=reasoning_effort,
-        )
+        _workbench_chat_producer(ids=ids, message=message, config=cfg)
     )
     _active_tasks[operation_id] = task
     task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))
@@ -162,15 +184,9 @@ async def _build_chat_history_from_redis(
 
 async def _workbench_chat_producer(
     *,
-    stream_id_str: str,
-    operation_id: str,
-    site_id: str,
-    experiment_id: str,
-    user_id: UUID,
+    ids: _WorkbenchProducerIds,
     message: str,
-    provider_override: ModelProvider | None,
-    model_override: str | None,
-    reasoning_effort: ReasoningEffort | None,
+    config: WorkbenchTurnConfig,
 ) -> None:
     """Background task: run the workbench LLM agent and emit every event to Redis."""
     if "v" not in _create_workbench_agent_holder or "v" not in _resolve_model_id_holder:
@@ -186,11 +202,11 @@ async def _workbench_chat_producer(
         bg_stream_repo = StreamRepository(session)
 
         # Build chat history from Redis (not from DB).
-        chat_history = await _build_chat_history_from_redis(stream_id_str)
+        chat_history = await _build_chat_history_from_redis(ids.stream_id_str)
 
         # Build experiment context for prompt.
         store = get_experiment_store()
-        exp = await store.aget(experiment_id)
+        exp = await store.aget(ids.experiment_id)
         experiment_context: JSONObject = {}
         if exp:
             experiment_context["experimentId"] = exp.id
@@ -201,24 +217,27 @@ async def _workbench_chat_producer(
                 experiment_context["config"] = to_json(exp.config)
 
         system_prompt = build_workbench_system_prompt(
-            site_id=site_id,
+            site_id=ids.site_id,
             experiment_context=experiment_context,
         )
 
         effective_model: str = _resolve_model_id_holder["v"](
-            model_override=model_override,
+            model_override=config.model_override,
             persisted_model_id=None,
         )
 
+        engine_cfg = EngineConfig(
+            provider_override=config.provider_override,
+            model_override=effective_model,
+            reasoning_effort=config.reasoning_effort,
+        )
         agent = _create_workbench_agent_holder["v"](
-            site_id=site_id,
-            user_id=user_id,
-            experiment_id=experiment_id,
+            site_id=ids.site_id,
+            user_id=ids.user_id,
+            experiment_id=ids.experiment_id,
             chat_history=chat_history,
             system_prompt=system_prompt,
-            provider_override=provider_override,
-            model_override=effective_model,
-            reasoning_effort=reasoning_effort,
+            engine_config=engine_cfg,
         )
 
         stream_iter = stream_chat(agent, message, model_id=effective_model)
@@ -226,10 +245,10 @@ async def _workbench_chat_producer(
         try:
             await emit(
                 redis,
-                stream_id_str,
-                operation_id,
+                ids.stream_id_str,
+                ids.operation_id,
                 "message_start",
-                {"experimentId": experiment_id},
+                {"experimentId": ids.experiment_id},
                 session=session,
             )
 
@@ -243,26 +262,28 @@ async def _workbench_chat_producer(
 
                 await emit(
                     redis,
-                    stream_id_str,
-                    operation_id,
+                    ids.stream_id_str,
+                    ids.operation_id,
                     event_type,
                     event_data,
                     session=session,
                 )
 
-            await bg_stream_repo.complete_operation(operation_id)
+            await bg_stream_repo.complete_operation(ids.operation_id)
 
         except asyncio.CancelledError:
-            logger.info("Workbench chat producer cancelled", operation_id=operation_id)
+            logger.info(
+                "Workbench chat producer cancelled", operation_id=ids.operation_id
+            )
             await emit(
                 redis,
-                stream_id_str,
-                operation_id,
+                ids.stream_id_str,
+                ids.operation_id,
                 "message_end",
                 {},
                 session=session,
             )
-            await bg_stream_repo.cancel_operation(operation_id)
+            await bg_stream_repo.cancel_operation(ids.operation_id)
             await session.commit()
             return
 
@@ -274,21 +295,21 @@ async def _workbench_chat_producer(
             )
             await emit(
                 redis,
-                stream_id_str,
-                operation_id,
+                ids.stream_id_str,
+                ids.operation_id,
                 "error",
                 {"error": str(e)},
                 session=session,
             )
             await emit(
                 redis,
-                stream_id_str,
-                operation_id,
+                ids.stream_id_str,
+                ids.operation_id,
                 "message_end",
                 {},
                 session=session,
             )
-            await bg_stream_repo.fail_operation(operation_id)
+            await bg_stream_repo.fail_operation(ids.operation_id)
 
         await session.commit()
 

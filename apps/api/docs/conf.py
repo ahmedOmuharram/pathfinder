@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 # -- Project information -----------------------------------------------------
 
 project = "PathFinder API"
-copyright = "2025, Ahmed Muharram"
+copyright = "2026, Ahmed Muharram"  # noqa: A001
 author = "Ahmed Muharram"
 version = "0.1.0-alpha"
 release = "0.1.0-alpha"

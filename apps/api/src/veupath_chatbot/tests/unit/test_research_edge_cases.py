@@ -28,6 +28,7 @@ import math
 import httpx
 import respx
 
+from veupath_chatbot.domain.research.citations import LiteratureFilters
 from veupath_chatbot.services.research.clients.arxiv import ArxivClient
 from veupath_chatbot.services.research.clients.crossref import CrossrefClient
 from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
@@ -37,6 +38,7 @@ from veupath_chatbot.services.research.clients.semanticscholar import (
     SemanticScholarClient,
 )
 from veupath_chatbot.services.research.utils import (
+    LiteratureItemContext,
     candidate_queries,
     decode_ddg_redirect,
     dedupe_key,
@@ -89,39 +91,47 @@ class TestMalformedDois:
     def test_passes_filters_doi_equals_case_insensitive(self) -> None:
         """DOI comparison should be case-insensitive."""
         assert passes_filters(
-            title="T",
-            authors=None,
-            year=2020,
-            doi="10.1234/ABC",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals="10.1234/abc",
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T",
+                authors=None,
+                year=2020,
+                doi="10.1234/ABC",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals="10.1234/abc",
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_passes_filters_doi_with_spaces(self) -> None:
         """DOI comparison should strip spaces."""
         assert passes_filters(
-            title="T",
-            authors=None,
-            year=2020,
-            doi="  10.1234/test  ",
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals="10.1234/test",
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T",
+                authors=None,
+                year=2020,
+                doi="  10.1234/test  ",
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals="10.1234/test",
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
 
@@ -136,20 +146,24 @@ class TestPmidLooksLikeDoi:
     def test_pmid_equals_filter(self) -> None:
         """pmid_equals should match regardless of format."""
         assert passes_filters(
-            title="T",
-            authors=None,
-            year=2020,
-            doi=None,
-            pmid="12345678",
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals="12345678",
-            require_doi=False,
+            LiteratureItemContext(
+                title="T",
+                authors=None,
+                year=2020,
+                doi=None,
+                pmid="12345678",
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals="12345678",
+                require_doi=False,
+            ),
         )
 
     def test_dedupe_pmid_takes_priority_over_doi(self) -> None:
@@ -183,20 +197,24 @@ class TestNonAsciiAuthors:
     def test_passes_filters_unicode_author(self) -> None:
         """Unicode author search should work."""
         assert passes_filters(
-            title="T",
-            authors=["M\u00fcller A", "Smith B"],
-            year=2020,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes="m\u00fcller",
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T",
+                authors=["M\u00fcller A", "Smith B"],
+                year=2020,
+                doi=None,
+                pmid=None,
+                journal=None,
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes="m\u00fcller",
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_fuzzy_score_unicode(self) -> None:
@@ -216,56 +234,53 @@ class TestMissingDates:
 
     def test_year_none_passes_without_year_filters(self) -> None:
         assert passes_filters(
-            title="T",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T", authors=None, year=None, doi=None, pmid=None, journal=None
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_year_none_fails_year_from(self) -> None:
         assert not passes_filters(
-            title="T",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=2020,
-            year_to=None,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T", authors=None, year=None, doi=None, pmid=None, journal=None
+            ),
+            LiteratureFilters(
+                year_from=2020,
+                year_to=None,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_year_none_fails_year_to(self) -> None:
         assert not passes_filters(
-            title="T",
-            authors=None,
-            year=None,
-            doi=None,
-            pmid=None,
-            journal=None,
-            year_from=None,
-            year_to=2020,
-            author_includes=None,
-            title_includes=None,
-            journal_includes=None,
-            doi_equals=None,
-            pmid_equals=None,
-            require_doi=False,
+            LiteratureItemContext(
+                title="T", authors=None, year=None, doi=None, pmid=None, journal=None
+            ),
+            LiteratureFilters(
+                year_from=None,
+                year_to=2020,
+                author_includes=None,
+                title_includes=None,
+                journal_includes=None,
+                doi_equals=None,
+                pmid_equals=None,
+                require_doi=False,
+            ),
         )
 
     def test_dedupe_key_none_year(self) -> None:

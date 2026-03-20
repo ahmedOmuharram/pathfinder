@@ -5,12 +5,13 @@ and optimization result dataclasses, as well as type aliases for callbacks.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-from veupath_chatbot.platform.types import JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.helpers import ProgressCallback
 from veupath_chatbot.services.experiment.types import (
+    ControlValueFormat,
     OptimizationObjective,
     ParameterType,
 )
@@ -67,6 +68,24 @@ class TrialResult:
     negative_hits: int | None = None
     total_positives: int | None = None
     total_negatives: int | None = None
+
+
+@dataclass
+class OptimizationInput:
+    """What to optimize: target search, controls, and parameter space."""
+
+    site_id: str
+    record_type: str
+    search_name: str
+    parameter_space: list[ParameterSpec]
+    controls_search_name: str
+    controls_param_name: str
+    fixed_parameters: dict[str, JSONValue] = field(default_factory=dict)
+    positive_controls: list[str] | None = None
+    negative_controls: list[str] | None = None
+    controls_value_format: ControlValueFormat = "newline"
+    controls_extra_parameters: JSONObject | None = None
+    id_field: str | None = None
 
 
 @dataclass(slots=True)

@@ -10,8 +10,14 @@ Threshold sweep orchestration lives in ``sweep_service.py``.
 from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.experiment.helpers import extract_and_enrich_genes
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    extract_and_enrich_genes,
+)
 from veupath_chatbot.services.experiment.metrics import metrics_from_control_result
 from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
@@ -31,33 +37,35 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
     Updates the experiment in-place (metrics + gene lists) and persists it.
     Returns the full experiment JSON.
     """
+    ctx = ControlsContext(
+        site_id=exp.config.site_id,
+        record_type=exp.config.record_type,
+        controls_search_name=exp.config.controls_search_name,
+        controls_param_name=exp.config.controls_param_name,
+        controls_value_format=exp.config.controls_value_format,
+        positive_controls=exp.config.positive_controls or [],
+        negative_controls=exp.config.negative_controls or [],
+    )
     if exp.config.is_tree_mode:
         step_tree = exp.config.step_tree
         if not isinstance(step_tree, dict):
             msg = "step_tree must be a dict in tree mode"
             raise DataParsingError(msg)
 
-        result = await run_controls_against_tree(
-            site_id=exp.config.site_id,
-            record_type=exp.config.record_type,
-            tree=step_tree,
-            controls_search_name=exp.config.controls_search_name,
-            controls_param_name=exp.config.controls_param_name,
-            controls_value_format=exp.config.controls_value_format,
-            positive_controls=exp.config.positive_controls or None,
-            negative_controls=exp.config.negative_controls or None,
-        )
+        result = await run_controls_against_tree(ctx, step_tree)
     else:
         result = await run_positive_negative_controls(
-            site_id=exp.config.site_id,
-            record_type=exp.config.record_type,
-            target_search_name=exp.config.search_name,
-            target_parameters=exp.config.parameters,
-            controls_search_name=exp.config.controls_search_name,
-            controls_param_name=exp.config.controls_param_name,
-            positive_controls=exp.config.positive_controls or None,
-            negative_controls=exp.config.negative_controls or None,
-            controls_value_format=exp.config.controls_value_format,
+            IntersectionConfig(
+                site_id=exp.config.site_id,
+                record_type=exp.config.record_type,
+                target_search_name=exp.config.search_name,
+                target_parameters=exp.config.parameters,
+                controls_search_name=exp.config.controls_search_name,
+                controls_param_name=exp.config.controls_param_name,
+                controls_value_format=exp.config.controls_value_format,
+            ),
+            positive_controls=ctx.positive_controls or None,
+            negative_controls=ctx.negative_controls or None,
         )
 
     metrics = metrics_from_control_result(result)

@@ -2,6 +2,10 @@ import httpx
 import pytest
 import respx
 
+from veupath_chatbot.domain.research.citations import (
+    LiteratureFilters,
+    LiteratureOutputOptions,
+)
 from veupath_chatbot.services.research import LiteratureSearchService
 
 
@@ -92,8 +96,7 @@ async def test_literature_search_all_sources_with_filters_year_and_author() -> N
             "gametocyte upregulated",
             source="all",
             limit=10,
-            year_from=2015,
-            author_includes="lasonder",
+            filters=LiteratureFilters(year_from=2015, author_includes="lasonder"),
         )
 
     source_value = out.get("source")
@@ -257,7 +260,7 @@ async def test_literature_search_newest_sort_and_require_doi() -> None:
             source="europepmc",
             limit=10,
             sort="newest",
-            require_doi=True,
+            filters=LiteratureFilters(require_doi=True),
         )
 
     sort_value = out.get("sort")
@@ -323,7 +326,7 @@ async def test_literature_search_include_abstract_pubmed_efetch() -> None:
             "x",
             source="pubmed",
             limit=1,
-            include_abstract=True,
+            options=LiteratureOutputOptions(include_abstract=True),
         )
 
     source_value = out.get("source")

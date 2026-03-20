@@ -85,7 +85,7 @@ class TestSingleStepRNASeqSearch:
                             "hard_floor": "5271.566971799924622138383777958655190582",
                             "protein_coding_only": "yes",
                         },
-                        "display_name": "Gametocyte V up-regulated genes",
+                        "inputs": {"display_name": "Gametocyte V up-regulated genes"},
                     },
                 )
             ]
@@ -203,7 +203,7 @@ class TestSingleStepEpitopeSearch:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["High","Medium"]',
                         },
-                        "display_name": "Genes with high/medium epitopes",
+                        "inputs": {"display_name": "Genes with high/medium epitopes"},
                     },
                 )
             ]
@@ -295,7 +295,7 @@ class TestSingleStepEpitopeVariant:
                             "organism": '["Plasmodium falciparum 3D7"]',
                             "epitope_confidence": '["Low"]',
                         },
-                        "display_name": "Low-confidence epitope genes",
+                        "inputs": {"display_name": "Low-confidence epitope genes"},
                     },
                 )
             ]

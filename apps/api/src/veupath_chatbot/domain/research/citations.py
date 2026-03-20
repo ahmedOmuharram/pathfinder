@@ -1,7 +1,7 @@
 """Citation domain types and utilities."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from string import ascii_lowercase
 from typing import Literal, cast
@@ -34,13 +34,76 @@ LiteratureSource = Literal[
 LiteratureSort = Literal["relevance", "newest"]
 
 
+@dataclass
+class LiteratureFilters:
+    """Post-retrieval filters for literature results."""
+
+    year_from: int | None = None
+    year_to: int | None = None
+    author_includes: str | None = None
+    title_includes: str | None = None
+    journal_includes: str | None = None
+    doi_equals: str | None = None
+    pmid_equals: str | None = None
+    require_doi: bool = False
+
+
+@dataclass
+class LiteratureOutputOptions:
+    """Output formatting options for literature results."""
+
+    include_abstract: bool = False
+    abstract_max_chars: int = 2000
+    max_authors: int = 2
+
+
+def _slug_token(value: str | None, *, max_len: int = 32) -> str:
+    if not isinstance(value, str):
+        return ""
+    t = value.strip().lower()
+    if not t:
+        return ""
+    t = re.sub(r"[^a-z0-9]+", "", t)
+    return t[:max_len]
+
+
+def _suggest_tag(citation: "Citation") -> str:
+    """Derive a short slug tag from a Citation's metadata."""
+    title = citation.title
+    authors = citation.authors
+    year = citation.year
+
+    first_author: str | None = None
+    if authors and len(authors) > 0:
+        first_author = authors[0] if isinstance(authors[0], str) else None
+    parts = str(first_author).split(",")[0].split() if first_author else []
+    first_last = _slug_token(parts[0]) if parts else ""
+
+    if first_last:
+        return f"{first_last}{year}" if year else first_last
+
+    first_word = (
+        _slug_token(title.split(maxsplit=1)[0])
+        if isinstance(title, str) and title.split()
+        else ""
+    )
+    tag_from_word = f"{first_word}{year}" if (first_word and year) else first_word
+    if tag_from_word:
+        return tag_from_word
+
+    stable = _slug_token(title, max_len=20) or _slug_token(
+        citation.doi or citation.pmid or citation.url, max_len=20
+    )
+    return stable or str(citation.source)
+
+
 @dataclass(frozen=True)
 class Citation:
     id: str
     source: CitationSource
     title: str
     url: str | None = None
-    authors: list[str] | None = None
+    authors: list[str] | None = field(default=None)
     year: int | None = None
     doi: str | None = None
     pmid: str | None = None
@@ -48,15 +111,7 @@ class Citation:
     accessed_at: str | None = None
 
     def to_dict(self) -> JSONObject:
-        tag = _suggest_citation_tag(
-            source=self.source,
-            title=self.title,
-            authors=self.authors,
-            year=self.year,
-            doi=self.doi,
-            pmid=self.pmid,
-            url=self.url,
-        )
+        tag = _suggest_tag(self)
         return {
             "id": self.id,
             "source": self.source,
@@ -78,52 +133,6 @@ def _now_iso() -> str:
 
 def _new_citation_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
-
-
-def _slug_token(value: str | None, *, max_len: int = 32) -> str:
-    if not isinstance(value, str):
-        return ""
-    t = value.strip().lower()
-    if not t:
-        return ""
-    t = re.sub(r"[^a-z0-9]+", "", t)
-    return t[:max_len]
-
-
-def _suggest_citation_tag(
-    *,
-    source: CitationSource,
-    title: str,
-    authors: list[str] | None,
-    year: int | None,
-    doi: str | None,
-    pmid: str | None,
-    url: str | None,
-) -> str:
-    first_author: str | None = None
-    if authors and len(authors) > 0:
-        first_author = authors[0] if isinstance(authors[0], str) else None
-    parts = str(first_author).split(",")[0].split() if first_author else []
-    first_last = _slug_token(parts[0]) if parts else ""
-    if first_last and year:
-        return f"{first_last}{year}"
-    if first_last:
-        return first_last
-
-    first_word = (
-        _slug_token(title.split(maxsplit=1)[0])
-        if isinstance(title, str) and title.split()
-        else ""
-    )
-    if first_word and year:
-        return f"{first_word}{year}"
-
-    title_slug = _slug_token(title, max_len=20)
-    if title_slug:
-        return title_slug
-
-    stable = _slug_token(doi or pmid or url, max_len=20)
-    return stable or str(source)
 
 
 def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:

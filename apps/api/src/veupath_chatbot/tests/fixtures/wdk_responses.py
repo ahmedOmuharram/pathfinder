@@ -8,6 +8,24 @@ Gene IDs are real *Plasmodium falciparum* 3D7 locus tags so that downstream
 code that validates prefixes/formats does not trip.
 """
 
+from dataclasses import dataclass, field
+
+
+@dataclass
+class StrategyItemDetails:
+    """Optional details for :func:`strategy_list_item`.
+
+    Groups classification and metadata fields that are rarely overridden
+    so the builder stays within the six-argument limit.
+    """
+
+    record_class_name: str = "TranscriptRecordClasses.TranscriptRecordClass"
+    estimated_size: int = 150
+    is_saved: bool = False
+    signature: str = "abc123def456"
+    leaf_and_transform_step_count: int = field(default=1)
+
+
 # ---------------------------------------------------------------------------
 # Default realistic Plasmodium falciparum gene IDs
 # ---------------------------------------------------------------------------
@@ -702,34 +720,31 @@ def strategy_get_response(
 def strategy_list_item(
     strategy_id: int = 200,
     name: str = "Test strategy",
-    record_class_name: str = "TranscriptRecordClasses.TranscriptRecordClass",
-    estimated_size: int = 150,
-    is_saved: bool = False,
-    signature: str = "abc123def456",
-    leaf_and_transform_step_count: int = 1,
+    details: StrategyItemDetails | None = None,
 ) -> dict:
     """GET /users/{id}/strategies list item -- summary only, no stepTree/steps."""
+    d = details or StrategyItemDetails()
     return {
         "strategyId": strategy_id,
         "name": name,
         "description": "",
         "author": "Guest User",
         "rootStepId": 100,
-        "recordClassName": record_class_name,
-        "signature": signature,
+        "recordClassName": d.record_class_name,
+        "signature": d.signature,
         "createdTime": "2026-03-01T00:00:00Z",
         "lastModified": "2026-03-06T00:00:00Z",
         "lastViewed": "2026-03-06T00:00:00Z",
         "releaseVersion": "68",
         "isPublic": False,
-        "isSaved": is_saved,
+        "isSaved": d.is_saved,
         "isValid": True,
         "isDeleted": False,
         "isExample": False,
         "organization": "",
-        "estimatedSize": estimated_size,
+        "estimatedSize": d.estimated_size,
         "nameOfFirstStep": "Organism",
-        "leafAndTransformStepCount": leaf_and_transform_step_count,
+        "leafAndTransformStepCount": d.leaf_and_transform_step_count,
     }
 
 
@@ -739,8 +754,10 @@ def strategy_list_response(count: int = 3) -> list[dict]:
         strategy_list_item(
             strategy_id=200 + i,
             name=f"Strategy {i + 1}",
-            signature=f"sig{i:04d}",
-            leaf_and_transform_step_count=i + 1,
+            details=StrategyItemDetails(
+                signature=f"sig{i:04d}",
+                leaf_and_transform_step_count=i + 1,
+            ),
         )
         for i in range(count)
     ]

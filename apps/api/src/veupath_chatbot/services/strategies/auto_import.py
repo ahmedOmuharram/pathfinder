@@ -9,11 +9,15 @@ recreate it.
 from uuid import UUID
 
 from veupath_chatbot.persistence.models import StreamProjection
-from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.persistence.repositories.stream import (
+    ProjectionUpdate,
+    StreamRepository,
+)
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.gene_sets import GeneSet, GeneSetService
+from veupath_chatbot.services.gene_sets.operations import GeneSetWdkContext
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 
 logger = get_logger(__name__)
@@ -76,9 +80,11 @@ async def auto_import_gene_sets(
             # Link to the existing gene set instead of creating a new one.
             await stream_repo.update_projection(
                 proj.stream_id,
-                gene_set_id=existing.id,
-                gene_set_id_set=True,
-                gene_set_auto_imported=True,
+                ProjectionUpdate(
+                    gene_set_id=existing.id,
+                    gene_set_id_set=True,
+                    gene_set_auto_imported=True,
+                ),
             )
             continue
 
@@ -89,16 +95,20 @@ async def auto_import_gene_sets(
                 site_id=site_id,
                 gene_ids=[],
                 source="strategy",
-                wdk_strategy_id=wdk_id,
-                record_type=proj.record_type,
+                wdk=GeneSetWdkContext(
+                    wdk_strategy_id=wdk_id,
+                    record_type=proj.record_type,
+                ),
             )
             # Ensure gene set row exists in DB before setting the FK.
             await gene_set_service.flush(gs.id)
             await stream_repo.update_projection(
                 proj.stream_id,
-                gene_set_id=gs.id,
-                gene_set_id_set=True,
-                gene_set_auto_imported=True,
+                ProjectionUpdate(
+                    gene_set_id=gs.id,
+                    gene_set_id_set=True,
+                    gene_set_auto_imported=True,
+                ),
             )
             created.append(gs)
             logger.info(

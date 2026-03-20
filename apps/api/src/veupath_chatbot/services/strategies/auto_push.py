@@ -15,7 +15,10 @@ from uuid import UUID
 
 from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.persistence.repositories.stream import (
+    ProjectionUpdate,
+    StreamRepository,
+)
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, WDKError
 from veupath_chatbot.platform.logging import get_logger
@@ -52,6 +55,97 @@ def _get_push_lock(strategy_id: UUID) -> asyncio.Lock:
     return _push_locks[strategy_id]
 
 
+async def _clear_stale_wdk_id(
+    session: object,
+    strategy_id: UUID,
+) -> None:
+    """Best-effort: clear a stale wdk_strategy_id after a 404 from WDK."""
+    logger.warning(
+        "WDK strategy no longer exists, clearing wdk_strategy_id",
+        strategy_id=str(strategy_id),
+    )
+    try:
+        repo = StreamRepository(session)
+        await repo.update_projection(
+            strategy_id,
+            ProjectionUpdate(
+                wdk_strategy_id=None,
+                wdk_strategy_id_set=True,
+            ),
+        )
+        await session.commit()
+    except AppError, ValueError, TypeError, RuntimeError:
+        await session.rollback()
+        logger.exception(
+            "Failed to clear stale wdk_strategy_id",
+            strategy_id=str(strategy_id),
+        )
+
+
+async def _do_push(
+    session: object,
+    strategy_id: UUID,
+) -> None:
+    """Run the actual compile-and-push flow inside an existing DB session."""
+    repo = StreamRepository(session)
+    projection = await repo.get_projection(strategy_id)
+    if not projection or not projection.wdk_strategy_id:
+        return
+
+    site_id = projection.site_id
+    if not site_id:
+        return
+
+    plan = projection.plan if isinstance(projection.plan, dict) else {}
+    if not plan:
+        return
+
+    strategy_ast = validate_plan_or_raise(plan)
+    api = get_strategy_api(site_id)
+    resolver = await make_record_type_resolver(site_id)
+
+    result = await compile_strategy(
+        strategy_ast, api, site_id=site_id, resolve_search_record_type=resolver
+    )
+
+    await api.update_strategy(
+        strategy_id=projection.wdk_strategy_id,
+        step_tree=result.step_tree,
+        name=projection.name,
+    )
+
+    compiled_map = {s.local_id: s.wdk_step_id for s in result.steps}
+    all_steps = strategy_ast.get_all_steps()
+    unmapped = [s.id for s in all_steps if s.id not in compiled_map]
+    if unmapped:
+        logger.warning(
+            "Auto-push: some steps missing from compiled map, "
+            "skipping ID rewrite to avoid mixed-ID corruption",
+            strategy_id=str(strategy_id),
+            unmapped_step_ids=unmapped,
+        )
+    else:
+        for step in all_steps:
+            step.id = str(compiled_map[step.id])
+
+    updated_plan = strategy_ast.to_dict()
+    await repo.update_projection(
+        strategy_id,
+        ProjectionUpdate(
+            plan=updated_plan,
+            record_type=strategy_ast.record_type,
+            step_count=len(strategy_ast.get_all_steps()),
+        ),
+    )
+    await session.commit()
+
+    logger.info(
+        "Auto-pushed strategy to WDK",
+        strategy_id=str(strategy_id),
+        wdk_strategy_id=projection.wdk_strategy_id,
+    )
+
+
 async def try_auto_push_to_wdk(
     strategy_id: UUID,
 ) -> None:
@@ -77,85 +171,11 @@ async def try_auto_push_to_wdk(
     # request-scoped session that fired this background task.
     async with lock, async_session_factory() as session:
         try:
-            repo = StreamRepository(session)
-            projection = await repo.get_projection(strategy_id)
-            if not projection or not projection.wdk_strategy_id:
-                return
-
-            site_id = projection.site_id
-            if not site_id:
-                return
-
-            plan = projection.plan if isinstance(projection.plan, dict) else {}
-            if not plan:
-                return
-
-            strategy_ast = validate_plan_or_raise(plan)
-            api = get_strategy_api(site_id)
-            resolver = await make_record_type_resolver(site_id)
-
-            result = await compile_strategy(
-                strategy_ast, api, site_id=site_id, resolve_search_record_type=resolver
-            )
-
-            await api.update_strategy(
-                strategy_id=projection.wdk_strategy_id,
-                step_tree=result.step_tree,
-                name=projection.name,
-            )
-
-            # Rewrite local IDs to WDK IDs in the persisted plan.
-            compiled_map = {s.local_id: s.wdk_step_id for s in result.steps}
-            all_steps = strategy_ast.get_all_steps()
-            unmapped = [s.id for s in all_steps if s.id not in compiled_map]
-            if unmapped:
-                logger.warning(
-                    "Auto-push: some steps missing from compiled map, "
-                    "skipping ID rewrite to avoid mixed-ID corruption",
-                    strategy_id=str(strategy_id),
-                    unmapped_step_ids=unmapped,
-                )
-            else:
-                for step in all_steps:
-                    step.id = str(compiled_map[step.id])
-
-            updated_plan = strategy_ast.to_dict()
-            await repo.update_projection(
-                strategy_id,
-                plan=updated_plan,
-                record_type=strategy_ast.record_type,
-                step_count=len(strategy_ast.get_all_steps()),
-            )
-            await session.commit()
-
-            logger.info(
-                "Auto-pushed strategy to WDK",
-                strategy_id=str(strategy_id),
-                wdk_strategy_id=projection.wdk_strategy_id,
-            )
+            await _do_push(session, strategy_id)
         except WDKError as e:
             await session.rollback()
             if e.status == _HTTP_NOT_FOUND:
-                # The WDK strategy no longer exists — clear the stale
-                # reference so we stop retrying on every save.
-                logger.warning(
-                    "WDK strategy no longer exists, clearing wdk_strategy_id",
-                    strategy_id=str(strategy_id),
-                )
-                try:
-                    repo = StreamRepository(session)
-                    await repo.update_projection(
-                        strategy_id,
-                        wdk_strategy_id=None,
-                        wdk_strategy_id_set=True,
-                    )
-                    await session.commit()
-                except AppError, ValueError, TypeError, RuntimeError:
-                    await session.rollback()
-                    logger.exception(
-                        "Failed to clear stale wdk_strategy_id",
-                        strategy_id=str(strategy_id),
-                    )
+                await _clear_stale_wdk_id(session, strategy_id)
             else:
                 logger.warning(
                     "Auto-push to WDK failed (best-effort)",

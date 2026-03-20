@@ -12,7 +12,7 @@ import pytest
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.tests.fixtures.builders import make_param_spec
+from veupath_chatbot.tests.fixtures.builders import ParamSpecConfig, make_param_spec
 
 
 def _normalizer(*specs: ParamSpecNormalized) -> ParameterNormalizer:
@@ -24,22 +24,26 @@ def _normalizer(*specs: ParamSpecNormalized) -> ParameterNormalizer:
 # ---------------------------------------------------------------------------
 class TestNormalizeDispatch:
     def test_unknown_param_raises(self) -> None:
-        n = _normalizer(make_param_spec(name="p1"))
+        n = _normalizer(make_param_spec(ParamSpecConfig(name="p1")))
         with pytest.raises(ValidationError, match="Unknown parameter"):
             n.normalize({"unknown": "val"})
 
     def test_input_step_param_skipped(self) -> None:
-        n = _normalizer(make_param_spec(name="inputStepId", param_type="input-step"))
+        n = _normalizer(
+            make_param_spec(
+                ParamSpecConfig(name="inputStepId", param_type="input-step")
+            )
+        )
         result = n.normalize({"inputStepId": "123"})
         assert result == {}
 
     def test_empty_parameters(self) -> None:
-        n = _normalizer(make_param_spec(name="p1"))
+        n = _normalizer(make_param_spec(ParamSpecConfig(name="p1")))
         result = n.normalize({})
         assert result == {}
 
     def test_none_parameters(self) -> None:
-        n = _normalizer(make_param_spec(name="p1"))
+        n = _normalizer(make_param_spec(ParamSpecConfig(name="p1")))
         result = n.normalize(None)
         assert result == {}
 
@@ -50,9 +54,11 @@ class TestNormalizeDispatch:
 class TestNormalizeMultiPick:
     def test_list_values_become_json_string(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"organism": ["Plasmodium", "Toxoplasma"]})
@@ -60,9 +66,11 @@ class TestNormalizeMultiPick:
 
     def test_csv_string_becomes_json_string(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"organism": "Plasmodium,Toxoplasma"})
@@ -70,9 +78,11 @@ class TestNormalizeMultiPick:
 
     def test_json_array_string_normalized(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"organism": '["Plasmodium"]'})
@@ -80,9 +90,11 @@ class TestNormalizeMultiPick:
 
     def test_vocab_match_by_display(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["pf3d7", "Plasmodium falciparum 3D7"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["pf3d7", "Plasmodium falciparum 3D7"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"organism": ["Plasmodium falciparum 3D7"]})
@@ -90,10 +102,12 @@ class TestNormalizeMultiPick:
 
     def test_validates_min_count(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            min_selected=2,
-            vocabulary=[["a", "a"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                min_selected=2,
+                vocabulary=[["a", "a"]],
+            )
         )
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -102,10 +116,12 @@ class TestNormalizeMultiPick:
 
     def test_validates_max_count(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            max_selected=1,
-            vocabulary=[["a", "a"], ["b", "b"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                max_selected=1,
+                vocabulary=[["a", "a"], ["b", "b"]],
+            )
         )
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -114,9 +130,11 @@ class TestNormalizeMultiPick:
 
     def test_none_value_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"organism": None})
@@ -132,10 +150,12 @@ class TestNormalizeMultiPick:
             ],
         }
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=vocab,
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=vocab,
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"p": ["Parent"]})
@@ -149,9 +169,11 @@ class TestNormalizeMultiPick:
 class TestNormalizeSinglePick:
     def test_string_value(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["ring", "Ring"]],
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["ring", "Ring"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"stage": "Ring"})
@@ -159,9 +181,11 @@ class TestNormalizeSinglePick:
 
     def test_multiple_values_raises(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["a", "A"], ["b", "B"]],
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["a", "A"], ["b", "B"]],
+            )
         )
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -170,9 +194,11 @@ class TestNormalizeSinglePick:
 
     def test_empty_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"stage": ""})
@@ -180,9 +206,11 @@ class TestNormalizeSinglePick:
 
     def test_empty_without_allow_empty_raises(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            allow_empty=False,
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                allow_empty=False,
+            )
         )
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -196,28 +224,28 @@ class TestNormalizeSinglePick:
 class TestNormalizeScalar:
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_string_passthrough(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         result = n.normalize({"p": "value"})
         assert result["p"] == "value"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_integer_stringified(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         result = n.normalize({"p": 42})
         assert result["p"] == "42"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_bool_stringified(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         result = n.normalize({"p": True})
         assert result["p"] == "true"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_list_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             n.normalize({"p": [1, 2]})
@@ -225,7 +253,7 @@ class TestNormalizeScalar:
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_dict_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             n.normalize({"p": {"key": "val"}})
@@ -238,14 +266,14 @@ class TestNormalizeScalar:
 class TestNormalizeRange:
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_dict_becomes_json_string(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         result = n.normalize({"p": {"min": 1, "max": 10}})
         assert result["p"] == json.dumps({"min": 1, "max": 10})
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_list_pair_becomes_json_string(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         result = n.normalize({"p": [1, 10]})
         parsed = json.loads(result["p"])
@@ -253,7 +281,7 @@ class TestNormalizeRange:
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_invalid_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             n.normalize({"p": "invalid"})
@@ -265,19 +293,19 @@ class TestNormalizeRange:
 # ---------------------------------------------------------------------------
 class TestNormalizeFilter:
     def test_dict_becomes_json_string(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         n = _normalizer(spec)
         result = n.normalize({"p": {"filters": []}})
         assert result["p"] == json.dumps({"filters": []})
 
     def test_list_becomes_json_string(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         n = _normalizer(spec)
         result = n.normalize({"p": [{"field": "x"}]})
         assert result["p"] == json.dumps([{"field": "x"}])
 
     def test_string_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         n = _normalizer(spec)
         result = n.normalize({"p": "filter_val"})
         assert result["p"] == "filter_val"
@@ -288,20 +316,20 @@ class TestNormalizeFilter:
 # ---------------------------------------------------------------------------
 class TestNormalizeInputDataset:
     def test_single_list_item(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         n = _normalizer(spec)
         result = n.normalize({"p": ["dataset_1"]})
         assert result["p"] == "dataset_1"
 
     def test_multi_list_raises(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         n = _normalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             n.normalize({"p": ["a", "b"]})
         assert "single value" in (exc_info.value.detail or "")
 
     def test_string_value(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         n = _normalizer(spec)
         result = n.normalize({"p": "dataset_1"})
         assert result["p"] == "dataset_1"
@@ -312,7 +340,7 @@ class TestNormalizeInputDataset:
 # ---------------------------------------------------------------------------
 class TestNormalizeUnknownType:
     def test_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="unknown_type")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="unknown_type"))
         n = _normalizer(spec)
         result = n.normalize({"p": {"complex": "data"}})
         assert result["p"] == {"complex": "data"}
@@ -327,9 +355,11 @@ class TestNormalizerVsCanonicalizerDifferences:
     def test_multi_pick_normalizer_returns_json_string(self) -> None:
         """Normalizer returns a JSON string for multi-pick (WDK wire format)."""
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["a", "a"], ["b", "b"]],
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["a", "a"], ["b", "b"]],
+            )
         )
         n = _normalizer(spec)
         result = n.normalize({"p": ["a", "b"]})
@@ -338,7 +368,7 @@ class TestNormalizerVsCanonicalizerDifferences:
 
     def test_range_normalizer_returns_json_string(self) -> None:
         """Normalizer returns a JSON string for ranges (WDK wire format)."""
-        spec = make_param_spec(name="p", param_type="number-range")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="number-range"))
         n = _normalizer(spec)
         result = n.normalize({"p": {"min": 1, "max": 10}})
         assert isinstance(result["p"], str)
@@ -346,7 +376,7 @@ class TestNormalizerVsCanonicalizerDifferences:
 
     def test_filter_normalizer_returns_json_string(self) -> None:
         """Normalizer returns a JSON string for filters (WDK wire format)."""
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         n = _normalizer(spec)
         result = n.normalize({"p": {"filters": []}})
         assert isinstance(result["p"], str)

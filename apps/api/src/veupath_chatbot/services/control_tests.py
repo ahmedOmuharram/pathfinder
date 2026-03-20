@@ -4,7 +4,8 @@ These helpers run *temporary* WDK steps/strategies to evaluate whether known
 positive controls are returned and known negative controls are excluded.
 """
 
-from typing import TypedDict, cast
+from dataclasses import dataclass, field
+from typing import cast
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
@@ -37,6 +38,7 @@ def _require_step_id(raw: JSONObject | None, label: str) -> int:
 
 
 __all__ = [
+    "IntersectionConfig",
     "_cleanup_internal_control_test_strategies",
     "_extract_intersection_data",
     "_run_intersection_control",
@@ -47,8 +49,15 @@ __all__ = [
 logger = get_logger(__name__)
 
 
-class _IntersectionKwargs(TypedDict):
-    """Common kwargs shared between positive and negative control runs."""
+@dataclass
+class IntersectionConfig:
+    """Configuration for a single control-test intersection run.
+
+    Groups the parameters that define the WDK search target and the controls
+    search configuration.  Passed as a single argument to
+    :func:`_run_intersection_control` and :func:`run_positive_negative_controls`
+    to keep their signatures concise.
+    """
 
     site_id: str
     record_type: str
@@ -56,10 +65,21 @@ class _IntersectionKwargs(TypedDict):
     target_parameters: JSONObject
     controls_search_name: str
     controls_param_name: str
-    controls_value_format: ControlValueFormat
-    controls_extra_parameters: JSONObject | None
-    boolean_operator: str
-    id_field: str | None
+    controls_value_format: ControlValueFormat = "newline"
+    controls_extra_parameters: JSONObject | None = None
+    boolean_operator: str = field(
+        default_factory=lambda: DEFAULT_COMBINE_OPERATOR.value
+    )
+    id_field: str | None = None
+
+
+def _find_param_type(params: list[object], param_name: str) -> str | None:
+    """Find the type of a named parameter in a WDK parameters list."""
+    for p in params:
+        if isinstance(p, dict) and p.get("name") == param_name:
+            ptype = p.get("type")
+            return str(ptype) if ptype else None
+    return None
 
 
 async def resolve_controls_param_type(
@@ -79,15 +99,11 @@ async def resolve_controls_param_type(
     try:
         details = await api.client.get_search_details(record_type, controls_search_name)
         search_data = details.get("searchData") if isinstance(details, dict) else None
-        if not isinstance(search_data, dict):
-            return None
-        params = search_data.get("parameters")
-        if not isinstance(params, list):
-            return None
-        for p in params:
-            if isinstance(p, dict) and p.get("name") == controls_param_name:
-                ptype = p.get("type")
-                return str(ptype) if ptype else None
+        params = (
+            search_data.get("parameters") if isinstance(search_data, dict) else None
+        )
+        if isinstance(params, list):
+            return _find_param_type(params, controls_param_name)
     except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Could not resolve param type for controls",
@@ -100,19 +116,9 @@ async def resolve_controls_param_type(
 
 
 async def _run_intersection_control(
-    *,
-    site_id: str,
-    record_type: str,
-    target_search_name: str,
-    target_parameters: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
+    config: IntersectionConfig,
     controls_ids: list[str],
-    controls_value_format: ControlValueFormat,
-    controls_extra_parameters: JSONObject | None,
-    boolean_operator: str = DEFAULT_COMBINE_OPERATOR.value,
     fetch_ids_limit: int = 500,
-    id_field: str | None = None,
 ) -> JSONObject:
     """Run a single control intersection and return results.
 
@@ -121,22 +127,22 @@ async def _run_intersection_control(
     across multiple calls would cause the second call to fail with
     ``"<stepId> is not a valid step ID"``.
     """
-    api = get_strategy_api(site_id)
+    api = get_strategy_api(config.site_id)
 
     # Auto-resolve record types for both searches via the cached catalog.
     # The AI often passes 'gene' but VEuPathDB gene searches live under
     # 'transcript'.  The catalog knows the correct mapping.
     target_rt = await find_record_type_for_search(
-        site_id, record_type, target_search_name
+        config.site_id, config.record_type, config.target_search_name
     )
     controls_rt = await find_record_type_for_search(
-        site_id, record_type, controls_search_name
+        config.site_id, config.record_type, config.controls_search_name
     )
 
     target_step = await api.create_step(
         record_type=target_rt,
-        search_name=target_search_name,
-        parameters=target_parameters or {},
+        search_name=config.target_search_name,
+        parameters=config.target_parameters or {},
         custom_name="Target",
     )
     target_step_id = _require_step_id(target_step, "target step")
@@ -144,21 +150,21 @@ async def _run_intersection_control(
     # Determine whether the controls parameter is an input-dataset type.
     # If so, upload the IDs as a WDK dataset and pass the dataset ID.
     param_type = await resolve_controls_param_type(
-        api, controls_rt, controls_search_name, controls_param_name
+        api, controls_rt, config.controls_search_name, config.controls_param_name
     )
 
-    controls_params = dict(controls_extra_parameters or {})
+    controls_params = dict(config.controls_extra_parameters or {})
     if param_type == "input-dataset":
         dataset_id = await api.create_dataset(controls_ids)
-        controls_params[controls_param_name] = str(dataset_id)
+        controls_params[config.controls_param_name] = str(dataset_id)
     else:
-        controls_params[controls_param_name] = _encode_id_list(
-            controls_ids, controls_value_format
+        controls_params[config.controls_param_name] = _encode_id_list(
+            controls_ids, config.controls_value_format
         )
 
     controls_step = await api.create_step(
         record_type=controls_rt,
-        search_name=controls_search_name,
+        search_name=config.controls_search_name,
         parameters=controls_params,
         custom_name="Controls",
     )
@@ -167,9 +173,9 @@ async def _run_intersection_control(
     combined_step = await api.create_combined_step(
         primary_step_id=target_step_id,
         secondary_step_id=controls_step_id,
-        boolean_operator=boolean_operator,
+        boolean_operator=config.boolean_operator,
         record_type=target_rt,
-        custom_name=f"{boolean_operator} controls",
+        custom_name=f"{config.boolean_operator} controls",
     )
     combined_step_id = _require_step_id(combined_step, "combined step")
 
@@ -203,7 +209,7 @@ async def _run_intersection_control(
                 },
             )
             ids_found = extract_record_ids(
-                (answer or {}).get("records"), preferred_key=id_field
+                (answer or {}).get("records"), preferred_key=config.id_field
             )
 
         # Convert list[str] to JSONValue-compatible types
@@ -260,18 +266,10 @@ def _extract_intersection_data(
 
 
 async def run_positive_negative_controls(
+    config: IntersectionConfig,
     *,
-    site_id: str,
-    record_type: str,
-    target_search_name: str,
-    target_parameters: JSONObject,
-    controls_search_name: str,
-    controls_param_name: str,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
-    controls_value_format: ControlValueFormat = "newline",
-    controls_extra_parameters: JSONObject | None = None,
-    id_field: str | None = None,
     skip_cleanup: bool = False,
 ) -> JSONObject:
     """Run positive + negative controls against a single WDK question configuration.
@@ -281,33 +279,22 @@ async def run_positive_negative_controls(
     strategy is deleted, so a shared target step would be invalidated after
     the first control run's cleanup.
 
+    :param config: Intersection configuration (site, record type, search names, etc.).
+    :param positive_controls: Known-positive IDs that should be returned.
+    :param negative_controls: Known-negative IDs that should NOT be returned.
     :param skip_cleanup: When ``True``, skip the upfront strategy cleanup.
         Useful when the caller already performed cleanup (e.g. batch sweeps).
     """
     if not skip_cleanup:
-        cleanup_api = get_strategy_api(site_id)
+        cleanup_api = get_strategy_api(config.site_id)
         await _cleanup_internal_control_test_strategies(cleanup_api)
 
-    # Common kwargs passed to _run_intersection_control for both control sets.
-    common_kwargs: _IntersectionKwargs = {
-        "site_id": site_id,
-        "record_type": record_type,
-        "target_search_name": target_search_name,
-        "target_parameters": target_parameters,
-        "controls_search_name": controls_search_name,
-        "controls_param_name": controls_param_name,
-        "controls_value_format": controls_value_format,
-        "controls_extra_parameters": controls_extra_parameters,
-        "boolean_operator": DEFAULT_COMBINE_OPERATOR.value,
-        "id_field": id_field,
-    }
-
     result: JSONObject = {
-        "siteId": site_id,
-        "recordType": record_type,
+        "siteId": config.site_id,
+        "recordType": config.record_type,
         "target": {
-            "searchName": target_search_name,
-            "parameters": target_parameters or {},
+            "searchName": config.target_search_name,
+            "parameters": config.target_parameters or {},
             "stepId": None,
             "resultCount": None,
         },
@@ -319,10 +306,7 @@ async def run_positive_negative_controls(
     neg = [str(x).strip() for x in (negative_controls or []) if str(x).strip()]
 
     if pos:
-        pos_payload = await _run_intersection_control(
-            **common_kwargs,
-            controls_ids=pos,
-        )
+        pos_payload = await _run_intersection_control(config, controls_ids=pos)
         # Capture target info from the first successful run.
         target = as_json_object(result["target"])
         target["stepId"] = pos_payload.get("targetStepId")
@@ -338,10 +322,7 @@ async def run_positive_negative_controls(
         }
 
     if neg:
-        neg_payload = await _run_intersection_control(
-            **common_kwargs,
-            controls_ids=neg,
-        )
+        neg_payload = await _run_intersection_control(config, controls_ids=neg)
         # Fill target info if not set yet (e.g. no positive controls).
         target = as_json_object(result["target"])
         if target.get("stepId") is None:

@@ -5,17 +5,35 @@ Provides gene-list extraction utilities and the progress callback type alias.
 
 import math
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.types import GeneInfo
+from veupath_chatbot.services.experiment.types import ControlValueFormat, GeneInfo
 from veupath_chatbot.services.gene_lookup.wdk import resolve_gene_ids
 
 logger = get_logger(__name__)
 
 ProgressCallback = Callable[[JSONObject], Awaitable[None]]
 """Emits an SSE-friendly progress event dict."""
+
+
+@dataclass
+class ControlsContext:
+    """Shared context passed to all control-evaluation functions.
+
+    Groups the parameters that are always passed together: the WDK site,
+    record type, controls search configuration, and the control gene lists.
+    """
+
+    site_id: str
+    record_type: str
+    controls_search_name: str
+    controls_param_name: str
+    controls_value_format: ControlValueFormat
+    positive_controls: list[str] = field(default_factory=list)
+    negative_controls: list[str] = field(default_factory=list)
 
 
 def safe_int(val: object, default: int = 0) -> int:

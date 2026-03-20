@@ -1,6 +1,7 @@
 """Tests for domain/parameters/canonicalize.py."""
 
 import re
+from typing import cast
 
 import pytest
 
@@ -10,7 +11,7 @@ from veupath_chatbot.domain.parameters.canonicalize import (
 )
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.tests.fixtures.builders import make_param_spec
+from veupath_chatbot.tests.fixtures.builders import ParamSpecConfig, make_param_spec
 
 
 def _assert_validation_error(
@@ -33,23 +34,27 @@ def _canonicalizer(*specs: ParamSpecNormalized) -> ParameterCanonicalizer:
 # ---------------------------------------------------------------------------
 class TestCanonicalizeDispatch:
     def test_unknown_param_raises(self) -> None:
-        c = _canonicalizer(make_param_spec(name="p1"))
+        c = _canonicalizer(make_param_spec(ParamSpecConfig(name="p1")))
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"unknown": "val"})
         _assert_validation_error(exc_info, "does not exist")
 
     def test_input_step_param_skipped(self) -> None:
-        c = _canonicalizer(make_param_spec(name="inputStepId", param_type="input-step"))
+        c = _canonicalizer(
+            make_param_spec(
+                ParamSpecConfig(name="inputStepId", param_type="input-step")
+            )
+        )
         result = c.canonicalize({"inputStepId": "123"})
         assert result == {}
 
     def test_empty_parameters(self) -> None:
-        c = _canonicalizer(make_param_spec(name="p1"))
+        c = _canonicalizer(make_param_spec(ParamSpecConfig(name="p1")))
         result = c.canonicalize({})
         assert result == {}
 
     def test_none_parameters(self) -> None:
-        c = _canonicalizer(make_param_spec(name="p1"))
+        c = _canonicalizer(make_param_spec(ParamSpecConfig(name="p1")))
         result = c.canonicalize(None)
         assert result == {}
 
@@ -59,7 +64,7 @@ class TestCanonicalizeDispatch:
 # ---------------------------------------------------------------------------
 class TestFakeAllSentinel:
     def test_rejected_at_top_level(self) -> None:
-        spec = make_param_spec(name="p1", param_type="string")
+        spec = make_param_spec(ParamSpecConfig(name="p1", param_type="string"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p1": FAKE_ALL_SENTINEL})
@@ -67,9 +72,11 @@ class TestFakeAllSentinel:
 
     def test_rejected_in_multi_pick_list(self) -> None:
         spec = make_param_spec(
-            name="p1",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["a", "A"], ["b", "B"]],
+            ParamSpecConfig(
+                name="p1",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["a", "A"], ["b", "B"]],
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -78,9 +85,11 @@ class TestFakeAllSentinel:
 
     def test_rejected_for_single_pick(self) -> None:
         spec = make_param_spec(
-            name="p1",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["a", "A"]],
+            ParamSpecConfig(
+                name="p1",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["a", "A"]],
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -94,9 +103,11 @@ class TestFakeAllSentinel:
 class TestMultiPickVocabulary:
     def test_list_values(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"organism": ["Plasmodium", "Toxoplasma"]})
@@ -104,9 +115,11 @@ class TestMultiPickVocabulary:
 
     def test_csv_string(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"], ["Toxoplasma", "Toxoplasma"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"organism": "Plasmodium,Toxoplasma"})
@@ -114,9 +127,11 @@ class TestMultiPickVocabulary:
 
     def test_json_array_string(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["Plasmodium", "Plasmodium"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["Plasmodium", "Plasmodium"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"organism": '["Plasmodium"]'})
@@ -124,10 +139,12 @@ class TestMultiPickVocabulary:
 
     def test_validates_count(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            min_selected=2,
-            vocabulary=[["a", "a"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                min_selected=2,
+                vocabulary=[["a", "a"]],
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -136,9 +153,11 @@ class TestMultiPickVocabulary:
 
     def test_vocab_match(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            vocabulary=[["pf3d7", "Plasmodium falciparum 3D7"]],
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                vocabulary=[["pf3d7", "Plasmodium falciparum 3D7"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"organism": ["Plasmodium falciparum 3D7"]})
@@ -146,9 +165,11 @@ class TestMultiPickVocabulary:
 
     def test_none_value_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="organism",
-            param_type="multi-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="organism",
+                param_type="multi-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"organism": None})
@@ -161,9 +182,11 @@ class TestMultiPickVocabulary:
 class TestSinglePickVocabulary:
     def test_string_value(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["ring", "Ring"], ["troph", "Trophozoite"]],
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["ring", "Ring"], ["troph", "Trophozoite"]],
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"stage": "Ring"})
@@ -171,9 +194,11 @@ class TestSinglePickVocabulary:
 
     def test_multiple_values_raises(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            vocabulary=[["a", "A"], ["b", "B"]],
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                vocabulary=[["a", "A"], ["b", "B"]],
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -182,9 +207,11 @@ class TestSinglePickVocabulary:
 
     def test_empty_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"stage": ""})
@@ -192,9 +219,11 @@ class TestSinglePickVocabulary:
 
     def test_empty_without_allow_empty_raises(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            allow_empty=False,
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                allow_empty=False,
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -203,9 +232,11 @@ class TestSinglePickVocabulary:
 
     def test_none_with_allow_empty(self) -> None:
         spec = make_param_spec(
-            name="stage",
-            param_type="single-pick-vocabulary",
-            allow_empty=True,
+            ParamSpecConfig(
+                name="stage",
+                param_type="single-pick-vocabulary",
+                allow_empty=True,
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"stage": None})
@@ -218,28 +249,28 @@ class TestSinglePickVocabulary:
 class TestScalarTypes:
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_string_value(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": "value"})
         assert result["p"] == "value"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_integer_value(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": 42})
         assert result["p"] == "42"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_bool_value(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": True})
         assert result["p"] == "true"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_list_value_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": [1, 2]})
@@ -247,14 +278,16 @@ class TestScalarTypes:
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_dict_value_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": {"min": 1}})
         _assert_validation_error(exc_info, "scalar")
 
     def test_none_with_allow_empty(self) -> None:
-        spec = make_param_spec(name="p", param_type="string", allow_empty=True)
+        spec = make_param_spec(
+            ParamSpecConfig(name="p", param_type="string", allow_empty=True)
+        )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": None})
         assert result["p"] == ""
@@ -266,28 +299,28 @@ class TestScalarTypes:
 class TestRangeTypes:
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_dict_passthrough(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": {"min": 1, "max": 10}})
         assert result["p"] == {"min": 1, "max": 10}
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_list_pair(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": [1, 10]})
         assert result["p"] == {"min": 1, "max": 10}
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_tuple_pair(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
-        result = c.canonicalize({"p": (5, 15)})
+        result = c.canonicalize(cast("dict[str, object]", {"p": (5, 15)}))
         assert result["p"] == {"min": 5, "max": 15}
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_invalid_value_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": "invalid"})
@@ -295,7 +328,7 @@ class TestRangeTypes:
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_wrong_length_list_raises(self, param_type: str) -> None:
-        spec = make_param_spec(name="p", param_type=param_type)
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type=param_type))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": [1, 2, 3]})
@@ -307,25 +340,25 @@ class TestRangeTypes:
 # ---------------------------------------------------------------------------
 class TestFilterType:
     def test_dict_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": {"filters": []}})
         assert result["p"] == {"filters": []}
 
     def test_list_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": [{"field": "x"}]})
         assert result["p"] == [{"field": "x"}]
 
     def test_string_stringified(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": "some_filter"})
         assert result["p"] == "some_filter"
 
     def test_number_stringified(self) -> None:
-        spec = make_param_spec(name="p", param_type="filter")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="filter"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": 42})
         assert result["p"] == "42"
@@ -336,26 +369,26 @@ class TestFilterType:
 # ---------------------------------------------------------------------------
 class TestInputDataset:
     def test_single_list_item(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["dataset_1"]})
         assert result["p"] == "dataset_1"
 
     def test_multi_list_raises(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
             c.canonicalize({"p": ["a", "b"]})
         _assert_validation_error(exc_info, "single value")
 
     def test_string_value(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": "dataset_1"})
         assert result["p"] == "dataset_1"
 
     def test_integer_value(self) -> None:
-        spec = make_param_spec(name="p", param_type="input-dataset")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="input-dataset"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": 42})
         assert result["p"] == "42"
@@ -366,7 +399,7 @@ class TestInputDataset:
 # ---------------------------------------------------------------------------
 class TestUnknownParamType:
     def test_passthrough(self) -> None:
-        spec = make_param_spec(name="p", param_type="unknown_type")
+        spec = make_param_spec(ParamSpecConfig(name="p", param_type="unknown_type"))
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": {"complex": "data"}})
         assert result["p"] == {"complex": "data"}
@@ -405,10 +438,12 @@ class TestEnforceLeafValues:
 
     def test_leaf_value_passes_through(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["leaf1"]})
@@ -416,10 +451,12 @@ class TestEnforceLeafValues:
 
     def test_parent_expands_to_leaves(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["Parent"]})
@@ -427,10 +464,12 @@ class TestEnforceLeafValues:
 
     def test_root_expands_to_all_leaves(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["Root"]})
@@ -438,10 +477,12 @@ class TestEnforceLeafValues:
 
     def test_deduplicates_leaves(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["Parent", "leaf1"]})
@@ -450,10 +491,12 @@ class TestEnforceLeafValues:
 
     def test_no_match_raises(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:
@@ -462,10 +505,12 @@ class TestEnforceLeafValues:
 
     def test_count_only_leaves_false_no_expansion(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="multi-pick-vocabulary",
-            count_only_leaves=False,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="multi-pick-vocabulary",
+                count_only_leaves=False,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": ["Parent"]})
@@ -474,10 +519,12 @@ class TestEnforceLeafValues:
 
     def test_single_pick_leaf_enforcement(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         result = c.canonicalize({"p": "leaf1"})
@@ -485,10 +532,12 @@ class TestEnforceLeafValues:
 
     def test_single_pick_non_leaf_raises(self) -> None:
         spec = make_param_spec(
-            name="p",
-            param_type="single-pick-vocabulary",
-            count_only_leaves=True,
-            vocabulary=self._tree_vocab(),
+            ParamSpecConfig(
+                name="p",
+                param_type="single-pick-vocabulary",
+                count_only_leaves=True,
+                vocabulary=self._tree_vocab(),
+            )
         )
         c = _canonicalizer(spec)
         with pytest.raises(ValidationError) as exc_info:

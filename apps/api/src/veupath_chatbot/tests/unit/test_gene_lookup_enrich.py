@@ -5,40 +5,37 @@ from unittest.mock import AsyncMock, patch
 from veupath_chatbot.services.gene_lookup.enrich import enrich_sparse_gene_results
 
 
+def _gene(
+    gene_id: str,
+    *,
+    organism: str = "",
+    product: str = "",
+    gene_name: str = "",
+    gene_type: str = "",
+    location: str = "",
+) -> dict[str, object]:
+    d: dict[str, object] = {"geneId": gene_id}
+    if organism:
+        d["organism"] = organism
+    if product:
+        d["product"] = product
+    if gene_name:
+        d["geneName"] = gene_name
+    if gene_type:
+        d["geneType"] = gene_type
+    if location:
+        d["location"] = location
+    return d
+
+
 class TestEnrichSparseGeneResults:
     """Tests for the WDK-based enrichment of sparse site-search results."""
-
-    def _gene(
-        self,
-        gene_id: str,
-        *,
-        organism: str = "",
-        product: str = "",
-        gene_name: str = "",
-        gene_type: str = "",
-        location: str = "",
-        display_name: str = "",
-    ) -> dict[str, object]:
-        d: dict[str, object] = {"geneId": gene_id}
-        if organism:
-            d["organism"] = organism
-        if product:
-            d["product"] = product
-        if gene_name:
-            d["geneName"] = gene_name
-        if gene_type:
-            d["geneType"] = gene_type
-        if location:
-            d["location"] = location
-        if display_name:
-            d["displayName"] = display_name
-        return d
 
     async def test_no_enrichment_needed(self) -> None:
         """If all results already have organism and product, skip WDK call."""
         results = [
-            self._gene("G1", organism="Pf", product="kinase"),
-            self._gene("G2", organism="Tg", product="protease"),
+            _gene("G1", organism="Pf", product="kinase"),
+            _gene("G2", organism="Tg", product="protease"),
         ]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert len(enriched) == 2
@@ -63,7 +60,7 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1", product="erythrocyte membrane protein")]
+        results = [_gene("G1", product="erythrocyte membrane protein")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["organism"] == "Plasmodium falciparum 3D7"
         # product was already present, should not be overwritten
@@ -86,7 +83,7 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1", organism="Pf")]
+        results = [_gene("G1", organism="Pf")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["product"] == "some product"
         # organism was already present
@@ -111,7 +108,7 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1")]  # Missing everything
+        results = [_gene("G1")]  # Missing everything
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["geneName"] == "MyKinase"
         assert enriched[0]["geneType"] == "protein coding"
@@ -137,7 +134,7 @@ class TestEnrichSparseGeneResults:
             ],
         }
         results = [
-            self._gene(
+            _gene(
                 "G1",
                 organism="OLD_ORG",
                 product="OLD_PROD",
@@ -148,7 +145,7 @@ class TestEnrichSparseGeneResults:
         ]
         # All fields present, so none should need enrichment... but organism+product present
         # means gene won't be in ids_to_enrich. Let's test with missing product:
-        results = [self._gene("G1", organism="OLD_ORG", gene_name="OLD_NAME")]
+        results = [_gene("G1", organism="OLD_ORG", gene_name="OLD_NAME")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["organism"] == "OLD_ORG"  # not overwritten
         assert enriched[0]["geneName"] == "OLD_NAME"  # not overwritten
@@ -171,7 +168,7 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         # displayName should be set to product since geneName is empty
         assert enriched[0]["displayName"] == "kinase product"
@@ -195,7 +192,7 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["displayName"] == "MyKinase"
 
@@ -207,7 +204,7 @@ class TestEnrichSparseGeneResults:
         self, mock_resolve: AsyncMock
     ) -> None:
         mock_resolve.side_effect = ValueError("WDK down")
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         # Should return original results unchanged
         assert enriched == results
@@ -223,7 +220,7 @@ class TestEnrichSparseGeneResults:
             "error": "Something went wrong",
             "records": [],
         }
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched == results
 
@@ -235,7 +232,7 @@ class TestEnrichSparseGeneResults:
         self, mock_resolve: AsyncMock
     ) -> None:
         mock_resolve.return_value = {"records": None}
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched == results
 
@@ -251,9 +248,9 @@ class TestEnrichSparseGeneResults:
             ],
         }
         results = [
-            self._gene("G1"),
-            self._gene("G2"),
-            self._gene("G3", organism="Pf", product="prod3"),
+            _gene("G1"),
+            _gene("G2"),
+            _gene("G3", organism="Pf", product="prod3"),
         ]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 2)
         assert len(enriched) == 2
@@ -265,7 +262,7 @@ class TestEnrichSparseGeneResults:
     async def test_max_50_ids_sent_to_wdk(self, mock_resolve: AsyncMock) -> None:
         """Should cap at 50 IDs for enrichment."""
         mock_resolve.return_value = {"records": []}
-        results = [self._gene(f"G{i}") for i in range(100)]
+        results = [_gene(f"G{i}") for i in range(100)]
         await enrich_sparse_gene_results("plasmodb", results, 200)
         # Check that at most 50 IDs were sent
         call_args = mock_resolve.call_args
@@ -274,7 +271,7 @@ class TestEnrichSparseGeneResults:
     async def test_non_dict_results_passed_through(self) -> None:
         """Non-dict items in results should pass through unchanged."""
         results: list[dict[str, object]] = [
-            self._gene("G1", organism="Pf", product="p"),
+            _gene("G1", organism="Pf", product="p"),
         ]
         # All have organism+product, so no enrichment needed; non-dicts would pass through
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
@@ -297,6 +294,6 @@ class TestEnrichSparseGeneResults:
                 },
             ],
         }
-        results = [self._gene("G1")]
+        results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched[0]["product"] == "enriched product"

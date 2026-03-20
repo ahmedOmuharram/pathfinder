@@ -10,8 +10,10 @@ from kani import AIParam, ai_function
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.control_tests import run_positive_negative_controls
-from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.services.control_tests import (
+    IntersectionConfig,
+    run_positive_negative_controls,
+)
 from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.operations import fetch_gene_ids_from_step
 
@@ -81,50 +83,35 @@ class ExperimentToolsMixin:
 
     site_id: str = ""
 
-    @ai_function()
-    async def run_control_tests(
+    async def _export_control_result(
         self,
-        record_type: Annotated[
-            str, AIParam(desc="WDK record type (e.g. 'transcript')")
-        ],
-        target_search_name: Annotated[
-            str | None,
-            AIParam(
-                desc=(
-                    "WDK search/question urlSegment. Required when testing a standalone search. "
-                    "Omit when using wdk_step_id to test against an existing built step."
-                )
-            ),
-        ] = None,
-        target_parameters: Annotated[
-            JSONObject | None,
-            AIParam(
-                desc="Target search parameter mapping (omit when using wdk_step_id)"
-            ),
-        ] = None,
+        result: JSONObject,
+        name: str,
+    ) -> JSONObject:
+        """Auto-attach download links to a control test result."""
+        try:
+            svc = get_export_service()
+            json_export = await svc.export_json(result, name)
+            result["downloads"] = {
+                "json": json_export.url,
+                "expiresInSeconds": json_export.expires_in_seconds,
+            }
+        except (OSError, ValueError, TypeError, KeyError) as e:
+            logger.warning("Control test export failed", error=str(e))
+        return result
+
+    @ai_function()
+    async def run_control_tests_on_step(
+        self,
         wdk_step_id: Annotated[
-            int | None,
+            int,
             AIParam(
                 desc=(
                     "WDK step ID from a built strategy to test against. "
-                    "Use this to test the actual multi-step strategy results "
-                    "instead of a standalone search. Get the step ID from "
-                    "list_current_steps (wdkStepId field on the root step)."
+                    "Get the step ID from list_current_steps (wdkStepId field on the root step)."
                 )
             ),
-        ] = None,
-        controls_search_name: Annotated[
-            str,
-            AIParam(
-                desc=(
-                    "Search name that can take a list of record IDs (for positive/negative controls)."
-                )
-            ),
-        ] = "GeneByLocusTag",
-        controls_param_name: Annotated[
-            str,
-            AIParam(desc="Parameter name within controls_search_name that accepts IDs"),
-        ] = "ds_gene_ids",
+        ],
         positive_controls: Annotated[
             list[str] | None, AIParam(desc="Known-positive IDs that should be returned")
         ] = None,
@@ -132,32 +119,15 @@ class ExperimentToolsMixin:
             list[str] | None,
             AIParam(desc="Known-negative IDs that should NOT be returned"),
         ] = None,
-        *,
-        controls_value_format: Annotated[
-            ControlValueFormat,
-            AIParam(desc="How to encode ID list for the controls parameter"),
-        ] = "newline",
-        controls_extra_parameters: Annotated[
-            JSONObject | None,
-            AIParam(desc="Extra fixed parameters for the controls search"),
-        ] = None,
-        id_field: Annotated[
-            str | None,
-            AIParam(
-                desc=(
-                    "Optional record-id field name to extract from answer records "
-                    "(varies by site/record type)."
-                )
-            ),
-        ] = None,
     ) -> JSONObject:
-        """Run control tests against a WDK search OR a built strategy step.
+        """Run control tests against an already-built WDK strategy step.
 
-        Two modes: (1) **Standalone search** — provide ``target_search_name`` +
-        ``target_parameters``; creates a temporary WDK strategy to intersect.
-        (2) **Built step** — provide ``wdk_step_id`` from ``list_current_steps``;
-        tests directly against the strategy's actual results (recommended after
-        building a multi-step strategy).
+        Tests directly against the strategy's actual results using Python set
+        operations — no temporary WDK strategy needed.  Use this after building
+        a multi-step strategy with ``build_step`` / ``combine_steps``.
+
+        For testing a standalone (not-yet-built) search, use
+        ``run_control_tests_on_search`` instead.
         """
         has_positives = positive_controls and len(positive_controls) > 0
         has_negatives = negative_controls and len(negative_controls) > 0
@@ -169,49 +139,71 @@ class ExperimentToolsMixin:
                     "error": "At least one of positive_controls or negative_controls must be provided.",
                 },
             )
+        result = await _run_step_control_tests(
+            site_id=self.site_id,
+            wdk_step_id=wdk_step_id,
+            positive_controls=positive_controls,
+            negative_controls=negative_controls,
+        )
+        return await self._export_control_result(
+            result, f"step_{wdk_step_id}_control_tests"
+        )
 
-        # Mode 2: test against existing built step
-        if wdk_step_id is not None:
-            result = await _run_step_control_tests(
-                site_id=self.site_id,
-                wdk_step_id=wdk_step_id,
-                positive_controls=positive_controls,
-                negative_controls=negative_controls,
-            )
-        elif target_search_name:
-            # Mode 1: standalone search
-            result = await run_positive_negative_controls(
-                site_id=self.site_id,
-                record_type=record_type,
-                target_search_name=target_search_name,
-                target_parameters=target_parameters or {},
-                controls_search_name=controls_search_name,
-                controls_param_name=controls_param_name,
-                positive_controls=positive_controls,
-                negative_controls=negative_controls,
-                controls_value_format=controls_value_format,
-                controls_extra_parameters=controls_extra_parameters,
-                id_field=id_field,
-            )
-        else:
+    @ai_function()
+    async def run_control_tests_on_search(
+        self,
+        record_type: Annotated[
+            str, AIParam(desc="WDK record type (e.g. 'transcript')")
+        ],
+        target_search_name: Annotated[
+            str, AIParam(desc="WDK search/question urlSegment to test")
+        ],
+        target_parameters: Annotated[
+            JSONObject, AIParam(desc="Target search parameter mapping")
+        ],
+        positive_controls: Annotated[
+            list[str] | None, AIParam(desc="Known-positive IDs that should be returned")
+        ] = None,
+        negative_controls: Annotated[
+            list[str] | None,
+            AIParam(desc="Known-negative IDs that should NOT be returned"),
+        ] = None,
+    ) -> JSONObject:
+        """Run control tests against a standalone WDK search (not a built strategy).
+
+        Creates a temporary WDK strategy to intersect the search results with
+        control gene IDs.  Use ``run_control_tests_on_step`` instead when you
+        already have a built multi-step strategy.
+
+        Controls are matched via ``GeneByLocusTag`` (parameter ``ds_gene_ids``).
+        For sites that require different matching parameters, build an
+        ``IntersectionConfig`` and call ``run_positive_negative_controls``
+        from service code directly.
+        """
+        has_positives = positive_controls and len(positive_controls) > 0
+        has_negatives = negative_controls and len(negative_controls) > 0
+        if not has_positives and not has_negatives:
             return cast(
                 "JSONObject",
                 {
                     "ok": False,
-                    "error": "Provide either wdk_step_id (to test a built strategy) or target_search_name + target_parameters (to test a standalone search).",
+                    "error": "At least one of positive_controls or negative_controls must be provided.",
                 },
             )
-
-        # Auto-generate exports.
-        try:
-            svc = get_export_service()
-            name = f"{target_search_name or 'step'}_control_tests"
-            json_export = await svc.export_json(result, name)
-            result["downloads"] = {
-                "json": json_export.url,
-                "expiresInSeconds": json_export.expires_in_seconds,
-            }
-        except (OSError, ValueError, TypeError, KeyError) as e:
-            logger.warning("Control test export failed", error=str(e))
-
-        return result
+        _cfg = IntersectionConfig(
+            site_id=self.site_id,
+            record_type=record_type,
+            target_search_name=target_search_name,
+            target_parameters=target_parameters,
+            controls_search_name="GeneByLocusTag",
+            controls_param_name="ds_gene_ids",
+            controls_value_format="newline",
+        )
+        result = await run_positive_negative_controls(
+            _cfg,
+            positive_controls=positive_controls,
+            negative_controls=negative_controls,
+        )
+        return await self._export_control_result(
+            result, f"{target_search_name}_control_tests"
+        )

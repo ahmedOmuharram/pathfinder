@@ -9,7 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import AnalysisMixin
+from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
+    AnalysisMixin,
+    AnalysisPollConfig,
+)
 from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.records import RecordsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.reports import ReportsMixin
@@ -395,7 +398,7 @@ class TestRunStepAnalysis:
             step_id=42,
             analysis_type="go-enrichment",
             parameters={"organism": "Plasmodium falciparum 3D7"},
-            poll_interval=0.01,
+            poll_config=AnalysisPollConfig(poll_interval=0.01),
         )
 
         rows = result["rows"]
@@ -415,7 +418,7 @@ class TestRunStepAnalysis:
             await mixin.run_step_analysis(
                 step_id=42,
                 analysis_type="go-enrichment",
-                poll_interval=0.01,
+                poll_config=AnalysisPollConfig(poll_interval=0.01),
             )
 
     async def test_raises_on_expired_status(self) -> None:
@@ -429,7 +432,7 @@ class TestRunStepAnalysis:
             await mixin.run_step_analysis(
                 step_id=42,
                 analysis_type="go-enrichment",
-                poll_interval=0.01,
+                poll_config=AnalysisPollConfig(poll_interval=0.01),
             )
 
     async def test_retries_on_error_status(self) -> None:
@@ -448,7 +451,7 @@ class TestRunStepAnalysis:
         result = await mixin.run_step_analysis(
             step_id=42,
             analysis_type="go-enrichment",
-            poll_interval=0.01,
+            poll_config=AnalysisPollConfig(poll_interval=0.01),
         )
         assert result == {"rows": []}
         # run_analysis_instance called twice: initial + retry

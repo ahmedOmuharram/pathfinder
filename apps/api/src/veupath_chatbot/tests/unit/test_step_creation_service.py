@@ -11,6 +11,8 @@ from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.step_creation import (
     COMBINE_PLACEHOLDER_SEARCH_NAME,
+    StepCreationCallbacks,
+    StepSpec,
     _validate_inputs,
     _validate_root_status,
     coerce_wdk_boolean_question_params,
@@ -49,6 +51,16 @@ async def _find_record_type_hint_stub(
 
 def _extract_vocab_options_stub(vocabulary: JSONObject) -> list[str]:
     return []
+
+
+def _make_callbacks() -> StepCreationCallbacks:
+    """Build a StepCreationCallbacks with stub implementations."""
+    return StepCreationCallbacks(
+        resolve_record_type_for_search=_resolve_record_type_stub,
+        find_record_type_hint=_find_record_type_hint_stub,
+        extract_vocab_options=_extract_vocab_options_stub,
+        validation_error_payload=_noop_validation_error_payload,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -297,10 +309,8 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert "search_name is required" in str(result.error["message"])
@@ -315,12 +325,8 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            secondary_input_step_id=step_b.id,
-            operator="UNION",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(secondary_input_step_id=step_b.id, operator="UNION"),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert "primary_input_step_id" in str(result.error["message"])
@@ -335,12 +341,11 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=step_a.id,
-            secondary_input_step_id=step_b.id,
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert "operator is required" in str(result.error["message"])
@@ -351,12 +356,10 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="SomeSearch",
-            primary_input_step_id="nonexistent",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                search_name="SomeSearch", primary_input_step_id="nonexistent"
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "STEP_NOT_FOUND"
@@ -369,13 +372,12 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=step_a.id,
-            secondary_input_step_id="nonexistent",
-            operator="UNION",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id="nonexistent",
+                operator="UNION",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "STEP_NOT_FOUND"
@@ -397,12 +399,8 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="SomeSearch",
-            primary_input_step_id=step_a.id,
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(search_name="SomeSearch", primary_input_step_id=step_a.id),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert "not a subtree root" in str(result.error["message"])
@@ -421,14 +419,13 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=step_a.id,
-            secondary_input_step_id=step_b.id,
-            operator="UNION",
-            display_name="A or B",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
+                operator="UNION",
+                display_name="A or B",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -451,12 +448,11 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="GenesByText",
-            parameters={"text_expression": "kinase"},
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                search_name="GenesByText",
+                parameters={"text_expression": "kinase"},
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -500,12 +496,11 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="GenesByUpstream",
-            primary_input_step_id=step_a.id,
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                search_name="GenesByUpstream",
+                primary_input_step_id=step_a.id,
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -541,12 +536,11 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="GenesByText",
-            primary_input_step_id=step_a.id,
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                search_name="GenesByText",
+                primary_input_step_id=step_a.id,
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert "cannot be used as a transform" in str(result.error["message"])
@@ -566,15 +560,14 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            parameters={
-                "bq_left_op_": step_a.id,
-                "bq_right_op_": step_b.id,
-                "bq_operator": "INTERSECT",
-            },
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                parameters={
+                    "bq_left_op_": step_a.id,
+                    "bq_right_op_": step_b.id,
+                    "bq_operator": "INTERSECT",
+                }
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -596,16 +589,15 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=step_a.id,
-            secondary_input_step_id=step_b.id,
-            operator="COLOCATE",
-            upstream=500,
-            downstream=1000,
-            strand="same",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
+                operator="COLOCATE",
+                upstream=500,
+                downstream=1000,
+                strand="same",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -635,11 +627,13 @@ class TestCreateStepIntegration:
         await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="GenesByText",
-            resolve_record_type_for_search=always_none_resolver,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(search_name="GenesByText"),
+            callbacks=StepCreationCallbacks(
+                resolve_record_type_for_search=always_none_resolver,
+                find_record_type_hint=_find_record_type_hint_stub,
+                extract_vocab_options=_extract_vocab_options_stub,
+                validation_error_payload=_noop_validation_error_payload,
+            ),
         )
         # The leaf validation will fail because always_none_resolver returns None
         # when called with require_match=True. But graph.record_type should be set.
@@ -657,13 +651,12 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=step_a.id,
-            secondary_input_step_id=step_b.id,
-            operator="UNION",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
+                operator="UNION",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert len(graph.steps) == initial_step_count + 1
@@ -694,11 +687,13 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="NonexistentSearch",
-            resolve_record_type_for_search=reject_search,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(search_name="NonexistentSearch"),
+            callbacks=StepCreationCallbacks(
+                resolve_record_type_for_search=reject_search,
+                find_record_type_hint=_find_record_type_hint_stub,
+                extract_vocab_options=_extract_vocab_options_stub,
+                validation_error_payload=_noop_validation_error_payload,
+            ),
         )
         assert result.error is not None
         assert result.error["code"] == "SEARCH_NOT_FOUND"
@@ -718,11 +713,8 @@ class TestCreateStepIntegration:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            search_name="GenesByText",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(search_name="GenesByText"),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "VALIDATION_ERROR"
@@ -841,13 +833,12 @@ class TestCrossOrganismIntersectGuard:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=pf,
-            secondary_input_step_id=pb,
-            operator="INTERSECT",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=pf,
+                secondary_input_step_id=pb,
+                operator="INTERSECT",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"
@@ -874,13 +865,12 @@ class TestCrossOrganismIntersectGuard:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=a,
-            secondary_input_step_id=b,
-            operator="INTERSECT",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=a,
+                secondary_input_step_id=b,
+                operator="INTERSECT",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -907,13 +897,12 @@ class TestCrossOrganismIntersectGuard:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=pf,
-            secondary_input_step_id=pb,
-            operator="UNION",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=pf,
+                secondary_input_step_id=pb,
+                operator="UNION",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -942,13 +931,12 @@ class TestCrossOrganismIntersectGuard:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=a,
-            secondary_input_step_id=b,
-            operator="INTERSECT",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=a,
+                secondary_input_step_id=b,
+                operator="INTERSECT",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -982,13 +970,12 @@ class TestCrossOrganismIntersectGuard:
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
-            primary_input_step_id=ortho_step_id,
-            secondary_input_step_id=pf_expr_id,
-            operator="INTERSECT",
-            resolve_record_type_for_search=_resolve_record_type_stub,
-            find_record_type_hint=_find_record_type_hint_stub,
-            extract_vocab_options=_extract_vocab_options_stub,
-            validation_error_payload=_noop_validation_error_payload,
+            spec=StepSpec(
+                primary_input_step_id=ortho_step_id,
+                secondary_input_step_id=pf_expr_id,
+                operator="INTERSECT",
+            ),
+            callbacks=_make_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"

@@ -4,9 +4,30 @@ Consolidates factory functions that were duplicated across 3+ test files.
 Import from here instead of redefining in each test module.
 """
 
+from dataclasses import dataclass
+
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
+
+
+@dataclass
+class ParamSpecConfig:
+    """Configuration for :func:`make_param_spec`."""
+
+    name: str = "test_param"
+    param_type: str = "string"
+    allow_empty: bool = False
+    min_selected: int | None = None
+    max_selected: int | None = None
+    vocabulary: dict | list | None = None
+    count_only_leaves: bool = False
+    is_number: bool = False
+    min_value: float | None = None
+    max_value: float | None = None
+    increment: float | None = None
+    max_length: int | None = None
+
 
 # ---------------------------------------------------------------------------
 # PlanStepNode builders -- used in test_graph_integrity, test_graph_ops,
@@ -67,32 +88,20 @@ def make_transform(
 # ---------------------------------------------------------------------------
 
 
-def make_param_spec(
-    name: str = "test_param",
-    param_type: str = "string",
-    allow_empty: bool = False,
-    min_selected: int | None = None,
-    max_selected: int | None = None,
-    vocabulary: dict | list | None = None,
-    count_only_leaves: bool = False,
-    is_number: bool = False,
-    min_value: float | None = None,
-    max_value: float | None = None,
-    increment: float | None = None,
-    max_length: int | None = None,
-) -> ParamSpecNormalized:
+def make_param_spec(cfg: ParamSpecConfig | None = None) -> ParamSpecNormalized:
     """Create a ParamSpecNormalized for parameter validation tests."""
+    c = cfg or ParamSpecConfig()
     return ParamSpecNormalized(
-        name=name,
-        param_type=param_type,
-        allow_empty_value=allow_empty,
-        min_selected_count=min_selected,
-        max_selected_count=max_selected,
-        vocabulary=vocabulary,
-        count_only_leaves=count_only_leaves,
-        is_number=is_number,
-        min_value=min_value,
-        max_value=max_value,
-        increment=increment,
-        max_length=max_length,
+        name=c.name,
+        param_type=c.param_type,
+        allow_empty_value=c.allow_empty,
+        min_selected_count=c.min_selected,
+        max_selected_count=c.max_selected,
+        vocabulary=c.vocabulary,
+        count_only_leaves=c.count_only_leaves,
+        is_number=c.is_number,
+        min_value=c.min_value,
+        max_value=c.max_value,
+        increment=c.increment,
+        max_length=c.max_length,
     )

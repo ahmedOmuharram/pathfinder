@@ -5,6 +5,7 @@ after updates, filter edge cases, delete semantics, and cache-DB consistency.
 """
 
 import asyncio
+from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.services.experiment.store import ExperimentStore
@@ -27,24 +28,32 @@ def _make_config(site_id: str = "plasmodb") -> ExperimentConfig:
     )
 
 
+@dataclass
+class _ExperimentOpts:
+    """Optional overrides for :func:`_make_experiment`."""
+
+    benchmark_id: str | None = None
+    is_primary: bool = False
+    user_id: str | None = None
+    status: str = "pending"
+
+
 def _make_experiment(
     exp_id: str = "exp_001",
     site_id: str = "plasmodb",
     created_at: str = "2024-01-01T00:00:00",
-    benchmark_id: str | None = None,
-    is_primary: bool = False,
-    user_id: str | None = None,
-    status: str = "pending",
+    opts: _ExperimentOpts | None = None,
 ) -> Experiment:
+    o = opts or _ExperimentOpts()
     exp = Experiment(
         id=exp_id,
         config=_make_config(site_id),
         created_at=created_at,
-        benchmark_id=benchmark_id,
-        is_primary_benchmark=is_primary,
-        user_id=user_id,
+        benchmark_id=o.benchmark_id,
+        is_primary_benchmark=o.is_primary,
+        user_id=o.user_id,
     )
-    exp.status = status
+    exp.status = o.status
     return exp
 
 
@@ -116,7 +125,7 @@ class TestDeleteSkipsDbCallForMissing:
 class TestSaveGetFreshness:
     def test_get_returns_latest_after_save(self) -> None:
         store = ExperimentStore()
-        exp1 = _make_experiment(status="pending")
+        exp1 = _make_experiment(opts=_ExperimentOpts(status="pending"))
         store.save(exp1)
 
         exp1.status = "running"
@@ -128,10 +137,10 @@ class TestSaveGetFreshness:
 
     def test_save_same_id_different_object(self) -> None:
         store = ExperimentStore()
-        exp1 = _make_experiment(status="pending")
+        exp1 = _make_experiment(opts=_ExperimentOpts(status="pending"))
         store.save(exp1)
 
-        exp2 = _make_experiment(status="completed")
+        exp2 = _make_experiment(opts=_ExperimentOpts(status="completed"))
         store.save(exp2)
 
         retrieved = store.get("exp_001")
@@ -193,7 +202,11 @@ class TestListEdgeCases:
     def test_list_all_empty_string_filters(self) -> None:
         """Empty string site_id/user_id should not match anything."""
         store = ExperimentStore()
-        store.save(_make_experiment("exp_001", site_id="plasmodb", user_id="alice"))
+        store.save(
+            _make_experiment(
+                "exp_001", "plasmodb", opts=_ExperimentOpts(user_id="alice")
+            )
+        )
 
         # Empty string is falsy, so it should be treated as "no filter"
         result = store.list_all(site_id="", user_id="")
@@ -215,7 +228,9 @@ class TestListEdgeCases:
 
     def test_list_by_benchmark_no_match(self) -> None:
         store = ExperimentStore()
-        store.save(_make_experiment("exp_001", benchmark_id="bench_1"))
+        store.save(
+            _make_experiment("exp_001", opts=_ExperimentOpts(benchmark_id="bench_1"))
+        )
         result = store.list_by_benchmark("bench_nonexistent")
         assert result == []
 
@@ -224,17 +239,23 @@ class TestListEdgeCases:
         store = ExperimentStore()
         store.save(
             _make_experiment(
-                "exp_a", benchmark_id="b1", created_at="2024-01-03", is_primary=False
+                "exp_a",
+                created_at="2024-01-03",
+                opts=_ExperimentOpts(benchmark_id="b1", is_primary=False),
             )
         )
         store.save(
             _make_experiment(
-                "exp_b", benchmark_id="b1", created_at="2024-01-01", is_primary=True
+                "exp_b",
+                created_at="2024-01-01",
+                opts=_ExperimentOpts(benchmark_id="b1", is_primary=True),
             )
         )
         store.save(
             _make_experiment(
-                "exp_c", benchmark_id="b1", created_at="2024-01-02", is_primary=False
+                "exp_c",
+                created_at="2024-01-02",
+                opts=_ExperimentOpts(benchmark_id="b1", is_primary=False),
             )
         )
 
@@ -275,8 +296,8 @@ class TestAlistAllMergeBehavior:
     async def test_alist_all_user_filter_excludes_cache_entries(self) -> None:
         """Cache entries that don't match user filter should be excluded."""
         store = ExperimentStore()
-        store.save(_make_experiment("alice-exp", user_id="alice"))
-        store.save(_make_experiment("bob-exp", user_id="bob"))
+        store.save(_make_experiment("alice-exp", opts=_ExperimentOpts(user_id="alice")))
+        store.save(_make_experiment("bob-exp", opts=_ExperimentOpts(user_id="bob")))
 
         with patch(
             "veupath_chatbot.services.experiment.store._list_from_db",

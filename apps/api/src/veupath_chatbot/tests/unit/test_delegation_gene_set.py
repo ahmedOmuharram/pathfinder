@@ -14,6 +14,7 @@ from veupath_chatbot.ai.orchestration.delegation import DelegationPlan
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
     delegate_strategy_subtasks,
 )
+from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.services.chat.events import (
     WORKBENCH_GENE_SET,
     tool_result_to_events,
@@ -100,9 +101,11 @@ class TestEventExtractorPicksUpGeneSetFromDelegation:
             "geneSetCreated": gene_set_payload,
         }
         events = tool_result_to_events(delegation_result)
-        gs_events = [e for e in events if e["type"] == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e.get("type") == WORKBENCH_GENE_SET]
         assert len(gs_events) == 1
-        assert gs_events[0]["data"]["geneSet"] == gene_set_payload
+        event_data = gs_events[0].get("data")
+        assert isinstance(event_data, dict)
+        assert event_data.get("geneSet") == gene_set_payload
 
     def test_delegation_result_without_gene_set_created_no_event(self) -> None:
         """Without geneSetCreated, no workbench_gene_set event is emitted."""
@@ -114,7 +117,7 @@ class TestEventExtractorPicksUpGeneSetFromDelegation:
             "rejected": [],
         }
         events = tool_result_to_events(delegation_result)
-        gs_events = [e for e in events if e["type"] == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e.get("type") == WORKBENCH_GENE_SET]
         assert len(gs_events) == 0
 
 
@@ -164,11 +167,14 @@ class TestDelegationGeneSetCreation:
         ):
             result = await delegate_strategy_subtasks(
                 goal="Find kinase genes",
-                site_id=_FAKE_SITE_ID,
-                strategy_session=session,
+                context=SubkaniContext(
+                    site_id=_FAKE_SITE_ID,
+                    strategy_session=session,
+                    chat_history=[],
+                    emit_event=emit,
+                    subkani_timeout_seconds=0,
+                ),
                 strategy_tools=strategy_tools,
-                emit_event=emit,
-                chat_history=[],
             )
 
         # Gene-set creation is no longer part of delegation
@@ -219,11 +225,14 @@ class TestDelegationGeneSetCreation:
         ):
             result = await delegate_strategy_subtasks(
                 goal="Find kinase genes",
-                site_id=_FAKE_SITE_ID,
-                strategy_session=session,
+                context=SubkaniContext(
+                    site_id=_FAKE_SITE_ID,
+                    strategy_session=session,
+                    chat_history=[],
+                    emit_event=emit,
+                    subkani_timeout_seconds=0,
+                ),
                 strategy_tools=strategy_tools,
-                emit_event=emit,
-                chat_history=[],
             )
 
         assert "geneSetCreated" not in result
@@ -263,11 +272,14 @@ class TestDelegationGeneSetCreation:
         ):
             result = await delegate_strategy_subtasks(
                 goal="Find kinase genes",
-                site_id=_FAKE_SITE_ID,
-                strategy_session=session,
+                context=SubkaniContext(
+                    site_id=_FAKE_SITE_ID,
+                    strategy_session=session,
+                    chat_history=[],
+                    emit_event=emit,
+                    subkani_timeout_seconds=0,
+                ),
                 strategy_tools=strategy_tools,
-                emit_event=emit,
-                chat_history=[],
             )
 
         assert result["graphName"] == _FAKE_GRAPH_NAME
@@ -308,10 +320,13 @@ class TestDelegationGeneSetCreation:
         ):
             await delegate_strategy_subtasks(
                 goal="Find kinase genes",
-                site_id=_FAKE_SITE_ID,
-                strategy_session=session,
+                context=SubkaniContext(
+                    site_id=_FAKE_SITE_ID,
+                    strategy_session=session,
+                    chat_history=[],
+                    emit_event=emit,
+                    subkani_timeout_seconds=0,
+                ),
                 strategy_tools=strategy_tools,
-                emit_event=emit,
-                chat_history=[],
                 user_id=None,  # type: ignore[call-arg]
             )

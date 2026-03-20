@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from uuid import uuid4
 
 from kani import Kani
@@ -34,6 +35,46 @@ from veupath_chatbot.transport.http.schemas.sse import (
 logger = get_logger(__name__)
 
 
+def _cached_tokens_openai(extra: dict[str, object]) -> int:
+    """Extract cached tokens from OpenAI usage (Chat Completions or Responses API)."""
+    oai_usage = extra.get("openai_usage")
+    if not oai_usage or not isinstance(oai_usage, dict):
+        return 0
+    for key in ("input_tokens_details", "prompt_tokens_details"):
+        details = oai_usage.get(key)
+        ct = details.get("cached_tokens") if isinstance(details, dict) else None
+        if ct:
+            return int(ct)
+    return 0
+
+
+def _cached_tokens_anthropic(extra: dict[str, object]) -> int:
+    """Extract cached tokens from Anthropic usage."""
+    anthropic_msg = extra.get("anthropic_message")
+    if not anthropic_msg:
+        return 0
+    try:
+        cache_read = anthropic_msg.usage.cache_read_input_tokens
+        return int(cache_read) if cache_read else 0
+    except AttributeError, TypeError:
+        return 0
+
+
+def _cached_tokens_google(extra: dict[str, object]) -> int:
+    """Extract cached tokens from Google Gemini usage."""
+    for key in ("google_response", "raw_response"):
+        google_resp = extra.get(key)
+        if not google_resp:
+            continue
+        try:
+            ct = google_resp.usage_metadata.cached_content_token_count
+            if ct:
+                return int(ct)
+        except AttributeError, TypeError:
+            pass
+    return 0
+
+
 def _extract_cached_tokens(msg: object) -> int:
     """Extract cached token count from provider-specific usage stored in msg.extra.
 
@@ -46,42 +87,11 @@ def _extract_cached_tokens(msg: object) -> int:
     extra = getattr(msg, "extra", None)
     if not extra or not isinstance(extra, dict):
         return 0
-
-    # --- OpenAI (both Chat Completions and Responses API) ---
-    # oai_usage is a DottableDict (dict subclass where __getattr__ = __getitem__).
-    # Use .get() instead of getattr() to avoid KeyError on missing keys.
-    oai_usage = extra.get("openai_usage")
-    if oai_usage and isinstance(oai_usage, dict):
-        for key in ("input_tokens_details", "prompt_tokens_details"):
-            details = oai_usage.get(key)
-            if details is None:
-                continue
-            ct = details.get("cached_tokens") if isinstance(details, dict) else None
-            if ct:
-                return int(ct)
-
-    # --- Anthropic ---
-    anthropic_msg = extra.get("anthropic_message")
-    if anthropic_msg:
-        try:
-            cache_read = anthropic_msg.usage.cache_read_input_tokens
-            if cache_read:
-                return int(cache_read)
-        except AttributeError, TypeError:
-            pass
-
-    # --- Google Gemini ---
-    for key in ("google_response", "raw_response"):
-        google_resp = extra.get(key)
-        if google_resp:
-            try:
-                ct = google_resp.usage_metadata.cached_content_token_count
-                if ct:
-                    return int(ct)
-            except AttributeError, TypeError:
-                pass
-
-    return 0
+    return (
+        _cached_tokens_openai(extra)
+        or _cached_tokens_anthropic(extra)
+        or _cached_tokens_google(extra)
+    )
 
 
 def _extract_reasoning(msg: object) -> str | None:
@@ -181,6 +191,87 @@ def _maybe_accumulate_subkani(
             _accumulate_subkani_metrics(metrics, end_data)
 
 
+@dataclass
+class _RoundCounters:
+    """Mutable counters updated during a single full_round_stream pass."""
+
+    saw_assistant_message: bool = False
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    tool_call_count: int = 0
+    llm_call_count: int = 0
+    cached_tokens: int = 0
+    accumulated_text_parts: list[str] = field(default_factory=list)
+
+
+async def _process_assistant_stream(
+    stream: object,
+    counters: _RoundCounters,
+    queue: asyncio.Queue[JSONObject],
+    message_id: str,
+    registered_tool_count: int,
+) -> None:
+    """Process a single ASSISTANT stream entry, updating counters and enqueueing events."""
+    counters.llm_call_count += 1
+    async for token in stream:
+        if not token:
+            continue
+        counters.saw_assistant_message = True
+        await queue.put(
+            {
+                "type": "assistant_delta",
+                "data": AssistantDeltaEventData(
+                    messageId=message_id, delta=token
+                ).model_dump(by_alias=True),
+            }
+        )
+
+    msg = await stream.message()
+    completion = await stream.completion()
+    if completion.prompt_tokens:
+        counters.total_prompt_tokens += completion.prompt_tokens
+        await queue.put(
+            {
+                "type": "token_usage_partial",
+                "data": TokenUsagePartialEventData(
+                    promptTokens=counters.total_prompt_tokens,
+                    registeredToolCount=registered_tool_count,
+                ).model_dump(by_alias=True),
+            }
+        )
+    if completion.completion_tokens:
+        counters.total_completion_tokens += completion.completion_tokens
+    counters.cached_tokens += _extract_cached_tokens(msg)
+    reasoning_text = _extract_reasoning(msg)
+    if reasoning_text:
+        await queue.put(
+            {
+                "type": "reasoning",
+                "data": ReasoningEventData(reasoning=reasoning_text).model_dump(
+                    by_alias=True
+                ),
+            }
+        )
+    final_text = msg.text or ""
+    if final_text:
+        counters.saw_assistant_message = True
+        counters.accumulated_text_parts.append(final_text)
+
+    if msg.tool_calls:
+        counters.tool_call_count += len(msg.tool_calls)
+        for tc in msg.tool_calls:
+            await queue.put(
+                {
+                    "type": "tool_call_start",
+                    "data": ToolCallStartEventData(
+                        id=tc.id,
+                        name=tc.function.name,
+                        arguments=tc.function.arguments,
+                    ).model_dump(by_alias=True),
+                }
+            )
+
+
 async def _produce_chat_events(
     agent: Kani,
     user_message: str,
@@ -194,90 +285,31 @@ async def _produce_chat_events(
     the kani full_round_stream, emitting assistant deltas, tool calls,
     reasoning blocks, and a final assistant_message + message_end.
     """
-    saw_assistant_message = False
-    total_prompt_tokens = 0
-    total_completion_tokens = 0
-    tool_call_count = 0
     registered_tool_count = len(getattr(agent, "functions", {}))
-    llm_call_count = 0
-    cached_tokens = 0
-
     message_id = str(uuid4())
-    accumulated_text_parts: list[str] = []
+    counters = _RoundCounters()
 
     try:
         async for stream in agent.full_round_stream(user_message):
             if stream.role == ChatRole.ASSISTANT:
-                llm_call_count += 1
-                async for token in stream:
-                    if not token:
-                        continue
-                    saw_assistant_message = True
-                    await queue.put(
-                        {
-                            "type": "assistant_delta",
-                            "data": AssistantDeltaEventData(
-                                messageId=message_id, delta=token
-                            ).model_dump(by_alias=True),
-                        }
-                    )
-
-                msg = await stream.message()
-                completion = await stream.completion()
-                if completion.prompt_tokens:
-                    total_prompt_tokens += completion.prompt_tokens
-                    await queue.put(
-                        {
-                            "type": "token_usage_partial",
-                            "data": TokenUsagePartialEventData(
-                                promptTokens=total_prompt_tokens,
-                                registeredToolCount=registered_tool_count,
-                            ).model_dump(by_alias=True),
-                        }
-                    )
-                if completion.completion_tokens:
-                    total_completion_tokens += completion.completion_tokens
-                cached_tokens += _extract_cached_tokens(msg)
-                reasoning_text = _extract_reasoning(msg)
-                if reasoning_text:
-                    await queue.put(
-                        {
-                            "type": "reasoning",
-                            "data": ReasoningEventData(
-                                reasoning=reasoning_text,
-                            ).model_dump(by_alias=True),
-                        }
-                    )
-                final_text = msg.text or ""
-                if final_text:
-                    saw_assistant_message = True
-                    accumulated_text_parts.append(final_text)
-
-                if msg.tool_calls:
-                    tool_call_count += len(msg.tool_calls)
-                    for tc in msg.tool_calls:
-                        await queue.put(
-                            {
-                                "type": "tool_call_start",
-                                "data": ToolCallStartEventData(
-                                    id=tc.id,
-                                    name=tc.function.name,
-                                    arguments=tc.function.arguments,
-                                ).model_dump(by_alias=True),
-                            }
-                        )
-
+                await _process_assistant_stream(
+                    stream, counters, queue, message_id, registered_tool_count
+                )
             elif stream.role == ChatRole.FUNCTION:
                 await _handle_function_stream(stream, agent, queue)
 
-        full_text = "\n\n".join(accumulated_text_parts)
+        full_text = "\n\n".join(counters.accumulated_text_parts)
         await queue.put(
             {
                 "type": "assistant_message",
                 "data": AssistantMessageEventData(
                     messageId=message_id,
                     content=full_text
-                    or ("" if saw_assistant_message else "I processed your request."),
+                    or (
+                        ""
+                        if counters.saw_assistant_message
+                        else "I processed your request."
+                    ),
                 ).model_dump(by_alias=True),
             }
         )
@@ -297,21 +329,22 @@ async def _produce_chat_events(
     finally:
         estimated_cost = estimate_cost(
             model_id,
-            prompt_tokens=total_prompt_tokens,
-            completion_tokens=total_completion_tokens,
-            cached_tokens=cached_tokens,
+            prompt_tokens=counters.total_prompt_tokens,
+            completion_tokens=counters.total_completion_tokens,
+            cached_tokens=counters.cached_tokens,
         )
         await queue.put(
             {
                 "type": "message_end",
                 "data": MessageEndEventData(
-                    promptTokens=total_prompt_tokens,
-                    completionTokens=total_completion_tokens,
-                    totalTokens=total_prompt_tokens + total_completion_tokens,
-                    cachedTokens=cached_tokens,
-                    toolCallCount=tool_call_count,
+                    promptTokens=counters.total_prompt_tokens,
+                    completionTokens=counters.total_completion_tokens,
+                    totalTokens=counters.total_prompt_tokens
+                    + counters.total_completion_tokens,
+                    cachedTokens=counters.cached_tokens,
+                    toolCallCount=counters.tool_call_count,
                     registeredToolCount=registered_tool_count,
-                    llmCallCount=llm_call_count,
+                    llmCallCount=counters.llm_call_count,
                     subKaniPromptTokens=int(metrics["subkani_prompt"]),
                     subKaniCompletionTokens=int(metrics["subkani_completion"]),
                     subKaniCallCount=int(metrics["subkani_calls"]),
@@ -320,6 +353,35 @@ async def _produce_chat_events(
                 ).model_dump(by_alias=True),
             }
         )
+
+
+async def _drain_grace_period(
+    queue: asyncio.Queue[JSONObject],
+    producer: asyncio.Task[None],
+    metrics: dict[str, int | float],
+    idle_grace_seconds: float,
+) -> AsyncIterator[JSONObject]:
+    """Drain the queue during the grace period after message_end is received.
+
+    Yields non-message_end events. Returns when the producer is done and
+    the queue is empty, or keeps waiting while the producer is still running.
+    """
+    while True:
+        try:
+            event = await asyncio.wait_for(queue.get(), timeout=idle_grace_seconds)
+        except TimeoutError:
+            if producer.done():
+                while not queue.empty():
+                    event = queue.get_nowait()
+                    if event.get("type") != "message_end":
+                        _maybe_accumulate_subkani(event, metrics)
+                        yield event
+                return
+            continue
+
+        if event.get("type") != "message_end":
+            _maybe_accumulate_subkani(event, metrics)
+            yield event
 
 
 async def stream_chat(
@@ -347,31 +409,16 @@ async def stream_chat(
         idle_grace_seconds = 0.25
 
         while True:
-            if pending_end is None:
-                event = await queue.get()
-                if event.get("type") == "message_end":
-                    pending_end = event
-                    continue
-                _maybe_accumulate_subkani(event, metrics)
-                yield event
-                continue
-
-            # After receiving message_end, keep draining for a short grace period.
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=idle_grace_seconds)
-            except TimeoutError:
-                if producer.done():
-                    while not queue.empty():
-                        event = queue.get_nowait()
-                        if event.get("type") != "message_end":
-                            _maybe_accumulate_subkani(event, metrics)
-                            yield event
-                    break
-                continue
-
-            if event.get("type") != "message_end":
-                _maybe_accumulate_subkani(event, metrics)
-                yield event
+            event = await queue.get()
+            if event.get("type") == "message_end":
+                pending_end = event
+                async for extra in _drain_grace_period(
+                    queue, producer, metrics, idle_grace_seconds
+                ):
+                    yield extra
+                break
+            _maybe_accumulate_subkani(event, metrics)
+            yield event
 
         if pending_end is not None:
             yield pending_end

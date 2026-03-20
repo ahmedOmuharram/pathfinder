@@ -90,6 +90,19 @@ def _get_site_info(site_id: str) -> SiteInfoLike:
 
 
 @dataclass
+class BuildOptions:
+    """Optional overrides for :func:`build_strategy`.
+
+    Bundles the optional build controls so the signature stays within the
+    six-argument limit.
+    """
+
+    root_step_id: str | None = None
+    strategy_name: str | None = None
+    description: str | None = None
+
+
+@dataclass
 class BuildResult:
     """Outcome of a successful strategy build."""
 
@@ -318,9 +331,7 @@ async def build_strategy(
     api: StrategyBuildAPI,
     site: SiteInfoLike,
     site_id: str,
-    root_step_id: str | None = None,
-    strategy_name: str | None = None,
-    description: str | None = None,
+    options: BuildOptions | None = None,
 ) -> BuildResult:
     """Build or update a strategy on WDK.
 
@@ -331,10 +342,16 @@ async def build_strategy(
     Record type is auto-resolved from leaf searches via the pre-cached
     SearchCatalog — callers never need to supply it.
 
+    :param options: Optional build overrides (root step, name, description).
     :raises RootResolutionError: If root step cannot be determined.
     :raises ValueError: If validation or record type inference fails.
     :raises Exception: On WDK API failures.
     """
+    opts = options or BuildOptions()
+    root_step_id = opts.root_step_id
+    strategy_name = opts.strategy_name
+    description = opts.description
+
     strategy = graph.current_strategy
 
     root_step = resolve_root_step(graph, root_step_id)
@@ -471,9 +488,11 @@ async def build_strategy_for_site(
         api=api,
         site=site,
         site_id=site_id,
-        root_step_id=root_step_id,
-        strategy_name=strategy_name,
-        description=description,
+        options=BuildOptions(
+            root_step_id=root_step_id,
+            strategy_name=strategy_name,
+            description=description,
+        ),
     )
 
 

@@ -18,6 +18,16 @@ class GeneConfidenceScore:
     enrichment_score: float
 
 
+@dataclass(frozen=True, slots=True)
+class GeneClassification:
+    """TP/FP/FN/TN gene ID lists from a classification result."""
+
+    tp_ids: list[str]
+    fp_ids: list[str]
+    fn_ids: list[str]
+    tn_ids: list[str]
+
+
 _CLASSIFICATION_WEIGHTS: dict[str, float] = {
     "TP": 1.0,
     "FP": -1.0,
@@ -27,11 +37,8 @@ _CLASSIFICATION_WEIGHTS: dict[str, float] = {
 
 
 def compute_gene_confidence(
+    classification: GeneClassification,
     *,
-    tp_ids: list[str],
-    fp_ids: list[str],
-    fn_ids: list[str],
-    tn_ids: list[str],
     ensemble_scores: dict[str, float] | None = None,
     enrichment_gene_counts: dict[str, int] | None = None,
     max_enrichment_terms: int = 1,
@@ -43,7 +50,12 @@ def compute_gene_confidence(
 
     seen: set[str] = set()
     classified: list[tuple[str, float]] = []
-    for label, ids in [("TP", tp_ids), ("FP", fp_ids), ("FN", fn_ids), ("TN", tn_ids)]:
+    for label, ids in [
+        ("TP", classification.tp_ids),
+        ("FP", classification.fp_ids),
+        ("FN", classification.fn_ids),
+        ("TN", classification.tn_ids),
+    ]:
         for gid in ids:
             if gid not in seen:
                 seen.add(gid)

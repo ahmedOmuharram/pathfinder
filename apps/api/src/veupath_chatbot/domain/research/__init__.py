@@ -3,6 +3,8 @@
 from veupath_chatbot.domain.research.citations import (
     Citation,
     CitationSource,
+    LiteratureFilters,
+    LiteratureOutputOptions,
     LiteratureSort,
     LiteratureSource,
 )
@@ -10,6 +12,8 @@ from veupath_chatbot.domain.research.citations import (
 __all__ = [
     "Citation",
     "CitationSource",
+    "LiteratureFilters",
+    "LiteratureOutputOptions",
     "LiteratureSort",
     "LiteratureSource",
 ]

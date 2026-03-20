@@ -3,6 +3,7 @@
 import math
 import re
 from collections import Counter
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -32,6 +33,15 @@ _KEYWORD_BOOST = 20.0
 _MIN_TERM_LEN = 3
 _MIN_PRIMARY_KEY_LENGTH = 2
 
+
+@dataclass
+class SearchCorpus:
+    """Corpus statistics for IDF scoring in search ranking."""
+
+    doc_count: int = 1
+    term_counts: dict[str, int] = field(default_factory=dict)
+
+
 _RECORD_CLASS_LABELS = {
     "transcript": "genes/transcripts",
     "gene": "genes",
@@ -55,8 +65,7 @@ def score_search(
     search_name: str,
     display_name: str,
     description: str,
-    corpus_doc_count: int = 1,
-    corpus_term_counts: dict[str, int] | None = None,
+    corpus: SearchCorpus | None = None,
 ) -> float:
     """Score a search against query terms and keywords.
 
@@ -73,8 +82,9 @@ def score_search(
         if kw.lower() in name_lower:
             score += _KEYWORD_BOOST
 
-    term_counts = corpus_term_counts or {}
-    n = max(corpus_doc_count, 1)
+    sc = corpus or SearchCorpus()
+    term_counts = sc.term_counts
+    n = max(sc.doc_count, 1)
 
     for term in query_terms:
         if len(term) < _MIN_TERM_LEN:
@@ -214,6 +224,49 @@ async def list_transforms(site_id: str, record_type: str) -> list[dict[str, str]
     return result
 
 
+def _parse_site_search_doc(doc: object) -> dict[str, str] | None:
+    """Parse a single site-search document into a search entry dict, or None to skip."""
+    if not isinstance(doc, dict):
+        return None
+    primary_key = doc.get("primaryKey")
+    is_valid_pk = (
+        isinstance(primary_key, list) and len(primary_key) >= _MIN_PRIMARY_KEY_LENGTH
+    )
+    search_name = str(primary_key[0] or "").strip() if is_valid_pk else ""
+    record_type = str(primary_key[1] or "").strip() if is_valid_pk else ""
+    if not search_name or not record_type:
+        return None
+
+    found = doc.get("foundInFields") or {}
+    display = doc.get("hyperlinkName") or ""
+    if not display and isinstance(found, dict):
+        candidates = (
+            found.get("TEXT__search_displayName") or found.get("autocomplete") or []
+        )
+        if isinstance(candidates, list) and candidates:
+            first_candidate = candidates[0]
+            display = str(first_candidate) if first_candidate is not None else ""
+    display_name = strip_html_tags(str(display or "")) or search_name
+
+    desc_val = ""
+    if isinstance(found, dict):
+        descs = (
+            found.get("TEXT__search_description")
+            or found.get("TEXT__search_summary")
+            or []
+        )
+        if isinstance(descs, list) and descs:
+            desc_val = str(descs[0] or "")
+    description = strip_html_tags(desc_val)
+
+    return {
+        "name": search_name,
+        "displayName": display_name,
+        "description": description,
+        "recordType": record_type,
+    }
+
+
 async def _search_for_searches_via_site_search(
     site_id: str,
     query: str,
@@ -248,49 +301,9 @@ async def _search_for_searches_via_site_search(
     docs = docs_raw if isinstance(docs_raw, list) else []
     results: list[dict[str, str]] = []
     for doc in docs:
-        if not isinstance(doc, dict):
-            continue
-        primary_key = doc.get("primaryKey")
-        if (
-            not isinstance(primary_key, list)
-            or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH
-        ):
-            continue
-        search_name = str(primary_key[0] or "").strip()
-        record_type = str(primary_key[1] or "").strip()
-        if not search_name or not record_type:
-            continue
-
-        found = doc.get("foundInFields") or {}
-        display = doc.get("hyperlinkName") or ""
-        if not display and isinstance(found, dict):
-            candidates = (
-                found.get("TEXT__search_displayName") or found.get("autocomplete") or []
-            )
-            if isinstance(candidates, list) and candidates:
-                first_candidate = candidates[0]
-                display = str(first_candidate) if first_candidate is not None else ""
-        display_name = strip_html_tags(str(display or "")) or search_name
-
-        desc_val = ""
-        if isinstance(found, dict):
-            descs = (
-                found.get("TEXT__search_description")
-                or found.get("TEXT__search_summary")
-                or []
-            )
-            if isinstance(descs, list) and descs:
-                desc_val = str(descs[0] or "")
-        description = strip_html_tags(desc_val)
-
-        results.append(
-            {
-                "name": search_name,
-                "displayName": display_name,
-                "description": description,
-                "recordType": record_type,
-            }
-        )
+        entry = _parse_site_search_doc(doc)
+        if entry is not None:
+            results.append(entry)
 
     # Boost transcript/gene results to the top — the model almost always
     # builds gene strategies, so EST/Popset/compound matches are noise.
@@ -372,8 +385,7 @@ def _score_candidates(
             search_name=canonical_name,
             display_name=display,
             description=desc,
-            corpus_doc_count=doc_count,
-            corpus_term_counts=dict(corpus_counts),
+            corpus=SearchCorpus(doc_count=doc_count, term_counts=dict(corpus_counts)),
         )
         if sc <= 0:
             continue
@@ -388,6 +400,49 @@ def _score_candidates(
         entry.update(annotations)
         scored.append((sc, entry))
     return scored
+
+
+async def _resolve_record_types(
+    discovery: object, site_id: str, record_type: str | list[str] | None
+) -> list[str]:
+    """Resolve the record_type argument to a deduplicated list of type strings."""
+    record_types: list[str] = []
+    if isinstance(record_type, list):
+        record_types = [str(rt) for rt in record_type if rt]
+    elif isinstance(record_type, str) and record_type:
+        record_types = [record_type]
+    record_types = list(dict.fromkeys(record_types))
+    if not record_types:
+        record_types_raw = await discovery.get_record_types(site_id)
+        record_types = [
+            name for rt in record_types_raw if (name := wdk_entity_name(rt))
+        ]
+    return record_types
+
+
+async def _apply_site_search_bonus(
+    scored: list[tuple[float, dict[str, str]]],
+    site_id: str,
+    query: str,
+    limit: int,
+) -> None:
+    """Best-effort: boost scored entries by their rank in site-search results."""
+    try:
+        site_results = await _search_for_searches_via_site_search(
+            site_id, query, limit=limit
+        )
+        site_bonus: dict[str, float] = {}
+        for rank, sr in enumerate(site_results):
+            name = sr.get("name", "")
+            if name and name not in site_bonus:
+                site_bonus[name] = 5.0 / (1 + rank)
+
+        for i, (sc, entry) in enumerate(scored):
+            bonus = site_bonus.get(entry["name"], 0.0)
+            if bonus > 0:
+                scored[i] = (sc + bonus, entry)
+    except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
+        logger.debug("Site-search merge failed (non-fatal)")
 
 
 async def search_for_searches(
@@ -407,18 +462,7 @@ async def search_for_searches(
     kw_list = keywords or []
     discovery = get_discovery_service()
 
-    # --- Resolve record types ---
-    record_types: list[str] = []
-    if isinstance(record_type, list):
-        record_types = [str(rt) for rt in record_type if rt]
-    elif isinstance(record_type, str) and record_type:
-        record_types = [record_type]
-    record_types = list(dict.fromkeys(record_types))
-    if not record_types:
-        record_types_raw = await discovery.get_record_types(site_id)
-        record_types = [
-            name for rt in record_types_raw if (name := wdk_entity_name(rt))
-        ]
+    record_types = await _resolve_record_types(discovery, site_id, record_type)
 
     raw_terms = re.findall(r"[A-Za-z0-9_]+", query or "")
     terms = [t.lower() for t in raw_terms if t]
@@ -426,23 +470,7 @@ async def search_for_searches(
     candidates = await _collect_search_candidates(discovery, site_id, record_types)
     scored = _score_candidates(candidates, terms, kw_list)
 
-    # --- Merge site-search results (supplementary boost) ---
-    try:
-        site_results = await _search_for_searches_via_site_search(
-            site_id, query, limit=limit
-        )
-        site_bonus: dict[str, float] = {}
-        for rank, sr in enumerate(site_results):
-            name = sr.get("name", "")
-            if name and name not in site_bonus:
-                site_bonus[name] = 5.0 / (1 + rank)
-
-        for i, (sc, entry) in enumerate(scored):
-            bonus = site_bonus.get(entry["name"], 0.0)
-            if bonus > 0:
-                scored[i] = (sc + bonus, entry)
-    except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
-        logger.debug("Site-search merge failed (non-fatal)")
+    await _apply_site_search_bonus(scored, site_id, query, limit)
 
     # --- Sort by score desc, then record type priority ---
     scored.sort(
