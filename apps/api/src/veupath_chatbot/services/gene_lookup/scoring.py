@@ -15,6 +15,7 @@ _W_PRODUCT = 35.0
 _W_DISPLAY_NAME = 25.0
 _W_FIELD_QUALITY = 20.0
 _EXACT_BONUS = 80.0
+_NEAR_EXACT_MATCH_THRESHOLD = 0.95
 
 
 def score_gene_relevance(query: str, result: JSONObject) -> float:
@@ -53,7 +54,7 @@ def score_gene_relevance(query: str, result: JSONObject) -> float:
     # Exact/near-exact match bonus — ensures "alpha tubulin 2" beats
     # "casein kinase 2, alpha subunit" which only shares tokens.
     best_desc = max(prod_score, disp_score, name_score)
-    if best_desc >= 0.95:
+    if best_desc >= _NEAR_EXACT_MATCH_THRESHOLD:
         score += _EXACT_BONUS * best_desc
 
     return score

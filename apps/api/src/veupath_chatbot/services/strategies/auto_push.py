@@ -24,6 +24,8 @@ from veupath_chatbot.services.strategies.plan_validation import validate_plan_or
 
 logger = get_logger(__name__)
 
+_HTTP_NOT_FOUND = 404
+
 # Per-strategy lock to prevent concurrent auto-pushes from racing on
 # the same DB row / WDK strategy.
 _push_locks: dict[UUID, asyncio.Lock] = {}
@@ -133,7 +135,7 @@ async def try_auto_push_to_wdk(
             )
         except WDKError as e:
             await session.rollback()
-            if e.status == 404:
+            if e.status == _HTTP_NOT_FOUND:
                 # The WDK strategy no longer exists — clear the stale
                 # reference so we stop retrying on every save.
                 logger.warning(

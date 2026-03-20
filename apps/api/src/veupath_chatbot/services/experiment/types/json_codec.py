@@ -24,6 +24,9 @@ from typing import (
 )
 
 
+_MIN_DICT_TYPE_ARGS = 2
+
+
 @functools.cache
 def _snake_to_camel(name: str) -> str:
     parts = name.split("_")
@@ -140,7 +143,7 @@ def _coerce(value: Any, hint: Any) -> Any:
 
     # Handle generic dict types
     if origin is dict and isinstance(value, dict):
-        if args and len(args) == 2:
+        if args and len(args) == _MIN_DICT_TYPE_ARGS:
             kt, vt = args
             return {
                 (int(k) if kt is int else k): _coerce(v, vt) for k, v in value.items()

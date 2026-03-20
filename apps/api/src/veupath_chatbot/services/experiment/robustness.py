@@ -23,6 +23,8 @@ from veupath_chatbot.services.experiment.types import (
 
 logger = get_logger(__name__)
 
+_MIN_SETS_FOR_JACCARD = 2
+
 
 class _SeededRNG(random.Random):
     """Deterministic PRNG for statistical sampling (not security use)."""
@@ -187,7 +189,7 @@ def _ci_from_samples(
 
 def _mean_jaccard(sets: list[set[str]]) -> float:
     """Average pairwise Jaccard similarity (sampled for efficiency)."""
-    if len(sets) < 2:
+    if len(sets) < _MIN_SETS_FOR_JACCARD:
         return 1.0
     n = len(sets)
     max_pairs = 200

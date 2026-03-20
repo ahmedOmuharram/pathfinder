@@ -23,6 +23,12 @@ from veupath_chatbot.services.experiment.types import (
 
 logger = get_logger(__name__)
 
+_MIN_LEAVES_FOR_ABLATION = 2
+_RECALL_ESSENTIAL_THRESHOLD = -0.1
+_RECALL_HELPFUL_THRESHOLD = -0.02
+_FPR_HARMFUL_THRESHOLD = -0.05
+_RECALL_HARMFUL_IMPROVEMENT = 0.02
+
 
 async def analyze_contributions(
     *,
@@ -43,7 +49,7 @@ async def analyze_contributions(
     :returns: One :class:`StepContribution` per leaf.
     """
     leaves = _collect_leaves(tree)
-    if len(leaves) < 2:
+    if len(leaves) < _MIN_LEAVES_FOR_ABLATION:
         return []
 
     baseline_counts = _extract_eval_counts(baseline_metrics)
@@ -112,11 +118,11 @@ async def analyze_contributions(
         fpr_delta = ablated_fpr - bl_fpr
 
         verdict: StepContributionVerdict
-        if recall_delta < -0.1:
+        if recall_delta < _RECALL_ESSENTIAL_THRESHOLD:
             verdict = "essential"
-        elif recall_delta < -0.02:
+        elif recall_delta < _RECALL_HELPFUL_THRESHOLD:
             verdict = "helpful"
-        elif fpr_delta < -0.05 or recall_delta > 0.02:
+        elif fpr_delta < _FPR_HARMFUL_THRESHOLD or recall_delta > _RECALL_HARMFUL_IMPROVEMENT:
             # Step is harmful if removing it either reduces FPR meaningfully
             # or *improves* recall (meaning the step was hurting recall).
             verdict = "harmful"

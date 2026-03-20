@@ -22,6 +22,10 @@ from veupath_chatbot.services.experiment.types import (
 )
 from veupath_chatbot.services.wdk.helpers import extract_pk
 
+# Cap search_results early to avoid bloating the LLM context window
+# and to save unnecessary WDK API page fetches on broad queries.
+_MAX_SEARCH_MATCHES = 20
+
 
 class _AnalysisToolsMixin:
     """Mixin providing data-access @ai_function methods for analysis.
@@ -227,7 +231,7 @@ class _AnalysisToolsMixin:
                 if record_matches(attrs, query_lower, attribute):
                     gene_id = extract_pk(rec)
                     matches.append({"geneId": gene_id, "attributes": attrs})
-                    if len(matches) >= 20:
+                    if len(matches) >= _MAX_SEARCH_MATCHES:
                         return cast(
                             "JSONObject",
                             {

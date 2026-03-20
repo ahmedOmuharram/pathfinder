@@ -13,6 +13,14 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
+_MIN_QUERY_WORD_COUNT = 2
+_MIN_FILTERED_WORD_COUNT = 2
+_MIN_BIGRAM_WORD_COUNT = 2
+_HTTP_ACCEPTED = 202
+# Filter out short <p> tags (nav items, footers, etc.) when extracting
+# page summaries — only keep paragraphs likely to contain real content.
+_MIN_PARAGRAPH_LENGTH = 60
+
 BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -144,12 +152,12 @@ def candidate_queries(q: str) -> list[str]:
             cands.append(x)
 
     _add(raw)
-    if len(words) > 2:
+    if len(words) > _MIN_QUERY_WORD_COUNT:
         _add(" ".join(words[:-1]))
     filtered = [w for w in words if w.lower() not in _LOW_VALUE_QUERY_TOKENS]
-    if len(filtered) >= 2:
+    if len(filtered) >= _MIN_FILTERED_WORD_COUNT:
         _add(" ".join(filtered))
-    if len(words) >= 2:
+    if len(words) >= _MIN_BIGRAM_WORD_COUNT:
         _add(" ".join(words[:2]))
     return cands
 
@@ -161,7 +169,7 @@ def looks_blocked(status_code: int, html: str) -> bool:
     :param html: Response HTML body.
     :returns: True if response looks blocked.
     """
-    if status_code == 202:
+    if status_code == _HTTP_ACCEPTED:
         return True
     h = (html or "").lower()
     if "challenge" in h and "result__a" not in h:
@@ -345,7 +353,7 @@ def _extract_best_paragraph(text: str) -> str | None:
     for p in paras:
         txt = strip_tags(p)
         low = txt.lower()
-        if len(txt) < 60:
+        if len(txt) < _MIN_PARAGRAPH_LENGTH:
             continue
         if "toggle navigation" in low or "main navigation" in low:
             continue

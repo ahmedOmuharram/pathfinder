@@ -28,6 +28,13 @@ from .param_resolution import (
 
 logger = get_logger(__name__)
 
+# Truncate vocab option lists in validation error responses to keep
+# error payloads reasonably sized for the LLM and frontend display.
+_MAX_OPTION_EXAMPLES = 50
+# Limit known-param-name lists in "unknown parameter" errors so the
+# error payload stays readable without dumping every WDK parameter.
+_MAX_KNOWN_PARAM_NAMES = 50
+
 
 async def validate_search_params(
     *,
@@ -267,16 +274,18 @@ def _build_missing_param_options(
         elif isinstance(vocab_raw, list):
             if vocab_raw and isinstance(vocab_raw[0], list):
                 opts = [
-                    str(v[0]) for v in vocab_raw[:50] if isinstance(v, list) and v
+                    str(v[0])
+                    for v in vocab_raw[:_MAX_OPTION_EXAMPLES]
+                    if isinstance(v, list) and v
                 ]
             else:
-                opts = [str(v) for v in vocab_raw[:50]]
+                opts = [str(v) for v in vocab_raw[:_MAX_OPTION_EXAMPLES]]
         if opts:
             options[name] = cast(
                 "JSONValue",
                 {
                     "examples": cast("JSONValue", opts),
-                    "truncated": len(opts) >= 50,
+                    "truncated": len(opts) >= _MAX_OPTION_EXAMPLES,
                 },
             )
     return options
@@ -350,8 +359,8 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": search_name,
                         "unknown": cast("JSONValue", extra_params),
-                        "known": cast("JSONValue", sorted(param_names)[:50]),
-                        "truncated": len(param_names) > 50,
+                        "known": cast("JSONValue", sorted(param_names)[:_MAX_KNOWN_PARAM_NAMES]),
+                        "truncated": len(param_names) > _MAX_KNOWN_PARAM_NAMES,
                     }
                 }
             ],

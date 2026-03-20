@@ -35,6 +35,8 @@ from .wdk import (
 
 logger = get_logger(__name__)
 
+_MIN_WORDS_FOR_MULTI_WORD = 2
+
 _EMPTY_WDK = WdkTextResult(records=[], total_count=0)
 
 
@@ -278,7 +280,7 @@ async def lookup_genes_by_text(
     :returns: Dict with ``results``, ``totalCount``, and optional ``suggestedOrganisms``.
     """
     needed = offset + limit
-    is_multi_word = len(query.strip().split()) >= 2
+    is_multi_word = len(query.strip().split()) >= _MIN_WORDS_FOR_MULTI_WORD
 
     # Phase 1: primary site-search (strategies A + A2).
     primary_results, available_organisms, _total_count = await _run_primary_searches(

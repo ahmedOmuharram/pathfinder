@@ -30,6 +30,11 @@ from veupath_chatbot.services.experiment.types import (
 
 logger = get_logger(__name__)
 
+_RECALL_DROP_THRESHOLD = -0.05
+_RECALL_IMPROVEMENT_THRESHOLD = 0.02
+_FPR_DROP_THRESHOLD = -0.05
+_FPR_INCREASE_THRESHOLD = 0.05
+
 
 class _SharedPhaseKwargs(TypedDict):
     site_id: str
@@ -90,16 +95,16 @@ def _enrich_contributions_with_narrative(
     enriched: list[StepContribution] = []
     for sc in contributions:
         parts: list[str] = []
-        if sc.recall_delta < -0.05:
+        if sc.recall_delta < _RECALL_DROP_THRESHOLD:
             parts.append(
                 f"Removing this step drops recall by {abs(sc.recall_delta):.0%}"
             )
-        elif sc.recall_delta > 0.02:
+        elif sc.recall_delta > _RECALL_IMPROVEMENT_THRESHOLD:
             parts.append(f"Removing this step improves recall by {sc.recall_delta:.0%}")
 
-        if sc.fpr_delta < -0.05:
+        if sc.fpr_delta < _FPR_DROP_THRESHOLD:
             parts.append(f"and reduces false positive rate by {abs(sc.fpr_delta):.0%}")
-        elif sc.fpr_delta > 0.05:
+        elif sc.fpr_delta > _FPR_INCREASE_THRESHOLD:
             parts.append(f"but increases false positive rate by {sc.fpr_delta:.0%}")
 
         if not parts:

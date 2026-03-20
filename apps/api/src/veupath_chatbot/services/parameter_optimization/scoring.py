@@ -19,6 +19,9 @@ logger = get_logger(__name__)
 _DEFAULT_TOTAL_GENES = 20_000
 """Fallback denominator when the total gene count is unknown."""
 
+_MCC_ZERO_GUARD_EPSILON = 1e-10
+_MIN_COMPLETED_TRIALS = 2
+
 
 def _to_float(v: JSONValue) -> float | None:
     """Coerce JSON value to float for numeric comparisons."""
@@ -76,7 +79,7 @@ def _compute_score(
             denom = (
                 (tpr + fpr_val) * (tpr + fnr) * (tnr + fpr_val) * (tnr + fnr)
             ) ** 0.5
-            base = (num / denom) if denom > 1e-10 else 0.0
+            base = (num / denom) if denom > _MCC_ZERO_GUARD_EPSILON else 0.0
         case "youdens_j":
             base = r + specificity - 1.0
         case "f1":
@@ -121,7 +124,7 @@ def _compute_sensitivity(
         return zeros
 
     completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-    if len(completed) < 2:
+    if len(completed) < _MIN_COMPLETED_TRIALS:
         return zeros
 
     try:

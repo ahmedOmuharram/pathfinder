@@ -16,6 +16,16 @@ from veupath_chatbot.services.experiment.types import ExperimentMetrics
 
 logger = get_logger(__name__)
 
+# Cap control-ID and enrichment-term lists injected into the system prompt
+# to avoid bloating the LLM context window with long gene-ID enumerations.
+_MAX_DISPLAYED_POSITIVE_CONTROLS = 20
+_MAX_DISPLAYED_NEGATIVE_CONTROLS = 20
+# Enrichment results can have hundreds of terms; show only the top few
+# so the model focuses on the most significant findings.
+_MAX_DISPLAYED_ENRICHMENT_TERMS = 8
+# Strings shorter than this are too small for a meaningful "..." suffix.
+_MIN_LENGTH_FOR_ELLIPSIS = 4
+
 MentionType = Literal["strategy", "experiment"]
 
 
@@ -148,10 +158,10 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
             lines.append(f"- **Parameters**: {', '.join(param_strs)}")
 
     if cfg.positive_controls:
-        ids = ", ".join(cfg.positive_controls[:20])
+        ids = ", ".join(cfg.positive_controls[:_MAX_DISPLAYED_POSITIVE_CONTROLS])
         suffix = (
             f" ... ({len(cfg.positive_controls)} total)"
-            if len(cfg.positive_controls) > 20
+            if len(cfg.positive_controls) > _MAX_DISPLAYED_POSITIVE_CONTROLS
             else ""
         )
         lines.append(
@@ -159,10 +169,10 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
         )
 
     if cfg.negative_controls:
-        ids = ", ".join(cfg.negative_controls[:20])
+        ids = ", ".join(cfg.negative_controls[:_MAX_DISPLAYED_NEGATIVE_CONTROLS])
         suffix = (
             f" ... ({len(cfg.negative_controls)} total)"
-            if len(cfg.negative_controls) > 20
+            if len(cfg.negative_controls) > _MAX_DISPLAYED_NEGATIVE_CONTROLS
             else ""
         )
         lines.append(
@@ -195,10 +205,10 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
             lines.extend(
                 f"- {term.term_name} ({term.gene_count} genes, "
                 f"p={term.p_value:.2e}, FDR={term.fdr:.2e})"
-                for term in er.terms[:8]
+                for term in er.terms[:_MAX_DISPLAYED_ENRICHMENT_TERMS]
             )
-            if len(er.terms) > 8:
-                lines.append(f"- ... {len(er.terms) - 8} more terms")
+            if len(er.terms) > _MAX_DISPLAYED_ENRICHMENT_TERMS:
+                lines.append(f"- ... {len(er.terms) - _MAX_DISPLAYED_ENRICHMENT_TERMS} more terms")
 
     if experiment.optimization_result:
         best = experiment.optimization_result.get("bestTrial")
@@ -236,6 +246,6 @@ def _truncate(s: str, max_len: int) -> str:
     if len(s) <= max_len:
         return s
     # Too small for "..." suffix — just hard-truncate.
-    if max_len < 4:
+    if max_len < _MIN_LENGTH_FOR_ELLIPSIS:
         return s[:max_len]
     return s[: max_len - 3] + "..."

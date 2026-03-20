@@ -26,6 +26,11 @@ from .searches import find_record_type_for_search
 
 logger = get_logger(__name__)
 
+_MIN_VOCAB_ENTRY_LENGTH = 2
+# Cap phyletic tree matches to keep the tool response concise for the LLM
+# and avoid overwhelming it with hundreds of species/clade entries.
+_MAX_TREE_MATCHES = 20
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -154,13 +159,13 @@ async def lookup_phyletic_codes(
         # the *next* entry has a strictly greater depth.
         group_codes: set[str] = set()
         for i, entry in enumerate(indent_map_vocab):
-            if not isinstance(entry, list) or len(entry) < 2:
+            if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
                 continue
             code = str(entry[0])
             depth = int(str(entry[1])) if entry[1] is not None else 0
             if i + 1 < len(indent_map_vocab):
                 nxt = indent_map_vocab[i + 1]
-                if isinstance(nxt, list) and len(nxt) >= 2:
+                if isinstance(nxt, list) and len(nxt) >= _MIN_VOCAB_ENTRY_LENGTH:
                     next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
                     if next_depth > depth:
                         group_codes.add(code)
@@ -168,7 +173,7 @@ async def lookup_phyletic_codes(
         q = query.lower().strip()
         matches: list[JSONObject] = []
         for entry in term_map_vocab:
-            if not isinstance(entry, list) or len(entry) < 2:
+            if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
                 continue
             code = str(entry[0])
             label = str(entry[1])
@@ -177,7 +182,7 @@ async def lookup_phyletic_codes(
             if q in label.lower() or q in code.lower():
                 is_leaf = code not in group_codes
                 matches.append({"code": code, "label": label, "leaf": is_leaf})
-                if len(matches) >= 20:
+                if len(matches) >= _MAX_TREE_MATCHES:
                     break
 
         return {

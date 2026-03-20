@@ -18,6 +18,8 @@ from rapidfuzz import fuzz
 
 from veupath_chatbot.platform.types import JSONObject
 
+_MIN_ORGANISM_MATCH_SCORE = 0.60
+
 
 def score_text_match(query: str, value: str) -> float:
     """Score how well *query* matches *value* (0.0--1.0).
@@ -169,7 +171,7 @@ def analyse_query(
             best_score = s
             best_org = org
 
-    if best_score < 0.60:
+    if best_score < _MIN_ORGANISM_MATCH_SCORE:
         best_org = None
         best_score = 0.0
 

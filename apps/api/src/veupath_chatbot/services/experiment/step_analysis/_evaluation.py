@@ -28,6 +28,10 @@ from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
 logger = get_logger(__name__)
 
+# Skip fetching individual intersection IDs when the control set is large
+# to avoid expensive WDK answer-page requests; counts alone suffice for metrics.
+_MAX_CONTROL_IDS_FOR_ANSWER = 500
+
 
 async def run_controls_against_tree(
     *,
@@ -119,10 +123,10 @@ async def run_controls_against_tree(
             intersection_total = await api.get_step_count(combined_step_id)
 
             intersection_ids: list[str] = []
-            if len(control_ids) <= 500:
+            if len(control_ids) <= _MAX_CONTROL_IDS_FOR_ANSWER:
                 answer = await api.get_step_answer(
                     combined_step_id,
-                    pagination={"offset": 0, "numRecords": min(len(control_ids), 500)},
+                    pagination={"offset": 0, "numRecords": min(len(control_ids), _MAX_CONTROL_IDS_FOR_ANSWER)},
                 )
                 if isinstance(answer, dict):
                     intersection_ids = extract_record_ids(answer.get("records"))

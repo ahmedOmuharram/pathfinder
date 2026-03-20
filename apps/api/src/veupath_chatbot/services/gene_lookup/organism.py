@@ -5,6 +5,8 @@ import re
 
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
 
+_MIN_WORDS_FOR_COMPACT_CODE = 2
+
 
 def score_organism_match(query: str, organism: str) -> float:
     """Score how well *query* matches *organism* (0.0 = no match, 1.0 = exact).
@@ -30,7 +32,7 @@ def score_organism_match(query: str, organism: str) -> float:
             return 0.80
 
     o_words = o.split()
-    if len(o_words) >= 2:
+    if len(o_words) >= _MIN_WORDS_FOR_COMPACT_CODE:
         gs_initials = o_words[0][0] + o_words[1][0]
         strain_part = "".join(o_words[2:])
         compact = (gs_initials + strain_part).lower()

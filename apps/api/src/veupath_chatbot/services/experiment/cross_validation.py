@@ -32,6 +32,11 @@ from veupath_chatbot.services.experiment.types import (
 
 logger = get_logger(__name__)
 
+_MIN_FOLDS_FOR_STD = 2
+_OVERFITTING_LOW_THRESHOLD = 0.1
+_OVERFITTING_MODERATE_THRESHOLD = 0.25
+_MIN_CONTROLS_FOR_FOLD = 2
+
 ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 """Async callback(fold_index, total_folds) for progress reporting."""
 
@@ -92,7 +97,7 @@ def _std_metrics(
 ) -> dict[str, float]:
     """Compute std deviation for key metrics across folds."""
     n = len(fold_metrics_list)
-    if n < 2:
+    if n < _MIN_FOLDS_FOR_STD:
         return {}
 
     fields: list[tuple[str, Callable[[ExperimentMetrics], float]]] = [
@@ -126,9 +131,9 @@ def _compute_overfitting_score(
 
     score = (f1_gap + sens_gap + spec_gap) / 3.0
 
-    if score < 0.1:
+    if score < _OVERFITTING_LOW_THRESHOLD:
         level = "low"
-    elif score < 0.25:
+    elif score < _OVERFITTING_MODERATE_THRESHOLD:
         level = "moderate"
     else:
         level = "high"
@@ -162,8 +167,8 @@ async def _run_kfold(
     # k must be at most the size of the smallest non-empty control set,
     # but at least 2.  If either set has fewer than 2 items, skip it
     # in the min() so we can still cross-validate the other set.
-    size_caps = [len(s) for s in (positive_controls, negative_controls) if len(s) >= 2]
-    k = max(2, min(k, *size_caps)) if size_caps else 2
+    size_caps = [len(s) for s in (positive_controls, negative_controls) if len(s) >= _MIN_CONTROLS_FOR_FOLD]
+    k = max(_MIN_CONTROLS_FOR_FOLD, min(k, *size_caps)) if size_caps else _MIN_CONTROLS_FOR_FOLD
 
     pos_folds = _stratified_kfold(positive_controls, k)
     neg_folds = _stratified_kfold(negative_controls, k)

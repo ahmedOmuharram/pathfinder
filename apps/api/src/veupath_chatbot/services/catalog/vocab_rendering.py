@@ -11,6 +11,10 @@ from veupath_chatbot.domain.parameters.vocab_utils import (
 )
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
+# Cap rendered vocab entries so the LLM tool response stays within a
+# manageable size; large WDK vocabularies can have thousands of values.
+_MAX_VOCAB_ENTRIES = 50
+
 
 def render_vocab_tree(
     node: JSONObject,
@@ -69,6 +73,6 @@ def allowed_values(
         display = entry.get("display")
         display_str = str(display) if display else text
         entries.append({"value": text, "display": display_str})
-        if len(entries) >= 50:
+        if len(entries) >= _MAX_VOCAB_ENTRIES:
             break
     return entries

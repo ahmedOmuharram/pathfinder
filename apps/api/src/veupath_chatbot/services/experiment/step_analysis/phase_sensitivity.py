@@ -26,6 +26,8 @@ from veupath_chatbot.services.experiment.types import (
 
 SENSITIVITY_SWEEP_POINTS = 5
 
+_FLOAT_COMPARISON_EPSILON = 1e-6
+
 logger = get_logger(__name__)
 
 
@@ -262,7 +264,7 @@ def _pick_recommendation(
         recommended_value = current
 
     recommendation = ""
-    if best_point and abs(recommended_value - current) > 1e-6 and cur_point:
+    if best_point and abs(recommended_value - current) > _FLOAT_COMPARISON_EPSILON and cur_point:
         recommendation = (
             f"Changing {pname} from {current:.4g} to {recommended_value:.4g} "
             f"changes recall {cur_point.recall:.0%} -> {best_point.recall:.0%}"

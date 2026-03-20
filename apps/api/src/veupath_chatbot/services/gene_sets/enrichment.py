@@ -11,6 +11,8 @@ from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 logger = get_logger(__name__)
 
+_PVALUE_SIGNIFICANCE_THRESHOLD = 0.05
+
 
 async def run_enrichment_for_gene_set(
     gene_set: GeneSet,
@@ -47,7 +49,7 @@ async def run_enrichment_for_gene_set(
             sum(
                 1
                 for t in r.get("terms", [])
-                if isinstance(t, dict) and t.get("pValue", 1) < 0.05
+                if isinstance(t, dict) and t.get("pValue", 1) < _PVALUE_SIGNIFICANCE_THRESHOLD
             )
             for r in serialized
         ),

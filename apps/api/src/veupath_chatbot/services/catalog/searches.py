@@ -27,6 +27,7 @@ _WEIGHT_DISPLAY_NAME = 3.0
 _WEIGHT_DESCRIPTION = 1.0
 _KEYWORD_BOOST = 20.0
 _MIN_TERM_LEN = 3
+_MIN_PRIMARY_KEY_LENGTH = 2
 
 _RECORD_CLASS_LABELS = {
     "transcript": "genes/transcripts",
@@ -247,7 +248,7 @@ async def _search_for_searches_via_site_search(
         if not isinstance(doc, dict):
             continue
         primary_key = doc.get("primaryKey")
-        if not isinstance(primary_key, list) or len(primary_key) < 2:
+        if not isinstance(primary_key, list) or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH:
             continue
         search_name = str(primary_key[0] or "").strip()
         record_type = str(primary_key[1] or "").strip()

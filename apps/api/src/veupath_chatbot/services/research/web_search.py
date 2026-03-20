@@ -18,6 +18,10 @@ from veupath_chatbot.services.research.utils import (
     strip_tags,
 )
 
+# DuckDuckGo sometimes returns very short or empty snippets; replace
+# them with the fetched page summary for a more useful search result.
+_MIN_SNIPPET_LENGTH = 40
+
 
 class WebSearchService:
     """Service for web search using DuckDuckGo HTML interface."""
@@ -68,7 +72,7 @@ class WebSearchService:
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
                 r["summary"] = cast("JSONValue", summary)
                 snip = r.get("snippet")
-                if ((not isinstance(snip, str)) or len(snip.strip()) < 40) and summary:
+                if ((not isinstance(snip, str)) or len(snip.strip()) < _MIN_SNIPPET_LENGTH) and summary:
                     r["snippet"] = cast("JSONValue", summary)
 
         citations: list[JSONObject] = []
