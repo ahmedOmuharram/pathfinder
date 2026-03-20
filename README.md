@@ -241,48 +241,32 @@ yarn install
 yarn dev
 ```
 
-## Testing, linting, typechecking
+## Testing, linting, and code quality
 
-### API (Python)
+Quick reference — see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for the full guide (pre-commit hooks, CI pipelines, security scanning, SonarQube, architectural enforcement).
 
 ```bash
+# API
 cd apps/api
-uv run pytest
-uv run ruff check .
-uv run mypy src
-```
+uv run ruff check src/                              # Lint
+uv run mypy --strict src/veupath_chatbot/            # Type check
+uv run pytest src/veupath_chatbot/tests/ -v          # Tests
+uv run pytest --cov=src --cov-report=term-missing    # Coverage
 
-### Web (TypeScript)
-
-```bash
+# Web
 cd apps/web
-yarn lint
-yarn typecheck
-yarn test
+npx tsc --noEmit                     # Type check
+npx eslint src/                      # Lint
+node scripts/check-boundaries.mjs    # Feature isolation
+npx vitest run                       # Unit tests
+npx playwright test                  # E2E tests
 ```
 
-## Code quality analysis (SonarQube)
-
-A local [SonarQube Community](https://www.sonarsource.com/open-source-editions/sonarqube-community-edition/) instance is available via Docker Compose for static analysis, code smells, and coverage visualization.
+Pre-commit hooks enforce all of the above automatically — install with:
 
 ```bash
-# 1. Start SonarQube (runs under the "quality" profile)
-docker compose --profile quality up -d
-
-# 2. Wait ~2 min for startup, then log in at http://localhost:9000 (admin / admin)
-#    Generate a token: My Account → Security → Generate Token
-
-# 3. Run the scan (generates coverage + sends to SonarQube)
-export SONAR_TOKEN=<your-token>
-./scripts/sonar-scan.sh
-
-# Skip tests and scan with existing coverage reports
-./scripts/sonar-scan.sh --no-test
+uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
-
-Results are available at `http://localhost:9000/dashboard?id=pathfinder`.
-
-Prerequisites: `brew install sonar-scanner`
 
 ## Documentation
 
