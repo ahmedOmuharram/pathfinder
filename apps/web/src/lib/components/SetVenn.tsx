@@ -18,7 +18,7 @@ function resolveChartColors(): string[] {
   const style = getComputedStyle(document.documentElement);
   return CHART_VARS.map((v, i) => {
     const raw = style.getPropertyValue(v).trim();
-    return raw ? `hsl(${raw})` : FALLBACK_COLORS[i];
+    return raw !== "" ? `hsl(${raw})` : (FALLBACK_COLORS[i] ?? "#2563eb");
   });
 }
 
@@ -121,8 +121,8 @@ export function SetVenn({
             arc={
               <VennArc
                 strokeWidth={1.5}
-                onClick={onRegionClick ? handleArcClick : undefined}
-                style={{ cursor: onRegionClick ? "pointer" : "default" }}
+                {...(onRegionClick != null ? { onClick: handleArcClick } : {})}
+                style={{ cursor: onRegionClick != null ? "pointer" : "default" }}
                 tooltip={<ChartTooltip content={formatTooltip} />}
               />
             }

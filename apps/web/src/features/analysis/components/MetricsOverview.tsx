@@ -34,7 +34,7 @@ function CIBadge({
   robustness?: BootstrapResult | null;
   fmt?: (v: number) => string;
 }) {
-  if (!robustness) return null;
+  if (robustness == null) return null;
   const ci = robustness.rankMetricCis?.[ciKey] ?? robustness.metricCis?.[ciKey];
   if (!ci) return null;
   return (
@@ -44,8 +44,8 @@ function CIBadge({
   );
 }
 
-function metricValueColor(value: number, raw?: boolean): string {
-  const normalized = raw ? (value + 1) / 2 : value; // MCC is [-1,1]
+function metricValueColor(value: number, raw?: boolean | null): string {
+  const normalized = raw === true ? (value + 1) / 2 : value; // MCC is [-1,1]
   if (normalized >= 0.7) return "text-green-600 dark:text-green-400";
   if (normalized >= 0.4) return "text-amber-600 dark:text-amber-400";
   return "text-red-600 dark:text-red-400";
@@ -149,7 +149,7 @@ export function MetricsOverview({
                 <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
                   {pct(p50)}
                 </div>
-                <CIBadge ciKey="precision_at_50" robustness={robustness} />
+                <CIBadge ciKey="precision_at_50" robustness={robustness ?? null} />
               </Card>
             )}
             {r50 != null && (
@@ -160,7 +160,7 @@ export function MetricsOverview({
                 <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
                   {pct(r50)}
                 </div>
-                <CIBadge ciKey="recall_at_50" robustness={robustness} />
+                <CIBadge ciKey="recall_at_50" robustness={robustness ?? null} />
               </Card>
             )}
             {e50 != null && (
@@ -183,7 +183,7 @@ export function MetricsOverview({
                 </div>
                 <CIBadge
                   ciKey="enrichment_at_50"
-                  robustness={robustness}
+                  robustness={robustness ?? null}
                   fmt={(v) => `${fmtNum(v)}x`}
                 />
               </Card>
@@ -217,7 +217,7 @@ export function MetricsOverview({
                   <span
                     className={`font-mono text-sm font-semibold tabular-nums ${metricValueColor(m.value, m.raw)}`}
                   >
-                    {m.raw ? fmtNum(m.value) : pct(m.value)}
+                    {m.raw === true ? fmtNum(m.value) : pct(m.value)}
                   </span>
                 </div>
               ))}
@@ -243,7 +243,7 @@ export function MetricsOverview({
                       <span
                         className={`font-mono text-sm tabular-nums ${metricValueColor(m.value, m.raw)}`}
                       >
-                        {m.raw ? fmtNum(m.value) : pct(m.value)}
+                        {m.raw === true ? fmtNum(m.value) : pct(m.value)}
                       </span>
                     </div>
                   ))}

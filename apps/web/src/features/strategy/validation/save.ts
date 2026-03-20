@@ -21,7 +21,7 @@ export async function validateStepsForSave(args: {
 
   const structuralErrors = validateStrategySteps(steps);
   for (const issue of structuralErrors) {
-    if (issue.stepId) {
+    if (issue.stepId != null && issue.stepId !== "") {
       errorsByStepId[issue.stepId] = `Cannot be saved: ${issue.message}`;
       continue;
     }
@@ -48,17 +48,19 @@ export async function validateStepsForSave(args: {
       if (inferStepKind(step) !== "search") {
         // Preserve structural errors already set (MISSING_INPUT, MISSING_OPERATOR, etc.).
         // Only clear when there is no structural issue.
-        if (!errorsByStepId[step.id]) {
-          errorsByStepId[step.id] = undefined;
-        }
         return;
       }
 
-      const rawRecordType = step.recordType || strategy?.recordType || undefined;
+      const rawRecordType = step.recordType ?? strategy?.recordType ?? null;
       const recordType = normalizeRecordType(rawRecordType);
       const searchName = step.searchName;
 
-      if (!recordType || !searchName) {
+      if (
+        recordType == null ||
+        recordType === "" ||
+        searchName == null ||
+        searchName === ""
+      ) {
         errorsByStepId[step.id] =
           "Cannot be saved: search name or record type missing.";
         return;
@@ -69,17 +71,13 @@ export async function validateStepsForSave(args: {
           siteId,
           recordType,
           searchName,
-          step.parameters || {},
+          step.parameters ?? {},
         );
         const formatted = formatSearchValidationResponse(response);
-        if (!errorsByStepId[step.id]) {
-          errorsByStepId[step.id] = formatted.message || undefined;
-        }
+        errorsByStepId[step.id] ??= formatted.message ?? undefined;
       } catch (err) {
-        if (!errorsByStepId[step.id]) {
-          errorsByStepId[step.id] =
-            `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
-        }
+        errorsByStepId[step.id] ??=
+          `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
       }
     }),
   );

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 
+from veupath_chatbot.main import create_app
 from veupath_chatbot.platform.types import JSONObject
 
 
@@ -17,9 +18,6 @@ def _repo_root() -> Path:
 
 
 def _spec_with_stable_overrides() -> JSONObject:
-    # Import from the app factory so we include all routers/middleware consistently.
-    from veupath_chatbot.main import create_app
-
     app = create_app()
     spec = app.openapi()
 
@@ -57,7 +55,8 @@ def check_openapi_yaml(*, openapi_path: Path | None = None) -> bool:
     root = _repo_root()
     path = openapi_path or (root / "packages" / "spec" / "openapi.yaml")
     if not path.exists():
-        raise FileNotFoundError(f"Missing {path}. Run generate first.")
+        msg = f"Missing {path}. Run generate first."
+        raise FileNotFoundError(msg)
 
     actual = _spec_with_stable_overrides()
     expected_text = yaml.safe_dump(
@@ -82,19 +81,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.cmd == "generate":
-        out = generate_openapi_yaml()
-        print(f"Wrote {out}")
+        generate_openapi_yaml()
         return 0
 
     ok = check_openapi_yaml()
     if not ok:
-        print("OpenAPI spec is out of date.")
-        print(
-            "Run: (cd apps/api && uv run python -m veupath_chatbot.devtools.openapi generate)"
-        )
         return 1
 
-    print("OpenAPI spec is up to date.")
     return 0
 
 

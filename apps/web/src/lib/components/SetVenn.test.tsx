@@ -12,8 +12,8 @@ vi.mock("reaviz", () => ({
     data: { key: string[]; data: number }[];
     type: string;
   }) => (
-    <div data-testid="reaviz-venn" data-type={type} data-count={data?.length}>
-      {data?.map((d: { key: string[]; data: number }) => (
+    <div data-testid="reaviz-venn" data-type={type} data-count={data.length}>
+      {data.map((d: { key: string[]; data: number }) => (
         <span key={d.key.join(",")} data-testid={`venn-datum-${d.key.join(",")}`}>
           {d.data}
         </span>
@@ -37,13 +37,13 @@ describe("SetVenn", () => {
   it("renders reaviz VennDiagram with euler type", () => {
     render(<SetVenn sets={twoSets} />);
     const venn = screen.getByTestId("reaviz-venn");
-    expect(venn.dataset.type).toBe("euler");
+    expect(venn.dataset["type"]).toBe("euler");
   });
 
   it("passes correct data count for 2 sets (3 entries)", () => {
     render(<SetVenn sets={twoSets} />);
     const venn = screen.getByTestId("reaviz-venn");
-    expect(venn.dataset.count).toBe("3");
+    expect(venn.dataset["count"]).toBe("3");
   });
 
   it("passes log-scaled data values (not raw counts) to reaviz", () => {
@@ -68,7 +68,7 @@ describe("SetVenn", () => {
     ];
     render(<SetVenn sets={threeSets} />);
     const venn = screen.getByTestId("reaviz-venn");
-    expect(venn.dataset.count).toBe("7");
+    expect(venn.dataset["count"]).toBe("7");
   });
 
   it("renders instruction text when onRegionClick provided", () => {

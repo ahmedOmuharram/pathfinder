@@ -26,7 +26,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("assistant_message");
     if (evt!.type === "assistant_message") {
-      expect(evt!.data).toEqual({ content: "hi" });
+      expect(evt.data).toEqual({ content: "hi" });
     }
   });
 
@@ -38,7 +38,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("assistant_delta");
     if (evt!.type === "assistant_delta") {
-      expect(evt!.data).toEqual({ messageId: "m1", delta: "hel" });
+      expect(evt.data).toEqual({ messageId: "m1", delta: "hel" });
     }
   });
 
@@ -50,7 +50,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("model_selected");
     if (evt!.type === "model_selected") {
-      expect(evt!.data.modelId).toBe("gpt-4.1");
+      expect(evt.data.modelId).toBe("gpt-4.1");
     }
   });
 
@@ -68,10 +68,10 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("graph_plan");
     if (evt!.type === "graph_plan") {
-      expect(evt!.data.graphId).toBe("g1");
-      expect(evt!.data.plan).toEqual(plan);
-      expect(evt!.data.name).toBe("My plan");
-      expect(evt!.data.recordType).toBe("transcript");
+      expect(evt.data.graphId).toBe("g1");
+      expect(evt.data.plan).toEqual(plan);
+      expect(evt.data.name).toBe("My plan");
+      expect(evt.data.recordType).toBe("transcript");
     }
   });
 
@@ -83,7 +83,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("executor_build_request");
     if (evt!.type === "executor_build_request") {
-      expect(evt!.data.executorBuildRequest).toEqual({ strategyId: "s1" });
+      expect(evt.data.executorBuildRequest).toEqual({ strategyId: "s1" });
     }
   });
 
@@ -95,7 +95,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("message_end");
     if (evt!.type === "message_end") {
-      expect(evt!.data).toEqual({ done: true });
+      expect(evt.data).toEqual({ done: true });
     }
   });
 
@@ -107,7 +107,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("unknown");
     if (evt!.type === "unknown") {
-      expect(evt!.rawType).toBe("future_event");
+      expect(evt.rawType).toBe("future_event");
     }
   });
 
@@ -116,8 +116,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("unknown");
     if (evt!.type === "unknown") {
-      expect(evt!.rawType).toBe("future_event");
-      expect(evt!.data).toBe("x");
+      expect(evt.rawType).toBe("future_event");
+      expect(evt.data).toBe("x");
     }
   });
 
@@ -155,8 +155,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("strategy_update");
     if (evt!.type === "strategy_update") {
-      expect(evt!.data.graphId).toBe("g1");
-      expect(evt!.data.step?.stepId).toBe("s1");
+      expect(evt.data.graphId).toBe("g1");
+      expect(evt.data.step?.stepId).toBe("s1");
     }
   });
 
@@ -176,8 +176,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("workbench_gene_set");
     if (evt!.type === "workbench_gene_set") {
-      expect(evt!.data.geneSet?.id).toBe("gs1");
-      expect(evt!.data.geneSet?.geneCount).toBe(42);
+      expect(evt.data.geneSet?.id).toBe("gs1");
+      expect(evt.data.geneSet?.geneCount).toBe(42);
     }
   });
 
@@ -189,8 +189,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("tool_call_start");
     if (evt!.type === "tool_call_start") {
-      expect(evt!.data.id).toBe("tc1");
-      expect(evt!.data.name).toBe("search_genes");
+      expect(evt.data.id).toBe("tc1");
+      expect(evt.data.name).toBe("search_genes");
     }
   });
 
@@ -202,8 +202,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("tool_call_end");
     if (evt!.type === "tool_call_end") {
-      expect(evt!.data.id).toBe("tc1");
-      expect(evt!.data.result).toBe("found 5 genes");
+      expect(evt.data.id).toBe("tc1");
+      expect(evt.data.result).toBe("found 5 genes");
     }
   });
 
@@ -299,8 +299,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("subkani_tool_call_start");
     if (evt!.type === "subkani_tool_call_start") {
-      expect(evt!.data.id).toBe("stc1");
-      expect(evt!.data.name).toBe("web_search");
+      expect(evt.data.id).toBe("stc1");
+      expect(evt.data.name).toBe("web_search");
     }
   });
 
@@ -316,8 +316,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("subkani_tool_call_end");
     if (evt!.type === "subkani_tool_call_end") {
-      expect(evt!.data.id).toBe("stc1");
-      expect(evt!.data.result).toBe("found info");
+      expect(evt.data.id).toBe("stc1");
+      expect(evt.data.result).toBe("found info");
     }
   });
 
@@ -329,7 +329,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("error");
     if (evt!.type === "error") {
-      expect(evt!.data.error).toBe("something broke");
+      expect(evt.data.error).toBe("something broke");
     }
   });
 
@@ -345,7 +345,7 @@ describe("parseChatSSEEvent", () => {
     });
     expect(evt).not.toBeNull();
     if (evt!.type === "tool_call_start") {
-      expect((evt!.data as ToolCallStartData & RawSSEData)["extraField"]).toBe(
+      expect((evt.data as ToolCallStartData & RawSSEData)["extraField"]).toBe(
         "preserved",
       );
     }
@@ -383,8 +383,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("strategy_update");
     if (evt!.type === "strategy_update") {
-      expect(evt!.data.graphId).toBe("g1");
-      expect(evt!.data.step).toBeUndefined();
+      expect(evt.data.graphId).toBe("g1");
+      expect(evt.data.step).toBeUndefined();
     }
   });
 
@@ -406,7 +406,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("workbench_gene_set");
     if (evt!.type === "workbench_gene_set") {
-      expect(evt!.data.geneSet).toBeUndefined();
+      expect(evt.data.geneSet).toBeUndefined();
     }
   });
 
@@ -423,8 +423,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("strategy_link");
     if (evt!.type === "strategy_link") {
-      expect(evt!.data.wdkStrategyId).toBe(42);
-      expect(evt!.data.wdkUrl).toBe("https://plasmodb.org/strategy/42");
+      expect(evt.data.wdkStrategyId).toBe(42);
+      expect(evt.data.wdkUrl).toBe("https://plasmodb.org/strategy/42");
     }
   });
 
@@ -451,8 +451,8 @@ describe("parseChatSSEEvent", () => {
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("strategy_meta");
     if (evt!.type === "strategy_meta") {
-      expect(evt!.data.name).toBe("My Strategy");
-      expect(evt!.data.recordType).toBeNull();
+      expect(evt.data.name).toBe("My Strategy");
+      expect(evt.data.recordType).toBeNull();
     }
   });
 

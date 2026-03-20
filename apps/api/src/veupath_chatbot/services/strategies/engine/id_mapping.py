@@ -37,6 +37,7 @@ class IdMappingMixin(StrategyToolsBase):
         self,
         record_type: str | None,
         search_name: str | None,
+        *,
         require_match: bool = False,
         allow_fallback: bool = True,
     ) -> str | None:

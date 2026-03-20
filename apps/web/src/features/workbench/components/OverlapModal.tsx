@@ -51,7 +51,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
         siteId: selectedSite,
       });
       addGeneSet(gs);
-      setCreateSuccess(`Created "${gs.name}" with ${gs.geneIds?.length ?? 0} genes`);
+      setCreateSuccess(`Created "${gs.name}" with ${gs.geneIds.length} genes`);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Failed to create gene set.");
     } finally {
@@ -60,25 +60,29 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
   }, [clickedRegion, selectedSite, addGeneSet]);
 
   const unresolvedSets = sets.filter(
-    (s) => (s.geneIds ?? []).length === 0 && s.wdkStepId != null,
+    (s) => s.geneIds.length === 0 && s.wdkStepId != null,
   );
 
-  const resolvedSets = sets.filter((s) => (s.geneIds ?? []).length > 0);
+  const resolvedSets = sets.filter((s) => s.geneIds.length > 0);
 
   const analysis = useMemo(() => {
     // Pairwise comparisons
     const pairwise: PairwiseResult[] = [];
     for (let i = 0; i < sets.length; i++) {
+      const setI = sets[i];
+      if (setI == null) continue;
       for (let j = i + 1; j < sets.length; j++) {
-        const idsA = sets[i].geneIds ?? [];
-        const idsB = sets[j].geneIds ?? [];
+        const setJ = sets[j];
+        if (setJ == null) continue;
+        const idsA = setI.geneIds;
+        const idsB = setJ.geneIds;
         const a = new Set(idsA);
         const b = new Set(idsB);
         const shared = idsA.filter((id) => b.has(id)).length;
         const unionSize = new Set([...idsA, ...idsB]).size;
         pairwise.push({
-          nameA: sets[i].name,
-          nameB: sets[j].name,
+          nameA: setI.name,
+          nameB: setJ.name,
           sizeA: a.size,
           sizeB: b.size,
           shared,
@@ -88,8 +92,8 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
     }
 
     // Universal genes (in ALL sets)
-    const allSets = sets.map((s) => new Set(s.geneIds ?? []));
-    const allGenes = new Set(sets.flatMap((s) => s.geneIds ?? []));
+    const allSets = sets.map((s) => new Set(s.geneIds));
+    const allGenes = new Set(sets.flatMap((s) => s.geneIds));
     const universal = [...allGenes].filter((g) => allSets.every((s) => s.has(g)));
 
     // Total unique genes
@@ -145,7 +149,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
               <SetVenn
                 sets={resolvedSets.map((s) => ({
                   key: s.name,
-                  geneIds: s.geneIds ?? [],
+                  geneIds: s.geneIds,
                 }))}
                 height={resolvedSets.length > 3 ? 320 : 260}
                 width={420}
@@ -191,7 +195,9 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleCreateGeneSet}
+                onClick={() => {
+                  void handleCreateGeneSet();
+                }}
                 loading={creatingSet}
                 disabled={creatingSet}
                 className="gap-1 text-xs"
@@ -199,10 +205,10 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                 <Plus className="h-3 w-3" />
                 Create Gene Set
               </Button>
-              {createSuccess && (
+              {createSuccess != null && createSuccess !== "" && (
                 <span className="text-xs text-success">{createSuccess}</span>
               )}
-              {createError && (
+              {createError != null && createError !== "" && (
                 <span className="text-xs text-destructive">{createError}</span>
               )}
             </div>
@@ -220,7 +226,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
               >
                 <span className="text-sm font-medium truncate mr-2">{s.name}</span>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {(s.geneIds ?? []).length.toLocaleString()} genes
+                  {s.geneIds.length.toLocaleString()} genes
                 </span>
               </div>
             ))}

@@ -99,9 +99,9 @@ export function useOperationRecovery({
 
     fetchActiveOperations({ type: "chat", streamId: strategyId })
       .then((ops) => {
-        if (cancelled || ops.length === 0) return;
-        // Pick the most recent active operation.
         const op = ops[0];
+        if (cancelled || op == null) return;
+        // Pick the most recent active operation.
 
         setIsStreaming(true);
         thinking.reset();
@@ -161,9 +161,9 @@ export function useOperationRecovery({
                 getStrategy,
                 streamState,
                 setOptimizationProgress,
-                setSelectedModelId,
-                onApiError,
-                onWorkbenchGeneSet,
+                ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
+                ...(onApiError != null ? { onApiError } : {}),
+                ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
               },
               event,
             );

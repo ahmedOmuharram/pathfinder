@@ -118,7 +118,7 @@ export function ChatMessageList({
   // Floating indicator: only when streaming and no assistant message is at the tail yet.
   const showFloatingThinking = currentTurnHasNoAssistant;
 
-  const userDisplayName = fullName || firstName || "User";
+  const userDisplayName = fullName ?? firstName ?? "User";
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -160,7 +160,10 @@ export function ChatMessageList({
             index === lastAssistantIndex;
 
           if (message.role === "assistant") {
-            const effectiveModelId = message.modelId || message.tokenUsage?.modelId;
+            const effectiveModelId =
+              (message.modelId != null && message.modelId !== ""
+                ? message.modelId
+                : null) ?? message.tokenUsage?.modelId;
             const assistantName =
               catalog.find((m) => m.id === effectiveModelId)?.name ?? "Assistant";
             return (
@@ -170,7 +173,9 @@ export function ChatMessageList({
                 className="animate-fade-in"
               >
                 <div className="flex gap-3">
-                  <AssistantAvatar modelId={effectiveModelId} />
+                  <AssistantAvatar
+                    {...(effectiveModelId != null ? { modelId: effectiveModelId } : {})}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-muted-foreground mb-1">
                       {assistantName}
@@ -181,14 +186,20 @@ export function ChatMessageList({
                       messageKey={messageKey}
                       isLive={isLive}
                       thinking={thinking}
-                      optimizationProgress={isLive ? optimizationProgress : null}
-                      onCancelOptimization={onCancelOptimization}
-                      onApplyPlanningArtifact={onApplyPlanningArtifact}
+                      optimizationProgress={
+                        isLive ? (optimizationProgress ?? null) : null
+                      }
+                      {...(onCancelOptimization != null
+                        ? { onCancelOptimization }
+                        : {})}
+                      {...(onApplyPlanningArtifact != null
+                        ? { onApplyPlanningArtifact }
+                        : {})}
                       expandedSources={expandedSources}
                       setExpandedSources={setExpandedSources}
                       showCitationTags={showCitationTags}
                       setShowCitationTags={setShowCitationTags}
-                      undoSnapshot={undoSnapshot}
+                      {...(undoSnapshot != null ? { undoSnapshot } : {})}
                       onUndoSnapshot={onUndoSnapshot}
                     />
                     {!isLive && (
@@ -220,28 +231,28 @@ export function ChatMessageList({
                   </div>
                   {nodeData ? (
                     <div className="space-y-1">
-                      {message.mentions?.length ? (
+                      {message.mentions != null && message.mentions.length > 0 ? (
                         <MentionChips mentions={message.mentions} />
                       ) : null}
                       <div className="flex w-full gap-2 overflow-x-auto pb-1">
                         {nodeList.map((node, nodeIndex) => (
                           <div
-                            key={`${nodeIds[nodeIndex] || nodeIndex}`}
+                            key={`${nodeIds[nodeIndex] ?? nodeIndex}`}
                             className="shrink-0 min-w-[220px]"
                           >
                             <NodeCard node={node} />
                           </div>
                         ))}
                       </div>
-                      {hasText && (
+                      {hasText ? (
                         <div className="rounded-lg bg-primary px-3 py-2 text-primary-foreground selection:bg-primary-foreground selection:text-primary">
                           <ChatMarkdown content={decoded.message} tone="onDark" />
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      {message.mentions?.length ? (
+                      {message.mentions != null && message.mentions.length > 0 ? (
                         <MentionChips mentions={message.mentions} />
                       ) : null}
                       <div className="rounded-lg px-3 py-2 bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
@@ -267,16 +278,20 @@ export function ChatMessageList({
               lastToolCalls={thinking.lastToolCalls}
               subKaniCalls={thinking.subKaniCalls}
               subKaniStatus={thinking.subKaniStatus}
-              subKaniModels={thinking.subKaniModels}
-              reasoning={thinking.reasoning}
+              {...(thinking.subKaniModels != null
+                ? { subKaniModels: thinking.subKaniModels }
+                : {})}
+              {...(thinking.reasoning != null ? { reasoning: thinking.reasoning } : {})}
               title="Thinking"
             />
-            {optimizationProgress && (
+            {optimizationProgress != null ? (
               <OptimizationProgressPanel
                 data={optimizationProgress}
-                onCancel={onCancelOptimization}
+                {...(onCancelOptimization != null
+                  ? { onCancel: onCancelOptimization }
+                  : {})}
               />
-            )}
+            ) : null}
           </>
         ) : null}
 

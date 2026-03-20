@@ -25,9 +25,11 @@ class ResearchToolsMixin:
     - literature_search_service: LiteratureSearchService
     """
 
-    web_search_service: WebSearchService = cast("WebSearchService", cast(object, None))
+    web_search_service: WebSearchService = cast(
+        "WebSearchService", cast("object", None)
+    )
     literature_search_service: LiteratureSearchService = cast(
-        "LiteratureSearchService", cast(object, None)
+        "LiteratureSearchService", cast("object", None)
     )
 
     @ai_function()
@@ -35,6 +37,7 @@ class ResearchToolsMixin:
         self,
         query: Annotated[str, AIParam(desc="Web search query")],
         limit: Annotated[int, AIParam(desc="Max number of results (1-10)")] = 5,
+        *,
         include_summary: Annotated[
             bool,
             AIParam(
@@ -50,13 +53,12 @@ class ResearchToolsMixin:
     ) -> JSONObject:
         """Search the web and return results with citations."""
         search_method = self.web_search_service.search
-        result = await search_method(
+        return await search_method(
             query,
             limit=limit,
             include_summary=include_summary,
             summary_max_chars=summary_max_chars,
         )
-        return result
 
     @ai_function()
     async def literature_search(
@@ -76,6 +78,7 @@ class ResearchToolsMixin:
                 )
             ),
         ] = 2,
+        *,
         include_abstract: Annotated[
             bool,
             AIParam(
@@ -116,7 +119,7 @@ class ResearchToolsMixin:
     ) -> JSONObject:
         """Search scientific literature across all sources and return results with citations."""
         search_method = self.literature_search_service.search
-        result = await search_method(
+        return await search_method(
             query,
             source="all",
             limit=limit,
@@ -133,4 +136,3 @@ class ResearchToolsMixin:
             pmid_equals=pmid_equals,
             require_doi=require_doi,
         )
-        return result

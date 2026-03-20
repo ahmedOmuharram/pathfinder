@@ -1,6 +1,6 @@
 """Tests for decomposed helpers in services/catalog/param_resolution.py.
 
-Covers _allowed_values(), _format_param_info(), and _fetch_search_details().
+Covers allowed_values(), format_param_info(), and fetch_search_details().
 """
 
 from typing import Any
@@ -10,19 +10,21 @@ import pytest
 
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
+from veupath_chatbot.services.catalog.param_formatting import format_param_info
+from veupath_chatbot.services.catalog.param_resolution import get_search_parameters
+from veupath_chatbot.services.catalog.vocab_rendering import allowed_values
 
 # ---------------------------------------------------------------------------
-# _allowed_values
+# allowed_values
 # ---------------------------------------------------------------------------
 
 
 class TestAllowedValues:
-    """Direct tests for the module-level _allowed_values() helper."""
+    """Direct tests for the module-level allowed_values() helper."""
 
     def _call(self, vocab: JSONObject | JSONArray | None) -> list[JSONObject]:
-        from veupath_chatbot.services.catalog.param_resolution import _allowed_values
-
-        return _allowed_values(vocab)
+        return allowed_values(vocab)
 
     @staticmethod
     def _values(entries: list[JSONObject]) -> list[str]:
@@ -78,17 +80,15 @@ class TestAllowedValues:
 
 
 # ---------------------------------------------------------------------------
-# _format_param_info
+# format_param_info
 # ---------------------------------------------------------------------------
 
 
 class TestFormatParamInfo:
-    """Tests for _format_param_info() helper."""
+    """Tests for format_param_info() helper."""
 
     def _call(self, param_specs: JSONArray) -> JSONArray:
-        from veupath_chatbot.services.catalog.param_resolution import _format_param_info
-
-        return _format_param_info(param_specs)
+        return format_param_info(param_specs)
 
     def test_basic_param_spec(self) -> None:
         specs: JSONArray = [
@@ -197,7 +197,7 @@ class TestFormatParamInfo:
         assert isinstance(p, dict)
         assert p["defaultValue"] == "preferred"
 
-    def test_vocabulary_produces_allowed_values(self) -> None:
+    def test_vocabulary_producesallowed_values(self) -> None:
         specs: JSONArray = [
             {
                 "name": "organism",
@@ -218,7 +218,7 @@ class TestFormatParamInfo:
         displays = [e["display"] for e in allowed if isinstance(e, dict)]
         assert "P. falciparum 3D7" in displays
 
-    def test_no_allowed_values_when_vocabulary_empty(self) -> None:
+    def test_noallowed_values_when_vocabulary_empty(self) -> None:
         specs: JSONArray = [
             {"name": "p1", "vocabulary": []},
         ]
@@ -245,18 +245,14 @@ class TestFormatParamInfo:
 
 
 # ---------------------------------------------------------------------------
-# _fetch_search_details
+# fetch_search_details
 # ---------------------------------------------------------------------------
 
 
 class TestFetchSearchDetails:
-    """Tests for _fetch_search_details() helper."""
+    """Tests for fetch_search_details() helper."""
 
     async def test_returns_details_on_success(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            _fetch_search_details,
-        )
-
         expected: dict[str, Any] = {
             "displayName": "Test Search",
             "parameters": [],
@@ -265,17 +261,13 @@ class TestFetchSearchDetails:
         discovery.get_search_details = AsyncMock(return_value=expected)
         discovery.get_searches = AsyncMock(return_value=[])
 
-        details, resolved_rt = await _fetch_search_details(
+        details, resolved_rt = await fetch_search_details(
             discovery, "plasmodb", "gene", "TestSearch"
         )
         assert details == expected
         assert resolved_rt == "gene"
 
     async def test_fallback_scans_record_types_on_failure(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            _fetch_search_details,
-        )
-
         call_count = 0
 
         async def _side_effect(
@@ -284,7 +276,8 @@ class TestFetchSearchDetails:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise RuntimeError("not found on first try")
+                msg = "not found on first try"
+                raise RuntimeError(msg)
             return {"displayName": "Found", "parameters": []}
 
         discovery = MagicMock()
@@ -300,7 +293,7 @@ class TestFetchSearchDetails:
             {"urlSegment": "transcript", "name": "Transcripts"},
         ]
 
-        details, resolved_rt = await _fetch_search_details(
+        details, resolved_rt = await fetch_search_details(
             discovery,
             "plasmodb",
             "gene",
@@ -313,10 +306,6 @@ class TestFetchSearchDetails:
         assert resolved_rt == "transcript"
 
     async def test_raises_validation_error_when_not_found_anywhere(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            _fetch_search_details,
-        )
-
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(side_effect=RuntimeError("not found"))
         discovery.get_searches = AsyncMock(return_value=[])
@@ -326,7 +315,7 @@ class TestFetchSearchDetails:
         ]
 
         with pytest.raises(ValidationError) as exc_info:
-            await _fetch_search_details(
+            await fetch_search_details(
                 discovery,
                 "plasmodb",
                 "gene",
@@ -338,10 +327,6 @@ class TestFetchSearchDetails:
     async def test_fallback_returns_none_details_when_retry_fails(self) -> None:
         """When fallback scan finds the search but details fetch fails too,
         it should still raise ValidationError."""
-        from veupath_chatbot.services.catalog.param_resolution import (
-            _fetch_search_details,
-        )
-
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(
             side_effect=RuntimeError("always fails")
@@ -359,7 +344,7 @@ class TestFetchSearchDetails:
         # The search IS found in the scan, but details still fail.
         # Since details is None after the fallback, it should raise.
         with pytest.raises(ValidationError):
-            await _fetch_search_details(
+            await fetch_search_details(
                 discovery,
                 "plasmodb",
                 "gene",
@@ -368,10 +353,6 @@ class TestFetchSearchDetails:
             )
 
     async def test_skips_non_dict_record_types(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            _fetch_search_details,
-        )
-
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(side_effect=RuntimeError("not found"))
         discovery.get_searches = AsyncMock(return_value=[])
@@ -383,7 +364,7 @@ class TestFetchSearchDetails:
         ]
 
         with pytest.raises(ValidationError):
-            await _fetch_search_details(
+            await fetch_search_details(
                 discovery,
                 "plasmodb",
                 "gene",
@@ -403,10 +384,6 @@ class TestGetSearchParametersAfterDecomposition:
     after the helpers have been extracted."""
 
     async def test_end_to_end_basic(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            get_search_parameters,
-        )
-
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
             return_value=[{"urlSegment": "gene", "name": "Genes"}]
@@ -447,10 +424,6 @@ class TestGetSearchParametersAfterDecomposition:
         assert p["name"] == "organism"
 
     async def test_end_to_end_with_fallback(self) -> None:
-        from veupath_chatbot.services.catalog.param_resolution import (
-            get_search_parameters,
-        )
-
         call_count = 0
 
         async def _get_details(
@@ -459,7 +432,8 @@ class TestGetSearchParametersAfterDecomposition:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise RuntimeError("not found")
+                msg = "not found"
+                raise RuntimeError(msg)
             return {
                 "displayName": "Found",
                 "description": "desc",

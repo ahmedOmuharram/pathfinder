@@ -15,7 +15,7 @@ export function ControlSetQuickPick({ siteId, onSelect }: ControlSetQuickPickPro
 
   useEffect(() => {
     let cancelled = false;
-    listControlSets(siteId).then((sets) => {
+    void listControlSets(siteId).then((sets) => {
       if (!cancelled) setControlSets(sets);
     });
     return () => {

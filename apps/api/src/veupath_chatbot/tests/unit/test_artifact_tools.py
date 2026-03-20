@@ -6,8 +6,6 @@ from veupath_chatbot.ai.tools.planner.artifact_tools import ArtifactToolsMixin
 class _TestableTools(ArtifactToolsMixin):
     """Concrete subclass for testing."""
 
-    pass
-
 
 class TestSavePlanningArtifact:
     async def test_returns_artifact_with_all_fields(self) -> None:

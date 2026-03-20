@@ -32,16 +32,16 @@ SITE_ID = "plasmodb"
 # Real P. falciparum gene IDs — known to exist in PlasmoDB.
 # Mix of well-characterized genes so enrichment should find GO terms.
 GENE_IDS = [
-    "PF3D7_1222600",  # PfAP2-G – master regulator of sexual commitment
-    "PF3D7_1031000",  # Pfs25 – surface antigen, TBV candidate
-    "PF3D7_0209000",  # Pfs230 – gamete fertility factor
-    "PF3D7_1346700",  # Pfs48/45 – TBV candidate
-    "PF3D7_1346800",  # Pfs47 – female gamete fertility
-    "PF3D7_0935400",  # CDPK4 – male gametocyte kinase
-    "PF3D7_0406200",  # MDV1/PEG3 – male gametocyte development
-    "PF3D7_1408200",  # Pf11-1 – gametocyte-specific
-    "PF3D7_1216500",  # GEP1 – gametocyte egress protein
-    "PF3D7_1477700",  # HAP2/GCS1 – male gamete fusion factor
+    "PF3D7_1222600",  # PfAP2-G - master regulator of sexual commitment
+    "PF3D7_1031000",  # Pfs25 - surface antigen, TBV candidate
+    "PF3D7_0209000",  # Pfs230 - gamete fertility factor
+    "PF3D7_1346700",  # Pfs48/45 - TBV candidate
+    "PF3D7_1346800",  # Pfs47 - female gamete fertility
+    "PF3D7_0935400",  # CDPK4 - male gametocyte kinase
+    "PF3D7_0406200",  # MDV1/PEG3 - male gametocyte development
+    "PF3D7_1408200",  # Pf11-1 - gametocyte-specific
+    "PF3D7_1216500",  # GEP1 - gametocyte egress protein
+    "PF3D7_1477700",  # HAP2/GCS1 - male gamete fusion factor
 ]
 
 
@@ -52,8 +52,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 pytestmark = pytest.mark.live_wdk
@@ -75,10 +75,6 @@ class TestBuildEnrichmentParamsFromGeneIds:
             parameters,
             record_type,
         ) = await _build_enrichment_params_from_gene_ids(SITE_ID, GENE_IDS)
-
-        print(f"\n  search_name:  {search_name}")
-        print(f"  parameters:   {parameters}")
-        print(f"  record_type:  {record_type}")
 
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
@@ -121,7 +117,7 @@ class TestEnrichmentServiceWithGeneIds:
         ) = await _build_enrichment_params_from_gene_ids(SITE_ID, GENE_IDS)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id=SITE_ID,
             analysis_types=["go_process"],
             search_name=search_name,
@@ -129,20 +125,9 @@ class TestEnrichmentServiceWithGeneIds:
             parameters=parameters,
         )
 
-        print(f"\n  results:  {len(results)}")
-        print(f"  errors:   {errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes analyzed, "
-                f"bg={r.background_size}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} – {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -163,7 +148,7 @@ class TestEnrichmentServiceWithGeneIds:
         ) = await _build_enrichment_params_from_gene_ids(SITE_ID, GENE_IDS)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id=SITE_ID,
             analysis_types=["go_process", "go_function"],
             search_name=search_name,
@@ -171,9 +156,8 @@ class TestEnrichmentServiceWithGeneIds:
             parameters=parameters,
         )
 
-        print(f"\n  results:  {len(results)}")
-        for r in results:
-            print(f"  {r.analysis_type}: {len(r.terms)} terms, error={r.error}")
+        for _r in results:
+            pass
 
         assert len(results) == 2
         types = {r.analysis_type for r in results}

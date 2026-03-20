@@ -72,31 +72,33 @@ export function GeneChipInput({
 
     // Debounced verification
     if (verifyTimer.current) clearTimeout(verifyTimer.current);
-    verifyTimer.current = setTimeout(async () => {
-      try {
-        const result = await resolveGeneIds(siteId, unverified);
-        const resolvedMap = new Map(verification.resolved);
-        const invalidSet = new Set(verification.invalid);
-        const pendingSet = new Set<string>();
+    verifyTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await resolveGeneIds(siteId, unverified);
+          const resolvedMap = new Map(verification.resolved);
+          const invalidSet = new Set(verification.invalid);
+          const pendingSet = new Set<string>();
 
-        for (const gene of result.resolved) {
-          resolvedMap.set(gene.geneId, gene);
-          lastVerifiedRef.current.add(gene.geneId);
-        }
-        for (const id of result.unresolved) {
-          invalidSet.add(id);
-          lastVerifiedRef.current.add(id);
-        }
+          for (const gene of result.resolved) {
+            resolvedMap.set(gene.geneId, gene);
+            lastVerifiedRef.current.add(gene.geneId);
+          }
+          for (const id of result.unresolved) {
+            invalidSet.add(id);
+            lastVerifiedRef.current.add(id);
+          }
 
-        setVerification({
-          resolved: resolvedMap,
-          invalid: invalidSet,
-          pending: pendingSet,
-        });
-      } catch {
-        // Clear pending on error — don't block the user
-        setVerification((prev) => ({ ...prev, pending: new Set() }));
-      }
+          setVerification({
+            resolved: resolvedMap,
+            invalid: invalidSet,
+            pending: pendingSet,
+          });
+        } catch {
+          // Clear pending on error — don't block the user
+          setVerification((prev) => ({ ...prev, pending: new Set() }));
+        }
+      })();
     }, 500);
 
     return () => {

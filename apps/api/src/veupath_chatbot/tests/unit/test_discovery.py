@@ -158,7 +158,7 @@ class TestSearchCatalogLoadWrapped:
         client = _mock_client(record_types=bad_wrapped)
         catalog = SearchCatalog("plasmodb")
 
-        with pytest.raises(ValueError, match="Unexpected record-types response shape"):
+        with pytest.raises(TypeError, match="Unexpected record-types response shape"):
             await catalog.load(client)
 
 
@@ -281,7 +281,8 @@ class TestSearchCatalogEdgeCases:
 
         async def _get_searches(rt: str) -> list[Any]:
             if rt == "gene":
-                raise RuntimeError("Network error")
+                msg = "Network error"
+                raise RuntimeError(msg)
             return [{"urlSegment": "TranscriptsByTaxon"}]
 
         client = _mock_client(record_types=raw)
@@ -436,11 +437,12 @@ class TestDiscoveryService:
         """If one site fails to load, others should still succeed."""
         call_count = 0
 
-        async def _get_record_types(expanded: bool = False) -> list[Any]:
+        async def _get_record_types(*, expanded: bool = False) -> list[Any]:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise RuntimeError("Boom")
+                msg = "Boom"
+                raise RuntimeError(msg)
             return [{"urlSegment": "gene", "name": "Genes", "searches": []}]
 
         mock_client = MagicMock()

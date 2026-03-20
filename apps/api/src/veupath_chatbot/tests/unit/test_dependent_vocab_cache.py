@@ -9,11 +9,13 @@ Covers:
   - ensure_dependent_vocab_collection called on every invocation (perf bug documented)
 """
 
+from contextlib import contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.vectorstore.bootstrap import _KNOWN_DIMS
 from veupath_chatbot.integrations.vectorstore.dependent_vocab_cache import (
     ensure_dependent_vocab_collection,
     get_dependent_vocab_authoritative_cached,
@@ -61,8 +63,6 @@ def _patches(
     embed_vec: list[float] | None = None,
 ):
     """Return a combined patch context manager for the cache function."""
-    from contextlib import contextmanager
-    from unittest.mock import patch
 
     @contextmanager
     def _ctx():
@@ -273,8 +273,6 @@ class TestEnsureDependentVocabCollection:
 
     async def test_calls_ensure_collection_unknown_model(self) -> None:
         """With an unknown model, get_embedding_dim falls back to embed_one."""
-        from veupath_chatbot.integrations.vectorstore.bootstrap import _KNOWN_DIMS
-
         store = MagicMock()
         store.ensure_collection = AsyncMock()
         embed_vec = [0.1] * 768
@@ -284,7 +282,7 @@ class TestEnsureDependentVocabCollection:
 
         with (
             patch(
-                "veupath_chatbot.integrations.embeddings.openai_embeddings.embed_one",
+                "veupath_chatbot.integrations.vectorstore.bootstrap.embed_one",
                 AsyncMock(return_value=embed_vec),
             ),
             patch(

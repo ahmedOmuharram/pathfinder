@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { GeneSearchResult } from "@pathfinder/shared";
 
-export interface GeneSelectionState {
+interface GeneSelectionState {
   selectedIds: Set<string>;
   hasSelection: boolean;
   toggleSelect: (geneId: string) => void;

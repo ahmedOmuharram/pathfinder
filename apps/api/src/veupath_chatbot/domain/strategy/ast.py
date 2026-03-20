@@ -7,6 +7,10 @@ from uuid import uuid4
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
+# Sentinel search names for non-search nodes in the step graph.
+COMBINE_SEARCH_NAME = "__combine__"
+UNKNOWN_SEARCH_NAME = "__unknown__"
+
 
 class StepTreeNode:
     """Node in a WDK step tree.
@@ -124,7 +128,7 @@ def parse_colocation_params(raw: JSONValue) -> ColocationParams | None:
     downstream = int(downstream_raw) if isinstance(downstream_raw, (int, float)) else 0
     strand: Literal["same", "opposite", "both"]
     if isinstance(strand_raw, str) and strand_raw in ("same", "opposite", "both"):
-        strand = cast(Literal["same", "opposite", "both"], strand_raw)
+        strand = cast("Literal['same', 'opposite', 'both']", strand_raw)
     else:
         strand = "both"
     return ColocationParams(upstream=upstream, downstream=downstream, strand=strand)
@@ -301,11 +305,13 @@ def from_dict(data: JSONObject) -> StrategyAST:
     def parse_node(node_data: JSONObject) -> PlanStepNode:
         search_name = node_data.get("searchName")
         if not isinstance(search_name, str) or not search_name:
-            raise ValueError("Missing searchName")
+            msg = "Missing searchName"
+            raise ValueError(msg)
 
         params = node_data.get("parameters") or {}
         if not isinstance(params, dict):
-            raise ValueError("parameters must be an object")
+            msg = "parameters must be an object"
+            raise TypeError(msg)
 
         primary_raw = node_data.get("primaryInput")
         secondary_raw = node_data.get("secondaryInput")
@@ -321,15 +327,17 @@ def from_dict(data: JSONObject) -> StrategyAST:
 
         # basic structural constraints
         if secondary is not None and primary is None:
-            raise ValueError("secondaryInput requires primaryInput")
+            msg = "secondaryInput requires primaryInput"
+            raise ValueError(msg)
         if secondary is not None and operator is None:
-            raise ValueError("operator is required when secondaryInput is present")
+            msg = "operator is required when secondaryInput is present"
+            raise ValueError(msg)
         if operator == CombineOp.COLOCATE and colocation is None:
-            raise ValueError("colocationParams is required when operator is COLOCATE")
+            msg = "colocationParams is required when operator is COLOCATE"
+            raise ValueError(msg)
         if operator != CombineOp.COLOCATE and colocation is not None:
-            raise ValueError(
-                "colocationParams is only allowed when operator is COLOCATE"
-            )
+            msg = "colocationParams is only allowed when operator is COLOCATE"
+            raise ValueError(msg)
 
         display_name_raw = node_data.get("displayName")
         display_name = display_name_raw if isinstance(display_name_raw, str) else None
@@ -356,11 +364,13 @@ def from_dict(data: JSONObject) -> StrategyAST:
 
     record_type_raw = data.get("recordType")
     if not isinstance(record_type_raw, str):
-        raise ValueError("Missing or invalid recordType")
+        msg = "Missing or invalid recordType"
+        raise TypeError(msg)
 
     root_raw = data.get("root")
     if not isinstance(root_raw, dict):
-        raise ValueError("Missing or invalid root")
+        msg = "Missing or invalid root"
+        raise TypeError(msg)
 
     metadata_raw = data.get("metadata", {})
     metadata_obj = metadata_raw if isinstance(metadata_raw, dict) else {}
@@ -376,5 +386,5 @@ def from_dict(data: JSONObject) -> StrategyAST:
         root=parse_node(root_raw),
         name=name,
         description=description,
-        metadata=metadata_obj if metadata_obj else None,
+        metadata=metadata_obj or None,
     )

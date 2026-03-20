@@ -1,5 +1,6 @@
 """Organism fuzzy matching for gene lookup."""
 
+import json
 import re
 
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
@@ -100,8 +101,6 @@ def normalize_organism(raw: str) -> str:
     s = s.strip()
     if s.startswith("[") and s.endswith("]"):
         try:
-            import json
-
             parsed = json.loads(s)
             if isinstance(parsed, list) and parsed:
                 return strip_html_tags(str(parsed[0])).strip()

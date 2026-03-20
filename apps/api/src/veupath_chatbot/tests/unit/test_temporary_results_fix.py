@@ -38,7 +38,7 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api()
         client.post.return_value = {"id": "abc123"}
 
-        url = await api.get_download_url(step_id=42, format="csv")
+        url = await api.get_download_url(step_id=42, output_format="csv")
 
         assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
 
@@ -47,7 +47,7 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api()
         client.post.return_value = {"id": "result-99"}
 
-        await api.get_download_url(step_id=42, format="csv")
+        await api.get_download_url(step_id=42, output_format="csv")
 
         client.get.assert_not_awaited()
 
@@ -55,7 +55,7 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api(base_url="https://toxodb.org/toxo/service")
         client.post.return_value = {"id": "tmp-xyz"}
 
-        url = await api.get_download_url(step_id=10, format="tab")
+        url = await api.get_download_url(step_id=10, output_format="tab")
 
         assert url == "https://toxodb.org/toxo/service/temporary-results/tmp-xyz"
 
@@ -63,7 +63,7 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api(base_url="https://example.org/service/")
         client.post.return_value = {"id": "r1"}
 
-        url = await api.get_download_url(step_id=1, format="csv")
+        url = await api.get_download_url(step_id=1, output_format="csv")
 
         # VEuPathDBClient already strips trailing slash, but be safe
         assert "/service//temporary" not in url
@@ -73,8 +73,8 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api()
         client.post.return_value = {}
 
-        with pytest.raises(RuntimeError, match="did not include.*id"):
-            await api.get_download_url(step_id=42, format="csv")
+        with pytest.raises(RuntimeError, match=r"did not include.*id"):
+            await api.get_download_url(step_id=42, output_format="csv")
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ class TestGetDownloadUrlFormats:
         api, client = _make_api()
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="csv")
+        await api.get_download_url(step_id=42, output_format="csv")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "standard"
@@ -102,7 +102,7 @@ class TestGetDownloadUrlFormats:
         api, client = _make_api()
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="tab")
+        await api.get_download_url(step_id=42, output_format="tab")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "standard"
@@ -113,7 +113,7 @@ class TestGetDownloadUrlFormats:
         api, client = _make_api()
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="json")
+        await api.get_download_url(step_id=42, output_format="json")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "fullRecord"
@@ -125,7 +125,7 @@ class TestGetDownloadUrlFormats:
         client.post.return_value = {"id": "r1"}
 
         await api.get_download_url(
-            step_id=42, format="csv", attributes=["gene_name", "product"]
+            step_id=42, output_format="csv", attributes=["gene_name", "product"]
         )
 
         payload = client.post.call_args.kwargs["json"]

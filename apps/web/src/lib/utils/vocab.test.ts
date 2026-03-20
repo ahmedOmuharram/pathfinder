@@ -10,14 +10,14 @@ describe("extractVocabOptions", () => {
   it("extracts from a flat array of strings", () => {
     const result = extractVocabOptions(["alpha", "beta", "gamma"]);
     expect(result).toHaveLength(3);
-    expect(result[0]).toMatchObject({ value: "alpha", label: "alpha" });
-    expect(result[2]).toMatchObject({ value: "gamma", label: "gamma" });
+    expect(result[0]!).toMatchObject({ value: "alpha", label: "alpha" });
+    expect(result[2]!).toMatchObject({ value: "gamma", label: "gamma" });
   });
 
   it("extracts from a flat array of numbers", () => {
     const result = extractVocabOptions([1, 2, 3]);
     expect(result).toHaveLength(3);
-    expect(result[0].value).toBe("1");
+    expect(result[0]!.value).toBe("1");
   });
 
   it("extracts from an array of [value, label] tuples", () => {
@@ -26,7 +26,7 @@ describe("extractVocabOptions", () => {
       ["v2", "Label 2"],
     ]);
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ value: "v1", label: "Label 1" });
+    expect(result[0]!).toMatchObject({ value: "v1", label: "Label 1" });
   });
 
   it("extracts from an array of objects with value/label fields", () => {
@@ -35,15 +35,15 @@ describe("extractVocabOptions", () => {
       { value: "b", display: "Beta Display" },
     ]);
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ value: "a", label: "Alpha" });
-    expect(result[1]).toMatchObject({ value: "b", label: "Beta Display" });
+    expect(result[0]!).toMatchObject({ value: "a", label: "Alpha" });
+    expect(result[1]!).toMatchObject({ value: "b", label: "Beta Display" });
   });
 
   it("extracts from objects using id, term, name, displayName", () => {
-    expect(extractVocabOptions([{ id: "x" }])[0].value).toBe("x");
-    expect(extractVocabOptions([{ term: "y" }])[0].value).toBe("y");
-    expect(extractVocabOptions([{ name: "z" }])[0].value).toBe("z");
-    expect(extractVocabOptions([{ displayName: "w" }])[0].value).toBe("w");
+    expect(extractVocabOptions([{ id: "x" }])[0]!.value).toBe("x");
+    expect(extractVocabOptions([{ term: "y" }])[0]!.value).toBe("y");
+    expect(extractVocabOptions([{ name: "z" }])[0]!.value).toBe("z");
+    expect(extractVocabOptions([{ displayName: "w" }])[0]!.value).toBe("w");
   });
 
   // -- Wrapped object inputs --
@@ -79,7 +79,7 @@ describe("extractVocabOptions", () => {
       values: { key1: "Label 1", key2: "Label 2" },
     });
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ value: "key1", label: "Label 1" });
+    expect(result[0]!).toMatchObject({ value: "key1", label: "Label 1" });
   });
 
   it("handles values object with non-string/number val (label becomes undefined)", () => {
@@ -87,7 +87,7 @@ describe("extractVocabOptions", () => {
       values: { key1: { nested: true } },
     });
     expect(result).toHaveLength(1);
-    expect(result[0].value).toBe("key1");
+    expect(result[0]!.value).toBe("key1");
   });
 
   // -- Tree inputs --
@@ -102,12 +102,12 @@ describe("extractVocabOptions", () => {
     };
     const result = extractVocabOptions(tree);
     expect(result).toHaveLength(3);
-    expect(result[0]).toMatchObject({
+    expect(result[0]!).toMatchObject({
       value: "root",
       label: "Root Node",
       depth: 0,
     });
-    expect(result[1]).toMatchObject({
+    expect(result[1]!).toMatchObject({
       value: "child1",
       label: "Child 1",
       depth: 1,
@@ -125,9 +125,9 @@ describe("extractVocabOptions", () => {
       ],
     };
     const result = extractVocabOptions(tree);
-    expect(result[0].displayLabel).toBe("a");
-    expect(result[1].displayLabel).toBe("\u2014 b"); // "— b"
-    expect(result[2].displayLabel).toBe("\u2014 \u2014 c"); // "— — c"
+    expect(result[0]!.displayLabel).toBe("a");
+    expect(result[1]!.displayLabel).toBe("\u2014 b"); // "— b"
+    expect(result[2]!.displayLabel).toBe("\u2014 \u2014 c"); // "— — c"
   });
 
   // -- Deduplication --
@@ -155,7 +155,7 @@ describe("extractVocabOptions", () => {
 
   it('maps @@fake@@ value to "All" label', () => {
     const result = extractVocabOptions(["@@fake@@"]);
-    expect(result[0]).toMatchObject({
+    expect(result[0]!).toMatchObject({
       value: "@@fake@@",
       label: "All",
       rawLabel: "All",
@@ -177,7 +177,7 @@ describe("extractVocabOptions", () => {
   it("skips empty/whitespace-only string entries", () => {
     const result = extractVocabOptions(["", "  ", "valid"]);
     expect(result).toHaveLength(1);
-    expect(result[0].value).toBe("valid");
+    expect(result[0]!.value).toBe("valid");
   });
 
   it("skips array entries with undefined value", () => {
@@ -187,7 +187,7 @@ describe("extractVocabOptions", () => {
 
   it("handles tuple where label is falsy", () => {
     const result = extractVocabOptions([["val", ""]]);
-    expect(result[0]).toMatchObject({ value: "val" });
+    expect(result[0]!).toMatchObject({ value: "val" });
   });
 
   it("handles empty array", () => {
@@ -212,9 +212,9 @@ describe("extractVocabTree", () => {
     const result = extractVocabTree(input);
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);
-    expect(result![0].value).toBe("root");
-    expect(result![0].children).toHaveLength(1);
-    expect(result![0].children![0].value).toBe("leaf");
+    expect(result![0]!.value).toBe("root");
+    expect(result![0]!.children).toHaveLength(1);
+    expect(result![0]!.children![0]!.value).toBe("leaf");
   });
 
   it("returns null for flat arrays (no children)", () => {
@@ -233,7 +233,7 @@ describe("extractVocabTree", () => {
     };
     const result = extractVocabTree(input);
     expect(result).not.toBeNull();
-    expect(result![0].value).toBe("parent");
+    expect(result![0]!.value).toBe("parent");
   });
 
   it("extracts from wrapper object with items array", () => {
@@ -280,8 +280,8 @@ describe("extractVocabTree", () => {
     };
     const result = extractVocabTree(input);
     expect(result).toHaveLength(1);
-    expect(result![0].value).toBe("root");
-    expect(result![0].children).toHaveLength(1);
+    expect(result![0]!.value).toBe("root");
+    expect(result![0]!.children).toHaveLength(1);
   });
 
   it('maps @@fake@@ to "All" label in tree nodes', () => {
@@ -292,7 +292,7 @@ describe("extractVocabTree", () => {
       },
     ];
     const result = extractVocabTree(input);
-    expect(result![0].label).toBe("All");
+    expect(result![0]!.label).toBe("All");
   });
 
   it("extracts label from display/displayName/label/name fields", () => {
@@ -303,8 +303,8 @@ describe("extractVocabTree", () => {
       },
     ];
     const result = extractVocabTree(input);
-    expect(result![0].label).toBe("Display Label");
-    expect(result![0].children![0].label).toBe("DN");
+    expect(result![0]!.label).toBe("Display Label");
+    expect(result![0]!.children![0]!.label).toBe("DN");
   });
 
   it("uses entry directly as data when no data property exists", () => {
@@ -317,8 +317,8 @@ describe("extractVocabTree", () => {
     ];
     const result = extractVocabTree(input);
     expect(result).not.toBeNull();
-    expect(result![0].value).toBe("direct");
-    expect(result![0].label).toBe("Direct Label");
+    expect(result![0]!.value).toBe("direct");
+    expect(result![0]!.label).toBe("Direct Label");
   });
 
   // -- Edge cases --

@@ -5,12 +5,12 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.services.workbench_chat import orchestrator
+
 
 class TestStartWorkbenchChatStream:
     @pytest.mark.asyncio
     async def test_returns_operation_and_stream_ids(self) -> None:
-        from veupath_chatbot.services.workbench_chat import orchestrator
-
         mock_create_agent = MagicMock()
         mock_resolve_model = MagicMock(return_value="openai/gpt-4.1-nano")
         orchestrator.configure(
@@ -54,8 +54,6 @@ class TestStartWorkbenchChatStream:
 
     @pytest.mark.asyncio
     async def test_reuses_existing_stream(self) -> None:
-        from veupath_chatbot.services.workbench_chat import orchestrator
-
         orchestrator.configure(
             create_workbench_agent_fn=MagicMock(),
             resolve_model_id_fn=MagicMock(return_value="model-id"),

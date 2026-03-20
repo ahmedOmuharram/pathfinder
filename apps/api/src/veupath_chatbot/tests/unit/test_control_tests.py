@@ -12,6 +12,7 @@ All WDK calls are mocked. These tests validate:
 - dataset creation path for input-dataset params
 """
 
+import json
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -116,8 +117,6 @@ class TestEncodeIdList:
         assert result == "A,B,C"
 
     def test_json_list_format(self) -> None:
-        import json
-
         result = _encode_id_list(["A", "B"], "json_list")
         assert json.loads(result) == ["A", "B"]
 
@@ -142,7 +141,7 @@ class TestExtractRecordIds:
     def test_extracts_from_preferred_key(self) -> None:
         records: JSONArray = [
             cast(
-                JSONObject,
+                "JSONObject",
                 {
                     "id": [{"name": "source_id", "value": "PK1"}],
                     "attributes": {"gene_id": "ATTR1"},
@@ -591,7 +590,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(ValueError, match="missing 'meta'"),
+            pytest.raises(TypeError, match="missing 'meta'"),
         ):
             await api.get_step_count(step_id=999)
 
@@ -607,7 +606,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(ValueError, match="not an int"),
+            pytest.raises(TypeError, match="not an int"),
         ):
             await api.get_step_count(step_id=999)
 
@@ -704,13 +703,15 @@ class TestRunPositiveNegativeControls:
 
         # Positive results populated
         positive = result.get("positive")
-        assert positive is not None and isinstance(positive, dict)
+        assert positive is not None
+        assert isinstance(positive, dict)
         assert positive["controlsCount"] == 3
         assert positive["recall"] is not None
 
         # Negative results populated
         negative = result.get("negative")
-        assert negative is not None and isinstance(negative, dict)
+        assert negative is not None
+        assert isinstance(negative, dict)
         assert negative["controlsCount"] == 2
 
         # 4 create_step calls total (2 per control set)

@@ -80,19 +80,21 @@ class PlanNode(BasePlanNode):
     def _validate_structure(self) -> "PlanNode":
         # secondary requires primary
         if self.secondaryInput is not None and self.primaryInput is None:
-            raise ValueError("secondaryInput requires primaryInput")
+            msg = "secondaryInput requires primaryInput"
+            raise ValueError(msg)
 
         # operator required when secondary present
         if self.secondaryInput is not None and not self.operator:
-            raise ValueError("operator is required when secondaryInput is present")
+            msg = "operator is required when secondaryInput is present"
+            raise ValueError(msg)
 
         # colocationParams constraints
         if self.operator == "COLOCATE" and self.colocationParams is None:
-            raise ValueError("colocationParams is required when operator is COLOCATE")
+            msg = "colocationParams is required when operator is COLOCATE"
+            raise ValueError(msg)
         if self.operator != "COLOCATE" and self.colocationParams is not None:
-            raise ValueError(
-                "colocationParams is only allowed when operator is COLOCATE"
-            )
+            msg = "colocationParams is only allowed when operator is COLOCATE"
+            raise ValueError(msg)
 
         return self
 

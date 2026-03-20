@@ -34,7 +34,8 @@ async def test_web_search_parses_results_when_result_body_has_multiple_classes()
     out = await service.search("David S. Roos", limit=5, include_summary=True)
 
     results_value = out.get("results")
-    assert isinstance(results_value, list) and len(results_value) > 0
+    assert isinstance(results_value, list)
+    assert len(results_value) > 0
     first_result = results_value[0]
     assert isinstance(first_result, dict)
     title_value = first_result.get("title")
@@ -45,7 +46,8 @@ async def test_web_search_parses_results_when_result_body_has_multiple_classes()
     assert url_value == "https://example.com/roos"
     assert isinstance(first_result.get("summary"), (str, type(None)))
     citations_value = out.get("citations")
-    assert isinstance(citations_value, list) and len(citations_value) > 0
+    assert isinstance(citations_value, list)
+    assert len(citations_value) > 0
     first_citation = citations_value[0]
     assert isinstance(first_citation, dict)
     tag_value = first_citation.get("tag")
@@ -89,7 +91,8 @@ async def test_web_search_summary_uses_paragraph_when_meta_missing_and_avoids_na
         "Example", limit=1, include_summary=True, summary_max_chars=600
     )
     results_value = out.get("results")
-    assert isinstance(results_value, list) and len(results_value) > 0
+    assert isinstance(results_value, list)
+    assert len(results_value) > 0
     first_result = results_value[0]
     assert isinstance(first_result, dict)
     summary_value = first_result.get("summary")

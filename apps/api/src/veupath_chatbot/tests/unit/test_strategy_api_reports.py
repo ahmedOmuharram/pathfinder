@@ -330,19 +330,19 @@ class TestGetStepCount:
     async def test_raises_on_non_dict_response(self) -> None:
         mixin, client = _make_reports_mixin()
         client.post.return_value = []  # wrong type -- normalized to {} by _standard_report
-        with pytest.raises(ValueError, match="missing 'meta'"):
+        with pytest.raises(TypeError, match="missing 'meta'"):
             await mixin.get_step_count(step_id=1)
 
     async def test_raises_on_missing_meta(self) -> None:
         mixin, client = _make_reports_mixin()
         client.post.return_value = {"records": []}
-        with pytest.raises(ValueError, match="missing 'meta'"):
+        with pytest.raises(TypeError, match="missing 'meta'"):
             await mixin.get_step_count(step_id=1)
 
     async def test_raises_on_non_int_total_count(self) -> None:
         mixin, client = _make_reports_mixin()
         client.post.return_value = {"meta": {"totalCount": "42"}}
-        with pytest.raises(ValueError, match="not an int"):
+        with pytest.raises(TypeError, match="not an int"):
             await mixin.get_step_count(step_id=1)
 
     async def test_step_count_request_uses_zero_records(self) -> None:

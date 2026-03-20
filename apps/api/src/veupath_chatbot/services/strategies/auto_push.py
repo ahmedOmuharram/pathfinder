@@ -40,8 +40,8 @@ def _get_push_lock(strategy_id: UUID) -> asyncio.Lock:
         # Evict oldest *unlocked* entries to bound memory.
         if len(_push_locks) >= _PUSH_LOCKS_MAX:
             to_evict: UUID | None = None
-            for candidate in _push_locks:
-                if not _push_locks[candidate].locked():
+            for candidate, lock in _push_locks.items():
+                if not lock.locked():
                     to_evict = candidate
                     break
             if to_evict is not None:
@@ -150,7 +150,7 @@ async def try_auto_push_to_wdk(
                     await session.commit()
                 except Exception:
                     await session.rollback()
-                    logger.error(
+                    logger.exception(
                         "Failed to clear stale wdk_strategy_id",
                         strategy_id=str(strategy_id),
                     )

@@ -6,6 +6,7 @@ Pathfinder user (via ``User.external_id = email``) and returns a
 """
 
 from typing import TypedDict
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Query, Request
@@ -16,7 +17,8 @@ from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import UnauthorizedError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.security import create_user_token
+from veupath_chatbot.platform.security import create_user_token, get_optional_user
+from veupath_chatbot.platform.types import JSONObject, as_json_object
 from veupath_chatbot.services.wdk import get_site, get_wdk_client
 from veupath_chatbot.transport.http.deps import UserRepo
 from veupath_chatbot.transport.http.schemas import (
@@ -35,8 +37,6 @@ class LoginPayload(BaseModel):
 
 
 def _pick_redirect_url(candidate: str | None) -> str:
-    from urllib.parse import urlparse
-
     settings = get_settings()
     allowed = settings.cors_origins or []
     if candidate:
@@ -45,7 +45,7 @@ def _pick_redirect_url(candidate: str | None) -> str:
             candidate_origin = f"{parsed.scheme}://{parsed.netloc}"
             if candidate_origin in allowed:
                 return candidate
-        except Exception as exc:
+        except (ValueError, TypeError) as exc:
             logger.debug(
                 "Failed to parse redirect URL candidate",
                 candidate=candidate,
@@ -72,7 +72,7 @@ async def _resolve_veupathdb_email(
         site = get_site(site_id)
         client = get_wdk_client(site.id)
         user = await client.get("/users/current")
-    except Exception as exc:
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.debug("Failed to resolve VEuPathDB email from token", error=str(exc))
         return None
     finally:
@@ -82,10 +82,8 @@ async def _resolve_veupathdb_email(
         return None
     is_guest_value = user.get("isGuest")
     is_guest = bool(is_guest_value if isinstance(is_guest_value, bool) else True)
-    if is_guest:
-        return None
     email_value = user.get("email")
-    return str(email_value) if isinstance(email_value, str) else None
+    return str(email_value) if not is_guest and isinstance(email_value, str) else None
 
 
 async def _link_internal_user(
@@ -201,7 +199,7 @@ async def logout(
     ) as client:
         try:
             await client.get("/logout")
-        except Exception:
+        except httpx.HTTPError:
             logger.warning("Failed to log out of VEuPathDB")
     response = JSONResponse({"success": True})
     response.delete_cookie(key="Authorization", path="/")
@@ -266,30 +264,38 @@ async def auth_status(
     """
     settings = get_settings()
     if settings.chat_provider.strip().lower() == "mock":
-        from veupath_chatbot.platform.security import get_optional_user
-
         cookie_token = request.cookies.get("pathfinder-auth")
-        user_id = await get_optional_user(request, cookie_token)
-        if user_id is not None:
+        mock_user_id = await get_optional_user(request, cookie_token)
+        if mock_user_id is not None:
             return {
                 "signedIn": True,
                 "name": "E2E Test User",
                 "email": "e2e@test.local",
             }
 
+    user = await _fetch_wdk_user(site_id)
+    if user is None:
+        return {"signedIn": False, "name": None, "email": None}
+
+    return _parse_auth_status(user)
+
+
+async def _fetch_wdk_user(site_id: str) -> JSONObject | None:
+    """Fetch the current user from WDK, returning None on failure."""
     site = get_site(site_id)
     client = get_wdk_client(site.id)
     try:
         user = await client.get("/users/current")
-    except Exception as exc:
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.debug("Failed to fetch VEuPathDB auth status", error=str(exc))
-        return {"signedIn": False, "name": None, "email": None}
-
-    from veupath_chatbot.platform.types import JSONObject, as_json_object
-
+        return None
     if not isinstance(user, dict):
-        return {"signedIn": False, "name": None, "email": None}
-    user_obj = as_json_object(user)
+        return None
+    return as_json_object(user)
+
+
+def _parse_auth_status(user_obj: JSONObject) -> _AuthStatusDict:
+    """Parse a WDK user response into an auth status dict."""
     is_guest_value = user_obj.get("isGuest")
     is_guest = bool(is_guest_value if isinstance(is_guest_value, bool) else True)
     email_value = user_obj.get("email")

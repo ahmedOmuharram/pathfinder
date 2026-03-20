@@ -13,6 +13,14 @@ overall lookup_genes_by_text behavior is preserved after decomposition.
 
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.services.gene_lookup.lookup import (
+    _apply_organism_filter,
+    _build_response,
+    _merge_and_rank,
+    _run_primary_searches,
+    _run_supplementary_searches,
+    lookup_genes_by_text,
+)
 from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
 from veupath_chatbot.services.search_rerank import QueryIntent
 
@@ -57,8 +65,6 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _run_primary_searches
-
         genes = [_gene("G1"), _gene("G2")]
         available = ["Plasmodium falciparum 3D7"]
         mock_site_search.return_value = (genes, available, 2)
@@ -77,8 +83,6 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _run_primary_searches
-
         call_queries: list[str] = []
 
         async def side_effect(site_id: str, query: str, **kwargs):
@@ -89,7 +93,7 @@ class TestRunPrimarySearches:
 
         mock_site_search.side_effect = side_effect
 
-        results, orgs, total = await _run_primary_searches(
+        results, _orgs, _total = await _run_primary_searches(
             "plasmodb",
             "alpha tubulin",
             is_multi_word=True,
@@ -106,8 +110,6 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _run_primary_searches
-
         mock_site_search.side_effect = RuntimeError("boom")
 
         results, orgs, total = await _run_primary_searches(
@@ -124,20 +126,19 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _run_primary_searches
-
         call_count = 0
 
         async def side_effect(site_id: str, query: str, **kwargs):
             nonlocal call_count
             call_count += 1
             if query.startswith('"'):
-                raise RuntimeError("phrase search broke")
+                msg = "phrase search broke"
+                raise RuntimeError(msg)
             return ([_gene("G1")], ["Org A"], 1)
 
         mock_site_search.side_effect = side_effect
 
-        results, orgs, total = await _run_primary_searches(
+        results, _orgs, _total = await _run_primary_searches(
             "plasmodb",
             "alpha tubulin",
             is_multi_word=True,
@@ -159,10 +160,6 @@ class TestRunSupplementarySearches:
         mock_site_search: AsyncMock,
         mock_wdk_text: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import (
-            _run_supplementary_searches,
-        )
-
         intent = QueryIntent(raw="kinase")
         org_results, wdk_id, wdk_broad = await _run_supplementary_searches(
             "plasmodb",
@@ -185,15 +182,11 @@ class TestRunSupplementarySearches:
         mock_site_search: AsyncMock,
         mock_wdk_text: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import (
-            _run_supplementary_searches,
-        )
-
         intent = QueryIntent(raw="kinase")
         mock_site_search.return_value = ([_gene("ORG_HIT")], [], 1)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
 
-        org_results, wdk_id, wdk_broad = await _run_supplementary_searches(
+        org_results, _wdk_id, _wdk_broad = await _run_supplementary_searches(
             "plasmodb",
             "kinase",
             intent,
@@ -211,10 +204,6 @@ class TestRunSupplementarySearches:
         mock_site_search: AsyncMock,
         mock_wdk_text: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import (
-            _run_supplementary_searches,
-        )
-
         intent = QueryIntent(
             raw="PF3D7_01",
             is_gene_id_like=True,
@@ -224,7 +213,7 @@ class TestRunSupplementarySearches:
         mock_site_search.return_value = ([], [], 0)
         mock_wdk_text.return_value = wdk_id_result
 
-        org_results, wdk_id, wdk_broad = await _run_supplementary_searches(
+        _org_results, wdk_id, _wdk_broad = await _run_supplementary_searches(
             "plasmodb",
             "PF3D7_01",
             intent,
@@ -241,16 +230,12 @@ class TestRunSupplementarySearches:
         mock_site_search: AsyncMock,
         mock_wdk_text: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import (
-            _run_supplementary_searches,
-        )
-
         intent = QueryIntent(raw="kinase")
         wdk_broad_result = WdkTextResult(records=[_gene("WDK_BROAD")], total_count=100)
         mock_site_search.return_value = ([], [], 0)
         mock_wdk_text.return_value = wdk_broad_result
 
-        org_results, wdk_id, wdk_broad = await _run_supplementary_searches(
+        _org_results, _wdk_id, wdk_broad = await _run_supplementary_searches(
             "plasmodb",
             "kinase",
             intent,
@@ -267,15 +252,11 @@ class TestRunSupplementarySearches:
         mock_site_search: AsyncMock,
         mock_wdk_text: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import (
-            _run_supplementary_searches,
-        )
-
         intent = QueryIntent(raw="kinase")
         mock_site_search.side_effect = RuntimeError("boom")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
 
-        org_results, wdk_id, wdk_broad = await _run_supplementary_searches(
+        org_results, _wdk_id, _wdk_broad = await _run_supplementary_searches(
             "plasmodb",
             "kinase",
             intent,
@@ -297,8 +278,6 @@ class TestMergeAndRank:
         self,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _merge_and_rank
-
         mock_enrich.side_effect = lambda _site, results, _lim: results
 
         raw = [_gene("G1"), _gene("G1"), _gene("G2")]
@@ -312,8 +291,6 @@ class TestMergeAndRank:
         self,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _merge_and_rank
-
         mock_enrich.side_effect = lambda _site, results, _lim: results
 
         results = await _merge_and_rank("plasmodb", "kinase", [])
@@ -324,8 +301,6 @@ class TestMergeAndRank:
         self,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _merge_and_rank
-
         mock_enrich.side_effect = lambda _site, results, _lim: results
 
         # "kinase" should score higher for gene with product "kinase" than "other"
@@ -345,8 +320,6 @@ class TestApplyOrganismFilter:
     """Tests for _apply_organism_filter helper."""
 
     def test_no_organism_returns_all(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _apply_organism_filter
-
         genes = [_gene("G1"), _gene("G2")]
         filtered, suggested = _apply_organism_filter(
             genes,
@@ -358,8 +331,6 @@ class TestApplyOrganismFilter:
         assert suggested is None
 
     def test_exact_organism_filters(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _apply_organism_filter
-
         genes = [
             _gene("G1", organism="Plasmodium falciparum 3D7"),
             _gene("G2", organism="Toxoplasma gondii ME49"),
@@ -375,11 +346,9 @@ class TestApplyOrganismFilter:
         assert suggested is None
 
     def test_unrecognized_organism_suggests_alternatives(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _apply_organism_filter
-
         genes = [_gene("G1", organism="Plasmodium falciparum 3D7")]
         available = ["Plasmodium falciparum 3D7", "Plasmodium vivax P01"]
-        filtered, suggested = _apply_organism_filter(
+        _filtered, suggested = _apply_organism_filter(
             genes,
             organism="P. falciparum",
             explicit_organism=None,
@@ -392,8 +361,6 @@ class TestApplyOrganismFilter:
     def test_unrecognized_organism_no_fuzzy_match_returns_empty_with_top10(
         self,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _apply_organism_filter
-
         genes = [_gene("G1")]
         available = ["Org A", "Org B", "Org C"]
         filtered, suggested = _apply_organism_filter(
@@ -414,8 +381,6 @@ class TestBuildResponse:
     """Tests for _build_response helper."""
 
     def test_basic_response_shape(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _build_response
-
         paginated = [_gene("G1"), _gene("G2")]
         resp = _build_response(
             paginated=paginated,
@@ -429,8 +394,6 @@ class TestBuildResponse:
         assert "suggestedOrganisms" not in resp
 
     def test_includes_suggested_organisms(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _build_response
-
         resp = _build_response(
             paginated=[],
             total_count=0,
@@ -440,8 +403,6 @@ class TestBuildResponse:
         assert resp["suggestedOrganisms"] == ["Org A", "Org B"]
 
     def test_total_count_is_max_of_all_sources(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _build_response
-
         resp = _build_response(
             paginated=[_gene("G1")],
             total_count=3,
@@ -451,8 +412,6 @@ class TestBuildResponse:
         assert resp["totalCount"] == 100
 
     def test_total_count_from_results_length(self) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import _build_response
-
         resp = _build_response(
             paginated=[_gene(f"G{i}") for i in range(5)],
             total_count=200,
@@ -478,8 +437,6 @@ class TestLookupGenesAfterDecomposition:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
-
         genes = [_gene("G1"), _gene("G2"), _gene("G3")]
         mock_site_search.return_value = (genes, ["Plasmodium falciparum 3D7"], 3)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -502,8 +459,6 @@ class TestLookupGenesAfterDecomposition:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
-
         genes = [
             _gene("G1", organism="Plasmodium falciparum 3D7"),
             _gene("G2", organism="Toxoplasma gondii ME49"),
@@ -539,8 +494,6 @@ class TestLookupGenesAfterDecomposition:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
-
         genes = [_gene(f"G{i}") for i in range(10)]
         mock_site_search.return_value = (genes, [], 10)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)

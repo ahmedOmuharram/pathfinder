@@ -38,7 +38,7 @@ describe("features/chat/utils", () => {
       },
     ];
     const result = mergeMessages(local, incoming);
-    expect(result[0].optimizationProgress).toEqual(localOpt);
+    expect(result[0]!.optimizationProgress).toEqual(localOpt);
   });
 
   it("mergeMessages preserves local optimizationProgress when server returns undefined", () => {
@@ -60,7 +60,7 @@ describe("features/chat/utils", () => {
       { role: "assistant", content: "done", timestamp: "t1" },
     ];
     const result = mergeMessages(local, incoming);
-    expect(result[0].optimizationProgress).toEqual(localOpt);
+    expect(result[0]!.optimizationProgress).toEqual(localOpt);
   });
 
   it("mergeMessages uses server optimizationProgress when it has data", () => {
@@ -80,7 +80,7 @@ describe("features/chat/utils", () => {
       },
     ];
     const result = mergeMessages(local, incoming);
-    expect(result[0].optimizationProgress).toEqual(serverOpt);
+    expect(result[0]!.optimizationProgress).toEqual(serverOpt);
   });
 
   it("parseToolArguments handles objects and JSON strings safely", () => {

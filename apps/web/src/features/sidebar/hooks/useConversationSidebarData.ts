@@ -25,16 +25,16 @@ import {
 } from "@/lib/api/strategies";
 import { DEFAULT_STREAM_NAME, type Strategy } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { resolveActiveConversation } from "@/features/sidebar/utils/resolveActiveConversation";
 
-export interface UseConversationSidebarDataArgs {
+interface UseConversationSidebarDataArgs {
   siteId: string;
   reportError: (message: string) => void;
 }
 
-export interface ConversationSidebarData {
+interface ConversationSidebarData {
   /** Filtered conversation list (by search query). */
   filtered: ConversationItem[];
   /** Whether there are any conversations at all (ignoring search). */
@@ -254,7 +254,7 @@ export function useConversationSidebarData({
           // Only set if no other flow (e.g. chat send) grabbed strategyId
           // while the async openStrategy was in-flight.
           const currentId = useSessionStore.getState().strategyId;
-          if (!currentId) {
+          if (currentId == null || currentId === "") {
             setStrategyId(res.strategyId);
           }
         } catch (err) {
@@ -307,7 +307,7 @@ export function useConversationSidebarData({
   // Ensure there's always an active conversation selected
   useEffect(() => {
     startTransition(() => {
-      ensureActiveConversation();
+      void ensureActiveConversation();
     });
   }, [ensureActiveConversation]);
 

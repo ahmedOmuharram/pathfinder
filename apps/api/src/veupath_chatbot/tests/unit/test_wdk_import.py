@@ -336,18 +336,18 @@ class TestGraphReconstructionLinearChain:
 
         ast, _, _ = await fetch_and_convert(api, 3)
 
-        # Root is step3 (transform)
+        # Root should be step3 (transform)
         assert ast.root.search_name == "GenesByRNASeqEvidence"
         assert ast.root.infer_kind() == "transform"
         assert ast.root.primary_input is not None
 
-        # Middle is step2 (transform)
+        # Middle should be step2 (transform)
         mid = ast.root.primary_input
         assert mid.search_name == "GenesByOrthologs"
         assert mid.infer_kind() == "transform"
         assert mid.primary_input is not None
 
-        # Leaf is step1 (search)
+        # Leaf should be step1 (search)
         leaf = mid.primary_input
         assert leaf.search_name == "GenesByTextSearch"
         assert leaf.infer_kind() == "search"

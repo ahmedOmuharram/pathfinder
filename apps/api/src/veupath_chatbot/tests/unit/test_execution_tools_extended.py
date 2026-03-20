@@ -5,6 +5,7 @@ pagination edge cases, WDK error handling gaps, stale WDK state.
 """
 
 from veupath_chatbot.ai.tools.result_tools import ResultTools
+from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.tests.fixtures.fakes import (
     FakeResultsAPI,
@@ -92,21 +93,21 @@ class TestDownloadUrlEdgeCases:
         fake_api = FakeResultsAPI(url="https://example.com/dl.csv")
         tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
         result = await tools.get_download_url(
-            wdk_step_id=1, format="csv", attributes=["gene_id", "product"]
+            wdk_step_id=1, output_format="csv", attributes=["gene_id", "product"]
         )
         assert "downloadUrl" in result
 
     async def test_wdk_error_404(self):
         fake_api = FakeResultsAPI(error=WDKError("Not found", 404))
         tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-        result = await tools.get_download_url(wdk_step_id=99, format="csv")
+        result = await tools.get_download_url(wdk_step_id=99, output_format="csv")
         assert result["ok"] is False
         assert "stale" in str(result["message"]).lower()
 
     async def test_wdk_error_500(self):
         fake_api = FakeResultsAPI(error=WDKError("Internal", 500))
         tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-        result = await tools.get_download_url(wdk_step_id=1, format="csv")
+        result = await tools.get_download_url(wdk_step_id=1, output_format="csv")
         assert result["ok"] is False
         assert "temporarily unavailable" in str(result["message"])
 
@@ -114,7 +115,7 @@ class TestDownloadUrlEdgeCases:
         """If the API returns None instead of a URL."""
         fake_api = FakeResultsAPI(url=None)
         tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-        result = await tools.get_download_url(wdk_step_id=1, format="csv")
+        result = await tools.get_download_url(wdk_step_id=1, output_format="csv")
         assert result["ok"] is False
 
 
@@ -126,8 +127,6 @@ class TestDownloadUrlEdgeCases:
 class TestWdkErrorHandlerTimeouts:
     def test_503_maps_to_unavailable(self):
         """503 Service Unavailable should be treated like 5xx."""
-        from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
-
         err = WDKError("Service Unavailable", 503)
         result = handle_wdk_step_error(
             err, wdk_step_id=1, action="read", fallback_message="reading"
@@ -136,8 +135,6 @@ class TestWdkErrorHandlerTimeouts:
         assert result["http_status"] == 503
 
     def test_504_gateway_timeout_maps_to_unavailable(self):
-        from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
-
         err = WDKError("Gateway Timeout", 504)
         result = handle_wdk_step_error(
             err, wdk_step_id=1, action="read", fallback_message="fetching"
@@ -145,8 +142,6 @@ class TestWdkErrorHandlerTimeouts:
         assert "temporarily unavailable" in str(result["message"])
 
     def test_400_without_reportname_falls_through(self):
-        from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
-
         err = WDKError("Bad request: invalid parameter x", 400)
         result = handle_wdk_step_error(
             err, wdk_step_id=5, action="read", fallback_message="reading"
@@ -156,8 +151,6 @@ class TestWdkErrorHandlerTimeouts:
 
     def test_detail_none_handled(self):
         """WDKError can have detail=None."""
-        from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
-
         err = WDKError.__new__(WDKError)
         err.status = 400
         err.detail = None
@@ -186,6 +179,6 @@ class TestStepIdTypeValidation:
 
     async def test_download_step_id_negative_rejected(self):
         tools = ResultTools(FakeResultToolsSession())
-        result = await tools.get_download_url(wdk_step_id=-1, format="csv")
+        result = await tools.get_download_url(wdk_step_id=-1, output_format="csv")
         assert result["ok"] is False
         assert "positive integer" in str(result["message"])

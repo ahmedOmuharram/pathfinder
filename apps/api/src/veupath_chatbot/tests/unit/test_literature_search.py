@@ -45,7 +45,7 @@ def _result(
     if pmid is not None:
         r["pmid"] = pmid
     if authors is not None:
-        r["authors"] = cast(JSONValue, authors)
+        r["authors"] = cast("JSONValue", authors)
     if abstract is not None:
         r["abstract"] = abstract
     if journal is not None:
@@ -72,7 +72,7 @@ def _citation(
     if doi is not None:
         c["doi"] = doi
     if authors is not None:
-        c["authors"] = cast(JSONValue, authors)
+        c["authors"] = cast("JSONValue", authors)
     return c
 
 
@@ -1050,7 +1050,7 @@ class TestRerankScore:
 
     def test_empty_fields_zero_score(self) -> None:
         item: JSONObject = {"title": "", "abstract": ""}
-        score, parts = rerank_score("malaria", item)
+        _score, parts = rerank_score("malaria", item)
         assert parts["title"] == 0.0
         assert parts["abstract"] == 0.0
 

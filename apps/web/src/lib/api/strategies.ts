@@ -28,7 +28,7 @@ export async function listStrategies(siteId?: string | null): Promise<Strategy[]
   const raw = await requestJsonValidated(
     StrategyListItemListSchema,
     "/api/v1/strategies",
-    { query: siteId ? { siteId } : undefined },
+    siteId != null && siteId !== "" ? { query: { siteId } } : {},
   );
   return raw.map((s) => withDefaults(s as Parameters<typeof withDefaults>[0]));
 }
@@ -117,10 +117,12 @@ export async function deleteStrategy(
   strategyId: string,
   deleteFromWdk?: boolean,
 ): Promise<void> {
-  await requestJson<void>(`/api/v1/strategies/${strategyId}`, {
-    method: "DELETE",
-    query: deleteFromWdk ? { deleteFromWdk: "true" } : undefined,
-  });
+  await requestJson<void>(
+    `/api/v1/strategies/${strategyId}`,
+    deleteFromWdk === true
+      ? { method: "DELETE", query: { deleteFromWdk: "true" } }
+      : { method: "DELETE" },
+  );
 }
 
 export async function normalizePlan(

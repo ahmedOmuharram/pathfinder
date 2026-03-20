@@ -1,7 +1,5 @@
 """Unit tests for MockEngine — the deterministic kani engine for E2E testing."""
 
-from typing import Any
-
 import pytest
 from kani.engines.base import BaseCompletion
 from kani.models import ChatMessage, ChatRole
@@ -169,9 +167,7 @@ class TestMockEngineStream:
         engine = MockEngine(site_id="plasmodb")
         messages = [ChatMessage.user("create step")]
 
-        items: list[Any] = []
-        async for item in engine.stream(messages):
-            items.append(item)
+        items = [item async for item in engine.stream(messages)]
 
         # Should have exactly one item: the Completion with tool calls
         assert len(items) == 1

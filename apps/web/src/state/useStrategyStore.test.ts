@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useStrategyStore } from "./useStrategyStore";
+import { useStrategyStore } from "./strategy/store";
 
 describe("state/useStrategyStore", () => {
   beforeEach(() => {
@@ -50,6 +50,7 @@ describe("state/useStrategyStore", () => {
     });
 
     const step = useStrategyStore.getState().stepsById["s1"];
+    if (step === undefined) throw new Error("step s1 not found");
     expect(step.displayName).toBe("My Custom Name");
   });
 

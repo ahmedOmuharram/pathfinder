@@ -239,7 +239,7 @@ def search_details_response(search_name: str = "GenesByTaxon") -> dict:
         return _text_search_details()
     if search_name == "GenesByOrthologs":
         return _orthologs_search_details()
-    # Default: GenesByTaxon
+    # Default fallback is GenesByTaxon
     return _taxon_search_details()
 
 
@@ -617,7 +617,7 @@ def strategy_creation_response(strategy_id: int = 200) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GET /users/{userId}/strategies/{strategyId}
+# Strategy detail endpoint (GET strategy by ID)
 # ---------------------------------------------------------------------------
 def strategy_get_response(
     strategy_id: int = 200,
@@ -797,31 +797,30 @@ def standard_report_response(
     ids = gene_ids if gene_ids is not None else DEFAULT_GENE_IDS
     count = total_count if total_count is not None else len(ids)
 
-    records = []
-    for gid in ids:
-        records.append(
-            {
-                "id": [
-                    {"name": "gene_source_id", "value": gid},
-                    {"name": "source_id", "value": f"{gid}.1"},
-                    {"name": "project_id", "value": "PlasmoDB"},
-                ],
-                "displayName": gid,
-                "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
-                "attributes": {
-                    "primary_key": gid,
-                    "gene_source_id": gid,
-                    "gene_name": None,
-                    "gene_product": f"hypothetical protein, conserved ({gid})",
-                    "gene_type": "protein_coding",
-                    "organism": "<i>Plasmodium falciparum 3D7</i>",
-                    "gene_location_text": "Pf3D7_01_v3: 29,510 - 37,126 (+)",
-                    "gene_previous_ids": "",
-                },
-                "tables": {},
-                "tableErrors": [],
-            }
-        )
+    records = [
+        {
+            "id": [
+                {"name": "gene_source_id", "value": gid},
+                {"name": "source_id", "value": f"{gid}.1"},
+                {"name": "project_id", "value": "PlasmoDB"},
+            ],
+            "displayName": gid,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "attributes": {
+                "primary_key": gid,
+                "gene_source_id": gid,
+                "gene_name": None,
+                "gene_product": f"hypothetical protein, conserved ({gid})",
+                "gene_type": "protein_coding",
+                "organism": "<i>Plasmodium falciparum 3D7</i>",
+                "gene_location_text": "Pf3D7_01_v3: 29,510 - 37,126 (+)",
+                "gene_previous_ids": "",
+            },
+            "tables": {},
+            "tableErrors": [],
+        }
+        for gid in ids
+    ]
 
     return {
         "records": records,
@@ -835,7 +834,7 @@ def standard_report_response(
 
 
 # ---------------------------------------------------------------------------
-# POST /users/{userId}/datasets
+# Dataset creation endpoint (POST datasets)
 # ---------------------------------------------------------------------------
 def dataset_creation_response(dataset_id: int = 500) -> dict:
     """POST /users/{userId}/datasets -- returns new dataset."""

@@ -33,5 +33,3 @@ class StrategyAPI(
     :class:`ReportsMixin`, :class:`AnalysisMixin`, :class:`FilterMixin`,
     :class:`RecordsMixin`, and :class:`StrategyAPIBase` (via MRO).
     """
-
-    pass

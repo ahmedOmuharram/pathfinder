@@ -45,8 +45,11 @@ export function BenchmarkPanel() {
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
   const hasSearchContext = Boolean(
-    activeSet &&
-    (activeSet.geneIds?.length || (activeSet.searchName && activeSet.parameters)),
+    activeSet != null &&
+    (activeSet.geneIds.length > 0 ||
+      (activeSet.searchName != null &&
+        activeSet.searchName !== "" &&
+        activeSet.parameters != null)),
   );
 
   // Saved control sets
@@ -64,7 +67,7 @@ export function BenchmarkPanel() {
 
   // Load saved control sets
   useEffect(() => {
-    if (!activeSet?.siteId) return;
+    if (activeSet?.siteId == null || activeSet.siteId === "") return;
     let cancelled = false;
     listControlSets(activeSet.siteId)
       .then((sets) => {
@@ -112,7 +115,7 @@ export function BenchmarkPanel() {
       setInlineSets((prev) =>
         prev.map((s) => {
           if (s.id === id) return { ...s, ...patch };
-          if (patch.isPrimary) return { ...s, isPrimary: false };
+          if (patch.isPrimary === true) return { ...s, isPrimary: false };
           return s;
         }),
       );
@@ -162,8 +165,9 @@ export function BenchmarkPanel() {
       }
     }
     // If none is primary, default the first
-    if (!foundPrimary && controlSets.length > 0) {
-      controlSets[0].isPrimary = true;
+    const firstSet = controlSets[0];
+    if (!foundPrimary && firstSet != null) {
+      firstSet.isPrimary = true;
     }
 
     if (controlSets.length === 0) {
@@ -176,35 +180,32 @@ export function BenchmarkPanel() {
     setResults([]);
 
     try {
-      await createBenchmarkStream(
-        {
-          siteId: activeSet.siteId,
-          recordType: activeSet.recordType ?? "gene",
-          searchName: activeSet.searchName ?? "",
-          parameters: activeSet.parameters ?? {},
-          targetGeneIds: activeSet.geneIds?.length ? activeSet.geneIds : undefined,
-          positiveControls: [],
-          negativeControls: [],
-          controlsSearchName: CONTROLS_SEARCH_NAME,
-          controlsParamName: CONTROLS_PARAM_NAME,
-          controlsValueFormat: "newline",
-          enableCrossValidation: false,
-          kFolds: 5,
-          enrichmentTypes: [],
-          name: `Benchmark: ${activeSet.name}`,
+      const benchConfig: Parameters<typeof createBenchmarkStream>[0] = {
+        siteId: activeSet.siteId,
+        recordType: activeSet.recordType ?? "gene",
+        searchName: activeSet.searchName ?? "",
+        parameters: activeSet.parameters ?? {},
+        positiveControls: [],
+        negativeControls: [],
+        controlsSearchName: CONTROLS_SEARCH_NAME,
+        controlsParamName: CONTROLS_PARAM_NAME,
+        controlsValueFormat: "newline",
+        enableCrossValidation: false,
+        kFolds: 5,
+        enrichmentTypes: [],
+        name: `Benchmark: ${activeSet.name}`,
+      };
+      if (activeSet.geneIds.length > 0) benchConfig.targetGeneIds = activeSet.geneIds;
+      await createBenchmarkStream(benchConfig, controlSets, {
+        onComplete: (experiments) => {
+          setResults(experiments);
+          setLoading(false);
         },
-        controlSets,
-        {
-          onComplete: (experiments) => {
-            setResults(experiments);
-            setLoading(false);
-          },
-          onError: (errMsg) => {
-            setError(errMsg);
-            setLoading(false);
-          },
+        onError: (errMsg) => {
+          setError(errMsg);
+          setLoading(false);
         },
-      );
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -310,7 +311,13 @@ export function BenchmarkPanel() {
         </button>
 
         {/* Run */}
-        <Button size="sm" onClick={handleRun} disabled={loading}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleRun();
+          }}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -319,10 +326,12 @@ export function BenchmarkPanel() {
           {loading ? "Running..." : "Run Benchmark"}
         </Button>
 
-        {controlSetError && (
+        {controlSetError != null && controlSetError !== "" && (
           <p className="text-xs text-destructive">{controlSetError}</p>
         )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {/* Results comparison table */}
         {results.length > 0 && (

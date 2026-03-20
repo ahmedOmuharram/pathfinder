@@ -6,21 +6,29 @@ Verifies parameter names match VEuPathDB WDK step analysis plugins
 
 import pytest
 
-from veupath_chatbot.services.experiment.enrichment import (
-    _ANALYSIS_TYPE_MAP,
-    _GO_ONTOLOGY_MAP,
-    _extract_analysis_rows,
-    _extract_default_params,
-    _extract_vocab_values,
-    _parse_enrichment_terms,
-    _parse_result_genes_html,
+from veupath_chatbot.services.experiment.enrichment_html import parse_result_genes_html
+from veupath_chatbot.services.experiment.enrichment_params import (
     encode_vocab_params,
+    encode_vocab_value,
+    extract_default_params,
+    extract_vocab_values,
+)
+from veupath_chatbot.services.experiment.enrichment_parser import (
+    ANALYSIS_TYPE_MAP,
+    GO_ONTOLOGY_MAP,
+    extract_analysis_rows,
+    extract_result_totals,
     infer_enrichment_type,
     is_enrichment_analysis,
     parse_enrichment_from_raw,
+    parse_enrichment_terms,
     upsert_enrichment_result,
 )
 from veupath_chatbot.services.experiment.types import EnrichmentResult
+from veupath_chatbot.tests.fixtures.wdk_responses import (
+    go_enrichment_form_response,
+    pathway_enrichment_form_response,
+)
 
 
 class TestAnalysisTypeMaps:
@@ -28,21 +36,21 @@ class TestAnalysisTypeMaps:
 
     def test_go_types_map_to_go_enrichment(self) -> None:
         for key in ("go_function", "go_component", "go_process"):
-            assert _ANALYSIS_TYPE_MAP[key] == "go-enrichment"
+            assert ANALYSIS_TYPE_MAP[key] == "go-enrichment"
 
     def test_pathway_maps_to_pathway_enrichment(self) -> None:
-        assert _ANALYSIS_TYPE_MAP["pathway"] == "pathway-enrichment"
+        assert ANALYSIS_TYPE_MAP["pathway"] == "pathway-enrichment"
 
     def test_word_maps_to_word_enrichment(self) -> None:
-        assert _ANALYSIS_TYPE_MAP["word"] == "word-enrichment"
+        assert ANALYSIS_TYPE_MAP["word"] == "word-enrichment"
 
     def test_go_ontology_values_match_wdk(self) -> None:
-        assert _GO_ONTOLOGY_MAP["go_function"] == "Molecular Function"
-        assert _GO_ONTOLOGY_MAP["go_component"] == "Cellular Component"
-        assert _GO_ONTOLOGY_MAP["go_process"] == "Biological Process"
+        assert GO_ONTOLOGY_MAP["go_function"] == "Molecular Function"
+        assert GO_ONTOLOGY_MAP["go_component"] == "Cellular Component"
+        assert GO_ONTOLOGY_MAP["go_process"] == "Biological Process"
 
     def test_go_ontology_keys_subset_of_analysis_map(self) -> None:
-        assert set(_GO_ONTOLOGY_MAP.keys()).issubset(set(_ANALYSIS_TYPE_MAP.keys()))
+        assert set(GO_ONTOLOGY_MAP.keys()).issubset(set(ANALYSIS_TYPE_MAP.keys()))
 
 
 class TestEncodeVocabParams:
@@ -64,10 +72,6 @@ class TestEncodeVocabParams:
         override properly-encoded defaults.  ``encode_vocab_params``
         re-encodes all vocab params using the form metadata.
         """
-        from veupath_chatbot.tests.fixtures.wdk_responses import (
-            pathway_enrichment_form_response,
-        )
-
         form = pathway_enrichment_form_response()
         # Simulate what happens: user sends plain strings from frontend
         merged = {
@@ -87,10 +91,6 @@ class TestEncodeVocabParams:
 
     def test_does_not_double_encode(self) -> None:
         """Values already encoded as JSON arrays are left alone."""
-        from veupath_chatbot.tests.fixtures.wdk_responses import (
-            pathway_enrichment_form_response,
-        )
-
         form = pathway_enrichment_form_response()
         merged = {
             "organism": '["Plasmodium falciparum 3D7"]',  # already encoded
@@ -109,10 +109,6 @@ class TestEncodeVocabParams:
 
     def test_handles_params_not_in_form(self) -> None:
         """Params not listed in form metadata are left untouched."""
-        from veupath_chatbot.tests.fixtures.wdk_responses import (
-            pathway_enrichment_form_response,
-        )
-
         form = pathway_enrichment_form_response()
         merged = {
             "organism": "Plasmodium falciparum 3D7",
@@ -122,9 +118,34 @@ class TestEncodeVocabParams:
         assert result["organism"] == '["Plasmodium falciparum 3D7"]'
         assert result["unknownParam"] == "some value"
 
+    def test_multi_pick_vocab_encoded(self) -> None:
+        form_meta = {
+            "searchData": {
+                "parameters": [
+                    {"name": "codes", "type": "multi-pick-vocabulary"},
+                ],
+            },
+        }
+        params = {"codes": "IDA"}
+        result = encode_vocab_params(params, form_meta)
+        assert result["codes"] == '["IDA"]'
+
+    def test_non_string_value_not_encoded(self) -> None:
+        """Only string values get vocabulary encoding."""
+        form_meta = {
+            "searchData": {
+                "parameters": [
+                    {"name": "organism", "type": "single-pick-vocabulary"},
+                ],
+            },
+        }
+        params = {"organism": ["Pf3D7"]}
+        result = encode_vocab_params(params, form_meta)
+        assert result["organism"] == ["Pf3D7"]
+
 
 class TestExtractDefaultParams:
-    """_extract_default_params extracts name/initialDisplayValue from WDK form metadata.
+    """extract_default_params extracts name/initialDisplayValue from WDK form metadata.
 
     WDK's ``ParamFormatter.java`` uses ``initialDisplayValue`` as the
     stable default value field (via ``JsonKeys.INITIAL_DISPLAY_VALUE``).
@@ -138,12 +159,8 @@ class TestExtractDefaultParams:
         does ``AbstractEnumParam.convertToTerms(params.get("organism"))``
         which calls ``new JSONArray(stableValue)`` — requires JSON array.
         """
-        from veupath_chatbot.tests.fixtures.wdk_responses import (
-            pathway_enrichment_form_response,
-        )
-
         form = pathway_enrichment_form_response()
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
 
         # Enum/vocab params must be JSON arrays
         assert result["organism"] == '["Plasmodium falciparum 3D7"]'
@@ -157,12 +174,8 @@ class TestExtractDefaultParams:
         assert result["pValueCutoff"] == "0.05"
 
     def test_extracts_go_enrichment_params(self) -> None:
-        from veupath_chatbot.tests.fixtures.wdk_responses import (
-            go_enrichment_form_response,
-        )
-
         form = go_enrichment_form_response()
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
 
         assert result["goAssociationsOntologies"] == '["Biological Process"]'
         assert result["goEvidenceCodes"] == '["Computed","Curated"]'
@@ -184,7 +197,7 @@ class TestExtractDefaultParams:
                 },
             ]
         }
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
         assert result == {
             "goAssociationsOntologies": "Biological Process",
             "pValueCutoff": "0.05",
@@ -194,13 +207,13 @@ class TestExtractDefaultParams:
     def test_skips_none_initial_display_value(self) -> None:
         """Parameters with None initialDisplayValue are omitted (WDK rejects empty)."""
         form = {"parameters": [{"name": "pValueCutoff", "initialDisplayValue": None}]}
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
         assert result == {}
 
     def test_skips_missing_initial_display_value(self) -> None:
         """Parameters without initialDisplayValue are omitted."""
         form = {"parameters": [{"name": "pValueCutoff"}]}
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
         assert result == {}
 
     def test_skips_invalid_entries(self) -> None:
@@ -213,23 +226,43 @@ class TestExtractDefaultParams:
                 "not a dict",
             ]
         }
-        result = _extract_default_params(form)
+        result = extract_default_params(form)
         assert result == {"valid": "x"}
 
     def test_handles_no_parameters_key(self) -> None:
-        assert _extract_default_params({}) == {}
+        assert extract_default_params({}) == {}
 
     def test_handles_non_list_parameters(self) -> None:
-        assert _extract_default_params({"parameters": "bad"}) == {}
+        assert extract_default_params({"parameters": "bad"}) == {}
 
     def test_handles_non_dict_input(self) -> None:
-        assert _extract_default_params(None) == {}
-        assert _extract_default_params([]) == {}
-        assert _extract_default_params("string") == {}
+        assert extract_default_params(None) == {}
+        assert extract_default_params([]) == {}
+        assert extract_default_params("string") == {}
+
+    def test_numeric_initial_display_value(self) -> None:
+        """initialDisplayValue as a number is converted to string."""
+        form = {
+            "parameters": [
+                {"name": "cutoff", "initialDisplayValue": 0.05},
+            ]
+        }
+        result = extract_default_params(form)
+        assert result["cutoff"] == "0.05"
+
+    def test_boolean_initial_display_value(self) -> None:
+        """initialDisplayValue as a boolean is converted to string."""
+        form = {
+            "parameters": [
+                {"name": "flag", "initialDisplayValue": True},
+            ]
+        }
+        result = extract_default_params(form)
+        assert result["flag"] == "True"
 
 
 class TestExtractVocabValues:
-    """_extract_vocab_values extracts allowed values from WDK param vocabulary."""
+    """extract_vocab_values extracts allowed values from WDK param vocabulary."""
 
     def test_extracts_ontology_values_from_go_form(self) -> None:
         """Real WDK GO enrichment form has vocabulary triples: [value, display, null]."""
@@ -247,7 +280,7 @@ class TestExtractVocabValues:
                 ]
             }
         }
-        values = _extract_vocab_values(form, "goAssociationsOntologies")
+        values = extract_vocab_values(form, "goAssociationsOntologies")
         assert values == ["Cellular Component", "Molecular Function"]
 
     def test_extracts_all_three_ontologies(self) -> None:
@@ -267,24 +300,24 @@ class TestExtractVocabValues:
                 ]
             }
         }
-        values = _extract_vocab_values(form, "goAssociationsOntologies")
+        values = extract_vocab_values(form, "goAssociationsOntologies")
         assert "Biological Process" in values
         assert "Cellular Component" in values
         assert "Molecular Function" in values
 
     def test_returns_empty_for_missing_param(self) -> None:
         form = {"searchData": {"parameters": [{"name": "other", "vocabulary": []}]}}
-        assert _extract_vocab_values(form, "goAssociationsOntologies") == []
+        assert extract_vocab_values(form, "goAssociationsOntologies") == []
 
     def test_returns_empty_for_no_vocabulary(self) -> None:
         form = {"searchData": {"parameters": [{"name": "goAssociationsOntologies"}]}}
-        assert _extract_vocab_values(form, "goAssociationsOntologies") == []
+        assert extract_vocab_values(form, "goAssociationsOntologies") == []
 
     def test_returns_empty_for_none_input(self) -> None:
-        assert _extract_vocab_values(None, "anything") == []
+        assert extract_vocab_values(None, "anything") == []
 
     def test_returns_empty_for_empty_dict(self) -> None:
-        assert _extract_vocab_values({}, "anything") == []
+        assert extract_vocab_values({}, "anything") == []
 
     def test_handles_form_without_search_data_wrapper(self) -> None:
         """Form metadata may or may not have the searchData wrapper."""
@@ -299,12 +332,12 @@ class TestExtractVocabValues:
                 },
             ]
         }
-        values = _extract_vocab_values(form, "organism")
+        values = extract_vocab_values(form, "organism")
         assert values == ["Plasmodium falciparum 3D7"]
 
 
 class TestParseEnrichmentTerms:
-    """_parse_enrichment_terms handles both WDK row formats."""
+    """parse_enrichment_terms handles both WDK row formats."""
 
     def test_parses_standard_wdk_rows(self) -> None:
         rows = [
@@ -321,7 +354,7 @@ class TestParseEnrichmentTerms:
                 "ResultIDList": "PF3D7_0100100,PF3D7_0831900",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "GO:0003735"
@@ -350,18 +383,18 @@ class TestParseEnrichmentTerms:
                 "genes": ["G1", "G2"],
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "GO:0005840"
         assert t.genes == ["G1", "G2"]
 
     def test_handles_empty_list(self) -> None:
-        assert _parse_enrichment_terms([]) == []
+        assert parse_enrichment_terms([]) == []
 
     def test_skips_non_dict_entries(self) -> None:
         rows: list = [{"ID": "GO:1", "Description": "x"}, "bad", None]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
 
     def test_parses_wdk_go_enrichment_rows(self) -> None:
@@ -380,7 +413,7 @@ class TestParseEnrichmentTerms:
                 "percentInResult": "69.6",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "GO:0006260"
@@ -409,7 +442,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.05",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         t = terms[0]
         assert t.fold_enrichment == 0.0
@@ -430,7 +463,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.04",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "kinase"
@@ -454,7 +487,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.2",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         assert terms[0].term_id == "ribosome"
         assert terms[0].term_name == "ribosome"
@@ -474,7 +507,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.1",
             }
         ]
-        terms = _parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows)
         assert len(terms) == 1
         assert terms[0].term_id == "ec01100"
         assert terms[0].term_name == "Metabolic pathways"
@@ -483,62 +516,126 @@ class TestParseEnrichmentTerms:
 
 
 class TestParseResultGenesHtml:
-    """_parse_result_genes_html extracts count and gene IDs from WDK HTML links."""
+    """parse_result_genes_html extracts count and gene IDs from WDK HTML links."""
 
     def test_extracts_count_and_genes(self) -> None:
         html = "<a href='/search?param.ds_gene_ids.idList=GENE_A,GENE_B,GENE_C,&autoRun=1'>3</a>"
-        count, genes = _parse_result_genes_html(html)
+        count, genes = parse_result_genes_html(html)
         assert count == 3
         assert genes == ["GENE_A", "GENE_B", "GENE_C"]
 
     def test_handles_no_trailing_comma(self) -> None:
         html = "<a href='?idList=G1,G2&autoRun=1'>2</a>"
-        count, genes = _parse_result_genes_html(html)
+        count, genes = parse_result_genes_html(html)
         assert count == 2
         assert genes == ["G1", "G2"]
 
     def test_handles_empty_html(self) -> None:
-        count, genes = _parse_result_genes_html("")
+        count, genes = parse_result_genes_html("")
         assert count == 0
         assert genes == []
 
     def test_handles_no_idlist(self) -> None:
         html = "<a href='/search'>5</a>"
-        count, genes = _parse_result_genes_html(html)
+        count, genes = parse_result_genes_html(html)
         assert count == 5
+        assert genes == []
+
+    def test_multiple_links_takes_first_count(self) -> None:
+        html = "<a href='?idList=G1&x'>5</a> more text <a href='?idList=G2&x'>3</a>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 5
+        assert genes == ["G1"]
+
+    def test_count_zero_in_link(self) -> None:
+        html = "<a href='?idList=&autoRun=1'>0</a>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 0
+        assert genes == []
+
+    def test_genes_with_whitespace(self) -> None:
+        html = "<a href='?idList= G1 , G2 ,&autoRun=1'>2</a>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 2
+        assert genes == ["G1", "G2"]
+
+    def test_single_gene_no_comma(self) -> None:
+        html = "<a href='?idList=PF3D7_0100100&autoRun=1'>1</a>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 1
+        assert genes == ["PF3D7_0100100"]
+
+    def test_malformed_html_no_href(self) -> None:
+        html = "<span>42</span>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 42
+        assert genes == []
+
+    def test_idlist_with_special_chars_in_gene_ids(self) -> None:
+        """Gene IDs can contain dots, underscores, etc."""
+        html = "<a href='?idList=TGME49_123.1,TGGT1_456.2&autoRun=1'>2</a>"
+        count, genes = parse_result_genes_html(html)
+        assert count == 2
+        assert genes == ["TGME49_123.1", "TGGT1_456.2"]
+
+    def test_plain_number_no_tags(self) -> None:
+        """If the HTML is just a number without tags, no match."""
+        count, genes = parse_result_genes_html("42")
+        assert count == 0
         assert genes == []
 
 
 class TestExtractAnalysisRows:
-    """_extract_analysis_rows handles multiple WDK response formats."""
+    """extract_analysis_rows handles multiple WDK response formats."""
 
     def test_extracts_from_result_data(self) -> None:
         result = {"resultData": [{"goId": "GO:1"}, {"goId": "GO:2"}]}
-        rows = _extract_analysis_rows(result)
+        rows = extract_analysis_rows(result)
         assert len(rows) == 2
 
     def test_extracts_from_rows_key(self) -> None:
         result = {"rows": [{"id": "1"}]}
-        assert len(_extract_analysis_rows(result)) == 1
+        assert len(extract_analysis_rows(result)) == 1
 
     def test_extracts_from_data_key(self) -> None:
         result = {"data": [{"id": "1"}]}
-        assert len(_extract_analysis_rows(result)) == 1
+        assert len(extract_analysis_rows(result)) == 1
 
     def test_prefers_result_data_over_rows(self) -> None:
         """resultData takes precedence (enrichment plugins use it)."""
         result = {"resultData": [{"goId": "GO:1"}], "rows": [{"id": "other"}]}
-        rows = _extract_analysis_rows(result)
+        rows = extract_analysis_rows(result)
         assert rows[0].get("goId") == "GO:1"
 
     def test_returns_empty_for_non_dict(self) -> None:
-        assert _extract_analysis_rows(None) == []
-        assert _extract_analysis_rows([]) == []
+        assert extract_analysis_rows(None) == []
+        assert extract_analysis_rows([]) == []
 
     def test_filters_non_dict_entries(self) -> None:
         result = {"resultData": [{"goId": "GO:1"}, "bad", None]}
-        rows = _extract_analysis_rows(result)
+        rows = extract_analysis_rows(result)
         assert len(rows) == 1
+
+    def test_results_key_fallback(self) -> None:
+        result = {"results": [{"id": "1"}, {"id": "2"}]}
+        rows = extract_analysis_rows(result)
+        assert len(rows) == 2
+
+    def test_non_list_rows_returns_empty(self) -> None:
+        result = {"resultData": "not a list"}
+        rows = extract_analysis_rows(result)
+        assert rows == []
+
+    def test_string_input(self) -> None:
+        assert extract_analysis_rows("string") == []
+
+    def test_integer_input(self) -> None:
+        assert extract_analysis_rows(42) == []
+
+    def test_empty_result_data(self) -> None:
+        result = {"resultData": []}
+        rows = extract_analysis_rows(result)
+        assert rows == []
 
 
 class TestInferEnrichmentType:
@@ -573,6 +670,38 @@ class TestInferEnrichmentType:
     def test_word_enrichment(self) -> None:
         assert infer_enrichment_type("word-enrichment", {}, {}) == "word"
 
+    def test_go_enrichment_with_json_array_ontology(self) -> None:
+        """WDK vocab params arrive as JSON array strings like '["Molecular Function"]'."""
+        result = infer_enrichment_type(
+            "go-enrichment",
+            {"goAssociationsOntologies": '["Molecular Function"]'},
+            {},
+        )
+        assert result == "go_function"
+
+    def test_go_enrichment_prefers_params_over_result(self) -> None:
+        """When params has ontology, result ontology is ignored."""
+        result = infer_enrichment_type(
+            "go-enrichment",
+            {"goAssociationsOntologies": "Cellular Component"},
+            {"goOntologies": ["Molecular Function"]},
+        )
+        assert result == "go_component"
+
+    def test_go_enrichment_result_ontologies_empty_list(self) -> None:
+        """Empty goOntologies list falls back to go_process."""
+        result = infer_enrichment_type(
+            "go-enrichment",
+            {},
+            {"goOntologies": []},
+        )
+        assert result == "go_process"
+
+    def test_unknown_wdk_analysis_name(self) -> None:
+        """Unknown analysis name falls back to go_process."""
+        result = infer_enrichment_type("unknown-analysis", {}, {})
+        assert result == "go_process"
+
 
 class TestIsEnrichmentAnalysis:
     def test_recognizes_enrichment_names(self) -> None:
@@ -583,6 +712,14 @@ class TestIsEnrichmentAnalysis:
     def test_rejects_non_enrichment(self) -> None:
         assert not is_enrichment_analysis("word-cloud")
         assert not is_enrichment_analysis("some-other-analysis")
+
+    def test_empty_string(self) -> None:
+        assert is_enrichment_analysis("") is False
+
+    def test_case_sensitive(self) -> None:
+        """WDK analysis names are case-sensitive."""
+        assert is_enrichment_analysis("GO-ENRICHMENT") is False
+        assert is_enrichment_analysis("Go-Enrichment") is False
 
 
 class TestParseEnrichmentFromRaw:
@@ -657,3 +794,170 @@ class TestUpsertEnrichmentResult:
         assert len(results) == 3
         assert results[0].total_genes_analyzed == 99
         assert results[1].total_genes_analyzed == 88
+
+    def test_upsert_replaces_correct_index(self) -> None:
+        """When there are multiple types, only the matching one is replaced."""
+        r1 = self._make_result("go_process", 1)
+        r2 = self._make_result("pathway", 2)
+        r3 = self._make_result("word", 3)
+        results = [r1, r2, r3]
+        upsert_enrichment_result(results, self._make_result("pathway", 99))
+        assert len(results) == 3
+        assert results[0].total_genes_analyzed == 1  # unchanged
+        assert results[1].total_genes_analyzed == 99  # replaced
+        assert results[2].total_genes_analyzed == 3  # unchanged
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: parse_enrichment_terms
+# ---------------------------------------------------------------------------
+
+
+class TestParseEnrichmentTermsEdgeCases:
+    """Edge cases for parse_enrichment_terms not covered by standard tests."""
+
+    def test_all_fields_missing_produces_defaults(self) -> None:
+        rows = [{"unknownField": "value"}]
+        terms = parse_enrichment_terms(rows)
+        assert len(terms) == 1
+        t = terms[0]
+        assert t.term_id == ""
+        assert t.term_name == ""
+        assert t.gene_count == 0
+        assert t.background_count == 0
+        assert t.fold_enrichment == 0.0
+        assert t.odds_ratio == 0.0
+        assert t.p_value == 1.0
+        assert t.fdr == 1.0
+        assert t.bonferroni == 1.0
+        assert t.genes == []
+
+    def test_result_count_as_string(self) -> None:
+        rows = [{"ID": "T1", "ResultCount": "42"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].gene_count == 42
+
+    def test_result_genes_numeric_string_no_html(self) -> None:
+        rows = [{"ID": "T1", "resultGenes": "15"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].gene_count == 15
+
+    def test_result_genes_plain_text_no_html_returns_zero(self) -> None:
+        rows = [{"ID": "T1", "resultGenes": "not_a_number"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].gene_count == 0
+
+    def test_genes_from_list_field(self) -> None:
+        rows = [{"ID": "T1", "genes": [123, "G2", None]}]
+        terms = parse_enrichment_terms(rows)
+        assert "123" in terms[0].genes
+        assert "G2" in terms[0].genes
+
+    def test_genes_from_comma_separated_string(self) -> None:
+        rows = [{"ID": "T1", "ResultIDList": "G1, G2, G3"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].genes == ["G1", "G2", "G3"]
+
+    def test_genes_from_empty_string(self) -> None:
+        rows = [{"ID": "T1", "ResultIDList": ""}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].genes == []
+
+    def test_nan_pvalue_handled(self) -> None:
+        """NaN in p-value defaults to 1.0 (not significant)."""
+        rows = [{"ID": "T1", "pValue": "NaN"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].p_value == 1.0
+
+    def test_negative_infinity_fold_enrichment(self) -> None:
+        rows = [{"ID": "T1", "foldEnrich": "-Infinity"}]
+        terms = parse_enrichment_terms(rows)
+        assert terms[0].fold_enrichment == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: parse_enrichment_from_raw
+# ---------------------------------------------------------------------------
+
+
+class TestParseEnrichmentFromRawEdgeCases:
+    """Edge cases for parse_enrichment_from_raw."""
+
+    def test_non_dict_result(self) -> None:
+        er = parse_enrichment_from_raw("go-enrichment", {}, None)
+        assert er.total_genes_analyzed == 0
+        assert er.background_size == 0
+        assert er.terms == []
+
+    def test_result_as_list(self) -> None:
+        er = parse_enrichment_from_raw("go-enrichment", {}, [{"goId": "GO:1"}])
+        assert er.total_genes_analyzed == 0
+        assert er.terms == []
+
+    def test_empty_dict_result(self) -> None:
+        er = parse_enrichment_from_raw("pathway-enrichment", {}, {})
+        assert er.analysis_type == "pathway"
+        assert er.terms == []
+        assert er.total_genes_analyzed == 0
+        assert er.background_size == 0
+
+    def test_alternative_total_keys(self) -> None:
+        er = parse_enrichment_from_raw(
+            "pathway-enrichment",
+            {},
+            {"totalResults": 42, "bgdSize": 1000, "resultData": []},
+        )
+        assert er.total_genes_analyzed == 42
+        assert er.background_size == 1000
+
+    def test_result_size_takes_precedence(self) -> None:
+        er = parse_enrichment_from_raw(
+            "pathway-enrichment",
+            {},
+            {"resultSize": 99, "totalResults": 42, "resultData": []},
+        )
+        assert er.total_genes_analyzed == 99
+
+
+# ---------------------------------------------------------------------------
+# extract_result_totals
+# ---------------------------------------------------------------------------
+
+
+class TestExtractResultTotals:
+    """extract_result_totals extracts total gene counts from WDK result."""
+
+    def test_standard_keys(self) -> None:
+        total, bg = extract_result_totals({"resultSize": 100, "backgroundSize": 5000})
+        assert total == 100
+        assert bg == 5000
+
+    def test_fallback_keys(self) -> None:
+        total, bg = extract_result_totals({"totalResults": 42, "bgdSize": 1000})
+        assert total == 42
+        assert bg == 1000
+
+    def test_non_dict(self) -> None:
+        assert extract_result_totals(None) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# encode_vocab_value
+# ---------------------------------------------------------------------------
+
+
+class TestEncodeVocabValue:
+    """encode_vocab_value wraps plain strings as JSON arrays."""
+
+    def test_wraps_plain_string(self) -> None:
+        assert encode_vocab_value("hello") == '["hello"]'
+
+    def test_does_not_double_wrap_array(self) -> None:
+        assert encode_vocab_value('["hello"]') == '["hello"]'
+
+    def test_empty_string(self) -> None:
+        assert encode_vocab_value("") == '[""]'
+
+    def test_string_starting_with_bracket_but_not_json(self) -> None:
+        result = encode_vocab_value("[not json")
+        assert result == '["[not json"]'

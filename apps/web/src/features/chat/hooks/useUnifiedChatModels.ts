@@ -12,7 +12,7 @@ import { useSettingsStore } from "@/state/useSettingsStore";
 import { buildModelSelection } from "@/features/chat/components/MessageComposer";
 import type { ReasoningEffort, ModelCatalogEntry } from "@pathfinder/shared";
 
-export interface UnifiedChatModels {
+interface UnifiedChatModels {
   modelCatalog: ModelCatalogEntry[];
   catalogDefault: string | null;
   selectedModelId: string | null;

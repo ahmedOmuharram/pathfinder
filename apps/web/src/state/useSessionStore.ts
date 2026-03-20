@@ -50,12 +50,12 @@ const STRATEGY_ID_KEY_PREFIX = "pathfinder-strategy-id:";
 
 const getInitialSelectedSite = () => {
   if (typeof window === "undefined") return "veupathdb";
-  return window.localStorage.getItem(SELECTED_SITE_KEY) || "veupathdb";
+  return window.localStorage.getItem(SELECTED_SITE_KEY) ?? "veupathdb";
 };
 
 const getInitialSelectedSiteDisplayName = () => {
   if (typeof window === "undefined") return "VEuPathDB";
-  return window.localStorage.getItem(SELECTED_SITE_DISPLAY_KEY) || "VEuPathDB";
+  return window.localStorage.getItem(SELECTED_SITE_DISPLAY_KEY) ?? "VEuPathDB";
 };
 
 const getInitialStrategyId = () => {
@@ -117,7 +117,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   setStrategyId: (id) => {
     const site = get().selectedSite;
     if (typeof window !== "undefined") {
-      if (id) {
+      if (id !== null) {
         window.localStorage.setItem(`${STRATEGY_ID_KEY_PREFIX}${site}`, id);
       } else {
         window.localStorage.removeItem(`${STRATEGY_ID_KEY_PREFIX}${site}`);

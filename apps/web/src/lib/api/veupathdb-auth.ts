@@ -9,11 +9,16 @@ export async function getVeupathdbAuthStatus(siteId: string): Promise<{
   name?: string | null;
   email?: string | null;
 }> {
-  return await requestJsonValidated(
+  const raw = await requestJsonValidated(
     AuthStatusResponseSchema,
     `/api/v1/veupathdb/auth/status`,
     { query: { siteId } },
   );
+  return {
+    signedIn: raw.signedIn,
+    ...(raw.name !== undefined ? { name: raw.name } : {}),
+    ...(raw.email !== undefined ? { email: raw.email } : {}),
+  };
 }
 
 export async function loginVeupathdb(

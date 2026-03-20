@@ -19,9 +19,15 @@ function resolveTargetGraph(
   ctx: ChatEventContext,
   ...candidates: (string | undefined | null)[]
 ): string | null {
-  const id = candidates.find(Boolean) || ctx.strategyIdAtStart || null;
-  if (!id) return null;
-  if (ctx.strategyIdAtStart && id !== ctx.strategyIdAtStart) return null;
+  const id =
+    candidates.find((c) => c != null && c !== "") ?? ctx.strategyIdAtStart ?? null;
+  if (id == null || id === "") return null;
+  if (
+    ctx.strategyIdAtStart != null &&
+    ctx.strategyIdAtStart !== "" &&
+    id !== ctx.strategyIdAtStart
+  )
+    return null;
   return id;
 }
 
@@ -30,29 +36,38 @@ export function handleStrategyUpdateEvent(
   data: StrategyUpdateData,
 ) {
   const { step, graphId } = data;
-  if (!step) return;
-  const targetGraphId = resolveTargetGraph(ctx, graphId, step.graphId);
-  if (!targetGraphId) return;
+  if (step == null) return;
+  const targetGraphId = resolveTargetGraph(ctx, graphId, step.graphId as string | null);
+  if (targetGraphId == null) return;
 
   ctx.session.captureUndoSnapshot(targetGraphId);
-  if (step.name || step.description || step.recordType) {
+  if (step.name != null || step.description != null || step.recordType != null) {
     ctx.setStrategyMeta({
-      name: step.graphName ?? step.name ?? undefined,
-      description: step.description ?? undefined,
-      recordType: step.recordType ?? undefined,
+      ...(step.graphName != null
+        ? { name: step.graphName }
+        : step.name != null
+          ? { name: step.name }
+          : {}),
+      ...(step.description != null ? { description: step.description } : {}),
+      ...(step.recordType != null ? { recordType: step.recordType } : {}),
     });
   }
-  ctx.addStep({
+  const newStep: Step = {
     id: step.stepId,
-    kind: (step.kind ?? "search") as Step["kind"],
-    displayName: step.displayName || step.kind || "Untitled step",
-    recordType: step.recordType ?? undefined,
-    searchName: step.searchName,
-    operator: (step.operator as Step["operator"]) ?? undefined,
-    primaryInputStepId: step.primaryInputStepId,
-    secondaryInputStepId: step.secondaryInputStepId,
-    parameters: step.parameters,
-  });
+    kind: (step.kind as string | null) ?? "search",
+    displayName:
+      (step.displayName as string | undefined) ?? step.kind ?? "Untitled step",
+  };
+  if (step.recordType != null) newStep.recordType = step.recordType;
+  if (step.searchName != null) newStep.searchName = step.searchName;
+  if (step.operator != null) newStep.operator = step.operator;
+  if (step.primaryInputStepId != null)
+    newStep.primaryInputStepId = step.primaryInputStepId;
+  if (step.secondaryInputStepId != null)
+    newStep.secondaryInputStepId = step.secondaryInputStepId;
+  if (step.parameters != null)
+    newStep.parameters = step.parameters as Record<string, unknown>;
+  ctx.addStep(newStep);
   ctx.session.markSnapshotApplied();
 }
 
@@ -69,18 +84,18 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLin
   const targetGraphId = resolveTargetGraph(ctx, graphId);
   if (!targetGraphId) return;
 
-  if (wdkStrategyId) ctx.setWdkInfo(wdkStrategyId, wdkUrl, name, description);
+  if (wdkStrategyId != null) ctx.setWdkInfo(wdkStrategyId, wdkUrl, name, description);
   ctx.setStrategyMeta({
-    name: name ?? undefined,
-    description: description ?? undefined,
+    ...(name != null ? { name } : {}),
+    ...(description != null ? { description } : {}),
   });
   if (ctx.currentStrategy) {
     ctx.addExecutedStrategy({
       ...ctx.currentStrategy,
-      name: name ?? ctx.currentStrategy.name,
-      description: description ?? ctx.currentStrategy.description,
-      wdkStrategyId: wdkStrategyId ?? ctx.currentStrategy.wdkStrategyId,
-      wdkUrl: wdkUrl ?? ctx.currentStrategy.wdkUrl,
+      ...(name != null ? { name } : {}),
+      ...(description != null ? { description } : {}),
+      ...(wdkStrategyId != null ? { wdkStrategyId } : {}),
+      ...(wdkUrl != null ? { wdkUrl } : {}),
       updatedAt: new Date().toISOString(),
     });
   } else {
@@ -95,22 +110,22 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLin
 
 export function handleStrategyMetaEvent(ctx: ChatEventContext, data: StrategyMetaData) {
   const { graphId, name, description, recordType, graphName } = data;
-  if (!resolveTargetGraph(ctx, graphId)) return;
+  if (resolveTargetGraph(ctx, graphId) == null) return;
   ctx.setStrategyMeta({
-    name: name ?? graphName ?? undefined,
-    description: description ?? undefined,
-    recordType: recordType ?? undefined,
+    ...(name != null ? { name } : graphName != null ? { name: graphName } : {}),
+    ...(description != null ? { description } : {}),
+    ...(recordType != null ? { recordType } : {}),
   });
 }
 
 export function handleGraphPlanEvent(ctx: ChatEventContext, data: GraphPlanData) {
   const { graphId, name, description, recordType } = data;
-  if (!resolveTargetGraph(ctx, graphId)) return;
+  if (resolveTargetGraph(ctx, graphId) == null) return;
   // Update strategy metadata from the plan event.
   ctx.setStrategyMeta({
-    name: name ?? undefined,
-    description: description ?? undefined,
-    recordType: recordType ?? undefined,
+    ...(name != null ? { name } : {}),
+    ...(description != null ? { description } : {}),
+    ...(recordType != null ? { recordType } : {}),
   });
 }
 
@@ -128,6 +143,6 @@ export function handleStrategyClearedEvent(
   data: GraphClearedData,
 ) {
   const { graphId } = data;
-  if (!resolveTargetGraph(ctx, graphId)) return;
+  if (resolveTargetGraph(ctx, graphId) == null) return;
   ctx.clearStrategy();
 }

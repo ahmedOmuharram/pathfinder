@@ -1,6 +1,7 @@
 """Unit tests for platform.tasks — fire-and-forget background task helper."""
 
 import asyncio
+import concurrent.futures
 
 from veupath_chatbot.platform.tasks import _background_tasks, spawn
 
@@ -40,7 +41,8 @@ class TestSpawn:
 
     async def test_spawn_with_failing_coroutine(self):
         async def failing():
-            raise ValueError("boom")
+            msg = "boom"
+            raise ValueError(msg)
 
         task = spawn(failing(), name="fail-task")
         assert task is not None
@@ -83,8 +85,6 @@ class TestSpawn:
 
         c = coro()
         # Simulate no running loop by calling spawn from a thread with no loop
-        import concurrent.futures
-
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(spawn, c, name="no-loop")
             result = future.result()

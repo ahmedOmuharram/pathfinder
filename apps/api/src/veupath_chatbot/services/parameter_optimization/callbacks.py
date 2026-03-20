@@ -113,7 +113,7 @@ async def emit_completed(
                 "bestTrial": _trial_to_json(best_trial) if best_trial else None,
                 "allTrials": [_trial_to_json(t) for t in trials],
                 "paretoFrontier": [_trial_to_json(t) for t in pareto],
-                "sensitivity": cast(JSONValue, sensitivity),
+                "sensitivity": cast("JSONValue", sensitivity),
                 "totalTimeSeconds": round(elapsed, 2),
             },
         }

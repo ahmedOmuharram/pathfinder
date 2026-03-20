@@ -59,7 +59,7 @@ export function EdgeContextMenu({
   }, [onClose]);
 
   const targetStep = steps.find((s) => s.id === edge.target);
-  const isCombineEdge = targetStep && inferStepKind(targetStep) === "combine";
+  const isCombineEdge = targetStep != null && inferStepKind(targetStep) === "combine";
 
   return (
     <div

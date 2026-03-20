@@ -34,9 +34,9 @@ class TestSSEStreamBasic:
             await send({"type": "experiment_progress", "data": {"step": 1}})
             await send({"type": "experiment_complete", "data": {"result": "ok"}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"experiment_complete"}):
-            frames.append(frame)
+        frames = [
+            frame async for frame in sse_stream(producer, {"experiment_complete"})
+        ]
 
         assert len(frames) == 2
         assert (
@@ -54,9 +54,7 @@ class TestSSEStreamBasic:
         async def producer(send):
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert len(frames) == 1
         assert "event: done" in frames[0]
@@ -69,9 +67,7 @@ class TestSSEStreamBasic:
                 await send({"type": "progress", "data": {"i": i}})
             await send({"type": "complete", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"complete"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"complete"})]
 
         assert len(frames) == 6
         assert "event: complete" in frames[-1]
@@ -83,9 +79,7 @@ class TestSSEStreamBasic:
             await send({"type": "progress", "data": {}})
             await send({"type": "error", "data": {"message": "fail"}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"complete", "error"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"complete", "error"})]
 
         assert len(frames) == 2
         assert "event: error" in frames[-1]
@@ -153,9 +147,7 @@ class TestSSEDefaultEventType:
             await send({"data": {"step": 1}})  # no type key
             await send({"type": "end", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"end"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"end"})]
 
         # First frame should use the default type
         assert "event: experiment_progress" in frames[0]
@@ -167,9 +159,7 @@ class TestSSEDefaultEventType:
             await send({"type": "ping"})  # no data key
             await send({"type": "end", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"end"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"end"})]
 
         assert "data: {}" in frames[0]
 
@@ -202,11 +192,10 @@ class TestSSETaskCancellation:
 
         async def producer(send):
             await send({"type": "progress", "data": {}})
-            raise RuntimeError("producer exploded")
+            msg = "producer exploded"
+            raise RuntimeError(msg)
 
-        frames = []
-        async for frame in sse_stream(producer, {"end"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"end"})]
 
         assert len(frames) == 2
         assert "event: progress" in frames[0]

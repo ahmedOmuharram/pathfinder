@@ -27,7 +27,7 @@ class TestSiteInfo:
 
     def _make_site(self, **overrides: Any) -> SiteInfo:
         defaults: dict[str, Any] = {
-            "id": "plasmodb",
+            "site_id": "plasmodb",
             "name": "PlasmoDB",
             "display_name": "PlasmoDB (Plasmodium)",
             "base_url": "https://plasmodb.org/plasmo/service",
@@ -74,7 +74,7 @@ class TestSiteInfo:
         assert d["isPortal"] is False
 
     def test_portal_site_is_portal_true(self) -> None:
-        site = self._make_site(id="veupathdb", is_portal=True)
+        site = self._make_site(site_id="veupathdb", is_portal=True)
         assert site.is_portal is True
         assert site.to_dict()["isPortal"] is True
 

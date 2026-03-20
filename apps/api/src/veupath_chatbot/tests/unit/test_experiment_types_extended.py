@@ -1,5 +1,6 @@
 """Extended tests for experiment types: serialization round-trips, edge cases."""
 
+import math
 from dataclasses import dataclass
 
 import pytest
@@ -237,8 +238,6 @@ class TestJsonCodecEdgeCases:
 
     def test_float_nan_is_preserved(self):
         """NaN should survive serialization (it's a float)."""
-        import math
-
         result = to_json(float("nan"), _round=4)
         assert math.isnan(result)
 

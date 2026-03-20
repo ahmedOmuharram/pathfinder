@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { TreeBoxParam } from "./TreeBoxParam";
 import type { ParamWidgetProps } from "./types";
 import type { VocabNode } from "@/lib/utils/vocab";

@@ -170,7 +170,7 @@ class PubmedClient(BaseClient):
             "year": year,
             "pmid": pmid,
             "url": url_item,
-            "authors": cast(JSONValue, authors),
+            "authors": cast("JSONValue", authors),
             "journalTitle": journal,
             "abstract": abstract,
             "snippet": abstract or journal,

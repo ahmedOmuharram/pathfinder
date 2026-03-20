@@ -4,7 +4,6 @@ import pytest
 from pydantic import ValidationError
 
 from veupath_chatbot.transport.http.schemas.experiments import (
-    AiAssistRequest,
     BenchmarkControlSet,
     CreateExperimentRequest,
     CustomEnrichRequest,
@@ -228,14 +227,3 @@ class TestBenchmarkControlSet:
         )
         assert cs.label == "Published Set"
         assert cs.is_primary is True
-
-
-class TestAiAssistRequest:
-    def test_valid_request(self) -> None:
-        req = AiAssistRequest(
-            siteId="plasmodb",
-            step="parameters",
-            message="What parameters should I use?",
-        )
-        assert req.site_id == "plasmodb"
-        assert req.step == "parameters"

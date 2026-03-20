@@ -101,6 +101,7 @@ class ConversationTools:
     async def clear_strategy(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to clear")] = None,
+        *,
         confirm: Annotated[
             bool,
             AIParam(desc="Set true to confirm deleting all nodes in the graph"),

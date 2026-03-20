@@ -37,7 +37,7 @@ def _filter_records(
             filtered.append(r)
     page = filtered[offset : offset + limit]
     return {
-        "records": cast(JSONValue, page),
+        "records": cast("JSONValue", page),
         "meta": {
             "totalCount": len(filtered),
             "displayTotalCount": len(filtered),

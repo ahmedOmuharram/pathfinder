@@ -14,7 +14,7 @@ import type {
   DistributionResponse,
 } from "@/lib/types/wdk";
 
-export type { RecordAttribute, RecordDetail, RecordsResponse, DistributionResponse };
+export type { RecordAttribute, RecordsResponse };
 
 export type EntityRef =
   | { type: "experiment"; id: string }
@@ -45,13 +45,15 @@ export function getRecords(
   },
 ): Promise<RecordsResponse> {
   const query: Record<string, string> = {};
-  if (opts?.offset != null) query.offset = String(opts.offset);
-  if (opts?.limit != null) query.limit = String(opts.limit);
-  if (opts?.sort) query.sort = opts.sort;
-  if (opts?.dir) query.dir = opts.dir;
-  if (opts?.attributes?.length) query.attributes = opts.attributes.join(",");
-  if (opts?.filterAttribute) query.filterAttribute = opts.filterAttribute;
-  if (opts?.filterValue != null) query.filterValue = opts.filterValue;
+  if (opts?.offset != null) query["offset"] = String(opts.offset);
+  if (opts?.limit != null) query["limit"] = String(opts.limit);
+  if (opts?.sort != null && opts.sort !== "") query["sort"] = opts.sort;
+  if (opts?.dir != null) query["dir"] = opts.dir;
+  if (opts?.attributes != null && opts.attributes.length > 0)
+    query["attributes"] = opts.attributes.join(",");
+  if (opts?.filterAttribute != null && opts.filterAttribute !== "")
+    query["filterAttribute"] = opts.filterAttribute;
+  if (opts?.filterValue != null) query["filterValue"] = opts.filterValue;
   return requestJson<RecordsResponse>(`${basePath(ref)}/results/records`, {
     query,
   });

@@ -161,7 +161,7 @@ export function SweepSetup({
         )}
       </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error != null && <p className="text-xs text-destructive">{error}</p>}
     </>
   );
 }

@@ -24,6 +24,7 @@ async def compute_step_counts(
     try:
         counts = await compute_step_counts_for_plan(plan, strategy_ast, request.site_id)
     except Exception as e:
-        raise WDKError(f"WDK compile failed: {e}") from e
+        msg = f"WDK compile failed: {e}"
+        raise WDKError(msg) from e
 
     return StepCountsResponse(counts=counts)

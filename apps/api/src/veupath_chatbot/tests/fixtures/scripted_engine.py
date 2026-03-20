@@ -99,11 +99,12 @@ class ScriptedKaniEngine(BaseEngine):
     ) -> BaseCompletion:
         if self._turn_index >= len(self.turns):
             if self._exhausted:
-                raise RuntimeError(
+                msg = (
                     f"ScriptedKaniEngine: script exhausted after {len(self.turns)} turns. "
                     "The agent requested more LLM calls than the test script provides. "
                     "Add more ScriptedTurn entries or check that tools are not causing extra rounds."
                 )
+                raise RuntimeError(msg)
             # First time we go past the script — return a final text to end the round
             self._exhausted = True
             return Completion(

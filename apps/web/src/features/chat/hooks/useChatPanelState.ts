@@ -8,12 +8,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Message, Strategy, StrategyPlan } from "@pathfinder/shared";
+import type {
+  ChatMention,
+  GeneSet,
+  Message,
+  Strategy,
+  StrategyPlan,
+} from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import { getStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/strategies";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import { useChatStreaming } from "@/features/chat/hooks/useChatStreaming";
 import { useUnifiedChatModels } from "@/features/chat/hooks/useUnifiedChatModels";
@@ -37,8 +43,8 @@ interface UseChatPanelStateArgs {
   pendingAskNode?: NodeSelection | null;
   onConsumeAskNode?: () => void;
   /** Workbench store bindings — injected from page to avoid cross-feature import. */
-  addGeneSet: (gs: import("@pathfinder/shared").GeneSet) => void;
-  geneSets: import("@pathfinder/shared").GeneSet[];
+  addGeneSet: (gs: GeneSet) => void;
+  geneSets: GeneSet[];
 }
 
 export function useChatPanelState({
@@ -163,7 +169,7 @@ export function useChatPanelState({
   }, [isStreaming, setChatIsStreaming]);
 
   const onSend = useCallback(
-    async (content: string, mentions?: import("@pathfinder/shared").ChatMention[]) => {
+    async (content: string, mentions?: ChatMention[]) => {
       setChatIsStreaming(true);
       setApiError(null);
       await handleSendRaw(content, mentions);
@@ -213,9 +219,7 @@ export function useChatPanelState({
     getStrategy,
     attachThinkingToLastAssistant: handleAttachThinking,
     setSelectedModelId: models.setSelectedModelId,
-    onApiError: handleError
-      ? (msg: string) => handleError(new Error(msg), msg)
-      : undefined,
+    onApiError: (msg: string) => handleError(new Error(msg), msg),
     setOptimizationProgress,
     onWorkbenchGeneSet: handleWorkbenchGeneSet,
   });
@@ -240,7 +244,7 @@ export function useChatPanelState({
     enabled: true,
     pendingAskNode,
     setDraftSelection,
-    onConsumeAskNode,
+    ...(onConsumeAskNode != null ? { onConsumeAskNode } : {}),
   });
 
   // --- Undo snapshot handler ---
@@ -249,8 +253,8 @@ export function useChatPanelState({
       setStrategy(snapshot);
       setStrategyMeta({
         name: snapshot.name,
-        description: snapshot.description ?? undefined,
-        recordType: snapshot.recordType ?? undefined,
+        ...(snapshot.description != null ? { description: snapshot.description } : {}),
+        ...(snapshot.recordType != null ? { recordType: snapshot.recordType } : {}),
       });
     },
     [setStrategy, setStrategyMeta],
@@ -259,9 +263,10 @@ export function useChatPanelState({
   // --- Apply planning artifact handler ---
   const handleApplyPlanningArtifact = useCallback(
     async (artifact: { proposedStrategyPlan?: unknown }) => {
-      if (!strategyId) return;
+      if (strategyId == null) return;
       const proposed = artifact.proposedStrategyPlan;
-      if (!proposed || typeof proposed !== "object" || Array.isArray(proposed)) return;
+      if (proposed == null || typeof proposed !== "object" || Array.isArray(proposed))
+        return;
       try {
         await updateStrategyApi(strategyId, {
           plan: proposed as StrategyPlan,
@@ -270,8 +275,8 @@ export function useChatPanelState({
         setStrategy(full);
         setStrategyMeta({
           name: full.name,
-          description: full.description ?? undefined,
-          recordType: full.recordType ?? undefined,
+          ...(full.description != null ? { description: full.description } : {}),
+          ...(full.recordType != null ? { recordType: full.recordType } : {}),
           siteId: full.siteId,
         });
       } catch (err) {

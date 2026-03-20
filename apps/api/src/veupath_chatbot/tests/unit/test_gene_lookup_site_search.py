@@ -48,7 +48,7 @@ class TestParseSiteSearchDocs:
 
     def test_basic_parsing(self) -> None:
         docs = [self._make_doc()]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 1
         r = results[0]
         assert r["geneId"] == "PF3D7_0100100"
@@ -63,7 +63,7 @@ class TestParseSiteSearchDocs:
             product="<em>erythrocyte</em> membrane protein",
             gene_name="<b>PfEMP1</b>",
         )
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["geneId"] == "PF3D7_0100100"
         assert results[0]["product"] == "erythrocyte membrane protein"
         assert results[0]["geneName"] == "PfEMP1"
@@ -72,22 +72,22 @@ class TestParseSiteSearchDocs:
         doc = self._make_doc()
         doc["wdkPrimaryKeyString"] = ""
         doc["primaryKey"] = ["PF3D7_0200200"]
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["geneId"] == "PF3D7_0200200"
 
     def test_skip_doc_without_gene_id(self) -> None:
         doc = self._make_doc(gene_id="")
         doc["primaryKey"] = []
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results == []
 
     def test_non_dict_docs_skipped(self) -> None:
-        results = parse_site_search_docs(cast(list[object], ["not a dict", 42, None]))
+        results = parse_site_search_docs(cast("list[object]", ["not a dict", 42, None]))
         assert results == []
 
     def test_missing_summary_field_data(self) -> None:
         doc: dict[str, object] = {"wdkPrimaryKeyString": "PF3D7_0100100"}
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert len(results) == 1
         assert results[0]["geneId"] == "PF3D7_0100100"
         assert results[0]["organism"] == ""
@@ -95,18 +95,18 @@ class TestParseSiteSearchDocs:
 
     def test_hyperlink_name_used_as_display_name(self) -> None:
         doc = self._make_doc(hyperlink_name="My Gene Display Name")
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "My Gene Display Name"
 
     def test_display_name_fallback_chain(self) -> None:
         # No hyperlinkName, no gene_name => falls back to product
         doc = self._make_doc(gene_name="", hyperlink_name="")
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "erythrocyte membrane protein"
 
     def test_display_name_fallback_to_gene_name(self) -> None:
         doc = self._make_doc(hyperlink_name="", gene_name="MyGene")
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["displayName"] == "MyGene"
 
     def test_found_in_fields_parsed(self) -> None:
@@ -116,7 +116,7 @@ class TestParseSiteSearchDocs:
                 "MULTITEXT__gene_Notes": ["note1"],
             }
         )
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_product" in matched
@@ -129,7 +129,7 @@ class TestParseSiteSearchDocs:
                 "TEXT__gene_name": ["match"],
             }
         )
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_product" not in matched
@@ -139,7 +139,7 @@ class TestParseSiteSearchDocs:
         """When summary organism is empty, fall back to doc-level organism."""
         doc = self._make_doc(organism="")
         doc["organism"] = "Toxoplasma gondii ME49"
-        results = parse_site_search_docs(cast(list[object], [doc]))
+        results = parse_site_search_docs(cast("list[object]", [doc]))
         assert results[0]["organism"] == "Toxoplasma gondii ME49"
 
     def test_multiple_docs(self) -> None:
@@ -148,7 +148,7 @@ class TestParseSiteSearchDocs:
             self._make_doc(gene_id="GENE_B"),
             self._make_doc(gene_id="GENE_C"),
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 3
         assert [r["geneId"] for r in results] == ["GENE_A", "GENE_B", "GENE_C"]
 
@@ -248,7 +248,7 @@ class TestFetchSiteSearchGenes:
     async def test_non_dict_response(self, mock_query: AsyncMock) -> None:
         mock_query.return_value = "not a dict"
 
-        results, organisms, total = await fetch_site_search_genes("plasmodb", "zzz")
+        results, organisms, _total = await fetch_site_search_genes("plasmodb", "zzz")
         assert results == []
         assert organisms == []
 

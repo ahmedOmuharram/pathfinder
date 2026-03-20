@@ -32,7 +32,7 @@ describe("AuthStatusResponseSchema", () => {
       role: "admin",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).role).toBe("admin");
+    expect((result.data as Record<string, unknown>)["role"]).toBe("admin");
   });
 
   it("rejects missing signedIn field", () => {
@@ -63,7 +63,7 @@ describe("AuthSuccessResponseSchema", () => {
       message: "Logged in",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).message).toBe("Logged in");
+    expect((result.data as Record<string, unknown>)["message"]).toBe("Logged in");
   });
 
   it("rejects missing success field", () => {

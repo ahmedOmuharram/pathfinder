@@ -13,7 +13,6 @@ class ChatRole(Enum):
 class MessagePart:
     """Abstract base class for message parts."""
 
-    ...
 
 class FunctionCall:
     name: str

@@ -90,10 +90,8 @@ async def canonicalize_plan_parameters(
             # parameter conventions, strip those keys from persisted plans.
             for k in list(params.keys()):
                 key = str(k)
-                if (
-                    key == "bq_operator"
-                    or key.startswith("bq_left_op")
-                    or key.startswith("bq_right_op")
+                if key == "bq_operator" or key.startswith(
+                    ("bq_left_op", "bq_right_op")
                 ):
                     params.pop(k, None)
             node["parameters"] = params
@@ -105,7 +103,7 @@ async def canonicalize_plan_parameters(
             return node
 
         ctx_raw = json.dumps(params, sort_keys=True, default=str)
-        ctx_hash = hashlib.sha1(ctx_raw.encode("utf-8")).hexdigest()
+        ctx_hash = hashlib.sha256(ctx_raw.encode("utf-8")).hexdigest()
 
         cache_key = (record_type, name, ctx_hash)
         details = specs_cache.get(cache_key)

@@ -260,8 +260,8 @@ describe("runEnrichment", () => {
     const result = await runEnrichment("exp-1", ["go_function", "go_process"]);
 
     expect(result).toHaveLength(2);
-    expect(result[0].analysisType).toBe("go_function");
-    expect(result[1].analysisType).toBe("go_process");
+    expect(result[0]!.analysisType).toBe("go_function");
+    expect(result[1]!.analysisType).toBe("go_process");
   });
 
   it("propagates errors", async () => {
@@ -387,7 +387,7 @@ describe("compareEnrichment", () => {
 
     await compareEnrichment(["exp-1", "exp-2"]);
 
-    const callBody = mockRequestJson.mock.calls[0][1]?.body as {
+    const callBody = mockRequestJson.mock.calls[0]![1]?.body as {
       experimentIds: string[];
       analysisType?: string;
     };
@@ -400,8 +400,8 @@ describe("compareEnrichment", () => {
     const result = await compareEnrichment(["exp-1", "exp-2"]);
 
     expect(result.rows).toHaveLength(1);
-    expect(result.rows[0].scores["exp-1"]).toBe(0.001);
-    expect(result.rows[0].scores["exp-2"]).toBe(0.05);
+    expect(result.rows[0]!.scores["exp-1"]).toBe(0.001);
+    expect(result.rows[0]!.scores["exp-2"]).toBe(0.05);
   });
 
   it("propagates errors", async () => {

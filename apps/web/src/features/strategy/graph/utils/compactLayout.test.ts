@@ -18,10 +18,10 @@ describe("buildSpineLayout", () => {
     const steps = [makeStep({ id: "s1", displayName: "Search 1" })];
     const result = buildSpineLayout(steps, "s1");
     expect(result).toHaveLength(1);
-    expect(result[0].step.displayName).toBe("Search 1");
-    expect(result[0].step.kind).toBe("search");
-    expect(result[0].step.stepNumber).toBe(1);
-    expect(result[0].secondaryInput).toBeUndefined();
+    expect(result[0]!.step.displayName).toBe("Search 1");
+    expect(result[0]!.step.kind).toBe("search");
+    expect(result[0]!.step.stepNumber).toBe(1);
+    expect(result[0]!.secondaryInput).toBeUndefined();
   });
 
   it("handles a linear chain: search -> transform", () => {
@@ -35,12 +35,12 @@ describe("buildSpineLayout", () => {
     ];
     const result = buildSpineLayout(steps, "t1");
     expect(result).toHaveLength(2);
-    expect(result[0].step.displayName).toBe("Search 1");
-    expect(result[0].step.stepNumber).toBe(1);
-    expect(result[1].step.displayName).toBe("Transform 1");
-    expect(result[1].step.stepNumber).toBe(2);
-    expect(result[0].secondaryInput).toBeUndefined();
-    expect(result[1].secondaryInput).toBeUndefined();
+    expect(result[0]!.step.displayName).toBe("Search 1");
+    expect(result[0]!.step.stepNumber).toBe(1);
+    expect(result[1]!.step.displayName).toBe("Transform 1");
+    expect(result[1]!.step.stepNumber).toBe(2);
+    expect(result[0]!.secondaryInput).toBeUndefined();
+    expect(result[1]!.secondaryInput).toBeUndefined();
   });
 
   it("handles a combine: two searches -> combine", () => {
@@ -58,11 +58,11 @@ describe("buildSpineLayout", () => {
     const result = buildSpineLayout(steps, "c1");
     // Spine: s1 -> c1 (with s2 as secondary)
     expect(result).toHaveLength(2);
-    expect(result[0].step.displayName).toBe("Search A");
-    expect(result[0].secondaryInput).toBeUndefined();
-    expect(result[1].step.displayName).toBe("Combined");
-    expect(result[1].step.operator).toBe("INTERSECT");
-    expect(result[1].secondaryInput?.displayName).toBe("Search B");
+    expect(result[0]!.step.displayName).toBe("Search A");
+    expect(result[0]!.secondaryInput).toBeUndefined();
+    expect(result[1]!.step.displayName).toBe("Combined");
+    expect(result[1]!.step.operator).toBe("INTERSECT");
+    expect(result[1]!.secondaryInput?.displayName).toBe("Search B");
   });
 
   it("handles combine followed by transform", () => {
@@ -85,10 +85,10 @@ describe("buildSpineLayout", () => {
     const result = buildSpineLayout(steps, "t1");
     // Spine: s1 -> c1 (sec: s2) -> t1
     expect(result).toHaveLength(3);
-    expect(result[0].step.displayName).toBe("A");
-    expect(result[1].step.displayName).toBe("C");
-    expect(result[1].secondaryInput?.displayName).toBe("B");
-    expect(result[2].step.displayName).toBe("Transform");
+    expect(result[0]!.step.displayName).toBe("A");
+    expect(result[1]!.step.displayName).toBe("C");
+    expect(result[1]!.secondaryInput?.displayName).toBe("B");
+    expect(result[2]!.step.displayName).toBe("Transform");
   });
 
   it("assigns step numbers in execution (topological) order", () => {
@@ -110,10 +110,10 @@ describe("buildSpineLayout", () => {
     ];
     const result = buildSpineLayout(steps, "t1");
     // topo order: s1=1, s2=2, c1=3, t1=4
-    expect(result[0].step.stepNumber).toBe(1); // s1
-    expect(result[1].step.stepNumber).toBe(3); // c1
-    expect(result[1].secondaryInput?.stepNumber).toBe(2); // s2
-    expect(result[2].step.stepNumber).toBe(4); // t1
+    expect(result[0]!.step.stepNumber).toBe(1); // s1
+    expect(result[1]!.step.stepNumber).toBe(3); // c1
+    expect(result[1]!.secondaryInput?.stepNumber).toBe(2); // s2
+    expect(result[2]!.step.stepNumber).toBe(4); // t1
   });
 
   it("handles chained combines (VEuPathDB-style pipeline)", () => {
@@ -151,9 +151,9 @@ describe("buildSpineLayout", () => {
       "Step 5",
       "Step 6",
     ]);
-    expect(result[1].secondaryInput?.displayName).toBe("Step 2");
-    expect(result[2].secondaryInput?.displayName).toBe("Step 4");
-    expect(result[0].secondaryInput).toBeUndefined();
-    expect(result[3].secondaryInput).toBeUndefined();
+    expect(result[1]!.secondaryInput?.displayName).toBe("Step 2");
+    expect(result[2]!.secondaryInput?.displayName).toBe("Step 4");
+    expect(result[0]!.secondaryInput).toBeUndefined();
+    expect(result[3]!.secondaryInput).toBeUndefined();
   });
 });

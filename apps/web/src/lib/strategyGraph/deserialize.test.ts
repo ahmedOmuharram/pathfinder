@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { deserializeStrategyToGraph } from "@/lib/strategyGraph/deserialize";
-import type { Strategy } from "@/lib/strategyGraph/types";
+import type { Strategy } from "@pathfinder/shared";
 
 describe("deserializeStrategyToGraph", () => {
   test("returns empty graph for null/empty strategy", () => {
@@ -23,7 +23,7 @@ describe("deserializeStrategyToGraph", () => {
     const { nodes, edges } = deserializeStrategyToGraph(strategy);
     expect(nodes.map((n) => n.id).sort()).toEqual(["a", "b"]);
     expect(edges).toHaveLength(1);
-    expect(edges[0]).toMatchObject({
+    expect(edges[0]!).toMatchObject({
       id: "a-b-primary",
       source: "a",
       target: "b",
@@ -204,7 +204,7 @@ describe("deserializeStrategyToGraph", () => {
 
     const { edges } = deserializeStrategyToGraph(strategy);
     expect(edges).toHaveLength(1);
-    expect(edges[0].label).toBeUndefined();
+    expect(edges[0]!.label).toBeUndefined();
   });
 
   test("all nodes have type='step' and correct source/target positions", () => {
@@ -214,9 +214,9 @@ describe("deserializeStrategyToGraph", () => {
     } as unknown as Strategy;
 
     const { nodes } = deserializeStrategyToGraph(strategy);
-    expect(nodes[0].type).toBe("step");
-    expect(nodes[0].sourcePosition).toBe("right");
-    expect(nodes[0].targetPosition).toBe("left");
+    expect(nodes[0]!.type).toBe("step");
+    expect(nodes[0]!.sourcePosition).toBe("right");
+    expect(nodes[0]!.targetPosition).toBe("left");
   });
 
   test("passes callback functions into node data", () => {
@@ -235,9 +235,9 @@ describe("deserializeStrategyToGraph", () => {
       onAddToChat,
       onOpenDetails,
     );
-    expect(nodes[0].data.onOperatorChange).toBe(onOperatorChange);
-    expect(nodes[0].data.onAddToChat).toBe(onAddToChat);
-    expect(nodes[0].data.onOpenDetails).toBe(onOpenDetails);
+    expect(nodes[0]!.data.onOperatorChange).toBe(onOperatorChange);
+    expect(nodes[0]!.data.onAddToChat).toBe(onAddToChat);
+    expect(nodes[0]!.data.onOpenDetails).toBe(onOpenDetails);
   });
 
   test("transform node with missing primary input shows primary input handle", () => {
@@ -281,6 +281,6 @@ describe("deserializeStrategyToGraph", () => {
     } as unknown as Strategy;
 
     const { nodes } = deserializeStrategyToGraph(strategy);
-    expect(nodes[0].data.isUnsaved).toBe(false);
+    expect(nodes[0]!.data.isUnsaved).toBe(false);
   });
 });

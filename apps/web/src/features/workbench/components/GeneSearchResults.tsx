@@ -178,7 +178,7 @@ export function GeneSearchResults({
     );
   }
 
-  if (error) {
+  if (error != null && error !== "") {
     return (
       <div className="px-3 py-6 text-center text-xs text-destructive">{error}</div>
     );

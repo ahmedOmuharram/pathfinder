@@ -18,7 +18,9 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
 from veupath_chatbot.services.experiment.cross_validation import run_cross_validation
-from veupath_chatbot.services.experiment.enrichment import upsert_enrichment_result
+from veupath_chatbot.services.experiment.enrichment_parser import (
+    upsert_enrichment_result,
+)
 from veupath_chatbot.services.experiment.helpers import (
     ProgressCallback,
     extract_and_enrich_genes,
@@ -26,14 +28,24 @@ from veupath_chatbot.services.experiment.helpers import (
 from veupath_chatbot.services.experiment.materialization import (
     _persist_experiment_strategy,
 )
-from veupath_chatbot.services.experiment.metrics import metrics_from_control_result
+from veupath_chatbot.services.experiment.metrics import (
+    evaluate_gene_ids_against_controls,
+    metrics_from_control_result,
+)
+from veupath_chatbot.services.experiment.rank_metrics import (
+    compute_rank_metrics,
+    fetch_ordered_result_ids,
+)
+from veupath_chatbot.services.experiment.robustness import compute_robustness
 from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
+    run_step_analysis,
 )
 from veupath_chatbot.services.experiment.store import (
     ExperimentStore,
     get_experiment_store,
 )
+from veupath_chatbot.services.experiment.tree_knobs import optimize_tree_knobs
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     Experiment,
@@ -43,6 +55,16 @@ from veupath_chatbot.services.experiment.types import (
     OptimizationSpec,
     to_json,
 )
+from veupath_chatbot.services.gene_sets.operations import (
+    _build_enrichment_params_from_gene_ids,
+)
+from veupath_chatbot.services.parameter_optimization import (
+    OptimizationConfig,
+    ParameterSpec,
+    optimize_search_parameters,
+    result_to_json,
+)
+from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 logger = get_logger(__name__)
 
@@ -113,9 +135,6 @@ async def _phase_evaluate(
 
     if config.target_gene_ids:
         # Gene set mode: evaluate using gene IDs directly, no WDK calls.
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
 
         result = evaluate_gene_ids_against_controls(
             gene_ids=config.target_gene_ids,
@@ -125,7 +144,7 @@ async def _phase_evaluate(
             record_type=config.record_type,
         )
     elif config.is_tree_mode:
-        tree_dict: JSONObject = cast(JSONObject, config.step_tree)
+        tree_dict: JSONObject = cast("JSONObject", config.step_tree)
         cvf: ControlValueFormat = config.controls_value_format
 
         result = await run_controls_against_tree(
@@ -160,7 +179,6 @@ async def _phase_step_analysis(
     metrics: ExperimentMetrics,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
-    from veupath_chatbot.services.experiment.step_analysis import run_step_analysis
 
     await emit("step_analysis", message="Running step decomposition analysis...")
 
@@ -231,10 +249,6 @@ async def _phase_rank_metrics(
 
     try:
         await emit("evaluating", message="Computing rank-based metrics...")
-        from veupath_chatbot.services.experiment.rank_metrics import (
-            compute_rank_metrics,
-            fetch_ordered_result_ids,
-        )
 
         ordered_ids = await fetch_ordered_result_ids(
             site_id=config.site_id,
@@ -251,7 +265,6 @@ async def _phase_rank_metrics(
                 negative_ids=neg_set,
             )
             store.save(experiment)
-        return ordered_ids
     except Exception as exc:
         logger.warning(
             "Rank metrics computation failed",
@@ -259,6 +272,8 @@ async def _phase_rank_metrics(
             error=str(exc),
         )
         return []
+    else:
+        return ordered_ids
 
 
 async def _phase_robustness(
@@ -276,10 +291,6 @@ async def _phase_robustness(
 
     try:
         await emit("evaluating", message="Computing robustness estimates...")
-        from veupath_chatbot.services.experiment.rank_metrics import (
-            fetch_ordered_result_ids,
-        )
-        from veupath_chatbot.services.experiment.robustness import compute_robustness
 
         if not ordered_ids:
             ordered_ids = await fetch_ordered_result_ids(
@@ -315,14 +326,6 @@ async def _phase_optimize_parameters(
 
     :returns: ``(updated_result_or_None, updated_metrics)``.
     """
-    from veupath_chatbot.services.parameter_optimization import (
-        OptimizationConfig,
-        optimize_search_parameters,
-        result_to_json,
-    )
-    from veupath_chatbot.services.parameter_optimization import (
-        ParameterSpec as OptParamSpec,
-    )
 
     await emit("evaluating", message="Running parameter optimization...")
 
@@ -343,7 +346,7 @@ async def _phase_optimize_parameters(
         return None, metrics
 
     opt_param_space = [
-        OptParamSpec(
+        ParameterSpec(
             name=s.name,
             param_type=s.type,
             min_value=s.min,
@@ -417,7 +420,6 @@ async def _phase_optimize_tree_knobs(
     """Optimize threshold parameters and boolean operators across a strategy tree."""
     try:
         await emit("optimizing", message="Optimizing strategy tree knobs...")
-        from veupath_chatbot.services.experiment.tree_knobs import optimize_tree_knobs
 
         tree_opt_result = await optimize_tree_knobs(
             site_id=config.site_id,
@@ -499,7 +501,6 @@ async def _phase_enrich(
     store: ExperimentStore,
 ) -> None:
     """Run enrichment analyses on experiment results."""
-    from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
     await emit("enriching", message="Running enrichment analyses...")
 
@@ -511,10 +512,6 @@ async def _phase_enrich(
     # Gene-ID experiments may lack a WDK step and search_name.
     # Build a temporary GeneByLocusTag dataset so enrichment can proceed.
     if step_id is None and not search_name and config.target_gene_ids:
-        from veupath_chatbot.services.gene_sets.operations import (
-            _build_enrichment_params_from_gene_ids,
-        )
-
         (
             search_name,
             parameters,
@@ -577,7 +574,7 @@ async def run_experiment(
                 "data": {
                     "experimentId": experiment_id,
                     "phase": phase,
-                    **cast(JSONObject, dict(extra)),
+                    **cast("JSONObject", dict(extra)),
                 },
             }
             await progress_callback(event)
@@ -589,7 +586,7 @@ async def run_experiment(
         result, metrics = await _phase_evaluate(config, experiment, _emit, store)
 
         tree_dict: JSONObject = (
-            cast(JSONObject, config.step_tree) if config.is_tree_mode else {}
+            cast("JSONObject", config.step_tree) if config.is_tree_mode else {}
         )
         cvf: ControlValueFormat = config.controls_value_format
         final_tree: JSONObject | None = tree_dict if config.is_tree_mode else None
@@ -672,7 +669,6 @@ async def run_experiment(
         store.save(experiment)
 
         await _emit("completed", message="Experiment complete")
-        return experiment
 
     except Exception as exc:
         experiment.status = "error"
@@ -681,3 +677,5 @@ async def run_experiment(
         store.save(experiment)
         await _emit("error", error=str(exc))
         raise
+    else:
+        return experiment

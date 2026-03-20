@@ -227,14 +227,15 @@ class TestWriteThruStoreDbMethods:
         entity = FakeEntity(id="abc", name="Test")
 
         mock_session = AsyncMock()
-        mock_factory = AsyncMock()
-        mock_factory.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_factory.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx)
 
         with (
             patch(
-                "veupath_chatbot.persistence.session.async_session_factory",
-                return_value=mock_factory,
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
             ),
             patch("veupath_chatbot.platform.store.pg_insert") as mock_insert,
         ):
@@ -256,13 +257,14 @@ class TestWriteThruStoreDbMethods:
 
         mock_session = AsyncMock()
         mock_session.get = AsyncMock(return_value=fake_row)
-        mock_factory = AsyncMock()
-        mock_factory.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_factory.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx)
 
         with patch(
-            "veupath_chatbot.persistence.session.async_session_factory",
-            return_value=mock_factory,
+            "veupath_chatbot.platform.store.async_session_factory",
+            mock_factory,
         ):
             result = await store._load("abc")
 
@@ -276,13 +278,14 @@ class TestWriteThruStoreDbMethods:
 
         mock_session = AsyncMock()
         mock_session.get = AsyncMock(return_value=None)
-        mock_factory = AsyncMock()
-        mock_factory.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_factory.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx)
 
         with patch(
-            "veupath_chatbot.persistence.session.async_session_factory",
-            return_value=mock_factory,
+            "veupath_chatbot.platform.store.async_session_factory",
+            mock_factory,
         ):
             result = await store._load("nonexistent")
 
@@ -292,14 +295,15 @@ class TestWriteThruStoreDbMethods:
         store = FakeStore()
 
         mock_session = AsyncMock()
-        mock_factory = AsyncMock()
-        mock_factory.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_factory.__aexit__ = AsyncMock(return_value=False)
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx)
 
         with (
             patch(
-                "veupath_chatbot.persistence.session.async_session_factory",
-                return_value=mock_factory,
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
             ),
             patch("veupath_chatbot.platform.store.sa_delete") as mock_delete,
         ):
@@ -320,7 +324,7 @@ class TestWriteThruStoreDbMethods:
 
         with (
             patch(
-                "veupath_chatbot.persistence.session.async_session_factory",
+                "veupath_chatbot.platform.store.async_session_factory",
                 side_effect=RuntimeError("DB down"),
             ),
             patch("veupath_chatbot.platform.store.logger") as mock_logger,

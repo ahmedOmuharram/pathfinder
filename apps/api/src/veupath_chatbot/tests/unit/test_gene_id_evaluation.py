@@ -10,6 +10,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import veupath_chatbot.services.experiment.store as store_module
+from veupath_chatbot.services.experiment.metrics import (
+    evaluate_gene_ids_against_controls,
+    metrics_from_control_result,
+)
+from veupath_chatbot.services.experiment.service import _phase_evaluate
 from veupath_chatbot.services.experiment.store import (
     ExperimentStore,
     get_experiment_store,
@@ -61,8 +67,6 @@ async def _noop_emit(phase: ExperimentProgressPhase, **extra: object) -> None:
 
 @pytest.fixture(autouse=True)
 def _reset_store() -> None:
-    import veupath_chatbot.services.experiment.store as store_module
-
     store_module._global_store = ExperimentStore()
 
 
@@ -75,10 +79,6 @@ class TestEvaluateGeneIdsAgainstControls:
     """Pure Python set intersection evaluation."""
 
     def test_all_positives_found(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=POSITIVE_IDS,
@@ -92,10 +92,6 @@ class TestEvaluateGeneIdsAgainstControls:
         assert pos["missingIdsSample"] == []
 
     def test_some_positives_missing(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=["G1", "G3"],
             positive_controls=POSITIVE_IDS,
@@ -109,10 +105,6 @@ class TestEvaluateGeneIdsAgainstControls:
         assert set(pos["missingIdsSample"]) == {"G2", "G4", "G5"}
 
     def test_negatives_excluded(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=[],
@@ -125,11 +117,7 @@ class TestEvaluateGeneIdsAgainstControls:
         assert neg["intersectionIds"] == []
 
     def test_some_negatives_leak_through(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
-        gene_ids = GENE_IDS + ["N1"]  # N1 leaked into results
+        gene_ids = [*GENE_IDS, "N1"]  # N1 leaked into results
         result = evaluate_gene_ids_against_controls(
             gene_ids=gene_ids,
             positive_controls=[],
@@ -141,10 +129,6 @@ class TestEvaluateGeneIdsAgainstControls:
         assert neg["intersectionIds"] == ["N1"]
 
     def test_target_result_count_matches_gene_ids(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=POSITIVE_IDS,
@@ -155,10 +139,6 @@ class TestEvaluateGeneIdsAgainstControls:
         assert target["resultCount"] == len(GENE_IDS)
 
     def test_empty_controls(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=[],
@@ -168,10 +148,6 @@ class TestEvaluateGeneIdsAgainstControls:
         assert result["negative"] is None
 
     def test_whitespace_controls_stripped(self) -> None:
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=["G1", "G2"],
             positive_controls=["  G1  ", " ", "G3"],
@@ -184,11 +160,6 @@ class TestEvaluateGeneIdsAgainstControls:
 
     def test_compatible_with_metrics_from_control_result(self) -> None:
         """The returned dict must be consumable by metrics_from_control_result."""
-        from veupath_chatbot.services.experiment.metrics import (
-            evaluate_gene_ids_against_controls,
-            metrics_from_control_result,
-        )
-
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=POSITIVE_IDS,
@@ -210,8 +181,6 @@ class TestPhaseEvaluateWithGeneIds:
 
     async def test_gene_id_mode_skips_wdk_calls(self) -> None:
         """When target_gene_ids is set, no WDK control tests should run."""
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         config = _make_config(target_gene_ids=list(GENE_IDS))
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -227,7 +196,7 @@ class TestPhaseEvaluateWithGeneIds:
                 new_callable=AsyncMock,
             ) as mock_tree,
         ):
-            result, metrics = await _phase_evaluate(
+            _result, metrics = await _phase_evaluate(
                 config, experiment, _noop_emit, store
             )
 
@@ -238,8 +207,6 @@ class TestPhaseEvaluateWithGeneIds:
         assert metrics.sensitivity == 1.0
 
     async def test_gene_id_mode_populates_gene_lists(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         config = _make_config(target_gene_ids=list(GENE_IDS))
         experiment = _make_experiment(config)
         store = get_experiment_store()

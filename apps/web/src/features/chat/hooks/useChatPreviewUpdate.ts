@@ -5,7 +5,7 @@ export function useChatPreviewUpdate(strategyId: string | null, messagesKey: str
   const bumpChatPreviewVersion = useSessionStore((s) => s.bumpChatPreviewVersion);
 
   useEffect(() => {
-    if (!strategyId) return;
+    if (strategyId == null || strategyId === "") return;
     bumpChatPreviewVersion();
   }, [strategyId, messagesKey, bumpChatPreviewVersion]);
 }

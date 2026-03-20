@@ -61,7 +61,7 @@ export function useParamSpecs(
   );
 
   const simpleResult = useParamSpecsSimple(
-    isAdvanced ? "" : (siteIdOrOptions as string),
+    isAdvanced ? "" : siteIdOrOptions,
     isAdvanced ? "" : recordType!,
     isAdvanced ? "" : searchName!,
   );
@@ -99,7 +99,7 @@ function useParamSpecsSimple(
       }
     }
 
-    load();
+    void load();
     return () => {
       active = false;
     };
@@ -117,7 +117,7 @@ function useParamSpecsAdvanced({
   recordType,
   searchName,
   selectedSearch,
-  isSearchNameAvailable,
+  isSearchNameAvailable: _isSearchNameAvailable,
   apiRecordTypeValue,
   resolveRecordTypeForSearch,
   contextValues,
@@ -129,20 +129,19 @@ function useParamSpecsAdvanced({
   // Stable identity key — only changes when the search itself changes,
   // NOT when contextValues/isSearchNameAvailable flicker during renders.
   const resolvedRecordType = useMemo(() => {
+    const result = resolveRecordTypeForSearch(selectedSearch?.recordType);
     const preferred =
-      resolveRecordTypeForSearch(selectedSearch?.recordType) ||
-      apiRecordTypeValue ||
-      recordType;
+      (result !== "" ? result : null) ?? apiRecordTypeValue ?? recordType;
     return normalizeRecordType(preferred);
   }, [recordType, selectedSearch, apiRecordTypeValue, resolveRecordTypeForSearch]);
 
   const debouncedFetch = useDebouncedCallback((rt: string, ctx: StepParameters) => {
     let isActive = true;
     setIsLoading(true);
-    getParamSpecs(siteId, rt, searchName, buildContextValues(ctx || {}))
+    getParamSpecs(siteId, rt, searchName, buildContextValues(ctx))
       .then((details) => {
         if (!isActive) return;
-        setParamSpecs(details || []);
+        setParamSpecs(details);
       })
       .catch((err) => {
         console.error("[useParamSpecs]", err);
@@ -162,8 +161,14 @@ function useParamSpecsAdvanced({
   // contextValues included in deps so the linter is satisfied — the 250ms
   // debounce prevents rapid-fire fetches when the user types.
   useEffect(() => {
-    if (!enabled || !searchName || !resolvedRecordType) return;
-    debouncedFetch(resolvedRecordType, contextValues || {});
+    if (
+      !enabled ||
+      searchName === "" ||
+      resolvedRecordType == null ||
+      resolvedRecordType === ""
+    )
+      return;
+    debouncedFetch(resolvedRecordType, contextValues ?? {});
   }, [enabled, siteId, searchName, resolvedRecordType, contextValues, debouncedFetch]);
 
   return { paramSpecs, isLoading };

@@ -4,13 +4,14 @@ Every event is persisted to Redis the moment it's emitted. The PostgreSQL
 projection is updated inline. No accumulation, no finalization step.
 
 AI-layer dependencies (agent factory, model resolver) are injected at
-startup via :func:`configure` — the transport layer calls this once to
+startup via :func:`configure` -- the transport layer calls this once to
 wire the concrete implementations. The services layer depends only on
 ``kani.Kani`` (third-party base class), never on concrete agent types
 from ``veupath_chatbot.ai``.
 """
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Callable
 from uuid import UUID, uuid4
 
@@ -18,6 +19,8 @@ from kani import ChatMessage, ChatRole, Kani
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from veupath_chatbot.ai.agents.factory import EngineConfig
+from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository, UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
@@ -25,6 +28,7 @@ from veupath_chatbot.platform.events import emit, read_stream_messages
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
+from veupath_chatbot.services.chat.mention_context import build_mention_context
 from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
 from veupath_chatbot.transport.http.schemas.sse import ModelSelectedEventData
@@ -38,8 +42,8 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 # ── Injected AI-layer dependencies ──────────────────────────────────
 # Set once at startup via configure(). Avoids services importing from ai.
 
-_create_agent: Callable[..., Kani] | None = None
-_resolve_effective_model_id: Callable[..., str] | None = None
+_create_agent_holder: dict[str, Callable[..., Kani]] = {}
+_resolve_model_id_holder: dict[str, Callable[..., str]] = {}
 
 
 def configure(
@@ -58,9 +62,8 @@ def configure(
     resolve_model_id_fn:
         Resolves the effective model ID from overrides and persisted state.
     """
-    global _create_agent, _resolve_effective_model_id
-    _create_agent = create_agent_fn
-    _resolve_effective_model_id = resolve_model_id_fn
+    _create_agent_holder["v"] = create_agent_fn
+    _resolve_model_id_holder["v"] = resolve_model_id_fn
 
 
 async def _ensure_stream(
@@ -222,19 +225,16 @@ async def _build_agent_context(
 
     Returns ``(agent, effective_model_id)``.
     """
-    if _create_agent is None or _resolve_effective_model_id is None:
-        raise RuntimeError(
+    if "v" not in _create_agent_holder or "v" not in _resolve_model_id_holder:
+        msg = (
             "Chat orchestrator not configured. "
             "Call services.chat.orchestrator.configure() at startup."
         )
+        raise RuntimeError(msg)
 
     # Build rich context from @-mentions.
     mentioned_context: str | None = None
     if mentions and stream_repo is not None:
-        from veupath_chatbot.services.chat.mention_context import (
-            build_mention_context,
-        )
-
         mentioned_context = await build_mention_context(mentions, stream_repo) or None
 
     # Build chat history from Redis (not from DB).
@@ -252,27 +252,30 @@ async def _build_agent_context(
     }
 
     # Resolve the effective model.
-    effective_model: str = _resolve_effective_model_id(
+    effective_model: str = _resolve_model_id_holder["v"](
         model_override=model_override,
         persisted_model_id=projection.model_id,
     )
 
-    agent = _create_agent(
+    engine_cfg = EngineConfig(
+        provider_override=provider_override,
+        model_override=effective_model,
+        reasoning_effort=reasoning_effort,
+        temperature=temperature,
+        seed=seed,
+        context_size=context_size,
+        reasoning_budget=reasoning_budget,
+    )
+    agent = _create_agent_holder["v"](
         site_id=site_id,
         user_id=user_id,
         chat_history=history,
         strategy_graph=strategy_graph_payload,
         selected_nodes=selected_nodes,
-        provider_override=provider_override,
-        model_override=effective_model,
-        reasoning_effort=reasoning_effort,
+        engine_config=engine_cfg,
         mentioned_context=mentioned_context,
         disable_rag=disable_rag,
-        temperature=temperature,
-        seed=seed,
-        context_size=context_size,
         response_tokens=response_tokens,
-        reasoning_budget=reasoning_budget,
     )
 
     return agent, effective_model
@@ -303,8 +306,6 @@ async def _run_stream_loop(
     wdk_url: str | None = None
     if projection.wdk_strategy_id is not None and site_id:
         try:
-            from veupath_chatbot.integrations.veupathdb.factory import get_site
-
             site = get_site(site_id)
             wdk_url = site.strategy_url(projection.wdk_strategy_id)
         except Exception as exc:
@@ -387,7 +388,7 @@ async def _handle_error(
     stream_repo: StreamRepository,
 ) -> None:
     """Handle producer errors: log, emit error + message_end, fail operation."""
-    logger.error("Chat producer error", error=str(error), exc_info=True)
+    logger.error("Chat producer error", error=str(error))
     await emit(
         redis,
         stream_id_str,
@@ -523,9 +524,17 @@ async def cancel_chat_operation(operation_id: str) -> bool:
     """Cancel a running chat operation.
 
     Returns True if the operation was found and cancelled, False otherwise.
+
+    After calling ``task.cancel()`` we await the task so that its
+    CancelledError handler (_handle_cancellation) actually runs.
+    Without this, a cancel that arrives before the producer's first
+    ``await`` would skip the handler entirely — no ``message_end``
+    event, no status update, subscriber hangs forever.
     """
     task = _active_tasks.get(operation_id)
     if task is None:
         return False
     task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
     return True

@@ -136,9 +136,9 @@ function DrillDownModal({
                       <td className="px-3 py-1.5 font-mono">{rawId}</td>
                       <td
                         className="max-w-xs truncate px-3 py-1.5"
-                        title={rec.attributes.gene_product ?? ""}
+                        title={rec.attributes["gene_product"] ?? ""}
                       >
-                        {rec.attributes.gene_product ?? "\u2014"}
+                        {rec.attributes["gene_product"] ?? "\u2014"}
                       </td>
                       {hasClassifications && (
                         <td className="px-3 py-1.5">

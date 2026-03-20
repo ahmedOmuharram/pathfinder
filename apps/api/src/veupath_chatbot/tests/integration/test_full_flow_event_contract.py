@@ -13,6 +13,8 @@ Skip with:
     pytest -m "not live_wdk"
 """
 
+from typing import ClassVar
+
 import pytest
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
@@ -28,7 +30,7 @@ pytestmark = pytest.mark.live_wdk
 class TestEventOrdering:
     """Verify the strict SSE event ordering contract for a tool-calling turn."""
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -70,7 +72,7 @@ class TestEventOrdering:
                 authed_client,
                 message="Build an epitope search strategy",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -95,9 +97,10 @@ class TestEventOrdering:
                     start_idx = i
                 elif e.type == "tool_call_end" and e.data.get("id") == call_id:
                     end_idx = i
-            assert start_idx is not None and end_idx is not None, (
-                f"Could not find start/end for tool call {call_id}"
+            assert start_idx is not None, (
+                f"Could not find start for tool call {call_id}"
             )
+            assert end_idx is not None, f"Could not find end for tool call {call_id}"
             assert start_idx < end_idx, (
                 f"tool_call_start ({start_idx}) must precede tool_call_end ({end_idx}) "
                 f"for call {call_id}"
@@ -159,7 +162,7 @@ class TestMultiTurnPersistence:
                 authed_client,
                 message="Create an epitope search for P. falciparum",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r1.http_status == 202
@@ -184,7 +187,7 @@ class TestMultiTurnPersistence:
                 message="What steps do I have?",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r2.http_status == 202
@@ -235,7 +238,7 @@ class TestThinkingCleared:
                 authed_client,
                 message="Search for epitope-related searches",
                 site_id="plasmodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert result.http_status == 202
@@ -249,7 +252,7 @@ class TestThinkingCleared:
 
         # Thinking should be null or empty after finalization
         thinking = strategy.get("thinking")
-        assert thinking is None or thinking == {} or thinking == [], (
+        assert thinking is None or thinking in ({}, []), (
             f"Thinking should be cleared after stream, got: {thinking}"
         )
 
@@ -297,7 +300,7 @@ class TestStrategyMetaPersistence:
                 authed_client,
                 message="Build an epitope strategy for persistence test",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -314,6 +317,7 @@ class TestStrategyMetaPersistence:
         )
         # The name should be set (not the default)
         name = strategy.get("name") or strategy.get("title", "")
-        assert name and name != DEFAULT_STREAM_NAME, (
-            f"Strategy name should be set, got: {name}"
+        assert name, f"Strategy name should not be empty, got: {name}"
+        assert name != DEFAULT_STREAM_NAME, (
+            f"Strategy name should not be the default, got: {name}"
         )

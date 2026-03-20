@@ -18,6 +18,7 @@ from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.wdk import get_strategy_api
 
 from .wdk_conversion import (
     build_snapshot_from_wdk,
@@ -150,7 +151,8 @@ async def upsert_projection(
         proj = await stream_repo.get_projection(stream.id)
 
     if proj is None:
-        raise RuntimeError(f"Projection disappeared for WDK strategy {wdk_id}")
+        msg = f"Projection disappeared for WDK strategy {wdk_id}"
+        raise RuntimeError(msg)
     return proj
 
 
@@ -259,8 +261,6 @@ async def lazy_fetch_wdk_detail(
         return projection
 
     try:
-        from veupath_chatbot.services.wdk import get_strategy_api
-
         api = get_strategy_api(site_id)
         ast, is_saved, step_counts = await fetch_and_convert(api, wdk_id)
         plan = ast.to_dict()
@@ -306,10 +306,8 @@ async def sync_is_saved_to_wdk(
         return
 
     try:
-        from veupath_chatbot.services.wdk import get_strategy_api
-
         api = get_strategy_api(site_id)
-        await api.set_saved(wdk_id, projection.is_saved)
+        await api.set_saved(wdk_id, is_saved=projection.is_saved)
     except Exception as exc:
         logger.warning(
             "Failed to sync isSaved to WDK",

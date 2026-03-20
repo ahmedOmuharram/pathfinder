@@ -69,13 +69,13 @@ class OpenAlexClient(StandardClient):
         abstract: str | None = None
         inv = item.get("abstract_inverted_index")
         if isinstance(inv, dict):
-            pairs: list[tuple[int, str]] = []
-            for word, idxs in inv.items():
-                if not isinstance(word, str) or not isinstance(idxs, list):
-                    continue
-                for i in idxs:
-                    if isinstance(i, int):
-                        pairs.append((i, word))
+            pairs: list[tuple[int, str]] = [
+                (i, word)
+                for word, idxs in inv.items()
+                if isinstance(word, str) and isinstance(idxs, list)
+                for i in idxs
+                if isinstance(i, int)
+            ]
             if pairs:
                 pairs.sort(key=lambda x: x[0])
                 abstract = " ".join(w for _, w in pairs)
@@ -88,7 +88,7 @@ class OpenAlexClient(StandardClient):
             "year": year,
             "doi": doi,
             "url": result_url,
-            "authors": cast(JSONValue, authors),
+            "authors": cast("JSONValue", authors),
             "journalTitle": journal,
             "abstract": abstract,
             "snippet": abstract or journal,

@@ -218,7 +218,7 @@ class TestRunExperimentLifecycle:
         async def collect_events(event: dict) -> None:
             events.append(event)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Bad config"):
             await run_experiment(_cfg(), progress_callback=collect_events)
 
         phases = [e["data"]["phase"] for e in events]

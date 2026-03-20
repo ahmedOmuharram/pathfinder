@@ -52,11 +52,11 @@ function CIRow({
     <tr className="border-b border-border last:border-0">
       <td className="px-4 py-2 text-sm text-foreground">{label}</td>
       <td className="px-4 py-2 text-right font-mono text-sm tabular-nums">
-        {isEnrichment ? `${fmtNum(ci.mean)}x` : pct(ci.mean)}
+        {isEnrichment === true ? `${fmtNum(ci.mean)}x` : pct(ci.mean)}
       </td>
       <td className="px-4 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">
-        [{isEnrichment ? fmtNum(ci.lower) : pct(ci.lower)},{" "}
-        {isEnrichment ? fmtNum(ci.upper) : pct(ci.upper)}]
+        [{isEnrichment === true ? fmtNum(ci.lower) : pct(ci.lower)},{" "}
+        {isEnrichment === true ? fmtNum(ci.upper) : pct(ci.upper)}]
       </td>
       <td className="px-4 py-2 text-right text-xs">
         <Badge

@@ -4,6 +4,10 @@ Probes edge cases across the mixin composition: empty graphs, invalid IDs,
 state consistency after mutations, and error response format consistency.
 """
 
+from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
+from veupath_chatbot.ai.tools.strategy_tools.attachment_ops import (
+    StrategyAttachmentOps,
+)
 from veupath_chatbot.ai.tools.strategy_tools.edit_ops import StrategyEditOps
 from veupath_chatbot.ai.tools.strategy_tools.graph_ops import StrategyGraphOps
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
@@ -158,7 +162,7 @@ class TestGraphStateConsistency:
         combine_ab.operator = CombineOp.UNION
         graph.add_step(combine_ab)
 
-        # Combine (A+B) and C
+        # Now combine (A+B) and C
         combine_all = PlanStepNode(
             search_name="__combine__",
             parameters={},
@@ -193,7 +197,7 @@ class TestGraphStateConsistency:
 
 class TestEmptyGraphEdgeCases:
     async def test_list_steps_on_empty_graph(self):
-        ops, graph = _make_graph_ops(with_steps=False)
+        ops, _graph = _make_graph_ops(with_steps=False)
         result = await ops.list_current_steps(graph_id="g1")
         assert result["stepCount"] == 0
         assert result["steps"] == []
@@ -328,8 +332,6 @@ class TestClearStrategyWdkState:
     """
 
     async def test_clear_resets_wdk_state(self):
-        from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
-
         session = StrategySession("plasmodb")
         graph = session.create_graph("test", graph_id="g1")
         step = PlanStepNode(search_name="A", parameters={})
@@ -364,7 +366,7 @@ class TestGetGraphFallback:
     """
 
     async def test_wrong_graph_id_falls_back_to_active(self):
-        ops, graph = _make_graph_ops()
+        ops, _graph = _make_graph_ops()
         # Passing a wrong graph ID still returns data from the active graph
         result = await ops.list_current_steps(graph_id="wrong_id")
         assert result["graphId"] == "g1"
@@ -442,10 +444,6 @@ class TestUpdateStepNoop:
 class TestFilterReplacement:
     async def test_filter_with_same_name_replaces(self):
         """Adding a filter with the same name should replace the old one."""
-        from veupath_chatbot.ai.tools.strategy_tools.attachment_ops import (
-            StrategyAttachmentOps,
-        )
-
         session = StrategySession("plasmodb")
         graph = session.create_graph("test", graph_id="g1")
         step = PlanStepNode(search_name="Search", parameters={})
@@ -472,10 +470,6 @@ class TestFilterReplacement:
 
     async def test_analyses_accumulate_not_replace(self):
         """Adding analyses with the same type should accumulate, not replace."""
-        from veupath_chatbot.ai.tools.strategy_tools.attachment_ops import (
-            StrategyAttachmentOps,
-        )
-
         session = StrategySession("plasmodb")
         graph = session.create_graph("test", graph_id="g1")
         step = PlanStepNode(search_name="Search", parameters={})

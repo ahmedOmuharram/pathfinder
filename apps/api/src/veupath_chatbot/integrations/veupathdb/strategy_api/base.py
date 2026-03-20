@@ -4,6 +4,12 @@ Provides initialization, parameter normalization, and session management
 that all mixin classes depend on.
 """
 
+import json
+
+from veupath_chatbot.domain.parameters.vocab_utils import (
+    collect_leaf_terms,
+    find_vocab_node,
+)
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
@@ -14,6 +20,10 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
+
+_MIN_INDENT_VOCAB_ENTRY_LEN = 2
+_MIN_ENTRY_PARTS_FOR_CODE_STATE = 2
+_MIN_ENTRY_PARTS_FOR_QUANTIFIER = 3
 
 
 def _sort_profile_pattern(pattern: str) -> str:
@@ -112,92 +122,106 @@ class StrategyAPIBase:
         We replicate that: fetch the search's param specs, find tree params
         with ``countOnlyLeaves``, and expand any parent values to their leaves.
         """
-        import json as _json
-
-        from veupath_chatbot.domain.parameters.vocab_utils import (
-            collect_leaf_terms,
-            find_vocab_node,
-        )
-
         try:
-            search_def = await self.client.get(
-                f"/record-types/{record_type}/searches/{search_name}",
-                params={"expandParams": "true"},
-            )
-            if not isinstance(search_def, dict):
+            raw_specs = await self._fetch_tree_param_specs(record_type, search_name)
+            if raw_specs is None:
                 return params
+            return self._expand_specs(raw_specs, params, search_name)
+        except OSError, RuntimeError, ValueError, KeyError:
+            logger.debug("Failed to expand tree params (non-fatal)")
+            return params
 
-            search_data = search_def.get("searchData", search_def)
-            if not isinstance(search_data, dict):
-                return params
+    async def _fetch_tree_param_specs(
+        self, record_type: str, search_name: str
+    ) -> list[JSONValue] | None:
+        """Fetch parameter specs for tree expansion."""
+        search_def = await self.client.get(
+            f"/record-types/{record_type}/searches/{search_name}",
+            params={"expandParams": "true"},
+        )
+        if not isinstance(search_def, dict):
+            return None
+        search_data = search_def.get("searchData", search_def)
+        if not isinstance(search_data, dict):
+            return None
+        raw_specs = search_data.get("parameters", [])
+        if not isinstance(raw_specs, list):
+            return None
+        return raw_specs
 
-            raw_specs = search_data.get("parameters", [])
-            if not isinstance(raw_specs, list):
-                return params
-
-            result = dict(params)
-            for spec in raw_specs:
-                if not isinstance(spec, dict):
-                    continue
-                name = str(spec.get("name", ""))
-                if name not in result:
-                    continue
-                # Only expand multi-pick tree vocabs with countOnlyLeaves
-                if spec.get("type") != "multi-pick-vocabulary":
-                    continue
-                if not spec.get("countOnlyLeaves"):
-                    continue
-                vocab = spec.get("vocabulary")
-                if not isinstance(vocab, dict):
-                    continue
-
-                # Parse current value
-                raw = result[name]
-                try:
-                    values = _json.loads(raw) if isinstance(raw, str) else raw
-                except _json.JSONDecodeError:
-                    values = [raw] if raw else []
-                if not isinstance(values, list):
-                    continue
-
-                # Expand each value: if it's a parent node, replace with leaves
-                expanded: list[str] = []
-                seen: set[str] = set()
-                for val in values:
-                    val_str = str(val)
-                    node = find_vocab_node(vocab, val_str)
-                    if node is None:
-                        # Unknown value — pass through
-                        if val_str not in seen:
-                            expanded.append(val_str)
-                            seen.add(val_str)
-                        continue
-                    leaves = collect_leaf_terms(node)
-                    if not leaves:
-                        # Already a leaf or empty
-                        if val_str not in seen:
-                            expanded.append(val_str)
-                            seen.add(val_str)
-                    else:
-                        for leaf in leaves:
-                            if leaf not in seen:
-                                expanded.append(leaf)
-                                seen.add(leaf)
-
-                if expanded != [str(v) for v in values]:
+    def _expand_specs(
+        self,
+        raw_specs: list[JSONValue],
+        params: dict[str, str],
+        search_name: str,
+    ) -> dict[str, str]:
+        """Expand tree param values using specs."""
+        result = dict(params)
+        for spec in raw_specs:
+            if not isinstance(spec, dict):
+                continue
+            name = str(spec.get("name", ""))
+            if name not in result:
+                continue
+            if spec.get("type") != "multi-pick-vocabulary":
+                continue
+            if not spec.get("countOnlyLeaves"):
+                continue
+            vocab = spec.get("vocabulary")
+            if not isinstance(vocab, dict):
+                continue
+            expanded = self._expand_single_tree_param(vocab, result[name])
+            if expanded is not None:
+                original_raw = result[name]
+                original_values = self._parse_param_values(original_raw)
+                if expanded != [str(v) for v in original_values]:
                     logger.info(
                         "Expanded tree param to leaves",
                         param=name,
                         search=search_name,
-                        original_count=len(values),
+                        original_count=len(original_values),
                         expanded_count=len(expanded),
                     )
-                    result[name] = _json.dumps(expanded)
+                    result[name] = json.dumps(expanded)
+        return result
 
-            return result
-        except Exception:
-            logger.debug("Failed to expand tree params (non-fatal)")
-            return params
+    def _parse_param_values(self, raw: str) -> list[JSONValue]:
+        """Parse a parameter value string into a list."""
+        try:
+            values = json.loads(raw) if isinstance(raw, str) else raw
+        except json.JSONDecodeError:
+            values = [raw] if raw else []
+        return values if isinstance(values, list) else []
+
+    def _expand_single_tree_param(
+        self, vocab: JSONObject, raw_value: str
+    ) -> list[str] | None:
+        """Expand a single tree param value to leaf terms."""
+        values = self._parse_param_values(raw_value)
+        if not values:
+            return None
+
+        expanded: list[str] = []
+        seen: set[str] = set()
+        for val in values:
+            val_str = str(val)
+            node = find_vocab_node(vocab, val_str)
+            if node is None:
+                if val_str not in seen:
+                    expanded.append(val_str)
+                    seen.add(val_str)
+                continue
+            leaves = collect_leaf_terms(node)
+            if not leaves:
+                if val_str not in seen:
+                    expanded.append(val_str)
+                    seen.add(val_str)
+            else:
+                for leaf in leaves:
+                    if leaf not in seen:
+                        expanded.append(leaf)
+                        seen.add(leaf)
+        return expanded
 
     async def _expand_profile_pattern_groups(
         self,
@@ -210,119 +234,49 @@ class StrategyAPIBase:
         profile string that only contains **leaf** species codes.  Group codes
         (e.g. ``MAMM``) never appear in the DB string and silently return 0.
 
-        The WDK frontend expands group → leaves automatically via the
+        The WDK frontend expands group -> leaves automatically via the
         ``phyletic_indent_map`` tree.  We replicate that logic here so the
         LLM can use intuitive group codes like ``MAMM:N``.
         """
         if not pattern.startswith("%") or not pattern.endswith("%"):
             return pattern
 
-        # Parse entries: ["MAMM:N", "pfal:Y", ...]
         entries = [p for p in pattern.strip("%").split("%") if p]
         if not entries:
             return pattern
 
-        # Fetch the phyletic tree to identify group vs leaf codes.
         try:
-            search_def = await self.client.get(
-                f"/record-types/{record_type}/searches/GenesByOrthologPattern",
-                params={"expandParams": "true"},
-            )
-            if not isinstance(search_def, dict):
-                return pattern
-
-            # Unwrap searchData wrapper if present.
-            search_data = search_def.get("searchData", search_def)
-            if not isinstance(search_data, dict):
-                return pattern
-
-            params = search_data.get("parameters", [])
-            if not isinstance(params, list):
-                return pattern
-            indent_vocab: list[JSONValue] = []
-            for spec in params:
-                if isinstance(spec, dict) and spec.get("name") == "phyletic_indent_map":
-                    vocab = spec.get("vocabulary")
-                    if isinstance(vocab, list):
-                        indent_vocab = vocab
-                    break
-
+            indent_vocab = await self._fetch_indent_vocab(record_type)
             if not indent_vocab:
                 return pattern
 
-            # Build parent→children map from the indentation tree.
-            # Each entry is [code, depth, null].
-            codes_at_depth: list[tuple[str, int]] = []
-            for item in indent_vocab:
-                if isinstance(item, list) and len(item) >= 2:
-                    codes_at_depth.append(
-                        (str(item[0]), int(str(item[1])) if item[1] is not None else 0)
-                    )
-
-            # For each code, find its leaf descendants.
-            children_of: dict[str, list[str]] = {}
-            leaf_codes: set[str] = set()
-            for i, (code, depth) in enumerate(codes_at_depth):
-                # Collect all descendants until we hit same or lower depth.
-                descendants: list[str] = []
-                for j in range(i + 1, len(codes_at_depth)):
-                    d_code, d_depth = codes_at_depth[j]
-                    if d_depth <= depth:
-                        break
-                    descendants.append(d_code)
-                if descendants:
-                    children_of[code] = descendants
-                else:
-                    leaf_codes.add(code)
-
-            # Expand group codes using CODE:STATE[:QUANTIFIER] encoding.
-            #
-            # Quantifier semantics for groups:
-            #   :N:all → absent from ALL members → expand to leaf :N (default for :N)
-            #   :N:any → absent from ANY member → cannot express in WDK, drop
-            #   :Y:all → present in ALL members → expand to leaf :Y (rare, usually 0)
-            #   :Y:any → present in ANY member → cannot express in WDK, drop (default for :Y)
-            #
-            # Leaf codes ignore the quantifier (single species).
-            expanded: list[str] = []
-            for entry in entries:
-                parts = entry.split(":")
-                if len(parts) < 2:
-                    expanded.append(entry)
-                    continue
-
-                code = parts[0]
-                state = parts[1]  # Y or N
-                quantifier = parts[2] if len(parts) >= 3 else None
-
-                if code not in children_of:
-                    # Leaf code — pass through (strip quantifier).
-                    expanded.append(f"{code}:{state}")
-                    continue
-
-                # Group code — apply quantifier defaults.
-                if quantifier is None:
-                    quantifier = "all" if state == "N" else "any"
-
-                if quantifier == "all":
-                    # Expand to all leaf descendants.
-                    for desc in children_of[code]:
-                        if desc in leaf_codes:
-                            expanded.append(f"{desc}:{state}")
-                else:
-                    # "any" — cannot express in WDK profile_pattern (OR logic).
-                    logger.info(
-                        "Dropping group:%s:%s:any from profile_pattern "
-                        "(cannot express 'any' in WDK)",
-                        code,
-                        state,
-                    )
-
+            children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
+            expanded = _expand_entries(entries, children_of, leaf_codes)
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
-
-        except Exception:
+        except OSError, RuntimeError, ValueError, KeyError:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
+
+    async def _fetch_indent_vocab(self, record_type: str) -> list[JSONValue]:
+        """Fetch the phyletic_indent_map vocabulary."""
+        search_def = await self.client.get(
+            f"/record-types/{record_type}/searches/GenesByOrthologPattern",
+            params={"expandParams": "true"},
+        )
+        if not isinstance(search_def, dict):
+            return []
+        search_data = search_def.get("searchData", search_def)
+        if not isinstance(search_data, dict):
+            return []
+        params = search_data.get("parameters", [])
+        if not isinstance(params, list):
+            return []
+        for spec in params:
+            if isinstance(spec, dict) and spec.get("name") == "phyletic_indent_map":
+                vocab = spec.get("vocabulary")
+                if isinstance(vocab, list):
+                    return vocab
+        return []
 
     async def _standard_report(
         self,
@@ -342,3 +296,70 @@ class StrategyAPIBase:
             json={"reportConfig": report_config},
         )
         return result if isinstance(result, dict) else {}
+
+
+def _build_phyletic_tree(
+    indent_vocab: list[JSONValue],
+) -> tuple[dict[str, list[str]], set[str]]:
+    """Build parent->children and leaf sets from the phyletic indent vocabulary."""
+    codes_at_depth = [
+        (str(item[0]), int(str(item[1])) if item[1] is not None else 0)
+        for item in indent_vocab
+        if isinstance(item, list) and len(item) >= _MIN_INDENT_VOCAB_ENTRY_LEN
+    ]
+
+    children_of: dict[str, list[str]] = {}
+    leaf_codes: set[str] = set()
+    for i, (code, depth) in enumerate(codes_at_depth):
+        descendants: list[str] = []
+        for j in range(i + 1, len(codes_at_depth)):
+            d_code, d_depth = codes_at_depth[j]
+            if d_depth <= depth:
+                break
+            descendants.append(d_code)
+        if descendants:
+            children_of[code] = descendants
+        else:
+            leaf_codes.add(code)
+    return children_of, leaf_codes
+
+
+def _expand_entries(
+    entries: list[str],
+    children_of: dict[str, list[str]],
+    leaf_codes: set[str],
+) -> list[str]:
+    """Expand group codes in profile_pattern entries to leaf codes."""
+    expanded: list[str] = []
+    for entry in entries:
+        parts = entry.split(":")
+        if len(parts) < _MIN_ENTRY_PARTS_FOR_CODE_STATE:
+            expanded.append(entry)
+            continue
+
+        code = parts[0]
+        state = parts[1]  # Y or N
+        quantifier = parts[2] if len(parts) >= _MIN_ENTRY_PARTS_FOR_QUANTIFIER else None
+
+        if code not in children_of:
+            # Leaf code — pass through (strip quantifier).
+            expanded.append(f"{code}:{state}")
+            continue
+
+        # Group code — apply quantifier defaults.
+        if quantifier is None:
+            quantifier = "all" if state == "N" else "any"
+
+        if quantifier == "all":
+            expanded.extend(
+                f"{desc}:{state}" for desc in children_of[code] if desc in leaf_codes
+            )
+        else:
+            # "any" — cannot express in WDK profile_pattern (OR logic).
+            logger.info(
+                "Dropping group:%s:%s:any from profile_pattern "
+                "(cannot express 'any' in WDK)",
+                code,
+                state,
+            )
+    return expanded

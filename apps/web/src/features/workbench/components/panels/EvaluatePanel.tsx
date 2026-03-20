@@ -73,14 +73,20 @@ export function EvaluatePanel() {
   }, []);
 
   const hasSearchContext = Boolean(
-    activeSet &&
-    (activeSet.geneIds?.length || (activeSet.searchName && activeSet.parameters)),
+    activeSet != null &&
+    (activeSet.geneIds.length > 0 ||
+      (activeSet.searchName != null &&
+        activeSet.searchName !== "" &&
+        activeSet.parameters != null)),
   );
 
   const handleRun = useCallback(async () => {
     if (!activeSet) return;
-    const hasGeneIds = Boolean(activeSet.geneIds?.length);
-    const hasSearch = Boolean(activeSet.searchName && activeSet.parameters);
+    const hasGeneIds = activeSet.geneIds.length > 0;
+    const hasSearch =
+      activeSet.searchName != null &&
+      activeSet.searchName !== "" &&
+      activeSet.parameters != null;
     if (!hasGeneIds && !hasSearch) return;
     if (positiveControls.length === 0) {
       setError("At least one positive control gene ID is required.");
@@ -104,26 +110,24 @@ export function EvaluatePanel() {
     };
 
     try {
-      const subscription = await createExperimentStream(
-        {
-          siteId: activeSet.siteId,
-          recordType: activeSet.recordType ?? "gene",
-          searchName: activeSet.searchName ?? "",
-          parameters: activeSet.parameters ?? {},
-          positiveControls,
-          negativeControls,
-          controlsSearchName: CONTROLS_SEARCH_NAME,
-          controlsParamName: CONTROLS_PARAM_NAME,
-          controlsValueFormat: "newline",
-          enableCrossValidation: enableCV,
-          kFolds,
-          enableStepAnalysis,
-          enrichmentTypes,
-          targetGeneIds: activeSet.geneIds?.length ? activeSet.geneIds : undefined,
-          name: `Workbench eval: ${activeSet.name}`,
-        },
-        handlers,
-      );
+      const evalConfig: Parameters<typeof createExperimentStream>[0] = {
+        siteId: activeSet.siteId,
+        recordType: activeSet.recordType ?? "gene",
+        searchName: activeSet.searchName ?? "",
+        parameters: activeSet.parameters ?? {},
+        positiveControls,
+        negativeControls,
+        controlsSearchName: CONTROLS_SEARCH_NAME,
+        controlsParamName: CONTROLS_PARAM_NAME,
+        controlsValueFormat: "newline",
+        enableCrossValidation: enableCV,
+        kFolds,
+        enableStepAnalysis,
+        enrichmentTypes,
+        name: `Workbench eval: ${activeSet.name}`,
+      };
+      if (activeSet.geneIds.length > 0) evalConfig.targetGeneIds = activeSet.geneIds;
+      const subscription = await createExperimentStream(evalConfig, handlers);
       subscriptionRef.current = subscription;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -152,7 +156,7 @@ export function EvaluatePanel() {
     >
       <div className="space-y-4">
         {/* Quick pick from saved controls */}
-        {activeSet?.siteId && (
+        {activeSet?.siteId != null && activeSet.siteId !== "" && (
           <ControlSetQuickPick
             siteId={activeSet.siteId}
             onSelect={(posIds, negIds) => {
@@ -257,7 +261,13 @@ export function EvaluatePanel() {
         </div>
 
         {/* Run button */}
-        <Button size="sm" onClick={handleRun} disabled={loading}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleRun();
+          }}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -266,15 +276,17 @@ export function EvaluatePanel() {
           {loading ? "Evaluating..." : "Run Evaluation"}
         </Button>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {/* Results */}
-        {experiment && experiment.metrics && (
+        {experiment?.metrics != null && (
           <div className="space-y-6">
             <MetricsOverview
               metrics={experiment.metrics}
-              rankMetrics={experiment.rankMetrics}
-              robustness={experiment.robustness}
+              rankMetrics={experiment.rankMetrics ?? null}
+              robustness={experiment.robustness ?? null}
             />
             <ConfusionMatrixSection cm={experiment.metrics.confusionMatrix} />
             {experiment.rankMetrics && (

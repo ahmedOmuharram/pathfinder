@@ -47,7 +47,7 @@ def experiment_to_json(exp: Experiment) -> JSONObject:
         config["optimizationSpecs"] = to_json(exp.config.optimization_specs)
     if exp.config.parameter_display_values:
         config["parameterDisplayValues"] = cast(
-            JSONObject, exp.config.parameter_display_values
+            "JSONObject", exp.config.parameter_display_values
         )
     if exp.config.control_set_id:
         config["controlSetId"] = exp.config.control_set_id

@@ -388,7 +388,7 @@ def _assert_metrics_correct(metrics: ExperimentMetrics) -> None:
     assert math.isclose(metrics.specificity, 0.8, rel_tol=1e-9)
     # Precision = TP / (TP + FP) = 8/9
     assert math.isclose(metrics.precision, 8.0 / 9.0, rel_tol=1e-9)
-    # F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
+    # F1 harmonic mean of precision and sensitivity
     expected_precision = 8.0 / 9.0
     expected_f1 = 2 * expected_precision * 0.8 / (expected_precision + 0.8)
     assert math.isclose(metrics.f1_score, expected_f1, rel_tol=1e-9)

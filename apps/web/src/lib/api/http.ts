@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-export class SchemaValidationError extends Error {
+class SchemaValidationError extends Error {
   url: string;
   issues: unknown[];
 
@@ -49,7 +49,7 @@ function getApiBaseUrl(): string {
     return window.location.origin;
   }
   // Server-side (SSR / route handlers): reach the API directly.
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const base = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
   return base.replace(/\/+$/, "");
 }
 
@@ -77,14 +77,16 @@ export function getAuthHeaders(opts?: {
   extra?: Record<string, string>;
 }): Record<string, string> {
   return {
-    ...(opts?.accept ? { Accept: opts.accept } : {}),
-    ...(opts?.contentType ? { "Content-Type": opts.contentType } : {}),
+    ...(opts?.accept != null && opts.accept !== "" ? { Accept: opts.accept } : {}),
+    ...(opts?.contentType != null && opts.contentType !== ""
+      ? { "Content-Type": opts.contentType }
+      : {}),
     ...(opts?.extra ?? {}),
   };
 }
 
 async function parseResponseBody(resp: Response): Promise<unknown> {
-  const contentType = resp.headers.get("content-type") || "";
+  const contentType = resp.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     try {
       return await resp.json();
@@ -112,23 +114,27 @@ export async function requestJson<T>(
   const method = args?.method ?? "GET";
   const url = buildUrl(path, args?.query);
 
-  const hasBody = args && "body" in args && args.body !== undefined;
+  const hasBody = args != null && "body" in args && args.body !== undefined;
   const headers: Record<string, string> = {
     ...getAuthHeaders({
       accept: "application/json",
-      contentType: hasBody ? "application/json" : undefined,
+      ...(hasBody ? { contentType: "application/json" } : {}),
     }),
     ...(args?.headers ?? {}),
   };
 
-  const resp = await fetch(url, {
+  const fetchOpts: RequestInit = {
     method,
     headers,
-    body: hasBody ? JSON.stringify(args?.body ?? null) : undefined,
-    signal: args?.signal,
     // Cookie auth is the public API contract; include it for browser + SSR.
     credentials: "include",
-  });
+  };
+  if (hasBody) {
+    const body = args.body;
+    fetchOpts.body = JSON.stringify(body ?? null);
+  }
+  if (args?.signal != null) fetchOpts.signal = args.signal;
+  const resp = await fetch(url, fetchOpts);
 
   const data = await parseResponseBody(resp);
 
@@ -141,8 +147,10 @@ export async function requestJson<T>(
       } else if (Array.isArray(detail)) {
         // FastAPI validation errors: [{loc, msg, type}, ...]
         msg = detail
-          .map((e) =>
-            typeof e === "object" && e && "msg" in e ? String(e.msg) : String(e),
+          .map((e: unknown) =>
+            typeof e === "object" && e != null && "msg" in e
+              ? String((e as { msg: unknown }).msg)
+              : String(e),
           )
           .join("; ");
       } else {
@@ -210,18 +218,16 @@ export async function requestBlob(
   const method = args?.method ?? "GET";
   const url = buildUrl(path, args?.query);
 
-  const hasBody = args && "body" in args && args.body !== undefined;
+  const hasBody = args != null && "body" in args && args.body !== undefined;
   const headers: Record<string, string> = {
-    ...getAuthHeaders({
-      contentType: hasBody ? "application/json" : undefined,
-    }),
+    ...getAuthHeaders(hasBody ? { contentType: "application/json" } : {}),
     ...(args?.headers ?? {}),
   };
 
   const resp = await fetch(url, {
     method,
     headers,
-    body: hasBody ? JSON.stringify(args?.body ?? null) : undefined,
+    ...(hasBody ? { body: JSON.stringify(args.body ?? null) } : {}),
     credentials: "include",
   });
 

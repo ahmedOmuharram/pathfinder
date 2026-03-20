@@ -33,7 +33,7 @@ interface ScoreChartDatum {
 }
 
 const tooltipFormatter: NonNullable<TooltipProps["formatter"]> = (value, name) => [
-  typeof value === "number" && value != null ? value.toFixed(4) : "--",
+  typeof value === "number" ? value.toFixed(4) : "--",
   name === "score" ? "Score" : "Best so far",
 ];
 

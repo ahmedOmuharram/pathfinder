@@ -46,20 +46,20 @@ class TemporaryResultsAPI(StrategyAPIBase):
 
         await self._ensure_session()
         return cast(
-            JSONObject, await self.client.post("/temporary-results", json=payload)
+            "JSONObject", await self.client.post("/temporary-results", json=payload)
         )
 
     async def get_temporary_result(self, result_id: str) -> JSONObject:
         """Get status of a temporary result."""
         await self._ensure_session()
         return cast(
-            JSONObject, await self.client.get(f"/temporary-results/{result_id}")
+            "JSONObject", await self.client.get(f"/temporary-results/{result_id}")
         )
 
     async def get_download_url(
         self,
         step_id: int,
-        format: str = "csv",
+        output_format: str = "csv",
         attributes: list[str] | None = None,
     ) -> str:
         """Get download URL for step results.
@@ -69,34 +69,33 @@ class TemporaryResultsAPI(StrategyAPIBase):
         ``{base_url}/temporary-results/{id}/result``.
 
         :param step_id: Step ID.
-        :param format: Output format (csv, tab, json).
+        :param output_format: Output format (csv, tab, json).
         :param attributes: Attributes to include.
         :returns: Download URL.
         """
         format_config: JSONObject = {}
 
-        if format == "csv" or format == "tab":
+        if output_format in {"csv", "tab"}:
             format_config["type"] = "standard"
             format_config["includeHeader"] = True
             format_config["attachmentType"] = "text"
-        elif format == "json":
+        elif output_format == "json":
             format_config["type"] = "json"
 
         if attributes:
             # list[str] is compatible with JSONValue (JSONArray)
-            format_config["attributes"] = cast(JSONArray, attributes)
+            format_config["attributes"] = cast("JSONArray", attributes)
 
         result = await self.create_temporary_result(
             step_id=step_id,
-            reporter="standard" if format in ("csv", "tab") else "fullRecord",
+            reporter="standard" if output_format in ("csv", "tab") else "fullRecord",
             format_config=format_config,
         )
 
         result_id_raw = result.get("id")
         if result_id_raw is None:
-            raise RuntimeError(
-                "VEuPathDB temporary-results response did not include an id."
-            )
+            msg = "VEuPathDB temporary-results response did not include an id."
+            raise RuntimeError(msg)
         result_id = str(result_id_raw)
 
         base = self.client.base_url.rstrip("/")
@@ -122,7 +121,7 @@ class TemporaryResultsAPI(StrategyAPIBase):
             }
         }
         if attributes:
-            report_config["attributes"] = cast(JSONArray, attributes)
+            report_config["attributes"] = cast("JSONArray", attributes)
 
         await self._ensure_session()
         return await self._standard_report(step_id, report_config)

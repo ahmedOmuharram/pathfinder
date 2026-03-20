@@ -3,7 +3,7 @@ import type { EnrichmentTerm } from "@pathfinder/shared";
 import type { SortDir } from "../constants";
 import type { SortKey } from "../components/enrichment-utils";
 
-export interface EnrichmentTableState {
+interface EnrichmentTableState {
   sorted: EnrichmentTerm[];
   sortKey: SortKey;
   sortDir: SortDir;

@@ -23,6 +23,7 @@ from veupath_chatbot.platform.events import (
     read_stream_messages,
     read_stream_thinking,
 )
+from veupath_chatbot.services.chat.orchestrator import start_chat_stream
 from veupath_chatbot.transport.http.routers.strategies._shared import (
     build_projection_response,
 )
@@ -730,8 +731,6 @@ class TestOrchestratorEmitsReadableMessages:
     @pytest.mark.asyncio
     async def test_start_chat_stream_uses_correct_stream_key(self, redis):
         """The orchestrator must emit to stream:{stream.id}, and the read must use the same key."""
-        from veupath_chatbot.services.chat.orchestrator import start_chat_stream
-
         stream_uuid = uuid4()
         fake_stream = SimpleNamespace(id=stream_uuid)
 
@@ -765,7 +764,7 @@ class TestOrchestratorEmitsReadableMessages:
                 side_effect=_fake_create_task,
             ),
         ):
-            op_id, returned_stream_id = await start_chat_stream(
+            _op_id, returned_stream_id = await start_chat_stream(
                 message="Test message for persistence",
                 site_id="plasmodb",
                 strategy_id=stream_uuid,

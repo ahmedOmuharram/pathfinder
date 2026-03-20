@@ -1,5 +1,6 @@
 """Tests for bootstrap robustness and uncertainty estimation."""
 
+import random
 from collections import defaultdict
 
 from veupath_chatbot.services.experiment.robustness import (
@@ -14,30 +15,22 @@ from veupath_chatbot.services.experiment.types import ConfidenceInterval
 
 class TestResample:
     def test_same_length(self) -> None:
-        import random
-
         rng = random.Random(42)
         items = ["a", "b", "c", "d"]
         result = _resample(items, rng)
         assert len(result) == len(items)
 
     def test_empty_list(self) -> None:
-        import random
-
         rng = random.Random(42)
         assert _resample([], rng) == []
 
     def test_deterministic_with_seed(self) -> None:
-        import random
-
         items = ["a", "b", "c", "d", "e"]
         result1 = _resample(items, random.Random(0))
         result2 = _resample(items, random.Random(0))
         assert result1 == result2
 
     def test_samples_from_original(self) -> None:
-        import random
-
         rng = random.Random(99)
         items = ["x", "y", "z"]
         result = _resample(items, rng)

@@ -7,10 +7,13 @@ from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
+from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
 from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.services.export import get_export_service
+from veupath_chatbot.services.gene_sets.operations import fetch_gene_ids_from_step
 
 logger = get_logger(__name__)
 
@@ -27,9 +30,6 @@ async def _run_step_control_tests(
     Fetches the step's gene IDs, then computes intersection with controls.
     No temporary WDK strategy needed.
     """
-    from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-    from veupath_chatbot.services.gene_sets.operations import fetch_gene_ids_from_step
-
     api = get_strategy_api(site_id)
     gene_ids = await fetch_gene_ids_from_step(api, step_id=wdk_step_id)
     result_set = set(gene_ids)
@@ -50,7 +50,7 @@ async def _run_step_control_tests(
         found = pos_set & result_set
         missing = sorted(pos_set - result_set)
         result["positive"] = cast(
-            JSONValue,
+            "JSONValue",
             {
                 "controlsCount": len(pos),
                 "intersectionCount": len(found),
@@ -64,7 +64,7 @@ async def _run_step_control_tests(
         neg_set = set(neg)
         false_positives = neg_set & result_set
         result["negative"] = cast(
-            JSONValue,
+            "JSONValue",
             {
                 "controlsCount": len(neg),
                 "intersectionCount": len(false_positives),
@@ -132,6 +132,7 @@ class ExperimentToolsMixin:
             list[str] | None,
             AIParam(desc="Known-negative IDs that should NOT be returned"),
         ] = None,
+        *,
         controls_value_format: Annotated[
             ControlValueFormat,
             AIParam(desc="How to encode ID list for the controls parameter"),
@@ -162,7 +163,7 @@ class ExperimentToolsMixin:
         has_negatives = negative_controls and len(negative_controls) > 0
         if not has_positives and not has_negatives:
             return cast(
-                JSONObject,
+                "JSONObject",
                 {
                     "ok": False,
                     "error": "At least one of positive_controls or negative_controls must be provided.",
@@ -194,7 +195,7 @@ class ExperimentToolsMixin:
             )
         else:
             return cast(
-                JSONObject,
+                "JSONObject",
                 {
                     "ok": False,
                     "error": "Provide either wdk_step_id (to test a built strategy) or target_search_name + target_parameters (to test a standalone search).",
@@ -203,8 +204,6 @@ class ExperimentToolsMixin:
 
         # Auto-generate exports.
         try:
-            from veupath_chatbot.services.export import get_export_service
-
             svc = get_export_service()
             name = f"{target_search_name or 'step'}_control_tests"
             json_export = await svc.export_json(result, name)
@@ -212,7 +211,7 @@ class ExperimentToolsMixin:
                 "json": json_export.url,
                 "expiresInSeconds": json_export.expires_in_seconds,
             }
-        except Exception as e:
+        except (OSError, ValueError, TypeError, KeyError) as e:
             logger.warning("Control test export failed", error=str(e))
 
         return result

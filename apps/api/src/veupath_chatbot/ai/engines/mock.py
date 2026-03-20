@@ -5,7 +5,7 @@ message.  The ONLY fake in the stack — everything downstream (WDK API,
 PostgreSQL, Redis, gene sets, auto-build) runs real.
 """
 
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Callable
 
 from kani import AIFunction, ChatMessage
 from kani.engines.base import BaseCompletion, BaseEngine, Completion
@@ -137,6 +137,15 @@ def _build_create_step_call(site_id: str) -> list[ToolCall]:
     ]
 
 
+_KEYWORD_ROUTES: list[tuple[str, Callable[[str], list[ToolCall]]]] = [
+    ("delegation draft", _build_delegation_draft_call),
+    ("delegate_strategy_subtasks", _build_delegation_call),
+    ("delegation", _build_delegation_call),
+    ("artifact graph", _build_planning_artifact_call),
+    ("create step", _build_create_step_call),
+]
+
+
 def _route_tool_calls(
     user_text: str,
     site_id: str,
@@ -149,21 +158,14 @@ def _route_tool_calls(
     """
     lower = user_text.lower()
 
-    if "delegation draft" in lower:
-        return _build_delegation_draft_call(site_id)
-    if "delegate_strategy_subtasks" in lower or "delegation" in lower:
-        return _build_delegation_call(site_id)
-    if "artifact graph" in lower:
-        return _build_planning_artifact_call(site_id)
-    if "create step" in lower:
-        return _build_create_step_call(site_id)
+    for keyword, builder in _KEYWORD_ROUTES:
+        if keyword in lower:
+            return builder(site_id)
 
     # Sub-kani fallback: if create_step is available, create a step.
     # Sub-kanis always need to produce at least one step.
-    if functions:
-        fn_names = {f.name for f in functions}
-        if "create_step" in fn_names:
-            return _build_create_step_call(site_id)
+    if functions and "create_step" in {f.name for f in functions}:
+        return _build_create_step_call(site_id)
 
     return None
 

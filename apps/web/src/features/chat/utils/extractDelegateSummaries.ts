@@ -63,15 +63,26 @@ export function extractDelegateSummaries(toolCalls: ToolCall[]) {
     if (!parsed.success) continue;
 
     for (const entry of parsed.data.results ?? []) {
+      const steps: DelegateSummary["steps"] = (entry.steps ?? []).map((s) => ({
+        ...(s.stepId != null ? { stepId: s.stepId } : {}),
+        ...(s.displayName != null ? { displayName: s.displayName } : {}),
+        ...(s.searchName != null ? { searchName: s.searchName } : {}),
+        ...(s.recordType != null ? { recordType: s.recordType } : {}),
+      }));
       summaries.push({
         task: entry.task ?? "",
-        steps: entry.steps ?? [],
-        notes: entry.notes,
-        instructions: entry.instructions,
+        steps,
+        ...(entry.notes != null ? { notes: entry.notes } : {}),
+        ...(entry.instructions != null ? { instructions: entry.instructions } : {}),
       });
     }
     for (const entry of parsed.data.rejected ?? []) {
-      rejected.push(entry);
+      const rejectedEntry: RejectedDelegateSummary = {
+        ...(entry.task != null ? { task: entry.task } : {}),
+        ...(entry.error != null ? { error: entry.error } : {}),
+        ...(entry.details != null ? { details: entry.details } : {}),
+      };
+      rejected.push(rejectedEntry);
     }
   }
 

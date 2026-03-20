@@ -1,6 +1,6 @@
 import type { Step } from "@pathfinder/shared";
 
-export type NodeDeletionResult = {
+type NodeDeletionResult = {
   removeIds: string[];
   patches: Array<{ stepId: string; patch: Partial<Step> }>;
 };
@@ -27,19 +27,26 @@ export function computeNodeDeletionResult(args: {
   for (const step of steps) {
     if (toRemove.has(step.id)) continue;
     const patch: Partial<Step> = {};
-    if (step.primaryInputStepId && toRemove.has(step.primaryInputStepId)) {
-      patch.primaryInputStepId = undefined;
-    }
-    if (step.secondaryInputStepId && toRemove.has(step.secondaryInputStepId)) {
-      patch.secondaryInputStepId = undefined;
+    let inputDetached = false;
+    if (
+      step.primaryInputStepId != null &&
+      step.primaryInputStepId !== "" &&
+      toRemove.has(step.primaryInputStepId)
+    ) {
+      patch.primaryInputStepId = null;
+      inputDetached = true;
     }
     if (
-      (patch.primaryInputStepId !== undefined ||
-        patch.secondaryInputStepId !== undefined) &&
-      step.operator
+      step.secondaryInputStepId != null &&
+      step.secondaryInputStepId !== "" &&
+      toRemove.has(step.secondaryInputStepId)
     ) {
-      patch.operator = undefined;
-      patch.colocationParams = undefined;
+      patch.secondaryInputStepId = null;
+      inputDetached = true;
+    }
+    if (inputDetached && step.operator != null && step.operator !== "") {
+      patch.operator = null;
+      patch.colocationParams = null;
     }
     if (Object.keys(patch).length > 0) {
       patches.push({ stepId: step.id, patch });

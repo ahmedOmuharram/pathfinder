@@ -14,7 +14,7 @@ from veupath_chatbot.domain.parameters.specs import (
     find_input_step_param,
     unwrap_search_data,
 )
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.domain.strategy.session import StrategyGraph
@@ -27,7 +27,7 @@ from veupath_chatbot.services.catalog.param_validation import validate_parameter
 
 logger = get_logger(__name__)
 
-COMBINE_PLACEHOLDER_SEARCH_NAME = "__combine__"
+COMBINE_PLACEHOLDER_SEARCH_NAME = COMBINE_SEARCH_NAME
 
 # Callback type aliases for injected dependencies.
 ResolveRecordTypeFn = Callable[
@@ -178,7 +178,7 @@ def _validate_root_status(
         graphId=graph.id,
         stepId=step_id,
         consumedBy=consumer,
-        availableRoots=cast(JSONValue, sorted(graph.roots)),
+        availableRoots=cast("JSONValue", sorted(graph.roots)),
     )
 
 
@@ -191,7 +191,9 @@ async def _resolve_and_set_record_type(
     """Establish best-effort record type context on the graph. Returns the resolved type."""
     resolved = graph.record_type or record_type
     if resolved is None and search_name:
-        resolved = await resolve_record_type_for_search(None, search_name, False, True)
+        resolved = await resolve_record_type_for_search(
+            None, search_name, require_match=False, allow_fallback=True
+        )
     if resolved is None:
         resolved = "gene"
     graph.record_type = resolved
@@ -222,7 +224,7 @@ async def _resolve_search_and_validate_params(
     :returns: (resolved_record_type, error_or_none).
     """
     rt = await resolve_record_type_for_search(
-        resolved_record_type, search_name, True, True
+        resolved_record_type, search_name, require_match=True, allow_fallback=True
     )
     if rt is None:
         record_type_hint = await find_record_type_hint(
@@ -370,8 +372,8 @@ def _validate_cross_organism_intersect(
             f"Gene IDs from different species never match, so this always returns 0 results. "
             f"Apply organism-specific filters BEFORE any ortholog transform, not after.",
             graphId=graph.id,
-            primaryOrganisms=cast(JSONValue, sorted(primary_orgs)),
-            secondaryOrganisms=cast(JSONValue, sorted(secondary_orgs)),
+            primaryOrganisms=cast("JSONValue", sorted(primary_orgs)),
+            secondaryOrganisms=cast("JSONValue", sorted(secondary_orgs)),
         )
     return None
 

@@ -8,9 +8,9 @@ import {
   useState,
   startTransition,
 } from "react";
-import { type Edge, type Node, useNodesState, useEdgesState } from "reactflow";
+import { type Node, useNodesState, useEdgesState } from "reactflow";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { validateStepsForSave } from "@/features/strategy/validation/save";
 import { useSaveValidation } from "@/features/strategy/validation/useSaveValidation";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -130,7 +130,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   );
 
   const editableSteps = useMemo(
-    () => draftStrategy?.steps || strategy?.steps || [],
+    () => draftStrategy?.steps ?? strategy?.steps ?? [],
     [draftStrategy?.steps, strategy?.steps],
   );
 
@@ -149,7 +149,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   }, []);
 
   const combineMismatchGroups = useMemo(() => {
-    const steps = draftStrategy?.steps || strategy?.steps || [];
+    const steps = draftStrategy?.steps ?? strategy?.steps ?? [];
     return getCombineMismatchGroups(steps);
   }, [draftStrategy?.steps, strategy?.steps]);
 
@@ -187,18 +187,20 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   ]);
 
   // Dirty-step tracking
-  const isDraftView = !!draftStrategy && strategy?.id === draftStrategy.id;
+  const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
   const planResult = buildPlan();
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
-  const graphIdForValidation = draftStrategy?.id || strategy?.id || null;
+  const graphIdForValidation = draftStrategy?.id ?? strategy?.id ?? null;
   const graphHasValidationIssues = useStrategyStore((state) =>
-    graphIdForValidation ? !!state.graphValidationStatus[graphIdForValidation] : false,
+    graphIdForValidation != null && graphIdForValidation !== ""
+      ? state.graphValidationStatus[graphIdForValidation] === true
+      : false,
   );
 
   const dirtyStepIds = useMemo(() => {
     void lastSavedStepsVersion;
     const dirty = new Set<string>();
-    const steps = strategy?.steps || [];
+    const steps = strategy?.steps ?? [];
     if (steps.length === 0) return dirty;
     for (const step of steps) {
       const signature = buildStepSignature(step);
@@ -237,7 +239,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
 
   // Validate search steps
   const validateSearchSteps = useCallback(async () => {
-    const steps = draftStrategy?.steps || [];
+    const steps = draftStrategy?.steps ?? [];
     if (steps.length === 0) return true;
     const { errorsByStepId, hasErrors: hasFieldErrors } = await validateStepsForSave({
       siteId,
@@ -246,8 +248,8 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     });
     setStepValidationErrors(errorsByStepId);
     const hasErrors = hasFieldErrors || combineMismatchGroups.length > 0;
-    const graphId = draftStrategy?.id || strategy?.id;
-    if (graphId) {
+    const graphId = draftStrategy?.id ?? strategy?.id;
+    if (graphId != null && graphId !== "") {
       setGraphValidationStatus(graphId, hasErrors);
     }
     return !hasErrors;
@@ -262,7 +264,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   ]);
 
   useSaveValidation({
-    steps: draftStrategy?.steps || [],
+    steps: draftStrategy?.steps ?? [],
     buildStepSignature,
     validate: validateSearchSteps,
   });

@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { PAGE_SIZE_OPTIONS } from "./ResultsTableColumns";
 
-export interface PaginationControlsProps {
+interface PaginationControlsProps {
   offset: number;
   pageSize: number;
   totalCount: number;

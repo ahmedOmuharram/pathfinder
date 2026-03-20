@@ -20,7 +20,12 @@ from kani.models import FunctionCall
 from veupath_chatbot.ai.agents.executor import PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.compile import (
+    CompilationResult,
+    StepTreeNode,
+)
 from veupath_chatbot.services.gene_sets.types import GeneSet
+from veupath_chatbot.services.strategies.build import BuildResult
 
 _USER_ID = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 _SITE_ID = "plasmodb"
@@ -71,12 +76,6 @@ def _tool_result_json(step_id: str = "s1") -> str:
 
 
 def _build_result(wdk_strategy_id: int = 999) -> object:
-    from veupath_chatbot.domain.strategy.compile import (
-        CompilationResult,
-        StepTreeNode,
-    )
-    from veupath_chatbot.services.strategies.build import BuildResult
-
     return BuildResult(
         wdk_strategy_id=wdk_strategy_id,
         wdk_url=f"https://plasmodb.org/plasmo/app/workspace/strategies/{wdk_strategy_id}",
@@ -129,11 +128,7 @@ def _drain_events(agent: PathfinderAgent) -> list[dict]:
 
 def _gene_set_events(events: list[dict]) -> list[dict]:
     """Extract geneSetCreated from auto-build results in tool content."""
-    gs_events = []
-    for e in events:
-        if e.get("type") == "workbench_gene_set":
-            gs_events.append(e)
-    return gs_events
+    return [e for e in events if e.get("type") == "workbench_gene_set"]
 
 
 # ---------------------------------------------------------------------------
@@ -166,15 +161,15 @@ class TestFirstBuildCreatesGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -202,15 +197,15 @@ class TestFirstBuildCreatesGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -250,15 +245,15 @@ class TestRebuildReusesExistingGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(wdk_strategy_id=999),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -291,15 +286,15 @@ class TestRebuildReusesExistingGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(wdk_strategy_id=999),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -345,15 +340,15 @@ class TestRebuildAfterDeletion:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(wdk_strategy_id=999),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -409,15 +404,15 @@ class TestAutoBuildWithAutoImportedGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(wdk_strategy_id=999),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -464,18 +459,18 @@ class TestWdkStrategyIdChanges:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 side_effect=[
                     _build_result(wdk_strategy_id=100),
                     _build_result(wdk_strategy_id=200),
                 ],
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 return_value=mock_svc,
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.store.get_gene_set_store",
+                "veupath_chatbot.ai.agents.executor.get_gene_set_store",
                 return_value=mock_store,
             ),
         ):
@@ -507,7 +502,7 @@ class TestNoUserIdSkipsGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
         ):

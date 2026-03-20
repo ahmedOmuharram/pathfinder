@@ -30,13 +30,13 @@ describe("StringParam", () => {
 
   it("renders with the provided value", () => {
     render(<StringParam {...makeProps({ value: "hello" })} />);
-    const input = screen.getByRole("textbox") as HTMLInputElement;
+    const input: HTMLInputElement = screen.getByRole("textbox");
     expect(input.value).toBe("hello");
   });
 
   it("renders empty string when value is undefined", () => {
     render(<StringParam {...makeProps({ value: undefined })} />);
-    const input = screen.getByRole("textbox") as HTMLInputElement;
+    const input: HTMLInputElement = screen.getByRole("textbox");
     expect(input.value).toBe("");
   });
 

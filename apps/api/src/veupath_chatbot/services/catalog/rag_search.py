@@ -21,8 +21,16 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
     QdrantStore,
     point_uuid,
 )
+from veupath_chatbot.integrations.veupathdb.discovery import (
+    get_discovery_service,
+)
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_object,
+)
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -100,7 +108,7 @@ class RagSearchService:
             collection=WDK_RECORD_TYPES_V1,
             query_vector=vec,
             limit=max(int(limit) * 3, int(limit), 1),
-            must=cast(JSONArray, [{"key": "siteId", "value": self.site_id}]),
+            must=cast("JSONArray", [{"key": "siteId", "value": self.site_id}]),
         )
         return _threshold_and_limit(
             hits,
@@ -145,9 +153,9 @@ class RagSearchService:
         if not q:
             return []
         vec = await embed_one(text=q, model=settings.embeddings_model)
-        must: JSONArray = [cast(JSONValue, {"key": "siteId", "value": self.site_id})]
+        must: JSONArray = [cast("JSONValue", {"key": "siteId", "value": self.site_id})]
         if record_type:
-            must.append(cast(JSONValue, {"key": "recordType", "value": record_type}))
+            must.append(cast("JSONValue", {"key": "recordType", "value": record_type}))
         hits = await self._store.search(
             collection=WDK_SEARCHES_V1,
             query_vector=vec,
@@ -221,8 +229,6 @@ class RagSearchService:
             limit=limit,
             must=[{"key": "siteId", "value": self.site_id}],
         )
-        from veupath_chatbot.platform.types import as_json_object
-
         out: JSONArray = []
         for h_value in hits:
             if not isinstance(h_value, dict):
@@ -264,10 +270,6 @@ class RagSearchService:
         expand_params: bool = True,
     ) -> JSONObject:
         """Proxy to DiscoveryService.get_search_details for dependent-vocab fallbacks."""
-        from veupath_chatbot.integrations.veupathdb.discovery import (
-            get_discovery_service,
-        )
-
         discovery = get_discovery_service()
         return await discovery.get_search_details(
             self.site_id, record_type, search_name, expand_params=expand_params

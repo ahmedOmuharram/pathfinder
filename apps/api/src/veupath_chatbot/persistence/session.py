@@ -1,6 +1,7 @@
 """SQLAlchemy async engine and session management."""
 
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
@@ -10,18 +11,17 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from veupath_chatbot.persistence.models import Base
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 
-_engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
+_state: dict[str, Any] = {"engine": None, "session_factory": None}
 
 
 def _get_engine() -> AsyncEngine:
     """Lazily create the async engine on first access."""
-    global _engine
-    if _engine is not None:
-        return _engine
+    if _state["engine"] is not None:
+        return _state["engine"]
 
     settings = get_settings()
     db_url = make_url(settings.database_url)
@@ -35,29 +35,30 @@ def _get_engine() -> AsyncEngine:
             ),
         )
 
-    _engine = create_async_engine(
+    engine = create_async_engine(
         settings.database_url,
         echo=settings.is_development,
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=10,
     )
-    return _engine
+    _state["engine"] = engine
+    return engine
 
 
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Lazily create the session factory on first access."""
-    global _session_factory
-    if _session_factory is not None:
-        return _session_factory
+    if _state["session_factory"] is not None:
+        return _state["session_factory"]
 
-    _session_factory = async_sessionmaker(
+    factory = async_sessionmaker(
         _get_engine(),
         class_=AsyncSession,
         expire_on_commit=False,
         autoflush=False,
     )
-    return _session_factory
+    _state["session_factory"] = factory
+    return factory
 
 
 def get_engine() -> AsyncEngine:
@@ -82,9 +83,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """Initialize database — creates all tables from ORM models."""
-    from veupath_chatbot.persistence.models import Base
-
+    """Initialize database - creates all tables from ORM models."""
     real_engine = _get_engine()
     async with real_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -92,8 +91,8 @@ async def init_db() -> None:
 
 async def close_db() -> None:
     """Close database connections."""
-    global _engine, _session_factory
-    if _engine is not None:
-        await _engine.dispose()
-        _engine = None
-        _session_factory = None
+    engine = _state["engine"]
+    if engine is not None:
+        await engine.dispose()
+        _state["engine"] = None
+        _state["session_factory"] = None

@@ -39,7 +39,7 @@ class _CaptureClient:
 async def test_get_download_url_validates_format() -> None:
     tools = ResultTools(FakeResultToolsSession())
 
-    result = await tools.get_download_url(wdk_step_id=123, format="xlsx")
+    result = await tools.get_download_url(wdk_step_id=123, output_format="xlsx")
 
     assert result["ok"] is False
     assert result["code"] == "VALIDATION_ERROR"
@@ -58,7 +58,7 @@ async def test_get_download_url_maps_report_name_payload_error() -> None:
 
     result = await tools.get_download_url(
         wdk_step_id=437637443,
-        format="csv",
+        output_format="csv",
         attributes=["primary_key"],
     )
 
@@ -74,7 +74,7 @@ async def test_get_download_url_returns_url_on_success() -> None:
     tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
 
     result = await tools.get_download_url(
-        wdk_step_id=101, format="csv", attributes=None
+        wdk_step_id=101, output_format="csv", attributes=None
     )
 
     assert result["downloadUrl"] == "https://example/download.csv"
@@ -100,7 +100,7 @@ async def test_temporary_results_get_download_url_constructs_from_id() -> None:
     client = _CaptureClient(post_response={"id": "tmp-1"})
     api = TemporaryResultsAPI(client)
 
-    url = await api.get_download_url(step_id=123, format="csv", attributes=None)
+    url = await api.get_download_url(step_id=123, output_format="csv", attributes=None)
 
     assert url == "https://example.org/service/temporary-results/tmp-1"
 
@@ -110,5 +110,5 @@ async def test_temporary_results_get_download_url_raises_when_no_id() -> None:
     client = _CaptureClient(post_response={})
     api = TemporaryResultsAPI(client)
 
-    with pytest.raises(RuntimeError, match="did not include.*id"):
-        await api.get_download_url(step_id=123, format="csv", attributes=None)
+    with pytest.raises(RuntimeError, match=r"did not include.*id"):
+        await api.get_download_url(step_id=123, output_format="csv", attributes=None)

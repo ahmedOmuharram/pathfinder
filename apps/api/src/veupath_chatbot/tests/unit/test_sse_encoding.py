@@ -12,6 +12,7 @@ Covers:
 
 import asyncio
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -69,9 +70,7 @@ class TestSSENewlineHandling:
             await send({"type": "msg", "data": {"content": "line1\nline2\nline3"}})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         # The first frame's data line should have escaped newlines
         data_line = frames[0].split("\n")[1]
@@ -92,9 +91,7 @@ class TestSSENewlineHandling:
             await send({"type": "msg", "data": {"text": multiline}})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         # Parse the first frame and verify content roundtrips
         data_line = frames[0].split("\n")[1]
@@ -115,11 +112,12 @@ class TestSSEProducerErrors:
 
         async def failing_producer(send):
             await send({"type": "progress", "data": {"step": 1}})
-            raise ValueError("Producer crashed!")
+            msg = "Producer crashed!"
+            raise ValueError(msg)
 
-        frames = []
-        async for frame in sse_stream(failing_producer, {"done", "error"}):
-            frames.append(frame)
+        frames = [
+            frame async for frame in sse_stream(failing_producer, {"done", "error"})
+        ]
 
         assert len(frames) == 2
         assert "event: progress" in frames[0]
@@ -138,11 +136,10 @@ class TestSSEProducerErrors:
 class TestSSENonSerializableData:
     async def test_non_serializable_data_raises(self) -> None:
         """Non-JSON-serializable data in events crashes the stream."""
-        from datetime import datetime
 
         async def producer(send):
             # datetime is not JSON-serializable by default
-            await send({"type": "msg", "data": {"time": datetime.now()}})
+            await send({"type": "msg", "data": {"time": datetime.now(tz=UTC)}})
             await send({"type": "done", "data": {}})
 
         with pytest.raises(TypeError, match="not JSON serializable"):
@@ -172,9 +169,7 @@ class TestSSEEventFieldDefaults:
             await send({"data": {"value": 1}})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert frames[0].startswith("event: experiment_progress\n")
 
@@ -182,9 +177,7 @@ class TestSSEEventFieldDefaults:
         async def producer(send):
             await send({"type": "done"})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert "data: {}" in frames[0]
 
@@ -195,9 +188,7 @@ class TestSSEEventFieldDefaults:
             await send({})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert frames[0] == "event: experiment_progress\ndata: {}\n\n"
 
@@ -208,9 +199,7 @@ class TestSSEEventFieldDefaults:
             await send({"type": "my event type", "data": {}})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert "event: my event type" in frames[0]
 
@@ -229,9 +218,7 @@ class TestSSELargePayloads:
             await send({"type": "data", "data": {"items": large_list}})
             await send({"type": "done", "data": {}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         data_line = frames[0].split("\n")[1]
         parsed = json.loads(data_line.removeprefix("data: "))
@@ -257,9 +244,7 @@ class TestSSETaskLifecycle:
                 task_was_cancelled = True
                 raise
 
-        frames = []
-        async for frame in sse_stream(slow_producer, {"done"}):
-            frames.append(frame)
+        [frame async for frame in sse_stream(slow_producer, {"done"})]
 
         # Give the event loop a chance to process the cancellation
         await asyncio.sleep(0.1)
@@ -273,9 +258,7 @@ class TestSSETaskLifecycle:
                 await send({"type": "progress", "data": {"step": i}})
             await send({"type": "done", "data": {"total": 100}})
 
-        frames = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert len(frames) == 101  # 100 progress + 1 done
         # Verify last frame is the done event

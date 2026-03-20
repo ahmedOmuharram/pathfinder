@@ -276,7 +276,7 @@ class TestRunGeneSetEnrichment:
                 return_value=(["placeholder1", "placeholder2"], []),
             ),
             patch(
-                "veupath_chatbot.services.experiment.types.to_json",
+                "veupath_chatbot.services.gene_sets.enrichment.to_json",
                 side_effect=mock_serialized,
             ),
         ):

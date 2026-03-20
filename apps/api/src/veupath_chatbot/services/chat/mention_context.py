@@ -7,6 +7,7 @@ system prompt so the model has complete information from the start.
 
 import json
 from typing import Literal
+from uuid import UUID
 
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.logging import get_logger
@@ -53,8 +54,6 @@ async def _build_strategy_context(
     stream_repo: StreamRepository,
 ) -> str | None:
     """Load a stream projection and format a rich context block."""
-    from uuid import UUID
-
     try:
         sid = UUID(strategy_id)
     except ValueError:
@@ -193,11 +192,11 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
             lines.append(
                 f"### Enrichment: {er.analysis_type} ({er.total_genes_analyzed} genes)"
             )
-            for term in er.terms[:8]:
-                lines.append(
-                    f"- {term.term_name} ({term.gene_count} genes, "
-                    f"p={term.p_value:.2e}, FDR={term.fdr:.2e})"
-                )
+            lines.extend(
+                f"- {term.term_name} ({term.gene_count} genes, "
+                f"p={term.p_value:.2e}, FDR={term.fdr:.2e})"
+                for term in er.terms[:8]
+            )
             if len(er.terms) > 8:
                 lines.append(f"- ... {len(er.terms) - 8} more terms")
 

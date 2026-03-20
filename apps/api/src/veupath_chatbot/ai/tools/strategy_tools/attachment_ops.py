@@ -18,6 +18,7 @@ class StrategyAttachmentOps(StrategyToolsHelpers):
         step_id: Annotated[str, AIParam(desc="Step ID to filter")],
         filter_name: Annotated[str, AIParam(desc="Filter name")],
         value: Annotated[JSONValue, AIParam(desc="Filter value payload")],
+        *,
         disabled: Annotated[
             bool, AIParam(desc="Whether the filter is disabled")
         ] = False,

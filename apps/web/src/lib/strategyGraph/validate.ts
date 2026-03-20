@@ -1,6 +1,6 @@
-import type { Step } from "./types";
+import type { Step } from "@pathfinder/shared";
 
-export type StrategyGraphError = {
+type StrategyGraphError = {
   code:
     | "MISSING_INPUT"
     | "UNKNOWN_STEP"
@@ -13,7 +13,7 @@ export type StrategyGraphError = {
   inputStepId?: string;
 };
 
-export type CombineRecordTypeMismatch = {
+type CombineRecordTypeMismatch = {
   stepId: string;
   leftType: string | null;
   rightType: string | null;
@@ -26,13 +26,16 @@ export type CombineMismatchGroup = {
 };
 
 function inferKind(step: Step): "search" | "transform" | "combine" | "invalid" {
-  if (step.secondaryInputStepId && !step.primaryInputStepId) return "invalid";
-  if (step.primaryInputStepId && step.secondaryInputStepId) return "combine";
+  if (step.secondaryInputStepId != null && step.primaryInputStepId == null)
+    return "invalid";
+  if (step.primaryInputStepId != null && step.secondaryInputStepId != null)
+    return "combine";
   // A step with an operator (or explicit kind="combine") is a combine even if
   // one or both inputs were removed.  This ensures combine-specific checks
   // (two inputs required, operator required, etc.) still fire.
-  if (step.operator || step.kind === "combine") return "combine";
-  if (step.primaryInputStepId) return "transform";
+  if ((step.operator != null && step.operator !== "") || step.kind === "combine")
+    return "combine";
+  if (step.primaryInputStepId != null) return "transform";
   return "search";
 }
 
@@ -40,19 +43,19 @@ export function resolveRecordType(
   stepId: string | null | undefined,
   stepsMap: Map<string, Step>,
 ): string | null {
-  if (!stepId) return null;
+  if (stepId == null) return null;
   const step = stepsMap.get(stepId);
-  if (!step) return null;
-  if (step.recordType) return step.recordType;
+  if (step == null) return null;
+  if (step.recordType != null && step.recordType !== "") return step.recordType;
   const kind = inferKind(step);
-  if (kind === "transform" && step.primaryInputStepId) {
+  if (kind === "transform" && step.primaryInputStepId != null) {
     return resolveRecordType(step.primaryInputStepId, stepsMap);
   }
   if (kind === "combine") {
     const left = resolveRecordType(step.primaryInputStepId, stepsMap);
     const right = resolveRecordType(step.secondaryInputStepId, stepsMap);
-    if (left && right && left !== right) return "__mismatch__";
-    return left || right || null;
+    if (left != null && right != null && left !== right) return "__mismatch__";
+    return left ?? right ?? null;
   }
   return null;
 }
@@ -66,8 +69,8 @@ export function findCombineRecordTypeMismatch(
     const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
     const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
     if (
-      leftType &&
-      rightType &&
+      leftType != null &&
+      rightType != null &&
       leftType !== rightType &&
       leftType !== "__mismatch__" &&
       rightType !== "__mismatch__"
@@ -85,8 +88,8 @@ export function getRootSteps(steps: Step[]): Step[] {
   if (steps.length === 0) return [];
   const referenced = new Set<string>();
   for (const step of steps) {
-    if (step.primaryInputStepId) referenced.add(step.primaryInputStepId);
-    if (step.secondaryInputStepId) referenced.add(step.secondaryInputStepId);
+    if (step.primaryInputStepId != null) referenced.add(step.primaryInputStepId);
+    if (step.secondaryInputStepId != null) referenced.add(step.secondaryInputStepId);
   }
   return steps.filter((step) => !referenced.has(step.id));
 }
@@ -97,7 +100,7 @@ export function getRootStepId(steps: Step[]): string | null {
   // Single-output invariant: a valid graph must have exactly one root.
   // When the graph is invalid (0 or multiple roots), do not guess a root.
   if (roots.length !== 1) return null;
-  return roots[0].id;
+  return roots[0]!.id;
 }
 
 export function getCombineMismatchGroups(steps: Step[]): CombineMismatchGroup[] {
@@ -108,15 +111,15 @@ export function getCombineMismatchGroups(steps: Step[]): CombineMismatchGroup[] 
     if (inferKind(step) !== "combine") continue;
     const leftType = resolveRecordType(step.primaryInputStepId, stepsMap);
     const rightType = resolveRecordType(step.secondaryInputStepId, stepsMap);
-    if (!leftType || !rightType) continue;
+    if (leftType == null || rightType == null) continue;
     if (
       leftType === "__mismatch__" ||
       rightType === "__mismatch__" ||
       leftType !== rightType
     ) {
       const ids = new Set<string>([step.id]);
-      if (step.primaryInputStepId) ids.add(step.primaryInputStepId);
-      if (step.secondaryInputStepId) ids.add(step.secondaryInputStepId);
+      if (step.primaryInputStepId != null) ids.add(step.primaryInputStepId);
+      if (step.secondaryInputStepId != null) ids.add(step.secondaryInputStepId);
       groups.push({
         id: step.id,
         ids,
@@ -138,7 +141,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     const kind = inferKind(step);
     // Combine steps use a canonical searchName ("boolean_question") during serialization;
     // the UI doesn't store this on the step, so don't block on it here.
-    if (!step.searchName && kind !== "combine") {
+    if ((step.searchName == null || step.searchName === "") && kind !== "combine") {
       errors.push({
         code: "MISSING_SEARCH_NAME",
         message: "searchName is required.",
@@ -155,21 +158,21 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     }
 
     if (kind === "combine") {
-      if (!step.operator) {
+      if (step.operator == null || step.operator === "") {
         errors.push({
           code: "MISSING_OPERATOR",
           message: "Combine steps require an operator.",
           stepId: step.id,
         });
       }
-      if (step.operator === "COLOCATE" && !step.colocationParams) {
+      if (step.operator === "COLOCATE" && step.colocationParams == null) {
         errors.push({
           code: "MISSING_INPUT",
           message: "COLOCATE requires colocationParams (upstream/downstream/strand).",
           stepId: step.id,
         });
       }
-      if (!step.primaryInputStepId || !step.secondaryInputStepId) {
+      if (step.primaryInputStepId == null || step.secondaryInputStepId == null) {
         errors.push({
           code: "MISSING_INPUT",
           message: "Combine steps require two inputs.",
@@ -178,10 +181,10 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       }
     }
 
-    if (step.primaryInputStepId) referenced.add(step.primaryInputStepId);
-    if (step.secondaryInputStepId) referenced.add(step.secondaryInputStepId);
+    if (step.primaryInputStepId != null) referenced.add(step.primaryInputStepId);
+    if (step.secondaryInputStepId != null) referenced.add(step.secondaryInputStepId);
 
-    if (step.primaryInputStepId && !stepIds.has(step.primaryInputStepId)) {
+    if (step.primaryInputStepId != null && !stepIds.has(step.primaryInputStepId)) {
       errors.push({
         code: "UNKNOWN_STEP",
         message: "Primary input step does not exist.",
@@ -189,7 +192,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
         inputStepId: step.primaryInputStepId,
       });
     }
-    if (step.secondaryInputStepId && !stepIds.has(step.secondaryInputStepId)) {
+    if (step.secondaryInputStepId != null && !stepIds.has(step.secondaryInputStepId)) {
       errors.push({
         code: "UNKNOWN_STEP",
         message: "Secondary input step does not exist.",

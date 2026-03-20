@@ -27,17 +27,17 @@ export function buildStrategy(
   const rootStepId = roots.length === 1 ? getRootStepId(steps) : null;
 
   return {
-    id: existing?.id || "draft",
-    name: existing?.name || DEFAULT_STREAM_NAME,
-    siteId: existing?.siteId || "veupathdb",
-    recordType: existing?.recordType || steps[0]?.recordType || "gene",
+    id: existing?.id ?? "draft",
+    name: existing?.name ?? DEFAULT_STREAM_NAME,
+    siteId: existing?.siteId ?? "veupathdb",
+    recordType: existing?.recordType ?? steps[0]?.recordType ?? "gene",
     steps,
     rootStepId,
-    wdkStrategyId: existing?.wdkStrategyId,
-    wdkUrl: existing?.wdkUrl,
+    wdkStrategyId: existing?.wdkStrategyId ?? null,
+    wdkUrl: existing?.wdkUrl ?? null,
     isSaved: existing?.isSaved ?? false,
-    description: existing?.description,
-    createdAt: existing?.createdAt || new Date().toISOString(),
+    description: existing?.description ?? null,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }

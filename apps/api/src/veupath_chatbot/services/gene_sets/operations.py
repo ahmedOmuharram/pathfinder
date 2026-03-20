@@ -58,11 +58,12 @@ async def _build_enrichment_params_from_gene_ids(
     dataset_resp = await client.post(
         "/users/current/datasets",
         json=cast(
-            JSONObject, {"sourceType": "idList", "sourceContent": {"ids": gene_ids}}
+            "JSONObject", {"sourceType": "idList", "sourceContent": {"ids": gene_ids}}
         ),
     )
     if not isinstance(dataset_resp, dict) or "id" not in dataset_resp:
-        raise ValueError("Failed to create WDK dataset for gene ID enrichment")
+        msg = "Failed to create WDK dataset for gene ID enrichment"
+        raise ValueError(msg)
 
     dataset_id = dataset_resp["id"]
     return (
@@ -128,7 +129,8 @@ class GeneSetService:
         """Retrieve a gene set, raising KeyError if not found or wrong owner."""
         gs = await self._store.aget(gene_set_id)
         if gs is None or gs.user_id != user_id:
-            raise KeyError(f"Gene set not found: {gene_set_id}")
+            msg = f"Gene set not found: {gene_set_id}"
+            raise KeyError(msg)
         return gs
 
     # -- CRUD -----------------------------------------------------------------
@@ -299,7 +301,8 @@ class GeneSetService:
         """Delete a gene set, raising KeyError if not found or wrong owner."""
         await self.get_for_user(user_id, gene_set_id)
         if not self._store.delete(gene_set_id):
-            raise KeyError(f"Gene set not found: {gene_set_id}")
+            msg = f"Gene set not found: {gene_set_id}"
+            raise KeyError(msg)
         logger.info("Gene set deleted", gene_set_id=gene_set_id)
 
     # -- Set operations -------------------------------------------------------
@@ -328,9 +331,8 @@ class GeneSetService:
             case "minus":
                 result_ids = ids_a - ids_b
             case _:
-                raise ValueError(
-                    f"Invalid operation: must be 'intersect', 'union', or 'minus', got '{operation}'"
-                )
+                msg = f"Invalid operation: must be 'intersect', 'union', or 'minus', got '{operation}'"
+                raise ValueError(msg)
 
         gs = GeneSet(
             id=str(uuid4()),
@@ -366,7 +368,7 @@ class GeneSetService:
         search_name = gs.search_name
         record_type = gs.record_type or "transcript"
         enrichment_params: JSONObject | None = (
-            cast(JSONObject, gs.parameters) if gs.parameters else None
+            cast("JSONObject", gs.parameters) if gs.parameters else None
         )
 
         # Paste gene sets have gene IDs but no WDK step or search.
@@ -403,10 +405,11 @@ class GeneSetService:
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_step_id:
-            raise ValueError(
+            msg = (
                 "No WDK strategy: this gene set has no associated WDK strategy "
                 "for result browsing."
             )
+            raise ValueError(msg)
         api = get_strategy_api(gs.site_id)
         return StepResultsService(
             api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"
@@ -422,14 +425,14 @@ class GeneSetService:
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_strategy_id:
-            raise ValueError(
-                "No WDK strategy: this gene set has no associated WDK strategy."
-            )
+            msg = "No WDK strategy: this gene set has no associated WDK strategy."
+            raise ValueError(msg)
         if not gs.wdk_step_id:
-            raise ValueError(
+            msg = (
                 "No WDK strategy: this gene set has no associated WDK strategy "
                 "for result browsing."
             )
+            raise ValueError(msg)
         api = get_strategy_api(gs.site_id)
         svc = StepResultsService(
             api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"

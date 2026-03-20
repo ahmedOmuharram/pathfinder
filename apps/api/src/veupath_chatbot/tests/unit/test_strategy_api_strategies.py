@@ -260,7 +260,7 @@ class TestSetSaved:
 
     async def test_set_saved_true(self) -> None:
         mixin, client = _make_mixin()
-        await mixin.set_saved(500, True)
+        await mixin.set_saved(500, is_saved=True)
         client.patch.assert_awaited_once_with(
             "/users/12345/strategies/500",
             json={"isSaved": True},
@@ -268,7 +268,7 @@ class TestSetSaved:
 
     async def test_set_saved_false(self) -> None:
         mixin, client = _make_mixin()
-        await mixin.set_saved(500, False)
+        await mixin.set_saved(500, is_saved=False)
         payload = client.patch.call_args.kwargs["json"]
         assert payload["isSaved"] is False
 

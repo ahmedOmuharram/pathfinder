@@ -74,7 +74,7 @@ class RefinementToolsMixin:
         new_step = await api.create_step(
             record_type=record_type,
             search_name=search_name,
-            parameters=cast(JSONObject, parameters),
+            parameters=cast("JSONObject", parameters),
             custom_name=f"AI refinement: {search_name}",
         )
         new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
@@ -179,7 +179,7 @@ class RefinementToolsMixin:
         store.save(exp)
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "success": True,
                 "totalResults": len(result_ids),
@@ -204,8 +204,12 @@ class RefinementToolsMixin:
         :param operator: Boolean operator (INTERSECT, UNION, MINUS).
         :returns: Result dict with success status and new step info.
         """
-        assert exp.wdk_strategy_id is not None
-        assert exp.wdk_step_id is not None
+        if exp.wdk_strategy_id is None:
+            msg = "exp.wdk_strategy_id must not be None"
+            raise RuntimeError(msg)
+        if exp.wdk_step_id is None:
+            msg = "exp.wdk_step_id must not be None"
+            raise RuntimeError(msg)
 
         combined = await api.create_combined_step(
             primary_step_id=exp.wdk_step_id,
@@ -235,7 +239,7 @@ class RefinementToolsMixin:
             count = None
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "success": True,
                 "newStepId": combined_id,

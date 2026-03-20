@@ -3,7 +3,7 @@ import { test as setup, expect } from "@playwright/test";
 const AUTH_STATE_PATH = "e2e/.auth/state.json";
 
 setup("authenticate via dev-login", async ({ page }) => {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+  const baseURL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
   // 1. Navigate first so the browser context is bound to the app origin.
   await page.goto(baseURL);

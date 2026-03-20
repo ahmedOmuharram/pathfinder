@@ -113,7 +113,7 @@ class TestColocationParamsValidate:
         assert len(errors) == 2
 
     def test_invalid_strand(self) -> None:
-        bad_strand = cast(Literal["same", "opposite", "both"], "invalid")
+        bad_strand = cast("Literal['same', 'opposite', 'both']", "invalid")
         params = ColocationParams(strand=bad_strand)
         errors = params.validate()
         assert len(errors) == 1

@@ -16,7 +16,12 @@ from kani.models import FunctionCall
 from veupath_chatbot.ai.agents.executor import PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.compile import (
+    CompilationResult,
+    StepTreeNode,
+)
 from veupath_chatbot.platform.parsing import parse_jsonish
+from veupath_chatbot.services.strategies.build import BuildResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -60,12 +65,6 @@ def _tool_result_json(step_id: str = "s1") -> str:
 
 def _build_result(wdk_strategy_id: int = 999) -> object:
     """Create a successful BuildResult."""
-    from veupath_chatbot.domain.strategy.compile import (
-        CompilationResult,
-        StepTreeNode,
-    )
-    from veupath_chatbot.services.strategies.build import BuildResult
-
     return BuildResult(
         wdk_strategy_id=wdk_strategy_id,
         wdk_url=f"https://plasmodb.org/plasmo/app/workspace/strategies/{wdk_strategy_id}",
@@ -120,11 +119,11 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -145,11 +144,11 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -167,8 +166,8 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
-                side_effect=RuntimeError("WDK rejected the strategy"),
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                side_effect=ValueError("WDK rejected the strategy"),
             ),
         ):
             result = await agent.do_function_call(call, "tc1")
@@ -187,8 +186,8 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
-                side_effect=RuntimeError("WDK error"),
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                side_effect=ValueError("WDK error"),
             ),
         ):
             result = await agent.do_function_call(call, "tc1")
@@ -208,11 +207,11 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -250,11 +249,11 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -272,11 +271,11 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -295,11 +294,11 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):
@@ -318,8 +317,8 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
-                side_effect=RuntimeError("WDK down"),
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                side_effect=ValueError("WDK down"),
             ),
         ):
             await agent.do_function_call(call, "tc1")
@@ -401,11 +400,11 @@ class TestAutoBuildGating:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.services.strategies.build.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
                 return_value=_build_result(wdk_strategy_id=456),
             ),
             patch(
-                "veupath_chatbot.services.gene_sets.GeneSetService",
+                "veupath_chatbot.ai.agents.executor.GeneSetService",
                 side_effect=ImportError("skip"),
             ),
         ):

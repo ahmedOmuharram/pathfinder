@@ -184,8 +184,8 @@ describe("BenchmarkPanel", () => {
   });
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.geneSets = [
+    storeState["activeSetId"] = "set-1";
+    storeState["geneSets"] = [
       {
         id: "set-1",
         name: "Test Set",
@@ -198,7 +198,7 @@ describe("BenchmarkPanel", () => {
         parameters: { organism: "Plasmodium falciparum 3D7" },
       },
     ];
-    storeState.expandedPanels = new Set(["benchmark"]);
+    storeState["expandedPanels"] = new Set(["benchmark"]);
     mockListControlSets.mockResolvedValue([]);
     mockResolveGeneIds.mockResolvedValue({ resolved: [], unresolved: [] });
     mockSearchGenes.mockResolvedValue({ results: [], total: 0 });
@@ -211,7 +211,7 @@ describe("BenchmarkPanel", () => {
 
   describe("panel enablement", () => {
     it("is disabled when active gene set has neither geneIds nor search context", () => {
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Empty Set",
@@ -228,7 +228,7 @@ describe("BenchmarkPanel", () => {
     });
 
     it("is enabled when gene set has geneIds but no search context", () => {
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Pasted Set",
@@ -244,7 +244,7 @@ describe("BenchmarkPanel", () => {
     });
 
     it("is enabled when gene set has search context but empty geneIds", () => {
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Search-Only Set",
@@ -277,7 +277,7 @@ describe("BenchmarkPanel", () => {
   describe("request payload — targetGeneIds", () => {
     it("sends targetGeneIds from the active gene set when running benchmark", async () => {
       const geneIds = ["PF3D7_0100100", "PF3D7_0100200", "PF3D7_0100300"];
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Strategy Set",
@@ -310,12 +310,12 @@ describe("BenchmarkPanel", () => {
       const [baseConfig] = mockCreateBenchmarkStream.mock.calls[0] as [
         Record<string, unknown>,
       ];
-      expect(baseConfig.targetGeneIds).toEqual(geneIds);
+      expect(baseConfig["targetGeneIds"]).toEqual(geneIds);
     });
 
     it("sends targetGeneIds even when searchName/parameters are empty", async () => {
       const geneIds = ["AGAP000001", "AGAP000002"];
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Pasted Set",
@@ -348,11 +348,11 @@ describe("BenchmarkPanel", () => {
       const [baseConfig] = mockCreateBenchmarkStream.mock.calls[0] as [
         Record<string, unknown>,
       ];
-      expect(baseConfig.targetGeneIds).toEqual(geneIds);
+      expect(baseConfig["targetGeneIds"]).toEqual(geneIds);
     });
 
     it("does not send targetGeneIds when gene set has empty geneIds array", async () => {
-      storeState.geneSets = [
+      storeState["geneSets"] = [
         {
           id: "set-1",
           name: "Search-Only Set",
@@ -386,7 +386,7 @@ describe("BenchmarkPanel", () => {
         Record<string, unknown>,
       ];
       // targetGeneIds should be undefined (falsy guard in the component)
-      expect(baseConfig.targetGeneIds).toBeUndefined();
+      expect(baseConfig["targetGeneIds"]).toBeUndefined();
     });
   });
 
@@ -423,15 +423,16 @@ describe("BenchmarkPanel", () => {
         Array<Record<string, unknown>>,
       ];
       expect(controlSets).toHaveLength(1);
-      expect(controlSets[0].label).toBe("Insecticide Resistance");
-      expect(controlSets[0].positiveControls).toEqual([
+      const cs0 = controlSets[0]!;
+      expect(cs0["label"]).toBe("Insecticide Resistance");
+      expect(cs0["positiveControls"]).toEqual([
         "AGAP000001",
         "AGAP000002",
         "AGAP000003",
       ]);
-      expect(controlSets[0].negativeControls).toEqual(["AGAP009001", "AGAP009002"]);
-      expect(controlSets[0].controlSetId).toBe("cs-42");
-      expect(controlSets[0].isPrimary).toBe(true);
+      expect(cs0["negativeControls"]).toEqual(["AGAP009001", "AGAP009002"]);
+      expect(cs0["controlSetId"]).toBe("cs-42");
+      expect(cs0["isPrimary"]).toBe(true);
     });
 
     it("marks first control set as primary when none explicitly set", async () => {
@@ -464,8 +465,8 @@ describe("BenchmarkPanel", () => {
         Array<Record<string, unknown>>,
       ];
       expect(controlSets).toHaveLength(2);
-      expect(controlSets[0].isPrimary).toBe(true);
-      expect(controlSets[1].isPrimary).toBe(false);
+      expect(controlSets[0]!["isPrimary"]).toBe(true);
+      expect(controlSets[1]!["isPrimary"]).toBe(false);
     });
   });
 
@@ -649,13 +650,15 @@ describe("BenchmarkPanel", () => {
       const primaryCheckboxes = screen.getAllByRole("checkbox", { name: /primary/i });
       expect(primaryCheckboxes).toHaveLength(2);
 
-      fireEvent.click(primaryCheckboxes[0]);
-      expect((primaryCheckboxes[0] as HTMLInputElement).checked).toBe(true);
-      expect((primaryCheckboxes[1] as HTMLInputElement).checked).toBe(false);
+      const first = primaryCheckboxes[0]!;
+      const second = primaryCheckboxes[1]!;
+      fireEvent.click(first);
+      expect((first as HTMLInputElement).checked).toBe(true);
+      expect((second as HTMLInputElement).checked).toBe(false);
 
-      fireEvent.click(primaryCheckboxes[1]);
-      expect((primaryCheckboxes[0] as HTMLInputElement).checked).toBe(false);
-      expect((primaryCheckboxes[1] as HTMLInputElement).checked).toBe(true);
+      fireEvent.click(second);
+      expect((first as HTMLInputElement).checked).toBe(false);
+      expect((second as HTMLInputElement).checked).toBe(true);
     });
   });
 });

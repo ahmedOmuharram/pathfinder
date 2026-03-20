@@ -101,9 +101,7 @@ def map_dict_tree(
     parent is passed to *transform*.  The original tree is **not** mutated;
     each node dict is shallow-copied before transformation.
     """
-    import copy
-
-    node = copy.copy(root)
+    node = root.copy()
 
     pi = node.get("primaryInput")
     if isinstance(pi, dict):

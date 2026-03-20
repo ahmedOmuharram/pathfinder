@@ -53,7 +53,7 @@ class TestPreviewVocab:
 
     def test_deduplication(self) -> None:
         vocab = [["val1", "Same"], ["val2", "Same"]]
-        values, truncated = _preview_vocab(vocab)
+        values, _truncated = _preview_vocab(vocab)
         assert values.count("Same") == 1
 
     def test_tree_vocab(self) -> None:
@@ -76,7 +76,7 @@ class TestPreviewVocab:
 
     def test_skips_none_first_element(self) -> None:
         vocab = [[None, "display"]]
-        values, truncated = _preview_vocab(vocab)
+        values, _truncated = _preview_vocab(vocab)
         assert values == []
 
 

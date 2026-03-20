@@ -20,19 +20,21 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     // Use explicit null checks (not ??) so that server-returned null doesn't
     // overwrite richer locally-attached data.  ?? only skips undefined, but
     // JSON null deserializes as null which ?? preserves.
-    return {
+    const toolCalls = msg.toolCalls ?? cur.toolCalls;
+    const subKaniActivity = msg.subKaniActivity ?? cur.subKaniActivity;
+    const citations = msg.citations ?? cur.citations;
+    const planningArtifacts = msg.planningArtifacts ?? cur.planningArtifacts;
+    const reasoning = msg.reasoning ?? cur.reasoning;
+    const optimizationProgress = msg.optimizationProgress ?? cur.optimizationProgress;
+    const merged: Message = {
       ...msg,
-      toolCalls: msg.toolCalls != null ? msg.toolCalls : cur.toolCalls,
-      subKaniActivity:
-        msg.subKaniActivity != null ? msg.subKaniActivity : cur.subKaniActivity,
-      citations: msg.citations != null ? msg.citations : cur.citations,
-      planningArtifacts:
-        msg.planningArtifacts != null ? msg.planningArtifacts : cur.planningArtifacts,
-      reasoning: msg.reasoning != null ? msg.reasoning : cur.reasoning,
-      optimizationProgress:
-        msg.optimizationProgress != null
-          ? msg.optimizationProgress
-          : cur.optimizationProgress,
+      ...(toolCalls != null ? { toolCalls } : {}),
+      ...(subKaniActivity != null ? { subKaniActivity } : {}),
+      ...(citations != null ? { citations } : {}),
+      ...(planningArtifacts != null ? { planningArtifacts } : {}),
+      ...(reasoning != null ? { reasoning } : {}),
+      ...(optimizationProgress != null ? { optimizationProgress } : {}),
     };
+    return merged;
   });
 }

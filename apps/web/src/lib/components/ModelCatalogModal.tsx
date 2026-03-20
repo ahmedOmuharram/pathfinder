@@ -53,9 +53,7 @@ export function ModelCatalogModal({
   // Only show tabs for providers that have models
   const availableProviders = useMemo(() => {
     const providers = new Set(catalog.map((m) => m.provider));
-    return PROVIDER_TABS.filter(
-      (t) => t.key === "all" || providers.has(t.key as ModelProvider),
-    );
+    return PROVIDER_TABS.filter((t) => t.key === "all" || providers.has(t.key));
   }, [catalog]);
 
   const filtered = useMemo(() => {
@@ -183,7 +181,7 @@ export function ModelCatalogModal({
                 <ModelRow
                   key={model.id}
                   model={model}
-                  onSelect={onSelect}
+                  {...(onSelect != null ? { onSelect } : {})}
                   onClose={() => onOpenChange(false)}
                 />
               ))}

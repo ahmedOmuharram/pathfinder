@@ -24,6 +24,9 @@ from veupath_chatbot.services.parameter_optimization.config import (
     ParameterSpec,
     TrialResult,
 )
+from veupath_chatbot.services.parameter_optimization.core import (
+    optimize_search_parameters,
+)
 from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_pareto_frontier,
     _compute_score,
@@ -96,19 +99,19 @@ def _make_wdk_result(
         "positive": {
             "controlsCount": len(pos),
             "intersectionCount": n_pos_found,
-            "intersectionIdsSample": cast(JSONArray, pos_found_ids[:50]),
-            "intersectionIds": cast(JSONArray, pos_found_ids),
+            "intersectionIdsSample": cast("JSONArray", pos_found_ids[:50]),
+            "intersectionIds": cast("JSONArray", pos_found_ids),
             "missingIdsSample": cast(
-                JSONArray, [x for x in pos if x not in pos_found_ids][:50]
+                "JSONArray", [x for x in pos if x not in pos_found_ids][:50]
             ),
             "recall": n_pos_found / len(pos) if n_pos_found > 0 else None,
         },
         "negative": {
             "controlsCount": len(neg),
             "intersectionCount": n_neg_found,
-            "intersectionIdsSample": cast(JSONArray, neg_found_ids[:50]),
-            "intersectionIds": cast(JSONArray, neg_found_ids),
-            "unexpectedHitsSample": cast(JSONArray, neg_found_ids[:50]),
+            "intersectionIdsSample": cast("JSONArray", neg_found_ids[:50]),
+            "intersectionIds": cast("JSONArray", neg_found_ids),
+            "unexpectedHitsSample": cast("JSONArray", neg_found_ids[:50]),
             "falsePositiveRate": n_neg_found / len(neg) if n_neg_found > 0 else None,
         },
     }
@@ -118,7 +121,7 @@ COMMON_KWARGS: dict[str, Any] = {
     "site_id": "plasmodb",
     "record_type": "transcript",
     "search_name": "TestSearch",
-    "fixed_parameters": cast(JSONObject, {"organism": "P. falciparum"}),
+    "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
     "controls_search_name": "GeneByLocusTag",
     "controls_param_name": "ds_gene_ids",
     "positive_controls": [f"POS_{i}" for i in range(10)],
@@ -275,7 +278,7 @@ class TestComputeScoreObjectives:
         # recall=0, fpr=1 => tpr=0, tnr=0, fpr=1, fnr=1
         # num = 0*0 - 1*1 = -1
         # denom = sqrt((0+1)*(0+1)*(0+1)*(0+1)) = 1
-        # mcc = -1
+        # MCC should be -1
         score = _compute_score(0.0, 1.0, cfg)
         assert score == pytest.approx(-1.0)
 
@@ -351,7 +354,7 @@ class TestComputeScoreObjectives:
         cfg = OptimizationConfig(
             objective="custom", recall_weight=1.0, precision_weight=1.0
         )
-        # base = 1.0 * recall - 1.0 * fpr
+        # base is 1.0 * recall - 1.0 * fpr
         score = _compute_score(0.8, 0.3, cfg)
         assert score == pytest.approx(0.5)
 
@@ -884,7 +887,7 @@ class TestCreateSampler:
         specs = [
             ParameterSpec(name="x", param_type="numeric", min_value=0, max_value=1)
         ]
-        sampler, budget = _create_sampler(cfg, specs, 50)
+        sampler, _budget = _create_sampler(cfg, specs, 50)
         assert isinstance(sampler, optuna.samplers.GridSampler)
 
     def test_grid_budget_capped_by_combinations(self) -> None:
@@ -1275,10 +1278,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=5, objective="f1", method="bayesian")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1312,10 +1311,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=3, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1341,16 +1336,12 @@ class TestOptimizeSearchParametersExtended:
         kwargs = {
             **COMMON_KWARGS,
             "fixed_parameters": cast(
-                JSONObject,
+                "JSONObject",
                 {"organism": "P. falciparum", "empty": "", "null_val": None},
             ),
         }
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             await optimize_search_parameters(
                 **kwargs,
                 parameter_space=specs,
@@ -1374,10 +1365,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=1, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1400,10 +1387,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=2, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1427,10 +1410,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=5, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1452,10 +1431,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=3, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1476,10 +1451,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=1, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1508,10 +1479,6 @@ class TestOptimizeSearchParametersExtended:
         ]:
             cfg = OptimizationConfig(budget=1, objective=objective, method="random")
             with patch(WDK_PATCH, AsyncMock(return_value=wdk_result)):
-                from veupath_chatbot.services.parameter_optimization.core import (
-                    optimize_search_parameters,
-                )
-
                 result = await optimize_search_parameters(
                     **COMMON_KWARGS,
                     parameter_space=specs,
@@ -1542,10 +1509,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=1, objective="f1", method="random")
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1575,10 +1538,6 @@ class TestOptimizeSearchParametersExtended:
         cfg = OptimizationConfig(budget=5, objective="f1", method="random")
 
         with patch(WDK_PATCH, counting_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1605,10 +1564,6 @@ class TestOptimizeSearchParametersExtended:
             events.append(event)
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1642,10 +1597,6 @@ class TestOptimizeSearchParametersExtended:
             events.append(event)
 
         with patch(WDK_PATCH, mock_wdk):
-            from veupath_chatbot.services.parameter_optimization.core import (
-                optimize_search_parameters,
-            )
-
             result = await optimize_search_parameters(
                 **COMMON_KWARGS,
                 parameter_space=specs,
@@ -1706,7 +1657,7 @@ class TestGridSamplerEdgeCases:
     def test_grid_single_categorical_value(self) -> None:
         cfg = OptimizationConfig(method="grid")
         specs = [ParameterSpec(name="x", param_type="categorical", choices=["only"])]
-        sampler, budget = _create_sampler(cfg, specs, 100)
+        _sampler, budget = _create_sampler(cfg, specs, 100)
         assert budget == 1
 
     def test_grid_empty_choices_falls_through_to_numeric(self) -> None:
@@ -1717,7 +1668,7 @@ class TestGridSamplerEdgeCases:
         """
         cfg = OptimizationConfig(method="grid")
         specs = [ParameterSpec(name="x", param_type="categorical", choices=[])]
-        sampler, budget = _create_sampler(cfg, specs, 100)
+        _sampler, budget = _create_sampler(cfg, specs, 100)
         # Falls through to numeric: n_levels=min(10,100)=10, range 0.0-1.0
         assert budget == 10
 

@@ -9,7 +9,7 @@ describe("handleChatEvent — optimization progress events", () => {
     const { ctx, state } = makeCtx();
 
     for (const event of OPTIMIZATION_PROGRESS_EVENTS) {
-      handleChatEvent(ctx, event as ChatSSEEvent);
+      handleChatEvent(ctx, event);
     }
 
     // setOptimizationProgress should have been called multiple times

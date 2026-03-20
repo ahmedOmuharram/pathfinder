@@ -107,7 +107,7 @@ class TestExtractAndEnrichGenes:
         )
 
         with patch(
-            "veupath_chatbot.services.gene_lookup.wdk.resolve_gene_ids",
+            "veupath_chatbot.services.experiment.helpers.resolve_gene_ids",
             mock_resolve,
         ):
             tp, fn, fp, tn = await extract_and_enrich_genes(
@@ -146,10 +146,10 @@ class TestExtractAndEnrichGenes:
         mock_resolve = AsyncMock(side_effect=Exception("WDK down"))
 
         with patch(
-            "veupath_chatbot.services.gene_lookup.wdk.resolve_gene_ids",
+            "veupath_chatbot.services.experiment.helpers.resolve_gene_ids",
             mock_resolve,
         ):
-            tp, fn, fp, tn = await extract_and_enrich_genes(
+            tp, _fn, _fp, _tn = await extract_and_enrich_genes(
                 site_id="plasmodb",
                 result=result,
                 negative_controls=None,

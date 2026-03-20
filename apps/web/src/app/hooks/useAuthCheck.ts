@@ -44,7 +44,7 @@ export function useAuthCheck(): {
   }, [selectedSite, setVeupathdbAuth, setAuthStatusKnown]);
 
   useEffect(() => {
-    if (authStatusKnown && !apiError) return;
+    if (authStatusKnown && apiError === null) return;
     let cleanup: (() => void) | undefined;
     const id = setTimeout(() => {
       cleanup = runCheck();

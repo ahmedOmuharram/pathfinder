@@ -45,7 +45,7 @@ export function createGeneSet(req: CreateGeneSetRequest): Promise<GeneSet> {
 /** List gene sets, optionally filtered by site. */
 export function listGeneSets(siteId?: string): Promise<GeneSet[]> {
   return requestJson<GeneSet[]>("/api/v1/gene-sets", {
-    query: siteId ? { siteId } : undefined,
+    ...(siteId != null && siteId !== "" ? { query: { siteId } } : {}),
   });
 }
 
@@ -100,15 +100,16 @@ export interface CreateFromStrategyArgs {
 export function createGeneSetFromStrategy(
   args: CreateFromStrategyArgs,
 ): Promise<GeneSet> {
-  return createGeneSet({
+  const req: CreateGeneSetRequest = {
     name: args.name,
     source: "strategy",
     geneIds: args.geneIds ?? [],
     siteId: args.siteId,
     wdkStrategyId: args.wdkStrategyId,
-    wdkStepId: args.wdkStepId,
-    searchName: args.searchName,
-    recordType: args.recordType,
-    parameters: args.parameters,
-  });
+  };
+  if (args.wdkStepId != null) req.wdkStepId = args.wdkStepId;
+  if (args.searchName != null) req.searchName = args.searchName;
+  if (args.recordType != null) req.recordType = args.recordType;
+  if (args.parameters != null) req.parameters = args.parameters;
+  return createGeneSet(req);
 }

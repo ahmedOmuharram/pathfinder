@@ -71,7 +71,8 @@ class EnrichmentService:
                 parameters=parameters,
                 analysis_type=analysis_type,
             )
-        raise ValueError("Either step_id or search_name+parameters required")
+        msg = "Either step_id or search_name+parameters required"
+        raise ValueError(msg)
 
     async def run_batch(
         self,
@@ -104,7 +105,8 @@ class EnrichmentService:
 
         # No step — need search_name + parameters to create one.
         if not search_name or parameters is None:
-            raise ValueError("Either step_id or search_name+parameters required")
+            msg = "Either step_id or search_name+parameters required"
+            raise ValueError(msg)
 
         # Create ONE temp step/strategy, run all analyses, then clean up.
         api = get_strategy_api(site_id)

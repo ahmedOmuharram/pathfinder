@@ -91,7 +91,7 @@ function toMultiValue(raw: unknown, options: VocabOption[]): string[] {
     .map((entry) => {
       const str = String(entry);
       if (valueSet.has(str)) return str;
-      return labelToValue.get(str) || str;
+      return labelToValue.get(str) ?? str;
     })
     .filter((s) => s !== "");
 }
@@ -123,7 +123,7 @@ export function StepParamFields({
     const normal: ParamSpec[] = [];
     const advanced: ParamSpec[] = [];
     for (const spec of paramSpecs) {
-      if (!spec.name) continue;
+      if (spec.name == null || spec.name === "") continue;
       if (claimedParamNames.has(spec.name)) {
         composite.push(spec);
         continue;
@@ -188,7 +188,7 @@ export function StepParamFields({
         <AdvancedParamsGroup
           count={advancedSpecs.length}
           hasErrors={advancedSpecs.some(
-            (s) => s.name && validationErrorKeys.has(s.name),
+            (s) => s.name != null && s.name !== "" && validationErrorKeys.has(s.name),
           )}
         >
           {advancedSpecs.map((spec) => (
@@ -233,9 +233,9 @@ function ParamField({
   validationErrorKeys: Set<string>;
   setParameters: Dispatch<SetStateAction<StepParameters>>;
 }) {
-  const paramName = spec.name!;
-  const label = spec.displayName || paramName;
-  const options = vocabOptions[paramName] || dependentOptions[paramName] || [];
+  const paramName = spec.name ?? "";
+  const label = spec.displayName ?? paramName;
+  const options = vocabOptions[paramName] ?? dependentOptions[paramName] ?? [];
   const rawValue = parameters[paramName];
   const multi = isMultiParam(spec);
   const vocabulary = extractSpecVocabulary(spec);
@@ -265,7 +265,7 @@ function ParamField({
     <div className={fieldWrapperClass}>
       <Label className={fieldLabelClass}>
         {label}
-        {spec.allowEmptyValue === false && (
+        {spec.allowEmptyValue != null && spec.allowEmptyValue === false && (
           <span className="ml-1 text-destructive">*</span>
         )}
       </Label>
@@ -281,12 +281,14 @@ function ParamField({
         fieldBorderClass,
       })}
       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-        {dependentLoading[paramName] && <span>Loading options...</span>}
-        {dependentErrors[paramName] && (
+        {dependentLoading[paramName] === true && <span>Loading options...</span>}
+        {dependentErrors[paramName] != null && dependentErrors[paramName] !== "" && (
           <span className="text-destructive">{dependentErrors[paramName]}</span>
         )}
       </div>
-      {spec.help && <p className="mt-1 text-xs text-muted-foreground">{spec.help}</p>}
+      {spec.help != null && spec.help !== "" && (
+        <p className="mt-1 text-xs text-muted-foreground">{spec.help}</p>
+      )}
     </div>
   );
 }

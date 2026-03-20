@@ -625,7 +625,10 @@ class TestCreateStepIntegration:
         assert graph.record_type is None
 
         async def always_none_resolver(
-            rt: str | None, sn: str | None, req: bool, fb: bool
+            record_type: str | None,
+            search_name: str | None,
+            require_match: bool,
+            allow_fallback: bool,
         ) -> str | None:
             return None
 
@@ -679,11 +682,14 @@ class TestCreateStepIntegration:
         graph = _make_graph()
 
         async def reject_search(
-            rt: str | None, sn: str | None, req: bool, fb: bool
+            record_type: str | None,
+            search_name: str | None,
+            require_match: bool,
+            allow_fallback: bool,
         ) -> str | None:
-            if req:
+            if require_match:
                 return None
-            return rt or "transcript"
+            return record_type or "transcript"
 
         result = await create_step(
             graph=graph,
@@ -816,7 +822,9 @@ class TestCrossOrganismIntersectGuard:
         "veupath_chatbot.services.strategies.step_creation.validate_parameters",
         new_callable=AsyncMock,
     )
-    async def test_intersect_different_organisms_rejected(self, mock_val: AsyncMock) -> None:
+    async def test_intersect_different_organisms_rejected(
+        self, mock_val: AsyncMock
+    ) -> None:
         graph = _make_graph()
         pf = graph.add_step(
             PlanStepNode(
@@ -914,7 +922,9 @@ class TestCrossOrganismIntersectGuard:
         "veupath_chatbot.services.strategies.step_creation.validate_parameters",
         new_callable=AsyncMock,
     )
-    async def test_intersect_no_organism_param_skips_check(self, mock_val: AsyncMock) -> None:
+    async def test_intersect_no_organism_param_skips_check(
+        self, mock_val: AsyncMock
+    ) -> None:
         """Steps without organism params (e.g. MassSpec) should not trigger the guard."""
         graph = _make_graph()
         a = graph.add_step(

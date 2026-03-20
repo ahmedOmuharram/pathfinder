@@ -10,6 +10,6 @@ from veupath_chatbot.domain.research.citations import (
 __all__ = [
     "Citation",
     "CitationSource",
-    "LiteratureSource",
     "LiteratureSort",
+    "LiteratureSource",
 ]

@@ -80,7 +80,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
 
   return (
     <div className="space-y-4">
-      {error && (
+      {error != null && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
@@ -92,7 +92,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
         loading={clearing === "strategies"}
         confirmed={confirmAction === "strategies"}
         onConfirm={() => setConfirmAction("strategies")}
-        onExecute={clearStrategies}
+        onExecute={() => {
+          void clearStrategies();
+        }}
         onCancel={() => setConfirmAction(null)}
       />
 
@@ -102,7 +104,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
         loading={clearing === "site"}
         confirmed={confirmAction === "site"}
         onConfirm={() => setConfirmAction("site")}
-        onExecute={clearSiteData}
+        onExecute={() => {
+          void clearSiteData();
+        }}
         onCancel={() => setConfirmAction(null)}
       />
 
@@ -112,7 +116,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
         loading={clearing === "all-local"}
         confirmed={confirmAction === "all-local"}
         onConfirm={() => setConfirmAction("all-local")}
-        onExecute={clearAllLocal}
+        onExecute={() => {
+          void clearAllLocal();
+        }}
         onCancel={() => setConfirmAction(null)}
       />
 
@@ -143,7 +149,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
               </button>
               <button
                 type="button"
-                onClick={clearAllWithWdk}
+                onClick={() => {
+                  void clearAllWithWdk();
+                }}
                 disabled={
                   clearing === "all-wdk" ||
                   wdkConfirmText.trim().toLowerCase() !== "delete my data"

@@ -28,7 +28,9 @@ describe("GET /api/v1/operations/:id/subscribe", () => {
     });
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path] = proxyMock.mock.calls[0];
+    const call1 = proxyMock.mock.calls[0];
+    if (call1 === undefined) throw new Error("proxy was not called");
+    const [, path] = call1;
     expect(path).toBe("/api/v1/operations/op-123/subscribe");
   });
 
@@ -38,7 +40,9 @@ describe("GET /api/v1/operations/:id/subscribe", () => {
       params: Promise.resolve({ id: "op-123" }),
     });
 
-    const [, path] = proxyMock.mock.calls[0];
+    const call2 = proxyMock.mock.calls[0];
+    if (call2 === undefined) throw new Error("proxy was not called");
+    const [, path] = call2;
     expect(path).toBe("/api/v1/operations/op-123/subscribe?after=42");
   });
 });

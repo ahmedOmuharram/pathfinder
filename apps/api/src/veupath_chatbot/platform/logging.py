@@ -2,11 +2,13 @@
 
 import logging
 import sys
+from typing import cast
 
 import structlog
 from structlog.types import EventDict, Processor
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.context import request_id_ctx
 
 
 def add_request_id(
@@ -19,8 +21,6 @@ def add_request_id(
     :param event_dict: Log event dictionary to modify.
     :returns: Updated event dict.
     """
-    from veupath_chatbot.platform.context import request_id_ctx
-
     request_id = request_id_ctx.get()
     if request_id:
         event_dict["request_id"] = request_id
@@ -87,8 +87,6 @@ def get_logger(name: str) -> structlog.BoundLogger:
     :param name: Logger name (typically __name__).
     :returns: Configured bound logger.
     """
-    from typing import cast
-
     logger = structlog.get_logger(name)
     # structlog.get_logger returns a BoundLogger after configuration
-    return cast(structlog.BoundLogger, logger)
+    return cast("structlog.BoundLogger", logger)

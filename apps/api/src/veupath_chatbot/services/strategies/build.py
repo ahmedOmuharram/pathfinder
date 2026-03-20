@@ -18,6 +18,7 @@ from veupath_chatbot.domain.strategy.compile import (
 )
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.domain.strategy.validate import validate_strategy
+from veupath_chatbot.integrations.veupathdb.factory import get_site, get_strategy_api
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import (
@@ -74,15 +75,11 @@ class SiteInfoLike(Protocol):
 
 def _get_build_api(site_id: str) -> StrategyBuildAPI:
     """Get a StrategyBuildAPI for the given site (delegates to integrations)."""
-    from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-
     return get_strategy_api(site_id)
 
 
 def _get_site_info(site_id: str) -> SiteInfoLike:
     """Get site info for the given site (delegates to integrations)."""
-    from veupath_chatbot.integrations.veupathdb.factory import get_site
-
     return get_site(site_id)
 
 
@@ -142,9 +139,8 @@ def resolve_root_step(
         step = graph.get_step(explicit_root_step_id)
         if step:
             return step
-        raise RootResolutionError(
-            f"Explicit root step '{explicit_root_step_id}' not found in graph."
-        )
+        msg = f"Explicit root step '{explicit_root_step_id}' not found in graph."
+        raise RootResolutionError(msg)
 
     if len(graph.roots) == 1:
         step = graph.get_step(next(iter(graph.roots)))
@@ -152,13 +148,17 @@ def resolve_root_step(
             return step
 
     if len(graph.roots) > 1:
-        raise RootResolutionError(
+        msg = (
             f"Graph has {len(graph.roots)} subtree roots -- expected exactly 1 to build. "
-            "Combine them first, or specify root_step_id.",
+            "Combine them first, or specify root_step_id."
+        )
+        raise RootResolutionError(
+            msg,
             root_count=len(graph.roots),
         )
 
-    raise RootResolutionError("No steps in graph. Create steps before building.")
+    msg = "No steps in graph. Create steps before building."
+    raise RootResolutionError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -185,10 +185,12 @@ def create_strategy_ast(
     :raises ValueError: When record type is not set or validation fails.
     """
     if not isinstance(root_step, PlanStepNode):
-        raise TypeError(f"Expected PlanStepNode, got {type(root_step).__name__}")
+        msg = f"Expected PlanStepNode, got {type(root_step).__name__}"
+        raise TypeError(msg)
 
     if not graph.record_type:
-        raise ValueError("Record type could not be inferred for execution.")
+        msg = "Record type could not be inferred for execution."
+        raise ValueError(msg)
 
     strategy = StrategyAST(
         record_type=graph.record_type,
@@ -201,7 +203,8 @@ def create_strategy_ast(
         errors = [
             {"path": e.path, "message": e.message} for e in validation_result.errors
         ]
-        raise ValueError(f"Strategy validation failed: {errors}")
+        msg = f"Strategy validation failed: {errors}"
+        raise ValueError(msg)
 
     return strategy
 
@@ -428,7 +431,8 @@ async def get_result_count(
     if wdk_strategy_id is not None:
         strategy_raw = await api.get_strategy(wdk_strategy_id)
         if not isinstance(strategy_raw, dict):
-            raise TypeError("Expected dict from get_strategy")
+            msg = "Expected dict from get_strategy"
+            raise TypeError(msg)
         steps_raw = strategy_raw.get("steps")
         if isinstance(steps_raw, dict):
             step_info = steps_raw.get(str(wdk_step_id))

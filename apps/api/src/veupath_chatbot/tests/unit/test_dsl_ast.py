@@ -75,11 +75,11 @@ class TestGetStepById:
 
 class TestFromDictErrors:
     def test_missing_record_type(self) -> None:
-        with pytest.raises(ValueError, match="recordType"):
+        with pytest.raises(TypeError, match="recordType"):
             from_dict({"root": {"searchName": "S1"}})
 
     def test_missing_root(self) -> None:
-        with pytest.raises(ValueError, match="root"):
+        with pytest.raises(TypeError, match="root"):
             from_dict({"recordType": "gene"})
 
     def test_missing_search_name(self) -> None:
@@ -87,7 +87,7 @@ class TestFromDictErrors:
             from_dict({"recordType": "gene", "root": {"parameters": {}}})
 
     def test_invalid_parameters_type(self) -> None:
-        with pytest.raises(ValueError, match="parameters"):
+        with pytest.raises(TypeError, match="parameters"):
             from_dict(
                 {
                     "recordType": "gene",
@@ -260,7 +260,8 @@ class TestToDictRoundTrip:
 
         root = parsed.root
         assert root.infer_kind() == "combine"
-        assert root.reports and root.reports[0].report_name == "fullRecord"
+        assert root.reports
+        assert root.reports[0].report_name == "fullRecord"
         assert root.primary_input is not None
         assert root.primary_input.infer_kind() == "search"
         assert root.primary_input.filters[0].name == "ranked"

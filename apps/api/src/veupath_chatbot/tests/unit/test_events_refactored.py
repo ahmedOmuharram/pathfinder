@@ -4,6 +4,8 @@ Tests each _extract_* function in isolation, plus the registry-based
 tool_result_to_events dispatcher.
 """
 
+from typing import ClassVar
+
 from veupath_chatbot.services.chat.events import (
     CITATIONS,
     EXECUTOR_BUILD_REQUEST,
@@ -535,7 +537,7 @@ class TestRegistryDispatch:
                 return "search"
 
         class MockGraph:
-            steps = {"s1": MockStep()}
+            steps: ClassVar[dict] = {"s1": MockStep()}
 
         result = {"stepId": "s1", "graphId": "g1"}
         events = tool_result_to_events(result, get_graph=lambda gid: MockGraph())

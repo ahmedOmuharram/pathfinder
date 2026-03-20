@@ -7,15 +7,6 @@ from veupath_chatbot.transport.http.schemas.chat import (
     CitationResponse,
     PlanningArtifactResponse,
 )
-from veupath_chatbot.transport.http.schemas.optimization import (
-    OptimizationParameterSpecData as OptimizationParameterSpecData,
-)
-from veupath_chatbot.transport.http.schemas.optimization import (
-    OptimizationProgressEventData as OptimizationProgressEventData,
-)
-from veupath_chatbot.transport.http.schemas.optimization import (
-    OptimizationTrialData as OptimizationTrialData,
-)
 
 # ── Message lifecycle ────────────────────────────────────────────────
 

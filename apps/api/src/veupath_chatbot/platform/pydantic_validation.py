@@ -42,7 +42,7 @@ def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     model = (m.group("model") or "").strip() or None
     try:
         error_count: int | None = int(m.group("count"))
-    except Exception:
+    except ValueError, TypeError:
         error_count = None
 
     errors: JSONArray = []
@@ -82,7 +82,7 @@ def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
                     err["type"] = type_val
             if meta:
                 # dict[str, str] is a valid JSONValue (it's a dict[str, JSONValue])
-                err["meta"] = cast(JSONValue, meta)
+                err["meta"] = cast("JSONValue", meta)
             errors.append(err)
         else:
             current_loc = ln.strip()

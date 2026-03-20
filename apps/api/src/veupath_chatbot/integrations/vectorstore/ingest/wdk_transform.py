@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 from typing import Any, cast
 
 from veupath_chatbot.domain.parameters.specs import (
@@ -127,7 +128,7 @@ def _extract_canonical_params(raw_specs: JSONArray) -> JSONArray:
                 if spec.get("defaultValue") is not None
                 else spec.get("initialDisplayValue"),
                 "vocabulary": vocab,
-                "vocabularyPreview": cast(Any, vocab_preview),
+                "vocabularyPreview": cast("Any", vocab_preview),
                 "vocabularyTruncated": vocab_truncated,
             }
         )
@@ -165,79 +166,77 @@ def _resolve_display_fields(
     return display_name, short, description, summary, help_text
 
 
-def _assemble_search_payload(
-    *,
-    site_id: str,
-    rt_name: str,
-    search_name: str,
-    display_name: str,
-    short: str,
-    description: str,
-    summary: str,
-    help_text: str,
-    canonical_params: JSONArray,
-    details_unwrapped: JSONObject,
-    summary_unwrapped: JSONObject,
-    base_url: str,
-    is_internal: bool,
-    details_error: str | None,
-) -> JSONObject:
+@dataclass
+class SearchPayloadFields:
+    """Fields required to assemble a search payload."""
+
+    site_id: str
+    rt_name: str
+    search_name: str
+    display_name: str
+    short: str
+    description: str
+    summary: str
+    help_text: str
+    canonical_params: JSONArray
+    details_unwrapped: JSONObject
+    summary_unwrapped: JSONObject
+    base_url: str
+    is_internal: bool
+    details_error: str | None
+
+
+def _assemble_search_payload(fields: SearchPayloadFields) -> JSONObject:
     """Assemble the search payload dict with source hash."""
+    d = fields.details_unwrapped
+    s = fields.summary_unwrapped
     payload: JSONObject = {
-        "siteId": site_id,
-        "recordType": rt_name,
-        "searchName": search_name,
-        "displayName": display_name,
-        "shortDisplayName": short,
-        "description": description,
-        "summary": summary,
-        "help": help_text,
-        "isInternal": is_internal,
-        "paramSpecs": canonical_params,
-        "fullName": details_unwrapped.get("fullName")
-        or summary_unwrapped.get("fullName"),
-        "urlSegment": details_unwrapped.get("urlSegment")
-        or summary_unwrapped.get("urlSegment")
-        or search_name,
-        "outputRecordClassName": details_unwrapped.get("outputRecordClassName")
-        or rt_name,
-        "paramNames": details_unwrapped.get("paramNames")
-        or summary_unwrapped.get("paramNames"),
-        "groups": details_unwrapped.get("groups") or summary_unwrapped.get("groups"),
-        "filters": details_unwrapped.get("filters") or summary_unwrapped.get("filters"),
-        "defaultAttributes": details_unwrapped.get("defaultAttributes")
-        or summary_unwrapped.get("defaultAttributes"),
-        "defaultSorting": details_unwrapped.get("defaultSorting")
-        or summary_unwrapped.get("defaultSorting"),
-        "dynamicAttributes": details_unwrapped.get("dynamicAttributes")
-        or summary_unwrapped.get("dynamicAttributes"),
-        "defaultSummaryView": details_unwrapped.get("defaultSummaryView")
-        or summary_unwrapped.get("defaultSummaryView"),
-        "noSummaryOnSingleRecord": details_unwrapped.get("noSummaryOnSingleRecord")
-        or summary_unwrapped.get("noSummaryOnSingleRecord"),
-        "summaryViewPlugins": details_unwrapped.get("summaryViewPlugins")
-        or summary_unwrapped.get("summaryViewPlugins"),
-        "allowedPrimaryInputRecordClassNames": details_unwrapped.get(
+        "siteId": fields.site_id,
+        "recordType": fields.rt_name,
+        "searchName": fields.search_name,
+        "displayName": fields.display_name,
+        "shortDisplayName": fields.short,
+        "description": fields.description,
+        "summary": fields.summary,
+        "help": fields.help_text,
+        "isInternal": fields.is_internal,
+        "paramSpecs": fields.canonical_params,
+        "fullName": d.get("fullName") or s.get("fullName"),
+        "urlSegment": d.get("urlSegment") or s.get("urlSegment") or fields.search_name,
+        "outputRecordClassName": d.get("outputRecordClassName") or fields.rt_name,
+        "paramNames": d.get("paramNames") or s.get("paramNames"),
+        "groups": d.get("groups") or s.get("groups"),
+        "filters": d.get("filters") or s.get("filters"),
+        "defaultAttributes": d.get("defaultAttributes") or s.get("defaultAttributes"),
+        "defaultSorting": d.get("defaultSorting") or s.get("defaultSorting"),
+        "dynamicAttributes": d.get("dynamicAttributes") or s.get("dynamicAttributes"),
+        "defaultSummaryView": d.get("defaultSummaryView")
+        or s.get("defaultSummaryView"),
+        "noSummaryOnSingleRecord": d.get("noSummaryOnSingleRecord")
+        or s.get("noSummaryOnSingleRecord"),
+        "summaryViewPlugins": d.get("summaryViewPlugins")
+        or s.get("summaryViewPlugins"),
+        "allowedPrimaryInputRecordClassNames": d.get(
             "allowedPrimaryInputRecordClassNames"
         ),
-        "allowedSecondaryInputRecordClassNames": details_unwrapped.get(
+        "allowedSecondaryInputRecordClassNames": d.get(
             "allowedSecondaryInputRecordClassNames"
         ),
-        "isAnalyzable": details_unwrapped.get("isAnalyzable")
-        or summary_unwrapped.get("isAnalyzable"),
-        "isCacheable": details_unwrapped.get("isCacheable")
-        or summary_unwrapped.get("isCacheable"),
-        "isBeta": details_unwrapped.get("isBeta"),
-        "queryName": details_unwrapped.get("queryName")
-        or summary_unwrapped.get("queryName"),
-        "newBuild": details_unwrapped.get("newBuild"),
-        "reviseBuild": details_unwrapped.get("reviseBuild"),
-        "searchVisibleHelp": details_unwrapped.get("searchVisibleHelp"),
-        "sourceUrl": f"{base_url}/record-types/{rt_name}/searches/{search_name}",
+        "isAnalyzable": d.get("isAnalyzable") or s.get("isAnalyzable"),
+        "isCacheable": d.get("isCacheable") or s.get("isCacheable"),
+        "isBeta": d.get("isBeta"),
+        "queryName": d.get("queryName") or s.get("queryName"),
+        "newBuild": d.get("newBuild"),
+        "reviseBuild": d.get("reviseBuild"),
+        "searchVisibleHelp": d.get("searchVisibleHelp"),
+        "sourceUrl": (
+            f"{fields.base_url}/record-types/{fields.rt_name}"
+            f"/searches/{fields.search_name}"
+        ),
         "ingestedAt": int(time.time()),
     }
-    if details_error:
-        payload["detailsError"] = details_error
+    if fields.details_error:
+        payload["detailsError"] = fields.details_error
     payload["sourceHash"] = sha256_hex(stable_json_dumps(payload))
     return payload
 
@@ -270,6 +269,15 @@ def _build_search_text(
     ).strip()
 
 
+def _should_skip_search(s: JSONObject) -> bool:
+    """Return True if the search dict should be skipped."""
+    if not isinstance(s, dict):
+        return True
+    if s.get("isInternal", False):
+        return True
+    return not wdk_entity_name(s)
+
+
 def build_search_doc(
     site_id: str,
     rt_name: str,
@@ -278,13 +286,9 @@ def build_search_doc(
     details_error: str | None,
     base_url: str,
 ) -> JSONObject | None:
-    if not isinstance(s, dict):
-        return None
-    if s.get("isInternal", False):
+    if _should_skip_search(s):
         return None
     search_name = wdk_entity_name(s)
-    if not search_name:
-        return None
 
     summary_unwrapped = unwrap_search_data(s if isinstance(s, dict) else {}) or {}
 
@@ -295,7 +299,7 @@ def build_search_doc(
         details_unwrapped, summary_unwrapped, search_name
     )
 
-    payload = _assemble_search_payload(
+    payload_fields = SearchPayloadFields(
         site_id=site_id,
         rt_name=rt_name,
         search_name=search_name,
@@ -311,6 +315,7 @@ def build_search_doc(
         is_internal=bool(s.get("isInternal", False)),
         details_error=details_error,
     )
+    payload = _assemble_search_payload(payload_fields)
 
     text = _build_search_text(
         display_name, search_name, rt_name, summary, description, canonical_params

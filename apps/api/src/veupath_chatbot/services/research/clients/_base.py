@@ -124,5 +124,5 @@ def build_response(
         "query": query,
         "source": source,
         "results": results,
-        "citations": cast(JSONValue, citations),
+        "citations": cast("JSONValue", citations),
     }

@@ -79,12 +79,13 @@ async def _run_primary_searches(
                 f'"{query.strip()}"',
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-            return results
         except Exception as exc:
             logger.warning(
                 "Phrase-quoted gene search failed", query=query, error=str(exc)
             )
             return []
+        else:
+            return results
 
     (
         (primary_results, available_organisms, total_count),
@@ -122,7 +123,6 @@ async def _run_supplementary_searches(
                 organisms=[effective_organism],
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-            return results
         except Exception as exc:
             logger.debug(
                 "Organism-restricted gene search failed (non-fatal)",
@@ -131,6 +131,8 @@ async def _run_supplementary_searches(
                 error=str(exc),
             )
             return []
+        else:
+            return results
 
     async def _strategy_c() -> WdkTextResult:
         if not intent.wildcard_ids or not effective_organism:
@@ -250,7 +252,7 @@ def _build_response(
     if suggested_organisms:
         response["suggestedOrganisms"] = suggested_organisms
 
-    return cast(JSONObject, response)
+    return cast("JSONObject", response)
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +281,7 @@ async def lookup_genes_by_text(
     is_multi_word = len(query.strip().split()) >= 2
 
     # Phase 1: primary site-search (strategies A + A2).
-    primary_results, available_organisms, total_count = await _run_primary_searches(
+    primary_results, available_organisms, _total_count = await _run_primary_searches(
         site_id,
         query,
         is_multi_word=is_multi_word,

@@ -108,7 +108,7 @@ describe("TypeAheadParam — single-pick", () => {
 
   it("displays current value label in input", () => {
     render(<TypeAheadParam {...makeProps({ value: "pf" })} />);
-    const input = screen.getByRole("textbox") as HTMLInputElement;
+    const input: HTMLInputElement = screen.getByRole("textbox");
     expect(input.value).toBe("Plasmodium falciparum");
   });
 
@@ -153,7 +153,7 @@ describe("TypeAheadParam — multi-pick", () => {
     // Find remove buttons (the x character)
     const removeButtons = screen.getAllByRole("button");
     // First remove button corresponds to "pf"
-    fireEvent.click(removeButtons[0]);
+    fireEvent.click(removeButtons[0]!);
     expect(onChangeMulti).toHaveBeenCalledWith(["tg"]);
   });
 

@@ -12,6 +12,7 @@ from functools import cache
 from sqlalchemy import select
 
 from veupath_chatbot.persistence.models import ExperimentRow
+from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.store import WriteThruStore
 from veupath_chatbot.services.experiment._deserialize import experiment_from_json
 from veupath_chatbot.services.experiment.types import (
@@ -64,8 +65,6 @@ async def _list_from_db(
     user_id: str | None = None,
 ) -> list[Experiment]:
     """List experiments from the database, optionally filtered by site and user."""
-    from veupath_chatbot.persistence.session import async_session_factory
-
     stmt = select(ExperimentRow)
     if site_id:
         stmt = stmt.where(ExperimentRow.site_id == site_id)
@@ -81,8 +80,6 @@ async def _list_from_db(
 
 async def _list_by_benchmark_from_db(benchmark_id: str) -> list[Experiment]:
     """List experiments from the database by benchmark_id."""
-    from veupath_chatbot.persistence.session import async_session_factory
-
     stmt = select(ExperimentRow).where(ExperimentRow.benchmark_id == benchmark_id)
     async with async_session_factory() as session:
         result = await session.execute(stmt)
@@ -149,9 +146,13 @@ class ExperimentStore(WriteThruStore[Experiment]):
         """List experiments by benchmark: merges DB + in-memory."""
         db_exps = await _list_by_benchmark_from_db(benchmark_id)
         merged: dict[str, Experiment] = {e.id: e for e in db_exps}
-        for eid, exp in self._cache.items():
-            if exp.benchmark_id == benchmark_id:
-                merged[eid] = exp
+        merged.update(
+            {
+                eid: exp
+                for eid, exp in self._cache.items()
+                if exp.benchmark_id == benchmark_id
+            }
+        )
         result = list(merged.values())
         result.sort(key=lambda e: (not e.is_primary_benchmark, e.created_at))
         return result

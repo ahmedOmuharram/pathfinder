@@ -42,7 +42,7 @@ export function getZeroResultSuggestions(step: Step): string[] {
     suggestions.push(
       "For cross-species mapping, consider an orthology transform (find orthologs) before/after this step.",
     );
-  } else if (kind === "search") {
+  } else {
     suggestions.push(
       "Try an alternative search with similar meaning (broader keyword / different dataset).",
     );

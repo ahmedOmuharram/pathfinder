@@ -6,7 +6,6 @@ import type {
   NodeSelectionEdge,
 } from "@/lib/types/nodeSelection";
 import type { StepParameters } from "@/lib/strategyGraph/types";
-export type { NodeSelection, NodeSelectionNode, NodeSelectionEdge };
 
 const NODE_PREFIX = "__NODE__";
 
@@ -37,18 +36,18 @@ const asStringArray = (value: unknown): string[] =>
     : [];
 
 export function normalizeNodeSelection(data: Record<string, unknown>): NodeSelection {
-  const nodeIds = asStringArray(data.nodeIds);
-  const selectedNodeIds = asStringArray(data.selectedNodeIds);
-  const contextNodeIds = asStringArray(data.contextNodeIds);
-  const rawNodes: RawNodeData[] = Array.isArray(data.nodes)
-    ? (data.nodes as RawNodeData[])
+  const nodeIds = asStringArray(data["nodeIds"]);
+  const selectedNodeIds = asStringArray(data["selectedNodeIds"]);
+  const contextNodeIds = asStringArray(data["contextNodeIds"]);
+  const rawNodes: RawNodeData[] = Array.isArray(data["nodes"])
+    ? (data["nodes"] as RawNodeData[])
     : [];
-  const rawEdges: RawEdgeData[] = Array.isArray(data.edges)
-    ? (data.edges as RawEdgeData[])
+  const rawEdges: RawEdgeData[] = Array.isArray(data["edges"])
+    ? (data["edges"] as RawEdgeData[])
     : [];
 
   const fallbackNodeIds =
-    nodeIds.length > 0 ? nodeIds : typeof data.id === "string" ? [data.id] : [];
+    nodeIds.length > 0 ? nodeIds : typeof data["id"] === "string" ? [data["id"]] : [];
   const normalizedSelected =
     selectedNodeIds.length > 0 ? selectedNodeIds : fallbackNodeIds;
 
@@ -56,16 +55,16 @@ export function normalizeNodeSelection(data: Record<string, unknown>): NodeSelec
     rawNodes.length > 0
       ? rawNodes.map((n) => ({
           id: String(n.id ?? ""),
-          kind: typeof n.kind === "string" ? n.kind : undefined,
-          displayName: typeof n.displayName === "string" ? n.displayName : undefined,
-          searchName: typeof n.searchName === "string" ? n.searchName : undefined,
-          operator: typeof n.operator === "string" ? n.operator : undefined,
-          parameters: isRecord(n.parameters)
-            ? (n.parameters as StepParameters)
-            : undefined,
-          recordType: typeof n.recordType === "string" ? n.recordType : undefined,
-          resultCount: typeof n.resultCount === "number" ? n.resultCount : undefined,
-          wdkStepId: typeof n.wdkStepId === "number" ? n.wdkStepId : undefined,
+          ...(typeof n.kind === "string" ? { kind: n.kind } : {}),
+          ...(typeof n.displayName === "string" ? { displayName: n.displayName } : {}),
+          ...(typeof n.searchName === "string" ? { searchName: n.searchName } : {}),
+          ...(typeof n.operator === "string" ? { operator: n.operator } : {}),
+          ...(isRecord(n.parameters)
+            ? { parameters: n.parameters as StepParameters }
+            : {}),
+          ...(typeof n.recordType === "string" ? { recordType: n.recordType } : {}),
+          ...(typeof n.resultCount === "number" ? { resultCount: n.resultCount } : {}),
+          ...(typeof n.wdkStepId === "number" ? { wdkStepId: n.wdkStepId } : {}),
         }))
       : fallbackNodeIds.map((id) => ({ id, displayName: id }));
 
@@ -93,7 +92,7 @@ export function normalizeNodeSelection(data: Record<string, unknown>): NodeSelec
     }));
 
   return {
-    graphId: typeof data.graphId === "string" ? data.graphId : undefined,
+    ...(typeof data["graphId"] === "string" ? { graphId: data["graphId"] } : {}),
     nodeIds: fallbackNodeIds,
     selectedNodeIds: normalizedSelected,
     contextNodeIds,

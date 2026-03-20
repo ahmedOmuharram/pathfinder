@@ -34,18 +34,20 @@ export function GeneAutocomplete({
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const resp = await searchGenes(siteId, query.trim(), null, 10);
-        const filtered = excludeIds
-          ? resp.results.filter((r) => !excludeIds.has(r.geneId))
-          : resp.results;
-        setResults(filtered);
-        setOpen(filtered.length > 0);
-      } finally {
-        setLoading(false);
-      }
+    debounceRef.current = setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const resp = await searchGenes(siteId, query.trim(), null, 10);
+          const filtered = excludeIds
+            ? resp.results.filter((r) => !excludeIds.has(r.geneId))
+            : resp.results;
+          setResults(filtered);
+          setOpen(filtered.length > 0);
+        } finally {
+          setLoading(false);
+        }
+      })();
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

@@ -1,5 +1,6 @@
 """Scoring, analysis, and serialization helpers for parameter optimization."""
 
+import warnings
 from typing import cast
 
 import optuna
@@ -124,8 +125,6 @@ def _compute_sensitivity(
         return zeros
 
     try:
-        import warnings
-
         with warnings.catch_warnings():
             # Silence the "PedAnovaImportanceEvaluator is experimental" warning.
             warnings.filterwarnings("ignore", message="PedAnova")
@@ -195,7 +194,7 @@ def result_to_json(result: OptimizationResult) -> JSONObject:
         "bestTrial": _trial_to_json(result.best_trial) if result.best_trial else None,
         "allTrials": [_trial_to_json(t) for t in result.all_trials],
         "paretoFrontier": [_trial_to_json(t) for t in result.pareto_frontier],
-        "sensitivity": cast(JSONValue, result.sensitivity),
+        "sensitivity": cast("JSONValue", result.sensitivity),
         "totalTimeSeconds": round(result.total_time_seconds, 2),
         "totalTrials": len(result.all_trials),
         "errorMessage": result.error_message,

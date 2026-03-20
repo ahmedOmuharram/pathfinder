@@ -19,7 +19,7 @@ export function EnrichmentTabs({
   return (
     <div className="flex items-center gap-0">
       {results.map((r, i) => {
-        const hasError = !!r.error;
+        const hasError = r.error != null;
         const count = filterByPThreshold(r.terms, pThreshold).length;
         return (
           <button
@@ -33,7 +33,7 @@ export function EnrichmentTabs({
             }`}
           >
             {hasError && <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />}
-            {ENRICHMENT_ANALYSIS_LABELS[r.analysisType] ?? r.analysisType}
+            {ENRICHMENT_ANALYSIS_LABELS[r.analysisType]}
             {!hasError && (
               <span className="text-xs text-muted-foreground">{count}</span>
             )}

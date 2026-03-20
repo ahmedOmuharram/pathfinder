@@ -62,10 +62,11 @@ def extract_record_type(wdk_strategy: JSONObject) -> str:
     value = wdk_strategy.get("recordClassName")
     if isinstance(value, str) and value.strip():
         return value.strip()
-    raise ValueError(
+    msg = (
         f"WDK strategy is missing a valid 'recordClassName' "
         f"(got {type(value).__name__}: {value!r})"
     )
+    raise ValueError(msg)
 
 
 def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
@@ -73,10 +74,11 @@ def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
     result = steps.get(str(step_id))
     if isinstance(result, dict):
         return result
-    raise ValueError(
+    msg = (
         f"Step {step_id} not found in WDK steps dict "
         f"(available keys: {list(steps.keys())[:20]})"
     )
+    raise ValueError(msg)
 
 
 def extract_operator(parameters: JSONObject) -> str | None:
@@ -107,25 +109,28 @@ def build_node_from_wdk(
     """Recursively build a ``PlanStepNode`` tree from WDK stepTree + steps."""
     step_id_value = step_tree.get("stepId")
     if not isinstance(step_id_value, int):
-        raise ValueError(
+        msg = (
             f"Expected int 'stepId' in stepTree node, got "
             f"{type(step_id_value).__name__}: {step_id_value!r}"
         )
+        raise TypeError(msg)
     step_id: int = step_id_value
 
     step_info = get_step_info(steps, step_id)
 
     search_name_value = step_info.get("searchName")
     if not isinstance(search_name_value, str) or not search_name_value:
-        raise ValueError(
+        msg = (
             f"Step {step_id} is missing a valid 'searchName' "
             f"(got {type(search_name_value).__name__}: {search_name_value!r})"
         )
+        raise ValueError(msg)
     search_name: str = search_name_value
 
     search_config_value = step_info.get("searchConfig")
     if not isinstance(search_config_value, dict):
-        raise ValueError(f"Step {step_id} is missing 'searchConfig'")
+        msg = f"Step {step_id} is missing 'searchConfig'"
+        raise TypeError(msg)
     search_config = as_json_object(search_config_value)
     parameters_value = search_config.get("parameters")
     parameters: JSONObject = (
@@ -148,7 +153,8 @@ def build_node_from_wdk(
         if not isinstance(primary_input_value, dict) or not isinstance(
             secondary_input_value, dict
         ):
-            raise ValueError("primaryInput and secondaryInput must be objects")
+            msg = "primaryInput and secondaryInput must be objects"
+            raise TypeError(msg)
         left = build_node_from_wdk(
             as_json_object(primary_input_value), steps, record_type
         )
@@ -157,10 +163,11 @@ def build_node_from_wdk(
         )
         raw_operator = extract_operator(parameters)
         if raw_operator is None:
-            raise ValueError(
+            msg = (
                 f"Combine step {step_id} has no boolean operator in "
                 f"searchConfig.parameters (keys: {list(parameters.keys())})"
             )
+            raise ValueError(msg)
         return PlanStepNode(
             search_name=search_name,
             operator=parse_op(raw_operator),
@@ -171,7 +178,8 @@ def build_node_from_wdk(
         )
     if primary_input_value:
         if not isinstance(primary_input_value, dict):
-            raise ValueError("primaryInput must be an object")
+            msg = "primaryInput must be an object"
+            raise TypeError(msg)
         input_node = build_node_from_wdk(
             as_json_object(primary_input_value), steps, record_type
         )
@@ -204,14 +212,14 @@ def build_snapshot_from_wdk(
     """
     step_tree_value = wdk_strategy.get("stepTree")
     if not isinstance(step_tree_value, dict):
-        raise ValueError("WDK strategy is missing 'stepTree'")
+        msg = "WDK strategy is missing 'stepTree'"
+        raise TypeError(msg)
     step_tree = as_json_object(step_tree_value)
 
     steps_value = wdk_strategy.get("steps")
     if not isinstance(steps_value, dict):
-        raise ValueError(
-            f"WDK strategy is missing 'steps' dict (got {type(steps_value).__name__})"
-        )
+        msg = f"WDK strategy is missing 'steps' dict (got {type(steps_value).__name__})"
+        raise TypeError(msg)
     steps: JSONObject = as_json_object(steps_value)
 
     record_type = extract_record_type(wdk_strategy)

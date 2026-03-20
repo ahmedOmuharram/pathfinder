@@ -60,17 +60,26 @@ export function DelegationPanel({
             (s) => s.task === task || task.startsWith(s.task),
           );
 
+          const statusVal = subKaniActivity.status?.[task];
+          const modelVal = subKaniActivity.models?.[task];
+          const tokenVal = subKaniActivity.tokenUsage?.[task];
           return (
             <SubAgentCard
               key={task}
               task={task}
               toolCalls={toolCalls}
-              status={subKaniActivity.status?.[task] || "done"}
-              modelId={subKaniActivity.models?.[task]}
-              tokenUsage={subKaniActivity.tokenUsage?.[task]}
-              instructions={matchingSummary?.instructions}
-              steps={matchingSummary?.steps}
-              notes={matchingSummary?.notes}
+              status={statusVal ?? "done"}
+              {...(modelVal != null ? { modelId: modelVal } : {})}
+              {...(tokenVal != null ? { tokenUsage: tokenVal } : {})}
+              {...(matchingSummary?.instructions != null
+                ? { instructions: matchingSummary.instructions }
+                : {})}
+              {...(matchingSummary?.steps != null
+                ? { steps: matchingSummary.steps }
+                : {})}
+              {...(matchingSummary?.notes != null
+                ? { notes: matchingSummary.notes }
+                : {})}
             />
           );
         })}

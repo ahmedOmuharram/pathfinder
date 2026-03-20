@@ -7,11 +7,43 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    HasIdCondition,
+    HasVectorCondition,
+    IsEmptyCondition,
+    IsNullCondition,
+    MatchValue,
+    NestedCondition,
+    PointStruct,
+    VectorParams,
+)
 
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import (
+    JSONArray,
+    JSONObject,
+    JSONValue,
+    as_json_object,
+)
+
+_HTTP_NOT_FOUND = 404
+
+# Union type for Qdrant filter conditions
+_FilterCondition = (
+    FieldCondition
+    | IsEmptyCondition
+    | IsNullCondition
+    | HasIdCondition
+    | HasVectorCondition
+    | NestedCondition
+    | Filter
+)
 
 
 def stable_json_dumps(value: object) -> str:
@@ -45,6 +77,28 @@ def point_uuid(key: str) -> str:
     return str(uuid.uuid5(_POINT_ID_NAMESPACE, key))
 
 
+def _build_conditions(items: JSONArray) -> list[_FilterCondition]:
+    """Build a list of FieldConditions from JSON filter items."""
+    conditions: list[_FilterCondition] = []
+    for item_value in items:
+        if not isinstance(item_value, dict):
+            msg = "Filter condition must be a dict"
+            raise TypeError(msg)
+        item = as_json_object(item_value)
+        key = str(item["key"])
+        value = item["value"]
+        # MatchValue only accepts bool, int, or str
+        match_value: bool | int | str
+        if isinstance(value, (bool, int, str)):
+            match_value = value
+        elif isinstance(value, float):
+            match_value = int(value) if value.is_integer() else str(value)
+        else:
+            match_value = str(value)
+        conditions.append(FieldCondition(key=key, match=MatchValue(value=match_value)))
+    return conditions
+
+
 @dataclass
 class QdrantStore:
     url: str
@@ -72,8 +126,6 @@ class QdrantStore:
         return store
 
     def _create_client(self) -> AsyncQdrantClient:
-        from qdrant_client import AsyncQdrantClient
-
         return AsyncQdrantClient(
             url=self.url,
             api_key=self.api_key,
@@ -124,8 +176,6 @@ class QdrantStore:
         distance: str = "Cosine",
     ) -> None:
         """Create collection if missing; validate vector size if present."""
-        from qdrant_client.models import Distance, VectorParams
-
         async with self.connect() as client:
             exists = await client.collection_exists(collection_name=name)
             if not exists:
@@ -136,7 +186,8 @@ class QdrantStore:
                     "Manhattan": Distance.MANHATTAN,
                 }.get(distance)
                 if dist is None:
-                    raise ValueError(f"Unsupported distance: {distance}")
+                    msg = f"Unsupported distance: {distance}"
+                    raise ValueError(msg)
                 await client.create_collection(
                     collection_name=name,
                     vectors_config=VectorParams(size=vector_size, distance=dist),
@@ -162,10 +213,6 @@ class QdrantStore:
         points: JSONArray,
     ) -> None:
         """Upsert points.\n\n        Each point dict: {\"id\": str|int, \"vector\": list[float], \"payload\": dict}\n"""
-        from qdrant_client.models import PointStruct
-
-        from veupath_chatbot.platform.types import as_json_object
-
         q_points: list[PointStruct] = []
         for p_value in points:
             if not isinstance(p_value, dict):
@@ -215,7 +262,7 @@ class QdrantStore:
     ) -> JSONObject | None:
         try:
             res = await client.retrieve(collection_name=collection, ids=[point_id])
-        except Exception as exc:
+        except (OSError, RuntimeError, UnexpectedResponse) as exc:
             # Missing collection, Qdrant down, etc. Treat as cache miss.
             _maybe_log_qdrant_error("get", collection=collection, error=exc)
             return None
@@ -242,70 +289,7 @@ class QdrantStore:
         must: JSONArray | None = None,
         must_not: JSONArray | None = None,
     ) -> JSONArray:
-        from qdrant_client.models import FieldCondition, Filter, MatchValue
-
-        from veupath_chatbot.platform.types import as_json_object
-
-        def _cond(item_value: JSONValue) -> FieldCondition:
-            if not isinstance(item_value, dict):
-                raise ValueError("Filter condition must be a dict")
-            item = as_json_object(item_value)
-            key = str(item["key"])
-            value = item["value"]
-            # MatchValue only accepts bool, int, or str
-            match_value: bool | int | str
-            if isinstance(value, (bool, int, str)):
-                match_value = value
-            elif isinstance(value, float):
-                # MatchValue doesn't accept float, convert non-integers to string
-                match_value = int(value) if value.is_integer() else str(value)
-            else:
-                match_value = str(value)
-            return FieldCondition(key=key, match=MatchValue(value=match_value))
-
-        f: Filter | None = None
-        if must or must_not:
-            from qdrant_client.models import (
-                HasIdCondition,
-                HasVectorCondition,
-                IsEmptyCondition,
-                IsNullCondition,
-                NestedCondition,
-            )
-
-            # Filter expects union types, but FieldCondition is compatible
-            # We need to satisfy mypy's type checking by ensuring compatibility
-            must_conditions: list[
-                FieldCondition
-                | IsEmptyCondition
-                | IsNullCondition
-                | HasIdCondition
-                | HasVectorCondition
-                | NestedCondition
-                | Filter
-            ] = []
-            if must:
-                for m in must:
-                    cond = _cond(m)
-                    # FieldCondition is compatible with the union type
-                    must_conditions.append(cond)
-            must_not_conditions: list[
-                FieldCondition
-                | IsEmptyCondition
-                | IsNullCondition
-                | HasIdCondition
-                | HasVectorCondition
-                | NestedCondition
-                | Filter
-            ] = []
-            if must_not:
-                for m in must_not:
-                    cond = _cond(m)
-                    must_not_conditions.append(cond)
-            f = Filter(
-                must=must_conditions if must_conditions else None,
-                must_not=must_not_conditions if must_not_conditions else None,
-            )
+        f = _build_filter(must, must_not)
 
         async with self.connect() as client:
             # qdrant-client async API uses `query_points` (not `search`) in newer versions.
@@ -317,7 +301,7 @@ class QdrantStore:
                     limit=max(int(limit), 1),
                     with_payload=True,
                 )
-            except Exception as exc:
+            except (OSError, RuntimeError, UnexpectedResponse) as exc:
                 # Most common: 404 missing collection when ingestion hasn't run yet.
                 _maybe_log_qdrant_error("search", collection=collection, error=exc)
                 return []
@@ -332,6 +316,24 @@ class QdrantStore:
             ]
 
 
+def _build_filter(
+    must: JSONArray | None,
+    must_not: JSONArray | None,
+) -> Filter | None:
+    """Build a Qdrant Filter from must/must_not condition arrays."""
+    if not must and not must_not:
+        return None
+
+    must_conditions: list[_FilterCondition] = _build_conditions(must) if must else []
+    must_not_conditions: list[_FilterCondition] = (
+        _build_conditions(must_not) if must_not else []
+    )
+    return Filter(
+        must=must_conditions or None,
+        must_not=must_not_conditions or None,
+    )
+
+
 _active_stores: list[QdrantStore] = []
 
 
@@ -340,7 +342,7 @@ async def close_all_qdrant_stores() -> None:
 
     Called during application shutdown to release all Qdrant connection pools.
     """
-    for store in list(_active_stores):
+    for store in _active_stores:
         await store.close()
     _active_stores.clear()
 
@@ -352,18 +354,13 @@ def _maybe_log_qdrant_error(op: str, *, collection: str, error: Exception) -> No
     :param collection: Collection name.
     :param error: Exception that occurred.
     """
-    try:
-        from qdrant_client.http.exceptions import UnexpectedResponse
+    # Missing collection is an expected state pre-ingestion.
+    if (
+        isinstance(error, UnexpectedResponse)
+        and int(getattr(error, "status_code", 0) or 0) == _HTTP_NOT_FOUND
+    ):
+        return
 
-        # Missing collection is an expected state pre-ingestion.
-        if (
-            isinstance(error, UnexpectedResponse)
-            and int(getattr(error, "status_code", 0) or 0) == 404
-        ):
-            return
-    except Exception:
-        # If qdrant-client internals changed, fall back to string check below.
-        pass
     msg = str(error)
     if "doesn't exist" in msg or "Not found: Collection" in msg:
         return

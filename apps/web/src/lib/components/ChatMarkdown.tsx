@@ -5,7 +5,7 @@ import type { Citation } from "@pathfinder/shared";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-export type ChatMarkdownTone = "default" | "onDark";
+type ChatMarkdownTone = "default" | "onDark";
 
 interface ChatMarkdownProps {
   content: string;
@@ -21,7 +21,7 @@ function renderInlineCitationsMarkdown(
   if (!citations || citations.length === 0) return content;
 
   const tagToNumber = new Map<string, number>();
-  for (let i = 0; i < citations.length; i++) {
+  for (let i = 0; i < citations.length; i += 1) {
     const tag = citations[i]?.tag;
     if (typeof tag === "string" && tag.trim()) {
       tagToNumber.set(tag.trim(), i + 1);
@@ -43,7 +43,7 @@ function renderInlineCitationsMarkdown(
         const normalized = normalizeTag(tag);
         const n = tagToNumber.get(normalized);
         // If it doesn't resolve, preserve the user's original token (including leading @ if present).
-        return n ? `[[${n}]](#cite-${n})` : `\\cite{${tag}}`;
+        return n != null ? `[[${n}]](#cite-${n})` : `\\cite{${tag}}`;
       })
       .join(", ");
   };
@@ -105,12 +105,7 @@ export function ChatMarkdown({
   className,
 }: ChatMarkdownProps) {
   // Gemini can return content as an array of string parts; guard at runtime.
-  const safeContent =
-    typeof content === "string"
-      ? content
-      : Array.isArray(content as unknown)
-        ? (content as unknown as string[]).join("")
-        : String(content ?? "");
+  const safeContent = content;
   const toneClassName =
     tone === "onDark"
       ? "text-white [&_h1]:text-white [&_h2]:text-white [&_a]:text-white [&_code]:text-white [&_code]:bg-primary/60"
@@ -118,7 +113,7 @@ export function ChatMarkdown({
 
   return (
     <div
-      className={`markdown-content whitespace-normal ${toneClassName} ${className || ""}`}
+      className={`markdown-content whitespace-normal ${toneClassName} ${className ?? ""}`}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {renderInlineCitationsMarkdown(renderVerbatimBlocks(safeContent), citations)}

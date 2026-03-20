@@ -39,7 +39,7 @@ def _make_result(
     if pmid is not None:
         r["pmid"] = pmid
     if authors is not None:
-        r["authors"] = cast(JSONValue, authors)
+        r["authors"] = cast("JSONValue", authors)
     if abstract is not None:
         r["abstract"] = abstract
     if journal is not None:
@@ -67,7 +67,7 @@ def _make_citation(
     if doi is not None:
         c["doi"] = doi
     if authors is not None:
-        c["authors"] = cast(JSONValue, authors)
+        c["authors"] = cast("JSONValue", authors)
     return c
 
 
@@ -201,7 +201,7 @@ class TestDeduplicateAndFilter:
             "europepmc": _make_source_payload([r1], [c1]),
             "crossref": _make_source_payload([r2], [c2]),
         }
-        filtered, citations_by_key = service._deduplicate_and_filter(
+        filtered, _citations_by_key = service._deduplicate_and_filter(
             by_source=by_source,
             include_abstract=False,
             abstract_max_chars=2000,
@@ -348,7 +348,7 @@ class TestDeduplicateAndFilter:
         by_source: dict[str, JSONObject] = {
             "europepmc": _make_source_payload([r1], [c1]),
         }
-        filtered, citations_by_key = service._deduplicate_and_filter(
+        _filtered, citations_by_key = service._deduplicate_and_filter(
             by_source=by_source,
             include_abstract=False,
             abstract_max_chars=2000,

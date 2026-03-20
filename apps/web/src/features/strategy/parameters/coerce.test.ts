@@ -146,22 +146,22 @@ describe("coerceParametersForSpecs", () => {
       { organisms: '["a","b"]', threshold: "5" },
       [multiSpec, scalarSpec],
     );
-    expect(result.organisms).toEqual(["a", "b"]);
+    expect(result["organisms"]).toEqual(["a", "b"]);
   });
 
   it("extracts first element for scalar params when value is array", () => {
     const result = coerceParametersForSpecs({ threshold: ["10", "20"] }, [scalarSpec]);
-    expect(result.threshold).toBe("10");
+    expect(result["threshold"]).toBe("10");
   });
 
   it("leaves scalar value untouched when already scalar", () => {
     const result = coerceParametersForSpecs({ threshold: 42 }, [scalarSpec]);
-    expect(result.threshold).toBe(42);
+    expect(result["threshold"]).toBe(42);
   });
 
   it("returns undefined for scalar spec with empty array value", () => {
     const result = coerceParametersForSpecs({ threshold: [] }, [scalarSpec]);
-    expect(result.threshold).toBeUndefined();
+    expect(result["threshold"]).toBeUndefined();
   });
 
   it("skips specs with no name", () => {
@@ -170,16 +170,16 @@ describe("coerceParametersForSpecs", () => {
       multiSpec,
       scalarSpec,
     ]);
-    expect(result.organisms).toEqual(["x"]);
-    expect(result.threshold).toBe(5);
+    expect(result["organisms"]).toEqual(["x"]);
+    expect(result["threshold"]).toBe(5);
   });
 
   it("preserves extra keys not in specs", () => {
     const result = coerceParametersForSpecs({ organisms: ["a"], extra: "val" }, [
       multiSpec,
     ]);
-    expect(result.extra).toBe("val");
-    expect(result.organisms).toEqual(["a"]);
+    expect(result["extra"]).toBe("val");
+    expect(result["organisms"]).toEqual(["a"]);
   });
 
   it("passes options through to coerceMultiValue", () => {
@@ -187,6 +187,6 @@ describe("coerceParametersForSpecs", () => {
       allowStringParsing: true,
       allowCsv: true,
     });
-    expect(result.organisms).toEqual(["a", "b", "c"]);
+    expect(result["organisms"]).toEqual(["a", "b", "c"]);
   });
 });

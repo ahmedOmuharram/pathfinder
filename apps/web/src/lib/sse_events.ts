@@ -57,7 +57,7 @@ export type MessageStartData = {
 };
 export type CitationsData = { citations?: Citation[] };
 export type PlanningArtifactData = { planningArtifact?: PlanningArtifact };
-export type ToolCallStartData = { id: string; name: string; arguments?: string };
+export type ToolCallStartData = { id: string; name: string; arguments?: string | null };
 export type ToolCallEndData = { id: string; result: string };
 
 export type StrategyUpdateStepData = {
@@ -139,7 +139,7 @@ export const ToolCallStartDataSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    arguments: z.string().optional(),
+    arguments: z.string().nullish(),
   })
   .passthrough();
 
@@ -152,18 +152,18 @@ export const ToolCallEndDataSchema = z
 
 export const SubKaniToolCallStartDataSchema = z
   .object({
-    task: z.string().optional(),
+    task: z.string().nullish(),
     id: z.string(),
     name: z.string(),
-    arguments: z.string().optional(),
+    arguments: z.string().nullish(),
   })
   .passthrough();
 
 export const SubKaniToolCallEndDataSchema = z
   .object({
-    task: z.string().optional(),
+    task: z.string().nullish(),
     id: z.string(),
-    result: z.string(),
+    result: z.string().nullish(),
   })
   .passthrough();
 
@@ -171,23 +171,23 @@ export const OptimizationProgressDataSchema = z
   .object({
     optimizationId: z.string(),
     status: z.enum(["started", "running", "completed", "cancelled", "error"]),
-    searchName: z.string().optional(),
-    recordType: z.string().optional(),
-    budget: z.number().optional(),
-    objective: z.string().optional(),
-    positiveControlsCount: z.number().optional(),
-    negativeControlsCount: z.number().optional(),
-    parameterSpecs: z.array(OptimizationParameterSpecSchema).optional(),
-    currentTrial: z.number().optional(),
-    totalTrials: z.number().optional(),
-    trial: OptimizationTrialSchema.optional(),
+    searchName: z.string().nullish(),
+    recordType: z.string().nullish(),
+    budget: z.number().nullish(),
+    objective: z.string().nullish(),
+    positiveControlsCount: z.number().nullish(),
+    negativeControlsCount: z.number().nullish(),
+    parameterSpecs: z.array(OptimizationParameterSpecSchema).nullish(),
+    currentTrial: z.number().nullish(),
+    totalTrials: z.number().nullish(),
+    trial: OptimizationTrialSchema.nullish(),
     bestTrial: OptimizationTrialSchema.nullable().optional(),
-    recentTrials: z.array(OptimizationTrialSchema).optional(),
-    allTrials: z.array(OptimizationTrialSchema).optional(),
-    paretoFrontier: z.array(OptimizationTrialSchema).optional(),
-    sensitivity: z.record(z.string(), z.number()).optional(),
-    totalTimeSeconds: z.number().optional(),
-    error: z.string().optional(),
+    recentTrials: z.array(OptimizationTrialSchema).nullish(),
+    allTrials: z.array(OptimizationTrialSchema).nullish(),
+    paretoFrontier: z.array(OptimizationTrialSchema).nullish(),
+    sensitivity: z.record(z.string(), z.number()).nullish(),
+    totalTimeSeconds: z.number().nullish(),
+    error: z.string().nullish(),
   })
   .passthrough();
 
@@ -209,55 +209,55 @@ const StrategyUpdateStepDataSchema = z
   .object({
     stepId: z.string(),
     displayName: z.string(),
-    kind: z.string().optional(),
-    searchName: z.string().optional(),
-    transformName: z.string().optional(),
-    operator: z.string().optional(),
-    primaryInputStepId: z.string().optional(),
-    secondaryInputStepId: z.string().optional(),
-    parameters: z.record(z.string(), z.unknown()).optional(),
+    kind: z.string().nullish(),
+    searchName: z.string().nullish(),
+    transformName: z.string().nullish(),
+    operator: z.string().nullish(),
+    primaryInputStepId: z.string().nullish(),
+    secondaryInputStepId: z.string().nullish(),
+    parameters: z.record(z.string(), z.unknown()).nullish(),
     name: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
-    recordType: z.string().optional(),
-    graphId: z.string().optional(),
-    graphName: z.string().optional(),
+    recordType: z.string().nullish(),
+    graphId: z.string().nullish(),
+    graphName: z.string().nullish(),
   })
   .passthrough();
 
 export const StrategyUpdateDataSchema = z
   .object({
-    graphId: z.string().optional(),
-    step: StrategyUpdateStepDataSchema.optional(),
+    graphId: z.string().nullish(),
+    step: StrategyUpdateStepDataSchema.nullish(),
   })
   .passthrough();
 
 export const StrategyLinkDataSchema = z
   .object({
-    graphId: z.string().optional(),
-    wdkStrategyId: z.number().optional(),
-    wdkUrl: z.string().optional(),
-    name: z.string().optional(),
-    description: z.string().optional(),
+    graphId: z.string().nullish(),
+    wdkStrategyId: z.number().nullish(),
+    wdkUrl: z.string().nullish(),
+    name: z.string().nullish(),
+    description: z.string().nullish(),
   })
   .passthrough();
 
 export const StrategyMetaDataSchema = z
   .object({
-    graphId: z.string().optional(),
-    graphName: z.string().optional(),
-    name: z.string().optional(),
-    description: z.string().optional(),
+    graphId: z.string().nullish(),
+    graphName: z.string().nullish(),
+    name: z.string().nullish(),
+    description: z.string().nullish(),
     recordType: z.string().nullable().optional(),
   })
   .passthrough();
 
 export const GraphPlanDataSchema = z
   .object({
-    graphId: z.string().optional(),
+    graphId: z.string().nullish(),
     plan: z.unknown(),
-    name: z.string().optional(),
-    recordType: z.string().optional(),
-    description: z.string().optional(),
+    name: z.string().nullish(),
+    recordType: z.string().nullish(),
+    description: z.string().nullish(),
   })
   .passthrough();
 
@@ -273,7 +273,7 @@ const WorkbenchGeneSetInnerSchema = z
 
 export const WorkbenchGeneSetDataSchema = z
   .object({
-    geneSet: WorkbenchGeneSetInnerSchema.optional(),
+    geneSet: WorkbenchGeneSetInnerSchema.nullish(),
   })
   .passthrough();
 
@@ -308,17 +308,11 @@ export type ChatSSEEvent =
   | { type: "workbench_gene_set"; data: WorkbenchGeneSetData }
   | { type: "unknown"; data: RawSSEData | string; rawType: string };
 
-/** Extract the data type for a specific event type from the discriminated union. */
-export type ChatSSEEventData<T extends ChatSSEEvent["type"]> = Extract<
-  ChatSSEEvent,
-  { type: T }
->["data"];
-
 /* ── Parsing helpers ───────────────────────────────────────────────── */
 
 function safeJsonParse(text: string): RawSSEData | string {
   try {
-    const parsed = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
     return isRecord(parsed) ? parsed : text;
   } catch {
     return text;
@@ -336,12 +330,21 @@ function asRecord(data: unknown): RawSSEData | null {
 /* ── Per-event-type narrowing ──────────────────────────────────────── */
 
 /**
- * Try to parse `data` with a Zod schema.
- * Returns the parsed result on success, or null on failure (with a warning).
+ * Try to parse `data` with a Zod schema and cast to the target type.
+ *
+ * Zod's `.passthrough()` adds `[x: string]: unknown` to the inferred type,
+ * which makes optional `.nullish()` fields include `| undefined`.  With
+ * `exactOptionalPropertyTypes` this is incompatible with target types that
+ * use `T | null` (no undefined).  The cast via `Target` strips the index
+ * signature after Zod has validated the data.
  */
-function zodNarrow<T>(schema: z.ZodType<T>, type: string, data: RawSSEData): T | null {
+function zodNarrow<Target>(
+  schema: z.ZodType<unknown>,
+  type: string,
+  data: RawSSEData,
+): Target | null {
   const result = schema.safeParse(data);
-  if (result.success) return result.data;
+  if (result.success) return result.data as Target;
   console.warn(`[SSE] ${type} failed validation:`, result.error.issues, data);
   return null;
 }
@@ -400,67 +403,68 @@ function narrowEventData(
       return { type, data: data as TokenUsagePartialData };
 
     case "message_end":
-      return { type, data: data as MessageEndData };
+      return { type, data };
 
     // Validated via Zod: events with required fields or complex nested structures.
     case "tool_call_start": {
-      const parsed = zodNarrow(ToolCallStartDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<ToolCallStartData>(ToolCallStartDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "tool_call_end": {
-      const parsed = zodNarrow(ToolCallEndDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<ToolCallEndData>(ToolCallEndDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "subkani_tool_call_start": {
-      const parsed = zodNarrow(SubKaniToolCallStartDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<SubKaniToolCallStartData>(
+        SubKaniToolCallStartDataSchema,
+        type,
+        data,
+      );
+      return d != null ? { type, data: d } : null;
     }
-
     case "subkani_tool_call_end": {
-      const parsed = zodNarrow(SubKaniToolCallEndDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<SubKaniToolCallEndData>(
+        SubKaniToolCallEndDataSchema,
+        type,
+        data,
+      );
+      return d != null ? { type, data: d } : null;
     }
-
     case "optimization_progress": {
-      const parsed = zodNarrow(OptimizationProgressDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<OptimizationProgressData>(
+        OptimizationProgressDataSchema,
+        type,
+        data,
+      );
+      return d != null ? { type, data: d } : null;
     }
-
     case "model_selected": {
-      const parsed = zodNarrow(ModelSelectedDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<ModelSelectedData>(ModelSelectedDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "error": {
-      const parsed = zodNarrow(ErrorDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<ErrorData>(ErrorDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "strategy_update": {
-      const parsed = zodNarrow(StrategyUpdateDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<StrategyUpdateData>(StrategyUpdateDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "strategy_link": {
-      const parsed = zodNarrow(StrategyLinkDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<StrategyLinkData>(StrategyLinkDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "strategy_meta": {
-      const parsed = zodNarrow(StrategyMetaDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<StrategyMetaData>(StrategyMetaDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "graph_plan": {
-      const parsed = zodNarrow(GraphPlanDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<GraphPlanData>(GraphPlanDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
-
     case "workbench_gene_set": {
-      const parsed = zodNarrow(WorkbenchGeneSetDataSchema, type, data);
-      return parsed ? { type, data: parsed } : null;
+      const d = zodNarrow<WorkbenchGeneSetData>(WorkbenchGeneSetDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
     }
 
     default:

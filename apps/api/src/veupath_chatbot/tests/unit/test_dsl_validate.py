@@ -3,6 +3,7 @@
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.validate import (
+    StepValidationIssue,
     StrategyValidator,
     ValidationResult,
     validate_strategy,
@@ -254,8 +255,6 @@ class TestValidationResult:
         assert result.errors == []
 
     def test_failure(self) -> None:
-        from veupath_chatbot.domain.strategy.validate import StepValidationIssue
-
         err = StepValidationIssue(path="root", message="bad", code="BAD")
         result = ValidationResult.failure([err])
         assert result.valid is False

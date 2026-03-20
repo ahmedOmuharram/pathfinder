@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models."""
 
 from datetime import datetime
+from typing import ClassVar
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -57,7 +58,7 @@ class GUID(TypeDecorator[UUID]):
 class Base(DeclarativeBase):
     """Base class for all models."""
 
-    type_annotation_map = {
+    type_annotation_map: ClassVar[dict[type, type]] = {
         JSONObject: JSON,
         JSONArray: JSON,
         UUID: GUID,

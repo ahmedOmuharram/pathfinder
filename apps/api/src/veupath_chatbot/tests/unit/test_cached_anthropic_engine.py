@@ -49,7 +49,7 @@ class TestSystemPromptCaching:
             "_prepare_request",
             return_value=(parent_kwargs, _TRANSLATED),
         ):
-            kwargs, translated = CachedAnthropicEngine._prepare_request([], [])
+            kwargs, _translated = CachedAnthropicEngine._prepare_request([], [])
 
         # Empty string is falsy, so isinstance check + truthiness should skip it
         assert kwargs["system"] == ""

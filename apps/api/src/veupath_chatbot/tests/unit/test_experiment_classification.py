@@ -156,7 +156,7 @@ class TestClassifyRecords:
         assert result[0]["_classification"] == "TP"
 
     # -----------------------------------------------------------------------
-    # Priority: TP > FP > FN > TN
+    # Priority - TP > FP > FN > TN
     # -----------------------------------------------------------------------
 
     def test_priority_tp_over_fp(self) -> None:

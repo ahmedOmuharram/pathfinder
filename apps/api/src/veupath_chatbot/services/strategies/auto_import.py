@@ -59,7 +59,9 @@ async def auto_import_gene_sets(
             continue
 
         wdk_id = proj.wdk_strategy_id
-        assert wdk_id is not None  # guaranteed by _is_eligible
+        if wdk_id is None:
+            msg = "wdk_id must not be None (guaranteed by _is_eligible)"
+            raise RuntimeError(msg)
 
         # Skip if already processed in this batch.
         if wdk_id in seen_wdk_ids:

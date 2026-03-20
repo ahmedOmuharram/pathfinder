@@ -522,7 +522,7 @@ class TestGetSearchDetails:
         mock_discovery = MagicMock()
         mock_discovery.get_search_details = AsyncMock(return_value=expected)
         with patch(
-            "veupath_chatbot.integrations.veupathdb.discovery.get_discovery_service",
+            "veupath_chatbot.services.catalog.rag_search.get_discovery_service",
             return_value=mock_discovery,
         ):
             svc = _make_service()

@@ -18,7 +18,7 @@ _USER = uuid4()
 
 
 def _make_set(
-    id: str = "gs-1",
+    set_id: str = "gs-1",
     site_id: str = "plasmo",
     gene_ids: list[str] | None = None,
     user_id=_USER,
@@ -31,7 +31,7 @@ def _make_set(
     parameters: dict[str, str] | None = None,
 ) -> GeneSet:
     return GeneSet(
-        id=id,
+        id=set_id,
         name=name,
         site_id=site_id,
         gene_ids=gene_ids if gene_ids is not None else ["G1", "G2"],

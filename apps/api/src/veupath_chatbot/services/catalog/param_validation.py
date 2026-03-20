@@ -102,8 +102,8 @@ async def validate_search_params(
                 "isValid": False,
                 "normalizedContextValues": {},
                 "errors": {
-                    "general": cast(JSONValue, general),
-                    "byKey": cast(JSONValue, by_key),
+                    "general": cast("JSONValue", general),
+                    "byKey": cast("JSONValue", by_key),
                 },
             }
         }
@@ -119,10 +119,10 @@ async def validate_search_params(
                 "normalizedContextValues": normalized_context,
                 "errors": {
                     "general": cast(
-                        JSONValue,
+                        "JSONValue",
                         [f"Missing required parameters: {', '.join(missing)}"],
                     ),
-                    "byKey": cast(JSONValue, by_key),
+                    "byKey": cast("JSONValue", by_key),
                 },
             }
         }
@@ -134,6 +134,152 @@ async def validate_search_params(
             "errors": {"general": [], "byKey": {}},
         }
     }
+
+
+async def _resolve_search_details(
+    *,
+    site_id: str,
+    resolved_record_type: str,
+    search_name: str,
+    record_type: str,
+    parameters: JSONObject,
+) -> JSONObject:
+    """Fetch search details with contextual params, with fallback.
+
+    Raises ``ValidationError`` with available-search hints when the
+    search cannot be found at all.
+    """
+    discovery = get_discovery_service()
+    try:
+        wdk_client = get_wdk_client(site_id)
+        context = encode_context_param_values_for_wdk(parameters)
+        try:
+            return await wdk_client.get_search_details_with_params(
+                resolved_record_type,
+                search_name,
+                context=context,
+                expand_params=True,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Contextual param fetch failed, falling back to non-contextual specs",
+                record_type=resolved_record_type,
+                search_name=search_name,
+                error=str(exc),
+            )
+            return await discovery.get_search_details(
+                site_id, resolved_record_type, search_name, expand_params=True
+            )
+    except Exception as exc:
+        hint_record_type = await _find_search_record_type_hint(
+            discovery, site_id, record_type, search_name
+        )
+        available = await _collect_available_search_names(
+            discovery, site_id, resolved_record_type
+        )
+        raise ValidationError(
+            title=f"Unknown or invalid search: {search_name}",
+            detail=str(exc),
+            errors=[
+                {
+                    "context": {
+                        "recordType": resolved_record_type,
+                        "availableSearches": cast("JSONValue", available),
+                        "recordTypeHint": hint_record_type,
+                    }
+                }
+            ],
+        ) from exc
+
+
+async def _collect_available_search_names(
+    discovery: object, site_id: str, resolved_record_type: str
+) -> list[str]:
+    """Collect available search names for a record type (for error context)."""
+    searches = await discovery.get_searches(site_id, resolved_record_type)
+    available: list[str] = []
+    for s in searches:
+        if not isinstance(s, dict):
+            continue
+        name_raw = s.get("name")
+        url_seg_raw = s.get("urlSegment")
+        name = name_raw if isinstance(name_raw, str) else None
+        url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
+        available_val = name or url_seg
+        if isinstance(available_val, str):
+            available.append(available_val)
+    return available
+
+
+async def _find_search_record_type_hint(
+    discovery: object, site_id: str, record_type: str, search_name: str
+) -> str | None:
+    """Search other record types to find where *search_name* actually lives."""
+    try:
+        record_types = await discovery.get_record_types(site_id)
+        for rt in record_types:
+            if not isinstance(rt, dict):
+                continue
+            url_seg_raw = rt.get("urlSegment")
+            name_raw = rt.get("name")
+            url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
+            name = name_raw if isinstance(name_raw, str) else None
+            rt_name = url_seg or name or ""
+            if not rt_name or rt_name == record_type:
+                continue
+            rt_searches = await discovery.get_searches(site_id, rt_name)
+            for s in rt_searches:
+                if not isinstance(s, dict):
+                    continue
+                s_url_seg_raw = s.get("urlSegment")
+                s_name_raw = s.get("name")
+                s_url_seg = (
+                    s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
+                )
+                s_name = s_name_raw if isinstance(s_name_raw, str) else None
+                if search_name in (s_url_seg, s_name):
+                    return rt_name
+    except Exception as hint_exc:
+        logger.warning(
+            "Record type hint resolution failed",
+            search_name=search_name,
+            error=str(hint_exc),
+        )
+    return None
+
+
+def _build_missing_param_options(
+    param_specs: list[JSONObject],
+    missing: list[str],
+    extract_vocab_options: Callable[[JSONObject], list[str]],
+) -> JSONObject:
+    """Build vocabulary option hints for missing required parameters."""
+    options: JSONObject = {}
+    for param_spec in param_specs:
+        name_raw = param_spec.get("name")
+        name = name_raw if isinstance(name_raw, str) else None
+        if not name or name not in missing:
+            continue
+        vocab_raw = param_spec.get("vocabulary")
+        opts: list[str] = []
+        if isinstance(vocab_raw, dict):
+            opts = extract_vocab_options(vocab_raw)
+        elif isinstance(vocab_raw, list):
+            if vocab_raw and isinstance(vocab_raw[0], list):
+                opts = [
+                    str(v[0]) for v in vocab_raw[:50] if isinstance(v, list) and v
+                ]
+            else:
+                opts = [str(v) for v in vocab_raw[:50]]
+        if opts:
+            options[name] = cast(
+                "JSONValue",
+                {
+                    "examples": cast("JSONValue", opts),
+                    "truncated": len(opts) >= 50,
+                },
+            )
+    return options
 
 
 async def validate_parameters(
@@ -154,9 +300,8 @@ async def validate_parameters(
     the search is unknown, extra/unknown parameters are provided, or
     required parameters are missing.
     """
-    discovery = get_discovery_service()
     resolved_record_type = await resolve_record_type_for_search(
-        record_type, search_name, True, True
+        record_type, search_name, require_match=True, allow_fallback=True
     )
     if resolved_record_type is None:
         record_type_hint = await find_record_type_hint(search_name, record_type)
@@ -172,93 +317,14 @@ async def validate_parameters(
                 }
             ],
         )
-    try:
-        # Many WDK param vocabularies are context-dependent. Prefer the POST variant
-        # that accepts `contextParamValues`, so values like "maximum2" validate when
-        # the chosen sample sets require them.
-        wdk_client = get_wdk_client(site_id)
-        context = encode_context_param_values_for_wdk(parameters)
-        try:
-            details = await wdk_client.get_search_details_with_params(
-                resolved_record_type,
-                search_name,
-                context=context,
-                expand_params=True,
-            )
-        except Exception as exc:
-            # Fallback: non-contextual specs (may be incomplete for dependent params).
-            logger.warning(
-                "Contextual param fetch failed, falling back to non-contextual specs",
-                record_type=resolved_record_type,
-                search_name=search_name,
-                error=str(exc),
-            )
-            details = await discovery.get_search_details(
-                site_id, resolved_record_type, search_name, expand_params=True
-            )
-    except Exception as exc:
-        searches = await discovery.get_searches(site_id, resolved_record_type)
-        available: list[str] = []
-        for s in searches:
-            if not isinstance(s, dict):
-                continue
-            name_raw = s.get("name")
-            url_seg_raw = s.get("urlSegment")
-            name = name_raw if isinstance(name_raw, str) else None
-            url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
-            available_val = name or url_seg
-            if isinstance(available_val, str):
-                available.append(available_val)
-        hint_record_type: str | None = None
-        try:
-            record_types = await discovery.get_record_types(site_id)
-            for rt in record_types:
-                if not isinstance(rt, dict):
-                    continue
-                url_seg_raw = rt.get("urlSegment")
-                name_raw = rt.get("name")
-                url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
-                name = name_raw if isinstance(name_raw, str) else None
-                rt_name = url_seg or name or ""
-                if not rt_name or rt_name == record_type:
-                    continue
-                rt_searches = await discovery.get_searches(site_id, rt_name)
-                match: JSONObject | None = None
-                for s in rt_searches:
-                    if not isinstance(s, dict):
-                        continue
-                    s_url_seg_raw = s.get("urlSegment")
-                    s_name_raw = s.get("name")
-                    s_url_seg = (
-                        s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
-                    )
-                    s_name = s_name_raw if isinstance(s_name_raw, str) else None
-                    if s_url_seg == search_name or s_name == search_name:
-                        match = s
-                        break
-                if match:
-                    hint_record_type = rt_name
-                    break
-        except Exception as hint_exc:
-            logger.warning(
-                "Record type hint resolution failed",
-                search_name=search_name,
-                error=str(hint_exc),
-            )
-            hint_record_type = None
-        raise ValidationError(
-            title=f"Unknown or invalid search: {search_name}",
-            detail=str(exc),
-            errors=[
-                {
-                    "context": {
-                        "recordType": resolved_record_type,
-                        "availableSearches": cast(JSONValue, available),
-                        "recordTypeHint": hint_record_type,
-                    }
-                }
-            ],
-        ) from exc
+
+    details = await _resolve_search_details(
+        site_id=site_id,
+        resolved_record_type=resolved_record_type,
+        search_name=search_name,
+        record_type=record_type,
+        parameters=parameters,
+    )
 
     spec_payload = unwrap_search_data(details) or {}
     param_specs = extract_param_specs(spec_payload)
@@ -283,8 +349,8 @@ async def validate_parameters(
                     "context": {
                         "recordType": resolved_record_type,
                         "searchName": search_name,
-                        "unknown": cast(JSONValue, extra_params),
-                        "known": cast(JSONValue, sorted(param_names)[:50]),
+                        "unknown": cast("JSONValue", extra_params),
+                        "known": cast("JSONValue", sorted(param_names)[:50]),
                         "truncated": len(param_names) > 50,
                     }
                 }
@@ -293,34 +359,10 @@ async def validate_parameters(
     missing = find_missing_required_params(param_specs, parameters)
 
     if missing:
-        options: JSONObject = {}
-        for param_spec in param_specs:
-            if not isinstance(param_spec, dict):
-                continue
-            name_raw = param_spec.get("name")
-            name = name_raw if isinstance(name_raw, str) else None
-            if not name or name not in missing:
-                continue
-            vocab_raw = param_spec.get("vocabulary")
-            opts: list[str] = []
-            if isinstance(vocab_raw, dict):
-                opts = extract_vocab_options(vocab_raw)
-            elif isinstance(vocab_raw, list):
-                if vocab_raw and isinstance(vocab_raw[0], list):
-                    opts = [
-                        str(v[0]) for v in vocab_raw[:50] if isinstance(v, list) and v
-                    ]
-                else:
-                    opts = [str(v) for v in vocab_raw[:50]]
-            if opts:
-                options[name] = cast(
-                    JSONValue,
-                    {
-                        "examples": cast(JSONValue, opts),
-                        "truncated": len(opts) >= 50,
-                    },
-                )
-
+        valid_specs = [p for p in param_specs if isinstance(p, dict)]
+        options = _build_missing_param_options(
+            valid_specs, missing, extract_vocab_options
+        )
         raise ValidationError(
             title="Missing required parameters",
             errors=[
@@ -328,11 +370,9 @@ async def validate_parameters(
                     "context": {
                         "recordType": resolved_record_type,
                         "searchName": search_name,
-                        "missing": cast(JSONValue, missing),
+                        "missing": cast("JSONValue", missing),
                         "options": options,
                     }
                 }
             ],
         )
-
-    return None

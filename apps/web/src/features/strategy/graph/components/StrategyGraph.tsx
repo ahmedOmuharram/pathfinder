@@ -11,7 +11,8 @@
  * state management, so they are kept separate.
  */
 import { useCallback, useState } from "react";
-import { CombineOperator, type Strategy } from "@pathfinder/shared";
+import { type CombineOperator } from "@pathfinder/shared";
+import type { Strategy } from "@pathfinder/shared";
 import "reactflow/dist/style.css";
 import { StepEditor } from "@/features/strategy/editor/StepEditor";
 import { X } from "lucide-react";
@@ -24,7 +25,10 @@ import {
   useStrategyGraph,
   COMBINE_OPERATORS,
 } from "@/features/strategy/graph/hooks/useStrategyGraph";
-import { StrategyGraphProvider } from "@/features/strategy/graph/StrategyGraphContext";
+import {
+  StrategyGraphProvider,
+  type StrategyGraphContextValue,
+} from "@/features/strategy/graph/StrategyGraphContext";
 
 interface StrategyGraphProps {
   strategy: Strategy | null;
@@ -41,11 +45,19 @@ interface StrategyGraphProps {
 export function StrategyGraph(props: StrategyGraphProps) {
   const { strategy, siteId, onToast, variant = "full", onSwitchToChat } = props;
 
-  const g = useStrategyGraph({ strategy, siteId, onToast, variant });
+  const graphArgs: Parameters<typeof useStrategyGraph>[0] = {
+    strategy,
+    siteId,
+    variant,
+  };
+  if (onToast != null) {
+    graphArgs.onToast = onToast;
+  }
+  const g = useStrategyGraph(graphArgs);
 
   const HINTS_KEY = "pathfinder:graph-hints-dismissed";
   const [hintsDismissed, setHintsDismissed] = useState(() =>
-    typeof window !== "undefined" ? !!localStorage.getItem(HINTS_KEY) : true,
+    typeof window !== "undefined" ? localStorage.getItem(HINTS_KEY) != null : true,
   );
   const showHints =
     variant !== "compact" && !!strategy && strategy.steps.length > 0 && !hintsDismissed;
@@ -55,12 +67,22 @@ export function StrategyGraph(props: StrategyGraphProps) {
     localStorage.setItem(HINTS_KEY, "1");
   }, []);
 
-  if (!strategy || strategy.steps.length === 0) {
-    return <EmptyGraphState isCompact={g.isCompact} onSwitchToChat={onSwitchToChat} />;
+  if (strategy == null || strategy.steps.length === 0) {
+    const emptyProps: { isCompact: boolean; onSwitchToChat?: () => void } = {
+      isCompact: g.isCompact,
+    };
+    if (onSwitchToChat != null) {
+      emptyProps.onSwitchToChat = onSwitchToChat;
+    }
+    return <EmptyGraphState {...emptyProps} />;
   }
 
+  const ctxValue: StrategyGraphContextValue = { ...g, strategy, siteId };
+  if (onToast != null) {
+    ctxValue.onToast = onToast;
+  }
   return (
-    <StrategyGraphProvider value={{ ...g, strategy, siteId, onToast }}>
+    <StrategyGraphProvider value={ctxValue}>
       <div className="relative flex h-full w-full flex-col">
         {showHints && (
           <div className="absolute left-3 top-3 z-10 max-w-xs rounded-md border border-border bg-card p-3 text-sm shadow-md animate-fade-in">
@@ -114,19 +136,21 @@ export function StrategyGraph(props: StrategyGraphProps) {
           <OrthologTransformModal
             open={g.orthologModalOpen}
             siteId={siteId}
-            recordType={(strategy?.recordType || "gene") as string}
+            recordType={strategy.recordType ?? "gene"}
             onCancel={() => g.setOrthologModalOpen(false)}
             onChoose={g.handleOrthologChoose}
           />
         )}
-        {!g.isCompact && g.selectedStep && (
+        {!g.isCompact && g.selectedStep != null && (
           <StepEditor
             step={g.selectedStep}
             siteId={siteId}
-            recordType={strategy?.recordType || null}
+            recordType={strategy.recordType ?? null}
             onClose={() => g.setSelectedStep(null)}
             onUpdate={(updates) => {
-              g.updateStep(g.selectedStep!.id, updates);
+              if (g.selectedStep != null) {
+                g.updateStep(g.selectedStep.id, updates);
+              }
             }}
           />
         )}

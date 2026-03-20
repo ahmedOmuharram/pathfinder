@@ -14,7 +14,7 @@ interface StepEditorFormProps {
 export function StepEditorForm({ state }: StepEditorFormProps) {
   return (
     <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
-      {state.stepValidationError && (
+      {state.stepValidationError != null && state.stepValidationError !== "" && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {state.stepValidationError}
         </div>

@@ -13,7 +13,7 @@ export function CheckboxParam({
   if (!multi) {
     return (
       <div
-        className={`rounded-md border ${fieldBorderClass || "border-border"} bg-card p-2 space-y-1`}
+        className={`rounded-md border ${fieldBorderClass ?? "border-border"} bg-card p-2 space-y-1`}
       >
         {options.map((opt) => (
           <label key={opt.value} className="flex items-center gap-2 text-sm">
@@ -46,7 +46,7 @@ export function CheckboxParam({
 
   return (
     <div
-      className={`rounded-md border ${fieldBorderClass || "border-border"} bg-card max-h-48 overflow-y-auto p-2`}
+      className={`rounded-md border ${fieldBorderClass ?? "border-border"} bg-card max-h-48 overflow-y-auto p-2`}
     >
       {options.length > 3 && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground mb-1 pb-1 border-b border-border">

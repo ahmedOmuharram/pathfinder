@@ -6,8 +6,8 @@ import {
   encodeProfilePattern,
   decodeProfilePattern,
   claimsPhyleticParams,
-  PhyleticProfileParam,
-} from "./PhyleticProfileParam";
+} from "./phyleticProfileLogic";
+import { PhyleticProfileParam } from "./PhyleticProfileParam";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 
 afterEach(cleanup);
@@ -66,17 +66,17 @@ describe("buildPhyleticTree", () => {
   it("builds correct hierarchy from term/indent map vocabs", () => {
     const roots = buildPhyleticTree(TERM_MAP_VOCAB, INDENT_MAP_VOCAB);
     expect(roots).toHaveLength(2); // EUKARYA, BACTERIA
-    expect(roots[0].code).toBe("EUKARYA");
-    expect(roots[0].label).toBe("Eukaryota");
-    expect(roots[0].depth).toBe(1);
-    expect(roots[0].children).toHaveLength(2);
-    expect(roots[0].children[0].code).toBe("pfal");
-    expect(roots[0].children[0].label).toBe("P. falciparum");
-    expect(roots[0].children[1].code).toBe("hsap");
-    expect(roots[0].children[1].label).toBe("H. sapiens");
-    expect(roots[1].code).toBe("BACTERIA");
-    expect(roots[1].children).toHaveLength(1);
-    expect(roots[1].children[0].code).toBe("ecol");
+    expect(roots[0]!.code).toBe("EUKARYA");
+    expect(roots[0]!.label).toBe("Eukaryota");
+    expect(roots[0]!.depth).toBe(1);
+    expect(roots[0]!.children).toHaveLength(2);
+    expect(roots[0]!.children[0]!.code).toBe("pfal");
+    expect(roots[0]!.children[0]!.label).toBe("P. falciparum");
+    expect(roots[0]!.children[1]!.code).toBe("hsap");
+    expect(roots[0]!.children[1]!.label).toBe("H. sapiens");
+    expect(roots[1]!.code).toBe("BACTERIA");
+    expect(roots[1]!.children).toHaveLength(1);
+    expect(roots[1]!.children[0]!.code).toBe("ecol");
   });
 
   it("returns empty array for null/undefined input", () => {
@@ -93,8 +93,8 @@ describe("buildPhyleticTree", () => {
     const indents = [["pfal", 1, null]];
     const roots = buildPhyleticTree(terms, indents);
     expect(roots).toHaveLength(1);
-    expect(roots[0].code).toBe("pfal");
-    expect(roots[0].children).toHaveLength(0);
+    expect(roots[0]!.code).toBe("pfal");
+    expect(roots[0]!.children).toHaveLength(0);
   });
 });
 
@@ -280,20 +280,20 @@ describe("PhyleticProfileParam component", () => {
     // Click 1: unconstrained -> include
     fireEvent.click(toggleBtn);
     expect(onChange).toHaveBeenCalledTimes(1);
-    const firstCall = onChange.mock.calls[0][0];
-    expect(firstCall.profile_pattern).toContain("pfal>=1T");
+    const firstCall = onChange.mock.calls[0]![0] as Record<string, unknown>;
+    expect(firstCall["profile_pattern"]).toContain("pfal>=1T");
 
     // Click 2: include -> exclude
     fireEvent.click(toggleBtn);
     expect(onChange).toHaveBeenCalledTimes(2);
-    const secondCall = onChange.mock.calls[1][0];
-    expect(secondCall.profile_pattern).toContain("pfal=0T");
+    const secondCall = onChange.mock.calls[1]![0] as Record<string, unknown>;
+    expect(secondCall["profile_pattern"]).toContain("pfal=0T");
 
     // Click 3: exclude -> unconstrained
     fireEvent.click(toggleBtn);
     expect(onChange).toHaveBeenCalledTimes(3);
-    const thirdCall = onChange.mock.calls[2][0];
-    expect(thirdCall.profile_pattern).not.toContain("pfal");
+    const thirdCall = onChange.mock.calls[2]![0] as Record<string, unknown>;
+    expect(thirdCall["profile_pattern"]).not.toContain("pfal");
   });
 
   it("shows correct summary footer counts", () => {
@@ -388,9 +388,9 @@ describe("PhyleticProfileParam component", () => {
     const toggleBtn = pfalRow!.querySelector("[data-toggle]") as HTMLElement;
     fireEvent.click(toggleBtn);
 
-    const call = onChange.mock.calls[0][0];
-    expect(call.phyletic_term_map).toBe(TERM_MAP_VOCAB);
-    expect(call.phyletic_indent_map).toBe(INDENT_MAP_VOCAB);
+    const call = onChange.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call["phyletic_term_map"]).toBe(TERM_MAP_VOCAB);
+    expect(call["phyletic_indent_map"]).toBe(INDENT_MAP_VOCAB);
   });
 
   it("renders legend showing the three states", () => {

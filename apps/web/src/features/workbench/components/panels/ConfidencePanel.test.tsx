@@ -98,10 +98,10 @@ describe("ConfidencePanel", () => {
   afterEach(cleanup);
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.lastExperiment = null;
-    storeState.lastExperimentSetId = null;
-    storeState.expandedPanels = new Set(["confidence"]);
+    storeState["activeSetId"] = "set-1";
+    storeState["lastExperiment"] = null;
+    storeState["lastExperimentSetId"] = null;
+    storeState["expandedPanels"] = new Set(["confidence"]);
   });
 
   it("shows disabled state when no experiment is available", () => {
@@ -112,21 +112,21 @@ describe("ConfidencePanel", () => {
   });
 
   it("shows disabled state when experiment has no classified genes", () => {
-    storeState.lastExperiment = makeExperiment();
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperiment"] = makeExperiment();
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
     expect(screen.queryByRole("table")).toBeNull();
   });
 
   it("renders confidence table with gene IDs and scores", () => {
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1", name: "Gene1" }],
       falsePositiveGenes: [{ id: "G2", name: "Gene2" }],
       falseNegativeGenes: [{ id: "G3", name: "Gene3" }],
       trueNegativeGenes: [{ id: "G4", name: "Gene4" }],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
     expect(screen.getByRole("table")).toBeTruthy();
@@ -137,10 +137,10 @@ describe("ConfidencePanel", () => {
   });
 
   it("shows dimension breakdown columns", () => {
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
     expect(screen.getByText("Composite")).toBeTruthy();
@@ -150,20 +150,20 @@ describe("ConfidencePanel", () => {
   });
 
   it("shows disabled when experiment belongs to a different set", () => {
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
     });
-    storeState.lastExperimentSetId = "set-other";
+    storeState["lastExperimentSetId"] = "set-other";
 
     render(<ConfidencePanel />);
     expect(screen.queryByRole("table")).toBeNull();
   });
 
   it("does NOT render an Ensemble column", () => {
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
     // The table header should NOT contain "Ensemble"
@@ -178,7 +178,7 @@ describe("ConfidencePanel", () => {
     // TP classification = 1.0, enrichment fraction = 0.5
     // Composite = (1.0 + 0.5) / 2.0 = 0.75
     // Set up: 2 significant terms, G1 appears in only 1 of them
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
       enrichmentResults: [
         {
@@ -214,7 +214,7 @@ describe("ConfidencePanel", () => {
         },
       ],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
 
@@ -230,7 +230,7 @@ describe("ConfidencePanel", () => {
   it("computes composite correctly: TP in all enrichment terms scores 1.0", () => {
     // G1 in both significant terms => enrichment = 1.0
     // Composite = (1.0 + 1.0) / 2.0 = 1.0
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
       enrichmentResults: [
         {
@@ -266,7 +266,7 @@ describe("ConfidencePanel", () => {
         },
       ],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
 
@@ -278,10 +278,10 @@ describe("ConfidencePanel", () => {
     // Classification for FP = -1.0
     // Enrichment = 0 (no significant terms)
     // Composite = (-1.0 + 0.0) / 2.0 = -0.5
-    storeState.lastExperiment = makeExperiment({
+    storeState["lastExperiment"] = makeExperiment({
       falsePositiveGenes: [{ id: "G2" }],
     });
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
 

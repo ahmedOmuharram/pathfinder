@@ -43,7 +43,7 @@ def parse_json5_value(raw: str) -> JSONValue | None:
     try:
         # json5.loads returns Any, but we know it's JSON-serializable
         result = json5.loads(raw)
-        return cast(JSONValue, result)
-    except Exception as exc:
+        return cast("JSONValue", result)
+    except (ValueError, TypeError) as exc:
         logger.debug("Failed to parse JSON5 value", error=str(exc))
         return None

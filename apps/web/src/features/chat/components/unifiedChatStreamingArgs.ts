@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { Message, ToolCall, Strategy } from "@pathfinder/shared";
+import type { Message, ModelSelection, ToolCall, Strategy } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
@@ -45,9 +45,7 @@ interface BuildUnifiedChatStreamingArgsParams {
       status: Record<string, string>;
     },
   ) => void;
-  currentModelSelection: ReturnType<
-    typeof import("@/features/chat/components/MessageComposer").buildModelSelection
-  >;
+  currentModelSelection: ModelSelection | undefined;
   setSelectedModelId?: (modelId: string | null) => void;
   setChatIsStreaming: (value: boolean) => void;
   handleError: (error: unknown, fallback: string) => void;
@@ -116,9 +114,9 @@ export function useUnifiedChatStreamingArgs({
     getStrategy,
     currentStrategy,
     attachThinkingToLastAssistant,
-    setSelectedModelId,
-    modelSelection: currentModelSelection,
-    onWorkbenchGeneSet,
+    ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
+    ...(currentModelSelection != null ? { modelSelection: currentModelSelection } : {}),
+    ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
     onStreamComplete: () => setChatIsStreaming(false),
     onStreamError: (error: Error) => {
       setChatIsStreaming(false);

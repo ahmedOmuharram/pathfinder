@@ -347,7 +347,21 @@ class TestSearchForSearches:
     """Test the search_for_searches() function."""
 
     async def test_uses_site_search_when_no_record_type(self) -> None:
-        """When record_type is None, should try site-search first."""
+        """When record_type is None, discovery candidates are scored and
+        site-search results provide a supplementary boost."""
+        discovery = _mock_discovery(
+            record_types=[{"urlSegment": "gene", "name": "Genes"}],
+            searches_by_rt={
+                "gene": [
+                    {
+                        "urlSegment": "GenesByTaxon",
+                        "displayName": "Genes by Taxon",
+                        "description": "Find genes by taxon",
+                        "name": "GenesByTaxonQ",
+                    }
+                ],
+            },
+        )
         with (
             patch(
                 "veupath_chatbot.services.catalog.searches._search_for_searches_via_site_search",
@@ -363,7 +377,7 @@ class TestSearchForSearches:
             ),
             patch(
                 "veupath_chatbot.services.catalog.searches.get_discovery_service",
-                return_value=_mock_discovery(),
+                return_value=discovery,
             ),
         ):
             result = await search_for_searches("plasmodb", None, "taxon")
@@ -534,8 +548,8 @@ class TestSearchForSearches:
         # GenesByTaxon should rank first (matches both terms)
         assert result[0]["name"] == "GenesByTaxon"
 
-    async def test_term_variant_suffix_stripping(self) -> None:
-        """Term variants should match singular/stemmed forms."""
+    async def test_no_suffix_stripping(self) -> None:
+        """Scoring uses raw substring matching — no suffix stemming."""
         discovery = _mock_discovery(
             searches_by_rt={
                 "gene": [
@@ -552,10 +566,10 @@ class TestSearchForSearches:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            # "genes" should match "gene" via stripping trailing "s"
+            # "genes" does NOT match "gene" (no suffix stripping)
             result = await search_for_searches("plasmodb", "gene", "genes")
 
-        assert len(result) == 1
+        assert len(result) == 0
 
     async def test_limits_results_to_20(self) -> None:
         searches = [

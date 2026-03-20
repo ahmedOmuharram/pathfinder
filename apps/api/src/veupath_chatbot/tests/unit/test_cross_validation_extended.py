@@ -251,7 +251,7 @@ class TestComputeOverfittingScore:
         """When holdout is BETTER than full, gaps are still absolute values."""
         full = _make_metrics(sensitivity=0.5, specificity=0.5, f1_score=0.5)
         holdout = _make_metrics(sensitivity=0.9, specificity=0.9, f1_score=0.9)
-        score, level = _compute_overfitting_score(full, holdout)
+        score, _level = _compute_overfitting_score(full, holdout)
         # abs() ensures positive score
         assert score > 0.0
 

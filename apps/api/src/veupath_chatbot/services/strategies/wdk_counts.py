@@ -149,7 +149,7 @@ async def _compute_counts_via_compilation(
         )
         temp_strategy_id = extract_wdk_id(created)
     except Exception as exc:
-        logger.error(
+        logger.exception(
             "Failed to create temporary WDK strategy for step counts",
             error=str(exc),
             site_id=site_id,

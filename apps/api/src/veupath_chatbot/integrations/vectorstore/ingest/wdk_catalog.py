@@ -1,7 +1,9 @@
 import argparse
 import asyncio
 import os
+from dataclasses import dataclass
 
+import httpx
 from qdrant_client import AsyncQdrantClient
 
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
@@ -17,6 +19,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.wdk_fetch import (
     fetch_search_details,
 )
 from veupath_chatbot.integrations.vectorstore.ingest.wdk_index import (
+    SearchIndexingConfig,
     filter_existing_record_types,
     filter_existing_searches,
     run_search_indexing_pipeline,
@@ -36,36 +39,40 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 logger = get_logger(__name__)
 
 
-async def ingest_site(
-    *,
-    site_id: str,
-    store: QdrantStore,
-    qdrant_client: AsyncQdrantClient,
-    embedder: OpenAIEmbeddings,
-    concurrency: int,
-    batch_size: int,
-    skip_existing: bool,
-) -> None:
+@dataclass
+class IngestSiteConfig:
+    """Configuration bundle for :func:`ingest_site`."""
+
+    site_id: str
+    store: QdrantStore
+    qdrant_client: AsyncQdrantClient
+    embedder: OpenAIEmbeddings
+    concurrency: int
+    batch_size: int
+    skip_existing: bool
+
+
+async def ingest_site(cfg: IngestSiteConfig) -> None:
     router = get_site_router()
-    client = router.get_client(site_id)
+    client = router.get_client(cfg.site_id)
 
     raw_record_types, searches_to_fetch = await fetch_record_types_and_searches(client)
 
     record_type_docs: JSONArray = []
     for rt in raw_record_types:
-        doc = build_record_type_doc(site_id, rt)
+        doc = build_record_type_doc(cfg.site_id, rt)
         if doc is not None:
             record_type_docs.append(doc)
 
-    if skip_existing:
+    if cfg.skip_existing:
         record_type_docs = await filter_existing_record_types(
-            qdrant_client, record_type_docs, site_id
+            cfg.qdrant_client, record_type_docs, cfg.site_id
         )
         searches_to_fetch = await filter_existing_searches(
-            qdrant_client, searches_to_fetch, site_id
+            cfg.qdrant_client, searches_to_fetch, cfg.site_id
         )
 
-    await upsert_record_type_docs(store, embedder, record_type_docs)
+    await upsert_record_type_docs(cfg.store, cfg.embedder, record_type_docs)
 
     async def make_doc(rt_name: str, s: JSONObject) -> tuple[JSONObject | None, bool]:
         if not isinstance(s, dict):
@@ -81,18 +88,21 @@ async def ingest_site(
             client, rt_name, search_name, summary_unwrapped
         )
         doc = build_search_doc(
-            site_id, rt_name, s, details_unwrapped, details_error, client.base_url
+            cfg.site_id, rt_name, s, details_unwrapped, details_error, client.base_url
         )
         return doc, details_error is not None
 
+    indexing_config = SearchIndexingConfig(
+        store=cfg.store,
+        embedder=cfg.embedder,
+        concurrency=cfg.concurrency,
+        batch_size=cfg.batch_size,
+        site_id=cfg.site_id,
+    )
     await run_search_indexing_pipeline(
         searches_to_fetch=searches_to_fetch,
         make_doc=make_doc,
-        store=store,
-        embedder=embedder,
-        concurrency=concurrency,
-        batch_size=batch_size,
-        site_id=site_id,
+        config=indexing_config,
     )
 
 
@@ -105,7 +115,8 @@ async def ingest_wdk_catalog(
 ) -> None:
     settings = get_settings()
     if not settings.openai_api_key:
-        raise RuntimeError("openai_api_key is required for embeddings ingestion")
+        msg = "openai_api_key is required for embeddings ingestion"
+        raise RuntimeError(msg)
 
     store = QdrantStore.from_settings()
     dim = await get_embedding_dim(settings.embeddings_model)
@@ -146,17 +157,18 @@ async def ingest_wdk_catalog(
     async with store.connect() as qdrant_client:
         for site_id in selected:
             logger.info("WDK ingest site", siteId=site_id)
+            cfg = IngestSiteConfig(
+                site_id=site_id,
+                store=store,
+                qdrant_client=qdrant_client,
+                embedder=embedder,
+                concurrency=concurrency,
+                batch_size=max(8, int(batch_size)),
+                skip_existing=bool(skip_existing) and (not bool(reset)),
+            )
             try:
-                await ingest_site(
-                    site_id=site_id,
-                    store=store,
-                    qdrant_client=qdrant_client,
-                    embedder=embedder,
-                    concurrency=concurrency,
-                    batch_size=max(8, int(batch_size)),
-                    skip_existing=bool(skip_existing) and (not bool(reset)),
-                )
-            except Exception as exc:
+                await ingest_site(cfg)
+            except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
                 logger.warning(
                     "WDK ingest site failed, continuing with remaining sites",
                     siteId=site_id,

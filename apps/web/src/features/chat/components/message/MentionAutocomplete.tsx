@@ -116,7 +116,8 @@ export function MentionAutocomplete({
       } else if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         e.stopPropagation();
-        onSelect(options[focusIndex].mention);
+        const focused = options[focusIndex];
+        if (focused != null) onSelect(focused.mention);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onDismiss();

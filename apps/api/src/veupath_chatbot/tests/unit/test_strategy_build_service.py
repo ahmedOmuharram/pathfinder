@@ -8,6 +8,7 @@ import pytest
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import resolve_record_type_from_steps
@@ -85,7 +86,7 @@ class FakeBuildAPI:
         return 1
 
     async def set_step_filter(
-        self, step_id: int, filter_name: str, value: object, disabled: bool = False
+        self, step_id: int, filter_name: str, value: object, *, disabled: bool = False
     ) -> object:
         return None
 
@@ -279,8 +280,6 @@ class TestResolveRecordTypeFromSteps:
 
     async def test_resolves_from_nested_leaf(self):
         """Walks through transform/combine to find leaf search."""
-        from veupath_chatbot.domain.strategy.ops import CombineOp
-
         leaf_a = _make_step("a", search_name="GenesByTaxon")
         leaf_b = _make_step("b", search_name="GenesByLocation")
         combine = PlanStepNode(
@@ -310,8 +309,6 @@ class TestResolveRecordTypeFromSteps:
 
     async def test_returns_first_resolved(self):
         """If multiple leaves, returns the first one that resolves."""
-        from veupath_chatbot.domain.strategy.ops import CombineOp
-
         leaf_a = _make_step("a", search_name="UnknownSearch")
         leaf_b = _make_step("b", search_name="GenesByLocation")
         combine = PlanStepNode(
@@ -376,7 +373,7 @@ class TestExtractStepCounts:
             },
         }
         compiled_map = {"s1": 100}
-        counts, root_count = extract_step_counts(strategy_info, compiled_map)
+        counts, _root_count = extract_step_counts(strategy_info, compiled_map)
         assert counts == {"s1": 5}
 
     def test_root_step_id_not_int(self):

@@ -77,13 +77,15 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
 
   const handleComposeExecute = useCallback(
     async (result: { operation: string; geneIds: string[]; name: string }) => {
-      if (selectedSets.length !== 2) return;
+      const setA = selectedSets[0];
+      const setB = selectedSets[1];
+      if (selectedSets.length !== 2 || setA == null || setB == null) return;
       setComposing(true);
       try {
         const gs = await performSetOperation({
           operation: result.operation as "intersect" | "union" | "minus",
-          setAId: selectedSets[0].id,
-          setBId: selectedSets[1].id,
+          setAId: setA.id,
+          setBId: setB.id,
           name: result.name,
         });
         addGeneSet(gs);
@@ -173,9 +175,11 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
             <SetVenn
               sets={selectedSets.map((s) => ({
                 key: s.name,
-                geneIds: s.geneIds ?? [],
+                geneIds: s.geneIds,
               }))}
-              onRegionClick={handleVennRegionClick}
+              onRegionClick={(geneIds, label) => {
+                void handleVennRegionClick(geneIds, label);
+              }}
               height={selectedSets.length > 3 ? 280 : 200}
               width={240}
             />
@@ -183,12 +187,14 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         )}
 
         {/* Zone 3: Compose (when 2 selected) */}
-        {showCompose && (
+        {showCompose && selectedSets[0] != null && selectedSets[1] != null && (
           <div className="border-t border-border px-3 py-3">
             <ComposeBar
               setA={selectedSets[0]}
               setB={selectedSets[1]}
-              onExecute={handleComposeExecute}
+              onExecute={(result) => {
+                void handleComposeExecute(result);
+              }}
               loading={composing}
             />
           </div>
@@ -206,14 +212,17 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         {/* Modals */}
         <AddGeneSetModal open={showAddModal} onClose={() => setShowAddModal(false)} />
 
-        {showCompare && selectedSets.length === 2 && (
-          <CompareModal
-            open={showCompare}
-            onClose={() => setShowCompare(false)}
-            setA={selectedSets[0]}
-            setB={selectedSets[1]}
-          />
-        )}
+        {showCompare &&
+          selectedSets.length === 2 &&
+          selectedSets[0] != null &&
+          selectedSets[1] != null && (
+            <CompareModal
+              open={showCompare}
+              onClose={() => setShowCompare(false)}
+              setA={selectedSets[0]}
+              setB={selectedSets[1]}
+            />
+          )}
 
         {showOverlap && selectedSets.length >= 2 && (
           <OverlapModal

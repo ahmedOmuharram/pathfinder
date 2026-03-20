@@ -36,11 +36,11 @@ describe("CheckboxParam — single-pick (radios)", () => {
 
   it("checks the radio matching the current value", () => {
     render(<CheckboxParam {...makeProps({ value: "b" })} />);
-    const radios = screen.getAllByRole("radio") as HTMLInputElement[];
-    expect(radios[0].checked).toBe(false); // Alpha
-    expect(radios[1].checked).toBe(true); // Beta
-    expect(radios[2].checked).toBe(false); // Gamma
-    expect(radios[3].checked).toBe(false); // Delta
+    const radios = screen.getAllByRole("radio");
+    expect((radios[0] as HTMLInputElement).checked).toBe(false); // Alpha
+    expect((radios[1] as HTMLInputElement).checked).toBe(true); // Beta
+    expect((radios[2] as HTMLInputElement).checked).toBe(false); // Gamma
+    expect((radios[3] as HTMLInputElement).checked).toBe(false); // Delta
   });
 
   it("calls onChangeSingle when a radio is clicked", () => {
@@ -89,12 +89,12 @@ describe("CheckboxParam — multi-pick (checkboxes)", () => {
 
   it("checks selected values", () => {
     render(<CheckboxParam {...makeProps({ multi: true, multiValue: ["a", "d"] })} />);
-    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    const checkboxes = screen.getAllByRole("checkbox");
     // [selectAll, a, b, c, d]
-    expect(checkboxes[1].checked).toBe(true); // Alpha
-    expect(checkboxes[2].checked).toBe(false); // Beta
-    expect(checkboxes[3].checked).toBe(false); // Gamma
-    expect(checkboxes[4].checked).toBe(true); // Delta
+    expect((checkboxes[1] as HTMLInputElement).checked).toBe(true); // Alpha
+    expect((checkboxes[2] as HTMLInputElement).checked).toBe(false); // Beta
+    expect((checkboxes[3] as HTMLInputElement).checked).toBe(false); // Gamma
+    expect((checkboxes[4] as HTMLInputElement).checked).toBe(true); // Delta
   });
 
   it("toggles individual checkbox on", () => {

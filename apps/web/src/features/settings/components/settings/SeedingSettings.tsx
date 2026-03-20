@@ -95,7 +95,7 @@ export function SeedingSettings() {
               )}
               {seedingDb === "all" ? "Seeding All..." : "Seed All Databases"}
             </button>
-            {seedStatus && (
+            {seedStatus != null && (
               <span className="text-xs text-muted-foreground">{seedStatus}</span>
             )}
           </div>

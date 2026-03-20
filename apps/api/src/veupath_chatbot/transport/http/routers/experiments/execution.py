@@ -13,6 +13,7 @@ from veupath_chatbot.services.experiment.core.streaming import (
     start_benchmark,
     start_experiment,
 )
+from veupath_chatbot.services.experiment.seed import run_seed
 from veupath_chatbot.services.experiment.types import (
     BatchExperimentConfig,
     BatchOrganismTarget,
@@ -176,7 +177,6 @@ async def seed_strategies(
 
     If *site_id* is provided, only seeds for that database are created.
     """
-    from veupath_chatbot.services.experiment.seed import run_seed
 
     async def _producer(send: Callable[[JSONObject], Awaitable[None]]) -> None:
         try:

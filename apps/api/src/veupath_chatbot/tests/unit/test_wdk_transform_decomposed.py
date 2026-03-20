@@ -1,6 +1,7 @@
 """Tests for decomposed helpers extracted from build_search_doc()."""
 
 from veupath_chatbot.integrations.vectorstore.ingest.wdk_transform import (
+    SearchPayloadFields,
     _assemble_search_payload,
     _extract_canonical_params,
     _resolve_display_fields,
@@ -203,7 +204,7 @@ class TestResolveDisplayFields:
 
     def test_none_values_coerced_to_str(self) -> None:
         details = {"displayName": None, "summary": None}
-        display_name, short, desc, summary, help_text = _resolve_display_fields(
+        display_name, _short, _desc, summary, _help_text = _resolve_display_fields(
             details, {}, "FallbackName"
         )
         # None displayName should fall through to search_name
@@ -219,27 +220,27 @@ class TestResolveDisplayFields:
 class TestAssembleSearchPayload:
     """Test _assemble_search_payload builds correct structure."""
 
-    def _default_args(self) -> dict:
-        return {
-            "site_id": "plasmodb",
-            "rt_name": "transcript",
-            "search_name": "GenesByText",
-            "display_name": "Text Search",
-            "short": "TS",
-            "description": "Search by text",
-            "summary": "Summary text",
-            "help_text": "Help here",
-            "canonical_params": [],
-            "details_unwrapped": {},
-            "summary_unwrapped": {},
-            "base_url": "https://plasmodb.org/plasmodb/service",
-            "is_internal": False,
-            "details_error": None,
-        }
+    def _default_fields(self) -> SearchPayloadFields:
+        return SearchPayloadFields(
+            site_id="plasmodb",
+            rt_name="transcript",
+            search_name="GenesByText",
+            display_name="Text Search",
+            short="TS",
+            description="Search by text",
+            summary="Summary text",
+            help_text="Help here",
+            canonical_params=[],
+            details_unwrapped={},
+            summary_unwrapped={},
+            base_url="https://plasmodb.org/plasmodb/service",
+            is_internal=False,
+            details_error=None,
+        )
 
     def test_basic_structure(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert payload["siteId"] == "plasmodb"
         assert payload["recordType"] == "transcript"
         assert payload["searchName"] == "GenesByText"
@@ -252,36 +253,36 @@ class TestAssembleSearchPayload:
         assert payload["paramSpecs"] == []
 
     def test_source_url(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         expected = "https://plasmodb.org/plasmodb/service/record-types/transcript/searches/GenesByText"
         assert payload["sourceUrl"] == expected
 
     def test_ingested_at_is_int(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert isinstance(payload["ingestedAt"], int)
 
     def test_source_hash_present(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert "sourceHash" in payload
         assert isinstance(payload["sourceHash"], str)
 
     def test_details_error_included(self) -> None:
-        args = self._default_args()
-        args["details_error"] = "connection timeout"
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        args.details_error = "connection timeout"
+        payload = _assemble_search_payload(args)
         assert payload["detailsError"] == "connection timeout"
 
     def test_no_details_error_no_key(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert "detailsError" not in payload
 
     def test_fields_from_details(self) -> None:
-        args = self._default_args()
-        args["details_unwrapped"] = {
+        args = self._default_fields()
+        args.details_unwrapped = {
             "fullName": "full.name.here",
             "urlSegment": "GenesByText",
             "outputRecordClassName": "GeneRecordClasses.GeneRecordClass",
@@ -294,7 +295,7 @@ class TestAssembleSearchPayload:
             "newBuild": "64",
             "reviseBuild": "65",
         }
-        payload = _assemble_search_payload(**args)
+        payload = _assemble_search_payload(args)
         assert payload["fullName"] == "full.name.here"
         assert payload["urlSegment"] == "GenesByText"
         assert payload["outputRecordClassName"] == "GeneRecordClasses.GeneRecordClass"
@@ -304,24 +305,24 @@ class TestAssembleSearchPayload:
         assert payload["queryName"] == "GenesByTextQuery"
 
     def test_fields_fallback_to_summary(self) -> None:
-        args = self._default_args()
-        args["details_unwrapped"] = {}
-        args["summary_unwrapped"] = {
+        args = self._default_fields()
+        args.details_unwrapped = {}
+        args.summary_unwrapped = {
             "fullName": "summary.full",
             "urlSegment": "summarySegment",
             "paramNames": ["c"],
         }
-        payload = _assemble_search_payload(**args)
+        payload = _assemble_search_payload(args)
         assert payload["fullName"] == "summary.full"
         assert payload["urlSegment"] == "summarySegment"
         assert payload["paramNames"] == ["c"]
 
     def test_output_record_class_name_defaults_to_rt(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert payload["outputRecordClassName"] == "transcript"
 
     def test_url_segment_defaults_to_search_name(self) -> None:
-        args = self._default_args()
-        payload = _assemble_search_payload(**args)
+        args = self._default_fields()
+        payload = _assemble_search_payload(args)
         assert payload["urlSegment"] == "GenesByText"

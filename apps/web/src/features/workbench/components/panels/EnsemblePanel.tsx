@@ -114,7 +114,13 @@ export function EnsemblePanel() {
         />
 
         {/* Compute button */}
-        <Button size="sm" onClick={handleCompute} disabled={!canCompute || loading}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleCompute();
+          }}
+          disabled={!canCompute || loading}
+        >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -123,10 +129,12 @@ export function EnsemblePanel() {
           {loading ? "Computing..." : "Compute"}
         </Button>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {/* Results table */}
-        {results && results.length > 0 && (
+        {results != null && results.length > 0 && (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-xs">
               <thead>
@@ -161,7 +169,7 @@ export function EnsemblePanel() {
           </div>
         )}
 
-        {results && results.length === 0 && (
+        {results?.length === 0 && (
           <p className="text-xs text-muted-foreground">
             No genes found across the selected sets.
           </p>

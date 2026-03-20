@@ -19,7 +19,7 @@ from veupath_chatbot.services.experiment.types.core import (
     ParameterType,
     StepContributionVerdict,
 )
-from veupath_chatbot.transport.http.schemas.sse import OptimizationTrialData
+from veupath_chatbot.transport.http.schemas.optimization import OptimizationTrialData
 
 _MODEL_CONFIG = ConfigDict(populate_by_name=True, from_attributes=True)
 

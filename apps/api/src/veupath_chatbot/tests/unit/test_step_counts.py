@@ -15,8 +15,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import veupath_chatbot.services.strategies.wdk_counts as bridge_module
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.strategies.wdk_conversion import (
+    build_snapshot_from_wdk,
+)
+from veupath_chatbot.services.strategies.wdk_counts import (
+    _STEP_COUNTS_CACHE,
+    compute_step_counts_for_plan,
+    is_leaf_only_strategy,
+)
 from veupath_chatbot.transport.http.routers.strategies._shared import (
     derive_steps_from_plan,
 )
@@ -140,10 +150,6 @@ class TestBuildSnapshotExtractsStepCounts:
 
     def test_extracts_estimated_sizes(self) -> None:
         """Step counts dict is populated from steps[stepId].estimatedSize."""
-        from veupath_chatbot.services.strategies.wdk_conversion import (
-            build_snapshot_from_wdk,
-        )
-
         wdk_strategy: JSONObject = {
             "strategyId": 500,
             "name": "Test Strategy",
@@ -176,16 +182,12 @@ class TestBuildSnapshotExtractsStepCounts:
                 }
             },
         }
-        ast, steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
+        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
         assert isinstance(step_counts, dict)
         assert step_counts.get("100") == 150
 
     def test_multi_step_extracts_all_counts(self) -> None:
         """Multi-step strategy extracts counts for all steps with estimatedSize."""
-        from veupath_chatbot.services.strategies.wdk_conversion import (
-            build_snapshot_from_wdk,
-        )
-
         wdk_strategy: JSONObject = {
             "strategyId": 600,
             "name": "Multi Step",
@@ -241,17 +243,13 @@ class TestBuildSnapshotExtractsStepCounts:
                 },
             },
         }
-        ast, steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
+        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
         assert step_counts.get("100") == 5000
         assert step_counts.get("200") == 300
         assert step_counts.get("300") == 42
 
     def test_missing_estimated_size_excluded(self) -> None:
         """Steps without estimatedSize are not included in step_counts."""
-        from veupath_chatbot.services.strategies.wdk_conversion import (
-            build_snapshot_from_wdk,
-        )
-
         wdk_strategy: JSONObject = {
             "strategyId": 700,
             "name": "No Count",
@@ -279,7 +277,7 @@ class TestBuildSnapshotExtractsStepCounts:
                 }
             },
         }
-        ast, steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
+        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
         assert "100" not in step_counts
 
 
@@ -289,11 +287,6 @@ class TestComputeStepCountsAnonymousReports:
     @pytest.mark.asyncio
     async def test_leaf_only_uses_anonymous_reports(self) -> None:
         """For a plan with only search steps, anonymous reports are used (no compilation)."""
-        from veupath_chatbot.services.strategies.wdk_counts import (
-            _STEP_COUNTS_CACHE,
-            compute_step_counts_for_plan,
-        )
-
         # Clear the cache to avoid stale results
         _STEP_COUNTS_CACHE.clear()
 
@@ -329,8 +322,6 @@ class TestComputeStepCountsAnonymousReports:
         mock_api.client = mock_client
 
         # Patch get_strategy_api to return our mock
-        import veupath_chatbot.services.strategies.wdk_counts as bridge_module
-
         original_get_api = bridge_module.get_strategy_api
         bridge_module.get_strategy_api = lambda _: mock_api
 
@@ -345,11 +336,6 @@ class TestComputeStepCountsAnonymousReports:
 
     def test_is_leaf_only_detects_combine(self) -> None:
         """is_leaf_only_strategy returns False for strategies with combine steps."""
-        from veupath_chatbot.domain.strategy.ops import CombineOp
-        from veupath_chatbot.services.strategies.wdk_counts import (
-            is_leaf_only_strategy,
-        )
-
         ast = StrategyAST(
             record_type="transcript",
             root=PlanStepNode(
@@ -375,10 +361,6 @@ class TestComputeStepCountsAnonymousReports:
 
     def test_is_leaf_only_detects_single_search(self) -> None:
         """is_leaf_only_strategy returns True for single search step."""
-        from veupath_chatbot.services.strategies.wdk_counts import (
-            is_leaf_only_strategy,
-        )
-
         ast = StrategyAST(
             record_type="transcript",
             root=PlanStepNode(

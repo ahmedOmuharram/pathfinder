@@ -118,9 +118,9 @@ export function useStepParameters({
   // -------------------------------------------------------------------------
   const vocabOptions = useMemo(() => {
     return paramSpecs.reduce<Record<string, VocabOption[]>>((acc, spec) => {
-      if (!spec.name) return acc;
+      if (spec.name === "") return acc;
       const vocabulary = extractSpecVocabulary(spec);
-      if (vocabulary) {
+      if (vocabulary != null) {
         acc[spec.name] = extractVocabOptions(vocabulary);
       }
       return acc;

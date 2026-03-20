@@ -100,7 +100,7 @@ MODELS_WITH_MINIMAL_DATA: list[tuple[type[BaseModel], dict]] = [
     (CitationsEventData, {}),
     (PlanningArtifactEventData, {}),
     (ReasoningEventData, {}),
-    # Optimization (re-exported)
+    # Optimization data models (re-exported)
     (OptimizationTrialData, {"trialNumber": 1}),
     (OptimizationParameterSpecData, {"name": "threshold", "type": "numeric"}),
     (
@@ -111,7 +111,7 @@ MODELS_WITH_MINIMAL_DATA: list[tuple[type[BaseModel], dict]] = [
 
 
 @pytest.mark.parametrize(
-    "model_cls,data",
+    ("model_cls", "data"),
     MODELS_WITH_MINIMAL_DATA,
     ids=[cls.__name__ for cls, _ in MODELS_WITH_MINIMAL_DATA],
 )
@@ -126,7 +126,7 @@ def test_model_serializes_with_camel_case(model_cls: type[BaseModel], data: dict
 
 
 @pytest.mark.parametrize(
-    "model_cls,data",
+    ("model_cls", "data"),
     MODELS_WITH_MINIMAL_DATA,
     ids=[cls.__name__ for cls, _ in MODELS_WITH_MINIMAL_DATA],
 )

@@ -14,6 +14,8 @@ from veupath_chatbot.services.gene_lookup import (
     resolve_gene_ids,
 )
 
+_MAX_GENE_IDS = 200
+
 
 class GeneToolsMixin:
     """Kani tool mixin for gene record lookup."""
@@ -89,11 +91,11 @@ class GeneToolsMixin:
         ids = [str(x).strip() for x in (gene_ids or []) if str(x).strip()]
         if not ids:
             return {"records": [], "totalCount": 0, "error": "No gene IDs provided."}
-        if len(ids) > 200:
+        if len(ids) > _MAX_GENE_IDS:
             return {
                 "records": [],
                 "totalCount": 0,
-                "error": "Too many IDs (max 200). Reduce the list.",
+                "error": f"Too many IDs (max {_MAX_GENE_IDS}). Reduce the list.",
             }
         return await resolve_gene_ids(
             self.site_id,

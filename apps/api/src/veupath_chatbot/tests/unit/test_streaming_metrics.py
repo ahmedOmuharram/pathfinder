@@ -11,10 +11,7 @@ from veupath_chatbot.services.chat.streaming import stream_chat
 
 async def _collect_events(agent, message, model_id="openai/gpt-4.1"):
     """Run stream_chat and collect all emitted events."""
-    events = []
-    async for event in stream_chat(agent, message, model_id=model_id):
-        events.append(event)
-    return events
+    return [event async for event in stream_chat(agent, message, model_id=model_id)]
 
 
 def _make_mock_agent():

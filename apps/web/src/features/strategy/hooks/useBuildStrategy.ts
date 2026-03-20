@@ -51,7 +51,7 @@ export function useBuildStrategy({
     const canonicalPlan = normalized.plan;
     let created = strategy;
     let strategyId = strategy?.id;
-    if (strategyId) {
+    if (strategyId != null && strategyId !== "") {
       created = await updateStrategy(strategyId, {
         name: planResult.name,
         plan: canonicalPlan,
@@ -73,7 +73,7 @@ export function useBuildStrategy({
       siteId: refreshed.siteId,
       createdAt: refreshed.createdAt,
     });
-    if (refreshed.wdkStrategyId) {
+    if (refreshed.wdkStrategyId != null && refreshed.wdkStrategyId !== 0) {
       setWdkInfo(
         refreshed.wdkStrategyId,
         refreshed.wdkUrl,

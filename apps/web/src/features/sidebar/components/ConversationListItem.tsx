@@ -86,25 +86,23 @@ export function ConversationListItem({
                 title="Validation issues"
               />
             )}
-            {item.kind === "strategy" &&
-              si &&
-              (si.wdkStrategyId || (si.stepCount ?? 0) > 0) && (
-                <span
-                  className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                    isActiveStreaming && !si.wdkStrategyId
-                      ? "bg-warning/10 text-warning"
-                      : si.isSaved
-                        ? "bg-success/10 text-success"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {isActiveStreaming && !si.wdkStrategyId
-                    ? "Building"
+            {si != null && (si.wdkStrategyId != null || (si.stepCount ?? 0) > 0) && (
+              <span
+                className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  isActiveStreaming && si.wdkStrategyId == null
+                    ? "bg-warning/10 text-warning"
                     : si.isSaved
-                      ? "Saved"
-                      : "Draft"}
-                </span>
-              )}
+                      ? "bg-success/10 text-success"
+                      : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {isActiveStreaming && si.wdkStrategyId == null
+                  ? "Building"
+                  : si.isSaved
+                    ? "Saved"
+                    : "Draft"}
+              </span>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">
             {formatSidebarTime(item.updatedAt)}
@@ -143,7 +141,7 @@ export function ConversationListItem({
                   >
                     Duplicate
                   </DropdownMenu.Item>
-                  {si.wdkStrategyId && (
+                  {si.wdkStrategyId != null && (
                     <DropdownMenu.Item
                       className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
                       onSelect={() => onToggleSaved(si)}

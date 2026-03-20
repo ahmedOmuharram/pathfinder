@@ -1,7 +1,7 @@
 import type { PlanningArtifact } from "@pathfinder/shared";
 import { isRecord } from "@/lib/utils/isRecord";
 
-export type DelegationDraft = {
+type DelegationDraft = {
   goal?: string;
   plan?: unknown;
 };
@@ -12,12 +12,14 @@ export function getDelegationDraft(
   const draft = artifacts.find((a) => a.id === "delegation_draft");
   if (!draft) return null;
   const params = isRecord(draft.parameters) ? draft.parameters : {};
+  const goalVal = params["delegationGoal"];
   const goal =
-    typeof params.delegationGoal === "string" && params.delegationGoal.trim()
-      ? params.delegationGoal
-      : undefined;
-  const plan = params.delegationPlan;
-  return { goal, plan };
+    typeof goalVal === "string" && goalVal.trim() !== "" ? goalVal : undefined;
+  const plan = params["delegationPlan"];
+  return {
+    ...(goal != null ? { goal } : {}),
+    ...(plan != null ? { plan } : {}),
+  };
 }
 
 export function buildDelegationExecutorMessage(draft: DelegationDraft): string {

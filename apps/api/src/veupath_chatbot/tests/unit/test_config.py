@@ -9,11 +9,15 @@ Focuses on:
 """
 
 import os
+import re
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.platform.config import Settings
+
+_TEST_SECRET = "test-key-that-is-at-least-32-chars-long"
 
 
 class TestSettingsDefaults:
@@ -23,7 +27,7 @@ class TestSettingsDefaults:
         with patch.dict(os.environ, {}, clear=False):
             s = Settings(
                 _env_file=None,
-                api_secret_key="test-key-that-is-at-least-32-chars-long",
+                api_secret_key=_TEST_SECRET,
             )
             assert s.api_env == "development"
 
@@ -31,7 +35,7 @@ class TestSettingsDefaults:
         s = Settings(
             _env_file=None,
             api_env="development",
-            api_secret_key="test-key-that-is-at-least-32-chars-long",
+            api_secret_key=_TEST_SECRET,
         )
         assert s.is_development is True
         assert s.is_production is False
@@ -48,7 +52,7 @@ class TestSettingsDefaults:
     def test_default_cors_origins(self):
         s = Settings(
             _env_file=None,
-            api_secret_key="test-key-that-is-at-least-32-chars-long",
+            api_secret_key=_TEST_SECRET,
         )
         assert "http://localhost:3000" in s.cors_origins
 
@@ -96,8 +100,6 @@ class TestSecretKeyValidation:
 
     def test_short_secret_key_rejected(self):
         """Keys shorter than 32 chars should fail pydantic validation."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError):
             Settings(
                 _env_file=None,
@@ -116,13 +118,11 @@ class TestEnvironmentLiteral:
     """api_env should only accept valid literal values."""
 
     def test_invalid_env_rejected(self):
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError):
             Settings(
                 _env_file=None,
                 api_env="invalid_environment",
-                api_secret_key="test-key-that-is-at-least-32-chars-long",
+                api_secret_key=_TEST_SECRET,
             )
 
     def test_all_valid_envs(self):
@@ -140,11 +140,9 @@ class TestCorsOriginRegex:
     """CORS origin regex safety checks."""
 
     def test_default_regex_matches_localhost(self):
-        import re
-
         s = Settings(
             _env_file=None,
-            api_secret_key="test-key-that-is-at-least-32-chars-long",
+            api_secret_key=_TEST_SECRET,
         )
         regex = s.cors_origin_regex
         assert regex is not None
@@ -153,11 +151,9 @@ class TestCorsOriginRegex:
         assert re.match(regex, "https://localhost")
 
     def test_default_regex_rejects_external(self):
-        import re
-
         s = Settings(
             _env_file=None,
-            api_secret_key="test-key-that-is-at-least-32-chars-long",
+            api_secret_key=_TEST_SECRET,
         )
         regex = s.cors_origin_regex
         assert regex is not None
@@ -166,11 +162,9 @@ class TestCorsOriginRegex:
 
     def test_cors_regex_allows_no_port(self):
         """Regex should match localhost without a port."""
-        import re
-
         s = Settings(
             _env_file=None,
-            api_secret_key="test-key-that-is-at-least-32-chars-long",
+            api_secret_key=_TEST_SECRET,
         )
         regex = s.cors_origin_regex
         assert regex is not None

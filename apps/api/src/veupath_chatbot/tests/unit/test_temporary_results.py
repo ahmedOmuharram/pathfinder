@@ -34,7 +34,7 @@ class TestEnsureSession:
     """Session resolution resolves the WDK user ID once."""
 
     async def test_resolves_user_id(self) -> None:
-        api, client = _make_api()
+        api, _client = _make_api()
         with patch(
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
@@ -45,7 +45,7 @@ class TestEnsureSession:
         assert api._session_initialized is True
 
     async def test_does_not_resolve_twice(self) -> None:
-        api, client = _make_api()
+        api, _client = _make_api()
         with patch(
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
@@ -56,7 +56,7 @@ class TestEnsureSession:
         mock_resolve.assert_awaited_once()
 
     async def test_keeps_current_if_resolve_returns_none(self) -> None:
-        api, client = _make_api()
+        api, _client = _make_api()
         with patch(
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
@@ -131,7 +131,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {"id": "result1"}
 
-        url = await api.get_download_url(step_id=42, format="csv")
+        url = await api.get_download_url(step_id=42, output_format="csv")
 
         assert url == "https://plasmodb.org/plasmo/service/temporary-results/result1"
 
@@ -140,7 +140,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="csv")
+        await api.get_download_url(step_id=42, output_format="csv")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "standard"
@@ -150,7 +150,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="json")
+        await api.get_download_url(step_id=42, output_format="json")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "fullRecord"
@@ -161,7 +161,7 @@ class TestGetDownloadUrl:
         client.post.return_value = {"id": "r1"}
 
         await api.get_download_url(
-            step_id=42, format="csv", attributes=["gene_name", "product"]
+            step_id=42, output_format="csv", attributes=["gene_name", "product"]
         )
 
         payload = client.post.call_args.kwargs["json"]
@@ -176,7 +176,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {"id": "result1"}
 
-        await api.get_download_url(step_id=42, format="csv")
+        await api.get_download_url(step_id=42, output_format="csv")
 
         client.get.assert_not_awaited()
 
@@ -185,8 +185,8 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {}
 
-        with pytest.raises(RuntimeError, match="did not include.*id"):
-            await api.get_download_url(step_id=42, format="csv")
+        with pytest.raises(RuntimeError, match=r"did not include.*id"):
+            await api.get_download_url(step_id=42, output_format="csv")
 
 
 # ---------------------------------------------------------------------------

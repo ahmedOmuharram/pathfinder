@@ -11,6 +11,7 @@ import pytest
 import veupath_chatbot.persistence.session as session_module
 from veupath_chatbot.persistence.models import Operation, Stream, StreamProjection
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.redis import get_redis
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -215,7 +216,7 @@ async def test_cancel_active_operation(authed_client: httpx.AsyncClient) -> None
     _stream_id, op_id, _ = await _create_stream_and_operation(authed_client)
 
     with patch(
-        "veupath_chatbot.services.chat.orchestrator.cancel_chat_operation",
+        "veupath_chatbot.transport.http.routers.operations.cancel_chat_operation",
         new_callable=AsyncMock,
         return_value=True,
     ) as mock_cancel:
@@ -250,8 +251,6 @@ async def test_subscribe_returns_sse_content_type(
     """
     stream_id, op_id, _ = await _create_stream_and_operation(authed_client)
 
-    from veupath_chatbot.platform.redis import get_redis
-
     redis = get_redis()
     stream_key = f"stream:{stream_id}"
     await redis.xadd(
@@ -272,8 +271,6 @@ async def test_subscribe_returns_sse_content_type(
 async def test_subscribe_streams_events(authed_client: httpx.AsyncClient) -> None:
     """Subscribe should replay events from Redis and terminate on end event."""
     stream_id, op_id, _ = await _create_stream_and_operation(authed_client)
-
-    from veupath_chatbot.platform.redis import get_redis
 
     redis = get_redis()
     stream_key = f"stream:{stream_id}"

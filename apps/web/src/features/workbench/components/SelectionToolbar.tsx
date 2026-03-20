@@ -150,16 +150,20 @@ export function SelectionToolbar({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top">
-                {exportTarget.length === 1 && (
-                  <>
-                    <DropdownMenuItem onClick={() => exportAsCsv(exportTarget[0])}>
-                      Export as CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => exportAsTxt(exportTarget[0])}>
-                      Export as TXT
-                    </DropdownMenuItem>
-                  </>
-                )}
+                {(() => {
+                  const singleTarget =
+                    exportTarget.length === 1 ? exportTarget[0] : null;
+                  return singleTarget != null ? (
+                    <>
+                      <DropdownMenuItem onClick={() => exportAsCsv(singleTarget)}>
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportAsTxt(singleTarget)}>
+                        Export as TXT
+                      </DropdownMenuItem>
+                    </>
+                  ) : null;
+                })()}
                 {exportTarget.length > 1 && (
                   <DropdownMenuItem onClick={() => exportMultipleAsCsv(exportTarget)}>
                     Export {exportTarget.length} sets as CSV
@@ -170,7 +174,7 @@ export function SelectionToolbar({
           )}
         </div>
 
-        {deleteError && (
+        {deleteError != null && deleteError !== "" && (
           <p className="mt-2 text-xs text-destructive" role="alert">
             {deleteError}
           </p>
@@ -180,7 +184,9 @@ export function SelectionToolbar({
       <DeleteConfirmDialog
         open={showDeleteConfirm}
         count={toDelete.length}
-        onConfirm={handleDeleteConfirm}
+        onConfirm={() => {
+          void handleDeleteConfirm();
+        }}
         onCancel={() => setShowDeleteConfirm(false)}
       />
     </>

@@ -35,7 +35,8 @@ def as_json_object(value: JSONValue) -> JSONObject:
     :raises TypeError: If value is not a dict.
     """
     if not isinstance(value, dict):
-        raise TypeError(f"Expected dict, got {type(value)}")
+        msg = f"Expected dict, got {type(value)}"
+        raise TypeError(msg)
     return value
 
 
@@ -47,5 +48,6 @@ def as_json_array(value: JSONValue) -> JSONArray:
     :raises TypeError: If value is not a list.
     """
     if not isinstance(value, list):
-        raise TypeError(f"Expected list, got {type(value)}")
+        msg = f"Expected list, got {type(value)}"
+        raise TypeError(msg)
     return value

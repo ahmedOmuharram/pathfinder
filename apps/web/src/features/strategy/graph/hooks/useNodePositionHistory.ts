@@ -21,14 +21,17 @@ function buildNodePositionKey(list: Node[]): string {
 }
 
 function cloneNodes(list: Node[]): Node[] {
-  return list.map((node) => ({
-    ...node,
-    position: { ...node.position },
-    positionAbsolute: node.positionAbsolute
-      ? { ...node.positionAbsolute }
-      : node.positionAbsolute,
-    data: { ...(node.data as NodeData) },
-  }));
+  return list.map((node) => {
+    const cloned: Node = {
+      ...node,
+      position: { ...node.position },
+      data: { ...(node.data as NodeData) },
+    };
+    if (node.positionAbsolute != null) {
+      cloned.positionAbsolute = { ...node.positionAbsolute };
+    }
+    return cloned;
+  });
 }
 
 export function useNodePositionHistory(args: {

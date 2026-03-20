@@ -46,4 +46,4 @@ def build_gene_result(
         result["previousIds"] = previous_ids
     if matched_fields is not None:
         result["matchedFields"] = matched_fields
-    return cast(JSONObject, result)
+    return cast("JSONObject", result)

@@ -77,24 +77,24 @@ def _safe_float(raw: JSONValue) -> float | None:
     """Convert a raw JSON value to float, returning None on failure."""
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
         return float(raw)
-    if isinstance(raw, str):
-        try:
-            return float(raw)
-        except ValueError:
-            return None
-    return None
+    if not isinstance(raw, str):
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
 
 
 def _safe_int(raw: JSONValue) -> int | None:
     """Convert a raw JSON value to int, returning None on failure."""
     if isinstance(raw, int) and not isinstance(raw, bool):
         return raw
-    if isinstance(raw, str):
-        try:
-            return int(raw)
-        except ValueError:
-            return None
-    return None
+    if not isinstance(raw, str):
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def adapt_param_specs(payload: JSONObject) -> dict[str, ParamSpecNormalized]:

@@ -67,7 +67,7 @@ describe("SearchableMultiSelect", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("Toggle dropdown"));
-    fireEvent.click(screen.getAllByText("Plasmodium vivax")[0]);
+    fireEvent.click(screen.getAllByText("Plasmodium vivax")[0]!);
     expect(onChange).toHaveBeenCalledWith(["pf3d7"]);
   });
 
@@ -95,7 +95,7 @@ describe("SearchableMultiSelect", () => {
     const removeButtons = screen
       .getAllByRole("button")
       .filter((b) => b.getAttribute("aria-label")?.includes("Remove"));
-    fireEvent.click(removeButtons[0]);
+    fireEvent.click(removeButtons[0]!);
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
@@ -127,7 +127,7 @@ describe("SearchableMultiSelect", () => {
     );
     fireEvent.click(screen.getByLabelText("Toggle dropdown"));
     const option = screen
-      .getAllByText("Plasmodium falciparum 3D7")[0]
+      .getAllByText("Plasmodium falciparum 3D7")[0]!
       .closest("button");
     expect(option?.querySelector("[data-checked]")).toBeTruthy();
   });

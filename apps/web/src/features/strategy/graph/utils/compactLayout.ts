@@ -30,7 +30,7 @@ export interface CompactStep {
  * - Combines: `step` is the combine result on the main row,
  *   `secondaryInput` is the step shown above the Venn connector.
  */
-export interface SpineSegment {
+interface SpineSegment {
   step: CompactStep;
   /** Present only for combines: the secondary input shown above. */
   secondaryInput?: CompactStep;
@@ -39,15 +39,22 @@ export interface SpineSegment {
 // Helpers
 
 function toCompact(step: Step, stepNumber: number): CompactStep {
-  return {
+  const compact: CompactStep = {
     id: step.id,
     displayName: step.displayName,
     kind: inferStepKind(step),
-    resultCount: step.resultCount,
-    recordType: step.recordType,
-    operator: step.operator,
     stepNumber,
   };
+  if (step.resultCount != null) {
+    compact.resultCount = step.resultCount;
+  }
+  if (step.recordType != null) {
+    compact.recordType = step.recordType;
+  }
+  if (step.operator != null) {
+    compact.operator = step.operator;
+  }
+  return compact;
 }
 
 // Layout builder
@@ -64,7 +71,7 @@ export function buildSpineLayout(
   steps: Step[],
   rootStepId: string | null,
 ): SpineSegment[] {
-  if (!steps.length || !rootStepId) return [];
+  if (steps.length === 0 || rootStepId == null || rootStepId === "") return [];
 
   const byId = new Map(steps.map((s) => [s.id, s]));
 
@@ -77,8 +84,10 @@ export function buildSpineLayout(
     visited.add(id);
     const step = byId.get(id);
     if (!step) return;
-    if (step.primaryInputStepId) topo(step.primaryInputStepId);
-    if (step.secondaryInputStepId) topo(step.secondaryInputStepId);
+    if (step.primaryInputStepId != null && step.primaryInputStepId !== "")
+      topo(step.primaryInputStepId);
+    if (step.secondaryInputStepId != null && step.secondaryInputStepId !== "")
+      topo(step.secondaryInputStepId);
     ordered.push(step);
   }
 
@@ -92,7 +101,10 @@ export function buildSpineLayout(
   let cur = byId.get(rootStepId);
   while (cur) {
     spine.push(cur);
-    cur = cur.primaryInputStepId ? byId.get(cur.primaryInputStepId) : undefined;
+    cur =
+      cur.primaryInputStepId != null && cur.primaryInputStepId !== ""
+        ? byId.get(cur.primaryInputStepId)
+        : undefined;
   }
   spine.reverse(); // now left-to-right
 
@@ -101,12 +113,17 @@ export function buildSpineLayout(
     const compact = toCompact(step, stepNumbers.get(step.id) ?? 0);
     const kind = inferStepKind(step);
 
-    if (kind === "combine" && step.secondaryInputStepId) {
+    if (
+      kind === "combine" &&
+      step.secondaryInputStepId != null &&
+      step.secondaryInputStepId !== ""
+    ) {
       const sec = byId.get(step.secondaryInputStepId);
-      return {
-        step: compact,
-        secondaryInput: sec ? toCompact(sec, stepNumbers.get(sec.id) ?? 0) : undefined,
-      };
+      const segment: SpineSegment = { step: compact };
+      if (sec != null) {
+        segment.secondaryInput = toCompact(sec, stepNumbers.get(sec.id) ?? 0);
+      }
+      return segment;
     }
 
     return { step: compact };

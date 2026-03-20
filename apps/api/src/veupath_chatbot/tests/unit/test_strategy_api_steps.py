@@ -132,7 +132,7 @@ class TestGetBooleanParamNames:
         client.get_search_details.return_value = {
             "searchData": {},
         }
-        with pytest.raises(ValueError, match="no 'paramNames' list"):
+        with pytest.raises(TypeError, match="no 'paramNames' list"):
             await mixin._get_boolean_param_names("gene")
 
     async def test_falls_back_to_top_level_when_no_search_data(self) -> None:
@@ -148,7 +148,7 @@ class TestGetBooleanParamNames:
                 "bq_operator",
             ],
         }
-        left, right, op = await mixin._get_boolean_param_names("gene")
+        left, _right, _op = await mixin._get_boolean_param_names("gene")
         assert left == "bq_left_op_X"
 
 
@@ -235,8 +235,8 @@ class TestCreateStep:
         payload = client.post.call_args.kwargs["json"]
         assert payload["customName"] == "My Search"
 
-    async def test_empty_params_are_omitted(self) -> None:
-        """Parameters with empty string values should be dropped."""
+    async def test_empty_params_are_kept(self) -> None:
+        """Parameters with empty string values are kept (WDK allowEmptyValue)."""
         mixin, client = _make_mixin()
         client.post.return_value = {"id": 100}
 
@@ -248,7 +248,7 @@ class TestCreateStep:
 
         params = client.post.call_args.kwargs["json"]["searchConfig"]["parameters"]
         assert "text" in params
-        assert "empty_field" not in params
+        assert params["empty_field"] == ""
 
 
 # ---------------------------------------------------------------------------

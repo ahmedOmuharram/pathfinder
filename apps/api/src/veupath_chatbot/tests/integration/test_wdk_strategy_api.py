@@ -15,6 +15,7 @@ import respx
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     analysis_create_response,
     analysis_result_response,
@@ -74,6 +75,12 @@ class TestCreateStep:
     async def test_create_step_normalizes_params(self, api: StrategyAPI) -> None:
         """Bool/list/None values are converted to WDK string representations."""
         _mock_ensure_session(respx)
+
+        # _expand_tree_params_to_leaves fetches search details with expandParams
+        respx.get(f"{BASE}/record-types/gene/searches/GenesByTaxon").respond(
+            200,
+            json={"searchData": {"parameters": []}},
+        )
 
         step_route = respx.post(f"{BASE}/users/{USER_ID}/steps").respond(
             200, json=step_creation_response(100)
@@ -498,8 +505,6 @@ class TestRunStepAnalysis:
         self, api: StrategyAPI
     ) -> None:
         """Repeated ERROR statuses give up after max retries."""
-        from veupath_chatbot.platform.errors import InternalError
-
         _mock_ensure_session(respx)
 
         uid = str(USER_ID)
@@ -534,8 +539,6 @@ class TestRunStepAnalysis:
     @pytest.mark.asyncio
     async def test_expired_status_raises(self, api: StrategyAPI) -> None:
         """EXPIRED status raises InternalError immediately (no retry)."""
-        from veupath_chatbot.platform.errors import InternalError
-
         _mock_ensure_session(respx)
 
         uid = str(USER_ID)

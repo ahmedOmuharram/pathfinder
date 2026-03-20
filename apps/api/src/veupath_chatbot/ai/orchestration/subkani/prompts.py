@@ -8,30 +8,34 @@ def build_subkani_round_prompt(
     graph_id: str,
     dependency_context: str | None,
 ) -> str:
-    dependency_block = ""
+    parts: list[str] = [
+        "# Subtask execution (VEuPathDB strategy sub-agent)\n",
+        f"\n## Overall goal\n{goal}\n",
+        f"\n## Your task\n{task}\n",
+        f"\n## Graph\nYou must operate on graphId: {graph_id}\n",
+    ]
+
     if dependency_context:
-        dependency_block = (
-            "## Dependency context (authoritative)\n"
+        parts.append(
+            "\n## Dependency context (authoritative)\n"
             "Use the step ids from this context when the task depends on prior work.\n\n"
             "```json\n"
             f"{dependency_context}\n"
-            "```\n\n"
+            "```\n"
         )
 
-    return (
-        "# Subtask execution (VEuPathDB strategy sub-agent)\n\n"
-        f"## Overall goal\n{goal}\n\n"
-        f"## Your task\n{task}\n\n"
-        f"## Graph\nYou must operate on graphId: {graph_id}\n\n"
-        f"{dependency_block}"
-        "## Rules (must-follow)\n"
+    parts.append(
+        "\n## Rules (must-follow)\n"
         "- Use tools; do not guess search names, parameter keys, or IDs.\n"
         "- If dependency context provides step ids, prefer using them over creating duplicates.\n"
         "- If dependency context is missing/empty and you need graph state, call `list_current_steps()` first.\n"
         "- Always include `graph_id` in graph-editing tool calls.\n"
         "- Do not create a binary step unless the task explicitly instructs you AND provides both input step IDs.\n"
-        "- If the task says modify/update/rename, update the existing step instead of creating a new step.\n\n"
-        "## How to execute (repeatable)\n"
+        "- If the task says modify/update/rename, update the existing step instead of creating a new step.\n"
+    )
+
+    parts.append(
+        "\n## How to execute (repeatable)\n"
         "1. Identify whether this is **create** vs **edit**.\n"
         "2. If creating:\n"
         "   - Call `search_example_plans(query=...)` and review `rag.data` for internal guidance; do not mention examples to the user.\n"
@@ -45,15 +49,26 @@ def build_subkani_round_prompt(
         "   - If the step depends on a prior step, set `primary_input_step_id`.\n"
         "   - If the step needs a binary operator (UNION/INTERSECT/MINUS/COLOCATE), set `secondary_input_step_id` + `operator`.\n"
         "3. If editing:\n"
-        "   - Use `update_step` and/or `rename_step` for the specified step ids.\n\n"
-        "## Biological/metadata constraints\n"
+        "   - Use `update_step` and/or `rename_step` for the specified step ids.\n"
+    )
+
+    parts.append(
+        "\n## Biological/metadata constraints\n"
         "- If organism and/or life stage is specified, pick searches and parameter values matching both.\n"
         "- For expression tasks, ensure datasets/conditions correspond to the requested organism and stage.\n"
-        "- If a study/paper is mentioned, reflect it in `display_name` when appropriate.\n\n"
-        "## Parameter encoding (critical)\n"
+        "- If a study/paper is mentioned, reflect it in `display_name` when appropriate.\n"
+    )
+
+    parts.append(
+        "\n## Parameter encoding (critical)\n"
         "- All parameter values must be strings.\n"
         '- Multi-pick vocab values must be JSON-string arrays like `"[\\"Plasmodium falciparum 3D7\\"]"`.\n'
-        '- Range values must be JSON-string objects like `"{\\"min\\": 1, \\"max\\": 5}"`.\n\n'
-        "## Response\n"
-        "After you finish the tool calls, reply with 1–2 sentences confirming what you created/updated.\n"
+        '- Range values must be JSON-string objects like `"{\\"min\\": 1, \\"max\\": 5}"`.\n'
     )
+
+    parts.append(
+        "\n## Response\n"
+        "After you finish the tool calls, reply with 1-2 sentences confirming what you created/updated.\n"
+    )
+
+    return "".join(parts)

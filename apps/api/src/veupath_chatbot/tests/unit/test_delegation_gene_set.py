@@ -11,6 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.ai.orchestration.delegation import DelegationPlan
+from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
+    delegate_strategy_subtasks,
+)
 from veupath_chatbot.services.chat.events import (
     WORKBENCH_GENE_SET,
     tool_result_to_events,
@@ -131,10 +134,6 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_has_correct_structure(self) -> None:
         """When delegation succeeds with valid steps, result has expected keys."""
-        from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
-            delegate_strategy_subtasks,
-        )
-
         task = {"id": "t0", "task": "Find kinases", "kind": "task"}
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
@@ -184,10 +183,6 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_no_gene_set_when_no_validated(self) -> None:
         """When delegation has no validated results, no gene set key appears."""
-        from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
-            delegate_strategy_subtasks,
-        )
-
         task = {"id": "t0", "task": "Find kinases", "kind": "task"}
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
@@ -238,10 +233,6 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_contains_graph_metadata(self) -> None:
         """Delegation result includes graphName and graphDescription from derive_graph_metadata."""
-        from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
-            delegate_strategy_subtasks,
-        )
-
         task = {"id": "t0", "task": "Find kinases", "kind": "task"}
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
@@ -286,10 +277,6 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_does_not_accept_user_id(self) -> None:
         """delegate_strategy_subtasks no longer accepts a user_id parameter."""
-        from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
-            delegate_strategy_subtasks,
-        )
-
         task = {"id": "t0", "task": "Find kinases", "kind": "task"}
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()

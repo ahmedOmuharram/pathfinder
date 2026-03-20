@@ -40,7 +40,6 @@ export function useSweepState(experiment: Experiment) {
 
   const sweepableParams = useMemo(() => {
     const configParams = experiment.config.parameters;
-    if (!configParams || typeof configParams !== "object") return [];
     if (paramSpecs.length === 0) return [];
 
     const result: SweepableParam[] = [];
@@ -54,17 +53,17 @@ export function useSweepState(experiment: Experiment) {
       if (isNumericParam(spec)) {
         result.push({
           name: spec.name,
-          displayName: spec.displayName || spec.name,
+          displayName: spec.displayName ?? spec.name,
           kind: "numeric",
           currentValue,
           numericValue: Number(currentValue),
         });
       } else {
-        const vocab = spec.vocabulary ? flattenVocab(spec.vocabulary) : [];
+        const vocab = spec.vocabulary != null ? flattenVocab(spec.vocabulary) : [];
         if (vocab.length > 1) {
           result.push({
             name: spec.name,
-            displayName: spec.displayName || spec.name,
+            displayName: spec.displayName ?? spec.name,
             kind: "categorical",
             currentValue,
             vocab,

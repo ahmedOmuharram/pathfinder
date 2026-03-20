@@ -52,7 +52,7 @@ export function ParamNameSelect({
       <option value="">{placeholder ?? "Select parameter..."}</option>
       {paramSpecs.map((s) => (
         <option key={s.name} value={s.name}>
-          {s.displayName || s.name}
+          {s.displayName != null && s.displayName !== "" ? s.displayName : s.name}
         </option>
       ))}
     </select>

@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from qdrant_client import AsyncQdrantClient
 
@@ -130,15 +131,22 @@ async def upsert_search_docs_batch(
     await _upsert_docs_batch(store, embedder, WDK_SEARCHES_V1, buffered)
 
 
+@dataclass
+class SearchIndexingConfig:
+    """Configuration bundle for :func:`run_search_indexing_pipeline`."""
+
+    store: QdrantStore
+    embedder: OpenAIEmbeddings
+    concurrency: int
+    batch_size: int
+    site_id: str
+
+
 async def run_search_indexing_pipeline(
     *,
     searches_to_fetch: list[tuple[str, JSONObject]],
     make_doc: Callable[[str, JSONObject], Awaitable[tuple[JSONObject | None, bool]]],
-    store: QdrantStore,
-    embedder: OpenAIEmbeddings,
-    concurrency: int,
-    batch_size: int,
-    site_id: str,
+    config: SearchIndexingConfig,
 ) -> None:
     failed_details: int = 0
 
@@ -151,17 +159,19 @@ async def run_search_indexing_pipeline(
         return doc
 
     async def flush(batch: list[JSONObject]) -> None:
-        await upsert_search_docs_batch(store, embedder, list(batch))
+        await upsert_search_docs_batch(config.store, config.embedder, list(batch))
 
     await run_concurrent_pipeline(
         items=searches_to_fetch,
         process_fn=process,
         flush_fn=flush,
-        concurrency=concurrency,
-        batch_size=batch_size,
+        concurrency=config.concurrency,
+        batch_size=config.batch_size,
     )
 
     if failed_details:
         logger.warning(
-            "WDK search details failed", siteId=site_id, failed=failed_details
+            "WDK search details failed",
+            siteId=config.site_id,
+            failed=failed_details,
         )

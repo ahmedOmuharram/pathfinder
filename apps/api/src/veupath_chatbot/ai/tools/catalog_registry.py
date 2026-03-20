@@ -12,6 +12,7 @@ from veupath_chatbot.ai.tools.query_validation import (
     record_type_query_error,
     search_query_error,
 )
+from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.rag_search import RagSearchService
 
@@ -27,10 +28,10 @@ class CatalogToolsMixin:
     """
 
     site_id: str = ""
-    catalog_tools: CatalogTools = cast("CatalogTools", cast(object, None))
-    catalog_rag_tools: CatalogRagTools = cast("CatalogRagTools", cast(object, None))
+    catalog_tools: CatalogTools = cast("CatalogTools", cast("object", None))
+    catalog_rag_tools: CatalogRagTools = cast("CatalogRagTools", cast("object", None))
     example_plans_rag_tools: ExamplePlansRagTools = cast(
-        "ExamplePlansRagTools", cast(object, None)
+        "ExamplePlansRagTools", cast("object", None)
     )
 
     @ai_function()
@@ -236,8 +237,6 @@ class CatalogToolsMixin:
             details = await rag_svc.get_search_details(
                 record_type, search_name, expand_params=True
             )
-            from veupath_chatbot.domain.parameters.specs import unwrap_search_data
-
             search_data = unwrap_search_data(details) or details
             params = (
                 search_data.get("parameters") if isinstance(search_data, dict) else None
@@ -285,7 +284,7 @@ class CatalogToolsMixin:
                 rag_note="Qdrant-backed cache keyed by context hash; will call WDK on cache miss.",
                 wdk_note="Authoritative WDK response (same payload as rag.wdkResponse).",
             )
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError) as exc:
             wdk_fallback = await _fallback_from_search_details()
             return combined_result(
                 rag={"error": "dependent_vocab_failed", "detail": str(exc)},

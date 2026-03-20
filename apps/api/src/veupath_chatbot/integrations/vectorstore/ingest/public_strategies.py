@@ -4,6 +4,7 @@ import json
 import os
 import time
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -58,19 +59,125 @@ def _write_jsonl(path: Path, obj: JSONObject) -> None:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-async def ingest_site(
-    *,
-    site_id: str,
-    store: QdrantStore,
-    embedder: OpenAIEmbeddings,
-    llm_model: str,
-    report_path: Path,
-    max_strategies: int | None,
-    concurrency: int,
-    skip_existing: bool,
-) -> None:
+@dataclass
+class IngestSiteConfig:
+    """Configuration bundle for :func:`ingest_site`."""
+
+    site_id: str
+    store: QdrantStore
+    embedder: OpenAIEmbeddings
+    llm_model: str
+    report_path: Path
+    max_strategies: int | None
+    concurrency: int
+    skip_existing: bool
+
+
+def _filter_public_valid_candidates(summaries: list[JSONObject]) -> list[JSONObject]:
+    """Return only public, valid, non-deleted strategy summaries."""
+    candidates: list[JSONObject] = []
+    for s in summaries:
+        if not isinstance(s, dict):
+            continue
+        if (
+            s.get("isPublic") is True
+            and s.get("isValid") is True
+            and s.get("isDeleted") is False
+        ):
+            candidates.append(s)
+    return candidates
+
+
+async def _skip_already_ingested(
+    cfg: IngestSiteConfig,
+    candidates: list[JSONObject],
+) -> list[JSONObject]:
+    """Remove candidates that already exist in Qdrant."""
+    sigs = [str(s.get("signature") or "").strip() for s in candidates]
+    sig_to_id = {sig: point_uuid(f"{cfg.site_id}:{sig}") for sig in sigs if sig}
+
+    async with cfg.store.connect() as q:
+        existing = await existing_point_ids(
+            qdrant_client=q,
+            collection=EXAMPLE_PLANS_V1,
+            ids=list(sig_to_id.values()),
+        )
+
+    if not existing:
+        return candidates
+
+    before = len(candidates)
+    filtered = [
+        s
+        for s, sig in zip(candidates, sigs, strict=True)
+        if sig and sig_to_id.get(sig) not in existing
+    ]
+    skipped = before - len(filtered)
+    if skipped:
+        logger.info(
+            "Example plans skipped (already ingested)",
+            siteId=cfg.site_id,
+            skipped=skipped,
+        )
+    return filtered
+
+
+async def _process_single_strategy(
+    cfg: IngestSiteConfig,
+    client: httpx.AsyncClient,
+    summary: JSONObject,
+) -> tuple[JSONObject, str] | None:
+    """Duplicate, fetch, simplify, and generate metadata for one strategy."""
+    signature = str(summary.get("signature") or "").strip()
+    if not signature:
+        return None
+
+    tmp_id: int | None = None
+    try:
+        tmp_id = await _duplicate_strategy(client, signature)
+        details = await _get_strategy_details(client, tmp_id)
+    finally:
+        if tmp_id is not None:
+            await _delete_strategy(client, tmp_id)
+
+    compact = simplify_strategy_details(details)
+    try:
+        gen_name, gen_desc = await _generate_name_and_description(
+            strategy_compact=compact, model=cfg.llm_model
+        )
+    except OSError, RuntimeError, ValueError, KeyError:
+        gen_name = str(summary.get("name") or "Public strategy example").strip()
+        gen_desc = str(summary.get("description") or "").strip() or gen_name
+
+    payload: JSONObject = {
+        "siteId": cfg.site_id,
+        "sourceSignature": signature,
+        "sourceStrategyId": summary.get("strategyId"),
+        "sourceName": summary.get("name"),
+        "sourceDescription": summary.get("description"),
+        "generatedName": gen_name,
+        "generatedDescription": gen_desc,
+        "recordClassName": summary.get("recordClassName")
+        or compact.get("recordClassName"),
+        "rootStepId": summary.get("rootStepId") or compact.get("rootStepId"),
+        "strategyCompact": compact,
+        "strategyFull": full_strategy_payload(details),
+        "ingestedAt": int(time.time()),
+    }
+    payload["sourceHash"] = sha256_hex(stable_json_dumps(payload))
+
+    text = embedding_text_for_example(
+        name=gen_name,
+        description=gen_desc,
+        compact=compact,
+    )
+    return payload, text
+
+
+async def ingest_site(cfg: IngestSiteConfig) -> None:
+    """Ingest public strategies for a single site."""
     router = get_site_router()
-    site = router.get_site(site_id)
+    site = router.get_site(cfg.site_id)
 
     async with httpx.AsyncClient(
         base_url=site.base_url.rstrip("/"),
@@ -80,12 +187,12 @@ async def ingest_site(
     ) as client:
         try:
             summaries = await _fetch_public_strategy_summaries(client)
-        except Exception as exc:
+        except (httpx.HTTPError, OSError, RuntimeError) as exc:
             _write_jsonl(
-                report_path,
+                cfg.report_path,
                 {
                     "ts": _now_ts(),
-                    "siteId": site_id,
+                    "siteId": cfg.site_id,
                     "level": "site",
                     "stage": "fetch_public_strategy_summaries",
                     "error": repr(exc),
@@ -94,50 +201,16 @@ async def ingest_site(
             )
             return
 
-        candidates: list[JSONObject] = []
-        for s in summaries:
-            if not isinstance(s, dict):
-                continue
-            is_public_raw = s.get("isPublic")
-            is_valid_raw = s.get("isValid")
-            is_deleted_raw = s.get("isDeleted")
-            if (
-                is_public_raw is True
-                and is_valid_raw is True
-                and is_deleted_raw is False
-            ):
-                candidates.append(s)
-        if max_strategies is not None:
-            candidates = candidates[: max(0, int(max_strategies))]
+        candidates = _filter_public_valid_candidates(summaries)
+        if cfg.max_strategies is not None:
+            candidates = candidates[: max(0, int(cfg.max_strategies))]
 
-        if skip_existing and candidates:
-            async with store.connect() as q:
-                sigs = [str(s.get("signature") or "").strip() for s in candidates]
-                sig_to_id = {sig: point_uuid(f"{site_id}:{sig}") for sig in sigs if sig}
-                existing = await existing_point_ids(
-                    qdrant_client=q,
-                    collection=EXAMPLE_PLANS_V1,
-                    ids=list(sig_to_id.values()),
-                )
-
-            if existing:
-                before = len(candidates)
-                candidates = [
-                    s
-                    for s, sig in zip(candidates, sigs, strict=True)
-                    if sig and sig_to_id.get(sig) not in existing
-                ]
-                skipped = before - len(candidates)
-                if skipped:
-                    logger.info(
-                        "Example plans skipped (already ingested)",
-                        siteId=site_id,
-                        skipped=skipped,
-                    )
+        if cfg.skip_existing and candidates:
+            candidates = await _skip_already_ingested(cfg, candidates)
 
         logger.info(
             "Example plans ingest candidates",
-            siteId=site_id,
+            siteId=cfg.site_id,
             candidates=len(candidates),
             total_listed=len(summaries),
         )
@@ -150,62 +223,21 @@ async def ingest_site(
             summary: JSONObject,
         ) -> tuple[JSONObject, str] | None:
             nonlocal attempted, succeeded
-            signature = str(summary.get("signature") or "").strip()
-            if not signature:
-                return None
-
             attempted += 1
-            tmp_id: int | None = None
-            try:
-                tmp_id = await _duplicate_strategy(client, signature)
-                details = await _get_strategy_details(client, tmp_id)
-            finally:
-                if tmp_id is not None:
-                    await _delete_strategy(client, tmp_id)
-
-            compact = simplify_strategy_details(details)
-            try:
-                gen_name, gen_desc = await _generate_name_and_description(
-                    strategy_compact=compact, model=llm_model
-                )
-            except Exception:
-                gen_name = str(summary.get("name") or "Public strategy example").strip()
-                gen_desc = str(summary.get("description") or "").strip() or gen_name
-
-            payload: JSONObject = {
-                "siteId": site_id,
-                "sourceSignature": signature,
-                "sourceStrategyId": summary.get("strategyId"),
-                "sourceName": summary.get("name"),
-                "sourceDescription": summary.get("description"),
-                "generatedName": gen_name,
-                "generatedDescription": gen_desc,
-                "recordClassName": summary.get("recordClassName")
-                or compact.get("recordClassName"),
-                "rootStepId": summary.get("rootStepId") or compact.get("rootStepId"),
-                "strategyCompact": compact,
-                "strategyFull": full_strategy_payload(details),
-                "ingestedAt": int(time.time()),
-            }
-            payload["sourceHash"] = sha256_hex(stable_json_dumps(payload))
-
-            text = embedding_text_for_example(
-                name=gen_name,
-                description=gen_desc,
-                compact=compact,
-            )
-            succeeded += 1
-            return payload, text
+            result = await _process_single_strategy(cfg, client, summary)
+            if result is not None:
+                succeeded += 1
+            return result
 
         def on_strategy_error(summary: JSONObject, exc: Exception) -> None:
             nonlocal failed
             failed += 1
             signature = str(summary.get("signature") or "").strip()
             _write_jsonl(
-                report_path,
+                cfg.report_path,
                 {
                     "ts": _now_ts(),
-                    "siteId": site_id,
+                    "siteId": cfg.site_id,
                     "level": "strategy",
                     "stage": "duplicate_or_fetch_details",
                     "sourceSignature": signature,
@@ -221,27 +253,27 @@ async def ingest_site(
             points: JSONArray = []
             texts: list[str] = []
             for payload, text in batch:
-                pid = point_uuid(f"{site_id}:{payload['sourceSignature']}")
+                pid = point_uuid(f"{cfg.site_id}:{payload['sourceSignature']}")
                 points.append({"id": pid, "payload": payload})
                 texts.append(text)
             await _flush_batch(
-                store=store, embedder=embedder, points=points, texts=texts
+                store=cfg.store, embedder=cfg.embedder, points=points, texts=texts
             )
 
         await run_concurrent_pipeline(
             items=candidates,
             process_fn=process_strategy,
             flush_fn=flush_strategies,
-            concurrency=concurrency,
+            concurrency=cfg.concurrency,
             batch_size=10,
             on_error=on_strategy_error,
         )
 
         _write_jsonl(
-            report_path,
+            cfg.report_path,
             {
                 "ts": _now_ts(),
-                "siteId": site_id,
+                "siteId": cfg.site_id,
                 "level": "site",
                 "stage": "site_complete",
                 "candidates": len(candidates),
@@ -252,10 +284,10 @@ async def ingest_site(
         )
         if len(candidates) > 0 and succeeded == 0:
             _write_jsonl(
-                report_path,
+                cfg.report_path,
                 {
                     "ts": _now_ts(),
-                    "siteId": site_id,
+                    "siteId": cfg.site_id,
                     "level": "site",
                     "stage": "site_failed_all_strategies",
                     "candidates": len(candidates),
@@ -277,9 +309,8 @@ async def ingest_public_strategies(
 ) -> None:
     settings = get_settings()
     if not settings.openai_api_key:
-        raise RuntimeError(
-            "openai_api_key is required (embeddings + name/description generation)"
-        )
+        msg = "openai_api_key is required (embeddings + name/description generation)"
+        raise RuntimeError(msg)
 
     store = QdrantStore.from_settings()
     dim = await get_embedding_dim(settings.embeddings_model)
@@ -302,7 +333,7 @@ async def ingest_public_strategies(
             "ts": _now_ts(),
             "level": "run",
             "stage": "start",
-            "sites": cast(JSONValue, selected),
+            "sites": cast("JSONValue", selected),
             "llmModel": str(llm_model),
             "skipExisting": bool(skip_existing),
             "maxStrategiesPerSite": max_strategies_per_site,
@@ -312,18 +343,19 @@ async def ingest_public_strategies(
 
     for site_id in selected:
         logger.info("Example plans ingest site", siteId=site_id)
+        cfg = IngestSiteConfig(
+            site_id=site_id,
+            store=store,
+            embedder=embedder,
+            llm_model=str(llm_model),
+            report_path=report_path,
+            max_strategies=max_strategies_per_site,
+            concurrency=conc,
+            skip_existing=bool(skip_existing) and (not bool(reset)),
+        )
         try:
-            await ingest_site(
-                site_id=site_id,
-                store=store,
-                embedder=embedder,
-                llm_model=str(llm_model),
-                report_path=report_path,
-                max_strategies=max_strategies_per_site,
-                concurrency=conc,
-                skip_existing=bool(skip_existing) and (not bool(reset)),
-            )
-        except Exception as exc:
+            await ingest_site(cfg)
+        except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
             _write_jsonl(
                 report_path,
                 {

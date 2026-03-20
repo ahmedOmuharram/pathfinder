@@ -10,6 +10,9 @@ from unittest.mock import patch
 import httpx
 import respx
 
+from veupath_chatbot.domain.strategy.ast import StepTreeNode
+from veupath_chatbot.domain.strategy.compile import CompilationResult, CompiledStep
+from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
 from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
 
 # ---------------------------------------------------------------------------
@@ -208,10 +211,6 @@ async def test_complex_step_counts_via_compilation(
     """
     base = "https://plasmodb.org/plasmo/service"
 
-    from veupath_chatbot.domain.strategy.ast import StepTreeNode
-    from veupath_chatbot.domain.strategy.compile import CompilationResult, CompiledStep
-    from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
-
     _STEP_COUNTS_CACHE.clear()
 
     # Mock compile_strategy to avoid all the search details / param normalization
@@ -310,8 +309,6 @@ async def test_step_counts_cache_avoids_repeat_calls(
     """Calling POST /step-counts twice with same plan only hits WDK once."""
     base = "https://plasmodb.org/plasmo/service"
 
-    from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
-
     _STEP_COUNTS_CACHE.clear()
 
     report_route = wdk_respx.post(
@@ -367,8 +364,6 @@ async def test_leaf_step_counts_failure_returns_none(
 ) -> None:
     """Two-search plan where one anonymous report fails → one count, one None."""
     base = "https://plasmodb.org/plasmo/service"
-
-    from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
 
     _STEP_COUNTS_CACHE.clear()
 

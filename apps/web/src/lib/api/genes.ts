@@ -6,17 +6,6 @@ import {
   OrganismListResponseSchema,
 } from "./schemas/gene";
 
-/**
- * Re-exports from @pathfinder/shared for backward compatibility.
- * New code should import these types directly from "@pathfinder/shared".
- */
-export type {
-  GeneSearchResult,
-  GeneSearchResponse,
-  ResolvedGene,
-  GeneResolveResponse,
-} from "@pathfinder/shared";
-
 export async function listOrganisms(siteId: string): Promise<string[]> {
   const resp = await requestJsonValidated(
     OrganismListResponseSchema,
@@ -33,8 +22,8 @@ export async function searchGenes(
   offset: number = 0,
 ): Promise<GeneSearchResponse> {
   const params: Record<string, string> = { q: query, limit: String(limit) };
-  if (organism) params.organism = organism;
-  if (offset > 0) params.offset = String(offset);
+  if (organism != null && organism !== "") params["organism"] = organism;
+  if (offset > 0) params["offset"] = String(offset);
   return (await requestJsonValidated(
     GeneSearchResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/search`,

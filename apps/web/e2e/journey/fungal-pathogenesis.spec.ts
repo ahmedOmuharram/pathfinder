@@ -22,7 +22,9 @@ test.describe("Fungal Pathogenesis Journey", () => {
     workbenchSidebarPage,
     workbenchMainPage,
   }) => {
-    const fungiGenes = seedData.siteData.fungidb.geneIds;
+    const fungiSiteData = seedData.siteData["fungidb"];
+    if (fungiSiteData === undefined) throw new Error("fungidb seed data missing");
+    const fungiGenes = fungiSiteData.geneIds;
     const fullCount = fungiGenes.length;
 
     // ── Setup: Clean stale gene sets for FungiDB ─────────────────

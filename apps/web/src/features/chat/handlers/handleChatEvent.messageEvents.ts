@@ -1,9 +1,7 @@
 import type {
-  Citation,
   Message,
   OptimizationProgressData,
   OptimizationTrial,
-  PlanningArtifact,
   SubKaniTokenUsage,
   TokenUsage,
   ToolCall,
@@ -80,8 +78,9 @@ export function handleUserMessageEvent(ctx: ChatEventContext, data: UserMessageD
     // De-duplicate: skip if the last user message has the same content
     // (can happen if data-loading and recovery both add it).
     for (let i = prev.length - 1; i >= 0; i--) {
-      if (prev[i].role !== "user") continue;
-      if (prev[i].content === content) return prev;
+      const msg = prev[i];
+      if (msg?.role !== "user") continue;
+      if (msg.content === content) return prev;
       break; // Only check the most recent user message
     }
     return [
@@ -99,19 +98,25 @@ export function handleUserMessageEvent(ctx: ChatEventContext, data: UserMessageD
 export function handleMessageStartEvent(ctx: ChatEventContext, data: MessageStartData) {
   const { strategyId, strategy } = data;
 
-  if (strategyId) {
+  if (strategyId != null && strategyId !== "") {
     ctx.setStrategyId(strategyId);
     ctx.addStrategy({
       id: strategyId,
-      name: strategy?.name || DEFAULT_STREAM_NAME,
-      title: strategy?.title || strategy?.name || DEFAULT_STREAM_NAME,
+      name: strategy?.name ?? DEFAULT_STREAM_NAME,
+      ...(strategy?.title != null
+        ? { title: strategy.title }
+        : strategy?.name != null
+          ? { title: strategy.name }
+          : { title: DEFAULT_STREAM_NAME }),
       siteId: ctx.siteId,
       recordType: strategy?.recordType ?? null,
       steps: strategy?.steps ?? [],
       rootStepId: strategy?.rootStepId ?? null,
       stepCount: strategy?.steps?.length ?? 0,
-      wdkStrategyId: strategy?.wdkStrategyId,
-      isSaved: strategy?.isSaved ?? false,
+      ...(strategy?.wdkStrategyId != null
+        ? { wdkStrategyId: strategy.wdkStrategyId }
+        : {}),
+      isSaved: strategy?.isSaved === true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -122,7 +127,7 @@ export function handleMessageStartEvent(ctx: ChatEventContext, data: MessageStar
     ctx.setStrategy(strategy);
     ctx.setStrategyMeta({
       name: strategy.name,
-      recordType: strategy.recordType ?? undefined,
+      ...(strategy.recordType != null ? { recordType: strategy.recordType } : {}),
       siteId: strategy.siteId,
     });
   }
@@ -138,23 +143,27 @@ export function handleAssistantDeltaEvent(
       ? data.delta
       : Array.isArray(data.delta)
         ? (data.delta as string[]).join("")
-        : data.delta
-          ? String(data.delta)
-          : "";
-  if (!delta) return;
+        : "";
+  if (delta === "") return;
 
   if (
     ctx.streamState.streamingAssistantIndex === null ||
-    (messageId && ctx.streamState.streamingAssistantMessageId !== messageId)
+    (messageId != null &&
+      messageId !== "" &&
+      ctx.streamState.streamingAssistantMessageId !== messageId)
   ) {
     ctx.streamState.streamingAssistantIndex = -1;
-    ctx.streamState.streamingAssistantMessageId = messageId || null;
+    ctx.streamState.streamingAssistantMessageId = messageId ?? null;
 
     const assistantMessage: Message = {
       role: "assistant",
       content: delta,
-      modelId: ctx.streamState.currentModelId ?? undefined,
-      optimizationProgress: ctx.streamState.optimizationProgress ?? undefined,
+      ...(ctx.streamState.currentModelId != null
+        ? { modelId: ctx.streamState.currentModelId }
+        : {}),
+      ...(ctx.streamState.optimizationProgress != null
+        ? { optimizationProgress: ctx.streamState.optimizationProgress }
+        : {}),
       timestamp: new Date().toISOString(),
     };
     ctx.setMessages((prev) => {
@@ -178,7 +187,7 @@ export function handleAssistantDeltaEvent(
     if (idx === null) return prev;
     const next = [...prev];
     const existing = next[idx];
-    if (!existing || existing.role !== "assistant") return prev;
+    if (existing?.role !== "assistant") return prev;
     next[idx] = { ...existing, content: (existing.content || "") + delta };
     return next;
   });
@@ -194,9 +203,7 @@ export function handleAssistantMessageEvent(
       ? data.content
       : Array.isArray(data.content)
         ? (data.content as string[]).join("")
-        : data.content
-          ? String(data.content)
-          : "";
+        : "";
   const subKaniActivity = snapshotSubKaniActivityFromBuffers(
     ctx.subKaniCallsBuffer,
     ctx.subKaniStatusBuffer,
@@ -217,7 +224,9 @@ export function handleAssistantMessageEvent(
 
   if (
     ctx.streamState.streamingAssistantIndex !== null &&
-    (!messageId || ctx.streamState.streamingAssistantMessageId === messageId)
+    (messageId == null ||
+      messageId === "" ||
+      ctx.streamState.streamingAssistantMessageId === messageId)
   ) {
     ctx.session.consumeUndoSnapshot();
     ctx.setMessages((prev) => {
@@ -225,17 +234,34 @@ export function handleAssistantMessageEvent(
       if (idx === null) return prev;
       const next = [...prev];
       const existing = next[idx];
-      if (!existing || existing.role !== "assistant") return prev;
+      if (existing?.role !== "assistant") return prev;
+      const mergedReasoning = finalReasoning ?? existing.reasoning;
+      const mergedOptimization = finalOptimization ?? existing.optimizationProgress;
       next[idx] = {
         ...existing,
-        content: finalContent || existing.content,
-        toolCalls: finalToolCalls ?? existing.toolCalls,
-        subKaniActivity,
-        citations: finalCitations ?? existing.citations,
-        planningArtifacts: finalArtifacts ?? existing.planningArtifacts,
-        reasoning: finalReasoning || existing.reasoning || undefined,
-        optimizationProgress:
-          finalOptimization ?? existing.optimizationProgress ?? undefined,
+        content: finalContent !== "" ? finalContent : existing.content,
+        ...(finalToolCalls != null
+          ? { toolCalls: finalToolCalls }
+          : existing.toolCalls != null
+            ? { toolCalls: existing.toolCalls }
+            : {}),
+        ...(subKaniActivity != null ? { subKaniActivity } : {}),
+        ...(finalCitations != null
+          ? { citations: finalCitations }
+          : existing.citations != null
+            ? { citations: existing.citations }
+            : {}),
+        ...(finalArtifacts != null
+          ? { planningArtifacts: finalArtifacts }
+          : existing.planningArtifacts != null
+            ? { planningArtifacts: existing.planningArtifacts }
+            : {}),
+        ...(mergedReasoning != null && mergedReasoning !== ""
+          ? { reasoning: mergedReasoning }
+          : {}),
+        ...(mergedOptimization != null
+          ? { optimizationProgress: mergedOptimization }
+          : {}),
       };
       return next;
     });
@@ -243,13 +269,17 @@ export function handleAssistantMessageEvent(
     const assistantMessage: Message = {
       role: "assistant",
       content: finalContent,
-      modelId: ctx.streamState.currentModelId ?? undefined,
-      toolCalls: finalToolCalls,
-      subKaniActivity,
-      citations: finalCitations,
-      planningArtifacts: finalArtifacts,
-      reasoning: finalReasoning || undefined,
-      optimizationProgress: finalOptimization,
+      ...(ctx.streamState.currentModelId != null
+        ? { modelId: ctx.streamState.currentModelId }
+        : {}),
+      ...(finalToolCalls != null ? { toolCalls: finalToolCalls } : {}),
+      ...(subKaniActivity != null ? { subKaniActivity } : {}),
+      ...(finalCitations != null ? { citations: finalCitations } : {}),
+      ...(finalArtifacts != null ? { planningArtifacts: finalArtifacts } : {}),
+      ...(finalReasoning != null && finalReasoning !== ""
+        ? { reasoning: finalReasoning }
+        : {}),
+      ...(finalOptimization != null ? { optimizationProgress: finalOptimization } : {}),
       timestamp: new Date().toISOString(),
     };
     const snapshot = ctx.session.consumeUndoSnapshot();
@@ -281,8 +311,8 @@ export function handleCitationsEvent(ctx: ChatEventContext, data: CitationsData)
   const citations = data.citations;
   if (!Array.isArray(citations)) return;
   for (const c of citations) {
-    if (c && typeof c === "object" && !Array.isArray(c)) {
-      ctx.citationsBuffer.push(c as Citation);
+    if (c != null && typeof c === "object" && !Array.isArray(c)) {
+      ctx.citationsBuffer.push(c);
     }
   }
 }
@@ -293,7 +323,7 @@ export function handlePlanningArtifactEvent(
 ) {
   const artifact = data.planningArtifact;
   if (!artifact || typeof artifact !== "object" || Array.isArray(artifact)) return;
-  ctx.planningArtifactsBuffer.push(artifact as PlanningArtifact);
+  ctx.planningArtifactsBuffer.push(artifact);
 }
 
 export function handleReasoningEvent(ctx: ChatEventContext, data: ReasoningData) {
@@ -321,12 +351,13 @@ export function handleOptimizationProgressEvent(
     (a, b) => a.trialNumber - b.trialNumber,
   );
 
+  const mergedTrials =
+    mergedAllTrials.length > 0
+      ? mergedAllTrials
+      : (progressData.allTrials ?? progressData.recentTrials);
   const normalizedProgress: OptimizationProgressData = {
     ...progressData,
-    allTrials:
-      mergedAllTrials.length > 0
-        ? mergedAllTrials
-        : (progressData.allTrials ?? progressData.recentTrials),
+    ...(mergedTrials != null ? { allTrials: mergedTrials } : {}),
   };
 
   ctx.streamState.optimizationProgress = normalizedProgress;
@@ -349,7 +380,9 @@ export function handleOptimizationProgressEvent(
       return prev;
     }
     const next = [...prev];
-    next[idx] = { ...prev[idx], optimizationProgress: normalizedProgress };
+    const existing = prev[idx];
+    if (existing == null) return prev;
+    next[idx] = { ...existing, optimizationProgress: normalizedProgress };
     return next;
   });
 }
@@ -380,9 +413,10 @@ export function handleTokenUsagePartialEvent(
   ctx.setMessages((prev) => {
     const updated = [...prev];
     for (let i = updated.length - 1; i >= 0; i--) {
-      if (updated[i].role === "user" && !updated[i].tokenUsage) {
+      const msg = updated[i];
+      if (msg?.role === "user" && msg.tokenUsage == null) {
         updated[i] = {
-          ...updated[i],
+          ...msg,
           tokenUsage: {
             promptTokens,
             completionTokens: 0,
@@ -407,37 +441,39 @@ export function handleTokenUsagePartialEvent(
 
 export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndData) {
   // Attach token usage to the last user message (input cost) and assistant message (output cost).
-  const total = typeof data.totalTokens === "number" ? data.totalTokens : 0;
+  const total = typeof data["totalTokens"] === "number" ? data["totalTokens"] : 0;
   if (total <= 0) return;
 
   const usage: TokenUsage = {
-    promptTokens: Number(data.promptTokens) || 0,
-    completionTokens: Number(data.completionTokens) || 0,
+    promptTokens: Number(data["promptTokens"]) || 0,
+    completionTokens: Number(data["completionTokens"]) || 0,
     totalTokens: total,
-    cachedTokens: Number(data.cachedTokens) || 0,
-    toolCallCount: Number(data.toolCallCount) || 0,
-    registeredToolCount: Number(data.registeredToolCount) || 0,
-    llmCallCount: Number(data.llmCallCount) || 0,
-    subKaniPromptTokens: Number(data.subKaniPromptTokens) || 0,
-    subKaniCompletionTokens: Number(data.subKaniCompletionTokens) || 0,
-    subKaniCallCount: Number(data.subKaniCallCount) || 0,
-    estimatedCostUsd: Number(data.estimatedCostUsd) || 0,
-    modelId: String(data.modelId ?? ""),
+    cachedTokens: Number(data["cachedTokens"]) || 0,
+    toolCallCount: Number(data["toolCallCount"]) || 0,
+    registeredToolCount: Number(data["registeredToolCount"]) || 0,
+    llmCallCount: Number(data["llmCallCount"]) || 0,
+    subKaniPromptTokens: Number(data["subKaniPromptTokens"]) || 0,
+    subKaniCompletionTokens: Number(data["subKaniCompletionTokens"]) || 0,
+    subKaniCallCount: Number(data["subKaniCallCount"]) || 0,
+    estimatedCostUsd: Number(data["estimatedCostUsd"]) || 0,
+    modelId: String(data["modelId"] ?? ""),
   };
 
   ctx.setMessages((prev) => {
     const updated = [...prev];
     // Update last user message (may already have partial usage from token_usage_partial).
     for (let i = updated.length - 1; i >= 0; i--) {
-      if (updated[i].role === "user") {
-        updated[i] = { ...updated[i], tokenUsage: usage };
+      const msg = updated[i];
+      if (msg?.role === "user") {
+        updated[i] = { ...msg, tokenUsage: usage };
         break;
       }
     }
     // Update last assistant message.
     for (let i = updated.length - 1; i >= 0; i--) {
-      if (updated[i].role === "assistant" && !updated[i].tokenUsage) {
-        updated[i] = { ...updated[i], tokenUsage: usage };
+      const msg = updated[i];
+      if (msg?.role === "assistant" && msg.tokenUsage == null) {
+        updated[i] = { ...msg, tokenUsage: usage };
         break;
       }
     }

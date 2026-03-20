@@ -1,7 +1,7 @@
 import type { Search, Step } from "@pathfinder/shared";
 import { resolveRecordType } from "@/lib/strategyGraph";
 
-export type OrthologInsertResult = {
+type OrthologInsertResult = {
   newStep: Step;
   downstreamPatch?: { stepId: string; patch: Partial<Step> };
 };
@@ -29,9 +29,9 @@ export function computeOrthologInsert(args: {
   const stepsById = new Map(steps.map((s) => [s.id, s]));
 
   const inferredRecordType =
-    resolveRecordType(selectedId, stepsById) ||
-    strategyRecordType ||
-    stepsById.get(selectedId)?.recordType ||
+    resolveRecordType(selectedId, stepsById) ??
+    strategyRecordType ??
+    stepsById.get(selectedId)?.recordType ??
     null;
 
   const newId = generateId();
@@ -40,7 +40,7 @@ export function computeOrthologInsert(args: {
     kind: "transform",
     displayName: search.displayName || "Find orthologs",
     searchName: search.name,
-    recordType: inferredRecordType ?? undefined,
+    recordType: inferredRecordType,
     parameters: {},
     primaryInputStepId: selectedId,
   };

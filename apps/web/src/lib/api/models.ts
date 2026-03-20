@@ -1,10 +1,11 @@
+import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
 import { requestJsonValidated } from "./http";
 import { ModelCatalogResponseSchema } from "./schemas/model";
 
-export interface ModelCatalogResponse {
-  models: import("@pathfinder/shared").ModelCatalogEntry[];
+interface ModelCatalogResponse {
+  models: ModelCatalogEntry[];
   default: string;
-  defaultReasoningEffort: import("@pathfinder/shared").ReasoningEffort;
+  defaultReasoningEffort: ReasoningEffort;
 }
 
 export async function listModels(): Promise<ModelCatalogResponse> {

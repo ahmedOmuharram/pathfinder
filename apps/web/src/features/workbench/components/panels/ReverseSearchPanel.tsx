@@ -91,7 +91,7 @@ export function ReverseSearchPanel() {
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <GeneChipInput
-            siteId={siteId ?? ""}
+            siteId={siteId}
             value={positiveInput}
             onChange={setPositiveInput}
             label="Positive Gene IDs"
@@ -99,7 +99,7 @@ export function ReverseSearchPanel() {
             required
           />
           <GeneChipInput
-            siteId={siteId ?? ""}
+            siteId={siteId}
             value={negativeInput}
             onChange={setNegativeInput}
             label="Negative Gene IDs"
@@ -107,7 +107,13 @@ export function ReverseSearchPanel() {
           />
         </div>
 
-        <Button size="sm" onClick={handleSearch} disabled={loading || !hasGeneSets}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleSearch();
+          }}
+          disabled={loading || !hasGeneSets}
+        >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -122,7 +128,9 @@ export function ReverseSearchPanel() {
           </p>
         )}
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {results.length > 0 && (
           <div className="overflow-x-auto rounded-md border">

@@ -1,8 +1,17 @@
 import dagre from "dagre";
 import type { Edge, Node } from "reactflow";
 import { MarkerType, Position } from "reactflow";
-import type { Step, Strategy } from "./types";
+import type { Step, Strategy } from "@pathfinder/shared";
 import { inferStepKind } from "./kind";
+
+/** Minimal typed interface for dagre's Graph — avoids `any` member access. */
+interface DagreGraph {
+  setDefaultEdgeLabel(fn: () => Record<string, never>): void;
+  setGraph(opts: Record<string, unknown>): void;
+  setNode(id: string, opts: { width: number; height: number }): void;
+  setEdge(source: string, target: string): void;
+  node(id: string): { x: number; y: number; width: number; height: number } | undefined;
+}
 
 type ExistingPositions = Map<string, { x: number; y: number }>;
 type DeserializeOptions = {
@@ -38,13 +47,13 @@ export function deserializeStrategyToGraph(
     stepMap.set(step.id, step);
   }
   for (const step of strategy.steps) {
-    if (step.primaryInputStepId) {
+    if (step.primaryInputStepId != null) {
       usedAsInputCount.set(
         step.primaryInputStepId,
         (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1,
       );
     }
-    if (step.secondaryInputStepId) {
+    if (step.secondaryInputStepId != null) {
       usedAsInputCount.set(
         step.secondaryInputStepId,
         (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1,
@@ -63,7 +72,12 @@ export function deserializeStrategyToGraph(
   const snap = (value: number) => Math.round(value / gridSize) * gridSize;
 
   const computeDagrePositions = (): Map<string, { x: number; y: number }> => {
-    const layoutGraph = new dagre.graphlib.Graph();
+    // dagre types are untyped — use explicit typing for the layout graph.
+    const dagreModule = dagre as unknown as {
+      graphlib: { Graph: new () => DagreGraph };
+      layout: (g: DagreGraph) => void;
+    };
+    const layoutGraph: DagreGraph = new dagreModule.graphlib.Graph();
     layoutGraph.setDefaultEdgeLabel(() => ({}));
     layoutGraph.setGraph({
       rankdir: "LR",
@@ -78,21 +92,19 @@ export function deserializeStrategyToGraph(
     }
 
     for (const step of strategy.steps) {
-      if (step.primaryInputStepId && stepMap.has(step.primaryInputStepId)) {
+      if (step.primaryInputStepId != null && stepMap.has(step.primaryInputStepId)) {
         layoutGraph.setEdge(step.primaryInputStepId, step.id);
       }
-      if (step.secondaryInputStepId && stepMap.has(step.secondaryInputStepId)) {
+      if (step.secondaryInputStepId != null && stepMap.has(step.secondaryInputStepId)) {
         layoutGraph.setEdge(step.secondaryInputStepId, step.id);
       }
     }
 
-    dagre.layout(layoutGraph);
+    dagreModule.layout(layoutGraph);
 
     const positions = new Map<string, { x: number; y: number }>();
     for (const step of strategy.steps) {
-      const node = layoutGraph.node(step.id) as
-        | { x: number; y: number; width: number; height: number }
-        | undefined;
+      const node = layoutGraph.node(step.id);
       if (!node) continue;
       positions.set(step.id, {
         x: node.x - node.width / 2,
@@ -136,10 +148,10 @@ export function deserializeStrategyToGraph(
 
   for (const step of strategy.steps) {
     const kind = inferStepKind(step);
-    const existing = preserveExisting ? existingPositions?.get(step.id) : undefined;
+    const existing = preserveExisting ? existingPositions?.get(step.id) : null;
     const dagrePos = dagrePositions.get(step.id);
     const finalPos =
-      existing ||
+      existing ??
       (dagrePos
         ? {
             x: snap(dagrePos.x + offsetX + translateX),
@@ -165,32 +177,26 @@ export function deserializeStrategyToGraph(
         showOutputHandle: shouldShowRootOutputs && rootSet.has(step.id),
         // - only show input slots when they are missing
         showPrimaryInputHandle:
-          (kind === "transform" || kind === "combine") && !step.primaryInputStepId,
-        showSecondaryInputHandle: kind === "combine" && !step.secondaryInputStepId,
+          (kind === "transform" || kind === "combine") &&
+          step.primaryInputStepId == null,
+        showSecondaryInputHandle:
+          kind === "combine" && step.secondaryInputStepId == null,
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
     });
 
-    if (step.primaryInputStepId) {
+    if (step.primaryInputStepId != null) {
       // Guard: avoid edges to missing nodes (e.g. after a node delete).
       if (!stepMap.has(step.primaryInputStepId)) continue;
-      edges.push({
+      const hasSecondary = step.secondaryInputStepId != null;
+      const primaryEdge: Edge = {
         id: `${step.primaryInputStepId}-${step.id}-primary`,
         source: step.primaryInputStepId,
         target: step.id,
         sourceHandle: "right",
         targetHandle: "left",
         type: "step",
-        label: step.secondaryInputStepId ? "L" : undefined,
-        labelStyle: step.secondaryInputStepId
-          ? { fontSize: 11, fontWeight: 700, fill: "#0f172a" }
-          : undefined,
-        labelBgStyle: step.secondaryInputStepId
-          ? { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 }
-          : undefined,
-        labelBgPadding: step.secondaryInputStepId ? [6, 2] : undefined,
-        labelBgBorderRadius: step.secondaryInputStepId ? 6 : undefined,
         style: { stroke: "#94a3b8", strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -198,10 +204,22 @@ export function deserializeStrategyToGraph(
           width: 14,
           height: 14,
         },
-      });
+      };
+      if (hasSecondary) {
+        primaryEdge.label = "L";
+        primaryEdge.labelStyle = { fontSize: 11, fontWeight: 700, fill: "#0f172a" };
+        primaryEdge.labelBgStyle = {
+          fill: "#ffffff",
+          stroke: "#cbd5e1",
+          strokeWidth: 1,
+        };
+        primaryEdge.labelBgPadding = [6, 2];
+        primaryEdge.labelBgBorderRadius = 6;
+      }
+      edges.push(primaryEdge);
     }
 
-    if (step.secondaryInputStepId) {
+    if (step.secondaryInputStepId != null) {
       if (!stepMap.has(step.secondaryInputStepId)) continue;
       edges.push({
         id: `${step.secondaryInputStepId}-${step.id}-secondary`,

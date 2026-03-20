@@ -38,7 +38,7 @@ async def test_text_only_sse_contract(
             authed_client,
             message="What is PlasmoDB?",
             site_id="plasmodb",
-            timeout=30.0,
+            request_timeout=30.0,
         )
 
     assert result.http_status == 202
@@ -71,7 +71,7 @@ async def test_tool_call_sse_contract(
             authed_client,
             message="What sites are available?",
             site_id="plasmodb",
-            timeout=30.0,
+            request_timeout=30.0,
         )
 
     assert result.http_status == 202
@@ -123,7 +123,7 @@ async def test_multi_tool_sse_contract(
             authed_client,
             message="Find genes in P. falciparum",
             site_id="plasmodb",
-            timeout=60.0,
+            request_timeout=60.0,
         )
 
     assert result.http_status == 202
@@ -151,7 +151,7 @@ async def test_strategy_id_in_message_start(
             authed_client,
             message="Tell me something",
             site_id="plasmodb",
-            timeout=30.0,
+            request_timeout=30.0,
         )
 
     assert result.http_status == 202

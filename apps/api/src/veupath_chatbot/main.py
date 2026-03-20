@@ -19,7 +19,8 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.integrations.veupathdb.site_search import close_site_search_client
 from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
-from veupath_chatbot.persistence.session import close_db, init_db
+from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.persistence.session import async_session_factory, close_db, init_db
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import (
     request_base_url_ctx,
@@ -37,6 +38,7 @@ from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.transport.http.routers import (
     chat,
     control_sets,
+    dev,
     evaluation,
     experiments,
     exports,
@@ -77,9 +79,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Mark any operations left "active" from a previous process as failed.
     # This handles the Docker-rebuild / crash case where the producer task
     # died without marking the operation complete.
-    from veupath_chatbot.persistence.repositories.stream import StreamRepository
-    from veupath_chatbot.persistence.session import async_session_factory
-
     async with async_session_factory() as session:
         repo = StreamRepository(session)
         orphaned = await repo.list_active_operations()
@@ -93,12 +92,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     try:
         await ensure_rag_collections()
-    except Exception as exc:  # pragma: no cover
+    except (OSError, RuntimeError) as exc:  # pragma: no cover
         # Do not fail API startup if Qdrant is unavailable or misconfigured.
         logger.warning("Failed to ensure RAG collections", error=str(exc))
     try:
         await start_rag_startup_ingestion_background()
-    except Exception as exc:  # pragma: no cover
+    except (OSError, RuntimeError) as exc:  # pragma: no cover
         logger.warning("Failed to start RAG startup ingestion", error=str(exc))
 
     yield
@@ -118,18 +117,31 @@ def _wire_ai_dependencies() -> None:
     This is the composition root: the only place that links the AI
     layer's concrete implementations to the service layer's injected
     slots.  Keeps services free of direct ``veupath_chatbot.ai`` imports.
+
+    Imports are deferred here because the AI layer has deep dependency
+    chains (kani, model engines, orchestrators) that must not execute at
+    module-import time.
     """
-    from veupath_chatbot.ai.agents.experiment import ExperimentAssistantAgent
-    from veupath_chatbot.ai.agents.factory import (
+    from uuid import UUID  # noqa: PLC0415
+
+    from kani import ChatMessage  # noqa: PLC0415
+
+    from veupath_chatbot.ai.agents.factory import (  # noqa: PLC0415
+        EngineConfig,
         create_agent,
         create_engine,
         resolve_effective_model_id,
     )
-    from veupath_chatbot.services.chat import orchestrator
-    from veupath_chatbot.services.experiment import ai_analysis_tools, assistant
+    from veupath_chatbot.ai.agents.workbench import WorkbenchAgent  # noqa: PLC0415
+    from veupath_chatbot.platform.types import (  # noqa: PLC0415
+        ModelProvider,
+        ReasoningEffort,
+    )
+    from veupath_chatbot.services import workbench_chat  # noqa: PLC0415
+    from veupath_chatbot.services.chat import orchestrator  # noqa: PLC0415
 
     # When chat_provider is "mock", override the default model to use MockEngine.
-    # This makes the REAL agent use a deterministic engine — all downstream
+    # This makes the REAL agent use a deterministic engine -- all downstream
     # systems (WDK, DB, Redis, gene sets, auto-build) still run real.
     settings = get_settings()
     if settings.chat_provider.strip().lower() == "mock":
@@ -139,26 +151,11 @@ def _wire_ai_dependencies() -> None:
         create_agent_fn=create_agent,
         resolve_model_id_fn=resolve_effective_model_id,
     )
-    assistant.configure(
-        create_engine_fn=create_engine,
-        experiment_agent_cls=ExperimentAssistantAgent,
-    )
-    ai_analysis_tools.configure(
-        experiment_agent_cls=ExperimentAssistantAgent,
-    )
-
-    # Workbench chat orchestrator
-    from uuid import UUID
-
-    from kani import ChatMessage
-
-    from veupath_chatbot.ai.agents.workbench import WorkbenchAgent
-    from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
-    from veupath_chatbot.services import workbench_chat
 
     def _create_workbench_agent(
         site_id: str,
         experiment_id: str,
+        *,
         user_id: UUID | None = None,
         system_prompt: str = "",
         chat_history: list[ChatMessage] | None = None,
@@ -167,9 +164,11 @@ def _wire_ai_dependencies() -> None:
         reasoning_effort: ReasoningEffort | None = None,
     ) -> WorkbenchAgent:
         engine = create_engine(
-            provider_override=provider_override,
-            model_override=model_override,
-            reasoning_effort=reasoning_effort,
+            EngineConfig(
+                provider_override=provider_override,
+                model_override=model_override,
+                reasoning_effort=reasoning_effort,
+            ),
         )
         return WorkbenchAgent(
             engine=engine,
@@ -247,21 +246,21 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         AppError,
         cast(
-            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
             app_error_handler,
         ),
     )
     app.add_exception_handler(
         HTTPException,
         cast(
-            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
             http_exception_handler,
         ),
     )
     app.add_exception_handler(
         RateLimitExceeded,
         cast(
-            Callable[[StarletteRequest, Exception], Awaitable[Response]],
+            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
             lambda request, exc: Response(
                 content=str(exc.detail),
                 status_code=429,
@@ -289,8 +288,6 @@ def create_app() -> FastAPI:
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":
-        from veupath_chatbot.transport.http.routers import dev
-
         app.include_router(dev.router)
 
     return app

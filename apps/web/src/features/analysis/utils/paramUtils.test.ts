@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import type { ParamSpec, OptimizeSpec } from "@pathfinder/shared";
+import { describe, it, expect } from "vitest";
+import type { ParamSpec } from "@pathfinder/shared";
 import {
   flattenVocab,
   isOptimizable,

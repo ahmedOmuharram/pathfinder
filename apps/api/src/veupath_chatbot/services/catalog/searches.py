@@ -57,7 +57,7 @@ def score_search(
     """Score a search against query terms and keywords.
 
     1. Keywords matched against searchName via substring → ``+KEYWORD_BOOST`` each.
-    2. Query terms matched per field with field weight × IDF.
+    2. Query terms matched per field with field weight x IDF.
     3. Short terms (< ``_MIN_TERM_LEN`` chars) ignored in query matching.
     """
     score = 0.0
@@ -313,6 +313,76 @@ def _record_type_priority(record_type: str) -> int:
     return 100
 
 
+async def _collect_search_candidates(
+    discovery: object,
+    site_id: str,
+    record_types: list[str],
+) -> list[tuple[JSONObject, str]]:
+    """Collect all non-internal, non-chooser search candidates across record types."""
+    candidates: list[tuple[JSONObject, str]] = []
+    for rt_name in record_types:
+        searches = await discovery.get_searches(site_id, rt_name)
+        for s in searches:
+            if not isinstance(s, dict):
+                continue
+            is_internal = s.get("isInternal")
+            if isinstance(is_internal, bool) and is_internal:
+                continue
+            if is_chooser_search(s):
+                continue
+            candidates.append((s, rt_name))
+    return candidates
+
+
+def _score_candidates(
+    candidates: list[tuple[JSONObject, str]],
+    terms: list[str],
+    kw_list: list[str],
+) -> list[tuple[float, dict[str, str]]]:
+    """Score each candidate search and return ``(score, entry)`` pairs."""
+    corpus_counts: Counter[str] = Counter()
+    for s, _ in candidates:
+        name = wdk_entity_name(s)
+        display = s.get("displayName", "")
+        desc = s.get("description", "")
+        haystack = f"{name} {display} {desc}".lower()
+        for term in terms:
+            if len(term) >= _MIN_TERM_LEN and term in haystack:
+                corpus_counts[term] += 1
+
+    doc_count = len(candidates)
+    scored: list[tuple[float, dict[str, str]]] = []
+    for s, rt_name in candidates:
+        canonical_name = wdk_entity_name(s)
+        display_raw = s.get("displayName")
+        display = display_raw if isinstance(display_raw, str) else canonical_name
+        desc_raw = s.get("description")
+        desc = desc_raw if isinstance(desc_raw, str) else ""
+
+        sc = score_search(
+            query_terms=terms,
+            keywords=kw_list,
+            search_name=canonical_name,
+            display_name=display,
+            description=desc,
+            corpus_doc_count=doc_count,
+            corpus_term_counts=dict(corpus_counts),
+        )
+        if sc <= 0:
+            continue
+
+        annotations = annotate_search(s)
+        entry: dict[str, str] = {
+            "name": canonical_name,
+            "displayName": display,
+            "description": desc,
+            "recordType": rt_name,
+        }
+        entry.update(annotations)
+        scored.append((sc, entry))
+    return scored
+
+
 async def search_for_searches(
     site_id: str,
     record_type: str | list[str] | None,
@@ -343,70 +413,13 @@ async def search_for_searches(
             name for rt in record_types_raw if (name := wdk_entity_name(rt))
         ]
 
-    # --- Collect all candidate searches ---
     raw_terms = re.findall(r"[A-Za-z0-9_]+", query or "")
     terms = [t.lower() for t in raw_terms if t]
 
-    candidates: list[tuple[JSONObject, str]] = []  # (raw_search, record_type)
-    for rt_name in record_types:
-        searches = await discovery.get_searches(site_id, rt_name)
-        for s in searches:
-            if not isinstance(s, dict):
-                continue
-            is_internal = s.get("isInternal")
-            if isinstance(is_internal, bool) and is_internal:
-                continue
-            if is_chooser_search(s):
-                continue
-            candidates.append((s, rt_name))
-
-    # --- Build corpus term counts for IDF ---
-    corpus_counts: Counter[str] = Counter()
-    for s, _ in candidates:
-        name = wdk_entity_name(s)
-        display = s.get("displayName", "")
-        desc = s.get("description", "")
-        haystack = f"{name} {display} {desc}".lower()
-        for term in terms:
-            if len(term) >= _MIN_TERM_LEN and term in haystack:
-                corpus_counts[term] += 1
-
-    doc_count = len(candidates)
-
-    # --- Score each candidate ---
-    scored: list[tuple[float, dict[str, str]]] = []
-    for s, rt_name in candidates:
-        canonical_name = wdk_entity_name(s)
-        display_raw = s.get("displayName")
-        display = display_raw if isinstance(display_raw, str) else canonical_name
-        desc_raw = s.get("description")
-        desc = desc_raw if isinstance(desc_raw, str) else ""
-
-        sc = score_search(
-            query_terms=terms,
-            keywords=kw_list,
-            search_name=canonical_name,
-            display_name=display,
-            description=desc,
-            corpus_doc_count=doc_count,
-            corpus_term_counts=dict(corpus_counts),
-        )
-        if sc <= 0:
-            continue
-
-        annotations = annotate_search(s)
-        entry: dict[str, str] = {
-            "name": canonical_name,
-            "displayName": display,
-            "description": desc,
-            "recordType": rt_name,
-        }
-        entry.update(annotations)
-        scored.append((sc, entry))
+    candidates = await _collect_search_candidates(discovery, site_id, record_types)
+    scored = _score_candidates(candidates, terms, kw_list)
 
     # --- Merge site-search results (supplementary boost) ---
-    # Only boost entries that already scored > 0 on keyword matching.
-    # Don't add new entries from site-search that didn't match our scoring.
     try:
         site_results = await _search_for_searches_via_site_search(
             site_id, query, limit=limit

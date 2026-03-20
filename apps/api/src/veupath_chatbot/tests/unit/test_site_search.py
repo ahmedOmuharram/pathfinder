@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import respx
 
+import veupath_chatbot.integrations.veupathdb.site_search as mod
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.integrations.veupathdb.site_search import (
     query_site_search,
@@ -56,7 +57,7 @@ def _mock_site(
     project_id: str = "PlasmoDB",
 ) -> SiteInfo:
     return SiteInfo(
-        id="plasmodb",
+        site_id="plasmodb",
         name="PlasmoDB",
         display_name="PlasmoDB",
         base_url=base_url,
@@ -90,8 +91,6 @@ class TestQuerySiteSearchUrlDerivation:
                 json=response_data
             )
             # Reset the global client to ensure respx intercepts
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             result = await query_site_search("plasmodb", search_text="kinase")
@@ -120,15 +119,12 @@ class TestQuerySiteSearchParams:
         ):
 
             def capture_request(request: httpx.Request) -> httpx.Response:
-                for k, v in request.url.params.items():
-                    captured_params[k] = v
+                captured_params.update(dict(request.url.params.items()))
                 return httpx.Response(200, json={"searchResults": []})
 
             router.get("https://plasmodb.org/site-search").mock(
                 side_effect=capture_request
             )
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             await query_site_search("plasmodb", search_text="kinase")
@@ -151,15 +147,12 @@ class TestQuerySiteSearchParams:
         ):
 
             def capture_request(request: httpx.Request) -> httpx.Response:
-                for k, v in request.url.params.items():
-                    captured_params[k] = v
+                captured_params.update(dict(request.url.params.items()))
                 return httpx.Response(200, json={})
 
             router.get("https://plasmodb.org/site-search").mock(
                 side_effect=capture_request
             )
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             await query_site_search(
@@ -181,15 +174,12 @@ class TestQuerySiteSearchParams:
         ):
 
             def capture_request(request: httpx.Request) -> httpx.Response:
-                for k, v in request.url.params.items():
-                    captured_params[k] = v
+                captured_params.update(dict(request.url.params.items()))
                 return httpx.Response(200, json={})
 
             router.get("https://plasmodb.org/site-search").mock(
                 side_effect=capture_request
             )
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             await query_site_search(
@@ -215,15 +205,12 @@ class TestQuerySiteSearchParams:
         ):
 
             def capture_request(request: httpx.Request) -> httpx.Response:
-                for k, v in request.url.params.items():
-                    captured_params[k] = v
+                captured_params.update(dict(request.url.params.items()))
                 return httpx.Response(200, json={})
 
             router.get("https://plasmodb.org/site-search").mock(
                 side_effect=capture_request
             )
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             await query_site_search(
@@ -252,15 +239,12 @@ class TestQuerySiteSearchParams:
         ):
 
             def capture_request(request: httpx.Request) -> httpx.Response:
-                for k, v in request.url.params.items():
-                    captured_params[k] = v
+                captured_params.update(dict(request.url.params.items()))
                 return httpx.Response(200, json={})
 
             router.get("https://plasmodb.org/site-search").mock(
                 side_effect=capture_request
             )
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             await query_site_search("plasmodb", search_text="test", limit=50, offset=10)
@@ -280,8 +264,6 @@ class TestQuerySiteSearchParams:
         ):
             # Empty content body
             router.get("https://plasmodb.org/site-search").respond(200, content=b"")
-            import veupath_chatbot.integrations.veupathdb.site_search as mod
-
             mod._site_search_client = None
 
             result = await query_site_search("plasmodb", search_text="test")

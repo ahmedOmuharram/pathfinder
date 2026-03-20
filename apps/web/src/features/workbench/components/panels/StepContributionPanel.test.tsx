@@ -189,10 +189,10 @@ describe("StepContributionPanel", () => {
   afterEach(cleanup);
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.lastExperiment = null;
-    storeState.lastExperimentSetId = null;
-    storeState.expandedPanels = new Set(["step-analysis"]);
+    storeState["activeSetId"] = "set-1";
+    storeState["lastExperiment"] = null;
+    storeState["lastExperimentSetId"] = null;
+    storeState["expandedPanels"] = new Set(["step-analysis"]);
   });
 
   it("shows disabled state when no experiment is available", () => {
@@ -204,26 +204,26 @@ describe("StepContributionPanel", () => {
   });
 
   it("shows disabled state when experiment has no stepAnalysis", () => {
-    storeState.lastExperiment = makeExperiment(null);
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperiment"] = makeExperiment(null);
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.queryByText("GenesByTaxon")).toBeNull();
   });
 
   it("shows disabled state when stepContributions is empty", () => {
-    storeState.lastExperiment = makeExperiment(
+    storeState["lastExperiment"] = makeExperiment(
       makeStepAnalysis({ stepContributions: [] }),
     );
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.queryByText("GenesByTaxon")).toBeNull();
   });
 
   it("renders contribution table when stepAnalysis data is present", () => {
-    storeState.lastExperiment = makeExperiment(makeStepAnalysis());
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperiment"] = makeExperiment(makeStepAnalysis());
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.getByText("Step Contributions")).toBeTruthy();
@@ -238,10 +238,10 @@ describe("StepContributionPanel", () => {
       makeContribution({ stepId: "s4", searchName: "Harmful", verdict: "harmful" }),
     ];
 
-    storeState.lastExperiment = makeExperiment(
+    storeState["lastExperiment"] = makeExperiment(
       makeStepAnalysis({ stepContributions: contributions }),
     );
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
 
@@ -257,12 +257,12 @@ describe("StepContributionPanel", () => {
   });
 
   it("renders operator comparison table when available", () => {
-    storeState.lastExperiment = makeExperiment(
+    storeState["lastExperiment"] = makeExperiment(
       makeStepAnalysis({
         operatorComparisons: [makeOperatorComparison()],
       }),
     );
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.getByText("Operator Comparisons")).toBeTruthy();
@@ -271,18 +271,18 @@ describe("StepContributionPanel", () => {
   });
 
   it("does not render operator comparison section when empty", () => {
-    storeState.lastExperiment = makeExperiment(
+    storeState["lastExperiment"] = makeExperiment(
       makeStepAnalysis({ operatorComparisons: [] }),
     );
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.queryByText("Operator Comparisons")).toBeNull();
   });
 
   it("renders per-step evaluation table", () => {
-    storeState.lastExperiment = makeExperiment(makeStepAnalysis());
-    storeState.lastExperimentSetId = "set-1";
+    storeState["lastExperiment"] = makeExperiment(makeStepAnalysis());
+    storeState["lastExperimentSetId"] = "set-1";
 
     render(<StepContributionPanel />);
     expect(screen.getByText("Per-Step Evaluation")).toBeTruthy();
@@ -290,8 +290,8 @@ describe("StepContributionPanel", () => {
   });
 
   it("shows disabled when experiment belongs to a different set", () => {
-    storeState.lastExperiment = makeExperiment(makeStepAnalysis());
-    storeState.lastExperimentSetId = "set-other";
+    storeState["lastExperiment"] = makeExperiment(makeStepAnalysis());
+    storeState["lastExperimentSetId"] = "set-other";
 
     render(<StepContributionPanel />);
     expect(screen.queryByText("GenesByTaxon")).toBeNull();

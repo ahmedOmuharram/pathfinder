@@ -13,7 +13,7 @@ import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 type SetStateAction<T> = T | ((prev: T) => T);
 type UndoSnapshots = Record<number, Strategy>;
 
-export function makeStateSetters() {
+function makeStateSetters() {
   let messages: Message[] = [];
   let undoSnapshots: UndoSnapshots = {};
 

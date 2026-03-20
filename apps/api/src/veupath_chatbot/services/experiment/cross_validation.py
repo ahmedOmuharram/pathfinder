@@ -19,6 +19,9 @@ from veupath_chatbot.services.experiment.metrics import (
     compute_metrics,
     metrics_from_control_result,
 )
+from veupath_chatbot.services.experiment.step_analysis import (
+    run_controls_against_tree,
+)
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
     ControlValueFormat,
@@ -33,10 +36,14 @@ ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 """Async callback(fold_index, total_folds) for progress reporting."""
 
 
+class _SeededRNG(random.Random):
+    """Deterministic PRNG for statistical shuffling (not security use)."""
+
+
 def _stratified_kfold(ids: list[str], k: int, seed: int = 42) -> list[list[str]]:
     """Split a list into k roughly equal folds (deterministic)."""
     shuffled = list(ids)
-    rng = random.Random(seed)
+    rng = _SeededRNG(seed)
     rng.shuffle(shuffled)
     folds: list[list[str]] = [[] for _ in range(k)]
     for i, item in enumerate(shuffled):
@@ -172,8 +179,8 @@ async def _run_kfold(
 
         try:
             result = await evaluator(
-                holdout_pos if holdout_pos else None,
-                holdout_neg if holdout_neg else None,
+                holdout_pos or None,
+                holdout_neg or None,
             )
             fold_metrics = metrics_from_control_result(result)
         except Exception as exc:
@@ -241,9 +248,6 @@ async def run_cross_validation(
     evaluator: FoldEvaluator
 
     if tree is not None:
-        from veupath_chatbot.services.experiment.step_analysis import (
-            run_controls_against_tree,
-        )
 
         async def _evaluate_tree(
             pos: list[str] | None, neg: list[str] | None
@@ -262,9 +266,8 @@ async def run_cross_validation(
         evaluator = _evaluate_tree
     else:
         if search_name is None or parameters is None:
-            raise ValueError(
-                "search_name and parameters are required for single-step cross-validation"
-            )
+            msg = "search_name and parameters are required for single-step cross-validation"
+            raise ValueError(msg)
         # Bind to locals so the closure captures the non-None values.
         _search_name = search_name
         _parameters = parameters

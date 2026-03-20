@@ -2,7 +2,7 @@
 
 import { Modal } from "@/lib/components/Modal";
 
-export interface PendingCombine {
+interface PendingCombine {
   sourceId: string;
   targetId: string;
 }

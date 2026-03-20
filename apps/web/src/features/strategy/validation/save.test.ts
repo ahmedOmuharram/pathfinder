@@ -205,7 +205,7 @@ describe("validateStepsForSave", () => {
   // ----- missing searchName or recordType -----
   describe("missing searchName or recordType", () => {
     it("errors when searchName is missing", async () => {
-      const step = makeSearchStep({ searchName: undefined });
+      const step = makeSearchStep({ searchName: null });
 
       const result = await validateStepsForSave({
         siteId: "PlasmoDB",
@@ -222,7 +222,7 @@ describe("validateStepsForSave", () => {
     });
 
     it("errors when recordType is missing on step and strategy", async () => {
-      const step = makeSearchStep({ recordType: undefined });
+      const step = makeSearchStep({ recordType: null });
 
       const result = await validateStepsForSave({
         siteId: "PlasmoDB",
@@ -239,7 +239,7 @@ describe("validateStepsForSave", () => {
     it("falls back to strategy recordType when step has none", async () => {
       mockValidateSearchParams.mockResolvedValue(validResponse());
 
-      const step = makeSearchStep({ recordType: undefined });
+      const step = makeSearchStep({ recordType: null });
       const strategy = makeStrategy({ recordType: "gene" });
 
       const result = await validateStepsForSave({
@@ -492,7 +492,7 @@ describe("validateStepsForSave", () => {
       const invalid = makeSearchStep({
         id: "invalid-step",
         displayName: "Bad",
-        searchName: undefined,
+        searchName: null,
         recordType: "gene",
       });
       // Two roots but let's test independent of structural issue
@@ -513,7 +513,7 @@ describe("validateStepsForSave", () => {
     it("passes empty object when parameters is undefined", async () => {
       mockValidateSearchParams.mockResolvedValue(validResponse());
 
-      const step = makeSearchStep({ parameters: undefined });
+      const step = makeSearchStep({ parameters: null });
       await validateStepsForSave({
         siteId: "PlasmoDB",
         steps: [step],

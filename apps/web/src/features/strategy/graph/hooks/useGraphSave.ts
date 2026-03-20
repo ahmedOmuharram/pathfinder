@@ -5,8 +5,6 @@ import { toUserMessage } from "@/lib/api/errors";
 import type { StrategyPlan, Step, Strategy } from "@pathfinder/shared";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { CombineMismatchGroup } from "@/lib/strategyGraph";
-import type { MutableRef } from "@/lib/types/refs";
-
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
@@ -61,7 +59,7 @@ export function useGraphSave({
 
   const persistPlan = useCallback(
     async (args: PersistPlanArgs = {}) => {
-      if (!draftStrategy?.id) return;
+      if (draftStrategy?.id == null || draftStrategy.id === "") return;
       const {
         overrideName,
         overrideDescription,
@@ -86,11 +84,17 @@ export function useGraphSave({
         }
         return;
       }
-      if (overrideName || overrideDescription !== undefined) {
-        setStrategyMeta({
-          name: overrideName ?? draftStrategy?.name ?? undefined,
-          description: overrideDescription ?? draftStrategy?.description ?? undefined,
-        });
+      if (
+        (overrideName != null && overrideName !== "") ||
+        overrideDescription !== undefined
+      ) {
+        const meta: Partial<Strategy> = {};
+        meta.name = overrideName ?? draftStrategy.name;
+        const metaDesc = overrideDescription ?? draftStrategy.description;
+        if (metaDesc != null) {
+          meta.description = metaDesc;
+        }
+        setStrategyMeta(meta);
       }
       const result = buildPlan();
       if (!result) {
@@ -100,16 +104,15 @@ export function useGraphSave({
         return;
       }
       let nextPlan = { ...result.plan };
-      const nextName = overrideName || result.name;
-      const nextDescription =
-        overrideDescription !== undefined
-          ? overrideDescription
-          : (draftStrategy?.description ?? null);
+      const nextName = overrideName ?? result.name;
+      const nextDescription = overrideDescription ?? draftStrategy.description ?? null;
       nextPlan.metadata = {
         ...nextPlan.metadata,
         name: nextName,
-        description: nextDescription ?? undefined,
       };
+      if (nextDescription != null) {
+        nextPlan.metadata.description = nextDescription;
+      }
       setIsSaving(true);
       try {
         const normalized = await normalizePlan(draftStrategy.siteId, nextPlan);
@@ -118,13 +121,18 @@ export function useGraphSave({
           name: nextName,
           plan: nextPlan,
         });
-        setStrategyMeta({
+        const saveMeta: Partial<Strategy> = {
           name: updated.name,
-          recordType: updated.recordType ?? undefined,
           siteId: updated.siteId,
-          description: updated.description ?? undefined,
-        });
-        if (draftStrategy?.steps) {
+        };
+        if (updated.recordType != null) {
+          saveMeta.recordType = updated.recordType;
+        }
+        if (updated.description != null) {
+          saveMeta.description = updated.description;
+        }
+        setStrategyMeta(saveMeta);
+        if (draftStrategy.steps.length > 0) {
           const nextSavedSteps = new Map(
             draftStrategy.steps.map((step) => [step.id, buildStepSignature(step)]),
           );
@@ -164,7 +172,7 @@ export function useGraphSave({
 
   const persistStrategyDetails = useCallback(
     async (name: string, description: string) => {
-      if (!draftStrategy?.id) return;
+      if (draftStrategy?.id == null || draftStrategy.id === "") return;
       if (!buildPlan()) {
         const message =
           "Cannot save: strategy must have a single final output step. Add a final combine step (e.g., UNION) to produce one output.";
@@ -178,8 +186,8 @@ export function useGraphSave({
 
   const handleSave = useCallback(async () => {
     const name = nameValue.trim();
-    if (!name) {
-      setNameValue(draftStrategy?.name || DEFAULT_STREAM_NAME);
+    if (name === "") {
+      setNameValue(draftStrategy?.name ?? DEFAULT_STREAM_NAME);
       return;
     }
     const isValid = await validateSearchSteps();
@@ -200,7 +208,8 @@ export function useGraphSave({
     onToast,
   ]);
 
-  const canSave = !!draftStrategy && strategy?.id === draftStrategy.id && !!buildPlan();
+  const canSave =
+    draftStrategy != null && strategy?.id === draftStrategy.id && buildPlan() != null;
 
   return {
     isSaving,

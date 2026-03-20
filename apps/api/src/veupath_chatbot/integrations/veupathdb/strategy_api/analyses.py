@@ -13,6 +13,9 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
+# Background tasks kept alive to prevent garbage collection.
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 class AnalysisMixin(StrategyAPIBase):
     """Mixin providing step analysis lifecycle methods."""
@@ -191,7 +194,7 @@ class AnalysisMixin(StrategyAPIBase):
                     analyses=analyses,
                 )
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Could not list step analyses",
                     error=str(exc),
                 )
@@ -205,14 +208,17 @@ class AnalysisMixin(StrategyAPIBase):
                     error_result=err_result,
                 )
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Could not fetch analysis result",
                     analysis_id=analysis_id,
                     error=str(exc),
                 )
 
-        # Schedule but don't await -- fire and forget for debugging
-        asyncio.ensure_future(_fetch_debug_info())
+        # Schedule but don't await -- fire and forget for debugging.
+        # Store a reference to prevent garbage collection (RUF006).
+        task = asyncio.create_task(_fetch_debug_info())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
     async def run_step_analysis(
         self,
@@ -220,6 +226,7 @@ class AnalysisMixin(StrategyAPIBase):
         analysis_type: str,
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
+        *,
         poll_interval: float = 2.0,
         max_wait: float = 300.0,
         max_retries: int = 3,

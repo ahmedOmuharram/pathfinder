@@ -31,6 +31,7 @@ from veupath_chatbot.domain.parameters.vocab_utils import (
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
+from veupath_chatbot.platform.errors import ValidationError
 
 pytestmark = pytest.mark.live_wdk
 
@@ -52,7 +53,8 @@ async def _get_organism_vocab(search_name: str = "GenesByTaxon") -> dict:
     for p in params:
         if isinstance(p, dict) and p.get("name") == "organism":
             return p.get("vocabulary", {})
-    raise AssertionError(f"No organism param found in {search_name}")
+    msg = f"No organism param found in {search_name}"
+    raise AssertionError(msg)
 
 
 async def _get_organism_spec(search_name: str = "GenesByTaxon") -> dict:
@@ -140,8 +142,6 @@ class TestMatchVocabValueAcceptsParents:
 
     async def test_nonexistent_rejected(self) -> None:
         """A value not in the vocabulary at any level should be rejected."""
-        from veupath_chatbot.platform.errors import ValidationError
-
         vocab = await _get_organism_vocab()
         with pytest.raises(ValidationError):
             match_vocab_value(

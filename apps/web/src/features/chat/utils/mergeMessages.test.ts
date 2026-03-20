@@ -42,7 +42,7 @@ describe("mergeMessages", () => {
     ];
     const incoming = [msg("user", "hi"), msg("assistant", "hello")];
     const result = mergeMessages(current, incoming);
-    expect(result[1].toolCalls).toEqual(localToolCalls);
+    expect(result[1]!.toolCalls).toEqual(localToolCalls);
   });
 
   it("preserves local-only reasoning when server content matches", () => {
@@ -52,14 +52,14 @@ describe("mergeMessages", () => {
     ];
     const incoming = [msg("user", "hi"), msg("assistant", "answer")];
     const result = mergeMessages(current, incoming);
-    expect(result[1].reasoning).toBe("Step 1...");
+    expect(result[1]!.reasoning).toBe("Step 1...");
   });
 
   it("prefers server data when both local and server have values", () => {
     const current = [msg("assistant", "hello", { reasoning: "local" })];
     const incoming = [msg("assistant", "hello", { reasoning: "server" })];
     const result = mergeMessages(current, incoming);
-    expect(result[0].reasoning).toBe("server");
+    expect(result[0]!.reasoning).toBe("server");
   });
 
   it("handles refresh after streaming: server has all messages, current is empty", () => {
@@ -73,8 +73,8 @@ describe("mergeMessages", () => {
     ];
     const result = mergeMessages([], serverMessages);
     expect(result).toEqual(serverMessages);
-    expect(result[1].toolCalls).toHaveLength(1);
-    expect(result[1].citations).toHaveLength(1);
+    expect(result[1]!.toolCalls).toHaveLength(1);
+    expect(result[1]!.citations).toHaveLength(1);
   });
 
   it("handles switch-back scenario: messages from previous session merged correctly", () => {
@@ -109,6 +109,6 @@ describe("mergeMessages", () => {
     const current = [msg("assistant", "result", { subKaniActivity: activity })];
     const incoming = [msg("assistant", "result")];
     const result = mergeMessages(current, incoming);
-    expect(result[0].subKaniActivity).toEqual(activity);
+    expect(result[0]!.subKaniActivity).toEqual(activity);
   });
 });

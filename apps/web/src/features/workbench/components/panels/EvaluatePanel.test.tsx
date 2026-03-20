@@ -148,20 +148,20 @@ describe("EvaluatePanel", () => {
   });
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.geneSets = [makeGeneSet()];
-    storeState.expandedPanels = new Set(["evaluate"]);
-    storeState.pendingPositiveControls = [];
-    storeState.pendingNegativeControls = [];
+    storeState["activeSetId"] = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["expandedPanels"] = new Set(["evaluate"]);
+    storeState["pendingPositiveControls"] = [];
+    storeState["pendingNegativeControls"] = [];
     mockListControlSets.mockResolvedValue([]);
   });
 
   it("is disabled when no active gene set has search context", () => {
-    storeState.geneSets = [
+    storeState["geneSets"] = [
       makeGeneSet({
-        searchName: undefined,
-        parameters: undefined,
-        geneIds: undefined,
+        searchName: null,
+        parameters: null,
+        geneIds: [],
       }),
     ];
     render(<EvaluatePanel />);
@@ -232,7 +232,7 @@ describe("EvaluatePanel", () => {
     });
 
     // Set up positive controls via store pending controls
-    storeState.pendingPositiveControls = ["PF3D7_0100100"];
+    storeState["pendingPositiveControls"] = ["PF3D7_0100100"];
 
     const { unmount } = render(<EvaluatePanel />);
 

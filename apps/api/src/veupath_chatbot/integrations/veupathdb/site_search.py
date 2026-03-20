@@ -33,27 +33,26 @@ from veupath_chatbot.platform.types import JSONObject
 logger = get_logger(__name__)
 
 # Shared client for site-search requests (avoids connection-per-request overhead).
-_site_search_client: httpx.AsyncClient | None = None
+_site_search_client_holder: dict[str, httpx.AsyncClient] = {}
 
 
 def _get_site_search_client() -> httpx.AsyncClient:
     """Get or create the shared site-search HTTP client."""
-    global _site_search_client
-    if _site_search_client is None or _site_search_client.is_closed:
-        _site_search_client = httpx.AsyncClient(
+    existing = _site_search_client_holder.get("v")
+    if existing is None or existing.is_closed:
+        _site_search_client_holder["v"] = httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, read=90.0),
             follow_redirects=True,
             headers={"Accept": "application/json"},
         )
-    return _site_search_client
+    return _site_search_client_holder["v"]
 
 
 async def close_site_search_client() -> None:
     """Close the shared site-search HTTP client (call during app shutdown)."""
-    global _site_search_client
-    if _site_search_client is not None and not _site_search_client.is_closed:
-        await _site_search_client.aclose()
-    _site_search_client = None
+    client = _site_search_client_holder.pop("v", None)
+    if client is not None and not client.is_closed:
+        await client.aclose()
 
 
 def strip_html_tags(value: str) -> str:

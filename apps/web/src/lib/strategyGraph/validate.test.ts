@@ -7,7 +7,7 @@ import {
   resolveRecordType,
   validateStrategySteps,
 } from "./validate";
-import type { Step } from "./types";
+import type { Step } from "@pathfinder/shared";
 
 describe("core/strategyGraph/validate", () => {
   it("computes root steps and rootStepId", () => {
@@ -88,7 +88,7 @@ describe("core/strategyGraph/validate", () => {
       operator: "COLOCATE",
       recordType: "gene",
     };
-    const errors2 = validateStrategySteps([steps[0], steps[1], colocate]);
+    const errors2 = validateStrategySteps([steps[0]!, steps[1]!, colocate]);
     expect(errors2.some((e) => e.code === "MISSING_INPUT" && e.stepId === "co")).toBe(
       true,
     );
@@ -195,6 +195,6 @@ describe("core/strategyGraph/validate", () => {
 
     const groups = getCombineMismatchGroups(steps);
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.ids.has("combine")).toBe(true);
+    expect(groups[0]!.ids.has("combine")).toBe(true);
   });
 });

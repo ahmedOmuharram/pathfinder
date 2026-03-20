@@ -1,12 +1,23 @@
 """Typed error model with problem+json responses."""
 
 from enum import StrEnum
+from http import HTTPStatus
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from veupath_chatbot.platform.types import JSONArray
+
+_STATUS_TO_ERROR_CODE: dict[int, "ErrorCode"] = {}
+
+
+def _init_status_map() -> None:
+    """Populate _STATUS_TO_ERROR_CODE after ErrorCode is defined."""
+    _STATUS_TO_ERROR_CODE[HTTPStatus.NOT_FOUND] = ErrorCode.NOT_FOUND
+    _STATUS_TO_ERROR_CODE[HTTPStatus.UNAUTHORIZED] = ErrorCode.UNAUTHORIZED
+    _STATUS_TO_ERROR_CODE[HTTPStatus.FORBIDDEN] = ErrorCode.FORBIDDEN
+    _STATUS_TO_ERROR_CODE[HTTPStatus.TOO_MANY_REQUESTS] = ErrorCode.RATE_LIMITED
 
 
 class ErrorCode(StrEnum):
@@ -35,6 +46,9 @@ class ErrorCode(StrEnum):
 
     # Conversation
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+
+
+_init_status_map()
 
 
 class ProblemDetail(BaseModel):
@@ -171,15 +185,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle FastAPI HTTPException."""
-    code = ErrorCode.INTERNAL_ERROR
-    if exc.status_code == 404:
-        code = ErrorCode.NOT_FOUND
-    elif exc.status_code == 401:
-        code = ErrorCode.UNAUTHORIZED
-    elif exc.status_code == 403:
-        code = ErrorCode.FORBIDDEN
-    elif exc.status_code == 429:
-        code = ErrorCode.RATE_LIMITED
+    code = _STATUS_TO_ERROR_CODE.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
 
     problem = ProblemDetail(
         type=f"/errors/{code.value}",

@@ -89,7 +89,7 @@ class CrossrefClient(StandardClient):
             "year": year_i,
             "doi": doi,
             "url": result_url,
-            "authors": cast(JSONValue, authors),
+            "authors": cast("JSONValue", authors),
             "journalTitle": journal,
             "snippet": journal,
         }

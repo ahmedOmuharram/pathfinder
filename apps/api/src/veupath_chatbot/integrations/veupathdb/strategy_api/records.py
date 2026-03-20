@@ -25,7 +25,7 @@ class RecordsMixin(StrategyAPIBase):
         """
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.get(
                 f"/record-types/{record_type}",
                 params={"format": "expanded"},
@@ -53,14 +53,14 @@ class RecordsMixin(StrategyAPIBase):
         :returns: Full record with requested attributes/tables.
         """
         payload: JSONObject = {
-            "primaryKey": cast(JSONValue, primary_key),
-            "attributes": cast(JSONValue, attributes or []),
-            "tables": cast(JSONValue, tables or []),
+            "primaryKey": cast("JSONValue", primary_key),
+            "attributes": cast("JSONValue", attributes or []),
+            "tables": cast("JSONValue", tables or []),
         }
 
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.post(
                 f"/record-types/{record_type}/records",
                 json=payload,

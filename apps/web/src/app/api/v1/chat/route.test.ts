@@ -30,7 +30,9 @@ describe("POST /api/v1/chat", () => {
     await POST(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [passedReq, path, opts] = proxyMock.mock.calls[0];
+    const call = proxyMock.mock.calls[0];
+    if (call === undefined) throw new Error("proxy was not called");
+    const [passedReq, path, opts] = call;
     expect(passedReq).toBe(req);
     expect(path).toBe("/api/v1/chat");
     expect(opts).toEqual({ includeBody: true });

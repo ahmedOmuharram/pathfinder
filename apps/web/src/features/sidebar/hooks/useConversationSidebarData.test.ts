@@ -49,7 +49,7 @@ vi.mock("@/state/useSessionStore", () => ({
 
 // Minimal strategy store mock
 let mockStrategyStoreState: Record<string, unknown> = {};
-vi.mock("@/state/useStrategyStore", () => {
+vi.mock("@/state/strategy/store", () => {
   const store = {
     getState: () => ({
       setStrategies: vi.fn(),
@@ -124,7 +124,7 @@ describe("useConversationSidebarData", () => {
 
     await waitFor(() => {
       expect(result.current.filtered).toHaveLength(1);
-      expect(result.current.filtered[0].id).toBe("s1");
+      expect(result.current.filtered[0]!.id).toBe("s1");
     });
   });
 

@@ -72,6 +72,13 @@ repos:
         pass_filenames: false
         types: [python]
         files: ^apps/api/.*
+      - id: file-size-api
+        name: file size check (api)
+        entry: bash scripts/check-file-size.sh apps/api/src 300
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^apps/api/.*
       - id: import-linter-api
         name: import-linter (api)
         entry: bash -c "cd apps/api && $HOME/.local/bin/uv run lint-imports"

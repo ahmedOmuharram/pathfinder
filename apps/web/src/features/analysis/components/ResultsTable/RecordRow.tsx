@@ -3,7 +3,7 @@ import type { RecordAttribute, RecordDetail, WdkRecord } from "@/lib/types/wdk";
 import { ClassificationBadge, AttributeValue } from "./ResultsTableColumns";
 import { ExpandedRowDetail } from "./ExpandedRowDetail";
 
-export interface RecordRowProps {
+interface RecordRowProps {
   record: WdkRecord;
   pk: string;
   columns: RecordAttribute[];

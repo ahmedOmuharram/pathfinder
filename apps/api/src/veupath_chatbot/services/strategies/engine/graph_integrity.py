@@ -32,7 +32,7 @@ class GraphIntegrityError:
             payload["inputStepId"] = self.input_step_id
         if self.kind:
             payload["kind"] = self.kind
-        return cast(JSONObject, payload)
+        return cast("JSONObject", payload)
 
 
 def find_root_step_ids(graph: StrategyGraph) -> list[str]:

@@ -66,10 +66,10 @@ class WebSearchService:
                 )
             for r, s in zip(dict_results, summaries, strict=True):
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
-                r["summary"] = cast(JSONValue, summary)
+                r["summary"] = cast("JSONValue", summary)
                 snip = r.get("snippet")
                 if ((not isinstance(snip, str)) or len(snip.strip()) < 40) and summary:
-                    r["snippet"] = cast(JSONValue, summary)
+                    r["snippet"] = cast("JSONValue", summary)
 
         citations: list[JSONObject] = []
         for item in results:
@@ -100,7 +100,7 @@ class WebSearchService:
             "searchAdjusted": effective_query != q,
             "searchDiagnostics": diag,
             "results": results,
-            "citations": cast(JSONValue, citations),
+            "citations": cast("JSONValue", citations),
         }
         if not results and isinstance(diag, dict) and diag.get("blocked") is True:
             payload["error"] = "search_blocked"
@@ -151,7 +151,7 @@ class WebSearchService:
         diag: JSONObject = {
             "blocked": False,
             "attempts": 0,
-            "statusCodes": cast(JSONValue, []),
+            "statusCodes": cast("JSONValue", []),
         }
         last_html = ""
         async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
@@ -166,7 +166,7 @@ class WebSearchService:
                 if isinstance(status_codes_raw, list):
                     status_codes_raw.append(resp.status_code)
                 else:
-                    diag["statusCodes"] = cast(JSONValue, [resp.status_code])
+                    diag["statusCodes"] = cast("JSONValue", [resp.status_code])
                 last_html = resp.text or ""
                 if looks_blocked(resp.status_code, last_html):
                     diag["blocked"] = True

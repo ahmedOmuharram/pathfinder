@@ -17,13 +17,15 @@ import { ChatInputBar } from "@/features/chat/components/ChatInputBar";
 import { useChatPanelState } from "@/features/chat/hooks/useChatPanelState";
 import { useSessionStore } from "@/state/useSessionStore";
 
+import type { GeneSet } from "@pathfinder/shared";
+
 interface UnifiedChatPanelProps {
   siteId: string;
   pendingAskNode?: NodeSelection | null;
   onConsumeAskNode?: () => void;
   /** Workbench store bindings — injected by page to avoid cross-feature import. */
-  addGeneSet: (gs: import("@pathfinder/shared").GeneSet) => void;
-  geneSets: import("@pathfinder/shared").GeneSet[];
+  addGeneSet: (gs: GeneSet) => void;
+  geneSets: GeneSet[];
 }
 
 export function UnifiedChatPanel({
@@ -57,7 +59,7 @@ export function UnifiedChatPanel({
   } = useChatPanelState({
     siteId,
     pendingAskNode,
-    onConsumeAskNode,
+    ...(onConsumeAskNode != null ? { onConsumeAskNode } : {}),
     addGeneSet,
     geneSets,
   });
@@ -68,15 +70,19 @@ export function UnifiedChatPanel({
         isCompact={false}
         siteId={siteId}
         displayName={displayName}
-        firstName={firstName}
-        fullName={veupathdbName ?? undefined}
+        {...(firstName != null ? { firstName } : {})}
+        {...(veupathdbName != null ? { fullName: veupathdbName } : {})}
         isStreaming={isStreaming}
         isLoading={isLoadingChat}
         messages={messages}
         undoSnapshots={undoSnapshots}
-        onSend={onSend}
+        onSend={(content: string) => {
+          void onSend(content);
+        }}
         onUndoSnapshot={handleUndoSnapshot}
-        onApplyPlanningArtifact={handleApplyPlanningArtifact}
+        onApplyPlanningArtifact={(artifact) => {
+          void handleApplyPlanningArtifact(artifact);
+        }}
         thinking={thinking}
         optimizationProgress={optimizationProgress}
         onCancelOptimization={stopStreaming}
@@ -88,7 +94,9 @@ export function UnifiedChatPanel({
         onDismissError={() => setApiError(null)}
         draftSelection={draftSelection}
         onRemoveDraft={() => setDraftSelection(null)}
-        onSend={onSend}
+        onSend={(msg: string, mentions) => {
+          void onSend(msg, mentions);
+        }}
         isStreaming={isStreaming}
         onStop={stopStreaming}
         models={models.modelCatalog}

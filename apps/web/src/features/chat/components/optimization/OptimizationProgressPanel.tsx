@@ -97,13 +97,13 @@ export function OptimizationProgressPanel({
           </div>
 
           <div className="space-y-3 px-3 py-2.5 text-sm text-foreground">
-            {data.searchName && (
+            {data.searchName != null && data.searchName !== "" && (
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>
                   Search:{" "}
                   <span className="font-medium text-foreground">{data.searchName}</span>
                 </span>
-                {data.recordType && (
+                {data.recordType != null && data.recordType !== "" && (
                   <span>
                     Record type:{" "}
                     <span className="font-medium text-foreground">
@@ -111,7 +111,7 @@ export function OptimizationProgressPanel({
                     </span>
                   </span>
                 )}
-                {data.objective && (
+                {data.objective != null && data.objective !== "" && (
                   <span>
                     Objective:{" "}
                     <span className="font-medium text-foreground">
@@ -180,7 +180,7 @@ export function OptimizationProgressPanel({
                         <span className="text-muted-foreground">{n}:</span>{" "}
                         <span className="font-medium tabular-nums">
                           {typeof params[n] === "number"
-                            ? fmt(params[n] as number, 4)
+                            ? fmt(params[n], 4)
                             : String(params[n] ?? "--")}
                         </span>
                       </span>

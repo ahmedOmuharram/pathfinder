@@ -1,7 +1,7 @@
 """Normalize parameter values into WDK wire format.
 
 Delegates validation and decoding to the shared dispatch chain in
-``_value_helpers._process_value()``, then applies WDK wire formatting:
+``_value_helpers.process_value()``, then applies WDK wire formatting:
 compound types (multi-pick lists, ranges, filter dicts/lists) are
 serialized as JSON strings.
 """
@@ -10,8 +10,8 @@ import json
 from dataclasses import dataclass
 
 from veupath_chatbot.domain.parameters._value_helpers import (
-    ParameterValueMixin,
     ParamKind,
+    process_value,
 )
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.platform.errors import ValidationError
@@ -25,7 +25,7 @@ _WIRE_JSON_KINDS = frozenset({ParamKind.MULTI_PICK, ParamKind.RANGE, ParamKind.F
 
 
 @dataclass(frozen=True)
-class ParameterNormalizer(ParameterValueMixin):
+class ParameterNormalizer:
     """Normalize parameter values using canonical parameter specs.
 
     Produces WDK wire-safe values: multi-pick lists become JSON strings,
@@ -55,7 +55,7 @@ class ParameterNormalizer(ParameterValueMixin):
     def _normalize_value(
         self, spec: ParamSpecNormalized, value: JSONValue
     ) -> JSONValue:
-        result = self._process_value(spec, value)
+        result = process_value(spec, value)
 
         # WDK wire format: compound types must be serialized as JSON strings.
         if result.kind in _WIRE_JSON_KINDS and isinstance(result.value, (list, dict)):

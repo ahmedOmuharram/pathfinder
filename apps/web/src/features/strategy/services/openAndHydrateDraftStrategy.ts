@@ -44,11 +44,14 @@ export async function openAndHydrateDraftStrategy(args: {
   try {
     const full = await getStrategy(nextId);
     setStrategy(full);
-    setStrategyMeta({
+    const meta: { name: string; recordType?: string; siteId: string } = {
       name: full.name,
-      recordType: full.recordType ?? undefined,
       siteId: full.siteId,
-    });
+    };
+    if (full.recordType != null) {
+      meta.recordType = full.recordType;
+    }
+    setStrategyMeta(meta);
     onHydrateSuccess?.(full);
     return { strategyId: nextId, full };
   } catch (error) {

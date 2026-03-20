@@ -16,7 +16,7 @@ from veupath_chatbot.tests.fixtures.fakes import (
 
 async def test_download_url_validates_step_id_zero():
     tools = ResultTools(FakeResultToolsSession())
-    result = await tools.get_download_url(wdk_step_id=0, format="csv")
+    result = await tools.get_download_url(wdk_step_id=0, output_format="csv")
     assert result["ok"] is False
     assert result["code"] == "VALIDATION_ERROR"
     assert "positive integer" in str(result["message"])
@@ -24,21 +24,23 @@ async def test_download_url_validates_step_id_zero():
 
 async def test_download_url_validates_step_id_negative():
     tools = ResultTools(FakeResultToolsSession())
-    result = await tools.get_download_url(wdk_step_id=-5, format="csv")
+    result = await tools.get_download_url(wdk_step_id=-5, output_format="csv")
     assert result["ok"] is False
     assert "positive integer" in str(result["message"])
 
 
 async def test_download_url_validates_format_unknown():
     tools = ResultTools(FakeResultToolsSession())
-    result = await tools.get_download_url(wdk_step_id=1, format="xml")
+    result = await tools.get_download_url(wdk_step_id=1, output_format="xml")
     assert result["ok"] is False
     assert "csv, tab, json" in str(result["message"])
 
 
 async def test_download_url_rejects_empty_attributes_list():
     tools = ResultTools(FakeResultToolsSession())
-    result = await tools.get_download_url(wdk_step_id=1, format="csv", attributes=[])
+    result = await tools.get_download_url(
+        wdk_step_id=1, output_format="csv", attributes=[]
+    )
     assert result["ok"] is False
     assert "empty list" in str(result["message"])
 
@@ -46,7 +48,7 @@ async def test_download_url_rejects_empty_attributes_list():
 async def test_download_url_rejects_blank_attributes():
     tools = ResultTools(FakeResultToolsSession())
     result = await tools.get_download_url(
-        wdk_step_id=1, format="csv", attributes=["good", "", "  "]
+        wdk_step_id=1, output_format="csv", attributes=["good", "", "  "]
     )
     assert result["ok"] is False
     assert "non-empty strings" in str(result["message"])
@@ -56,22 +58,22 @@ async def test_download_url_accepts_all_valid_formats():
     for fmt in ("csv", "tab", "json"):
         fake_api = FakeResultsAPI(url=f"https://example/dl.{fmt}")
         tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-        result = await tools.get_download_url(wdk_step_id=1, format=fmt)
+        result = await tools.get_download_url(wdk_step_id=1, output_format=fmt)
         assert "downloadUrl" in result, f"Failed for format={fmt}"
 
 
 async def test_download_url_handles_empty_url_from_api():
     fake_api = FakeResultsAPI(url="")
     tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-    result = await tools.get_download_url(wdk_step_id=1, format="csv")
+    result = await tools.get_download_url(wdk_step_id=1, output_format="csv")
     assert result["ok"] is False
     assert result["code"] == "WDK_ERROR"
 
 
 async def test_download_url_handles_generic_exception():
-    fake_api = FakeResultsAPI(error=RuntimeError("Connection reset"))
+    fake_api = FakeResultsAPI(error=OSError("Connection reset"))
     tools = ResultTools(FakeResultToolsSession(), results_api=fake_api)
-    result = await tools.get_download_url(wdk_step_id=1, format="csv")
+    result = await tools.get_download_url(wdk_step_id=1, output_format="csv")
     assert result["ok"] is False
     assert result["code"] == "WDK_ERROR"
     assert "Connection reset" in str(result.get("detail", ""))

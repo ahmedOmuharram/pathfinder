@@ -83,7 +83,8 @@ class TestRetryBehavior:
         async def failing_request(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            raise httpx.ConnectError("Connection refused")
+            msg = "Connection refused"
+            raise httpx.ConnectError(msg)
 
         internal.request = failing_request
 
@@ -139,7 +140,8 @@ class TestAuthTokenForwarding:
     async def test_context_token_takes_priority(self) -> None:
         """Context var token beats instance token and settings."""
         client = VEuPathDBClient(
-            "https://example.com/service", auth_token="instance_tok"
+            "https://example.com/service",
+            auth_token="instance_tok",
         )
         captured_cookies: dict[str, str] = {}
 
@@ -150,6 +152,7 @@ class TestAuthTokenForwarding:
                 captured_cookies["raw"] = cookie_header
                 return httpx.Response(200, json=[])
 
+            router.get("https://example.com/app").respond(200)
             router.get("https://example.com/service/test").mock(side_effect=capture)
             settings_mock = MagicMock(veupathdb_auth_token="settings_tok")
             with (
@@ -179,6 +182,7 @@ class TestAuthTokenForwarding:
                 captured_cookies["raw"] = cookie_header
                 return httpx.Response(200, json=[])
 
+            router.get("https://example.com/app").respond(200)
             router.get("https://example.com/service/test").mock(side_effect=capture)
             p1, p2 = _patch_settings_and_ctx()
             with p1, p2:
@@ -442,7 +446,7 @@ class TestSiteInfoEdgeCases:
 
     def test_web_base_url_strips_service(self) -> None:
         site = SiteInfo(
-            id="plasmo",
+            site_id="plasmo",
             name="PlasmoDB",
             display_name="PlasmoDB",
             base_url="https://plasmodb.org/plasmo/service",
@@ -453,7 +457,7 @@ class TestSiteInfoEdgeCases:
 
     def test_web_base_url_no_service_suffix(self) -> None:
         site = SiteInfo(
-            id="test",
+            site_id="test",
             name="TestDB",
             display_name="TestDB",
             base_url="https://test.org/api",
@@ -464,7 +468,7 @@ class TestSiteInfoEdgeCases:
 
     def test_strategy_url_with_root_step(self) -> None:
         site = SiteInfo(
-            id="plasmo",
+            site_id="plasmo",
             name="PlasmoDB",
             display_name="PlasmoDB",
             base_url="https://plasmodb.org/plasmo/service",
@@ -476,7 +480,7 @@ class TestSiteInfoEdgeCases:
 
     def test_strategy_url_without_root_step(self) -> None:
         site = SiteInfo(
-            id="plasmo",
+            site_id="plasmo",
             name="PlasmoDB",
             display_name="PlasmoDB",
             base_url="https://plasmodb.org/plasmo/service",
@@ -488,7 +492,7 @@ class TestSiteInfoEdgeCases:
 
     def test_to_dict_round_trip(self) -> None:
         site = SiteInfo(
-            id="plasmo",
+            site_id="plasmo",
             name="PlasmoDB",
             display_name="PlasmoDB",
             base_url="https://plasmodb.org/plasmo/service",
@@ -529,15 +533,15 @@ class TestTemporaryResultsEdgeCases:
         api, client = _make_temp_api()
         client.post.return_value = {}
 
-        with pytest.raises(RuntimeError, match="did not include.*id"):
-            await api.get_download_url(step_id=42, format="csv")
+        with pytest.raises(RuntimeError, match=r"did not include.*id"):
+            await api.get_download_url(step_id=42, output_format="csv")
 
     async def test_tab_format_uses_standard_reporter(self) -> None:
         """Tab format should use 'standard' reporter like CSV."""
         api, client = _make_temp_api()
         client.post.return_value = {"id": "r1"}
 
-        await api.get_download_url(step_id=42, format="tab")
+        await api.get_download_url(step_id=42, output_format="tab")
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportName"] == "standard"
@@ -557,7 +561,7 @@ class TestTemporaryResultsEdgeCases:
         api, client = _make_temp_api()
         client.post.return_value = {"id": "abc123"}
 
-        url = await api.get_download_url(step_id=42, format="csv")
+        url = await api.get_download_url(step_id=42, output_format="csv")
 
         assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
         client.get.assert_not_awaited()

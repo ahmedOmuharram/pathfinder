@@ -50,19 +50,24 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
     onAddToChat?.(step.id);
   };
   const kind = inferStepKind(step);
-  const typeStyle = TYPE_STYLES[kind] || TYPE_STYLES.default;
+  const defaultStyle = {
+    container: "rounded-lg border-2 border-border bg-card shadow-sm",
+  };
+  const typeStyle = TYPE_STYLES[kind] ?? defaultStyle;
   const isTransform = kind === "transform";
 
   const validationError = step.validationError;
+  const hasValidationError = validationError != null && validationError !== "";
   const isZeroResults = step.resultCount === 0;
-  const resultLabel = step.recordType
-    ? `${step.recordType}${step.resultCount === 1 ? "" : "s"}`
-    : "results";
+  const resultLabel =
+    step.recordType != null && step.recordType !== ""
+      ? `${step.recordType}${step.resultCount === 1 ? "" : "s"}`
+      : "results";
 
-  const transformFrameFill = validationError
+  const transformFrameFill = hasValidationError
     ? "rgba(254, 226, 226, 0.6)"
     : "rgba(237, 233, 254, 0.8)";
-  const transformFrameStroke = validationError ? "#f87171" : "#c4b5fd";
+  const transformFrameStroke = hasValidationError ? "#f87171" : "#c4b5fd";
 
   return (
     <div
@@ -71,12 +76,12 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         isTransform
           ? "rounded-lg border-0 bg-transparent shadow-none"
           : typeStyle.container
-      } ${selected ? "ring-2 ring-ring" : ""} ${
-        validationError && !isTransform
+      } ${selected === true ? "ring-2 ring-ring" : ""} ${
+        hasValidationError && !isTransform
           ? "border-destructive/30 bg-destructive/5 ring-2 ring-destructive/20"
           : ""
       } ${
-        isZeroResults && !validationError && !isTransform
+        isZeroResults && !hasValidationError && !isTransform
           ? "border-amber-400 bg-amber-50/60 ring-2 ring-amber-200"
           : ""
       }`}
@@ -105,9 +110,9 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
             position={Position.Left}
             id="left"
             data-testid={`rf-handle-${step.id}-primary`}
-            isConnectable={!!showPrimaryInputHandle}
+            isConnectable={showPrimaryInputHandle === true}
             className={`h-3 w-3 border-2 border-white z-10 ${
-              showPrimaryInputHandle
+              showPrimaryInputHandle === true
                 ? "bg-foreground"
                 : "bg-foreground opacity-0 pointer-events-none"
             }`}
@@ -118,10 +123,10 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
               position={Position.Left}
               id="left-secondary"
               data-testid={`rf-handle-${step.id}-secondary`}
-              isConnectable={!!showSecondaryInputHandle}
+              isConnectable={showSecondaryInputHandle === true}
               style={{ top: "70%" }}
               className={`h-3 w-3 border-2 border-white z-10 ${
-                showSecondaryInputHandle
+                showSecondaryInputHandle === true
                   ? "bg-muted-foreground"
                   : "bg-muted-foreground opacity-0 pointer-events-none"
               }`}
@@ -136,15 +141,17 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         position={Position.Right}
         id="right"
         data-testid={`rf-handle-${step.id}-output`}
-        isConnectable={!!showOutputHandle}
+        isConnectable={showOutputHandle === true}
         style={{ top: "50%" }}
         className={`h-3 w-3 border-2 border-input z-10 ${
-          showOutputHandle ? "bg-card" : "bg-card opacity-0 pointer-events-none"
+          showOutputHandle === true
+            ? "bg-card"
+            : "bg-card opacity-0 pointer-events-none"
         }`}
       />
 
       {/* Content */}
-      {isUnsaved && (
+      {isUnsaved === true && (
         <span
           className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background z-10"
           aria-label="Unsaved changes"
@@ -164,22 +171,22 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         <div className="w-full text-center text-sm font-medium leading-tight text-foreground line-clamp-2 break-words">
           {step.displayName}
         </div>
-        {kind === "search" && step.searchName && (
+        {kind === "search" && step.searchName != null && step.searchName !== "" && (
           <div className="w-full text-center text-xs leading-tight text-muted-foreground line-clamp-2 break-words">
             {step.searchName}
           </div>
         )}
-        {kind === "transform" && step.searchName && (
+        {kind === "transform" && step.searchName != null && step.searchName !== "" && (
           <div className="w-full text-center text-xs font-medium leading-tight text-violet-700 line-clamp-2 break-words">
             {step.searchName}
           </div>
         )}
-        {kind === "combine" && step.operator && (
+        {kind === "combine" && step.operator != null && step.operator !== "" && (
           <div className="mt-1 flex items-center gap-2">
             <OpBadge operator={step.operator} size="sm" />
           </div>
         )}
-        {!validationError && (
+        {!hasValidationError && (
           <div className="mt-1 text-xs font-mono text-muted-foreground">
             {typeof step.resultCount === "number"
               ? `${step.resultCount.toLocaleString()} ${resultLabel}`
@@ -188,7 +195,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
                 : "Loading..."}
           </div>
         )}
-        {isZeroResults && !validationError && (
+        {isZeroResults && !hasValidationError && (
           <div className="group relative -mt-1 flex items-center gap-1 text-xs font-semibold text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" />
             <span>0 results</span>
@@ -202,7 +209,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
             </div>
           </div>
         )}
-        {validationError && (
+        {hasValidationError && (
           <div className="mt-1 text-center text-xs font-semibold text-destructive">
             {validationError}
             <button

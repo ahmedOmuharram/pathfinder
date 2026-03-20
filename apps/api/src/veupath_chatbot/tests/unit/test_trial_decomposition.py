@@ -4,6 +4,7 @@ Tests each extracted helper function independently before they are wired
 into run_trial_loop().
 """
 
+import dataclasses
 import time
 from enum import Enum
 from typing import Any, cast
@@ -71,7 +72,7 @@ def _make_ctx(
         site_id="plasmodb",
         record_type="transcript",
         search_name="TestSearch",
-        fixed_parameters=cast(JSONObject, {"organism": "P. falciparum"}),
+        fixed_parameters=cast("JSONObject", {"organism": "P. falciparum"}),
         parameter_space=[
             ParameterSpec(
                 name="fold_change",
@@ -172,8 +173,6 @@ class TestExtractTrialMetrics:
 
 class TestTrialMetrics:
     def test_frozen(self) -> None:
-        import dataclasses
-
         assert dataclasses.fields(TrialMetrics)  # is a dataclass
         m = TrialMetrics(
             recall=0.8, fpr=0.1, result_count=100, positive_hits=8, negative_hits=1
@@ -618,7 +617,8 @@ class TestRunTrialLoopIntegration:
         ctx = _make_ctx(budget=3)
 
         def broken_ask() -> optuna.trial.Trial:
-            raise RuntimeError("study broken")
+            msg = "study broken"
+            raise RuntimeError(msg)
 
         with patch.object(ctx.study, "ask", broken_ask):
             result = await run_trial_loop(ctx)

@@ -11,7 +11,7 @@ interface UseStepMetadataArgs {
 export function useStepMetadata({ step }: UseStepMetadataArgs) {
   const [oldName, setOldName] = useState(step.displayName);
   const [name, setName] = useState(step.displayName);
-  const [operatorValue, setOperatorValue] = useState(step.operator || "");
+  const [operatorValue, setOperatorValue] = useState(step.operator ?? "");
   const [colocationParams, setColocationParams] = useState(step.colocationParams);
 
   const kind = inferStepKind(step);

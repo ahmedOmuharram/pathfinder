@@ -19,7 +19,7 @@ export function useStepRecordType({
   initialRecordType,
 }: UseStepRecordTypeArgs) {
   const [recordTypeValue, setRecordTypeValue] = useState(
-    normalizeRecordType(initialRecordType || recordType),
+    normalizeRecordType(initialRecordType ?? recordType),
   );
   const [recordTypeOptions, setRecordTypeOptions] = useState<RecordType[]>([]);
   const [recordTypeFilter, setRecordTypeFilter] = useState("");
@@ -35,11 +35,9 @@ export function useStepRecordType({
     getRecordTypes(siteId)
       .then((results) => {
         if (!isActive) return;
-        const options = (results || [])
-          .filter((item): item is RecordType => Boolean(item && item.name))
-          .sort((a, b) =>
-            (a.displayName || a.name).localeCompare(b.displayName || b.name),
-          );
+        const options = [...results].sort((a, b) =>
+          (a.displayName || a.name).localeCompare(b.displayName || b.name),
+        );
         setRecordTypeOptions(options);
       })
       .catch((err) => {
@@ -55,7 +53,7 @@ export function useStepRecordType({
   // Validate record type against available options
   useEffect(() => {
     if (recordTypeOptions.length === 0) return;
-    if (!recordTypeValue) return;
+    if (recordTypeValue == null || recordTypeValue === "") return;
     const normalized = normalizeRecordType(recordTypeValue);
     const exists = recordTypeOptions.some((option) => option.name === normalized);
     if (!exists) {
@@ -67,19 +65,19 @@ export function useStepRecordType({
 
   const resolveRecordTypeForSearch = useCallback(
     (searchRecordType?: string | null) => {
-      const normalized = normalizeRecordType(searchRecordType || "");
-      if (normalized) {
+      const normalized = normalizeRecordType(searchRecordType ?? "");
+      if (normalized != null && normalized !== "") {
         const exists = recordTypeOptions.some((option) => option.name === normalized);
         if (exists) return normalized;
       }
-      return normalizeRecordType(recordTypeValue || recordType) || "";
+      return normalizeRecordType(recordTypeValue ?? recordType) ?? "";
     },
     [recordType, recordTypeOptions, recordTypeValue],
   );
 
   const filteredRecordTypes = useMemo(() => {
     const query = recordTypeFilter.trim().toLowerCase();
-    if (!query) return recordTypeOptions;
+    if (query === "") return recordTypeOptions;
     return recordTypeOptions.filter((option) => {
       const label = (option.displayName || option.name).toLowerCase();
       return label.includes(query) || option.name.toLowerCase().includes(query);

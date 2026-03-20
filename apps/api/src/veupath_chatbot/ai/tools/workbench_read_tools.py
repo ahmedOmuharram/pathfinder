@@ -51,7 +51,7 @@ class WorkbenchReadToolsMixin:
             return {"error": "Experiment has no evaluation metrics yet"}
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "metrics": to_json(exp.metrics),
                 "classificationCounts": {
@@ -85,7 +85,7 @@ class WorkbenchReadToolsMixin:
             return {"error": "No enrichment results available for this experiment"}
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "enrichmentResults": [to_json(r) for r in exp.enrichment_results],
                 "count": len(exp.enrichment_results),
@@ -108,7 +108,7 @@ class WorkbenchReadToolsMixin:
             }
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "crossValidation": to_json(exp.cross_validation),
             },
@@ -128,7 +128,7 @@ class WorkbenchReadToolsMixin:
             return {"error": "No step analysis available for this experiment"}
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "stepContributions": [
                     to_json(c) for c in exp.step_analysis.step_contributions
@@ -149,7 +149,7 @@ class WorkbenchReadToolsMixin:
             return {"error": "Experiment not found"}
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "config": to_json(exp.config),
                 "status": exp.status,
@@ -176,7 +176,7 @@ class WorkbenchReadToolsMixin:
             return {"error": "No step analysis available for this experiment"}
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "stepAnalysis": to_json(exp.step_analysis),
             },
@@ -218,7 +218,7 @@ class WorkbenchReadToolsMixin:
         if not exp:
             return {"error": "Experiment not found"}
 
-        category = cast(ClassificationCategory, classification)
+        category = cast("ClassificationCategory", classification)
         gene_list = {
             "tp": exp.true_positive_genes,
             "fp": exp.false_positive_genes,
@@ -230,7 +230,7 @@ class WorkbenchReadToolsMixin:
         selected = gene_list[:capped]
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "classification": classification,
                 "genes": [to_json(g) for g in selected],

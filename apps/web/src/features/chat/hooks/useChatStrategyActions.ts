@@ -3,8 +3,8 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { Message, ToolCall } from "@pathfinder/shared";
 import { getStrategy } from "@/lib/api/strategies";
-import { useStrategyStore } from "@/state/useStrategyStore";
-import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
+import { useStrategyStore } from "@/state/strategy/store";
+import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { attachThinkingToLastAssistant } from "@/features/chat/utils/attachThinkingToLastAssistant";
 
 /**
@@ -31,14 +31,14 @@ export function useChatStrategyActions(
   // --- Load graph from API ---
   const loadGraph = useCallback(
     (graphId: string) => {
-      if (!graphId) return;
+      if (graphId === "") return;
       getStrategy(graphId)
         .then((full) => {
           if (sessionRef.current?.snapshotApplied) return;
           setStrategy(full);
           setStrategyMeta({
             name: full.name,
-            recordType: full.recordType ?? undefined,
+            ...(full.recordType != null ? { recordType: full.recordType } : {}),
             siteId: full.siteId,
           });
         })

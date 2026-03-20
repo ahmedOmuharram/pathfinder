@@ -370,7 +370,7 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    const body = mockRequestJson.mock.calls[0][1]?.body as CreateGeneSetRequest;
+    const body = mockRequestJson.mock.calls[0]![1]?.body as CreateGeneSetRequest;
     expect(body.wdkStepId).toBeUndefined();
     expect(body.searchName).toBeUndefined();
     expect(body.recordType).toBeUndefined();

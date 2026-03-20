@@ -13,6 +13,7 @@ Skip with:
 """
 
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -34,7 +35,7 @@ class TestInvalidParameterRecovery:
     "Plasmodium falciparum 3D7").
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # First attempt: completely invalid organism name (not in WDK vocab)
         ScriptedTurn(
             tool_calls=[
@@ -83,7 +84,7 @@ class TestInvalidParameterRecovery:
                 authed_client,
                 message="Find epitope genes in P. falciparum",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -148,7 +149,7 @@ class TestInvalidSearchNameRecovery:
     searches the catalog to find the correct name, then succeeds.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # First attempt: hallucinated search name
         ScriptedTurn(
             tool_calls=[
@@ -197,7 +198,7 @@ class TestInvalidSearchNameRecovery:
                 authed_client,
                 message="Find epitope genes",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -263,7 +264,7 @@ class TestMissingRequiredParameters:
     an error that lists the missing required params.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # Attempt with missing organism (required)
         ScriptedTurn(
             tool_calls=[
@@ -310,7 +311,7 @@ class TestMissingRequiredParameters:
                 authed_client,
                 message="Find epitope genes but I forgot to specify organism",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202

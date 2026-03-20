@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 /**
  * Extract a human-readable error message from an unknown thrown value.
  */
-export function toErrorMessage(err: unknown): string {
+function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return String(err);
@@ -13,7 +13,7 @@ export function toErrorMessage(err: unknown): string {
 // Hook: useAsyncAction
 // ---------------------------------------------------------------------------
 
-export interface AsyncActionState {
+interface AsyncActionState {
   /** Run an async function with automatic loading/error state management. */
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
   /** The last error message, or null if no error. */

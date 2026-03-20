@@ -76,17 +76,17 @@ describe("EnrichmentPanel", () => {
   });
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.geneSets = [makeGeneSet()];
-    storeState.expandedPanels = new Set(["enrichment"]);
+    storeState["activeSetId"] = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["expandedPanels"] = new Set(["enrichment"]);
   });
 
   // -----------------------------------------------------------------------
   // Button disabled when no active gene set
   // -----------------------------------------------------------------------
   it("disables the run button when no active gene set", () => {
-    storeState.activeSetId = null;
-    storeState.geneSets = [];
+    storeState["activeSetId"] = null;
+    storeState["geneSets"] = [];
 
     render(<EnrichmentPanel />);
 
@@ -98,8 +98,8 @@ describe("EnrichmentPanel", () => {
   // Button disabled when no enrichment types selected
   // -----------------------------------------------------------------------
   it("disables the run button when no enrichment types are selected", () => {
-    storeState.geneSets = [makeGeneSet()];
-    storeState.activeSetId = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["activeSetId"] = "set-1";
 
     render(<EnrichmentPanel />);
 
@@ -117,8 +117,8 @@ describe("EnrichmentPanel", () => {
   // Button enabled when both conditions met
   // -----------------------------------------------------------------------
   it("enables the run button when active gene set and enrichment types are selected", () => {
-    storeState.geneSets = [makeGeneSet()];
-    storeState.activeSetId = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["activeSetId"] = "set-1";
 
     render(<EnrichmentPanel />);
 
@@ -128,8 +128,8 @@ describe("EnrichmentPanel", () => {
   });
 
   it("re-enables the run button when an enrichment type is re-selected", () => {
-    storeState.geneSets = [makeGeneSet()];
-    storeState.activeSetId = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["activeSetId"] = "set-1";
 
     render(<EnrichmentPanel />);
 
@@ -148,8 +148,8 @@ describe("EnrichmentPanel", () => {
   });
 
   it("calls enrichGeneSet with correct arguments when run is clicked", async () => {
-    storeState.geneSets = [makeGeneSet()];
-    storeState.activeSetId = "set-1";
+    storeState["geneSets"] = [makeGeneSet()];
+    storeState["activeSetId"] = "set-1";
 
     mockEnrichGeneSet.mockResolvedValue([]);
 

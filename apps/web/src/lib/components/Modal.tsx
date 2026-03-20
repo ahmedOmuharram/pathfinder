@@ -50,7 +50,9 @@ export function Modal({
           )}
           aria-describedby={undefined}
         >
-          {title && <Dialog.Title className="sr-only">{title}</Dialog.Title>}
+          {title != null && title !== "" && (
+            <Dialog.Title className="sr-only">{title}</Dialog.Title>
+          )}
           {showCloseButton && dismissible && (
             <Dialog.Close asChild>
               <button

@@ -51,7 +51,7 @@ CONTROLS_VALUE_FORMAT = "newline"
 # -- PlasmoDB --
 PLASMO_SITE_ID = "plasmodb"
 PLASMO_TARGET_PARAMS: JSONObject = cast(
-    JSONObject, {"organism": "Plasmodium falciparum 3D7"}
+    "JSONObject", {"organism": "Plasmodium falciparum 3D7"}
 )
 PLASMO_POSITIVE = [
     "PF3D7_1222600",  # PfAP2-G
@@ -79,7 +79,7 @@ PLASMO_NEGATIVE = [
 # -- ToxoDB --
 TOXO_SITE_ID = "toxodb"
 TOXO_TARGET_PARAMS: JSONObject = cast(
-    JSONObject, {"organism": "Toxoplasma gondii ME49"}
+    "JSONObject", {"organism": "Toxoplasma gondii ME49"}
 )
 TOXO_POSITIVE = [
     "TGME49_200010",
@@ -107,7 +107,7 @@ TOXO_NEGATIVE = [
 # -- FungiDB --
 FUNGI_SITE_ID = "fungidb"
 FUNGI_TARGET_PARAMS: JSONObject = cast(
-    JSONObject, {"organism": "Aspergillus fumigatus Af293"}
+    "JSONObject", {"organism": "Aspergillus fumigatus Af293"}
 )
 FUNGI_POSITIVE = [
     "Afu1g00100",
@@ -135,7 +135,7 @@ FUNGI_NEGATIVE = [
 # -- TriTrypDB --
 TRITRYP_SITE_ID = "tritrypdb"
 TRITRYP_TARGET_PARAMS: JSONObject = cast(
-    JSONObject, {"organism": "Trypanosoma brucei brucei TREU927"}
+    "JSONObject", {"organism": "Trypanosoma brucei brucei TREU927"}
 )
 TRITRYP_POSITIVE = [
     "Tb05.5K5.10",
@@ -227,8 +227,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -258,13 +258,6 @@ class TestIntersectionMultiDb:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== PlasmoDB positive intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -299,13 +292,6 @@ class TestIntersectionMultiDb:
             controls_extra_parameters=None,
         )
 
-        print("\n=== ToxoDB positive intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
-
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
@@ -339,13 +325,6 @@ class TestIntersectionMultiDb:
             controls_extra_parameters=None,
         )
 
-        print("\n=== FungiDB positive intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
-
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
@@ -378,13 +357,6 @@ class TestIntersectionMultiDb:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== TriTrypDB positive intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
@@ -433,13 +405,6 @@ class TestNegativeControlsMultiDb:
             controls_extra_parameters=None,
         )
 
-        print("\n=== PlasmoDB negative intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
-
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(PLASMO_NEGATIVE)
 
@@ -464,13 +429,6 @@ class TestNegativeControlsMultiDb:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== ToxoDB negative intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(TOXO_NEGATIVE)
@@ -497,13 +455,6 @@ class TestNegativeControlsMultiDb:
             controls_extra_parameters=None,
         )
 
-        print("\n=== FungiDB negative intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
-
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(FUNGI_NEGATIVE)
 
@@ -528,13 +479,6 @@ class TestNegativeControlsMultiDb:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== TriTrypDB negative intersection ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         assert result.get("targetStepId") is not None
         assert result.get("controlsCount") == len(TRITRYP_NEGATIVE)
@@ -663,13 +607,6 @@ class TestLargeControlSets:
             controls_extra_parameters=None,
         )
 
-        print("\n=== PlasmoDB 50 positive controls ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIdsSample: {result.get('intersectionIdsSample')}")
-
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
@@ -695,42 +632,25 @@ class TestLargeControlSets:
 
 def _print_full_flow_result(db_name: str, result: JSONObject) -> None:
     """Print the full control flow result for debugging."""
-    print(f"\n=== {db_name} full positive + negative controls ===")
-    print(f"  siteId:     {result.get('siteId')}")
-    print(f"  recordType: {result.get('recordType')}")
 
     target_raw = result.get("target") or {}
-    target = target_raw if isinstance(target_raw, dict) else {}
-    print(f"  target.stepId:      {target.get('stepId')}")
-    print(f"  target.resultCount: {target.get('resultCount')}")
+    target_raw if isinstance(target_raw, dict) else {}
 
     pos_raw = result.get("positive")
     pos = pos_raw if isinstance(pos_raw, dict) else None
     if pos:
-        print(f"  positive.controlsCount:      {pos.get('controlsCount')}")
-        print(f"  positive.intersectionCount:  {pos.get('intersectionCount')}")
-        print(f"  positive.recall:             {pos.get('recall')}")
-        print(f"  positive.intersectionIds:    {pos.get('intersectionIds')}")
-        print(f"  positive.missingIdsSample:   {pos.get('missingIdsSample')}")
+        pass
 
     neg_raw = result.get("negative")
     neg = neg_raw if isinstance(neg_raw, dict) else None
     if neg:
-        print(f"  negative.controlsCount:      {neg.get('controlsCount')}")
-        print(f"  negative.intersectionCount:  {neg.get('intersectionCount')}")
-        print(f"  negative.falsePositiveRate:  {neg.get('falsePositiveRate')}")
-        print(f"  negative.intersectionIds:    {neg.get('intersectionIds')}")
-        print(f"  negative.unexpectedHitsSample: {neg.get('unexpectedHitsSample')}")
+        pass
 
     if pos and neg:
         recall = pos.get("recall")
         fpr = neg.get("falsePositiveRate")
         if isinstance(recall, (int, float)) and isinstance(fpr, (int, float)):
-            print(
-                f"\n  recall={float(recall):.3f}  "
-                f"FPR={float(fpr):.3f}  "
-                f"-> {'GOOD' if float(recall) > float(fpr) else 'BAD'}"
-            )
+            pass
 
 
 def _assert_full_flow(

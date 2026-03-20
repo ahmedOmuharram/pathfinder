@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Play, Loader2 } from "lucide-react";
+import { Play } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
 import { Card } from "@/lib/components/ui/Card";
@@ -58,7 +58,9 @@ export function CustomEnrichmentSection({
         />
         <Button
           size="sm"
-          onClick={handleTest}
+          onClick={() => {
+            void handleTest();
+          }}
           disabled={loading || !geneSetName.trim() || !geneIdsText.trim()}
           loading={loading}
         >
@@ -67,7 +69,7 @@ export function CustomEnrichmentSection({
         </Button>
       </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error != null && <p className="text-xs text-destructive">{error}</p>}
 
       {results.length > 0 && (
         <div className="space-y-2">

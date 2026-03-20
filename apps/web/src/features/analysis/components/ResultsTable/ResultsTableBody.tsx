@@ -8,7 +8,7 @@ import { RecordRow } from "./RecordRow";
 /*  Public types                                                       */
 /* ------------------------------------------------------------------ */
 
-export interface ResultsTableBodyProps {
+interface ResultsTableBodyProps {
   records: WdkRecord[];
   orderedColumns: RecordAttribute[];
   hasClassification: boolean;

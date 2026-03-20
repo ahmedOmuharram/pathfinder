@@ -21,7 +21,7 @@ export function DuplicateStrategyModal({
 }: DuplicateStrategyModalProps) {
   return (
     <Modal
-      open={!!duplicateModal}
+      open={duplicateModal != null}
       onClose={() => setDuplicateModal(null)}
       title="Duplicate strategy"
     >
@@ -59,7 +59,7 @@ export function DuplicateStrategyModal({
                 Loading strategy details...
               </div>
             )}
-            {duplicateModal.error && (
+            {duplicateModal.error != null && (
               <div className="text-xs text-destructive">{duplicateModal.error}</div>
             )}
           </div>
@@ -73,28 +73,30 @@ export function DuplicateStrategyModal({
             </button>
             <button
               type="button"
-              onClick={async () => {
-                if (!duplicateModal || duplicateModal.isLoading) return;
+              onClick={() => {
+                if (duplicateModal.isLoading) return;
                 const nameError = validateDuplicateName(duplicateModal.name);
-                if (nameError) {
+                if (nameError != null) {
                   setDuplicateModal((prev) =>
                     prev ? { ...prev, error: nameError } : prev,
                   );
                   return;
                 }
                 setDuplicateModal((prev) => (prev ? startDuplicateSubmit(prev) : prev));
-                try {
-                  await onDuplicate(
-                    duplicateModal.item.id,
-                    duplicateModal.name.trim(),
-                    duplicateModal.description.trim(),
-                  );
-                  setDuplicateModal(null);
-                } catch {
-                  setDuplicateModal((prev) =>
-                    prev ? applyDuplicateSubmitFailure(prev) : prev,
-                  );
-                }
+                void (async () => {
+                  try {
+                    await onDuplicate(
+                      duplicateModal.item.id,
+                      duplicateModal.name.trim(),
+                      duplicateModal.description.trim(),
+                    );
+                    setDuplicateModal(null);
+                  } catch {
+                    setDuplicateModal((prev) =>
+                      prev ? applyDuplicateSubmitFailure(prev) : prev,
+                    );
+                  }
+                })();
               }}
               disabled={duplicateModal.isSubmitting || duplicateModal.isLoading}
               className="rounded-md bg-primary px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-60"

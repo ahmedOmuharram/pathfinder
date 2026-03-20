@@ -28,7 +28,7 @@ export function coerceMultiValue(
     const trimmed = value.trim();
     if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
       try {
-        const parsed = JSON.parse(trimmed);
+        const parsed: unknown = JSON.parse(trimmed);
         if (Array.isArray(parsed)) {
           const values = coerceArray(parsed);
           return values.includes("@@fake@@") ? ["@@fake@@"] : values;
@@ -66,7 +66,7 @@ export function coerceParametersForSpecs(
 ): StepParameters {
   const next: StepParameters = { ...params };
   for (const spec of specs) {
-    if (!spec.name) continue;
+    if (spec.name == null || spec.name === "") continue;
     const rawValue = params[spec.name];
     if (isMultiParam(spec)) {
       next[spec.name] = coerceMultiValue(rawValue, options);

@@ -33,4 +33,4 @@ class StrategyTools(
 
     def __init__(self, session: StrategySession) -> None:
         """Initialize StrategyTools with a session."""
-        StrategyToolsBase.__init__(cast(StrategyToolsBase, self), session)
+        StrategyToolsBase.__init__(cast("StrategyToolsBase", self), session)

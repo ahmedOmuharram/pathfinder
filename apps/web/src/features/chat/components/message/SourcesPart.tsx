@@ -69,7 +69,7 @@ export function SourcesPart({
         <ol className="list-decimal space-y-1 pl-4">
           {citations.map((c, i) => (
             <li key={c.id} id={`cite-${i + 1}`}>
-              {showCitationTags && c.tag ? (
+              {showCitationTags && c.tag != null && c.tag !== "" ? (
                 <span className="mr-2 font-mono text-xs text-muted-foreground">
                   [{c.tag}]{" "}
                 </span>
@@ -79,7 +79,7 @@ export function SourcesPart({
                   {`${c.authors.filter(Boolean).join(", ")} `}
                 </span>
               ) : null}
-              {c.url ? (
+              {c.url != null && c.url !== "" ? (
                 <a
                   href={c.url}
                   target="_blank"
@@ -91,10 +91,10 @@ export function SourcesPart({
               ) : (
                 <span>{c.title}</span>
               )}
-              {c.year ? (
+              {c.year != null ? (
                 <span className="text-muted-foreground"> ({c.year})</span>
               ) : null}
-              {c.doi ? (
+              {c.doi != null && c.doi !== "" ? (
                 <span className="text-muted-foreground"> · DOI: {c.doi}</span>
               ) : null}
             </li>

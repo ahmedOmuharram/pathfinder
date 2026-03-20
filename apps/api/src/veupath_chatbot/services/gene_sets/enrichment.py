@@ -4,8 +4,10 @@ from typing import cast
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType
+from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType, to_json
+from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.types import GeneSet
+from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 logger = get_logger(__name__)
 
@@ -22,11 +24,8 @@ async def run_enrichment_for_gene_set(
 
     Returns a summary dict with enrichment results, download links, and errors.
     """
-    from veupath_chatbot.services.experiment.types import to_json
-    from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
-
     params: JSONObject | None = (
-        {k: cast(JSONValue, v) for k, v in gene_set.parameters.items()}
+        {k: cast("JSONValue", v) for k, v in gene_set.parameters.items()}
         if gene_set.parameters is not None
         else None
     )
@@ -56,8 +55,6 @@ async def run_enrichment_for_gene_set(
 
     if results:
         try:
-            from veupath_chatbot.services.export import get_export_service
-
             export_svc = get_export_service()
             name = gene_set.name or gene_set.id
             csv_result = await export_svc.export_enrichment(results, name)
@@ -74,6 +71,6 @@ async def run_enrichment_for_gene_set(
 
     summary["enrichmentResults"] = serialized
     if errors:
-        summary["errors"] = cast(JSONValue, errors)
+        summary["errors"] = cast("JSONValue", errors)
 
     return summary

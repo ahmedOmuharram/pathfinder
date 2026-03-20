@@ -73,7 +73,7 @@ async def optimize_search_parameters(
             "minValue": p.min_value,
             "maxValue": p.max_value,
             "logScale": p.log_scale,
-            "choices": cast(JSONValue, p.choices),
+            "choices": cast("JSONValue", p.choices),
         }
         for p in parameter_space
     ]

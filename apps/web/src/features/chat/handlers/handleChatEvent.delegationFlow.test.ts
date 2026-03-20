@@ -19,7 +19,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatSSEEvent } from "@/lib/sse_events";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { makeCtx } from "./handleChatEvent.testUtils";
 
@@ -93,7 +93,7 @@ describe("resolveTargetGraph logic (tested via handleChatEvent)", () => {
     const { ctx } = makeCtx({ strategyIdAtStart: STRATEGY_ID });
     const events = makeDelegationEvents(STRATEGY_ID);
 
-    handleChatEvent(ctx, events[0]);
+    handleChatEvent(ctx, events[0]!);
     expect(ctx.addStep).toHaveBeenCalledTimes(1);
   });
 
@@ -101,7 +101,7 @@ describe("resolveTargetGraph logic (tested via handleChatEvent)", () => {
     const { ctx } = makeCtx({ strategyIdAtStart: "other-strategy" });
     const events = makeDelegationEvents(STRATEGY_ID);
 
-    handleChatEvent(ctx, events[0]);
+    handleChatEvent(ctx, events[0]!);
     expect(ctx.addStep).not.toHaveBeenCalled();
   });
 
@@ -109,7 +109,7 @@ describe("resolveTargetGraph logic (tested via handleChatEvent)", () => {
     const { ctx } = makeCtx({ strategyIdAtStart: null });
     const events = makeDelegationEvents(STRATEGY_ID);
 
-    handleChatEvent(ctx, events[0]);
+    handleChatEvent(ctx, events[0]!);
     expect(ctx.addStep).toHaveBeenCalledTimes(1);
   });
 
@@ -173,15 +173,15 @@ describe("mock delegation → real strategy store", () => {
     const combine = state.stepsById["mock_combine_1"];
 
     expect(search).toBeDefined();
-    expect(search.primaryInputStepId).toBeUndefined();
+    expect(search!.primaryInputStepId).toBeUndefined();
 
     expect(transform).toBeDefined();
-    expect(transform.primaryInputStepId).toBe("mock_search_1");
+    expect(transform!.primaryInputStepId).toBe("mock_search_1");
 
     expect(combine).toBeDefined();
-    expect(combine.primaryInputStepId).toBe("mock_transform_1");
-    expect(combine.secondaryInputStepId).toBe("mock_search_1");
-    expect(combine.operator).toBe("UNION");
+    expect(combine!.primaryInputStepId).toBe("mock_transform_1");
+    expect(combine!.secondaryInputStepId).toBe("mock_search_1");
+    expect(combine!.operator).toBe("UNION");
   });
 });
 

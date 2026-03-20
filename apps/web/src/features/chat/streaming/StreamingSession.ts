@@ -29,7 +29,7 @@ export class StreamingSession {
    */
   captureUndoSnapshot(graphId: string): void {
     const snapshot = this.latestStrategy;
-    if (!this.undoSnapshot && snapshot && snapshot.id === graphId) {
+    if (!this.undoSnapshot && snapshot?.id === graphId) {
       this.undoSnapshot = snapshot;
     }
   }

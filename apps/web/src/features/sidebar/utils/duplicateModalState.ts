@@ -26,8 +26,8 @@ export function applyDuplicateLoadSuccess(
 ): DuplicateModalState {
   return {
     ...prev,
-    name: strategy.name || prev.name,
-    description: strategy.description || "",
+    name: strategy.name,
+    description: strategy.description ?? "",
     isLoading: false,
   };
 }

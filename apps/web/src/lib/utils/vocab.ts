@@ -12,16 +12,51 @@ export type VocabNode = {
   children?: VocabNode[];
 };
 
+function getRecordField(rec: Record<string, unknown>, key: string): unknown {
+  return rec[key];
+}
+
+function extractValueFromData(data: Record<string, unknown>): unknown {
+  return (
+    getRecordField(data, "value") ??
+    getRecordField(data, "id") ??
+    getRecordField(data, "term") ??
+    getRecordField(data, "name") ??
+    getRecordField(data, "display") ??
+    getRecordField(data, "displayName") ??
+    getRecordField(data, "label")
+  );
+}
+
+function extractLabelFromData(
+  data: Record<string, unknown>,
+  fallback: unknown,
+): unknown {
+  return (
+    getRecordField(data, "display") ??
+    getRecordField(data, "displayName") ??
+    getRecordField(data, "label") ??
+    getRecordField(data, "name") ??
+    getRecordField(data, "value") ??
+    getRecordField(data, "term") ??
+    fallback
+  );
+}
+
+function isNonNullObject(val: unknown): val is Record<string, unknown> {
+  return typeof val === "object" && val != null && !Array.isArray(val);
+}
+
 export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOption[] {
   const options: VocabOption[] = [];
   const seen = new Set<string>();
   const pushOption = (value: string, label?: string, depth = 0) => {
     const trimmedValue = value.trim();
-    if (!trimmedValue || seen.has(trimmedValue)) {
+    if (trimmedValue === "" || seen.has(trimmedValue)) {
       return;
     }
     const rawLabel =
-      trimmedValue === "@@fake@@" ? "All" : (label || trimmedValue).trim();
+      trimmedValue === "@@fake@@" ? "All" : (label ?? trimmedValue).trim();
     const displayLabel = depth > 0 ? `${"— ".repeat(depth)}${rawLabel}` : rawLabel;
     options.push({
       value: trimmedValue,
@@ -34,31 +69,19 @@ export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOpti
   };
   const walkTree = (node: Record<string, unknown>, depth = 0) => {
     if (options.length >= limit) return;
-    const data = node.data as Record<string, unknown> | undefined;
-    const rawValue =
-      data?.value ??
-      data?.id ??
-      data?.term ??
-      data?.name ??
-      data?.display ??
-      data?.displayName ??
-      data?.label;
-    const rawLabel =
-      data?.display ??
-      data?.displayName ??
-      data?.label ??
-      data?.name ??
-      data?.value ??
-      data?.term ??
-      rawValue;
-    const label = rawLabel ? String(rawLabel) : "";
-    const valueCandidate = rawValue ? String(rawValue) : "";
-    const value = valueCandidate || label;
-    if (value) {
-      pushOption(value, label || value, depth);
+    const data = getRecordField(node, "data") as Record<string, unknown> | undefined;
+    const rawValue = data != null ? extractValueFromData(data) : undefined;
+    const rawLabel = data != null ? extractLabelFromData(data, rawValue) : rawValue;
+    const label = rawLabel != null ? String(rawLabel) : "";
+    const valueCandidate = rawValue != null ? String(rawValue) : "";
+    const value = valueCandidate !== "" ? valueCandidate : label;
+    if (value !== "") {
+      pushOption(value, label !== "" ? label : value, depth);
     }
-    const children = node.children as Array<Record<string, unknown>> | undefined;
-    if (children) {
+    const children = getRecordField(node, "children") as
+      | Array<Record<string, unknown>>
+      | undefined;
+    if (children != null) {
       children.forEach((child) => walkTree(child, depth + 1));
     }
   };
@@ -70,20 +93,28 @@ export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOpti
         continue;
       }
       if (Array.isArray(entry)) {
-        const [value, label] = entry;
+        const value: unknown = entry[0];
+        const label: unknown = entry[1];
         if (value !== undefined) {
-          pushOption(String(value), label ? String(label) : undefined);
+          pushOption(String(value), label != null ? String(label) : undefined);
         }
         continue;
       }
-      if (entry && typeof entry === "object") {
-        const record = entry as Record<string, unknown>;
+      if (isNonNullObject(entry)) {
         const value =
-          record.value ?? record.id ?? record.term ?? record.name ?? record.displayName;
+          getRecordField(entry, "value") ??
+          getRecordField(entry, "id") ??
+          getRecordField(entry, "term") ??
+          getRecordField(entry, "name") ??
+          getRecordField(entry, "displayName");
         const label =
-          record.display ?? record.displayName ?? record.label ?? record.name ?? value;
+          getRecordField(entry, "display") ??
+          getRecordField(entry, "displayName") ??
+          getRecordField(entry, "label") ??
+          getRecordField(entry, "name") ??
+          value;
         if (value !== undefined) {
-          pushOption(String(value), label ? String(label) : undefined);
+          pushOption(String(value), label != null ? String(label) : undefined);
         }
       }
     }
@@ -92,18 +123,18 @@ export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOpti
     walkArray(vocabulary);
     return options;
   }
-  if (vocabulary && typeof vocabulary === "object") {
-    const record = vocabulary as Record<string, unknown>;
+  if (isNonNullObject(vocabulary)) {
+    const record = vocabulary;
     const values =
-      record.values ||
-      record.items ||
-      record.terms ||
-      record.options ||
-      record.allowedValues;
+      getRecordField(record, "values") ??
+      getRecordField(record, "items") ??
+      getRecordField(record, "terms") ??
+      getRecordField(record, "options") ??
+      getRecordField(record, "allowedValues");
     if (Array.isArray(values)) {
       walkArray(values);
-    } else if (values && typeof values === "object") {
-      Object.entries(values as Record<string, unknown>).forEach(([key, val]) => {
+    } else if (isNonNullObject(values)) {
+      Object.entries(values).forEach(([key, val]) => {
         if (typeof val === "string" || typeof val === "number") {
           pushOption(key, String(val));
         } else {
@@ -119,68 +150,52 @@ export function extractVocabOptions(vocabulary: unknown, limit = 200): VocabOpti
 
 export function extractVocabTree(vocabulary: unknown): VocabNode[] | null {
   const extractNode = (entry: Record<string, unknown>): VocabNode | null => {
-    const data = (entry.data as Record<string, unknown> | undefined) ?? entry;
-    const rawValue =
-      data?.value ??
-      data?.id ??
-      data?.term ??
-      data?.name ??
-      data?.display ??
-      data?.displayName ??
-      data?.label;
-    if (!rawValue) return null;
-    const rawLabel =
-      data?.display ??
-      data?.displayName ??
-      data?.label ??
-      data?.name ??
-      data?.value ??
-      data?.term ??
-      rawValue;
-    const children = Array.isArray(entry.children)
-      ? entry.children
-          .map((child) => extractNode(child as Record<string, unknown>))
-          .filter((child): child is VocabNode => Boolean(child))
+    const dataField = getRecordField(entry, "data");
+    const data = (isNonNullObject(dataField) ? dataField : null) ?? entry;
+    const rawValue = extractValueFromData(data);
+    if (rawValue == null) return null;
+    const rawLabel = extractLabelFromData(data, rawValue);
+    const entryChildren = getRecordField(entry, "children");
+    const children = Array.isArray(entryChildren)
+      ? entryChildren
+          .map((child: unknown) => (isNonNullObject(child) ? extractNode(child) : null))
+          .filter((child): child is VocabNode => child != null)
       : [];
     const value = String(rawValue);
     const label = value === "@@fake@@" ? "All" : String(rawLabel ?? value);
-    return {
-      value,
-      label,
-      children: children.length > 0 ? children : undefined,
-    };
+    if (children.length > 0) {
+      return { value, label, children };
+    }
+    return { value, label };
   };
 
-  if (!vocabulary || typeof vocabulary !== "object") return null;
+  if (vocabulary == null || typeof vocabulary !== "object") return null;
   if (Array.isArray(vocabulary)) {
     const nodes = vocabulary
-      .map((entry) =>
-        entry && typeof entry === "object"
-          ? extractNode(entry as Record<string, unknown>)
-          : null,
-      )
-      .filter((node): node is VocabNode => Boolean(node));
-    const hasChildren = nodes.some((node) => node.children?.length);
+      .map((entry: unknown) => (isNonNullObject(entry) ? extractNode(entry) : null))
+      .filter((node): node is VocabNode => node != null);
+    const hasChildren = nodes.some((node) => (node.children?.length ?? 0) > 0);
     return hasChildren ? nodes : null;
   }
 
   const record = vocabulary as Record<string, unknown>;
-  const values = record.values || record.items || record.terms || record.options;
+  const values =
+    getRecordField(record, "values") ??
+    getRecordField(record, "items") ??
+    getRecordField(record, "terms") ??
+    getRecordField(record, "options");
   if (Array.isArray(values)) {
     const nodes = values
-      .map((entry) =>
-        entry && typeof entry === "object"
-          ? extractNode(entry as Record<string, unknown>)
-          : null,
-      )
-      .filter((node): node is VocabNode => Boolean(node));
-    const hasChildren = nodes.some((node) => node.children?.length);
+      .map((entry: unknown) => (isNonNullObject(entry) ? extractNode(entry) : null))
+      .filter((node): node is VocabNode => node != null);
+    const hasChildren = nodes.some((node) => (node.children?.length ?? 0) > 0);
     return hasChildren ? nodes : null;
   }
 
-  if (record.children && Array.isArray(record.children)) {
+  const recordChildren = getRecordField(record, "children");
+  if (recordChildren != null && Array.isArray(recordChildren)) {
     const root = extractNode(record);
-    return root ? [root] : null;
+    return root != null ? [root] : null;
   }
 
   return null;
@@ -188,7 +203,7 @@ export function extractVocabTree(vocabulary: unknown): VocabNode[] | null {
 
 export function collectNodeValues(node: VocabNode): string[] {
   const values = [node.value];
-  if (node.children) {
+  if (node.children != null) {
     node.children.forEach((child) => values.push(...collectNodeValues(child)));
   }
   return values;

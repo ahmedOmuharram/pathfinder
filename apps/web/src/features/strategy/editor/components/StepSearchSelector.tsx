@@ -9,8 +9,8 @@ import { Input } from "@/lib/components/ui/Input";
 import { Label } from "@/lib/components/ui/Label";
 
 function rewriteRelativeAssetUrls(html: string, origin: string): string {
-  if (!html) return html;
-  if (!origin) return html;
+  if (html === "") return html;
+  if (origin === "") return html;
   const base = origin.replace(/\/$/, "");
   // Rewrite WDK-relative assets like /a/images/yes.gif to absolute site URLs.
   return html.replace(
@@ -63,7 +63,7 @@ export function StepSearchSelector({
   recordTypeOptions,
 }: StepSearchSelectorProps) {
   const siteOrigin =
-    VEUPATHDB_SITES.find((s) => s.id === siteId)?.baseUrl || `https://${siteId}.org`;
+    VEUPATHDB_SITES.find((s) => s.id === siteId)?.baseUrl ?? `https://${siteId}.org`;
   return (
     <>
       <div>
@@ -132,9 +132,10 @@ export function StepSearchSelector({
                   onChange={() => {
                     onSearchNameChange(option.name);
                     const nextRecordType = normalizeRecordType(option.recordType);
-                    const current = normalizeRecordType(recordTypeValue || recordType);
+                    const current = normalizeRecordType(recordTypeValue ?? recordType);
                     if (
-                      nextRecordType &&
+                      nextRecordType != null &&
+                      nextRecordType !== "" &&
                       nextRecordType !== current &&
                       recordTypeOptions.some(
                         (recordOption) => recordOption.name === nextRecordType,
@@ -155,14 +156,14 @@ export function StepSearchSelector({
             ))}
           </div>
         )}
-        {selectedSearch && (
+        {selectedSearch != null && (
           <div className="mt-1 text-xs text-muted-foreground">
             <div
               className="[&_img]:inline-block [&_img]:align-middle [&_img]:!m-0 [&_img]:h-[12px] [&_img]:w-[12px]"
               dangerouslySetInnerHTML={{
                 __html: sanitizeHtml(
                   rewriteRelativeAssetUrls(
-                    selectedSearch.description || "No description available.",
+                    selectedSearch.description ?? "No description available.",
                     siteOrigin,
                   ),
                 ),
@@ -171,7 +172,7 @@ export function StepSearchSelector({
             <span className="text-muted-foreground">ID: {selectedSearch.name}</span>
           </div>
         )}
-        {!selectedSearch && searchName && !isSearchNameAvailable && (
+        {selectedSearch == null && searchName !== "" && !isSearchNameAvailable && (
           <p className="mt-1 text-xs text-amber-600">
             This search is not available for the selected record type.
           </p>
@@ -181,10 +182,10 @@ export function StepSearchSelector({
             Pick a search to see its description and parameters.
           </p>
         )}
-        {searchListError && (
+        {searchListError != null && searchListError !== "" && (
           <p className="mt-1 text-xs text-destructive">{searchListError}</p>
         )}
-        {!searchListError && isLoadingSearches && (
+        {(searchListError == null || searchListError === "") && isLoadingSearches && (
           <p className="mt-1 text-xs text-muted-foreground">Loading search list...</p>
         )}
       </div>

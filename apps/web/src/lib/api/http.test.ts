@@ -48,7 +48,7 @@ describe("lib/api/http", () => {
   });
 
   it("buildUrl uses NEXT_PUBLIC_API_URL and encodes query params", () => {
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000///";
+    process.env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000///";
     const url = buildUrl("/api/v1/sites", {
       siteId: "plasmodb",
       recordType: "gene",
@@ -68,15 +68,15 @@ describe("lib/api/http", () => {
       contentType: "application/json",
       extra: { "x-test": "1" },
     });
-    expect(headers.Accept).toBe("application/json");
+    expect(headers["Accept"]).toBe("application/json");
     expect(headers["Content-Type"]).toBe("application/json");
     expect(headers["x-test"]).toBe("1");
     // Auth is handled via httpOnly cookies — no Authorization header
-    expect(headers.Authorization).toBeUndefined();
+    expect(headers["Authorization"]).toBeUndefined();
   });
 
   it("requestJson returns parsed JSON on success", async () => {
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000";
+    process.env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000";
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -95,7 +95,7 @@ describe("lib/api/http", () => {
   });
 
   it("requestJson throws APIError with server 'detail' message", async () => {
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000";
+    process.env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000";
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -117,7 +117,7 @@ describe("lib/api/http", () => {
   });
 
   it("requestJson throws APIError with generic message when no JSON detail", async () => {
-    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000";
+    process.env["NEXT_PUBLIC_API_URL"] = "http://localhost:8000";
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>

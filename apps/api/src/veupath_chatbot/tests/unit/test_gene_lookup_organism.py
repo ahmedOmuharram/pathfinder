@@ -1,5 +1,7 @@
 """Tests for services.gene_lookup.organism -- organism matching and normalization."""
 
+from typing import ClassVar
+
 import pytest
 
 from veupath_chatbot.services.gene_lookup.organism import (
@@ -111,7 +113,7 @@ class TestScoreOrganismMatch:
 
 
 class TestSuggestOrganisms:
-    AVAILABLE = [
+    AVAILABLE: ClassVar[list] = [
         "Plasmodium falciparum 3D7",
         "Plasmodium vivax P01",
         "Toxoplasma gondii ME49",

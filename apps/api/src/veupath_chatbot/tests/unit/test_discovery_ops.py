@@ -62,7 +62,7 @@ async def test_explain_alias():
 
 async def test_explain_invalid_raises():
     ops = _make_discovery_ops()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unknown operator"):
         await ops.explain_operator("INVALID_OP")
 
 

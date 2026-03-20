@@ -165,14 +165,14 @@ class StrategyValidator:
                         )
                     )
                 else:
-                    for err in node.colocation_params.validate():
-                        errors.append(
-                            StepValidationIssue(
-                                path=f"{path}.colocationParams",
-                                message=err,
-                                code="INVALID_COLOCATION_PARAMS",
-                            )
+                    errors.extend(
+                        StepValidationIssue(
+                            path=f"{path}.colocationParams",
+                            message=err,
+                            code="INVALID_COLOCATION_PARAMS",
                         )
+                        for err in node.colocation_params.validate()
+                    )
 
         if node.secondary_input is not None:
             self._validate_node(

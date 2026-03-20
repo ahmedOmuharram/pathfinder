@@ -46,7 +46,9 @@ export function parseSSEChunk(buffer: string): {
     }
 
     if (dataLines.length === 0) continue;
-    events.push({ type, data: dataLines.join("\n"), id });
+    const event: RawSSEEvent = { type, data: dataLines.join("\n") };
+    if (id != null) event.id = id;
+    events.push(event);
   }
 
   return { events, rest };

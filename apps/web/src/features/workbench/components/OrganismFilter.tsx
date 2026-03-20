@@ -47,7 +47,7 @@ export function OrganismFilter({
 
   return (
     <div ref={dropdownRef} className="relative">
-      {selectedOrganism ? (
+      {selectedOrganism != null && selectedOrganism !== "" ? (
         <div className="flex h-7 w-full items-center justify-between rounded-md border border-input bg-background px-2.5 text-xs text-foreground">
           <span className="truncate italic">{selectedOrganism}</span>
           <button

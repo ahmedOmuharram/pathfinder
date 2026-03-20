@@ -23,7 +23,7 @@ beforeEach(() => {
   clickSpy = vi.fn();
 
   vi.stubGlobal("URL", {
-    createObjectURL: vi.fn((blob: Blob) => {
+    createObjectURL: vi.fn((_blob: Blob) => {
       const url = `blob:mock-${createdObjectURLs.length}`;
       createdObjectURLs.push(url);
       return url;
@@ -62,7 +62,7 @@ beforeEach(() => {
       const proxy = new Proxy(el, {
         set(target, prop, value) {
           if (prop === "href" || prop === "download") {
-            if (!lastAnchorProps) lastAnchorProps = { href: "", download: "" };
+            lastAnchorProps ??= { href: "", download: "" };
             lastAnchorProps[prop] = value as string;
           }
           (target as Record<string | symbol, unknown>)[prop] = value;

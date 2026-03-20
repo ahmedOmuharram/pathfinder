@@ -92,6 +92,5 @@ interface ProviderIconProps {
 
 export function ProviderIcon({ provider, size = 20, className }: ProviderIconProps) {
   const Icon = PROVIDER_ICONS[provider];
-  if (!Icon) return null;
-  return <Icon size={size} className={className} />;
+  return <Icon size={size} {...(className != null ? { className } : {})} />;
 }

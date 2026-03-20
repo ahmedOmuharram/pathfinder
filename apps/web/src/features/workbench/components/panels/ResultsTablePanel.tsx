@@ -11,7 +11,7 @@ export function ResultsTablePanel() {
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
   // Result browsing requires a WDK step (strategy-backed gene set).
-  const hasWdkStep = !!activeSet?.wdkStepId;
+  const hasWdkStep = activeSet?.wdkStepId != null;
   const isDisabled = !activeSet || !hasWdkStep;
 
   return (

@@ -1,4 +1,4 @@
-import type { PlanStepNode, CombineOperator, Step } from "@pathfinder/shared";
+import type { PlanStepNode, Step } from "@pathfinder/shared";
 
 export function flattenPlanStepNode(node: PlanStepNode, recordType: string): Step[] {
   const steps: Step[] = [];
@@ -30,9 +30,9 @@ export function flattenPlanStepNode(node: PlanStepNode, recordType: string): Ste
     searchName: node.searchName,
     recordType,
     parameters: params,
-    operator: node.operator as CombineOperator | undefined,
-    primaryInputStepId,
-    secondaryInputStepId,
+    operator: node.operator ?? null,
+    primaryInputStepId: primaryInputStepId ?? null,
+    secondaryInputStepId: secondaryInputStepId ?? null,
   });
 
   return steps;

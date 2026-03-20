@@ -52,6 +52,7 @@ class WorkbenchToolsMixin:
             str,
             AIParam(desc="Record type (default 'transcript')"),
         ] = "transcript",
+        *,
         parameters: Annotated[
             dict[str, str] | None,
             AIParam(desc="WDK search parameters if from a strategy search"),
@@ -160,7 +161,7 @@ class WorkbenchToolsMixin:
         _valid_types = get_args(EnrichmentAnalysisType)
         types: list[EnrichmentAnalysisType] = (
             [
-                cast(EnrichmentAnalysisType, t)
+                cast("EnrichmentAnalysisType", t)
                 for t in enrichment_types
                 if t in _valid_types
             ]

@@ -6,9 +6,15 @@ attribute listing, record browsing, distribution, and analysis logic.
 
 from typing import cast
 
+from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.experiment.enrichment_parser import (
+    is_enrichment_analysis,
+    parse_enrichment_from_raw,
+)
+from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
     extract_detail_attributes,
@@ -41,7 +47,7 @@ class StepResultsService:
         """Get available attributes for the record type."""
         info = await self._api.get_record_type_info(self._record_type)
         attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
-        attr_list = cast(JSONValue, build_attribute_list(attrs_raw))
+        attr_list = cast("JSONValue", build_attribute_list(attrs_raw))
         return {
             "attributes": attr_list,
             "recordType": self._record_type,
@@ -117,12 +123,6 @@ class StepResultsService:
         parameters: JSONObject,
     ) -> JSONObject:
         """Run a WDK step analysis, auto-parsing enrichment results."""
-        from veupath_chatbot.services.experiment.enrichment import (
-            is_enrichment_analysis,
-            parse_enrichment_from_raw,
-        )
-        from veupath_chatbot.services.experiment.types import to_json
-
         result, params = await self.run_analysis_raw(analysis_name, parameters)
 
         if is_enrichment_analysis(analysis_name):
@@ -146,8 +146,6 @@ class StepResultsService:
         ``"attributes": []`` as "return zero attributes", so we must
         always pass explicit names.
         """
-        from veupath_chatbot.integrations.veupathdb.factory import get_site
-
         pk_parts = primary_key
         detail_attrs: list[str] = []
         display_names: dict[str, str] = {}
@@ -180,5 +178,5 @@ class StepResultsService:
             primary_key=pk_parts,
             attributes=detail_attrs or None,
         )
-        record["attributeNames"] = cast(JSONValue, display_names)
+        record["attributeNames"] = cast("JSONValue", display_names)
         return record

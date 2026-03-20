@@ -7,6 +7,7 @@ default values are correct, and frozen types reject mutation.
 import pytest
 
 from veupath_chatbot.services.experiment.types import (
+    DEFAULT_K_VALUES,
     BatchExperimentConfig,
     BatchOrganismTarget,
     BootstrapResult,
@@ -44,8 +45,6 @@ from veupath_chatbot.services.experiment.types import (
 
 class TestCoreAliases:
     def test_default_k_values(self) -> None:
-        from veupath_chatbot.services.experiment.types import DEFAULT_K_VALUES
-
         assert DEFAULT_K_VALUES == [10, 25, 50, 100]
 
 

@@ -1,10 +1,13 @@
-"""Workbench chat endpoints — conversational AI per experiment."""
+"""Workbench chat endpoints - conversational AI per experiment."""
 
 from fastapi import APIRouter
 
 from veupath_chatbot.platform.events import read_stream_messages
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.workbench_chat.orchestrator import (
+    start_workbench_chat_stream,
+)
 from veupath_chatbot.transport.http.deps import CurrentUser, StreamRepo, UserRepo
 from veupath_chatbot.transport.http.schemas.workbench_chat import (
     WorkbenchChatRequest,
@@ -27,10 +30,6 @@ async def workbench_chat(
     Returns operation ID for SSE subscription via
     GET /operations/{operationId}/subscribe.
     """
-    from veupath_chatbot.services.workbench_chat.orchestrator import (
-        start_workbench_chat_stream,
-    )
-
     op_id, stream_id = await start_workbench_chat_stream(
         message=body.message,
         site_id=body.site_id,

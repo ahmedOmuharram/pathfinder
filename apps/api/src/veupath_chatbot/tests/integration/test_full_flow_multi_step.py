@@ -12,6 +12,9 @@ Skip with:
     pytest -m "not live_wdk"
 """
 
+import json
+from typing import ClassVar
+
 import pytest
 
 from veupath_chatbot.tests.fixtures.scripted_engine import (
@@ -33,7 +36,7 @@ class TestCombineIntersect:
 
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # Step 1: find epitope search
         ScriptedTurn(
             tool_calls=[
@@ -146,7 +149,7 @@ class TestCombineIntersect:
                 authed_client,
                 message="Find genes with epitopes that are also upregulated in gametocytes",
                 site_id="plasmodb",
-                timeout=180.0,
+                request_timeout=180.0,
             )
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
@@ -182,7 +185,7 @@ class TestSearchPlusTransform:
 
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # Find and create the base search
         ScriptedTurn(
             tool_calls=[
@@ -264,7 +267,7 @@ class TestSearchPlusTransform:
                 authed_client,
                 message="Find epitope genes in P. falciparum then find orthologs in P. vivax",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r1.http_status == 202
@@ -275,8 +278,6 @@ class TestSearchPlusTransform:
         step_id = None
         for start, end in r1.tool_calls:
             if start.data.get("name") == "list_current_steps":
-                import json
-
                 result_str = end.data.get("result", "{}")
                 try:
                     result_data = (
@@ -347,7 +348,7 @@ class TestSearchPlusTransform:
                 message="Now add an ortholog transform to find P. vivax orthologs",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r2.http_status == 202
@@ -428,7 +429,7 @@ class TestThreeStepStrategy:
                 authed_client,
                 message="Find epitope genes and known vaccine targets, then combine them",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r1.http_status == 202
@@ -470,7 +471,7 @@ class TestThreeStepStrategy:
                 message="Now combine these with UNION and build the strategy",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r2.http_status == 202

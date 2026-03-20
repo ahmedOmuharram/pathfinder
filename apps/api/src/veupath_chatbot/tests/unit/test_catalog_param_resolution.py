@@ -82,7 +82,8 @@ def _get_param_by_name(result: dict[str, Any], name: str) -> dict[str, Any]:
         assert isinstance(p, dict)
         if p.get("name") == name:
             return p
-    raise AssertionError(f"Parameter '{name}' not found")
+    msg = f"Parameter '{name}' not found"
+    raise AssertionError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -562,7 +563,8 @@ class TestGetSearchParameters:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise RuntimeError("not found on first try")
+                msg = "not found on first try"
+                raise RuntimeError(msg)
             return {
                 "displayName": "Found It",
                 "description": "desc",

@@ -10,8 +10,10 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.auto_push import (
+    _PUSH_LOCKS_MAX,
     _get_push_lock,
     _push_locks,
     try_auto_push_to_wdk,
@@ -89,8 +91,6 @@ def _make_patches(
     if validate_raise:
         validate_fn.side_effect = validate_raise
     else:
-        from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
-
         mock_ast = StrategyAST(
             record_type="gene",
             root=PlanStepNode(
@@ -139,7 +139,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_skips_when_no_projection(self) -> None:
         """When get_projection returns None, no WDK push happens."""
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches()
+        patches, repo, _mock_session, mock_api, _compile_fn = _make_patches()
         repo.get_projection = AsyncMock(return_value=None)
 
         with (
@@ -155,7 +155,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_skips_when_no_wdk_strategy_id(self) -> None:
         proj = _mock_projection(wdk_strategy_id=None)
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
             projection=proj
         )
 
@@ -172,7 +172,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_skips_when_no_site_id(self) -> None:
         proj = _mock_projection(site_id=None)
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
             projection=proj
         )
 
@@ -189,7 +189,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_skips_when_empty_plan(self) -> None:
         proj = _mock_projection(plan={})
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
             projection=proj
         )
 
@@ -207,7 +207,7 @@ class TestTryAutoPushToWdk:
     async def test_skips_when_plan_is_not_dict(self) -> None:
         proj = _mock_projection()
         proj.plan = "not a dict"
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
             projection=proj
         )
 
@@ -223,7 +223,7 @@ class TestTryAutoPushToWdk:
 
     @pytest.mark.asyncio
     async def test_successful_push_updates_projection(self) -> None:
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches()
+        patches, repo, mock_session, mock_api, _compile_fn = _make_patches()
 
         with (
             patches["session_factory"],
@@ -241,7 +241,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_successful_push_rewrites_ids(self) -> None:
         """After compilation, local step IDs should be rewritten to WDK IDs."""
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches()
+        patches, repo, _mock_session, _mock_api, _compile_fn = _make_patches()
 
         with (
             patches["session_factory"],
@@ -259,7 +259,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_wdk_404_clears_strategy_id(self) -> None:
         """When WDK returns 404, the stale wdk_strategy_id should be cleared."""
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
             api_update_raise=WDKError("Not found", status=404)
         )
 
@@ -281,7 +281,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_wdk_non_404_error_logged_not_raised(self) -> None:
         """Non-404 WDK errors are logged but not raised."""
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
             api_update_raise=WDKError("Server error", status=500)
         )
 
@@ -300,7 +300,7 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_generic_exception_logged_not_raised(self) -> None:
         """Generic exceptions are logged but not raised."""
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
             compile_raise=RuntimeError("unexpected")
         )
 
@@ -323,7 +323,7 @@ class TestTryAutoPushToWdk:
         await lock.acquire()
 
         try:
-            patches, repo, mock_session, mock_api, compile_fn = _make_patches()
+            patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches()
             with (
                 patches["session_factory"],
                 patches["repo_cls"],
@@ -347,7 +347,7 @@ class TestTryAutoPushToWdk:
         compile_result.steps = [compiled_step]
         compile_result.step_tree = MagicMock()
 
-        patches, repo, mock_session, mock_api, compile_fn = _make_patches(
+        patches, repo, _mock_session, _mock_api, _compile_fn = _make_patches(
             compile_result=compile_result
         )
 
@@ -381,8 +381,6 @@ class TestGetPushLockEdgeCases:
 
     def test_bounded_memory_after_many_inserts(self) -> None:
         """Lock dict should not exceed _PUSH_LOCKS_MAX + 1 after many insertions."""
-        from veupath_chatbot.services.strategies.auto_push import _PUSH_LOCKS_MAX
-
         for _ in range(_PUSH_LOCKS_MAX + 50):
             _get_push_lock(uuid4())
         # Should be at or near the max (eviction happens on overflow)

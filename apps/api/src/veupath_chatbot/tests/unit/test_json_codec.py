@@ -6,6 +6,15 @@ Literal passthrough, list/tuple/dict coercion, and edge cases.
 
 from dataclasses import dataclass, field
 
+from veupath_chatbot.services.experiment.types import (
+    OperatorComparison,
+    OperatorVariant,
+    ParameterSensitivity,
+    ParameterSweepPoint,
+    StepAnalysisResult,
+    StepContribution,
+    StepEvaluation,
+)
 from veupath_chatbot.services.experiment.types.json_codec import (
     _snake_to_camel,
     from_json,
@@ -293,8 +302,6 @@ class TestStepAnalysisTypesRoundtrip:
     """Ensure the real step analysis dataclasses survive to_json/from_json roundtrip."""
 
     def test_step_evaluation_roundtrip(self) -> None:
-        from veupath_chatbot.services.experiment.types import StepEvaluation
-
         original = StepEvaluation(
             step_id="s1",
             search_name="GenesByTaxon",
@@ -319,8 +326,6 @@ class TestStepAnalysisTypesRoundtrip:
         assert restored.captured_positive_ids == ["g1", "g2"]
 
     def test_step_contribution_roundtrip(self) -> None:
-        from veupath_chatbot.services.experiment.types import StepContribution
-
         original = StepContribution(
             step_id="s1",
             search_name="Search1",
@@ -340,11 +345,6 @@ class TestStepAnalysisTypesRoundtrip:
         assert restored.narrative == "Removing this step drops recall."
 
     def test_operator_comparison_roundtrip(self) -> None:
-        from veupath_chatbot.services.experiment.types import (
-            OperatorComparison,
-            OperatorVariant,
-        )
-
         original = OperatorComparison(
             combine_node_id="c1",
             current_operator="INTERSECT",
@@ -379,11 +379,6 @@ class TestStepAnalysisTypesRoundtrip:
         assert restored.variants[1].recall == 1.0
 
     def test_parameter_sensitivity_roundtrip(self) -> None:
-        from veupath_chatbot.services.experiment.types import (
-            ParameterSensitivity,
-            ParameterSweepPoint,
-        )
-
         original = ParameterSensitivity(
             step_id="s1",
             param_name="evalue",
@@ -409,8 +404,6 @@ class TestStepAnalysisTypesRoundtrip:
         assert restored.sweep_points[0].positive_hits == 5
 
     def test_step_analysis_result_roundtrip(self) -> None:
-        from veupath_chatbot.services.experiment.types import StepAnalysisResult
-
         original = StepAnalysisResult()
         j = to_json(original)
         restored = from_json(j, StepAnalysisResult)

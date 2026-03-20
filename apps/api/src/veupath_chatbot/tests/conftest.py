@@ -2,12 +2,16 @@ import asyncio
 import contextlib
 import os
 from collections.abc import AsyncGenerator, Callable, Generator
+from contextlib import contextmanager
+from unittest.mock import patch
 from uuid import uuid4
 
 import httpx
 import pytest
+import redis
 import respx
 from fastapi import FastAPI
+from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -17,7 +21,17 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
+import veupath_chatbot.persistence.session as session_module
+import veupath_chatbot.platform.redis as redis_module
+import veupath_chatbot.services.chat.orchestrator as _orch
+import veupath_chatbot.services.workbench_chat.orchestrator
+from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.main import create_app
+from veupath_chatbot.persistence.models import Base, User
+from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.security import create_user_token, limiter
 from veupath_chatbot.tests.fixtures.scripted_engine import (
     ScriptedKaniEngine,
     ScriptedTurn,
@@ -30,12 +44,13 @@ async def _probe_connection(url: str) -> bool:
     try:
         async with engine.begin() as _:
             pass
-        return True
     except Exception as e:
         err = str(e).lower()
         if "does not exist" in err and "role" in err:
             return False
         raise
+    else:
+        return True
     finally:
         await engine.dispose()
 
@@ -46,17 +61,24 @@ def _get_test_database_url() -> str:
         or "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test"
     )
     if not url.startswith("postgresql"):
-        raise RuntimeError(f"Tests require PostgreSQL DATABASE_URL, got: {url!r}.")
+        msg = f"Tests require PostgreSQL DATABASE_URL, got: {url!r}."
+        raise RuntimeError(msg)
 
     # Safety: refuse to run against a non-test DB unless explicitly overridden.
     allow = os.environ.get("ALLOW_NONTEST_DATABASE") == "1"
     if not allow and "pathfinder_test" not in url:
-        raise RuntimeError(
+        msg = (
             "Refusing to run tests against a non-test database. "
             "Set DATABASE_URL to a test DB (suggested db name: 'pathfinder_test'), "
             "or set ALLOW_NONTEST_DATABASE=1 to override."
         )
+        raise RuntimeError(msg)
     return url
+
+
+# ---------------------------------------------------------------------------
+# PostgreSQL
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
@@ -73,24 +95,21 @@ def postgres_container(
     if url and "postgresql" in url:
         # Validate connection. On macOS, localhost:5432 may point to Homebrew
         # Postgres which uses the system user, not "postgres".
-        try:
-            parsed = make_url(url)
-            probe_url = (
-                str(
-                    parsed.set(drivername="postgresql+asyncpg").render_as_string(
-                        hide_password=False
-                    )
+        # Connection refused / timeout / OS errors propagate so the user
+        # can fix DATABASE_URL or start Postgres.
+        parsed = make_url(url)
+        probe_url = (
+            str(
+                parsed.set(drivername="postgresql+asyncpg").render_as_string(
+                    hide_password=False
                 )
-                if "asyncpg" not in (parsed.drivername or "")
-                else url
             )
-            if not asyncio.run(_probe_connection(probe_url)):
-                url = ""
-                os.environ.pop("DATABASE_URL", None)
-        except Exception:
-            # Connection refused, timeout, etc. Re-raise so user fixes
-            # DATABASE_URL or starts their Postgres.
-            raise
+            if "asyncpg" not in (parsed.drivername or "")
+            else url
+        )
+        if not asyncio.run(_probe_connection(probe_url)):
+            url = ""
+            os.environ.pop("DATABASE_URL", None)
 
     if url:
         yield None
@@ -106,13 +125,14 @@ def postgres_container(
     try:
         container.start()
     except Exception as exc:
-        raise RuntimeError(
+        msg = (
             "DATABASE_URL was not set and Postgres could not be started via Docker. "
             "Fix by either:\n"
             "- setting DATABASE_URL to a test database URL, or\n"
             "- installing/running Docker so testcontainers can start Postgres.\n"
             f"Underlying error: {exc}"
-        ) from exc
+        )
+        raise RuntimeError(msg) from exc
 
     # Convert the container URL to asyncpg for SQLAlchemy async engine.
     url_obj = make_url(container.get_connection_url()).set(
@@ -134,8 +154,6 @@ async def db_engine(
     engine = create_async_engine(database_url, poolclass=NullPool)
 
     # Ensure tables exist once for the session.
-    from veupath_chatbot.persistence.models import Base
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -167,15 +185,28 @@ def patch_app_db_engine(
     :param session_maker: Async session maker.
 
     """
-    import veupath_chatbot.persistence.session as session_module
-
-    session_module._engine = db_engine
-    session_module._session_factory = session_maker
+    session_module._state["engine"] = db_engine
+    session_module._state["session_factory"] = session_maker
 
 
 @pytest.fixture
 async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     yield
+    # Drain lingering background chat tasks so their DB sessions
+    # commit/close before TRUNCATE.  Without this, TRUNCATE deadlocks
+    # against the background task's uncommitted writes.
+    all_tasks = list(
+        veupath_chatbot.services.chat.orchestrator._active_tasks.values()
+    ) + list(
+        veupath_chatbot.services.workbench_chat.orchestrator._active_tasks.values()
+    )
+    if all_tasks:
+        _, pending = await asyncio.wait(all_tasks, timeout=5.0)
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
     # Truncate after each test so request-level commits don't leak state.
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
@@ -184,6 +215,96 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
+
+
+# ---------------------------------------------------------------------------
+# Redis — real instance, not fakeredis
+# ---------------------------------------------------------------------------
+
+
+def _probe_redis(url: str) -> bool:
+    """Synchronously check if a Redis server is reachable."""
+    try:
+        r = redis.from_url(url, socket_connect_timeout=2)
+        r.ping()
+        r.close()
+    except redis.ConnectionError, redis.TimeoutError, OSError:
+        return False
+    return True
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> str:
+    return os.environ.get("REDIS_URL", "").strip()
+
+
+@pytest.fixture(scope="session")
+def redis_container(redis_url: str) -> Generator[RedisContainer | None]:
+    """Start a real Redis container if no REDIS_URL is set.
+
+    Mirrors the PostgreSQL container pattern: prefer explicit env var,
+    fall back to testcontainers.
+    """
+    url = redis_url or os.environ.get("REDIS_URL", "").strip()
+    if url and _probe_redis(url):
+        yield None
+        return
+
+    container = RedisContainer("redis:7-alpine")
+    try:
+        container.start()
+    except Exception as exc:
+        msg = (
+            "REDIS_URL was not set and Redis could not be started via Docker. "
+            "Fix by either:\n"
+            "- setting REDIS_URL to a running Redis instance, or\n"
+            "- installing/running Docker so testcontainers can start Redis.\n"
+            f"Underlying error: {exc}"
+        )
+        raise RuntimeError(msg) from exc
+
+    host = container.get_container_host_ip()
+    port = container.get_exposed_port(6379)
+    url = f"redis://{host}:{port}/0"
+    os.environ["REDIS_URL"] = url
+    yield container
+    container.stop()
+
+
+@pytest.fixture(scope="session")
+def _get_test_redis_url(redis_container: RedisContainer | None) -> str:
+    del redis_container
+    return os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+
+# ---------------------------------------------------------------------------
+# Redis — session-scoped connection, per-test flush
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+async def _redis_conn(_get_test_redis_url: str) -> AsyncGenerator[Redis]:
+    """One real Redis connection for the entire test session.
+
+    Lazily started — the container only boots when a test actually needs Redis.
+    """
+    conn = Redis.from_url(_get_test_redis_url, decode_responses=False)
+    await conn.ping()
+    yield conn
+    await conn.aclose()
+
+
+@pytest.fixture
+async def redis_setup(_redis_conn: Redis) -> AsyncGenerator[None]:
+    """Opt-in fixture: makes Redis available and flushes between tests."""
+    redis_module._state["redis"] = _redis_conn
+    await _redis_conn.flushdb()
+    return
+
+
+# ---------------------------------------------------------------------------
+# Environment + App
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -197,26 +318,18 @@ def _test_env_defaults() -> None:
     os.environ.setdefault("GEMINI_API_KEY", "")
 
     # Disable rate limiting so chat tests don't get 429s.
-    from veupath_chatbot.platform.security import limiter
-
     limiter.enabled = False
 
 
 @pytest.fixture
 def app() -> FastAPI:
     # Ensure settings reads current env, not cached values from prior imports.
-    from veupath_chatbot.platform.config import get_settings
-
     get_settings.cache_clear()
 
     # Reset orchestrator globals so _wire_ai_dependencies() starts clean.
-    import veupath_chatbot.services.chat.orchestrator as _orch
-
-    _orch._create_agent = None
-    _orch._resolve_effective_model_id = None
+    _orch._create_agent_holder.clear()
+    _orch._resolve_model_id_holder.clear()
     _orch._mock_stream_fn = None
-
-    from veupath_chatbot.main import create_app
 
     return create_app()
 
@@ -226,18 +339,11 @@ async def client(
     app: FastAPI,
     patch_app_db_engine: None,
     db_cleaner: None,
+    redis_setup: None,
 ) -> AsyncGenerator[httpx.AsyncClient]:
-    import fakeredis
-
-    import veupath_chatbot.platform.redis as redis_module
-
-    fake = fakeredis.FakeAsyncRedis()
-    redis_module._redis = fake
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
-    await fake.aclose()
-    redis_module._redis = None
 
 
 @pytest.fixture
@@ -247,10 +353,6 @@ async def authed_client(
     """
     Client with a valid `pathfinder-auth` cookie set (anonymous user created).
     """
-    import veupath_chatbot.persistence.session as session_module
-    from veupath_chatbot.persistence.models import User
-    from veupath_chatbot.platform.security import create_user_token
-
     user_id = uuid4()
     async with session_module.async_session_factory() as session:
         session.add(User(id=user_id))
@@ -258,7 +360,7 @@ async def authed_client(
 
     token = create_user_token(user_id)
     client.cookies.set("pathfinder-auth", token)
-    yield client
+    return client
 
 
 @pytest.fixture
@@ -284,12 +386,10 @@ async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
     """
     yield
     try:
-        from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 @pytest.fixture
@@ -310,8 +410,6 @@ def scripted_engine_factory() -> Callable[
 
 
     """
-    from contextlib import contextmanager
-    from unittest.mock import patch
 
     @contextmanager
     def _factory(

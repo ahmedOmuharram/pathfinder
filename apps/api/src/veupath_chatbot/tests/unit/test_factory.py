@@ -21,7 +21,7 @@ from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryRe
 
 def _make_site(site_id: str = "plasmodb") -> SiteInfo:
     return SiteInfo(
-        id=site_id,
+        site_id=site_id,
         name="PlasmoDB",
         display_name="PlasmoDB",
         base_url="https://plasmodb.org/plasmo/service",

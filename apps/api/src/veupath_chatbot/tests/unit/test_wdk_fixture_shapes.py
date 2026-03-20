@@ -9,6 +9,14 @@ Run::
     pytest src/veupath_chatbot/tests/unit/test_wdk_fixture_shapes.py -v
 """
 
+import inspect
+
+from veupath_chatbot.integrations.veupathdb.site_search import (
+    query_site_search,
+)
+from veupath_chatbot.integrations.veupathdb.temporary_results import (
+    TemporaryResultsAPI,
+)
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     record_types_expanded_response,
     record_types_response,
@@ -506,12 +514,6 @@ class TestSiteSearchContract:
         Confirmed by CURL: POST to /site-search returns HTTP 500.
         GET with query params returns 200.
         """
-        import inspect
-
-        from veupath_chatbot.integrations.veupathdb.site_search import (
-            query_site_search,
-        )
-
         source = inspect.getsource(query_site_search)
         # The function should use client.get(), not client.post()
         assert "client.get(" in source, (
@@ -538,12 +540,6 @@ class TestTemporaryResultsContract:
 
         Confirmed by CURL on 2026-03-06.
         """
-        import inspect
-
-        from veupath_chatbot.integrations.veupathdb.temporary_results import (
-            TemporaryResultsAPI,
-        )
-
         source = inspect.getsource(TemporaryResultsAPI.create_temporary_result)
         # The payload dict must use "reportName" as the key
         assert '"reportName"' in source
@@ -556,11 +552,5 @@ class TestTemporaryResultsContract:
         """WDK temporary-results creation requires 'stepId' or
         'searchName'+'searchConfig', not both.
         """
-        import inspect
-
-        from veupath_chatbot.integrations.veupathdb.temporary_results import (
-            TemporaryResultsAPI,
-        )
-
         source = inspect.getsource(TemporaryResultsAPI.create_temporary_result)
         assert '"stepId"' in source

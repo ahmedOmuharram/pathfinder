@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
 from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
+from veupath_chatbot.services.search_rerank import QueryIntent
 
 
 def _gene(
@@ -46,8 +47,6 @@ class TestLookupGenesBasic:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [_gene("G1"), _gene("G2")]
         mock_site_search.return_value = (genes, ["Plasmodium falciparum 3D7"], 2)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -76,8 +75,6 @@ class TestLookupGenesBasic:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [_gene(f"G{i}") for i in range(10)]
         mock_site_search.return_value = (genes, [], 10)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -100,8 +97,6 @@ class TestLookupGenesBasic:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         mock_site_search.return_value = ([], [], 0)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
         mock_enrich.side_effect = lambda _site, results, _lim: results
@@ -126,8 +121,6 @@ class TestLookupGenesOrganismFilter:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [
             _gene("G1", organism="Plasmodium falciparum 3D7"),
             _gene("G2", organism="Toxoplasma gondii ME49"),
@@ -162,8 +155,6 @@ class TestLookupGenesOrganismFilter:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [_gene("G1", organism="Plasmodium falciparum 3D7")]
         available = ["Plasmodium falciparum 3D7", "Plasmodium vivax P01"]
         mock_site_search.return_value = (genes, available, 1)
@@ -196,8 +187,6 @@ class TestLookupSiteSearchFailure:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         # Strategy A fails
         mock_site_search.side_effect = RuntimeError("Site search down")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -223,8 +212,6 @@ class TestLookupMultiWordQuery:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         call_count = 0
 
         async def side_effect(*args, **kwargs):
@@ -253,8 +240,6 @@ class TestLookupMultiWordQuery:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         call_count = 0
 
         async def side_effect(*args, **kwargs):
@@ -288,8 +273,6 @@ class TestLookupTotalCount:
         mock_wdk_text: AsyncMock,
         mock_enrich: AsyncMock,
     ) -> None:
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [_gene(f"G{i}") for i in range(5)]
         mock_site_search.return_value = (genes, ["Plasmodium falciparum 3D7"], 5)
         # WDK returns higher total counts

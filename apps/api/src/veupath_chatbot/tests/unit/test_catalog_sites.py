@@ -14,7 +14,7 @@ from veupath_chatbot.services.catalog.sites import get_record_types, list_sites
 
 
 def _site_info(
-    id: str = "plasmodb",
+    site_id: str = "plasmodb",
     name: str = "PlasmoDB",
     display_name: str = "PlasmoDB",
     base_url: str = "https://plasmodb.org/plasmo/service",
@@ -22,14 +22,14 @@ def _site_info(
     is_portal: bool = False,
 ) -> MagicMock:
     si = MagicMock()
-    si.id = id
+    si.id = site_id
     si.name = name
     si.display_name = display_name
     si.base_url = base_url
     si.project_id = project_id
     si.is_portal = is_portal
     si.to_dict.return_value = {
-        "id": id,
+        "id": site_id,
         "name": name,
         "displayName": display_name,
         "baseUrl": base_url,
@@ -61,8 +61,8 @@ class TestListSites:
 
     async def test_returns_all_sites_as_dicts(self) -> None:
         sites = [
-            _site_info(id="plasmodb"),
-            _site_info(id="toxodb", name="ToxoDB", display_name="ToxoDB"),
+            _site_info(site_id="plasmodb"),
+            _site_info(site_id="toxodb", name="ToxoDB", display_name="ToxoDB"),
         ]
         with patch(
             "veupath_chatbot.services.catalog.sites.list_wdk_sites",

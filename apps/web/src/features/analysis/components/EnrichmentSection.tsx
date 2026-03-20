@@ -43,13 +43,13 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
           <PThresholdFilter value={pThreshold} onChange={setPThreshold} />
         </div>
 
-        {activeResult && activeResult.error && (
+        {activeResult?.error != null && (
           <div className="flex items-center gap-2 px-5 py-6 text-xs text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>Analysis failed: {activeResult.error}</span>
           </div>
         )}
-        {activeResult && !activeResult.error && (
+        {activeResult != null && activeResult.error == null && (
           <>
             <SummaryBar result={activeResult} filteredCount={filtered.length} />
             {filtered.length > 0 && <EnrichmentDotPlot terms={filtered} />}

@@ -58,7 +58,7 @@ from veupath_chatbot.transport.http.schemas.strategies import (
 from veupath_chatbot.transport.http.schemas.veupathdb_auth import AuthStatusResponse
 
 # ---------------------------------------------------------------------------
-# SetOperationRequest: operation is Literal["intersect", "union", "minus"]
+# SetOperationRequest (operation field accepts intersect / union / minus)
 # ---------------------------------------------------------------------------
 
 

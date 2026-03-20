@@ -29,7 +29,7 @@ class GraphOpsMixin(StrategyToolsBase):
     ) -> str:
         base = None
         kind = root_step.infer_kind()
-        if kind == "search" or kind == "transform":
+        if kind in {"search", "transform"}:
             base = root_step.display_name or root_step.search_name
         elif kind == "combine":
             if root_step.operator is not None:
@@ -202,7 +202,7 @@ class GraphOpsMixin(StrategyToolsBase):
             "name": name,
             "description": description,
             "rootStepId": root_step_id,
-            "steps": cast(JSONValue, steps),
+            "steps": cast("JSONValue", steps),
             "edges": edges,
         }
 

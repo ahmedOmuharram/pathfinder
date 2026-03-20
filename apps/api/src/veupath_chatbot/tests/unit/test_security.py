@@ -29,8 +29,7 @@ def _make_request(
     }
     if auth_header:
         scope["headers"] = [(b"authorization", auth_header.encode())]
-    request = Request(scope)
-    return request
+    return Request(scope)
 
 
 class TestCreateUserToken:

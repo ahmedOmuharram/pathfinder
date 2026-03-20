@@ -6,112 +6,16 @@ from datetime import UTC, datetime
 from typing import cast
 
 from redis.asyncio import Redis
+from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from veupath_chatbot.domain.strategy.plan_ast import count_plan_nodes, steps_to_plan
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Plan AST helpers
-# ---------------------------------------------------------------------------
-
-
-def _steps_to_plan(
-    steps: list[JSONObject],
-    root_step_id: str,
-    snapshot: JSONObject,
-) -> JSONObject | None:
-    """Build a recursive plan AST from a flat steps list.
-
-    Returns None if the root step cannot be found.
-    """
-    step_map: dict[str, JSONObject] = {}
-    for s in steps:
-        sid = s.get("id")
-        if isinstance(sid, str):
-            step_map[sid] = s
-
-    def build_node(step_id: str) -> JSONObject | None:
-        s = step_map.get(step_id)
-        if not s:
-            return None
-        raw_name = s.get("searchName") or ""
-        kind = str(s.get("kind") or "").strip().lower()
-        search_name = (
-            raw_name
-            if raw_name
-            else (
-                "__combine__"
-                if kind == "combine" or s.get("operator")
-                else "__unknown__"
-            )
-        )
-        node: JSONObject = {
-            "id": step_id,
-            "searchName": search_name,
-            "parameters": s.get("parameters", {}),
-        }
-        display = s.get("displayName")
-        if display:
-            node["displayName"] = display
-        op = s.get("operator")
-        if op:
-            node["operator"] = op
-        coloc = s.get("colocationParams")
-        if coloc:
-            node["colocationParams"] = coloc
-        primary_id = s.get("primaryInputStepId")
-        if isinstance(primary_id, str):
-            primary = build_node(primary_id)
-            if primary:
-                node["primaryInput"] = primary
-        secondary_id = s.get("secondaryInputStepId")
-        if isinstance(secondary_id, str):
-            secondary = build_node(secondary_id)
-            if secondary:
-                node["secondaryInput"] = secondary
-        return node
-
-    root = build_node(root_step_id)
-    if not root:
-        return None
-    return {
-        "recordType": snapshot.get("recordType", "transcript"),
-        "root": root,
-        "metadata": {"name": snapshot.get("name", "")},
-    }
-
-
-def _count_plan_nodes(plan: JSONObject) -> int:
-    """Count step nodes in a plan dict by walking the tree.
-
-    The plan dict has ``{"root": {..., "primaryInput": ..., "secondaryInput": ...}}``.
-    Each node with a ``searchName`` key counts as a step.
-    """
-    root = plan.get("root")
-    if not isinstance(root, dict):
-        return 0
-
-    count = 0
-
-    def visit(node: JSONObject) -> None:
-        nonlocal count
-        if node.get("searchName"):
-            count += 1
-        primary = node.get("primaryInput")
-        if isinstance(primary, dict):
-            visit(primary)
-        secondary = node.get("secondaryInput")
-        if isinstance(secondary, dict):
-            visit(secondary)
-
-    visit(root)
-    return count
 
 
 def _parse_arguments(raw: object) -> JSONObject:
@@ -246,7 +150,7 @@ def _project_graph_snapshot(updates: dict[str, object], data: JSONObject) -> Non
     if isinstance(steps, list) and isinstance(root, str) and steps:
         typed_steps: list[JSONObject] = [s for s in steps if isinstance(s, dict)]
         if typed_steps:
-            plan = _steps_to_plan(typed_steps, root, snapshot)
+            plan = steps_to_plan(typed_steps, root, snapshot)
             if plan:
                 updates["plan"] = plan
 
@@ -255,7 +159,7 @@ def _project_graph_plan(updates: dict[str, object], data: JSONObject) -> None:
     plan_val = data.get("plan")
     if isinstance(plan_val, dict):
         updates["plan"] = plan_val
-        updates["step_count"] = _count_plan_nodes(plan_val)
+        updates["step_count"] = count_plan_nodes(plan_val)
     name = data.get("name")
     if isinstance(name, str) and name:
         updates["name"] = name
@@ -271,8 +175,6 @@ def _project_model_selected(updates: dict[str, object], data: JSONObject) -> Non
 
 
 def _project_graph_cleared(updates: dict[str, object]) -> None:
-    from shared_py.defaults import DEFAULT_STREAM_NAME
-
     updates["name"] = DEFAULT_STREAM_NAME
     updates["plan"] = {}
     updates["steps"] = []
@@ -349,7 +251,7 @@ async def _project_event(
         # owner and retry.
         if "ix_proj_wdk" in str(exc) and "wdk_strategy_id" in updates:
             await session.rollback()
-            wdk_id = cast(int, updates["wdk_strategy_id"])
+            wdk_id = cast("int", updates["wdk_strategy_id"])
             clear_stmt = (
                 update(StreamProjection)
                 .where(StreamProjection.wdk_strategy_id == wdk_id)
@@ -383,15 +285,15 @@ class _TurnAccumulator:
     """Accumulates metadata for a single assistant turn."""
 
     __slots__ = (
-        "tool_calls",
         "citations",
+        "model_id",
         "planning_artifacts",
         "reasoning",
-        "model_id",
         "subkani_calls",
-        "subkani_status",
         "subkani_models",
+        "subkani_status",
         "subkani_token_usage",
+        "tool_calls",
     )
 
     def __init__(self) -> None:
@@ -455,6 +357,169 @@ class _TurnAccumulator:
         return msg
 
 
+def _process_stream_event(
+    event_type: str,
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    """Process a single Redis stream event, mutating *turn* and *messages*.
+
+    Extracted from :func:`read_stream_messages` to keep statement count
+    manageable while preserving identical semantics.
+    """
+    match event_type:
+        case "message_start":
+            turn.reset()
+
+        case "user_message":
+            messages.append(
+                {
+                    "role": "user",
+                    "content": data.get("content", ""),
+                    "messageId": data.get("messageId"),
+                    "timestamp": _entry_id_to_iso(entry_id),
+                }
+            )
+
+        case "tool_call_start":
+            turn.tool_calls.append(
+                {
+                    "id": data.get("id", ""),
+                    "name": data.get("name", ""),
+                    "arguments": _parse_arguments(data.get("arguments")),
+                }
+            )
+
+        case "tool_call_end":
+            call_id = data.get("id", "")
+            for tc in turn.tool_calls:
+                if tc["id"] == call_id:
+                    tc["result"] = data.get("result")
+                    break
+
+        case "citations":
+            cites = data.get("citations")
+            if isinstance(cites, list):
+                turn.citations.extend(cites)
+
+        case "planning_artifact":
+            artifact = data.get("planningArtifact")
+            if artifact:
+                turn.planning_artifacts.append(artifact)
+
+        case "reasoning":
+            r = data.get("reasoning")
+            if isinstance(r, str):
+                turn.reasoning = r
+
+        case "model_selected":
+            mid = data.get("modelId")
+            if isinstance(mid, str):
+                turn.model_id = mid
+
+        case "subkani_task_start":
+            _handle_subkani_task_start(turn, data)
+
+        case "subkani_tool_call_start":
+            task = data.get("task", "")
+            if task:
+                turn.subkani_calls.setdefault(task, []).append(
+                    {
+                        "id": data.get("id", ""),
+                        "name": data.get("name", ""),
+                        "arguments": _parse_arguments(data.get("arguments")),
+                    }
+                )
+
+        case "subkani_tool_call_end":
+            task = data.get("task", "")
+            call_id = data.get("id", "")
+            for tc in turn.subkani_calls.get(task, []):
+                if tc["id"] == call_id:
+                    tc["result"] = data.get("result")
+                    break
+
+        case "subkani_task_end":
+            _handle_subkani_task_end(turn, data)
+
+        case "assistant_message":
+            messages.append(turn.build_assistant_message(data, entry_id))
+
+        case "message_end":
+            _handle_message_end(data, messages, turn)
+
+
+def _handle_subkani_task_start(turn: _TurnAccumulator, data: JSONObject) -> None:
+    """Process a subkani_task_start event."""
+    task = data.get("task", "")
+    if task:
+        turn.subkani_status[task] = "running"
+        turn.subkani_calls.setdefault(task, [])
+        mid = data.get("modelId")
+        if isinstance(mid, str) and mid:
+            turn.subkani_models[task] = mid
+
+
+def _handle_subkani_task_end(turn: _TurnAccumulator, data: JSONObject) -> None:
+    """Process a subkani_task_end event, capturing token usage."""
+    task = data.get("task", "")
+    if not task:
+        return
+    turn.subkani_status[task] = data.get("status", "done")
+    mid = data.get("modelId")
+    if isinstance(mid, str) and mid:
+        turn.subkani_models[task] = mid
+    pt = data.get("promptTokens")
+    if pt is not None:
+        turn.subkani_token_usage[task] = {
+            "promptTokens": pt or 0,
+            "completionTokens": data.get("completionTokens", 0),
+            "llmCallCount": data.get("llmCallCount", 0),
+            "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
+        }
+
+
+def _handle_message_end(
+    data: JSONObject, messages: list[JSONObject], turn: _TurnAccumulator
+) -> None:
+    """Process a message_end event, attaching token usage to messages."""
+    total = data.get("totalTokens", 0)
+    if isinstance(total, int) and total > 0:
+        token_usage: JSONObject = {
+            "promptTokens": data.get("promptTokens", 0),
+            "completionTokens": data.get("completionTokens", 0),
+            "totalTokens": total,
+            "cachedTokens": data.get("cachedTokens", 0),
+            "toolCallCount": data.get("toolCallCount", 0),
+            "registeredToolCount": data.get("registeredToolCount", 0),
+            "llmCallCount": data.get("llmCallCount", 0),
+            "subKaniPromptTokens": data.get("subKaniPromptTokens", 0),
+            "subKaniCompletionTokens": data.get(
+                "subKaniCompletionTokens", 0
+            ),
+            "subKaniCallCount": data.get("subKaniCallCount", 0),
+            "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
+            "modelId": data.get("modelId", ""),
+        }
+        for i in range(len(messages) - 1, -1, -1):
+            if (
+                messages[i]["role"] == "user"
+                and "tokenUsage" not in messages[i]
+            ):
+                messages[i]["tokenUsage"] = token_usage
+                break
+        for i in range(len(messages) - 1, -1, -1):
+            if (
+                messages[i]["role"] == "assistant"
+                and "tokenUsage" not in messages[i]
+            ):
+                messages[i]["tokenUsage"] = token_usage
+                break
+    turn.reset()
+
+
 async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]:
     """Read all user + assistant messages from a Redis stream.
 
@@ -475,138 +540,7 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
         except json.JSONDecodeError, KeyError:
             continue
 
-        match event_type:
-            case "message_start":
-                turn.reset()
-
-            case "user_message":
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": data.get("content", ""),
-                        "messageId": data.get("messageId"),
-                        "timestamp": _entry_id_to_iso(entry_id),
-                    }
-                )
-
-            case "tool_call_start":
-                turn.tool_calls.append(
-                    {
-                        "id": data.get("id", ""),
-                        "name": data.get("name", ""),
-                        "arguments": _parse_arguments(data.get("arguments")),
-                    }
-                )
-
-            case "tool_call_end":
-                call_id = data.get("id", "")
-                for tc in turn.tool_calls:
-                    if tc["id"] == call_id:
-                        tc["result"] = data.get("result")
-                        break
-
-            case "citations":
-                cites = data.get("citations")
-                if isinstance(cites, list):
-                    turn.citations.extend(cites)
-
-            case "planning_artifact":
-                artifact = data.get("planningArtifact")
-                if artifact:
-                    turn.planning_artifacts.append(artifact)
-
-            case "reasoning":
-                r = data.get("reasoning")
-                if isinstance(r, str):
-                    turn.reasoning = r
-
-            case "model_selected":
-                mid = data.get("modelId")
-                if isinstance(mid, str):
-                    turn.model_id = mid
-
-            case "subkani_task_start":
-                task = data.get("task", "")
-                if task:
-                    turn.subkani_status[task] = "running"
-                    turn.subkani_calls.setdefault(task, [])
-                    mid = data.get("modelId")
-                    if isinstance(mid, str) and mid:
-                        turn.subkani_models[task] = mid
-
-            case "subkani_tool_call_start":
-                task = data.get("task", "")
-                if task:
-                    turn.subkani_calls.setdefault(task, []).append(
-                        {
-                            "id": data.get("id", ""),
-                            "name": data.get("name", ""),
-                            "arguments": _parse_arguments(data.get("arguments")),
-                        }
-                    )
-
-            case "subkani_tool_call_end":
-                task = data.get("task", "")
-                call_id = data.get("id", "")
-                for tc in turn.subkani_calls.get(task, []):
-                    if tc["id"] == call_id:
-                        tc["result"] = data.get("result")
-                        break
-
-            case "subkani_task_end":
-                task = data.get("task", "")
-                if task:
-                    turn.subkani_status[task] = data.get("status", "done")
-                    mid = data.get("modelId")
-                    if isinstance(mid, str) and mid:
-                        turn.subkani_models[task] = mid
-                    # Capture per-task token usage if present.
-                    pt = data.get("promptTokens")
-                    if pt is not None:
-                        turn.subkani_token_usage[task] = {
-                            "promptTokens": pt or 0,
-                            "completionTokens": data.get("completionTokens", 0),
-                            "llmCallCount": data.get("llmCallCount", 0),
-                            "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
-                        }
-
-            case "assistant_message":
-                messages.append(turn.build_assistant_message(data, entry_id))
-
-            case "message_end":
-                total = data.get("totalTokens", 0)
-                if isinstance(total, int) and total > 0:
-                    token_usage: JSONObject = {
-                        "promptTokens": data.get("promptTokens", 0),
-                        "completionTokens": data.get("completionTokens", 0),
-                        "totalTokens": total,
-                        "cachedTokens": data.get("cachedTokens", 0),
-                        "toolCallCount": data.get("toolCallCount", 0),
-                        "registeredToolCount": data.get("registeredToolCount", 0),
-                        "llmCallCount": data.get("llmCallCount", 0),
-                        "subKaniPromptTokens": data.get("subKaniPromptTokens", 0),
-                        "subKaniCompletionTokens": data.get(
-                            "subKaniCompletionTokens", 0
-                        ),
-                        "subKaniCallCount": data.get("subKaniCallCount", 0),
-                        "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
-                        "modelId": data.get("modelId", ""),
-                    }
-                    for i in range(len(messages) - 1, -1, -1):
-                        if (
-                            messages[i]["role"] == "user"
-                            and "tokenUsage" not in messages[i]
-                        ):
-                            messages[i]["tokenUsage"] = token_usage
-                            break
-                    for i in range(len(messages) - 1, -1, -1):
-                        if (
-                            messages[i]["role"] == "assistant"
-                            and "tokenUsage" not in messages[i]
-                        ):
-                            messages[i]["tokenUsage"] = token_usage
-                            break
-                turn.reset()
+        _process_stream_event(event_type, data, entry_id, turn, messages)
 
     return messages
 

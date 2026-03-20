@@ -3,17 +3,11 @@
 Provides function-calling tools that let the AI assistant access
 experiment data: paginate through records, look up individual genes,
 get attribute distributions, compare gene groups, and search results.
-
-The agent class is built dynamically via :func:`build_analysis_agent_class`
-so that the services layer never needs a static import from
-``veupath_chatbot.ai``.  The configured experiment-agent base class
-is injected at startup.
 """
 
-from typing import Annotated, Any, cast
+from typing import Annotated, cast
 
-from kani import AIParam, ChatMessage, Kani, ai_function
-from kani.engines.base import BaseEngine
+from kani import AIParam, ai_function
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.types import JSONObject
@@ -23,27 +17,10 @@ from veupath_chatbot.services.experiment.ai_analysis_helpers import (
     fetch_group_records,
     record_matches,
 )
-from veupath_chatbot.services.experiment.ai_refinement_tools import (
-    RefinementToolsMixin,
-)
-from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     Experiment,
 )
 from veupath_chatbot.services.wdk.helpers import extract_pk
-
-# ── Injected base class ─────────────────────────────────────────────
-# Set once at startup via configure().
-_experiment_agent_cls: type[Kani] | None = None
-
-
-def configure(*, experiment_agent_cls: type[Kani]) -> None:
-    """Wire the experiment agent base class.
-
-    Called once at application startup from the composition root.
-    """
-    global _experiment_agent_cls
-    _experiment_agent_cls = experiment_agent_cls
 
 
 class _AnalysisToolsMixin:
@@ -113,7 +90,7 @@ class _AnalysisToolsMixin:
         meta = answer.get("meta", {})
         total = meta.get("totalCount", 0) if isinstance(meta, dict) else 0
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "records": classified[:50],
                 "totalCount": total,
@@ -145,13 +122,14 @@ class _AnalysisToolsMixin:
             )
             tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
             classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
+        except Exception as exc:
+            return {"error": str(exc), "geneId": gene_id}
+        else:
             return {
                 "geneId": gene_id,
                 "classification": classification,
                 "record": result,
             }
-        except Exception as exc:
-            return {"error": str(exc), "geneId": gene_id}
 
     @ai_function()
     async def get_attribute_distribution(
@@ -197,7 +175,7 @@ class _AnalysisToolsMixin:
         )
 
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "groupA": group_a_attrs,
                 "groupB": group_b_attrs,
@@ -251,62 +229,11 @@ class _AnalysisToolsMixin:
                     matches.append({"geneId": gene_id, "attributes": attrs})
                     if len(matches) >= 20:
                         return cast(
-                            JSONObject,
+                            "JSONObject",
                             {
                                 "matches": matches,
                                 "totalScanned": total_scanned,
                             },
                         )
 
-        return cast(JSONObject, {"matches": matches, "totalScanned": total_scanned})
-
-
-class ExperimentAnalysisAgent(RefinementToolsMixin, _AnalysisToolsMixin, Kani):
-    """AI agent with data-access and strategy-refinement tools.
-
-    Combines analysis tools (data browsing, gene lookup, distributions)
-    with refinement tools (add steps, filter, re-evaluate) and the
-    experiment assistant's catalog/research tools (inherited via the
-    injected base class).
-
-    The base class is set dynamically at startup; if not configured,
-    instantiation falls back to plain Kani.
-    """
-
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-
-    def __init__(
-        self,
-        engine: BaseEngine,
-        site_id: str,
-        experiment_id: str,
-        system_prompt: str,
-        chat_history: list[ChatMessage] | None = None,
-    ) -> None:
-        self.site_id = site_id
-        self.experiment_id = experiment_id
-
-        # If the experiment agent base was configured, delegate to its
-        # __init__ (which sets up catalog tools, research tools, etc.).
-        if _experiment_agent_cls is not None and _experiment_agent_cls is not Kani:
-            # Dynamic dispatch: the actual class (ExperimentAssistantAgent)
-            # accepts site_id, but the static type is type[Kani].
-            init_fn = cast(Any, _experiment_agent_cls.__init__)
-            init_fn(
-                self,
-                engine=engine,
-                site_id=site_id,
-                system_prompt=system_prompt,
-                chat_history=chat_history,
-            )
-        else:
-            super().__init__(
-                engine=engine,
-                system_prompt=system_prompt,
-                chat_history=chat_history or [],
-            )
-
-    async def _get_experiment(self) -> Experiment | None:
-        store = get_experiment_store()
-        return await store.aget(self.experiment_id)
+        return cast("JSONObject", {"matches": matches, "totalScanned": total_scanned})

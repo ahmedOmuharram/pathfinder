@@ -69,7 +69,7 @@ export function AnalysisPanelContainer({
         />
 
         {/* Icon */}
-        {icon && (
+        {icon != null && (
           <span className="shrink-0 text-muted-foreground" aria-hidden="true">
             {icon}
           </span>
@@ -78,7 +78,7 @@ export function AnalysisPanelContainer({
         {/* Title & subtitle */}
         <div className="min-w-0 flex-1">
           <span className="block text-sm font-medium text-foreground">{title}</span>
-          {displaySubtitle && (
+          {displaySubtitle != null && displaySubtitle !== "" && (
             <span className="block truncate text-xs text-muted-foreground">
               {displaySubtitle}
             </span>

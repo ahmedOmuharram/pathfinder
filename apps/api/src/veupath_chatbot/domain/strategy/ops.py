@@ -73,7 +73,7 @@ class ColocationParams:
             return None
         strand_value: Literal["same", "opposite", "both"]
         if strand in ("same", "opposite", "both"):
-            strand_value = cast(Literal["same", "opposite", "both"], strand)
+            strand_value = cast("Literal['same', 'opposite', 'both']", strand)
         else:
             strand_value = "both"
         return cls(
@@ -105,7 +105,8 @@ def get_wdk_operator(op: CombineOp) -> str:
     :raises ValueError: If op is COLOCATE.
     """
     if op == CombineOp.COLOCATE:
-        raise ValueError("COLOCATE requires special handling, not boolean operator")
+        msg = "COLOCATE requires special handling, not boolean operator"
+        raise ValueError(msg)
     return op.value
 
 
@@ -139,7 +140,8 @@ def parse_op(value: str) -> CombineOp:
     """
     raw = (value or "").strip()
     if not raw:
-        raise ValueError("Unknown operator: <empty>")
+        msg = "Unknown operator: <empty>"
+        raise ValueError(msg)
 
     norm = raw.upper().replace("-", "_").replace(" ", "_")
     if norm in _OP_ALIASES:
@@ -148,4 +150,5 @@ def parse_op(value: str) -> CombineOp:
     try:
         return CombineOp(norm)
     except ValueError as exc:
-        raise ValueError(f"Unknown operator: {value}") from exc
+        msg = f"Unknown operator: {value}"
+        raise ValueError(msg) from exc

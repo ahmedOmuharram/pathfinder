@@ -13,6 +13,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
+from veupath_chatbot.services.catalog.searches import find_record_type_for_search
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
     _get_total_count_for_step,
@@ -36,10 +37,10 @@ def _require_step_id(raw: JSONObject | None, label: str) -> int:
 
 
 __all__ = [
-    "resolve_controls_param_type",
+    "_cleanup_internal_control_test_strategies",
     "_extract_intersection_data",
     "_run_intersection_control",
-    "_cleanup_internal_control_test_strategies",
+    "resolve_controls_param_type",
     "run_positive_negative_controls",
 ]
 
@@ -120,8 +121,6 @@ async def _run_intersection_control(
     across multiple calls would cause the second call to fail with
     ``"<stepId> is not a valid step ID"``.
     """
-    from veupath_chatbot.services.catalog.searches import find_record_type_for_search
-
     api = get_strategy_api(site_id)
 
     # Auto-resolve record types for both searches via the cached catalog.
@@ -331,7 +330,7 @@ async def run_positive_negative_controls(
 
         pos_count, found_ids, has_ids = _extract_intersection_data(pos_payload)
         missing = [x for x in pos if x not in found_ids] if has_ids else []
-        missing_sample = cast(JSONValue, missing[:50])
+        missing_sample = cast("JSONValue", missing[:50])
         result["positive"] = {
             **pos_payload,
             "missingIdsSample": missing_sample,
@@ -350,7 +349,7 @@ async def run_positive_negative_controls(
             target["resultCount"] = neg_payload.get("targetResultCount")
 
         neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
-        unexpected_sample = cast(JSONValue, list(hit_ids)[:50] if hit_ids else [])
+        unexpected_sample = cast("JSONValue", list(hit_ids)[:50] if hit_ids else [])
         result["negative"] = {
             **neg_payload,
             "unexpectedHitsSample": unexpected_sample,

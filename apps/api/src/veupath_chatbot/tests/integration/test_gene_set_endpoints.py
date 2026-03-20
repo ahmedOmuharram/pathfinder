@@ -239,7 +239,7 @@ async def test_confidence_returns_sorted_scores(
     assert g1["ensembleScore"] == pytest.approx(0.9)
     assert g1["enrichmentScore"] == pytest.approx(0.6)
 
-    # G2 is FP (cls=-1.0)
+    # G2 is a false positive (cls -1.0)
     g2 = next(s for s in scores if s["geneId"] == "G2")
     assert g2["classificationScore"] == pytest.approx(-1.0)
 

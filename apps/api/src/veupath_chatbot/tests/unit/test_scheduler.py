@@ -18,7 +18,7 @@ from veupath_chatbot.platform.types import JSONObject
 
 def _no_context(**_kwargs: object) -> None:
     """format_dependency_context stub that returns None."""
-    return None
+    return
 
 
 def _make_run_node(
@@ -91,7 +91,7 @@ class TestDependencyOrdering:
         dependents = {"A": ["B", "C"], "B": ["D"], "C": ["D"]}
 
         # Use max_concurrency=1 to make B and C sequential so order is deterministic
-        results, results_by_id = await run_nodes_with_dependencies(
+        results, _results_by_id = await run_nodes_with_dependencies(
             nodes_by_id=nodes,
             dependents=dependents,
             max_concurrency=1,
@@ -152,8 +152,7 @@ class TestConcurrencyLimiting:
         ) -> JSONObject:
             nonlocal active, peak_concurrent
             active += 1
-            if active > peak_concurrent:
-                peak_concurrent = active
+            peak_concurrent = max(peak_concurrent, active)
             order.append(node_id)
             await asyncio.sleep(0.02)
             active -= 1
@@ -321,7 +320,8 @@ class TestErrorPropagation:
         async def failing_run_node(
             node_id: str, node: JSONObject, dep_context: str | None
         ) -> JSONObject:
-            raise ValueError(f"boom from {node_id}")
+            msg = f"boom from {node_id}"
+            raise ValueError(msg)
 
         nodes: dict[str, JSONObject] = {"A": {"task": "will-fail"}}
         dependents: dict[str, list[str]] = {}

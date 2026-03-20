@@ -5,21 +5,6 @@ import type {
 } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
 
-// Re-export shared types and functions from lib/api so workbench consumers
-// that already import from this barrel continue to work.
-export type {
-  CustomEnrichmentResult,
-  ThresholdSweepPoint,
-  ThresholdSweepResult,
-  NumericSweepRequest,
-  CategoricalSweepRequest,
-  SweepRequest,
-  ThresholdSweepProgress,
-  ThresholdSweepCallbacks,
-} from "@/lib/api/analysis";
-
-export { runCustomEnrichment, streamThresholdSweep } from "@/lib/api/analysis";
-
 export async function runCrossValidation(
   experimentId: string,
   kFolds: number,
@@ -79,11 +64,12 @@ export async function computeOverlap(
   opts?: { orthologAware?: boolean },
 ): Promise<OverlapResult> {
   const query: Record<string, string> = {};
-  if (opts?.orthologAware) query.orthologAware = "true";
+  if (opts?.orthologAware === true) query["orthologAware"] = "true";
+  const hasQuery = Object.keys(query).length > 0;
   return await requestJson<OverlapResult>("/api/v1/experiments/overlap", {
     method: "POST",
     body: { experimentIds },
-    query: Object.keys(query).length > 0 ? query : undefined,
+    ...(hasQuery ? { query } : {}),
   });
 }
 
@@ -109,7 +95,10 @@ export async function compareEnrichment(
     "/api/v1/experiments/enrichment-compare",
     {
       method: "POST",
-      body: { experimentIds, ...(analysisType ? { analysisType } : {}) },
+      body: {
+        experimentIds,
+        ...(analysisType != null && analysisType !== "" ? { analysisType } : {}),
+      },
     },
   );
 }

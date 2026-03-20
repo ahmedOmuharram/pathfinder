@@ -8,6 +8,8 @@ Enrichment@K) with optional list-size constraints.
 import copy
 import time
 
+import optuna
+
 from veupath_chatbot.domain.strategy.tree import walk_dict_tree
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -15,6 +17,9 @@ from veupath_chatbot.services.experiment.helpers import safe_int
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
+)
+from veupath_chatbot.services.experiment.step_analysis import (
+    run_controls_against_tree,
 )
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
@@ -55,16 +60,10 @@ async def optimize_tree_knobs(
     :returns: Optimization result with best trial and history.
     """
     try:
-        import optuna
-
         optuna.logging.set_verbosity(optuna.logging.WARNING)
     except ImportError:
-        logger.error("Optuna not installed — tree optimization unavailable")
+        logger.exception("Optuna not installed — tree optimization unavailable")
         return TreeOptimizationResult(objective=objective)
-
-    from veupath_chatbot.services.experiment.step_analysis import (
-        run_controls_against_tree,
-    )
 
     start = time.monotonic()
     all_trials: list[TreeOptimizationTrial] = []

@@ -4,7 +4,7 @@ import type { ParamWidgetProps } from "./types";
 import { CheckboxParam } from "./CheckboxParam";
 
 function collectLeaves(node: VocabNode): string[] {
-  if (!node.children?.length) return [node.value];
+  if (node.children == null || node.children.length === 0) return [node.value];
   return node.children.flatMap(collectLeaves);
 }
 
@@ -24,7 +24,7 @@ function buildDefaultExpanded(nodes: VocabNode[], depth = 0): Set<string> {
   const result = new Set<string>();
   if (depth >= 2) return result;
   for (const node of nodes) {
-    if (node.children?.length) {
+    if (node.children != null && node.children.length > 0) {
       result.add(node.value);
       for (const v of buildDefaultExpanded(node.children, depth + 1)) {
         result.add(v);
@@ -52,19 +52,30 @@ export function TreeBoxParam(props: ParamWidgetProps) {
     return <CheckboxParam {...props} />;
   }
 
-  return (
-    <TreeBoxInner
-      spec={spec}
-      value={value}
-      multi={multi}
-      multiValue={multiValue}
-      options={options}
-      vocabTree={vocabTree}
-      onChangeSingle={onChangeSingle}
-      onChangeMulti={onChangeMulti}
-      fieldBorderClass={fieldBorderClass}
-    />
-  );
+  const innerProps: {
+    spec: ParamWidgetProps["spec"];
+    value: ParamWidgetProps["value"];
+    multi: boolean;
+    multiValue: string[];
+    options: ParamWidgetProps["options"];
+    vocabTree: VocabNode[];
+    onChangeSingle: ParamWidgetProps["onChangeSingle"];
+    onChangeMulti: ParamWidgetProps["onChangeMulti"];
+    fieldBorderClass?: string;
+  } = {
+    spec,
+    value,
+    multi,
+    multiValue,
+    options,
+    vocabTree,
+    onChangeSingle,
+    onChangeMulti,
+  };
+  if (fieldBorderClass != null) {
+    innerProps.fieldBorderClass = fieldBorderClass;
+  }
+  return <TreeBoxInner {...innerProps} />;
 }
 
 function TreeBoxInner({
@@ -142,7 +153,7 @@ function TreeBoxInner({
       return null;
     }
 
-    const isBranch = Boolean(node.children?.length);
+    const isBranch = Boolean(node.children != null && node.children.length > 0);
     const isExpanded = expandedNodes.has(node.value);
     const leaves = collectLeaves(node);
     const allChecked = leaves.every((l) => selectedSet.has(l));
@@ -221,7 +232,7 @@ function TreeBoxInner({
 
   return (
     <div
-      className={`rounded-md border ${fieldBorderClass || "border-border"} bg-card text-sm`}
+      className={`rounded-md border ${fieldBorderClass ?? "border-border"} bg-card text-sm`}
     >
       <div className="p-2 border-b border-border">
         <input

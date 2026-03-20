@@ -36,7 +36,7 @@ export async function getSearches(
   return (await requestJsonValidated(
     SearchListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches`,
-    { query: recordType ? { recordType } : undefined },
+    recordType != null && recordType !== "" ? { query: { recordType } } : {},
   )) as Search[];
 }
 

@@ -61,11 +61,9 @@ def test_delegation_plan_preserves_task_context_and_affects_dedupe() -> None:
             context_value = t.get("context")
             if isinstance(context_value, dict):
                 contexts.append(as_json_object(context_value))
-    context_dicts: list[dict[str, str]] = []
-    for ctx in contexts:
-        context_dicts.append(
-            {k: str(v) if v is not None else "" for k, v in ctx.items()}
-        )
+    context_dicts = [
+        {k: str(v) if v is not None else "" for k, v in ctx.items()} for ctx in contexts
+    ]
     assert {"organism": "Pf3D7"} in context_dicts
     assert {"organism": "PbANKA"} in context_dicts
     # Same task text but different context => should not dedupe into one node.

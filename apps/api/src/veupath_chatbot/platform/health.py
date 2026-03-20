@@ -1,5 +1,6 @@
 """Health-check probes for external dependencies."""
 
+from qdrant_client import AsyncQdrantClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +19,6 @@ async def check_database(session: AsyncSession) -> bool:
 async def check_qdrant() -> bool:
     """Return ``True`` if Qdrant is reachable and lists collections."""
     settings = get_settings()
-    from qdrant_client import AsyncQdrantClient
-
     client = AsyncQdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,

@@ -16,6 +16,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from veupath_chatbot.services.gene_lookup.enrich import (
+    enrich_sparse_gene_results,
+)
+from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
 from veupath_chatbot.services.gene_lookup.organism import (
     normalize_organism,
     score_organism_match,
@@ -26,8 +30,9 @@ from veupath_chatbot.services.gene_lookup.scoring import score_gene_relevance
 from veupath_chatbot.services.gene_lookup.site_search import (
     parse_site_search_docs,
 )
-from veupath_chatbot.services.gene_lookup.wdk import _parse_wdk_record
+from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult, _parse_wdk_record
 from veupath_chatbot.services.search_rerank import (
+    QueryIntent,
     ScoredResult,
     dedup_and_sort,
     score_text_match,
@@ -177,7 +182,7 @@ class TestSiteSearchEdgeCases:
                 "summaryFieldData": {},
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 1
         assert results[0]["geneId"] == "PF3D7_0100100"
 
@@ -190,7 +195,7 @@ class TestSiteSearchEdgeCases:
                 "summaryFieldData": {},
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert results == []
 
     def test_doc_with_none_summary_field_data(self) -> None:
@@ -201,7 +206,7 @@ class TestSiteSearchEdgeCases:
                 "summaryFieldData": None,
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 1
         assert results[0]["geneId"] == "GENE_X"
         assert results[0]["organism"] == ""
@@ -214,7 +219,7 @@ class TestSiteSearchEdgeCases:
                 "summaryFieldData": 42,
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert len(results) == 1
         assert results[0]["geneId"] == "GENE_X"
 
@@ -227,7 +232,7 @@ class TestSiteSearchEdgeCases:
                 "foundInFields": "not a dict",
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         assert results[0]["matchedFields"] == []
 
     def test_doc_found_in_fields_non_list_values(self) -> None:
@@ -242,7 +247,7 @@ class TestSiteSearchEdgeCases:
                 },
             }
         ]
-        results = parse_site_search_docs(cast(list[object], docs))
+        results = parse_site_search_docs(cast("list[object]", docs))
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_name" in matched
@@ -349,10 +354,6 @@ class TestEnrichEdgeCases:
                 {"geneId": "G2", "organism": "Tg", "product": "prod2"},
             ],
         }
-        from veupath_chatbot.services.gene_lookup.enrich import (
-            enrich_sparse_gene_results,
-        )
-
         results: list[dict[str, object]] = [
             {"geneId": "G1"},
             {"geneId": "G2"},
@@ -372,20 +373,12 @@ class TestEnrichEdgeCases:
                 {"geneId": "G1", "organism": "Pf", "product": "prod1"},
             ],
         }
-        from veupath_chatbot.services.gene_lookup.enrich import (
-            enrich_sparse_gene_results,
-        )
-
         results: list[dict[str, object]] = [{"geneId": "G1"}]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 0)
         assert enriched == []
 
     async def test_enrichment_empty_results(self) -> None:
         """Empty results list should pass through without WDK calls."""
-        from veupath_chatbot.services.gene_lookup.enrich import (
-            enrich_sparse_gene_results,
-        )
-
         enriched = await enrich_sparse_gene_results("plasmodb", [], 10)
         assert enriched == []
 
@@ -417,10 +410,6 @@ class TestLookupEdgeCases:
         mock_enrich: AsyncMock,
     ) -> None:
         """limit=0 should return an empty paginated set."""
-        from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
-        from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [
             {
                 "geneId": "G1",
@@ -454,10 +443,6 @@ class TestLookupEdgeCases:
         mock_enrich: AsyncMock,
     ) -> None:
         """offset beyond total results should return empty."""
-        from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
-        from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
-        from veupath_chatbot.services.search_rerank import QueryIntent
-
         genes = [
             {
                 "geneId": "G1",

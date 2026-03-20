@@ -9,4 +9,3 @@ export { CustomEnrichmentSection } from "./components/CustomEnrichmentSection";
 
 export { CrossValidationSection } from "./components/CrossValidationSection";
 export { GeneListsSection } from "./components/GeneListsSection";
-export { Section } from "./components/Section";

@@ -94,7 +94,7 @@ class EuropePmcClient(StandardClient):
             "doi": doi,
             "pmid": pmid,
             "url": link,
-            "authors": cast(JSONValue, authors),
+            "authors": cast("JSONValue", authors),
             "journalTitle": journal,
             "abstract": abstract,
             "snippet": journal,

@@ -73,18 +73,24 @@ export function AssistantMessageParts({
                 lastToolCalls={thinking.lastToolCalls}
                 subKaniCalls={thinking.subKaniCalls}
                 subKaniStatus={thinking.subKaniStatus}
-                subKaniModels={thinking.subKaniModels}
-                reasoning={thinking.reasoning}
+                {...(thinking.subKaniModels != null
+                  ? { subKaniModels: thinking.subKaniModels }
+                  : {})}
+                {...(thinking.reasoning != null
+                  ? { reasoning: thinking.reasoning }
+                  : {})}
                 title="Thinking"
               />
             ) : (
               <ChatThinkingDetails
                 key={part.key}
-                toolCalls={message.toolCalls}
+                {...(message.toolCalls != null ? { toolCalls: message.toolCalls } : {})}
                 delegateSummaries={delegateSummary.summaries}
                 delegateRejected={delegateSummary.rejected}
-                subKaniActivity={message.subKaniActivity}
-                reasoning={message.reasoning}
+                {...(message.subKaniActivity != null
+                  ? { subKaniActivity: message.subKaniActivity }
+                  : {})}
+                {...(message.reasoning != null ? { reasoning: message.reasoning } : {})}
                 title="Thought"
               />
             );
@@ -93,7 +99,9 @@ export function AssistantMessageParts({
               <ResponsePart
                 key={part.key}
                 message={message}
-                onApplyPlanningArtifact={onApplyPlanningArtifact}
+                {...(onApplyPlanningArtifact != null
+                  ? { onApplyPlanningArtifact }
+                  : {})}
               />
             );
           case "sources":
@@ -114,7 +122,9 @@ export function AssistantMessageParts({
               <OptimizationProgressPanel
                 key={part.key}
                 data={data}
-                onCancel={isLive ? onCancelOptimization : undefined}
+                {...(isLive && onCancelOptimization != null
+                  ? { onCancel: onCancelOptimization }
+                  : {})}
               />
             );
           }

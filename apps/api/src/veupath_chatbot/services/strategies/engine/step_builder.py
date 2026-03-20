@@ -156,6 +156,7 @@ class StepBuilderMixin(StrategyToolsBase):
         self,
         vocabulary: JSONObject,
         values: list[str],
+        *,
         include_parent: bool = False,
     ) -> list[str]:
         expanded: list[str] = []

@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -11,18 +11,17 @@ from veupath_chatbot.domain.parameters.specs import adapt_param_specs
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import StrategyCompiler
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "wdk"
 
 
 def _load_fixture(name: str) -> JSONObject:
-    from veupath_chatbot.platform.types import as_json_object
-
     with (FIXTURES_DIR / name).open("r", encoding="utf-8") as handle:
         data = json.load(handle)
         if not isinstance(data, dict):
-            raise ValueError(f"Fixture {name} is not a JSON object")
+            msg = f"Fixture {name} is not a JSON object"
+            raise TypeError(msg)
         return as_json_object(data)
 
 
@@ -30,8 +29,6 @@ class FakeStrategyAPI:
     """Minimal StrategyAPI stub for compilation tests."""
 
     def __init__(self, fixtures: dict[str, JSONObject]) -> None:
-        from unittest.mock import MagicMock
-
         self.client = MagicMock()
 
         async def get_search_details(
@@ -70,7 +67,7 @@ def test_param_specs_treat_negative_max_as_unlimited() -> None:
 async def test_compile_search_normalizes_multi_pick_params() -> None:
     fixtures = {"GenesWithEpitopes": _load_fixture("genes_with_epitopes.json")}
     api = FakeStrategyAPI(fixtures)
-    compiler = StrategyCompiler(cast(StrategyAPI, api), resolve_record_type=False)
+    compiler = StrategyCompiler(cast("StrategyAPI", api), resolve_record_type=False)
 
     step = PlanStepNode(
         search_name="GenesWithEpitopes",
@@ -95,7 +92,7 @@ async def test_compile_search_normalizes_multi_pick_params() -> None:
 async def test_compile_search_accepts_csv_multi_pick_params() -> None:
     fixtures = {"GenesWithEpitopes": _load_fixture("genes_with_epitopes.json")}
     api = FakeStrategyAPI(fixtures)
-    compiler = StrategyCompiler(cast(StrategyAPI, api), resolve_record_type=False)
+    compiler = StrategyCompiler(cast("StrategyAPI", api), resolve_record_type=False)
 
     step = PlanStepNode(
         search_name="GenesWithEpitopes",
@@ -118,7 +115,7 @@ async def test_compile_search_accepts_csv_multi_pick_params() -> None:
 async def test_compile_search_accepts_bracketed_csv_values() -> None:
     fixtures = {"GenesWithEpitopes": _load_fixture("genes_with_epitopes.json")}
     api = FakeStrategyAPI(fixtures)
-    compiler = StrategyCompiler(cast(StrategyAPI, api), resolve_record_type=False)
+    compiler = StrategyCompiler(cast("StrategyAPI", api), resolve_record_type=False)
 
     step = PlanStepNode(
         search_name="GenesWithEpitopes",
@@ -144,7 +141,7 @@ async def test_compile_transform_clears_input_step_param() -> None:
         "GenesByOrthologs": _load_fixture("genes_by_orthologs.json"),
     }
     api = FakeStrategyAPI(fixtures)
-    compiler = StrategyCompiler(cast(StrategyAPI, api), resolve_record_type=False)
+    compiler = StrategyCompiler(cast("StrategyAPI", api), resolve_record_type=False)
 
     search = PlanStepNode(
         search_name="GenesWithEpitopes",

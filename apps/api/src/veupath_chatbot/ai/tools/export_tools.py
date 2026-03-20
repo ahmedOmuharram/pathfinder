@@ -34,7 +34,8 @@ class ExportToolsMixin:
     async def export_gene_set(
         self,
         gene_set_id: Annotated[str, AIParam(desc="PathFinder gene set ID")],
-        format: Annotated[
+        *,
+        output_format: Annotated[
             str,
             AIParam(desc="Export format: csv or txt"),
         ] = "csv",
@@ -44,11 +45,11 @@ class ExportToolsMixin:
         Returns a download URL that the user can click to download the file.
         The URL expires after 10 minutes.
         """
-        if format not in ("csv", "txt"):
+        if output_format not in ("csv", "txt"):
             return tool_error(
                 ErrorCode.VALIDATION_ERROR,
                 "format must be 'csv' or 'txt'.",
-                format=format,
+                format=output_format,
             )
 
         store = get_gene_set_store()
@@ -59,16 +60,16 @@ class ExportToolsMixin:
                 ErrorCode.NOT_FOUND,
                 f"Gene set not found: {gene_set_id}. Use one of the available IDs below.",
                 gene_set_id=gene_set_id,
-                availableGeneSets=cast(JSONValue, available),
+                availableGeneSets=cast("JSONValue", available),
             )
 
         svc = get_export_service()
-        fmt: Literal["csv", "txt"] = "txt" if format == "txt" else "csv"
+        fmt: Literal["csv", "txt"] = "txt" if output_format == "txt" else "csv"
         result = await svc.export_gene_set(gs, fmt)
         return {
             "downloadUrl": result.url,
             "filename": result.filename,
-            "format": format,
+            "format": output_format,
             "itemCount": len(gs.gene_ids),
             "expiresInSeconds": result.expires_in_seconds,
         }

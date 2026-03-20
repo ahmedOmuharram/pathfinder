@@ -42,8 +42,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ class TestGeneByLocusTagAvailability:
     """Verify GeneByLocusTag search exists on every VEuPathDB gene site."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("site_id,base_url", GENE_SITES)
+    @pytest.mark.parametrize(("site_id", "base_url"), GENE_SITES)
     async def test_gene_by_locus_tag_exists(self, site_id: str, base_url: str) -> None:
         """GeneByLocusTag search must exist under transcript record type."""
         async with httpx.AsyncClient(timeout=30) as client:
@@ -84,10 +84,9 @@ class TestGeneByLocusTagAvailability:
             assert "GeneByLocusTag" in names, (
                 f"GeneByLocusTag not found on {site_id}. Available: {names[:10]}..."
             )
-            print(f"\n  [{site_id}] GeneByLocusTag found among {len(names)} searches")
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("site_id,base_url", GENE_SITES)
+    @pytest.mark.parametrize(("site_id", "base_url"), GENE_SITES)
     async def test_ds_gene_ids_parameter_exists(
         self, site_id: str, base_url: str
     ) -> None:
@@ -106,7 +105,6 @@ class TestGeneByLocusTagAvailability:
             assert "ds_gene_ids" in param_names, (
                 f"ds_gene_ids not found on {site_id}. Parameters: {param_names}"
             )
-            print(f"\n  [{site_id}] ds_gene_ids parameter present")
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +344,7 @@ class TestGeneSetEnrichmentMultiSite:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("site_id,gene_ids", ENRICHMENT_CASES)
+    @pytest.mark.parametrize(("site_id", "gene_ids"), ENRICHMENT_CASES)
     async def test_go_bp_enrichment(self, site_id: str, gene_ids: list[str]) -> None:
         """GO biological process enrichment from gene IDs."""
         # Step 1: Create a WDK dataset from gene IDs
@@ -362,15 +360,13 @@ class TestGeneSetEnrichmentMultiSite:
 
         # Step 2: Run enrichment
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id=site_id,
             analysis_types=["go_process"],
             search_name=search_name,
             record_type=record_type,
             parameters=parameters,
         )
-
-        print(f"\n  [{site_id}] enrichment: {len(results)} results, errors={errors}")
 
         # Step 3: Verify at least one result returned
         assert len(results) == 1
@@ -384,31 +380,25 @@ class TestGeneSetEnrichmentMultiSite:
         if result.terms:
             term = result.terms[0]
             # Verify all expected fields are present with correct types
-            assert isinstance(term.term_id, str) and len(term.term_id) > 0
-            assert isinstance(term.term_name, str) and len(term.term_name) > 0
+            assert isinstance(term.term_id, str)
+            assert len(term.term_id) > 0
+            assert isinstance(term.term_name, str)
+            assert len(term.term_name) > 0
             assert isinstance(term.p_value, float)
             assert isinstance(term.fdr, float)
             assert isinstance(term.genes, list)
-            assert isinstance(term.gene_count, int) and term.gene_count > 0
+            assert isinstance(term.gene_count, int)
+            assert term.gene_count > 0
             assert isinstance(term.background_count, int)
             assert isinstance(term.fold_enrichment, float)
             assert isinstance(term.odds_ratio, float)
             assert isinstance(term.bonferroni, float)
-            print(
-                f"  top term: {term.term_id} - {term.term_name} "
-                f"(p={term.p_value:.2e}, fdr={term.fdr:.2e}, "
-                f"genes={term.genes[:3]})"
-            )
         else:
-            print(f"  [{site_id}] No enriched terms (p<0.05) -- shape not verified")
+            pass
 
         # Verify metadata fields
         assert isinstance(result.total_genes_analyzed, int)
         assert isinstance(result.background_size, int)
-        print(
-            f"  [{site_id}] genes_analyzed={result.total_genes_analyzed}, "
-            f"background={result.background_size}"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -453,8 +443,6 @@ class TestFilteredResultsViaPlasmoDB:
             records = data.get("records", [])
             total = data.get("meta", {}).get("totalCount", 0)
 
-            print(f"\n  [PlasmoDB] Total P. falciparum genes: {total}")
-            print(f"  First {len(records)} records returned")
             assert total > 0, "Expected non-zero gene count for P. falciparum"
             assert len(records) > 0
             assert len(records) <= 5
@@ -497,4 +485,3 @@ class TestFilteredResultsViaPlasmoDB:
                 assert "falciparum" in organism.lower(), (
                     f"Record {rec.get('id')} has unexpected organism: {organism}"
                 )
-            print(f"\n  All {len(records)} records are P. falciparum")

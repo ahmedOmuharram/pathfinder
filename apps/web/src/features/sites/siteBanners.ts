@@ -6,7 +6,7 @@
 /** When set, SitePicker uses white text for the header (dark overlay). */
 export type HeaderTextVariant = "light";
 
-export interface SiteBannerConfig {
+interface SiteBannerConfig {
   /** Path under public/ (e.g. /banners/plasmodb.jpg). */
   imagePath: string;
 }

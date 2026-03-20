@@ -18,7 +18,7 @@ class TestTruncateEdgeCases:
     def test_one_over_max_truncates(self) -> None:
         s = "x" * 101
         result = truncate(s, max_chars=100)
-        assert result.endswith("...(truncated)") or result.endswith("\u2026(truncated)")
+        assert result.endswith(("...(truncated)", "…(truncated)"))
         assert len(result) <= 100
 
     def test_empty_string(self) -> None:

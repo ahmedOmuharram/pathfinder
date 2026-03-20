@@ -18,7 +18,7 @@ export function StrategyGraphActionButtons() {
             if (saveIsDisabled) {
               onToast?.({
                 type: "warning",
-                message: saveDisabledReason || "Cannot save.",
+                message: saveDisabledReason ?? "Cannot save.",
               });
               return;
             }

@@ -14,8 +14,8 @@ interface CompareModalProps {
 
 export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
   const comparison = useMemo(() => {
-    const idsA = setA.geneIds ?? [];
-    const idsB = setB.geneIds ?? [];
+    const idsA = setA.geneIds;
+    const idsB = setB.geneIds;
     const a = new Set(idsA);
     const b = new Set(idsB);
     const shared = idsA.filter((id) => b.has(id));
@@ -38,8 +38,8 @@ export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
         {/* Stats */}
         <div className="grid grid-cols-5 gap-3 mb-5">
           {[
-            { label: setA.name, value: (setA.geneIds ?? []).length },
-            { label: setB.name, value: (setB.geneIds ?? []).length },
+            { label: setA.name, value: setA.geneIds.length },
+            { label: setB.name, value: setB.geneIds.length },
             { label: "Shared", value: comparison.shared.length },
             { label: "Union", value: comparison.unionSize },
             { label: "Jaccard Index", value: comparison.jaccard.toFixed(3) },
@@ -63,8 +63,8 @@ export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
         <div className="flex justify-center py-2">
           <SetVenn
             sets={[
-              { key: setA.name, geneIds: setA.geneIds ?? [] },
-              { key: setB.name, geneIds: setB.geneIds ?? [] },
+              { key: setA.name, geneIds: setA.geneIds },
+              { key: setB.name, geneIds: setB.geneIds },
             ]}
             height={200}
             width={320}

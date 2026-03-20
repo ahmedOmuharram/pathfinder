@@ -89,10 +89,10 @@ describe("extractDelegateSummaries", () => {
     });
     const { summaries } = extractDelegateSummaries([makeDelegateToolCall(payload)]);
     expect(summaries).toHaveLength(2);
-    expect(summaries[0].task).toBe("Task A");
-    expect(summaries[0].notes).toBe("note A");
-    expect(summaries[1].task).toBe("Task B");
-    expect(summaries[1].notes).toBeUndefined();
+    expect(summaries[0]!.task).toBe("Task A");
+    expect(summaries[0]!.notes).toBe("note A");
+    expect(summaries[1]!.task).toBe("Task B");
+    expect(summaries[1]!.notes).toBeUndefined();
   });
 
   // ─── Rejected entries ─────────────────────────────────────────────
@@ -146,8 +146,8 @@ describe("extractDelegateSummaries", () => {
       makeDelegateToolCall(payload2, { id: "tc-2" }),
     ]);
     expect(summaries).toHaveLength(2);
-    expect(summaries[0].task).toBe("Task 1");
-    expect(summaries[1].task).toBe("Task 2");
+    expect(summaries[0]!.task).toBe("Task 1");
+    expect(summaries[1]!.task).toBe("Task 2");
     expect(rejected).toHaveLength(1);
   });
 
@@ -163,7 +163,7 @@ describe("extractDelegateSummaries", () => {
       makeOtherToolCall("get_results"),
     ]);
     expect(summaries).toHaveLength(1);
-    expect(summaries[0].task).toBe("My task");
+    expect(summaries[0]!.task).toBe("My task");
   });
 
   // ─── Defaults for missing fields ──────────────────────────────────
@@ -173,7 +173,7 @@ describe("extractDelegateSummaries", () => {
       results: [{ steps: [{ stepId: "s1" }] }],
     });
     const { summaries } = extractDelegateSummaries([makeDelegateToolCall(payload)]);
-    expect(summaries[0].task).toBe("");
+    expect(summaries[0]!.task).toBe("");
   });
 
   it("defaults steps to empty array when missing", () => {
@@ -181,7 +181,7 @@ describe("extractDelegateSummaries", () => {
       results: [{ task: "No steps" }],
     });
     const { summaries } = extractDelegateSummaries([makeDelegateToolCall(payload)]);
-    expect(summaries[0].steps).toEqual([]);
+    expect(summaries[0]!.steps).toEqual([]);
   });
 
   // ─── Invalid / malformed results ──────────────────────────────────
@@ -232,7 +232,7 @@ describe("extractDelegateSummaries", () => {
     });
     const { summaries } = extractDelegateSummaries([makeDelegateToolCall(payload)]);
     expect(summaries).toHaveLength(1);
-    expect(summaries[0].task).toBe("T");
+    expect(summaries[0]!.task).toBe("T");
   });
 
   // ─── Empty results / rejected arrays ──────────────────────────────
@@ -285,9 +285,9 @@ describe("extractDelegateSummaries", () => {
       ],
     });
     const { summaries } = extractDelegateSummaries([makeDelegateToolCall(payload)]);
-    expect(summaries[0].steps).toHaveLength(4);
-    expect(summaries[0].steps[0]).toEqual({ stepId: "s1" });
-    expect(summaries[0].steps[3]).toEqual({});
+    expect(summaries[0]!.steps).toHaveLength(4);
+    expect(summaries[0]!.steps[0]!).toEqual({ stepId: "s1" });
+    expect(summaries[0]!.steps[3]!).toEqual({});
   });
 
   // ─── Rejected with partial fields ─────────────────────────────────

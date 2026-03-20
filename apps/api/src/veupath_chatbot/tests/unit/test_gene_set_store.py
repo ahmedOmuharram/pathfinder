@@ -12,15 +12,15 @@ _USER_B = uuid4()
 
 
 def _make_set(
-    id: str = "gs-1",
+    set_id: str = "gs-1",
     site_id: str = "plasmo",
     gene_ids: list[str] | None = None,
     user_id: UUID | None = None,
     created_at: datetime | None = None,
 ) -> GeneSet:
     return GeneSet(
-        id=id,
-        name=f"Test Set {id}",
+        id=set_id,
+        name=f"Test Set {set_id}",
         site_id=site_id,
         gene_ids=gene_ids or ["GENE1", "GENE2"],
         source="paste",

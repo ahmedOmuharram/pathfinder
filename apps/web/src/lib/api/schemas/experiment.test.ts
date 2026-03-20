@@ -42,7 +42,7 @@ describe("ExperimentSummarySchema", () => {
       futureField: "hello",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).futureField).toBe("hello");
+    expect((result.data as Record<string, unknown>)["futureField"]).toBe("hello");
   });
 
   it("rejects missing required fields", () => {

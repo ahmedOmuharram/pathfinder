@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const isCI = Boolean(process.env.CI);
+const isCI = Boolean(process.env["CI"]);
 
 /**
  * Playwright E2E test configuration.
@@ -40,7 +40,7 @@ export default defineConfig({
     : [["list"], ["html", { open: "on-failure" }]],
 
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000",
+    baseURL: process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000",
     trace: isCI ? "on-first-retry" : "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

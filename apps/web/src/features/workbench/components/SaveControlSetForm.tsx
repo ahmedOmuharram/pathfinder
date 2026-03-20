@@ -34,7 +34,7 @@ export function SaveControlSetForm({
     if (!name.trim() || !canSave) return;
     setSaving(true);
     try {
-      await createControlSet({
+      const body: Parameters<typeof createControlSet>[0] = {
         name: name.trim(),
         siteId,
         recordType,
@@ -44,8 +44,10 @@ export function SaveControlSetForm({
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),
-        provenanceNotes: notes.trim() || undefined,
-      });
+      };
+      const trimmedNotes = notes.trim();
+      if (trimmedNotes !== "") body.provenanceNotes = trimmedNotes;
+      await createControlSet(body);
       setSuccess(true);
       setTimeout(() => {
         setExpanded(false);
@@ -117,7 +119,13 @@ export function SaveControlSetForm({
         className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs text-muted-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={handleSave} disabled={saving || !name.trim()}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleSave();
+          }}
+          disabled={saving || !name.trim()}
+        >
           {saving ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (

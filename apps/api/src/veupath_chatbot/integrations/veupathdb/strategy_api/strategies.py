@@ -25,6 +25,7 @@ class StrategiesMixin(StrategyAPIBase):
         step_tree: StepTreeNode,
         name: str,
         description: str | None = None,
+        *,
         is_public: bool = False,
         is_saved: bool = False,
         is_internal: bool = False,
@@ -57,7 +58,7 @@ class StrategiesMixin(StrategyAPIBase):
 
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.post(
                 f"/users/{self.user_id}/strategies",
                 json=payload,
@@ -68,7 +69,7 @@ class StrategiesMixin(StrategyAPIBase):
         """Get a strategy by ID."""
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}"),
         )
 
@@ -76,7 +77,7 @@ class StrategiesMixin(StrategyAPIBase):
         """List strategies for the current user."""
         await self._ensure_session()
         return cast(
-            JSONArray,
+            "JSONArray",
             await self.client.get(f"/users/{self.user_id}/strategies"),
         )
 
@@ -104,7 +105,7 @@ class StrategiesMixin(StrategyAPIBase):
         # Return the updated strategy payload (best-effort).
         return await self.get_strategy(strategy_id)
 
-    async def set_saved(self, strategy_id: int, is_saved: bool) -> None:
+    async def set_saved(self, strategy_id: int, *, is_saved: bool) -> None:
         """Set the isSaved flag on a WDK strategy (draft vs saved)."""
         await self._ensure_session()
         await self.client.patch(

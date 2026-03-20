@@ -43,7 +43,7 @@ export function ChatInputBar({
 }: ChatInputBarProps) {
   return (
     <div className="border-t border-border bg-card p-3">
-      {apiError && (
+      {apiError !== null && apiError !== "" && (
         <div
           role="alert"
           aria-live="assertive"

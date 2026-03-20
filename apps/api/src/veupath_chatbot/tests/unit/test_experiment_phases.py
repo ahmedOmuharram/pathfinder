@@ -10,7 +10,16 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import veupath_chatbot.services.experiment.store as store_module
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.experiment.service import (
+    _phase_cross_validate,
+    _phase_enrich,
+    _phase_evaluate,
+    _phase_persist_strategy,
+    _phase_rank_metrics,
+    _phase_robustness,
+)
 from veupath_chatbot.services.experiment.store import (
     ExperimentStore,
     get_experiment_store,
@@ -135,13 +144,11 @@ def _make_metrics() -> ExperimentMetrics:
 
 @pytest.fixture(autouse=True)
 def _reset_store() -> None:
-    import veupath_chatbot.services.experiment.store as store_module
-
     store_module._global_store = ExperimentStore()
 
 
 # ---------------------------------------------------------------------------
-# Phase: evaluate
+# Phase -evaluate
 # ---------------------------------------------------------------------------
 
 
@@ -149,8 +156,6 @@ class TestPhaseEvaluate:
     """_phase_evaluate runs control tests, computes metrics, enriches genes."""
 
     async def test_single_step_returns_result_and_metrics(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -172,8 +177,6 @@ class TestPhaseEvaluate:
         assert len(experiment.false_negative_genes) == 1
 
     async def test_tree_mode_uses_run_controls_against_tree(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         tree = {"searchName": "GenesByTaxon", "parameters": {}}
         config = _make_config(mode="multi-step", step_tree=tree)
         experiment = _make_experiment(config)
@@ -185,7 +188,7 @@ class TestPhaseEvaluate:
             new_callable=AsyncMock,
             return_value=control_result,
         ) as mock_tree:
-            result, metrics = await _phase_evaluate(
+            result, _metrics = await _phase_evaluate(
                 config, experiment, _noop_emit, store
             )
 
@@ -194,8 +197,6 @@ class TestPhaseEvaluate:
         assert experiment.metrics is not None
 
     async def test_emits_evaluating_progress(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -212,8 +213,6 @@ class TestPhaseEvaluate:
         assert "evaluating" in phases
 
     async def test_saves_to_store(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_evaluate
-
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -232,7 +231,7 @@ class TestPhaseEvaluate:
 
 
 # ---------------------------------------------------------------------------
-# Phase: persist_strategy
+# Phase -persist_strategy
 # ---------------------------------------------------------------------------
 
 
@@ -240,10 +239,6 @@ class TestPhasePersistStrategy:
     """_phase_persist_strategy creates a WDK strategy (best-effort)."""
 
     async def test_sets_wdk_ids_on_success(self) -> None:
-        from veupath_chatbot.services.experiment.service import (
-            _phase_persist_strategy,
-        )
-
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -260,10 +255,6 @@ class TestPhasePersistStrategy:
         assert experiment.wdk_step_id == 100
 
     async def test_tolerates_failure(self) -> None:
-        from veupath_chatbot.services.experiment.service import (
-            _phase_persist_strategy,
-        )
-
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -281,7 +272,7 @@ class TestPhasePersistStrategy:
 
 
 # ---------------------------------------------------------------------------
-# Phase: rank_metrics
+# Phase -rank_metrics
 # ---------------------------------------------------------------------------
 
 
@@ -289,8 +280,6 @@ class TestPhaseRankMetrics:
     """_phase_rank_metrics computes rank-based metrics when configured."""
 
     async def test_computes_rank_metrics_and_returns_ordered_ids(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_rank_metrics
-
         config = _make_config(sort_attribute="fold_change")
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
@@ -301,12 +290,12 @@ class TestPhaseRankMetrics:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.rank_metrics.fetch_ordered_result_ids",
+                "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
                 new_callable=AsyncMock,
                 return_value=fake_ids,
             ),
             patch(
-                "veupath_chatbot.services.experiment.rank_metrics.compute_rank_metrics",
+                "veupath_chatbot.services.experiment.service.compute_rank_metrics",
                 return_value=object(),  # sentinel
             ) as mock_compute,
         ):
@@ -317,8 +306,6 @@ class TestPhaseRankMetrics:
         assert experiment.rank_metrics is not None
 
     async def test_skips_when_no_sort_attribute(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_rank_metrics
-
         config = _make_config(sort_attribute=None)
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
@@ -330,8 +317,6 @@ class TestPhaseRankMetrics:
         assert experiment.rank_metrics is None
 
     async def test_skips_when_no_step_id(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_rank_metrics
-
         config = _make_config(sort_attribute="fold_change")
         experiment = _make_experiment(config)
         experiment.wdk_step_id = None
@@ -342,15 +327,13 @@ class TestPhaseRankMetrics:
         assert ordered == []
 
     async def test_tolerates_failure(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_rank_metrics
-
         config = _make_config(sort_attribute="fold_change")
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
 
         with patch(
-            "veupath_chatbot.services.experiment.rank_metrics.fetch_ordered_result_ids",
+            "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
             new_callable=AsyncMock,
             side_effect=RuntimeError("fetch failed"),
         ):
@@ -361,7 +344,7 @@ class TestPhaseRankMetrics:
 
 
 # ---------------------------------------------------------------------------
-# Phase: robustness
+# Phase -robustness
 # ---------------------------------------------------------------------------
 
 
@@ -369,8 +352,6 @@ class TestPhaseRobustness:
     """_phase_robustness computes bootstrap confidence intervals."""
 
     async def test_uses_provided_ordered_ids(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_robustness
-
         config = _make_config()
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
@@ -378,7 +359,7 @@ class TestPhaseRobustness:
         ids = ["G1", "G2", "G3"]
 
         with patch(
-            "veupath_chatbot.services.experiment.robustness.compute_robustness",
+            "veupath_chatbot.services.experiment.service.compute_robustness",
             return_value=object(),
         ) as mock_robust:
             await _phase_robustness(
@@ -389,8 +370,6 @@ class TestPhaseRobustness:
         assert experiment.robustness is not None
 
     async def test_fetches_ids_when_not_provided(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_robustness
-
         config = _make_config()
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
@@ -398,12 +377,12 @@ class TestPhaseRobustness:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.rank_metrics.fetch_ordered_result_ids",
+                "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
                 new_callable=AsyncMock,
                 return_value=["G1", "G2"],
             ),
             patch(
-                "veupath_chatbot.services.experiment.robustness.compute_robustness",
+                "veupath_chatbot.services.experiment.service.compute_robustness",
                 return_value=object(),
             ),
         ):
@@ -414,8 +393,6 @@ class TestPhaseRobustness:
         assert experiment.robustness is not None
 
     async def test_skips_when_no_step_id(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_robustness
-
         config = _make_config()
         experiment = _make_experiment(config)
         experiment.wdk_step_id = None
@@ -428,15 +405,13 @@ class TestPhaseRobustness:
         assert experiment.robustness is None
 
     async def test_tolerates_failure(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_robustness
-
         config = _make_config()
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
 
         with patch(
-            "veupath_chatbot.services.experiment.robustness.compute_robustness",
+            "veupath_chatbot.services.experiment.service.compute_robustness",
             side_effect=RuntimeError("boom"),
         ):
             await _phase_robustness(
@@ -447,7 +422,7 @@ class TestPhaseRobustness:
 
 
 # ---------------------------------------------------------------------------
-# Phase: cross_validate
+# Phase -cross_validate
 # ---------------------------------------------------------------------------
 
 
@@ -455,10 +430,6 @@ class TestPhaseCrossValidate:
     """_phase_cross_validate runs k-fold cross-validation."""
 
     async def test_single_step_cross_validation(self) -> None:
-        from veupath_chatbot.services.experiment.service import (
-            _phase_cross_validate,
-        )
-
         config = _make_config(enable_cross_validation=True, k_folds=3)
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -485,10 +456,6 @@ class TestPhaseCrossValidate:
         assert experiment.cross_validation is sentinel
 
     async def test_tree_mode_uses_tree_cross_validation(self) -> None:
-        from veupath_chatbot.services.experiment.service import (
-            _phase_cross_validate,
-        )
-
         tree: JSONObject = {"searchName": "X", "parameters": {}}
         config = _make_config(
             mode="multi-step",
@@ -524,7 +491,7 @@ class TestPhaseCrossValidate:
 
 
 # ---------------------------------------------------------------------------
-# Phase: enrich
+# Phase -enrich
 # ---------------------------------------------------------------------------
 
 
@@ -532,8 +499,6 @@ class TestPhaseEnrich:
     """_phase_enrich runs enrichment analyses."""
 
     async def test_runs_enrichment_and_stores_results(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_enrich
-
         config = _make_config(enrichment_types=["go_function"])
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -546,7 +511,7 @@ class TestPhaseEnrich:
         )
 
         with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService",
+            "veupath_chatbot.services.experiment.service.EnrichmentService",
             return_value=mock_svc,
         ):
             await _phase_enrich(config, experiment, _noop_emit, store)
@@ -555,8 +520,6 @@ class TestPhaseEnrich:
         assert len(experiment.enrichment_results) > 0
 
     async def test_emits_enriching_progress(self) -> None:
-        from veupath_chatbot.services.experiment.service import _phase_enrich
-
         config = _make_config(enrichment_types=["go_function"])
         experiment = _make_experiment(config)
         store = get_experiment_store()
@@ -566,7 +529,7 @@ class TestPhaseEnrich:
         mock_svc.run_batch.return_value = ([], [])
 
         with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService",
+            "veupath_chatbot.services.experiment.service.EnrichmentService",
             return_value=mock_svc,
         ):
             await _phase_enrich(config, experiment, emit, store)

@@ -16,7 +16,7 @@ export function useToasts(durationMs: number = DEFAULT_DURATION_MS) {
 
   const removeToast = useCallback((id: string) => {
     const timerId = timers.current.get(id);
-    if (timerId) {
+    if (timerId !== undefined) {
       window.clearTimeout(timerId);
       timers.current.delete(id);
     }

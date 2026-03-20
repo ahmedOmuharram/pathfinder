@@ -140,7 +140,9 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => handleVerify(parsedIds)}
+            onClick={() => {
+              void handleVerify(parsedIds);
+            }}
             loading={verifying}
             disabled={verifying || isSubmitting}
             className="gap-1 text-xs"
@@ -160,7 +162,7 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
       )}
 
       {/* Error */}
-      {error && (
+      {error != null && error !== "" && (
         <p className="mt-3 text-xs text-destructive" role="alert">
           {error}
         </p>
@@ -180,7 +182,9 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
         <Button
           type="button"
           size="sm"
-          onClick={() => handleSubmit(name, parsedIds, "upload")}
+          onClick={() => {
+            void handleSubmit(name, parsedIds, "upload");
+          }}
           loading={isSubmitting}
           disabled={detectedCount === 0}
         >

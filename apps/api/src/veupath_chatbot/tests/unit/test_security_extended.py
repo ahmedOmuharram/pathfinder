@@ -8,6 +8,8 @@ Focuses on:
 - Negative expiry edge cases
 """
 
+import base64
+import json
 import time
 from uuid import uuid4
 
@@ -17,6 +19,7 @@ from starlette.requests import Request
 
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import user_id_ctx
+from veupath_chatbot.platform.errors import UnauthorizedError
 from veupath_chatbot.platform.security import (
     create_user_token,
     get_current_user,
@@ -115,9 +118,6 @@ class TestJWTAlgorithmConfusion:
         user_id = uuid4()
         # Encode without a secret (alg=none)
         # PyJWT doesn't allow alg=none easily, but we can craft the token manually
-        import base64
-        import json
-
         header = base64.urlsafe_b64encode(
             json.dumps({"alg": "none", "typ": "JWT"}).encode()
         ).rstrip(b"=")
@@ -246,8 +246,6 @@ class TestCreateUserToken:
 
 class TestGetCurrentUser:
     async def test_none_raises_unauthorized(self):
-        from veupath_chatbot.platform.errors import UnauthorizedError
-
         with pytest.raises(UnauthorizedError):
             await get_current_user(None)
 

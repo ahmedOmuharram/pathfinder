@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from veupath_chatbot.services.wdk.helpers import DETAIL_ATTRIBUTE_LIMIT
 from veupath_chatbot.services.wdk.step_results import StepResultsService
 
 
@@ -259,8 +260,6 @@ class TestGetRecordDetail:
     @pytest.mark.asyncio
     async def test_caps_attributes_at_limit(self, detail_api: MagicMock) -> None:
         """With many isInReport attributes, only the first N are requested."""
-        from veupath_chatbot.services.wdk.helpers import DETAIL_ATTRIBUTE_LIMIT
-
         # Generate 100 isInReport attributes
         many_attrs = [
             {

@@ -38,12 +38,12 @@ CONTROLS_PARAM_NAME = "ds_gene_ids"
 # Fixed parameters using WDK *term* values (not display values!).
 #
 # WDK single-pick-vocabulary params have different term vs display names:
-#   profileset_generic  term: "P. falciparum Su Seven Stages RNA Seq data -   unstranded"
-#                    display: "Transcriptomes of 7 sexual and asexual life stages  unstranded"
-#   min_max_avg_comp    term: "average1"   display: "average"
-#   min_max_avg_ref     term: "average1"   display: "average"
-#   protein_coding_only term: "yes"        display: "protein coding"
-#   hard_floor          term: "5271.566971799924622138383777958655190582"  display: "10 reads"
+#   profileset_generic  term "P. falciparum Su Seven Stages RNA Seq data -   unstranded"
+#                    display "Transcriptomes of 7 sexual and asexual life stages  unstranded"
+#   min_max_avg_comp    term "average1"   display "average"
+#   min_max_avg_ref     term "average1"   display "average"
+#   protein_coding_only term "yes"        display "protein coding"
+#   hard_floor          term "5271.566971799924622138383777958655190582"  display "10 reads"
 #
 # samples_fc_ref_generic and samples_fc_comp_generic have term == display.
 FIXED_PARAMETERS = {
@@ -65,25 +65,25 @@ FIXED_PARAMETERS = {
 
 # Known gametocyte-upregulated genes (positive controls)
 POSITIVE_CONTROLS = [
-    "PF3D7_1222600",  # PfAP2-G – master regulator of sexual commitment
-    "PF3D7_1031000",  # Pfs25 – surface antigen, TBV candidate
-    "PF3D7_0209000",  # Pfs230 – gamete fertility factor
-    "PF3D7_1346700",  # Pfs48/45 – TBV candidate
-    "PF3D7_1346800",  # Pfs47 – female gamete fertility
-    "PF3D7_0935400",  # CDPK4 – male gametocyte kinase
-    "PF3D7_0406200",  # MDV1/PEG3 – male gametocyte development
-    "PF3D7_1408200",  # Pf11-1 – gametocyte-specific
-    "PF3D7_1216500",  # GEP1 – gametocyte egress protein
-    "PF3D7_1477700",  # HAP2/GCS1 – male gamete fusion factor
+    "PF3D7_1222600",  # PfAP2-G - master regulator of sexual commitment
+    "PF3D7_1031000",  # Pfs25 - surface antigen, TBV candidate
+    "PF3D7_0209000",  # Pfs230 - gamete fertility factor
+    "PF3D7_1346700",  # Pfs48/45 - TBV candidate
+    "PF3D7_1346800",  # Pfs47 - female gamete fertility
+    "PF3D7_0935400",  # CDPK4 - male gametocyte kinase
+    "PF3D7_0406200",  # MDV1/PEG3 - male gametocyte development
+    "PF3D7_1408200",  # Pf11-1 - gametocyte-specific
+    "PF3D7_1216500",  # GEP1 - gametocyte egress protein
+    "PF3D7_1477700",  # HAP2/GCS1 - male gamete fusion factor
 ]
 
 # Known asexual-stage housekeeping genes (negative controls)
 NEGATIVE_CONTROLS = [
     "PF3D7_1462800",  # GAPDH
     "PF3D7_1246200",  # Actin I
-    "PF3D7_0422300",  # α-Tubulin
+    "PF3D7_0422300",  # alpha-Tubulin
     "PF3D7_0317600",  # Histone H2B
-    "PF3D7_1357000",  # EF-1α
+    "PF3D7_1357000",  # EF-1alpha
     "PF3D7_0708400",  # HSP90
     "PF3D7_0818900",  # HSP70-1
     "PF3D7_0617800",  # Histone H3
@@ -106,8 +106,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 pytestmark = pytest.mark.live_wdk
@@ -134,7 +134,7 @@ class TestLiveSingleIntersection:
         With fold_change=2 we expect several known gametocyte genes to appear.
         """
         target_params = cast(
-            JSONObject, {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
+            "JSONObject", {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
         )
 
         result = await _run_intersection_control(
@@ -148,13 +148,6 @@ class TestLiveSingleIntersection:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== Positive controls result ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         # Basic sanity: target step was created
         target_step_id = result.get("targetStepId")
@@ -187,7 +180,7 @@ class TestLiveSingleIntersection:
         Housekeeping genes should show low overlap with gametocyte-upregulated.
         """
         target_params = cast(
-            JSONObject, {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
+            "JSONObject", {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
         )
 
         result = await _run_intersection_control(
@@ -201,13 +194,6 @@ class TestLiveSingleIntersection:
             controls_value_format="newline",
             controls_extra_parameters=None,
         )
-
-        print("\n=== Negative controls result ===")
-        print(f"  targetStepId:       {result.get('targetStepId')}")
-        print(f"  targetResultCount:  {result.get('targetResultCount')}")
-        print(f"  controlsCount:      {result.get('controlsCount')}")
-        print(f"  intersectionCount:  {result.get('intersectionCount')}")
-        print(f"  intersectionIds:    {result.get('intersectionIds')}")
 
         target_step_id = result.get("targetStepId")
         assert target_step_id is not None
@@ -272,7 +258,7 @@ class TestLiveFullControlFlow:
         "437577363 is not a valid step ID" on every trial.
         """
         target_params = cast(
-            JSONObject, {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
+            "JSONObject", {**FIXED_PARAMETERS, "fold_change": TEST_FOLD_CHANGE}
         )
 
         result = await run_positive_negative_controls(
@@ -287,31 +273,18 @@ class TestLiveFullControlFlow:
             controls_value_format="newline",
         )
 
-        print("\n=== Full positive + negative controls result ===")
-        print(f"  siteId:     {result.get('siteId')}")
-        print(f"  recordType: {result.get('recordType')}")
         target_raw = result.get("target") or {}
         target = target_raw if isinstance(target_raw, dict) else {}
-        print(f"  target.stepId:      {target.get('stepId')}")
-        print(f"  target.resultCount: {target.get('resultCount')}")
 
         pos_raw = result.get("positive")
         pos = pos_raw if isinstance(pos_raw, dict) else None
         if pos:
-            print(f"  positive.controlsCount:      {pos.get('controlsCount')}")
-            print(f"  positive.intersectionCount:  {pos.get('intersectionCount')}")
-            print(f"  positive.recall:             {pos.get('recall')}")
-            print(f"  positive.intersectionIds:    {pos.get('intersectionIds')}")
-            print(f"  positive.missingIdsSample:   {pos.get('missingIdsSample')}")
+            pass
 
         neg_raw = result.get("negative")
         neg = neg_raw if isinstance(neg_raw, dict) else None
         if neg:
-            print(f"  negative.controlsCount:      {neg.get('controlsCount')}")
-            print(f"  negative.intersectionCount:  {neg.get('intersectionCount')}")
-            print(f"  negative.falsePositiveRate:  {neg.get('falsePositiveRate')}")
-            print(f"  negative.intersectionIds:    {neg.get('intersectionIds')}")
-            print(f"  negative.unexpectedHitsSample: {neg.get('unexpectedHitsSample')}")
+            pass
 
         assert result.get("siteId") == SITE_ID
         assert result.get("recordType") == RECORD_TYPE
@@ -338,7 +311,7 @@ class TestLiveFullControlFlow:
         # If the cascade-delete bug still exists, this will blow up with
         # "X is not a valid step ID" from WDK.
         assert neg is not None, (
-            "Negative controls result should not be None – "
+            "Negative controls result should not be None - "
             "this means the second control run FAILED"
         )
         assert neg.get("controlsCount") == len(NEGATIVE_CONTROLS)
@@ -353,8 +326,4 @@ class TestLiveFullControlFlow:
             and neg_fpr is not None
             and isinstance(neg_fpr, (int, float))
         ):
-            print(
-                f"\n  recall={float(pos_recall):.3f}  "
-                f"FPR={float(neg_fpr):.3f}  "
-                f"→ {'GOOD' if float(pos_recall) > float(neg_fpr) else 'BAD'}"
-            )
+            pass

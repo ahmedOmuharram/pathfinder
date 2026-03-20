@@ -250,7 +250,7 @@ MODELS_WITH_MINIMAL_DATA: list[tuple[type[BaseModel], dict]] = [
 
 
 @pytest.mark.parametrize(
-    "model_cls,data",
+    ("model_cls", "data"),
     MODELS_WITH_MINIMAL_DATA,
     ids=[cls.__name__ for cls, _ in MODELS_WITH_MINIMAL_DATA],
 )

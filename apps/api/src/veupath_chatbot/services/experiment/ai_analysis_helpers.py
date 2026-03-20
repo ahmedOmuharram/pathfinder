@@ -6,6 +6,7 @@ searching records, and fetching result IDs.
 
 from typing import cast
 
+from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -72,8 +73,6 @@ async def build_primary_key(
     :param gene_id: Gene identifier (the ``source_id`` value).
     :returns: List of ``{name, value}`` dicts forming the complete PK.
     """
-    from veupath_chatbot.integrations.veupathdb.factory import get_site
-
     pk_parts: list[JSONObject] = [{"name": "source_id", "value": gene_id}]
     try:
         info = await api.get_record_type_info(record_type)
@@ -120,7 +119,7 @@ async def fetch_group_records(
                 pk = await build_primary_key(api, site_id, record_type, gene_id)
             else:
                 pk = cast(
-                    list[JSONObject],
+                    "list[JSONObject]",
                     [{"name": "source_id", "value": gene_id}],
                 )
             rec = await api.get_single_record(
@@ -134,7 +133,10 @@ async def fetch_group_records(
                         "attributes": rec.get("attributes", {}),
                     }
                 )
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Failed to fetch record for gene", gene_id=gene_id, error=str(exc)
+            )
             continue
     return results
 

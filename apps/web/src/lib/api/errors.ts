@@ -3,13 +3,13 @@ import { AppError } from "@/lib/errors/AppError";
 import { isRecord } from "@/lib/utils/isRecord";
 
 /** FastAPI validation error item: `{loc: [...], msg: string, type: string}`. */
-export type ValidationErrorItem = {
+type ValidationErrorItem = {
   loc?: (string | number)[];
   msg?: string;
   type?: string;
 };
 
-export type ProblemDetail = {
+type ProblemDetail = {
   type?: string;
   title?: string;
   status?: number;
@@ -24,42 +24,42 @@ export function isProblemDetail(value: unknown): value is ProblemDetail {
   const record = value;
   // Most FastAPI problem+json responses include these.
   return (
-    typeof record.title === "string" &&
-    typeof record.status === "number" &&
-    typeof record.detail === "string"
+    typeof record["title"] === "string" &&
+    typeof record["status"] === "number" &&
+    typeof record["detail"] === "string"
   );
 }
 
 export function toUserMessage(err: unknown, fallback = "Request failed."): string {
-  if (!err) return fallback;
+  if (err == null) return fallback;
 
   if (err instanceof AppError) {
-    const msg = (err.message || "").trim();
-    return msg || fallback;
+    const msg = err.message.trim();
+    return msg !== "" ? msg : fallback;
   }
 
   if (err instanceof APIError) {
     const data = err.data;
     if (isProblemDetail(data)) {
-      const msg = (data.detail || data.title || "").trim();
-      return msg || fallback;
+      const msg = (data.detail ?? data.title ?? "").trim();
+      return msg !== "" ? msg : fallback;
     }
     if (isRecord(data)) {
-      const detail = data.detail;
-      if (typeof detail === "string" && detail.trim()) return detail;
+      const detail = data["detail"];
+      if (typeof detail === "string" && detail.trim() !== "") return detail;
     }
-    const msg = (err.message || "").trim();
-    return msg || err.statusText || fallback;
+    const msg = err.message.trim();
+    return msg !== "" ? msg : err.statusText !== "" ? err.statusText : fallback;
   }
 
   if (err instanceof Error) {
-    const msg = (err.message || "").trim();
-    return msg || fallback;
+    const msg = err.message.trim();
+    return msg !== "" ? msg : fallback;
   }
 
   try {
     const msg = String(err).trim();
-    return msg || fallback;
+    return msg !== "" ? msg : fallback;
   } catch {
     return fallback;
   }

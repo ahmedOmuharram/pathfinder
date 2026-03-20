@@ -29,19 +29,21 @@ export function useStepSearch({
   const searchName = editableSearchName.trim();
 
   const selectedSearch = useMemo(() => {
-    if (!searchName) return null;
-    return searchOptions.find((option) => option.name === searchName) || null;
+    if (searchName === "") return null;
+    return searchOptions.find((option) => option.name === searchName) ?? null;
   }, [searchName, searchOptions]);
 
   const isSearchNameAvailable = useMemo(
     () =>
-      searchName ? searchOptions.some((option) => option.name === searchName) : true,
+      searchName !== ""
+        ? searchOptions.some((option) => option.name === searchName)
+        : true,
     [searchName, searchOptions],
   );
 
   const filteredSearchOptions = useMemo(() => {
     const query = editableSearchName.trim().toLowerCase();
-    if (!query) return searchOptions;
+    if (query === "") return searchOptions;
     return searchOptions.filter((option) => {
       const label = (option.displayName || option.name).toLowerCase();
       return label.includes(query) || option.name.toLowerCase().includes(query);
@@ -55,7 +57,7 @@ export function useStepSearch({
     let isActive = true;
     const resolvedRecordType = resolveRecordTypeForSearch();
     const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
-    if (!normalizedRecordType) {
+    if (normalizedRecordType == null || normalizedRecordType === "") {
       startTransition(() => {
         setSearchOptions([]);
         setSearchListError(null);
@@ -69,11 +71,9 @@ export function useStepSearch({
     getSearches(siteId, normalizedRecordType)
       .then((results) => {
         if (!isActive) return;
-        const options = (results || [])
-          .filter((item): item is Search => Boolean(item && item.name))
-          .sort((a, b) =>
-            (a.displayName || a.name).localeCompare(b.displayName || b.name),
-          );
+        const options = [...results].sort((a, b) =>
+          (a.displayName || a.name).localeCompare(b.displayName || b.name),
+        );
         setSearchOptions(options);
         if (options.length === 0) {
           setSearchListError("No searches available for this record type.");

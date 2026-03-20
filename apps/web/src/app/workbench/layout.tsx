@@ -80,7 +80,7 @@ export default function WorkbenchLayout({ children }: { children: ReactNode }) {
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
-  if (apiError) {
+  if (apiError !== null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-background text-foreground">
         <AlertTriangle className="h-10 w-10 text-destructive" />

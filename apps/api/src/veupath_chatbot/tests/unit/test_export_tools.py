@@ -58,7 +58,7 @@ class TestExportGeneSetTool:
             svc.export_gene_set = AsyncMock(return_value=export_result)
             mock_svc_fn.return_value = svc
 
-            result = await mixin.export_gene_set("gs-1", "csv")
+            result = await mixin.export_gene_set("gs-1", output_format="csv")
 
         assert result["downloadUrl"] == "/api/v1/exports/abc-123"
         assert result["filename"] == "MyGenes.csv"
@@ -76,7 +76,7 @@ class TestExportGeneSetTool:
             store.aget = AsyncMock(return_value=None)
             mock_store_fn.return_value = store
 
-            result = await mixin.export_gene_set("nonexistent", "csv")
+            result = await mixin.export_gene_set("nonexistent", output_format="csv")
 
         assert result["ok"] is False
         assert "not found" in result["message"].lower()
@@ -84,5 +84,5 @@ class TestExportGeneSetTool:
     @pytest.mark.anyio
     async def test_invalid_format_returns_error(self) -> None:
         mixin = _make_mixin()
-        result = await mixin.export_gene_set("gs-1", "xml")
+        result = await mixin.export_gene_set("gs-1", output_format="xml")
         assert result["ok"] is False

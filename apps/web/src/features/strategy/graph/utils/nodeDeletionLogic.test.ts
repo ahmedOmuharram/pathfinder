@@ -41,8 +41,8 @@ describe("computeNodeDeletionResult", () => {
     const result = computeNodeDeletionResult({ steps, deletedNodeIds: ["search"] });
     expect(result.removeIds).toEqual(["search"]);
     expect(result.patches).toEqual([
-      { stepId: "transform", patch: { primaryInputStepId: undefined } },
-      { stepId: "combine", patch: { secondaryInputStepId: undefined } },
+      { stepId: "transform", patch: { primaryInputStepId: null } },
+      { stepId: "combine", patch: { secondaryInputStepId: null } },
     ]);
   });
 
@@ -71,9 +71,9 @@ describe("computeNodeDeletionResult", () => {
     expect(result.removeIds).toEqual(["b"]);
     const combinePatch = result.patches.find((p) => p.stepId === "combine");
     expect(combinePatch).toBeDefined();
-    expect(combinePatch!.patch.secondaryInputStepId).toBeUndefined();
-    expect(combinePatch!.patch.operator).toBeUndefined();
-    expect(combinePatch!.patch.colocationParams).toBeUndefined();
+    expect(combinePatch!.patch.secondaryInputStepId).toBeNull();
+    expect(combinePatch!.patch.operator).toBeNull();
+    expect(combinePatch!.patch.colocationParams).toBeNull();
   });
 
   test("clears operator when primary input to a combine step is deleted", () => {
@@ -91,8 +91,8 @@ describe("computeNodeDeletionResult", () => {
     const result = computeNodeDeletionResult({ steps, deletedNodeIds: ["a"] });
     const combinePatch = result.patches.find((p) => p.stepId === "combine");
     expect(combinePatch).toBeDefined();
-    expect(combinePatch!.patch.primaryInputStepId).toBeUndefined();
-    expect(combinePatch!.patch.operator).toBeUndefined();
+    expect(combinePatch!.patch.primaryInputStepId).toBeNull();
+    expect(combinePatch!.patch.operator).toBeNull();
   });
 
   test("does not clear operator for steps without one", () => {
@@ -103,7 +103,7 @@ describe("computeNodeDeletionResult", () => {
     const result = computeNodeDeletionResult({ steps, deletedNodeIds: ["a"] });
     const tPatch = result.patches.find((p) => p.stepId === "t");
     expect(tPatch).toBeDefined();
-    expect(tPatch!.patch.primaryInputStepId).toBeUndefined();
+    expect(tPatch!.patch.primaryInputStepId).toBeNull();
     expect(tPatch!.patch).not.toHaveProperty("operator");
   });
 
@@ -142,10 +142,10 @@ describe("computeNodeDeletionResult", () => {
     expect(result.removeIds.sort()).toEqual(["a", "b"]);
     const combinePatch = result.patches.find((p) => p.stepId === "combine");
     expect(combinePatch).toBeDefined();
-    expect(combinePatch!.patch.primaryInputStepId).toBeUndefined();
-    expect(combinePatch!.patch.secondaryInputStepId).toBeUndefined();
-    expect(combinePatch!.patch.operator).toBeUndefined();
-    expect(combinePatch!.patch.colocationParams).toBeUndefined();
+    expect(combinePatch!.patch.primaryInputStepId).toBeNull();
+    expect(combinePatch!.patch.secondaryInputStepId).toBeNull();
+    expect(combinePatch!.patch.operator).toBeNull();
+    expect(combinePatch!.patch.colocationParams).toBeNull();
   });
 
   test("no patches when deleted step is not referenced by anyone", () => {
@@ -164,7 +164,7 @@ describe("computeNodeDeletionResult", () => {
     const result = computeNodeDeletionResult({ steps, deletedNodeIds: ["b"] });
     expect(result.removeIds).toEqual(["b"]);
     expect(result.patches).toEqual([
-      { stepId: "c", patch: { primaryInputStepId: undefined } },
+      { stepId: "c", patch: { primaryInputStepId: null } },
     ]);
     // a is unaffected
     expect(result.patches.find((p) => p.stepId === "a")).toBeUndefined();

@@ -17,7 +17,6 @@ class FakeResultToolsSession:
 
     def get_graph(self, graph_id: str | None):
         del graph_id
-        return None
 
 
 class FakeStrategyAPI:
@@ -51,10 +50,13 @@ class FakeResultsAPI:
         self._error = error
 
     async def get_download_url(
-        self, step_id: int, format: str = "csv", attributes: list[str] | None = None
+        self,
+        step_id: int,
+        output_format: str = "csv",
+        attributes: list[str] | None = None,
     ) -> str:
         del step_id
-        del format
+        del output_format
         del attributes
         if self._error is not None:
             raise self._error

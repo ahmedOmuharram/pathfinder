@@ -113,9 +113,9 @@ export function ConfidencePanel() {
   const lastExperimentSetId = useWorkbenchStore((s) => s.lastExperimentSetId);
 
   const isRelevant =
-    lastExperiment &&
+    lastExperiment != null &&
     lastExperimentSetId === activeSetId &&
-    hasClassifiedGenes(lastExperiment);
+    hasClassifiedGenes(lastExperiment) === true;
 
   const scores = useMemo(
     () => (isRelevant ? computeConfidenceScores(lastExperiment) : []),

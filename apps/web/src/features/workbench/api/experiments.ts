@@ -2,9 +2,6 @@ import type { Experiment } from "@pathfinder/shared";
 import { requestBlob, requestJson } from "@/lib/api/http";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
-// Re-export from shared location so workbench consumers still work.
-export { listExperiments, seedExperiments } from "@/lib/api/experiments";
-
 export async function getExperiment(experimentId: string): Promise<Experiment> {
   return await requestJson<Experiment>(`/api/v1/experiments/${experimentId}`);
 }
@@ -36,7 +33,7 @@ export async function exportExperiment(
 }
 
 /** Configuration for a refinement action (combine or transform). */
-export interface RefineConfig {
+interface RefineConfig {
   searchName?: string;
   parameters?: StepParameters;
   operator?: string;

@@ -62,7 +62,8 @@ async def _stub_search_details(
                 },
             ],
         }
-    raise ValueError(f"Unknown search: {search_name}")
+    msg = f"Unknown search: {search_name}"
+    raise ValueError(msg)
 
 
 async def _failing_search_details(
@@ -70,7 +71,8 @@ async def _failing_search_details(
     search_name: str,
     params: Mapping[str, JSONValue],
 ) -> JSONObject:
-    raise RuntimeError("Network failure")
+    msg = "Network failure"
+    raise RuntimeError(msg)
 
 
 # -- Tests for missing recordType ------------------------------------------

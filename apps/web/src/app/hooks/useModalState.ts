@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-export interface ModalState {
+interface ModalState {
   showSettings: boolean;
   openSettings: () => void;
   closeSettings: () => void;

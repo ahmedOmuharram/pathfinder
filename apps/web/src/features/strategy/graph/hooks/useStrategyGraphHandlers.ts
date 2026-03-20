@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { Edge, Node } from "reactflow";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
 import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
 
@@ -47,7 +47,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
   const handleNodesDelete = useCallback(
     (deletedNodes: Node[]) => {
       if (isCompact || deletedNodes.length === 0) return;
-      const stepsList = draftStrategy?.steps || [];
+      const stepsList = draftStrategy?.steps ?? [];
       if (stepsList.length === 0) return;
       const result = computeNodeDeletionResult({
         steps: stepsList,
@@ -78,7 +78,11 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
   const handleStartCombineFromSelection = useCallback(() => {
     if (isCompact) return;
     if (selectedNodeIds.length !== 2) return;
-    startCombine(selectedNodeIds[0]!, selectedNodeIds[1]!);
+    const first = selectedNodeIds[0];
+    const second = selectedNodeIds[1];
+    if (first != null && second != null) {
+      startCombine(first, second);
+    }
   }, [isCompact, selectedNodeIds, startCombine]);
 
   const handleStartOrthologTransformFromSelection = useCallback(() => {
@@ -103,8 +107,8 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       options: Parameters<typeof computeOrthologInsert>[0]["options"],
     ) => {
       const selectedId = selectedNodeIds[0];
-      if (!selectedId) return;
-      const stepsList = draftStrategy?.steps || strategy?.steps || [];
+      if (selectedId == null || selectedId === "") return;
+      const stepsList = draftStrategy?.steps ?? strategy?.steps ?? [];
       const { newStep, downstreamPatch } = computeOrthologInsert({
         selectedId,
         steps: stepsList,

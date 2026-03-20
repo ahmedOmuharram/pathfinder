@@ -2,12 +2,14 @@
 
 import asyncio
 
+from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
 from veupath_chatbot.integrations.vectorstore.collections import (
     EXAMPLE_PLANS_V1,
     WDK_RECORD_TYPES_V1,
     WDK_SEARCHES_V1,
 )
 from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
+from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,8 +41,6 @@ async def get_embedding_dim(model: str) -> int:
     if dim is not None:
         return dim
 
-    from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
-
     vec = await embed_one(text="dimension probe", model=model)
     dim = len(vec)
     # Cache for subsequent calls within the same process.
@@ -54,8 +54,6 @@ async def ensure_rag_collections() -> None:
     This creates *empty* collections so that RAG lookups do not fail with 404
     when ingestion has not been run yet.
     """
-    from veupath_chatbot.platform.config import get_settings
-
     settings = get_settings()
     if not settings.rag_enabled:
         return
@@ -83,16 +81,22 @@ async def ensure_rag_collections() -> None:
     #
     # In Docker Compose, Qdrant may be "started" but not yet ready to accept
     # requests. Retry briefly to avoid flakey startup behavior.
-    last_exc: Exception | None = None
+    last_exc: OSError | RuntimeError | None = None
     for attempt in range(8):
         try:
             await store.ensure_collection(name=WDK_RECORD_TYPES_V1, vector_size=dim)
             await store.ensure_collection(name=WDK_SEARCHES_V1, vector_size=dim)
             await store.ensure_collection(name=EXAMPLE_PLANS_V1, vector_size=dim)
-            return
-        except Exception as exc:  # pragma: no cover
+        except (
+            OSError,
+            RuntimeError,
+            ConnectionError,
+            TimeoutError,
+        ) as exc:  # pragma: no cover
             last_exc = exc
             await asyncio.sleep(0.25 * (attempt + 1))
+        else:
+            return
 
     logger.warning(
         "Unable to ensure Qdrant collections after retries",

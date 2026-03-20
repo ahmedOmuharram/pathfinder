@@ -5,6 +5,9 @@ from uuid import uuid4
 import httpx
 import pytest
 
+import veupath_chatbot.persistence.session as session_module
+from veupath_chatbot.persistence.models import ControlSet, User
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -230,9 +233,6 @@ async def test_delete_control_set_wrong_owner(
 
     We insert a control set directly in the DB with a different user_id.
     """
-    import veupath_chatbot.persistence.session as session_module
-    from veupath_chatbot.persistence.models import ControlSet, User
-
     other_user_id = uuid4()
     async with session_module.async_session_factory() as session:
         session.add(User(id=other_user_id))

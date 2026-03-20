@@ -7,13 +7,13 @@ import type { ChatSSEEvent, RawSSEData } from "@/lib/sse_events";
 import { parseChatSSEEvent } from "@/lib/sse_events";
 import type { ChatMention, ModelSelection } from "@pathfinder/shared";
 
-export interface StreamChatContext {
+interface StreamChatContext {
   strategyId?: string;
   /** @-mention references to strategies and experiments. */
   mentions?: ChatMention[];
 }
 
-export interface StreamChatResult {
+interface StreamChatResult {
   operationId: string;
   strategyId: string;
   subscription: OperationSubscription;
@@ -40,20 +40,30 @@ export async function streamChat(
       body: {
         message,
         siteId,
-        strategyId: context?.strategyId,
-        mentions: context?.mentions,
+        ...(context?.strategyId != null ? { strategyId: context.strategyId } : {}),
+        ...(context?.mentions != null ? { mentions: context.mentions } : {}),
         // Per-request model overrides
-        provider: modelSelection?.provider,
-        model: modelSelection?.model,
-        reasoningEffort: modelSelection?.reasoningEffort,
+        ...(modelSelection?.provider != null
+          ? { provider: modelSelection.provider }
+          : {}),
+        ...(modelSelection?.model != null ? { model: modelSelection.model } : {}),
+        ...(modelSelection?.reasoningEffort != null
+          ? { reasoningEffort: modelSelection.reasoningEffort }
+          : {}),
         // Per-model tuning overrides
-        contextSize: modelSelection?.contextSize,
-        responseTokens: modelSelection?.responseTokens,
-        reasoningBudget: modelSelection?.reasoningBudget,
+        ...(modelSelection?.contextSize != null
+          ? { contextSize: modelSelection.contextSize }
+          : {}),
+        ...(modelSelection?.responseTokens != null
+          ? { responseTokens: modelSelection.responseTokens }
+          : {}),
+        ...(modelSelection?.reasoningBudget != null
+          ? { reasoningBudget: modelSelection.reasoningBudget }
+          : {}),
         // Disabled tools
-        disabledTools: disabledTools?.length ? disabledTools : undefined,
+        ...(disabledTools != null && disabledTools.length > 0 ? { disabledTools } : {}),
       },
-      signal,
+      ...(signal != null ? { signal } : {}),
     },
   );
 
@@ -64,8 +74,8 @@ export async function streamChat(
       const event = parseChatSSEEvent({ type, data });
       if (event) options.onMessage(event);
     },
-    onComplete: options.onComplete,
-    onError: options.onError,
+    ...(options.onComplete != null ? { onComplete: options.onComplete } : {}),
+    ...(options.onError != null ? { onError: options.onError } : {}),
     endEventTypes: new Set(["message_end"]),
   });
 

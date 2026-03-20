@@ -17,11 +17,11 @@ class TestDeriveGraphMetadata:
         assert desc == long_goal
 
     def test_empty_defaults_to_strategy_draft(self) -> None:
-        name, desc = derive_graph_metadata("")
+        name, _desc = derive_graph_metadata("")
         assert name == "Strategy Draft"
 
     def test_none_defaults_to_strategy_draft(self) -> None:
-        name, desc = derive_graph_metadata(None)
+        name, _desc = derive_graph_metadata(None)
         assert name == "Strategy Draft"
 
     def test_whitespace_collapsed(self) -> None:

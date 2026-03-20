@@ -24,13 +24,13 @@ NEGATIVES = ["N1", "N2", "N3"]
 
 
 def _candidate(
-    id: str,
+    candidate_id: str,
     name: str,
     gene_ids: list[str],
     search_name: str | None = None,
 ) -> GeneSetCandidate:
     return GeneSetCandidate(
-        id=id,
+        id=candidate_id,
         name=name,
         gene_ids=gene_ids,
         search_name=search_name,

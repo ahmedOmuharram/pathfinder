@@ -79,7 +79,7 @@ describe("_proxy", () => {
 
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
-    process.env.NEXT_PUBLIC_API_URL = "http://api:8000";
+    process.env["NEXT_PUBLIC_API_URL"] = "http://api:8000";
   });
 
   afterEach(() => {
@@ -93,12 +93,12 @@ describe("_proxy", () => {
 
   describe("getUpstreamBase", () => {
     it("returns NEXT_PUBLIC_API_URL with trailing slashes stripped", () => {
-      process.env.NEXT_PUBLIC_API_URL = "http://backend:9000///";
+      process.env["NEXT_PUBLIC_API_URL"] = "http://backend:9000///";
       expect(getUpstreamBase()).toBe("http://backend:9000");
     });
 
     it("falls back to localhost:8000 when env is unset", () => {
-      delete process.env.NEXT_PUBLIC_API_URL;
+      delete process.env["NEXT_PUBLIC_API_URL"];
       expect(getUpstreamBase()).toBe("http://localhost:8000");
     });
   });
@@ -331,12 +331,12 @@ describe("_proxy", () => {
       const fetchMock = vi.fn(async () => fakeSSEUpstreamResponse());
       vi.stubGlobal("fetch", fetchMock);
 
-      const req = makeNextRequest("/api/v1/experiments/ai-assist", {
+      const req = makeNextRequest("/api/v1/chat", {
         method: "POST",
         body: '{"prompt":"hello"}',
         headers: { "content-type": "application/json" },
       });
-      const resp = await proxySSEPost(req, "/api/v1/experiments/ai-assist");
+      const resp = await proxySSEPost(req, "/api/v1/chat");
 
       expect(resp.status).toBe(200);
       expect(resp.headers.get("Content-Type")).toBe("text/event-stream");
@@ -347,12 +347,12 @@ describe("_proxy", () => {
       const fetchMock = vi.fn(async () => fakeSSEUpstreamResponse());
       vi.stubGlobal("fetch", fetchMock);
 
-      const req = makeNextRequest("/api/v1/experiments/ai-assist", {
+      const req = makeNextRequest("/api/v1/chat", {
         method: "POST",
         body: '{"prompt":"hello"}',
         headers: { "content-type": "application/json" },
       });
-      await proxySSEPost(req, "/api/v1/experiments/ai-assist");
+      await proxySSEPost(req, "/api/v1/chat");
 
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
       expect(init.body).toBe('{"prompt":"hello"}');
@@ -365,12 +365,12 @@ describe("_proxy", () => {
       );
       vi.stubGlobal("fetch", fetchMock);
 
-      const req = makeNextRequest("/api/v1/experiments/ai-assist", {
+      const req = makeNextRequest("/api/v1/chat", {
         method: "POST",
         body: "{}",
         headers: { "content-type": "application/json" },
       });
-      const resp = await proxySSEPost(req, "/api/v1/experiments/ai-assist");
+      const resp = await proxySSEPost(req, "/api/v1/chat");
 
       expect(resp.status).toBe(422);
     });
@@ -383,12 +383,12 @@ describe("_proxy", () => {
         }),
       );
 
-      const req = makeNextRequest("/api/v1/experiments/ai-assist", {
+      const req = makeNextRequest("/api/v1/chat", {
         method: "POST",
         body: "{}",
         headers: { "content-type": "application/json" },
       });
-      const resp = await proxySSEPost(req, "/api/v1/experiments/ai-assist");
+      const resp = await proxySSEPost(req, "/api/v1/chat");
 
       expect(resp.status).toBe(502);
       const json = await resp.json();

@@ -59,7 +59,7 @@ def load_sites_config(config_path: str | None = None) -> SitesConfig:
         else Path(__file__).parent / "sites.yaml"
     )
     logger.info("Loading sites config", path=str(path))
-    with open(path) as f:
+    with path.open() as f:
         raw = yaml.safe_load(f)
     if not isinstance(raw, dict):
         logger.warning("Sites config is not a dict, using defaults")
@@ -74,14 +74,15 @@ class SiteInfo:
 
     def __init__(
         self,
-        id: str,
+        *,
+        site_id: str,
         name: str,
         display_name: str,
         base_url: str,
         project_id: str,
         is_portal: bool,
     ) -> None:
-        self.id = id
+        self.id = site_id
         self.name = name
         self.display_name = display_name
         self.base_url = base_url.rstrip("/")
@@ -92,7 +93,7 @@ class SiteInfo:
     def from_config(cls, site_id: str, cfg: SiteConfig) -> SiteInfo:
         """Construct a SiteInfo from a validated SiteConfig."""
         return cls(
-            id=site_id,
+            site_id=site_id,
             name=cfg.name,
             display_name=cfg.display_name,
             base_url=cfg.base_url,
@@ -109,9 +110,7 @@ class SiteInfo:
     def web_base_url(self) -> str:
         """Get web UI base URL (strip /service if present)."""
         base = self.base_url.rstrip("/")
-        if base.endswith("/service"):
-            base = base[: -len("/service")]
-        return base
+        return base.removesuffix("/service")
 
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
         """Build a strategy URL for the web UI.
@@ -127,7 +126,7 @@ class SiteInfo:
     def to_dict(self) -> JSONObject:
         """Convert to dictionary."""
         return cast(
-            JSONObject,
+            "JSONObject",
             {
                 "id": self.id,
                 "name": self.name,
@@ -221,16 +220,15 @@ class SiteRouter:
 
 
 # Global router instance
-_router: SiteRouter | None = None
+_router_holder: dict[str, SiteRouter] = {}
 _router_lock = threading.Lock()
 
 
 def get_site_router() -> SiteRouter:
     """Get the global site router."""
-    global _router
-    if _router is not None:
-        return _router
+    if "v" in _router_holder:
+        return _router_holder["v"]
     with _router_lock:
-        if _router is None:
-            _router = SiteRouter()
-        return _router
+        if "v" not in _router_holder:
+            _router_holder["v"] = SiteRouter()
+        return _router_holder["v"]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { serializeStrategyPlan } from "./serialize";
-import type { Step, Strategy } from "./types";
+import type { Step, Strategy } from "@pathfinder/shared";
 
 describe("core/strategyGraph/serialize", () => {
   it("returns null when graph has multiple roots (multiple outputs)", () => {
@@ -95,7 +95,8 @@ describe("core/strategyGraph/serialize", () => {
     expect(res?.plan.root.searchName).toBe("__combine__");
     expect(res?.plan.root.operator).toBe("UNION");
 
-    const broken = { ...stepsById, c: { ...stepsById.c, operator: undefined } };
+    const stepC = stepsById["c"]!;
+    const broken = { ...stepsById, c: { ...stepC, operator: null } };
     const res2 = serializeStrategyPlan(broken, strategy);
     expect(res2).toBeNull();
   });

@@ -11,8 +11,9 @@ from uuid import uuid4
 
 from redis.asyncio import Redis
 
+from veupath_chatbot.platform.context import request_base_url_ctx
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.services.experiment.types import Experiment
+from veupath_chatbot.services.experiment.types import Experiment, to_json
 from veupath_chatbot.services.experiment.types.enrichment import EnrichmentResult
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
@@ -65,8 +66,6 @@ class ExportService:
             filename=filename,
             size_bytes=len(content),
         )
-        from veupath_chatbot.platform.context import request_base_url_ctx
-
         base = request_base_url_ctx.get() or ""
         return ExportResult(
             export_id=export_id,
@@ -88,11 +87,11 @@ class ExportService:
         return content, data["filename"], data["content_type"]
 
     async def export_gene_set(
-        self, gene_set: GeneSet, format: Literal["csv", "txt"]
+        self, gene_set: GeneSet, output_format: Literal["csv", "txt"]
     ) -> ExportResult:
         """Export a gene set as CSV or TXT."""
         name_part = _sanitize_filename(gene_set.name or "gene_set")
-        if format == "txt":
+        if output_format == "txt":
             content = "\n".join(gene_set.gene_ids).encode("utf-8")
             return await self._store(content, f"{name_part}.txt", "text/plain")
         buf = io.StringIO()
@@ -121,24 +120,23 @@ class ExportService:
             "bonferroni",
             "genes",
         ]
-        rows: list[list[object]] = []
-        for result in results:
-            for term in result.terms:
-                rows.append(
-                    [
-                        result.analysis_type,
-                        term.term_id,
-                        term.term_name,
-                        term.gene_count,
-                        term.background_count,
-                        term.fold_enrichment,
-                        term.odds_ratio,
-                        term.p_value,
-                        term.fdr,
-                        term.bonferroni,
-                        ";".join(term.genes),
-                    ]
-                )
+        rows: list[list[object]] = [
+            [
+                result.analysis_type,
+                term.term_id,
+                term.term_name,
+                term.gene_count,
+                term.background_count,
+                term.fold_enrichment,
+                term.odds_ratio,
+                term.p_value,
+                term.fdr,
+                term.bonferroni,
+                ";".join(term.genes),
+            ]
+            for result in results
+            for term in result.terms
+        ]
         return header, rows
 
     async def export_enrichment(
@@ -177,8 +175,6 @@ class ExportService:
         self, results: list[EnrichmentResult], name: str
     ) -> ExportResult:
         """Export enrichment results as JSON."""
-        from veupath_chatbot.services.experiment.types import to_json
-
         name_part = _sanitize_filename(name or "enrichment")
         serialized = [to_json(r) for r in results]
         content = json.dumps(serialized, indent=2).encode("utf-8")
@@ -193,13 +189,15 @@ class ExportService:
         return await self._store(content, f"{name_part}.json", "application/json")
 
     async def export_experiment_results(
-        self, experiment: Experiment, format: Literal["csv", "tsv"]
+        self, experiment: Experiment, output_format: Literal["csv", "tsv"]
     ) -> ExportResult:
         """Export experiment gene classifications as CSV or TSV."""
         name_part = _sanitize_filename(experiment.config.name or experiment.id)
-        delimiter = "\t" if format == "tsv" else ","
-        ext = "tsv" if format == "tsv" else "csv"
-        content_type = "text/tab-separated-values" if format == "tsv" else "text/csv"
+        delimiter = "\t" if output_format == "tsv" else ","
+        ext = "tsv" if output_format == "tsv" else "csv"
+        content_type = (
+            "text/tab-separated-values" if output_format == "tsv" else "text/csv"
+        )
 
         buf = io.StringIO()
         writer = csv.writer(buf, delimiter=delimiter)

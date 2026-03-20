@@ -51,7 +51,7 @@ describe("useGeneSetExport", () => {
 
   it("starts with exporting=false", () => {
     const { result } = renderHook(() =>
-      useGeneSetExport({ selectedSite: "plasmodb", addGeneSet: mockAddGeneSet }),
+      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
     );
     expect(result.current.exportingGeneSet).toBe(false);
   });
@@ -61,7 +61,7 @@ describe("useGeneSetExport", () => {
     mockCreate.mockResolvedValue(fakeGeneSet as never);
 
     const { result } = renderHook(() =>
-      useGeneSetExport({ selectedSite: "plasmodb", addGeneSet: mockAddGeneSet }),
+      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
     );
 
     await act(async () => {
@@ -83,9 +83,9 @@ describe("useGeneSetExport", () => {
   });
 
   it("does nothing when strategy has no wdkStrategyId", async () => {
-    const noWdkStrategy = { ...baseStrategy, wdkStrategyId: undefined };
+    const noWdkStrategy: Strategy = { ...baseStrategy, wdkStrategyId: null };
     const { result } = renderHook(() =>
-      useGeneSetExport({ selectedSite: "plasmodb", addGeneSet: mockAddGeneSet }),
+      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
     );
 
     await act(async () => {
@@ -101,7 +101,7 @@ describe("useGeneSetExport", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { result } = renderHook(() =>
-      useGeneSetExport({ selectedSite: "plasmodb", addGeneSet: mockAddGeneSet }),
+      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
     );
 
     await act(async () => {

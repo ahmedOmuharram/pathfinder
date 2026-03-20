@@ -90,8 +90,8 @@ def _parse_sse_text(text: str) -> list[SSEEvent]:
     :returns: List of parsed SSE events.
     """
     events: list[SSEEvent] = []
-    for part in text.split("\n\n"):
-        part = part.strip()
+    for raw_part in text.split("\n\n"):
+        part = raw_part.strip()
         if not part:
             continue
         lines = [ln for ln in part.split("\n") if ln.strip()]
@@ -121,7 +121,7 @@ async def collect_chat_stream(
     message: str,
     site_id: str = "veupathdb",
     strategy_id: str | None = None,
-    timeout: float = 120.0,
+    request_timeout: float = 120.0,
 ) -> ChatStreamResult:
     """Send a chat request and collect all SSE events.
 
@@ -132,7 +132,7 @@ async def collect_chat_stream(
     :param message: Chat message to send.
     :param site_id: VEuPathDB site identifier (default ``"veupathdb"``).
     :param strategy_id: Optional strategy ID.
-    :param timeout: Request timeout in seconds.
+    :param request_timeout: Request timeout in seconds.
     :returns: Collected SSE events and HTTP status.
     """
     payload: JSONObject = {
@@ -145,7 +145,7 @@ async def collect_chat_stream(
     result = ChatStreamResult()
 
     # Step 1: Start the chat operation.
-    resp = await client.post("/api/v1/chat", json=payload, timeout=timeout)
+    resp = await client.post("/api/v1/chat", json=payload, timeout=request_timeout)
     result.http_status = resp.status_code
     if resp.status_code != 202:
         result.events.append(
@@ -171,7 +171,7 @@ async def collect_chat_stream(
     async with client.stream(
         "GET",
         f"/api/v1/operations/{operation_id}/subscribe",
-        timeout=timeout,
+        timeout=request_timeout,
     ) as sse_resp:
         if sse_resp.status_code != 200:
             raw = ""

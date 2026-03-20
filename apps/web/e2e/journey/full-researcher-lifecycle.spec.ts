@@ -1,7 +1,7 @@
 import { test, expect } from "../fixtures/test";
 import { clearAllGeneSets } from "../fixtures/api-client";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 /**
  * Journey: Full Researcher Lifecycle — PlasmoDB (Complete Arc)

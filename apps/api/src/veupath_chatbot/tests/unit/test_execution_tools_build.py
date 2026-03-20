@@ -113,7 +113,7 @@ class _FakeBuildAPI:
         return 1
 
     async def set_step_filter(
-        self, step_id: int, filter_name: str, value: object, disabled: bool = False
+        self, step_id: int, filter_name: str, value: object, *, disabled: bool = False
     ) -> object:
         return None
 
@@ -320,7 +320,7 @@ class TestExtractStepCountsEdgeCases:
             "rootStepId": 10,
             "steps": {"10": {"estimatedSize": None}},
         }
-        counts, root = extract_step_counts(info, {"local1": 10})
+        counts, _root = extract_step_counts(info, {"local1": 10})
         assert counts == {"local1": None}
 
     def test_wdk_to_local_mapping_correct(self):
@@ -381,7 +381,7 @@ class TestExtractStepCountsEdgeCases:
             },
         }
         compiled_map = {"leaf": 100, "root_local": 200}
-        counts, root = extract_step_counts(info, compiled_map)
+        _counts, root = extract_step_counts(info, compiled_map)
         assert root == 42
 
 

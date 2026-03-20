@@ -33,7 +33,7 @@ type SerializedExperimentConfig = {
 };
 
 function serializeExperimentConfig(config: PartialConfig): SerializedExperimentConfig {
-  return {
+  const result: SerializedExperimentConfig = {
     siteId: config.siteId,
     recordType: config.recordType,
     mode: config.mode ?? "single",
@@ -46,67 +46,59 @@ function serializeExperimentConfig(config: PartialConfig): SerializedExperimentC
     controlsValueFormat: config.controlsValueFormat ?? "newline",
     enableCrossValidation: config.enableCrossValidation,
     kFolds: config.kFolds,
-    enrichmentTypes: config.enrichmentTypes,
     name: config.name ?? "Untitled Experiment",
     description: config.description ?? "",
-    ...(config.stepTree ? { stepTree: config.stepTree } : {}),
-    ...(config.sourceStrategyId ? { sourceStrategyId: config.sourceStrategyId } : {}),
-    ...(config.optimizationTargetStep
-      ? { optimizationTargetStep: config.optimizationTargetStep }
-      : {}),
-    ...(config.optimizationSpecs && config.optimizationSpecs.length > 0
-      ? {
-          optimizationSpecs: config.optimizationSpecs,
-          optimizationBudget: config.optimizationBudget ?? 30,
-          optimizationObjective: config.optimizationObjective ?? "balanced_accuracy",
-        }
-      : {}),
-    ...(config.parameterDisplayValues
-      ? { parameterDisplayValues: config.parameterDisplayValues }
-      : {}),
-    ...(config.parentExperimentId
-      ? { parentExperimentId: config.parentExperimentId }
-      : {}),
-    ...(config.targetGeneIds && config.targetGeneIds.length > 0
-      ? { targetGeneIds: config.targetGeneIds }
-      : {}),
-    ...(config.enableStepAnalysis
-      ? {
-          enableStepAnalysis: true,
-          ...(config.stepAnalysisPhases
-            ? { stepAnalysisPhases: config.stepAnalysisPhases }
-            : {}),
-        }
-      : {}),
-    ...(config.sortAttribute
-      ? {
-          sortAttribute: config.sortAttribute,
-          sortDirection: config.sortDirection ?? "ASC",
-        }
-      : {}),
-    ...(config.controlSetId ? { controlSetId: config.controlSetId } : {}),
-    ...(config.thresholdKnobs && config.thresholdKnobs.length > 0
-      ? {
-          thresholdKnobs: config.thresholdKnobs,
-          treeOptimizationObjective:
-            config.treeOptimizationObjective ?? "precision_at_50",
-          treeOptimizationBudget: config.treeOptimizationBudget ?? 50,
-        }
-      : {}),
-    ...(config.operatorKnobs && config.operatorKnobs.length > 0
-      ? {
-          operatorKnobs: config.operatorKnobs,
-          ...(!config.thresholdKnobs?.length
-            ? {
-                treeOptimizationObjective:
-                  config.treeOptimizationObjective ?? "precision_at_50",
-                treeOptimizationBudget: config.treeOptimizationBudget ?? 50,
-              }
-            : {}),
-        }
-      : {}),
-    ...(config.maxListSize != null ? { maxListSize: config.maxListSize } : {}),
   };
+  if (config.enrichmentTypes != null)
+    result["enrichmentTypes"] = config.enrichmentTypes;
+  if (config.stepTree != null) result["stepTree"] = config.stepTree;
+  if (config.sourceStrategyId != null)
+    result["sourceStrategyId"] = config.sourceStrategyId;
+  if (config.optimizationTargetStep != null) {
+    result["optimizationTargetStep"] = config.optimizationTargetStep;
+  }
+  if (config.optimizationSpecs != null && config.optimizationSpecs.length > 0) {
+    result["optimizationSpecs"] = config.optimizationSpecs;
+    result["optimizationBudget"] = config.optimizationBudget ?? 30;
+    result["optimizationObjective"] =
+      config.optimizationObjective ?? "balanced_accuracy";
+  }
+  if (config.parameterDisplayValues != null) {
+    result["parameterDisplayValues"] = config.parameterDisplayValues;
+  }
+  if (config.parentExperimentId != null) {
+    result["parentExperimentId"] = config.parentExperimentId;
+  }
+  if (config.targetGeneIds != null && config.targetGeneIds.length > 0) {
+    result["targetGeneIds"] = config.targetGeneIds;
+  }
+  if (config.enableStepAnalysis === true) {
+    result["enableStepAnalysis"] = true;
+    if (config.stepAnalysisPhases != null) {
+      result["stepAnalysisPhases"] = config.stepAnalysisPhases;
+    }
+  }
+  if (config.sortAttribute != null) {
+    result["sortAttribute"] = config.sortAttribute;
+    result["sortDirection"] = config.sortDirection ?? "ASC";
+  }
+  if (config.controlSetId != null) result["controlSetId"] = config.controlSetId;
+  if (config.thresholdKnobs != null && config.thresholdKnobs.length > 0) {
+    result["thresholdKnobs"] = config.thresholdKnobs;
+    result["treeOptimizationObjective"] =
+      config.treeOptimizationObjective ?? "precision_at_50";
+    result["treeOptimizationBudget"] = config.treeOptimizationBudget ?? 50;
+  }
+  if (config.operatorKnobs != null && config.operatorKnobs.length > 0) {
+    result["operatorKnobs"] = config.operatorKnobs;
+    if (config.thresholdKnobs == null || config.thresholdKnobs.length === 0) {
+      result["treeOptimizationObjective"] =
+        config.treeOptimizationObjective ?? "precision_at_50";
+      result["treeOptimizationBudget"] = config.treeOptimizationBudget ?? 50;
+    }
+  }
+  if (config.maxListSize != null) result["maxListSize"] = config.maxListSize;
+  return result;
 }
 
 /** Fields that have backend defaults and needn't be supplied by callers. */
@@ -197,7 +189,6 @@ export async function createExperimentStream(
     ExperimentCompleteData | ExperimentErrorData | ExperimentProgressData
   >(resp.operationId, {
     onEvent: ({ type, data }) => {
-      if (typeof data !== "object" || data === null) return;
       if (type === "experiment_complete") {
         handlers.onComplete?.(data as ExperimentCompleteData);
       } else if (type === "experiment_error" && isExperimentErrorData(data)) {
@@ -242,7 +233,6 @@ export async function createBatchExperimentStream(
     BatchCompleteData | ExperimentErrorData | ExperimentProgressData
   >(resp.operationId, {
     onEvent: ({ type, data }) => {
-      if (typeof data !== "object" || data === null) return;
       if (type === "batch_complete" && isBatchCompleteData(data)) {
         handlers.onComplete?.(data.experiments, data.batchId);
       } else if (type === "batch_error" && isExperimentErrorData(data)) {
@@ -287,7 +277,6 @@ export async function createBenchmarkStream(
     BenchmarkCompleteData | ExperimentErrorData | ExperimentProgressData
   >(resp.operationId, {
     onEvent: ({ type, data }) => {
-      if (typeof data !== "object" || data === null) return;
       if (type === "benchmark_complete" && isBenchmarkCompleteData(data)) {
         handlers.onComplete?.(data.experiments, data.benchmarkId);
       } else if (type === "benchmark_error" && isExperimentErrorData(data)) {

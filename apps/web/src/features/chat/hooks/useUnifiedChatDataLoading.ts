@@ -25,7 +25,7 @@ interface UseUnifiedChatDataLoadingParams {
   onStrategyNotFound?: () => void;
 }
 
-export interface UseUnifiedChatDataLoadingReturn {
+interface UseUnifiedChatDataLoadingReturn {
   isLoading: boolean;
 }
 
@@ -41,7 +41,7 @@ export function useUnifiedChatDataLoading({
   onStrategyNotFound,
 }: UseUnifiedChatDataLoadingParams): UseUnifiedChatDataLoadingReturn {
   const authVersion = useSessionStore((s) => s.authVersion);
-  const [isLoading, setIsLoading] = useState(!!strategyId);
+  const [isLoading, setIsLoading] = useState(strategyId != null && strategyId !== "");
 
   // Track whether the last load failed so auth-retry only fires when needed.
   const loadFailedRef = useRef(false);
@@ -50,17 +50,18 @@ export function useUnifiedChatDataLoading({
 
   const applyStrategy = useCallback(
     (strategy: Strategy) => {
-      const incoming = strategy.messages || [];
+      const incoming = strategy.messages ?? [];
       setMessages((prev) => mergeMessages(prev, incoming));
-      if (strategy.modelId) setSelectedModelId(strategy.modelId);
-      if (strategy.thinking) {
+      if (strategy.modelId != null && strategy.modelId !== "")
+        setSelectedModelId(strategy.modelId);
+      if (strategy.thinking != null) {
         thinking.applyThinkingPayload(strategy.thinking);
       }
-      if (strategy.id && !sessionRef.current?.snapshotApplied) {
+      if (strategy.id !== "" && sessionRef.current?.snapshotApplied !== true) {
         setStrategy(strategy);
         setStrategyMeta({
           name: strategy.name,
-          recordType: strategy.recordType ?? undefined,
+          ...(strategy.recordType != null ? { recordType: strategy.recordType } : {}),
           siteId: strategy.siteId,
         });
       }
@@ -77,7 +78,7 @@ export function useUnifiedChatDataLoading({
     const isAuthRetry = prevAuthVersionRef.current !== authVersion;
     prevAuthVersionRef.current = authVersion;
 
-    if (!strategyId) {
+    if (strategyId == null || strategyId === "") {
       startTransition(() => setMessages([]));
       loadFailedRef.current = false;
       setIsLoading(false);

@@ -71,8 +71,9 @@ export function StrategyGraphLayout() {
             g.isCompact
               ? undefined
               : (_, node) => {
-                  const step = node.data?.step as Step | undefined;
-                  if (step) g.setSelectedStep(step);
+                  const data = node.data as { step?: Step } | undefined;
+                  const step = data?.step;
+                  if (step != null) g.setSelectedStep(step);
                 }
           }
           fitView

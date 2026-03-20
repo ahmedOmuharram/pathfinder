@@ -342,7 +342,7 @@ HOSTDB_SIGNALING_ADAPTORS = [
     "ENSG00000231889",  # TRAF pseudogene
 ]
 
-# Caspases (apoptosis/inflammation)
+# Caspases -- apoptosis/inflammation
 HOSTDB_CASPASES = [
     "ENSG00000137752",  # CASP1 (ICE, inflammasome)
     "ENSG00000106144",  # CASP2
@@ -408,9 +408,9 @@ HOSTDB_AUTOPHAGY = [
     "ENSG00000110497",  # AMBRA1 (autophagy)
 ]
 
-# Defensins (alpha and beta)
+# Defensins -- alpha and beta
 HOSTDB_DEFENSINS = [
-    # Alpha-defensins
+    # Alpha defensins
     "ENSG00000164816",  # DEFA1
     "ENSG00000164821",  # DEFA3
     "ENSG00000164822",  # DEFA4

@@ -113,7 +113,7 @@ def _coerce(value: Any, hint: Any) -> Any:
     origin = get_origin(hint)
     args = get_args(hint)
 
-    # Union / Optional (typing.Union or types.UnionType)
+    # Handle Union and Optional types
     if origin is Union or origin is types.UnionType:
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
@@ -124,13 +124,13 @@ def _coerce(value: Any, hint: Any) -> Any:
     if origin is Literal:
         return value
 
-    # list[T]
+    # Handle generic list types
     if origin is list and isinstance(value, list):
         if args:
             return [_coerce(item, args[0]) for item in value]
         return value
 
-    # tuple[T, ...]
+    # Handle generic tuple types
     if origin is tuple and isinstance(value, (list, tuple)):
         if args:
             return tuple(
@@ -138,7 +138,7 @@ def _coerce(value: Any, hint: Any) -> Any:
             )
         return tuple(value)
 
-    # dict[K, V]
+    # Handle generic dict types
     if origin is dict and isinstance(value, dict):
         if args and len(args) == 2:
             kt, vt = args

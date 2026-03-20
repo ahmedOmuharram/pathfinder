@@ -1,17 +1,8 @@
-export type {
-  Step,
-  Strategy,
-  StepParameters,
-  StrategyNode,
-  StrategyEdge,
-  StrategyGraphSelection,
-} from "./types";
 export type { CombineMismatchGroup } from "./validate";
 export { deserializeStrategyToGraph } from "./deserialize";
 export { serializeStrategyPlan } from "./serialize";
 export { inferStepKind } from "./kind";
-export { normalizeName, isFallbackDisplayName } from "./displayName";
-export type { DisplayNameStep } from "./displayName";
+export { isFallbackDisplayName } from "./displayName";
 export {
   resolveRecordType,
   getCombineMismatchGroups,

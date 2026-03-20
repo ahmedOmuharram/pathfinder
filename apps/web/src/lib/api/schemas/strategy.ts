@@ -38,7 +38,7 @@ const StepReportSchema = z
 // Step
 // ---------------------------------------------------------------------------
 
-export const StepSchema = z
+const StepSchema = z
   .object({
     id: z.string(),
     kind: z.string().nullable().optional(),
@@ -86,8 +86,6 @@ export const StrategySchema = z
     modelId: z.string().nullable().optional(),
   })
   .passthrough();
-
-export const StrategyListSchema = z.array(StrategySchema);
 
 // ---------------------------------------------------------------------------
 // Lightweight response wrappers

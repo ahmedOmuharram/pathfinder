@@ -1,16 +1,17 @@
 """Tests for the evaluation service (services/experiment/evaluation.py)."""
 
+import json as json_mod
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.services.experiment.evaluation import (
+from veupath_chatbot.services.experiment.evaluation import re_evaluate
+from veupath_chatbot.services.experiment.sweep_service import (
     _tree_has_parameter,
     compute_sweep_values,
     format_metrics_dict,
     generate_sweep_events,
-    re_evaluate,
     run_sweep_point,
     validate_sweep_parameter,
 )
@@ -54,32 +55,25 @@ def _make_experiment(**overrides: object) -> Experiment:
     return Experiment(**defaults)  # type: ignore[arg-type]
 
 
-def _make_metrics(
-    sens: float = 0.8,
-    spec: float = 0.9,
-    prec: float = 0.75,
-    f1: float = 0.77,
-    mcc: float = 0.7,
-    ba: float = 0.85,
-    fpr: float = 0.1,
-    total: int = 100,
-) -> ExperimentMetrics:
-    return ExperimentMetrics(
-        confusion_matrix=ConfusionMatrix(
+def _make_metrics(**overrides: object) -> ExperimentMetrics:
+    defaults: dict[str, object] = {
+        "sensitivity": 0.8,
+        "specificity": 0.9,
+        "precision": 0.75,
+        "f1_score": 0.77,
+        "mcc": 0.7,
+        "balanced_accuracy": 0.85,
+        "false_positive_rate": 0.1,
+        "total_results": 100,
+        "confusion_matrix": ConfusionMatrix(
             true_positives=8,
             false_positives=1,
             true_negatives=9,
             false_negatives=2,
         ),
-        sensitivity=sens,
-        specificity=spec,
-        precision=prec,
-        f1_score=f1,
-        mcc=mcc,
-        balanced_accuracy=ba,
-        false_positive_rate=fpr,
-        total_results=total,
-    )
+    }
+    defaults.update(overrides)
+    return ExperimentMetrics(**defaults)
 
 
 # ---------------------------------------------------------------------------
@@ -237,12 +231,12 @@ class TestFormatMetricsDict:
         assert set(result.keys()) == expected_keys
 
     def test_values_rounded(self) -> None:
-        m = _make_metrics(sens=0.12345678)
+        m = _make_metrics(sensitivity=0.12345678)
         result = format_metrics_dict(m)
         assert result["sensitivity"] == 0.1235
 
     def test_total_results_is_int(self) -> None:
-        m = _make_metrics(total=42)
+        m = _make_metrics(total_results=42)
         result = format_metrics_dict(m)
         assert result["totalResults"] == 42
         assert isinstance(result["totalResults"], int)
@@ -263,7 +257,7 @@ class TestRunSweepPoint:
             "target": {"resultCount": 50},
         }
         with patch(
-            "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+            "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
@@ -287,7 +281,7 @@ class TestRunSweepPoint:
             "target": {"resultCount": 30},
         }
         with patch(
-            "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+            "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
@@ -305,7 +299,7 @@ class TestRunSweepPoint:
     async def test_failure_returns_error(self) -> None:
         exp = _make_experiment()
         with patch(
-            "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+            "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
             side_effect=RuntimeError("WDK down"),
         ):
@@ -376,7 +370,7 @@ class TestReEvaluate:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.step_analysis.run_controls_against_tree",
+                "veupath_chatbot.services.experiment.evaluation.run_controls_against_tree",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ) as mock_tree_fn,
@@ -414,23 +408,24 @@ class TestGenerateSweepEvents:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.evaluation.cleanup_before_sweep",
+                "veupath_chatbot.services.experiment.sweep_service.cleanup_before_sweep",
                 new_callable=AsyncMock,
             ),
             patch(
-                "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+                "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
         ):
-            events: list[str] = []
-            async for event in generate_sweep_events(
-                exp=exp,
-                param_name="threshold",
-                sweep_type="numeric",
-                sweep_values=["0.0", "0.5", "1.0"],
-            ):
-                events.append(event)
+            events = [
+                event
+                async for event in generate_sweep_events(
+                    exp=exp,
+                    param_name="threshold",
+                    sweep_type="numeric",
+                    sweep_values=["0.0", "0.5", "1.0"],
+                )
+            ]
 
         # 3 sweep_point events + 1 sweep_complete
         point_events = [e for e in events if "sweep_point" in e]
@@ -544,7 +539,7 @@ class TestRunSweepPointTree:
             return mock_result
 
         with patch(
-            "veupath_chatbot.services.experiment.step_analysis.run_controls_against_tree",
+            "veupath_chatbot.services.experiment.sweep_service.run_controls_against_tree",
             new_callable=AsyncMock,
             side_effect=_capture_tree,
         ):
@@ -597,28 +592,27 @@ class TestNumericValueSorting:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.evaluation.cleanup_before_sweep",
+                "veupath_chatbot.services.experiment.sweep_service.cleanup_before_sweep",
                 new_callable=AsyncMock,
             ),
             patch(
-                "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+                "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
                 new_callable=AsyncMock,
                 side_effect=_mock_controls,
             ),
         ):
-            events: list[str] = []
-            async for event in generate_sweep_events(
-                exp=exp,
-                param_name="threshold",
-                sweep_type="numeric",
-                sweep_values=["1.0", "0.0", "0.5"],
-            ):
-                events.append(event)
+            events = [
+                event
+                async for event in generate_sweep_events(
+                    exp=exp,
+                    param_name="threshold",
+                    sweep_type="numeric",
+                    sweep_values=["1.0", "0.0", "0.5"],
+                )
+            ]
 
         # Find sweep_complete event
-        import json as json_mod
-
-        complete_event = [e for e in events if "sweep_complete" in e][0]
+        complete_event = next(e for e in events if "sweep_complete" in e)
         data_str = complete_event.split("data: ", 1)[1].strip()
         data = json_mod.loads(data_str)
         values = [p["value"] for p in data["points"]]
@@ -637,24 +631,25 @@ class TestNumericValueSorting:
 
         with (
             patch(
-                "veupath_chatbot.services.experiment.evaluation.cleanup_before_sweep",
+                "veupath_chatbot.services.experiment.sweep_service.cleanup_before_sweep",
                 new_callable=AsyncMock,
             ),
             patch(
-                "veupath_chatbot.services.experiment.evaluation.run_positive_negative_controls",
+                "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
                 new_callable=AsyncMock,
                 return_value=mock_result,
             ),
         ):
-            events: list[str] = []
             # Mix a non-numeric value with numeric ones
-            async for event in generate_sweep_events(
-                exp=exp,
-                param_name="threshold",
-                sweep_type="numeric",
-                sweep_values=["1.0", "not_a_number", "0.5"],
-            ):
-                events.append(event)
+            events = [
+                event
+                async for event in generate_sweep_events(
+                    exp=exp,
+                    param_name="threshold",
+                    sweep_type="numeric",
+                    sweep_values=["1.0", "not_a_number", "0.5"],
+                )
+            ]
 
         # Should have 3 point events and 1 complete event
         point_events = [e for e in events if "sweep_point" in e]

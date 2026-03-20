@@ -64,8 +64,8 @@ describe("RecordRow", () => {
     renderRow();
     const values = screen.getAllByTestId("attr-value");
     expect(values).toHaveLength(2);
-    expect(values[0].textContent).toBe("PF3D7_1234");
-    expect(values[1].textContent).toBe("kinase");
+    expect(values[0]!.textContent).toBe("PF3D7_1234");
+    expect(values[1]!.textContent).toBe("kinase");
   });
 
   it("calls onToggle when the data row is clicked", () => {
@@ -93,6 +93,6 @@ describe("RecordRow", () => {
     // so just verify it received the correct pk
     const details = screen.getAllByTestId("expanded-detail");
     expect(details.length).toBeGreaterThanOrEqual(1);
-    expect(details[0].textContent).toContain("PF3D7_1234");
+    expect(details[0]!.textContent).toContain("PF3D7_1234");
   });
 });

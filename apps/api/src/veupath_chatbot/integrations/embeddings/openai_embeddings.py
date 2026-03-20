@@ -2,13 +2,16 @@ import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from openai import AsyncOpenAI
+
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 
 
 def _chunks(items: list[str], *, size: int) -> Iterable[list[str]]:
     if size <= 0:
-        raise ValueError("chunk size must be > 0")
+        msg = "chunk size must be > 0"
+        raise ValueError(msg)
     for i in range(0, len(items), size):
         yield items[i : i + size]
 
@@ -47,13 +50,6 @@ class OpenAIEmbeddings:
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        try:
-            from openai import AsyncOpenAI
-        except Exception as exc:  # pragma: no cover
-            raise InternalError(
-                title="OpenAI SDK not available",
-                detail="Install `openai` (or `kani[openai]`) to enable embeddings.",
-            ) from exc
 
         api_key, resolved_base = _resolve_embeddings_config()
         effective_base = self.base_url or resolved_base

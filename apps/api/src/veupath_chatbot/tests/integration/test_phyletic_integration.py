@@ -36,8 +36,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,8 @@ def _find_param(result: dict[str, Any], name: str) -> dict[str, Any]:
     for p in result["parameters"]:
         if isinstance(p, dict) and p.get("name") == name:
             return p
-    raise AssertionError(f"Parameter '{name}' not found in result")
+    msg = f"Parameter '{name}' not found in result"
+    raise AssertionError(msg)
 
 
 # ===========================================================================
@@ -77,7 +78,7 @@ class TestLookupPhyleticCodes:
         labels = [m["label"] for m in result["matches"]]
         assert "pfal" in codes, f"Expected 'pfal' in codes, got {codes}"
         assert any("falciparum" in lbl.lower() for lbl in labels)
-        assert "CODE>=1T" in result["hint"]
+        assert "%CODE:Y%" in result["hint"]
 
     @pytest.mark.asyncio
     async def test_finds_human(self) -> None:
@@ -153,7 +154,7 @@ class TestGetSearchParametersPhyleticTrimming:
         )
         pp = _find_param(result, "profile_pattern")
 
-        assert "CODE>=1T" in pp["help"], (
+        assert "%CODE:STATE" in pp["help"], (
             f"profile_pattern help should contain encoding docs, got: {pp['help']}"
         )
         assert "lookup_phyletic_codes" in pp["help"], (

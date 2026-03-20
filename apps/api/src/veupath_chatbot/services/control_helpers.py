@@ -1,5 +1,7 @@
 """Formatting and parsing utilities for control-test evaluation."""
 
+import json
+
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StrategyAPI,
     is_internal_wdk_strategy_name,
@@ -18,8 +20,6 @@ def _encode_id_list(ids: list[str], fmt: ControlValueFormat) -> str:
     if fmt == "comma":
         return ",".join(cleaned)
     # json_list
-    import json
-
     return json.dumps(cleaned)
 
 

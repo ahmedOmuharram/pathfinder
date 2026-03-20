@@ -22,7 +22,7 @@ describe("OrganismListResponseSchema", () => {
       totalCount: 0,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).totalCount).toBe(0);
+    expect((result.data as Record<string, unknown>)["totalCount"]).toBe(0);
   });
 
   it("rejects missing organisms field", () => {

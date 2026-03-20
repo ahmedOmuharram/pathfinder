@@ -91,13 +91,13 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
             ref={scrollRef}
             className="max-h-[50vh] overflow-y-auto px-4 py-3 space-y-3"
           >
-            {!experimentId && messages.length === 0 && (
+            {experimentId == null && messages.length === 0 && (
               <p className="py-4 text-center text-xs text-muted-foreground">
                 Run an experiment to start chatting about your results.
               </p>
             )}
 
-            {experimentId && messages.length === 0 && !streaming && (
+            {experimentId != null && messages.length === 0 && !streaming && (
               <p className="py-4 text-center text-xs text-muted-foreground">
                 The AI assistant will automatically interpret your experiment results.
               </p>
@@ -141,7 +141,9 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
           </div>
 
           {/* Error display */}
-          {error && <div className="text-sm text-red-500 px-3 py-1">{error}</div>}
+          {error != null && error !== "" && (
+            <div className="text-sm text-red-500 px-3 py-1">{error}</div>
+          )}
 
           {/* Input area */}
           <form
@@ -154,11 +156,11 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                experimentId
+                experimentId != null
                   ? "Ask about your results..."
                   : "Run an experiment first..."
               }
-              disabled={!experimentId || streaming}
+              disabled={experimentId == null || streaming}
               rows={1}
               className="min-h-[36px] max-h-[120px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
@@ -174,7 +176,7 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
             ) : (
               <button
                 type="submit"
-                disabled={!experimentId || !input.trim()}
+                disabled={experimentId == null || !input.trim()}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
                 aria-label="Send"
               >
@@ -213,11 +215,11 @@ function MessageBubble({ message }: { message: WorkbenchMessage }) {
               <summary className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted">
                 <Wrench className="h-3 w-3" />
                 {formatToolName(tc.name)}
-                {tc.result && (
+                {tc.result != null && tc.result !== "" && (
                   <span className="text-green-600 dark:text-green-400">done</span>
                 )}
               </summary>
-              {tc.result && (
+              {tc.result != null && tc.result !== "" && (
                 <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted p-2 text-[10px] text-muted-foreground">
                   {tc.result}
                 </pre>
@@ -231,7 +233,7 @@ function MessageBubble({ message }: { message: WorkbenchMessage }) {
       {message.content && (
         <ChatMarkdown
           content={message.content}
-          citations={message.citations}
+          citations={message.citations ?? null}
           className="text-sm leading-relaxed text-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_p]:break-words [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm"
         />
       )}

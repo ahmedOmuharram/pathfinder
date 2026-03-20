@@ -4,6 +4,7 @@ from typing import Literal, cast
 
 from fastapi import APIRouter, Query
 
+from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.platform.errors import (
     InternalError,
     NotFoundError,
@@ -58,7 +59,7 @@ async def get_experiment_records(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     sort: str | None = None,
-    dir: Literal["ASC", "DESC"] = "ASC",
+    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir"),
     attributes: str | None = None,
     filter_attribute: str | None = Query(None, alias="filterAttribute"),
     filter_value: str | None = Query(None, alias="filterValue"),
@@ -83,7 +84,7 @@ async def get_experiment_records(
             offset=0,
             limit=10_000,
             sort=sort,
-            direction=dir,
+            direction=sort_dir,
             attributes=attr_list,
         )
         raw_records = answer.get("records", [])
@@ -106,14 +107,14 @@ async def get_experiment_records(
                 filtered.append(r)
         page = filtered[offset : offset + limit]
         return {
-            "records": cast(JSONValue, page),
+            "records": cast("JSONValue", page),
             "meta": {
                 "totalCount": len(filtered),
                 "displayTotalCount": len(filtered),
                 "responseCount": len(page),
                 "pagination": {"offset": offset, "numRecords": limit},
-                "attributes": cast(JSONValue, attr_list or []),
-                "tables": cast(JSONValue, []),
+                "attributes": cast("JSONValue", attr_list or []),
+                "tables": cast("JSONValue", []),
             },
         }
 
@@ -121,7 +122,7 @@ async def get_experiment_records(
         offset=offset,
         limit=limit,
         sort=sort,
-        direction=dir,
+        direction=sort_dir,
         attributes=attr_list,
     )
 
@@ -140,7 +141,7 @@ async def get_experiment_records(
     )
 
     return {
-        "records": cast(JSONValue, classified),
+        "records": cast("JSONValue", classified),
         "meta": answer.get("meta", {}),
     }
 
@@ -181,8 +182,6 @@ async def refine_experiment(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Add a step to the experiment's strategy (combine, transform, etc.)."""
-    from veupath_chatbot.domain.strategy.ast import StepTreeNode
-
     if not exp.wdk_strategy_id or not exp.wdk_step_id:
         raise NotFoundError(title="No WDK strategy for this experiment")
 
@@ -223,7 +222,7 @@ async def refine_experiment(
 
         return {"success": True, "newStepId": combined_id}
 
-    elif request.action == "transform":
+    if request.action == "transform":
         new_step = await api.create_transform_step(
             input_step_id=exp.wdk_step_id,
             transform_name=request.transform_name,

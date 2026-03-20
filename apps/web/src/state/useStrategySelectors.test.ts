@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useStrategyStore } from "./useStrategyStore";
+import { useStrategyStore } from "./strategy/store";
 import {
   useCurrentStrategy,
   useStrategyList,

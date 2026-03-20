@@ -20,7 +20,7 @@ import {
 import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import type { Strategy } from "@pathfinder/shared";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 import {
@@ -33,7 +33,7 @@ import { runDeleteStrategyWorkflow } from "@/features/sidebar/services/strategyS
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 
-export interface UseConversationSidebarActionsArgs {
+interface UseConversationSidebarActionsArgs {
   siteId: string;
   reportError: (message: string) => void;
   /** Lightweight re-fetch from local DB only (no WDK sync). */
@@ -45,7 +45,7 @@ export interface UseConversationSidebarActionsArgs {
   setNewConversationInFlight: (inFlight: boolean) => void;
 }
 
-export interface ConversationSidebarActions {
+interface ConversationSidebarActions {
   /** Currently active conversation ID (strategy). */
   activeId: string | null;
 
@@ -119,7 +119,7 @@ export function useConversationSidebarActions({
   );
 
   // --- Derived ---
-  const activeId = strategyId || null;
+  const activeId = strategyId ?? null;
 
   // --- Selection ---
   const handleSelect = useCallback(
@@ -133,7 +133,7 @@ export function useConversationSidebarActions({
           setStrategy(full);
           setStrategyMeta({
             name: full.name,
-            recordType: full.recordType ?? undefined,
+            recordType: full.recordType,
             siteId: full.siteId,
           });
         })
@@ -209,7 +209,7 @@ export function useConversationSidebarActions({
         markAsDeleted(si.id);
         await runDeleteStrategyWorkflow({
           item: si,
-          currentStrategyId: strategyId || null,
+          currentStrategyId: strategyId ?? null,
           setStrategyItems,
           setDismissedItems,
           clearStrategy,
@@ -218,7 +218,9 @@ export function useConversationSidebarActions({
           setDeleteError: () => {},
           deleteStrategyApi: deleteStrategy,
           deleteFromWdk,
-          refetchStrategies,
+          refetchStrategies: () => {
+            void refetchStrategies();
+          },
           reportError: (msg) => reportError(msg),
         });
       }
@@ -342,7 +344,7 @@ export function useConversationSidebarActions({
 
   // --- Permanent delete (dismissed strategy → hard-delete from WDK) ---
   const confirmPermanentDelete = useCallback(async () => {
-    if (!permanentDeleteTarget) return;
+    if (permanentDeleteTarget == null) return;
     try {
       await deleteStrategy(permanentDeleteTarget, true);
       setDismissedItems((prev) => prev.filter((s) => s.id !== permanentDeleteTarget));

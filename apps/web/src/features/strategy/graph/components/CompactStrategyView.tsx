@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { Layers, Loader2, Pencil } from "lucide-react";
-import type { Step, Strategy } from "@pathfinder/shared";
+import type { Strategy } from "@pathfinder/shared";
 import {
   buildSpineLayout,
   type CompactStep,
@@ -129,13 +129,20 @@ export function CompactStrategyView({
   exportingGeneSet = false,
 }: CompactStrategyViewProps) {
   const spine = useMemo(() => {
-    if (!strategy?.steps?.length || !strategy.rootStepId) return [];
+    if (
+      strategy == null ||
+      strategy.steps.length === 0 ||
+      strategy.rootStepId == null ||
+      strategy.rootStepId === ""
+    )
+      return [];
     return buildSpineLayout(strategy.steps, strategy.rootStepId);
   }, [strategy]);
 
-  const canOpenInWorkbench = !!strategy?.wdkStrategyId && !!onExportAsGeneSet;
+  const canOpenInWorkbench =
+    strategy?.wdkStrategyId != null && onExportAsGeneSet != null;
 
-  if (!strategy || spine.length === 0) return null;
+  if (strategy == null || spine.length === 0) return null;
 
   return (
     <div className="border-t border-border bg-muted">
@@ -145,7 +152,9 @@ export function CompactStrategyView({
           {spine.map((seg, i) => (
             <div key={seg.step.id} className="flex items-center">
               {i > 0 && <Arrow />}
-              {seg.secondaryInput && seg.step.operator ? (
+              {seg.secondaryInput != null &&
+              seg.step.operator != null &&
+              seg.step.operator !== "" ? (
                 <CombineSegment step={seg.step} secondaryInput={seg.secondaryInput} />
               ) : (
                 <PlainSegment step={seg.step} />

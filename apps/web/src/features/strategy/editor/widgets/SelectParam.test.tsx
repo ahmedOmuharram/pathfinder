@@ -40,19 +40,19 @@ describe("SelectParam — single-pick", () => {
     const options = screen.getAllByRole("option");
     // 1 placeholder + 4 options
     expect(options.length).toBe(5);
-    expect(options[0].textContent).toBe("-- Select --");
+    expect(options[0]!.textContent).toBe("-- Select --");
   });
 
   it("omits placeholder when allowEmptyValue is false", () => {
     render(<SelectParam {...makeProps({ spec: { allowEmptyValue: false } })} />);
     const options = screen.getAllByRole("option");
     expect(options.length).toBe(4);
-    expect(options[0].textContent).toBe("Alpha");
+    expect(options[0]!.textContent).toBe("Alpha");
   });
 
   it("selects the current value", () => {
     render(<SelectParam {...makeProps({ value: "b" })} />);
-    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    const select: HTMLSelectElement = screen.getByRole("combobox");
     expect(select.value).toBe("b");
   });
 

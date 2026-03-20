@@ -7,7 +7,7 @@ import type { StateCreator } from "zustand";
 import type { StrategyState, HistorySlice } from "./types";
 import { buildStepsById } from "./helpers";
 
-export const MAX_HISTORY = 50;
+const MAX_HISTORY = 50;
 
 /**
  * Push a strategy snapshot onto the history stack, truncating future entries
@@ -41,6 +41,7 @@ export const createHistorySlice: StateCreator<StrategyState, [], [], HistorySlic
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       const strategy = history[newIndex];
+      if (strategy === undefined) return;
       set({
         strategy,
         stepsById: buildStepsById(strategy.steps),
@@ -54,6 +55,7 @@ export const createHistorySlice: StateCreator<StrategyState, [], [], HistorySlic
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       const strategy = history[newIndex];
+      if (strategy === undefined) return;
       set({
         strategy,
         stepsById: buildStepsById(strategy.steps),

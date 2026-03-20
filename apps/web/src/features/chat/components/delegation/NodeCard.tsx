@@ -1,4 +1,4 @@
-export type ChatNodeCardData = {
+type ChatNodeCardData = {
   type?: string | null;
   kind?: string | null;
   displayName?: string | null;
@@ -9,7 +9,7 @@ export type ChatNodeCardData = {
 
 export function NodeCard({ node }: { node: ChatNodeCardData }) {
   const isSelected = Boolean(node.selected);
-  const kind = node.kind || node.type;
+  const kind = node.kind ?? node.type;
   const typeLabel =
     kind === "search"
       ? "Search"
@@ -38,16 +38,16 @@ export function NodeCard({ node }: { node: ChatNodeCardData }) {
         >
           {isSelected ? "Selected" : "Context"}
         </span>
-        {node.operator && (
+        {node.operator != null && node.operator !== "" && (
           <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {node.operator}
           </span>
         )}
       </div>
       <div className="mt-1 text-sm font-medium text-foreground">
-        {node.displayName || "Untitled step"}
+        {node.displayName ?? "Untitled step"}
       </div>
-      {node.searchName && (
+      {node.searchName != null && node.searchName !== "" && (
         <div className="mt-0.5 text-xs text-muted-foreground">{node.searchName}</div>
       )}
     </div>

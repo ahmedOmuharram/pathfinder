@@ -47,6 +47,7 @@ class StrategyStepOps(StrategyToolsHelpers):
             str | None,
             AIParam(desc="Optional friendly name for this step"),
         ] = None,
+        *,
         upstream: Annotated[
             int | None,
             AIParam(desc="Upstream bp for COLOCATE (default: 0)"),
@@ -88,7 +89,7 @@ class StrategyStepOps(StrategyToolsHelpers):
             resolve_record_type_for_search=self._find_record_type_for_search,
             find_record_type_hint=self._find_record_type_hint,
             extract_vocab_options=self._extract_vocab_options,
-            validation_error_payload=lambda exc: self._validation_error_payload(exc),
+            validation_error_payload=self._validation_error_payload,
         )
 
         if result.error is not None:

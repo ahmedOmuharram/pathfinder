@@ -63,7 +63,7 @@ class Citation:
             "tag": tag,
             "title": self.title,
             "url": self.url,
-            "authors": cast(JSONValue, self.authors),
+            "authors": cast("JSONValue", self.authors),
             "year": self.year,
             "doi": self.doi,
             "pmid": self.pmid,
@@ -111,7 +111,7 @@ def _suggest_citation_tag(
         return first_last
 
     first_word = (
-        _slug_token(title.split()[0])
+        _slug_token(title.split(maxsplit=1)[0])
         if isinstance(title, str) and title.split()
         else ""
     )
@@ -140,11 +140,10 @@ def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:
         n = used.get(base, 0)
         if n == 0:
             tag = base
+        elif n <= len(ascii_lowercase):
+            tag = f"{base}{ascii_lowercase[n - 1]}"
         else:
-            if n <= len(ascii_lowercase):
-                tag = f"{base}{ascii_lowercase[n - 1]}"
-            else:
-                tag = f"{base}_{n + 1}"
+            tag = f"{base}_{n + 1}"
         used[base] = n + 1
         c["tag"] = tag
 

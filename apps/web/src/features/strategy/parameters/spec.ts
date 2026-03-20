@@ -33,9 +33,9 @@ export interface ParamSpec {
 }
 
 export function isMultiParam(spec: ParamSpec) {
-  if (spec.allowMultipleValues || spec.multiPick) return true;
+  if (spec.allowMultipleValues === true || spec.multiPick === true) return true;
   if (typeof spec.maxSelectedCount === "number" && spec.maxSelectedCount > 1) {
     return true;
   }
-  return (spec.type || "").toLowerCase().includes("multi");
+  return (spec.type ?? "").toLowerCase().includes("multi");
 }

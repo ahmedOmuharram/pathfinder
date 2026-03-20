@@ -16,19 +16,21 @@ export function attachThinkingToLastAssistant(
   if (calls.length === 0 && !activity) return messages;
 
   for (let i = messages.length - 1; i >= 0; i -= 1) {
-    if (messages[i].role !== "assistant") continue;
+    const msg = messages[i];
+    if (msg?.role !== "assistant") continue;
 
-    const hasTools = (messages[i].toolCalls?.length || 0) > 0;
-    const hasActivity =
-      Object.keys(messages[i].subKaniActivity?.calls || {}).length > 0;
+    const hasTools = (msg.toolCalls?.length ?? 0) > 0;
+    const hasActivity = Object.keys(msg.subKaniActivity?.calls ?? {}).length > 0;
     if (hasTools && hasActivity) return messages;
 
+    const resolvedToolCalls = hasTools || calls.length === 0 ? msg.toolCalls : calls;
+    const resolvedActivity =
+      hasActivity || activity == null ? msg.subKaniActivity : activity;
     const next = [...messages];
     next[i] = {
-      ...messages[i],
-      toolCalls: hasTools || calls.length === 0 ? messages[i].toolCalls : calls,
-      subKaniActivity:
-        hasActivity || !activity ? messages[i].subKaniActivity : activity,
+      ...msg,
+      ...(resolvedToolCalls != null ? { toolCalls: resolvedToolCalls } : {}),
+      ...(resolvedActivity != null ? { subKaniActivity: resolvedActivity } : {}),
     };
     return next;
   }

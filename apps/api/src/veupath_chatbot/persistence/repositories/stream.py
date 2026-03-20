@@ -1,6 +1,6 @@
 """Repository for stream (conversation) identity + projections."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -336,3 +336,17 @@ class StreamRepository:
             stmt = stmt.where(Operation.type == op_type)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def expire_stale_operations(self, max_age_seconds: int = 600) -> int:
+        """Mark operations active longer than *max_age_seconds* as failed.
+
+        Returns the number of expired operations.
+        """
+        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
+        result = await self.session.execute(
+            update(Operation)
+            .where(Operation.status == "active", Operation.created_at < cutoff)
+            .values(status="failed", completed_at=datetime.now(UTC))
+        )
+        await self.session.flush()
+        return result.rowcount

@@ -27,7 +27,7 @@ describe("CustomEnrichmentResultSchema", () => {
       adjustedPValue: 0.005,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).adjustedPValue).toBe(0.005);
+    expect((result.data as Record<string, unknown>)["adjustedPValue"]).toBe(0.005);
   });
 
   it("rejects missing required fields", () => {

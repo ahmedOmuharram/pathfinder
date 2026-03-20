@@ -28,11 +28,20 @@ import math
 import httpx
 import respx
 
+from veupath_chatbot.services.research.clients.arxiv import ArxivClient
+from veupath_chatbot.services.research.clients.crossref import CrossrefClient
+from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
+from veupath_chatbot.services.research.clients.openalex import OpenAlexClient
+from veupath_chatbot.services.research.clients.pubmed import PubmedClient
+from veupath_chatbot.services.research.clients.semanticscholar import (
+    SemanticScholarClient,
+)
 from veupath_chatbot.services.research.utils import (
     candidate_queries,
     decode_ddg_redirect,
     dedupe_key,
     fallback_ratio,
+    fetch_page_summary,
     fuzzy_score,
     limit_authors,
     list_str,
@@ -325,19 +334,19 @@ class TestRerankEdgeCases:
 
     def test_rerank_none_title(self) -> None:
         """None title should be handled."""
-        score, parts = rerank_score("malaria", {"title": None})
+        score, _parts = rerank_score("malaria", {"title": None})
         assert isinstance(score, float)
         assert not math.isnan(score)
 
     def test_rerank_none_abstract(self) -> None:
         """None abstract should be handled."""
-        score, parts = rerank_score("malaria", {"abstract": None, "snippet": None})
+        score, _parts = rerank_score("malaria", {"abstract": None, "snippet": None})
         assert isinstance(score, float)
         assert not math.isnan(score)
 
     def test_rerank_no_journal(self) -> None:
         """Missing journal should get 0 journal score."""
-        score, parts = rerank_score("malaria", {"title": "malaria"})
+        _score, parts = rerank_score("malaria", {"title": "malaria"})
         assert parts["journal"] == 0.0
 
 
@@ -546,29 +555,21 @@ class TestFuzzyScoreEdgeCases:
 
 class TestFetchPageSummaryEdgeCases:
     async def test_empty_url_returns_none(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         async with httpx.AsyncClient() as client:
             result = await fetch_page_summary(client, "", max_chars=500)
         assert result is None
 
     async def test_whitespace_url_returns_none(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         async with httpx.AsyncClient() as client:
             result = await fetch_page_summary(client, "   ", max_chars=500)
         assert result is None
 
     async def test_non_string_url_returns_none(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         async with httpx.AsyncClient() as client:
             result = await fetch_page_summary(client, 42, max_chars=500)  # type: ignore[arg-type]
         assert result is None
 
     async def test_pdf_url_case_insensitive(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         async with httpx.AsyncClient() as client:
             result = await fetch_page_summary(
                 client, "https://example.com/file.PDF", max_chars=500
@@ -577,8 +578,6 @@ class TestFetchPageSummaryEdgeCases:
 
     @respx.mock
     async def test_twitter_description_meta(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         respx.get("https://example.com/page").mock(
             return_value=httpx.Response(
                 200,
@@ -593,8 +592,6 @@ class TestFetchPageSummaryEdgeCases:
 
     @respx.mock
     async def test_main_navigation_paragraph_skipped(self) -> None:
-        from veupath_chatbot.services.research.utils import fetch_page_summary
-
         html = """<html><body>
         <p>Main navigation links for the site with enough characters to pass the threshold test.</p>
         <p>This is the real content paragraph with enough characters for the minimum threshold to be met easily.</p>
@@ -619,8 +616,6 @@ class TestCrossrefEdgeCases:
     @respx.mock
     async def test_missing_title_list(self) -> None:
         """Crossref item with no title list should produce empty title."""
-        from veupath_chatbot.services.research.clients.crossref import CrossrefClient
-
         respx.get("https://api.crossref.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -644,8 +639,6 @@ class TestCrossrefEdgeCases:
     @respx.mock
     async def test_empty_title_list(self) -> None:
         """Crossref item with empty title list should produce empty title."""
-        from veupath_chatbot.services.research.clients.crossref import CrossrefClient
-
         respx.get("https://api.crossref.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -670,8 +663,6 @@ class TestCrossrefEdgeCases:
     @respx.mock
     async def test_published_online_fallback(self) -> None:
         """When published-print is missing, fall back to published-online."""
-        from veupath_chatbot.services.research.clients.crossref import CrossrefClient
-
         respx.get("https://api.crossref.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -697,8 +688,6 @@ class TestCrossrefEdgeCases:
     @respx.mock
     async def test_no_url_no_doi(self) -> None:
         """Item with neither URL nor DOI."""
-        from veupath_chatbot.services.research.clients.crossref import CrossrefClient
-
         respx.get("https://api.crossref.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -728,8 +717,6 @@ class TestEuropePmcEdgeCases:
     @respx.mock
     async def test_non_numeric_pub_year(self) -> None:
         """pubYear that is a non-numeric string should produce None year."""
-        from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
-
         respx.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
             return_value=httpx.Response(
                 200,
@@ -747,8 +734,6 @@ class TestEuropePmcEdgeCases:
     @respx.mock
     async def test_no_doi_no_pmid(self) -> None:
         """Item with neither DOI nor PMID should have None URL."""
-        from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
-
         respx.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
             return_value=httpx.Response(
                 200,
@@ -771,8 +756,6 @@ class TestOpenAlexEdgeCases:
     @respx.mock
     async def test_abstract_inverted_index_empty(self) -> None:
         """Empty inverted index should produce None abstract."""
-        from veupath_chatbot.services.research.clients.openalex import OpenAlexClient
-
         respx.get("https://api.openalex.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -796,8 +779,6 @@ class TestOpenAlexEdgeCases:
     @respx.mock
     async def test_abstract_inverted_index_non_int_positions(self) -> None:
         """Inverted index with non-int positions should be skipped."""
-        from veupath_chatbot.services.research.clients.openalex import OpenAlexClient
-
         respx.get("https://api.openalex.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -824,8 +805,6 @@ class TestOpenAlexEdgeCases:
     @respx.mock
     async def test_publication_year_as_string(self) -> None:
         """publication_year as a string digit should be parsed."""
-        from veupath_chatbot.services.research.clients.openalex import OpenAlexClient
-
         respx.get("https://api.openalex.org/works").mock(
             return_value=httpx.Response(
                 200,
@@ -855,10 +834,6 @@ class TestSemanticScholarEdgeCases:
     @respx.mock
     async def test_journal_none(self) -> None:
         """No journal key should produce None journal."""
-        from veupath_chatbot.services.research.clients.semanticscholar import (
-            SemanticScholarClient,
-        )
-
         respx.get("https://api.semanticscholar.org/graph/v1/paper/search").mock(
             return_value=httpx.Response(
                 200,
@@ -882,10 +857,6 @@ class TestSemanticScholarEdgeCases:
     @respx.mock
     async def test_journal_dict_without_name(self) -> None:
         """Journal dict without name key should produce None journal."""
-        from veupath_chatbot.services.research.clients.semanticscholar import (
-            SemanticScholarClient,
-        )
-
         respx.get("https://api.semanticscholar.org/graph/v1/paper/search").mock(
             return_value=httpx.Response(
                 200,
@@ -915,8 +886,6 @@ class TestPubmedEdgeCases:
     @respx.mock
     async def test_pubdate_no_year(self) -> None:
         """pubdate without 4-digit year should produce None year."""
-        from veupath_chatbot.services.research.clients.pubmed import PubmedClient
-
         respx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi").mock(
             return_value=httpx.Response(
                 200, json={"esearchresult": {"idlist": ["11111"]}}
@@ -948,8 +917,6 @@ class TestPubmedEdgeCases:
     @respx.mock
     async def test_summary_pmid_not_in_result(self) -> None:
         """PMID in search but not in summary should be skipped."""
-        from veupath_chatbot.services.research.clients.pubmed import PubmedClient
-
         respx.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi").mock(
             return_value=httpx.Response(
                 200, json={"esearchresult": {"idlist": ["99999"]}}
@@ -977,8 +944,6 @@ class TestArxivEdgeCases:
     @respx.mock
     async def test_entry_without_link(self) -> None:
         """Entry without link element should produce None URL."""
-        from veupath_chatbot.services.research.clients.arxiv import ArxivClient
-
         xml = """<?xml version="1.0" encoding="UTF-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom">
             <entry>
@@ -998,8 +963,6 @@ class TestArxivEdgeCases:
     @respx.mock
     async def test_entry_without_title(self) -> None:
         """Entry without title element should produce empty title."""
-        from veupath_chatbot.services.research.clients.arxiv import ArxivClient
-
         xml = """<?xml version="1.0" encoding="UTF-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom">
             <entry>

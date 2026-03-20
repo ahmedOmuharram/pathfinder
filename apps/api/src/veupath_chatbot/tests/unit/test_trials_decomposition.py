@@ -47,7 +47,7 @@ def _make_ctx(
         site_id="plasmodb",
         record_type="transcript",
         search_name="TestSearch",
-        fixed_parameters=cast(JSONObject, {"organism": "P. falciparum"}),
+        fixed_parameters=cast("JSONObject", {"organism": "P. falciparum"}),
         parameter_space=parameter_space
         or [
             ParameterSpec(

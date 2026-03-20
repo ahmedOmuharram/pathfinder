@@ -34,8 +34,6 @@ import {
   listDismissedStrategies,
 } from "./strategies";
 import { requestJson, requestJsonValidated } from "@/lib/api/http";
-import type { Strategy } from "@pathfinder/shared";
-
 const mockRequestJsonValidated = vi.mocked(requestJsonValidated);
 const mockRequestJson = vi.mocked(requestJson);
 
@@ -127,7 +125,7 @@ describe("withDefaults applied to API functions", () => {
       const result = await getStrategy(VALID_UUID);
 
       expect(result.steps).toHaveLength(1);
-      expect(result.steps[0].id).toBe("step-1");
+      expect(result.steps[0]!.id).toBe("step-1");
     });
 
     it("preserves isSaved=true when API includes it", async () => {
@@ -248,8 +246,8 @@ describe("withDefaults applied to API functions", () => {
       const result = await listDismissedStrategies("PlasmoDB");
 
       expect(result).toHaveLength(1);
-      expect(result[0].steps).toEqual([]);
-      expect(result[0].rootStepId).toBeNull();
+      expect(result[0]!.steps).toEqual([]);
+      expect(result[0]!.rootStepId).toBeNull();
     });
   });
 });

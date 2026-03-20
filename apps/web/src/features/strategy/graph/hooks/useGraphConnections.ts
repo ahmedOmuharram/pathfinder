@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Connection, Edge } from "reactflow";
-import { CombineOperator, type Step } from "@pathfinder/shared";
+import { type CombineOperator } from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import {
   buildGraphIndices,
   edgeToInputPatch,
@@ -78,7 +79,7 @@ export function useGraphConnections({
         kind: "combine",
         displayName: `${operator} combine`,
         operator,
-        recordType: recordType ?? undefined,
+        recordType: recordType ?? null,
         primaryInputStepId: pendingCombine.sourceId,
         secondaryInputStepId: pendingCombine.targetId,
       };

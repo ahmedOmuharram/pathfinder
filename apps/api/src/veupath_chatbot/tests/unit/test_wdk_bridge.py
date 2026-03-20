@@ -211,7 +211,7 @@ class TestBuildNodeFromWdk:
         assert node.secondary_input is not None
 
     def test_missing_step_id_raises(self) -> None:
-        with pytest.raises(ValueError, match="stepId"):
+        with pytest.raises(TypeError, match="stepId"):
             build_node_from_wdk({"stepId": "not_an_int"}, {}, "gene")
 
     def test_missing_search_name_raises(self) -> None:
@@ -223,7 +223,7 @@ class TestBuildNodeFromWdk:
     def test_missing_search_config_raises(self) -> None:
         step_tree = {"stepId": 1}
         steps = {"1": {"searchName": "S1"}}
-        with pytest.raises(ValueError, match="searchConfig"):
+        with pytest.raises(TypeError, match="searchConfig"):
             build_node_from_wdk(step_tree, steps, "gene")
 
     def test_combine_without_operator_raises(self) -> None:
@@ -307,11 +307,11 @@ class TestBuildSnapshotFromWdk:
         assert len(steps_data) == 3
 
     def test_missing_step_tree_raises(self) -> None:
-        with pytest.raises(ValueError, match="stepTree"):
+        with pytest.raises(TypeError, match="stepTree"):
             build_snapshot_from_wdk({"recordClassName": "gene", "steps": {}})
 
     def test_missing_steps_dict_raises(self) -> None:
-        with pytest.raises(ValueError, match="steps"):
+        with pytest.raises(TypeError, match="steps"):
             build_snapshot_from_wdk(
                 {"recordClassName": "gene", "stepTree": {"stepId": 1}}
             )

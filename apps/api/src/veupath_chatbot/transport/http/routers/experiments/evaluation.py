@@ -4,10 +4,11 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.evaluation import (
+from veupath_chatbot.services.experiment.evaluation import re_evaluate
+from veupath_chatbot.services.experiment.report import generate_experiment_report
+from veupath_chatbot.services.experiment.sweep_service import (
     compute_sweep_values,
     generate_sweep_events,
-    re_evaluate,
     validate_sweep_parameter,
 )
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
@@ -61,8 +62,6 @@ async def get_experiment_report(
     exp: ExperimentDep, user_id: CurrentUser
 ) -> StreamingResponse:
     """Generate and return a self-contained HTML report for an experiment."""
-    from veupath_chatbot.services.experiment.report import generate_experiment_report
-
     html_content = generate_experiment_report(exp)
 
     return StreamingResponse(

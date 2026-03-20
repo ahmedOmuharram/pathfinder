@@ -5,7 +5,7 @@ import type { ParamWidgetProps } from "./types";
 const MAX_VISIBLE = 50;
 
 export function TypeAheadParam({
-  spec,
+  spec: _spec,
   value,
   multi,
   multiValue,
@@ -15,7 +15,9 @@ export function TypeAheadParam({
   fieldBorderClass,
 }: ParamWidgetProps) {
   const currentLabel =
-    !multi && value ? (options.find((o) => o.value === value)?.label ?? value) : "";
+    !multi && value != null && value !== ""
+      ? (options.find((o) => o.value === value)?.label ?? value)
+      : "";
 
   const [searchTerm, setSearchTerm] = useState(currentLabel);
   const [filteredOptions, setFilteredOptions] = useState<typeof options>([]);
@@ -27,7 +29,10 @@ export function TypeAheadParam({
   const [prevValue, setPrevValue] = useState(value);
   if (!multi && value !== prevValue) {
     setPrevValue(value);
-    const label = value ? (options.find((o) => o.value === value)?.label ?? value) : "";
+    const label =
+      value != null && value !== ""
+        ? (options.find((o) => o.value === value)?.label ?? value)
+        : "";
     if (label !== searchTerm) {
       setSearchTerm(label);
     }
@@ -135,7 +140,7 @@ export function TypeAheadParam({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         placeholder="Type to search..."
-        className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground placeholder:text-muted-foreground ${fieldBorderClass || "border-border"}`}
+        className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground placeholder:text-muted-foreground ${fieldBorderClass ?? "border-border"}`}
       />
       {isOpen && (
         <ul className="absolute z-50 mt-1 w-full rounded-md border border-border bg-card shadow-lg max-h-48 overflow-y-auto">

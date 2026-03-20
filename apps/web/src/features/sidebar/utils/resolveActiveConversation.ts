@@ -5,7 +5,7 @@
  * without React hooks.
  */
 
-export type ConversationAction =
+type ConversationAction =
   | { type: "keep" }
   | { type: "pick"; strategyId: string }
   | { type: "create" }
@@ -39,7 +39,7 @@ export function resolveActiveConversation({
 
   // If a conversation is already selected, trust it.
   // useUnifiedChatDataLoading will validate and clear on 404.
-  if (strategyId) return { type: "keep" };
+  if (strategyId != null) return { type: "keep" };
 
   // No conversation selected — need to pick one or create.
 
@@ -54,5 +54,7 @@ export function resolveActiveConversation({
   const sorted = [...strategyItems].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
-  return { type: "pick", strategyId: sorted[0].id };
+  const mostRecent = sorted[0];
+  if (mostRecent == null) return { type: "create" };
+  return { type: "pick", strategyId: mostRecent.id };
 }

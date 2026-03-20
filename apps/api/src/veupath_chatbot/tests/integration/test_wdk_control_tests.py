@@ -9,6 +9,7 @@ Fixture responses come from
 ``veupath_chatbot.tests.fixtures.wdk_responses``.
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -121,7 +122,7 @@ def _make_mock_api(
     ids = answer_gene_ids if answer_gene_ids is not None else GENE_IDS[:combined_count]
     api.get_step_answer.return_value = standard_report_response(ids, combined_count)
 
-    # delete_strategy: no-op
+    # delete_strategy is a no-op
     api.delete_strategy.return_value = None
 
     return api
@@ -156,8 +157,6 @@ class TestEncodeIdList:
 
     def test_json_list_format(self) -> None:
         result = _encode_id_list(GENE_IDS[:2], "json_list")
-        import json
-
         assert json.loads(result) == GENE_IDS[:2]
 
     def test_strips_whitespace(self) -> None:

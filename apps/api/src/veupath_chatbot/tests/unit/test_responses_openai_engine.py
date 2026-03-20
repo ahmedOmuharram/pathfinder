@@ -23,8 +23,7 @@ def _patch_openai_init():
 def _make_engine(model: str):
     """Build a ResponsesOpenAIEngine with a patched parent __init__."""
     with patch("kani.engines.openai.OpenAIEngine.__init__", _fake_openai_init):
-        engine = ResponsesOpenAIEngine(model=model)
-    return engine
+        return ResponsesOpenAIEngine(model=model)
 
 
 # ---------------------------------------------------------------------------
@@ -32,14 +31,15 @@ def _make_engine(model: str):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("_patch_openai_init")
 class TestApiTypeDefault:
     """api_type should default to 'responses'."""
 
-    def test_defaults_to_responses(self, _patch_openai_init):
+    def test_defaults_to_responses(self):
         engine = ResponsesOpenAIEngine(model="gpt-4.1")
         assert engine.api_type == "responses"
 
-    def test_explicit_api_type_preserved(self, _patch_openai_init):
+    def test_explicit_api_type_preserved(self):
         engine = ResponsesOpenAIEngine(model="gpt-4.1", api_type="chat")
         assert engine.api_type == "chat"
 
@@ -67,7 +67,7 @@ class TestPrepareRequestNonReasoningModels:
             "kani.engines.openai.OpenAIEngine._prepare_request",
             return_value=(parent_kwargs, _TRANSLATED, _TOOLS),
         ):
-            kwargs, translated, tools = engine._prepare_request([], [])
+            kwargs, _translated, _tools = engine._prepare_request([], [])
 
         assert "reasoning.encrypted_content" not in kwargs.get("include", [])
         assert "usage" in kwargs["include"]
@@ -147,7 +147,7 @@ class TestSupportsReasoningFlag:
     """_supports_reasoning should be set based on model prefix."""
 
     @pytest.mark.parametrize(
-        "model,expected",
+        ("model", "expected"),
         [
             ("gpt-4.1", False),
             ("gpt-4.1-mini", False),

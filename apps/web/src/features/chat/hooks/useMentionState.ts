@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { ChatMention } from "@pathfinder/shared";
 
-export interface MentionState {
+interface MentionState {
   mentions: ChatMention[];
   setMentions: React.Dispatch<React.SetStateAction<ChatMention[]>>;
   mentionActive: boolean;

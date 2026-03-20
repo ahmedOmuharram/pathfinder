@@ -85,7 +85,7 @@ class SemanticScholarClient(StandardClient):
             "doi": doi,
             "pmid": pmid,
             "url": result_url,
-            "authors": cast(JSONValue, authors),
+            "authors": cast("JSONValue", authors),
             "journalTitle": journal,
             "abstract": abstract,
             "snippet": abstract or journal,

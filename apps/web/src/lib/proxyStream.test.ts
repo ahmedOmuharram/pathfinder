@@ -8,6 +8,7 @@
  * 3. The proxy must not accumulate multiple events before sending.
  */
 
+import type { NextRequest } from "next/server";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 
 // We can't directly import the pipeStream function since it's not exported,
@@ -50,7 +51,7 @@ async function collectChunks(stream: ReadableStream<Uint8Array>): Promise<string
   const decoder = new TextDecoder();
   const chunks: string[] = [];
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     chunks.push(decoder.decode(value, { stream: true }));
@@ -98,7 +99,7 @@ describe("SSE proxy streaming behavior", () => {
     const mockReq = {
       headers: new Headers({ authorization: "Bearer test" }),
       url: "http://localhost:3000/api/v1/operations/op-1/subscribe",
-    } as unknown as import("next/server").NextRequest;
+    } as unknown as NextRequest;
 
     const response = await proxySSEGet(mockReq, "/api/v1/operations/op-1/subscribe");
 
@@ -132,7 +133,7 @@ describe("SSE proxy streaming behavior", () => {
     const mockReq = {
       headers: new Headers({}),
       url: "http://localhost:3000/test",
-    } as unknown as import("next/server").NextRequest;
+    } as unknown as NextRequest;
 
     const response = await proxySSEGet(mockReq, "/test");
 
@@ -158,7 +159,7 @@ describe("SSE proxy streaming behavior", () => {
     const mockReq = {
       headers: new Headers({}),
       url: "http://localhost:3000/test",
-    } as unknown as import("next/server").NextRequest;
+    } as unknown as NextRequest;
 
     await proxySSEGet(mockReq, "/test");
 

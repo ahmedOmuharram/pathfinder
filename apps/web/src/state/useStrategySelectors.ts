@@ -5,7 +5,7 @@
  * do not need to reach into the raw store shape.
  */
 
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 
 // ---------------------------------------------------------------------------
 // Read selectors

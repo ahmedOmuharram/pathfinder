@@ -20,6 +20,7 @@ from typing import Any, Protocol, cast
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tasks import spawn
 
@@ -47,9 +48,9 @@ class WriteThruStore[T: Identifiable]:
 
     _model: Any = None  # SQLAlchemy ORM model class — set by subclass
     _to_row: Callable[[T], dict[str, object]] = cast(
-        "Callable[[T], dict[str, object]]", cast(object, None)
+        "Callable[[T], dict[str, object]]", cast("object", None)
     )
-    _from_row: Callable[..., T] = cast("Callable[..., T]", cast(object, None))
+    _from_row: Callable[..., T] = cast("Callable[..., T]", cast("object", None))
 
     def __init__(self) -> None:
         self._cache: dict[str, T] = {}
@@ -58,8 +59,6 @@ class WriteThruStore[T: Identifiable]:
 
     async def _persist(self, entity: T) -> None:
         """Upsert an entity row into the database."""
-        from veupath_chatbot.persistence.session import async_session_factory
-
         try:
             vals = self._to_row(entity)
             stmt = (
@@ -82,8 +81,6 @@ class WriteThruStore[T: Identifiable]:
 
     async def _load(self, entity_id: str) -> T | None:
         """Load a single entity from the database by primary key."""
-        from veupath_chatbot.persistence.session import async_session_factory
-
         async with async_session_factory() as session:
             row = await session.get(self._model, entity_id)
             if row is None:
@@ -92,8 +89,6 @@ class WriteThruStore[T: Identifiable]:
 
     async def _delete_from_db(self, entity_id: str) -> None:
         """Delete an entity row from the database."""
-        from veupath_chatbot.persistence.session import async_session_factory
-
         stmt = sa_delete(self._model).where(self._model.id == entity_id)
         async with async_session_factory() as session:
             await session.execute(stmt)

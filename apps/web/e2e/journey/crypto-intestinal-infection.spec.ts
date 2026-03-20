@@ -22,7 +22,9 @@ test.describe("Crypto Intestinal Infection Journey", () => {
     workbenchSidebarPage,
     workbenchMainPage,
   }) => {
-    const cryptoGenes = seedData.siteData.cryptodb.geneIds;
+    const cryptoSiteData = seedData.siteData["cryptodb"];
+    if (cryptoSiteData === undefined) throw new Error("cryptodb seed data missing");
+    const cryptoGenes = cryptoSiteData.geneIds;
     const fullCount = cryptoGenes.length;
     const subsetGenes = cryptoGenes.slice(0, 2);
     const subsetCount = subsetGenes.length;

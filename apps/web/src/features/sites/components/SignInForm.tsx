@@ -62,7 +62,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
           }}
         />
       </div>
-      {authError && (
+      {authError != null && (
         <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {authError}
         </div>
@@ -70,7 +70,9 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       <button
         type="button"
         disabled={authBusy}
-        onClick={handleSubmit}
+        onClick={() => {
+          void handleSubmit();
+        }}
         className="w-full rounded-md bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-150 hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 disabled:opacity-60"
       >
         {authBusy ? "Signing in..." : "Sign in"}

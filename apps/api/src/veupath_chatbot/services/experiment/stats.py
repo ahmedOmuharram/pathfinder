@@ -26,5 +26,4 @@ def hypergeometric_log_sf(x: int, n: int, k: int, m: int) -> float:
     z = (x - mean) / std
     if z <= 0:
         return 0.0  # no enrichment -> p = 1.0
-    log_sf = math.log(max(math.erfc(z / math.sqrt(2)) / 2, 1e-300))
-    return log_sf
+    return math.log(max(math.erfc(z / math.sqrt(2)) / 2, 1e-300))

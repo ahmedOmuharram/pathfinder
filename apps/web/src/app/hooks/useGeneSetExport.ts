@@ -5,20 +5,19 @@ import { createGeneSetFromStrategy } from "@/features/workbench/api/geneSets";
 import type { GeneSet } from "@/features/workbench/store";
 
 interface UseGeneSetExportArgs {
-  selectedSite: string;
   addGeneSet: (geneSet: GeneSet) => void;
 }
 
-export function useGeneSetExport({ selectedSite, addGeneSet }: UseGeneSetExportArgs) {
+export function useGeneSetExport({ addGeneSet }: UseGeneSetExportArgs) {
   const router = useRouter();
   const [exportingGeneSet, setExportingGeneSet] = useState(false);
 
   const handleExportAsGeneSet = useCallback(
     async (s: Strategy) => {
-      if (!s.wdkStrategyId) return;
+      if (s.wdkStrategyId === undefined || s.wdkStrategyId === null) return;
 
       // If the strategy already has an associated gene set, just navigate.
-      if (s.geneSetId) {
+      if (s.geneSetId !== undefined && s.geneSetId !== null) {
         router.push(`/workbench/${s.geneSetId}`);
         return;
       }
@@ -26,18 +25,31 @@ export function useGeneSetExport({ selectedSite, addGeneSet }: UseGeneSetExportA
       // No gene set yet — create one.
       setExportingGeneSet(true);
       try {
-        const rootStep = s.rootStepId
-          ? s.steps.find((step) => step.id === s.rootStepId)
-          : null;
-        const geneSet = await createGeneSetFromStrategy({
-          name: s.name || "Strategy results",
-          siteId: s.siteId || selectedSite,
+        const rootStep =
+          s.rootStepId !== null && s.rootStepId !== undefined
+            ? s.steps.find((step) => step.id === s.rootStepId)
+            : null;
+        const args: Parameters<typeof createGeneSetFromStrategy>[0] = {
+          name: s.name,
+          siteId: s.siteId,
           wdkStrategyId: s.wdkStrategyId,
-          wdkStepId: rootStep?.wdkStepId ?? undefined,
-          searchName: rootStep?.searchName ?? undefined,
-          recordType: s.recordType ?? rootStep?.recordType ?? undefined,
-          parameters: rootStep?.parameters ?? undefined,
-        });
+        };
+        if (rootStep !== null && rootStep !== undefined) {
+          if (rootStep.wdkStepId !== undefined && rootStep.wdkStepId !== null) {
+            args.wdkStepId = rootStep.wdkStepId;
+          }
+          if (rootStep.searchName !== undefined && rootStep.searchName !== null) {
+            args.searchName = rootStep.searchName;
+          }
+          if (rootStep.parameters !== undefined && rootStep.parameters !== null) {
+            args.parameters = rootStep.parameters;
+          }
+        }
+        const recordType = s.recordType ?? rootStep?.recordType;
+        if (recordType !== undefined && recordType !== null) {
+          args.recordType = recordType;
+        }
+        const geneSet = await createGeneSetFromStrategy(args);
         addGeneSet(geneSet);
         router.push(`/workbench/${geneSet.id}`);
       } catch (err) {
@@ -46,7 +58,7 @@ export function useGeneSetExport({ selectedSite, addGeneSet }: UseGeneSetExportA
         setExportingGeneSet(false);
       }
     },
-    [selectedSite, addGeneSet, router],
+    [addGeneSet, router],
   );
 
   return { exportingGeneSet, handleExportAsGeneSet };

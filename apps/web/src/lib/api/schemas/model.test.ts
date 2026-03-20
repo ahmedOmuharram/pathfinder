@@ -29,7 +29,7 @@ describe("ModelCatalogEntrySchema", () => {
       maxTokens: 128000,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).maxTokens).toBe(128000);
+    expect((result.data as Record<string, unknown>)["maxTokens"]).toBe(128000);
   });
 
   it("rejects invalid provider enum", () => {
@@ -68,7 +68,7 @@ describe("ModelCatalogResponseSchema", () => {
       version: 2,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).version).toBe(2);
+    expect((result.data as Record<string, unknown>)["version"]).toBe(2);
   });
 
   it("rejects invalid reasoningEffort enum", () => {

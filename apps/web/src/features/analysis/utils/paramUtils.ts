@@ -25,7 +25,8 @@ export function isParamRequired(spec: ParamSpec): boolean {
   // isReadOnly / isVisible are WDK raw fields not in the generated schema —
   // check them defensively via runtime property access.
   const raw = spec as Record<string, unknown>;
-  if (raw.isReadOnly || raw.isVisible === false) return false;
+  if (raw["isReadOnly"] != null && raw["isReadOnly"] !== false) return false;
+  if (raw["isVisible"] === false) return false;
   if (spec.type === "input-step") return false;
   return true;
 }
@@ -35,7 +36,7 @@ export function isMultiPickParam(spec: ParamSpec): boolean {
 }
 
 export function isParamEmpty(spec: ParamSpec, value: string): boolean {
-  if (value == null || value === "") return true;
+  if (value === "") return true;
   if (isMultiPickParam(spec) && value === "[]") return true;
   return false;
 }
@@ -52,14 +53,14 @@ export function parseMultiPickInitial(spec: ParamSpec, raw: string): string {
 }
 
 export function resolveDisplayValue(value: string, spec?: ParamSpec | null): string {
-  if (!spec?.vocabulary) return value;
+  if (spec?.vocabulary == null) return value;
   const entries = flattenVocab(spec.vocabulary);
   const match = entries.find((e) => e.value === value);
   return match?.display ?? value;
 }
 
 export function isNumericParam(spec: ParamSpec): boolean {
-  const t = spec.type?.toLowerCase() ?? "";
+  const t = spec.type.toLowerCase();
   if (t === "number" || t === "number-range" || t === "integer" || t === "float")
     return true;
   if (spec.isNumber === true) return true;
@@ -73,8 +74,18 @@ function inferNumericRange(spec: ParamSpec): {
 } {
   const explicitMin = spec.min;
   const explicitMax = spec.max;
+  const stepVal = spec.increment ?? null;
+
+  function buildResult(
+    min: number,
+    max: number,
+  ): { min: number; max: number; step?: number } {
+    if (stepVal != null) return { min, max, step: stepVal };
+    return { min, max };
+  }
+
   if (explicitMin != null && explicitMax != null) {
-    return { min: explicitMin, max: explicitMax, step: spec.increment ?? undefined };
+    return buildResult(explicitMin, explicitMax);
   }
   const initial =
     typeof spec.initialDisplayValue === "string"
@@ -85,13 +96,9 @@ function inferNumericRange(spec: ParamSpec): {
   if (!isNaN(initial) && initial > 0) {
     const lo = explicitMin ?? 0;
     const hi = explicitMax ?? Math.max(initial * 10, initial + 10);
-    return { min: lo, max: hi, step: spec.increment ?? undefined };
+    return buildResult(lo, hi);
   }
-  return {
-    min: explicitMin ?? 0,
-    max: explicitMax ?? 100,
-    step: spec.increment ?? undefined,
-  };
+  return buildResult(explicitMin ?? 0, explicitMax ?? 100);
 }
 
 /**
@@ -106,15 +113,18 @@ export function buildAutoOptimizeSpecs(specs: ParamSpec[]): Map<string, Optimize
     if (!isOptimizable(spec)) continue;
     if (isNumericParam(spec)) {
       const range = inferNumericRange(spec);
-      map.set(spec.name, {
+      const optimizeSpec: OptimizeSpec = {
         name: spec.name,
         type: spec.type === "integer" ? "integer" : "numeric",
         min: range.min,
         max: range.max,
-        step: range.step,
-      });
+      };
+      if (range.step != null) {
+        optimizeSpec.step = range.step;
+      }
+      map.set(spec.name, optimizeSpec);
     } else {
-      const vocab = spec.vocabulary ? flattenVocab(spec.vocabulary) : [];
+      const vocab = spec.vocabulary != null ? flattenVocab(spec.vocabulary) : [];
       if (vocab.length > 0) {
         map.set(spec.name, {
           name: spec.name,
@@ -134,7 +144,7 @@ export function buildDisplayMap(
   const map: Record<string, string> = {};
   for (const [key, value] of Object.entries(parameters)) {
     const spec = paramSpecs.find((s) => s.name === key);
-    if (!spec?.vocabulary) continue;
+    if (spec?.vocabulary == null) continue;
     const entries = flattenVocab(spec.vocabulary);
     if (isMultiPickParam(spec)) {
       const vals = value.split(",").filter(Boolean);

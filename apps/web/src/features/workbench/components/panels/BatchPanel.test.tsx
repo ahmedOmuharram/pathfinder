@@ -196,17 +196,15 @@ describe("BatchPanel", () => {
   });
 
   beforeEach(() => {
-    storeState.activeSetId = "set-1";
-    storeState.geneSets = [];
-    storeState.expandedPanels = new Set(["batch"]);
+    storeState["activeSetId"] = "set-1";
+    storeState["geneSets"] = [];
+    storeState["expandedPanels"] = new Set(["batch"]);
     // Default: listOrganisms resolves to empty array so useEffect never blows up
     mockListOrganisms.mockResolvedValue([]);
   });
 
   it("is disabled when no active gene set has search context", () => {
-    storeState.geneSets = [
-      makeGeneSet({ searchName: undefined, parameters: undefined }),
-    ];
+    storeState["geneSets"] = [makeGeneSet({ searchName: null, parameters: null })];
 
     render(<BatchPanel />);
 
@@ -216,7 +214,7 @@ describe("BatchPanel", () => {
   });
 
   it("renders organism multi-select and param name select when enabled", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue([
       "Plasmodium falciparum 3D7",
       "Plasmodium vivax",
@@ -246,7 +244,7 @@ describe("BatchPanel", () => {
   });
 
   it("shows results table after batch completes", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue([
       "Plasmodium falciparum 3D7",
       "Plasmodium vivax",
@@ -305,7 +303,7 @@ describe("BatchPanel", () => {
   });
 
   it("displays error state", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue(["Plasmodium falciparum 3D7"]);
     mockParamSpecs.push({
       name: "organism",
@@ -352,7 +350,7 @@ describe("BatchPanel", () => {
   // Organism column uses organismParamNameRef instead of hardcoded key
   // -----------------------------------------------------------------------
   it("uses the selected organism param name for the organism column", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue([
       "Plasmodium falciparum 3D7",
       "Plasmodium vivax",
@@ -413,7 +411,7 @@ describe("BatchPanel", () => {
   // Missing results show "X of Y completed" warning
   // -----------------------------------------------------------------------
   it("shows partial completion warning when some organisms fail", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue([
       "Plasmodium falciparum 3D7",
       "Plasmodium vivax",
@@ -475,7 +473,7 @@ describe("BatchPanel", () => {
   // expectedCount tracks selected organism count
   // -----------------------------------------------------------------------
   it("does not show warning when all organisms complete", async () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
     mockListOrganisms.mockResolvedValue([
       "Plasmodium falciparum 3D7",
       "Plasmodium vivax",

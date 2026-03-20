@@ -8,7 +8,7 @@ import { useSessionStore } from "@/state/useSessionStore";
 
 const PAGE_SIZE = 30;
 
-export interface GeneSearchState {
+interface GeneSearchState {
   query: string;
   setQuery: (q: string) => void;
   results: GeneSearchResult[];

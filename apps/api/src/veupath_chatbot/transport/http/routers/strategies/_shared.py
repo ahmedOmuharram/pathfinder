@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 from veupath_chatbot.domain.strategy.ast import from_dict as parse_plan
+from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -25,11 +26,9 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
     if wdk_strategy_id is None or not site_id:
         return None
     try:
-        from veupath_chatbot.integrations.veupathdb.factory import get_site
-
         site = get_site(site_id)
         return site.strategy_url(wdk_strategy_id)
-    except Exception as exc:
+    except (KeyError, ValueError) as exc:
         logger.debug(
             "Failed to compute WDK URL for strategy",
             site_id=site_id,
@@ -71,7 +70,7 @@ def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
 
         return [build_step_response(s) for s in steps_data if isinstance(s, dict)]
     except (ValueError, KeyError, TypeError) as exc:
-        logger.error(
+        logger.exception(
             "derive_steps_from_plan failed",
             error=str(exc),
             error_type=type(exc).__name__,
@@ -97,7 +96,7 @@ def parse_thinking(raw: JSONObject | None) -> ThinkingResponse | None:
         return None
     try:
         return ThinkingResponse.model_validate(raw)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         logger.debug("Failed to parse thinking response", error=str(exc))
         return None
 
@@ -137,7 +136,7 @@ def build_projection_response(
                 continue
             try:
                 validated.append(MessageResponse.model_validate(m))
-            except Exception as exc:
+            except (ValueError, TypeError, KeyError) as exc:
                 logger.warning(
                     "Skipping malformed message during projection build",
                     index=i,

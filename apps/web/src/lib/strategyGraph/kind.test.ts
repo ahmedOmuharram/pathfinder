@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { inferStepKind } from "./kind";
-import type { StepKind } from "@pathfinder/shared";
 
 describe("inferStepKind", () => {
   // ── Explicit kind takes priority ──────────────────────────
@@ -76,19 +75,19 @@ describe("inferStepKind", () => {
   // ── Undefined fields are treated as absent ────────────────
 
   it("treats undefined kind as absent", () => {
-    expect(inferStepKind({ kind: undefined })).toBe("search");
+    expect(inferStepKind({})).toBe("search");
   });
 
-  it("treats undefined inputs as absent", () => {
+  it("treats null inputs as absent", () => {
     expect(
       inferStepKind({
-        primaryInputStepId: undefined,
-        secondaryInputStepId: undefined,
+        primaryInputStepId: null,
+        secondaryInputStepId: null,
       }),
     ).toBe("search");
   });
 
-  it("treats undefined operator as absent", () => {
-    expect(inferStepKind({ operator: undefined })).toBe("search");
+  it("treats null operator as absent", () => {
+    expect(inferStepKind({ operator: null })).toBe("search");
   });
 });

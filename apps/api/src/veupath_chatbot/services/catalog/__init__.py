@@ -29,16 +29,16 @@ from veupath_chatbot.services.catalog.sites import (
 __all__ = [
     "RagSearchService",
     "expand_search_details_with_params",
-    "get_refreshed_dependent_params",
     "get_raw_record_types",
     "get_raw_searches",
     "get_record_types",
+    "get_refreshed_dependent_params",
     "get_search_parameters",
     "get_search_parameters_tool",
-    "lookup_phyletic_codes",
     "list_searches",
     "list_sites",
     "list_transforms",
+    "lookup_phyletic_codes",
     "search_for_searches",
     "validate_search_params",
 ]

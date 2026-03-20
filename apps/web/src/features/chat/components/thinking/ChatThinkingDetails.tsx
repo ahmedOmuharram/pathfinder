@@ -25,8 +25,8 @@ export function ChatThinkingDetails({
   reasoning,
   title,
 }: ChatThinkingDetailsProps) {
-  const hasToolCalls = (toolCalls?.length || 0) > 0;
-  const hasSubKaniActivity = Object.keys(subKaniActivity?.calls || {}).length > 0;
+  const hasToolCalls = (toolCalls?.length ?? 0) > 0;
+  const hasSubKaniActivity = Object.keys(subKaniActivity?.calls ?? {}).length > 0;
   const hasDelegate = delegateSummaries.length > 0 || delegateRejected.length > 0;
   const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
 
@@ -36,7 +36,7 @@ export function ChatThinkingDetails({
   return (
     <details className="rounded-lg border border-border bg-card px-3 py-2">
       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title || "Thinking"}
+        {title ?? "Thinking"}
       </summary>
       <div className="mt-2 space-y-3 text-sm text-foreground">
         {hasReasoning && (
@@ -51,7 +51,7 @@ export function ChatThinkingDetails({
         )}
         {hasToolCalls && (
           <div className="rounded-md border border-border bg-muted p-2">
-            <ToolCallInspector toolCalls={toolCalls || []} />
+            <ToolCallInspector toolCalls={toolCalls ?? []} />
           </div>
         )}
 

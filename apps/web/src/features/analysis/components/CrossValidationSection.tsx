@@ -27,7 +27,10 @@ const SUMMARY_METRICS: {
 ];
 
 export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
-  const overfitting = OVERFITTING_STYLES[cv.overfittingLevel] ?? OVERFITTING_STYLES.low;
+  const overfitting = OVERFITTING_STYLES[cv.overfittingLevel] ?? {
+    label: "Low",
+    className: "text-green-600 dark:text-green-400",
+  };
 
   return (
     <Section title="K-Fold Cross-Validation">

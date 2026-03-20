@@ -34,7 +34,7 @@ describe("VEuPathDBSiteSchema", () => {
   it("passes through extra fields", () => {
     const result = VEuPathDBSiteSchema.safeParse({ ...validSite, region: "global" });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).region).toBe("global");
+    expect((result.data as Record<string, unknown>)["region"]).toBe("global");
   });
 
   it("rejects missing isPortal", () => {

@@ -2,14 +2,19 @@
 
 from fastapi import APIRouter
 
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.custom_enrichment import (
     CustomEnrichmentResult,
     run_custom_enrichment,
 )
-from veupath_chatbot.services.experiment.enrichment import upsert_enrichment_result
+from veupath_chatbot.services.experiment.enrichment_parser import (
+    upsert_enrichment_result,
+)
 from veupath_chatbot.services.experiment.store import get_experiment_store
+from veupath_chatbot.services.experiment.types import to_json
+from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
 from veupath_chatbot.transport.http.schemas.experiments import (
     CustomEnrichRequest,
@@ -27,9 +32,6 @@ async def run_enrichment(
     user_id: CurrentUser,
 ) -> list[JSONObject]:
     """Run enrichment analysis on an existing experiment's results."""
-    from veupath_chatbot.services.experiment.types import to_json
-    from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
-
     svc = EnrichmentService()
     results, errors = await svc.run_batch(
         site_id=exp.config.site_id,
@@ -44,8 +46,6 @@ async def run_enrichment(
     get_experiment_store().save(exp)
 
     if not results and errors:
-        from veupath_chatbot.platform.errors import InternalError
-
         raise InternalError(
             title="Enrichment analysis failed",
             detail="; ".join(errors),

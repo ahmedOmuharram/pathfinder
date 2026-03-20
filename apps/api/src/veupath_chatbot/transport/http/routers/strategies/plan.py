@@ -17,6 +17,7 @@ from veupath_chatbot.transport.http.schemas import (
     PlanNormalizeRequest,
     PlanNormalizeResponse,
 )
+from veupath_chatbot.transport.http.schemas.plan import StrategyPlan
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 
@@ -48,10 +49,6 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
                 context=context,
                 expand_params=True,
             )
-            # Ensure result is JSONObject
-            if isinstance(result, dict):
-                return result
-            return {}
         except WDKError:
             # Some WDK deployments/questions error on POST /searches/{name} when certain context
             # values are provided (500 Internal Error). Fall back to GET details so we can still
@@ -61,18 +58,12 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
                 name,
                 expand_params=True,
             )
-            # Ensure result is JSONObject
-            if isinstance(result, dict):
-                return result
-            return {}
+        return result if isinstance(result, dict) else {}
 
     canonical = await canonicalize_plan_parameters(
         plan=plan,
         site_id=payload.siteId,
         load_search_details=load_details,
     )
-    # Convert canonical JSONObject back to StrategyPlan
-    from veupath_chatbot.transport.http.schemas.plan import StrategyPlan
-
     canonical_plan = StrategyPlan.model_validate(canonical)
     return PlanNormalizeResponse(plan=canonical_plan)

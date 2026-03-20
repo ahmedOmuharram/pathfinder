@@ -65,6 +65,12 @@ module.exports = defineConfig([
 
             // --- No stray console.log ---
             "no-console": ["error", { allow: ["warn", "error"] }],
+
+            // --- File size limit ---
+            "max-lines": [
+              "error",
+              { max: 300, skipBlankLines: true, skipComments: true },
+            ],
           },
         },
         // Relax rules for test files

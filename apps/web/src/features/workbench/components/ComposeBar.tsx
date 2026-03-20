@@ -115,7 +115,7 @@ export function ComposeBar({ setA, setB, onExecute, loading }: ComposeBarProps) 
         <Button
           size="sm"
           onClick={handleExecute}
-          loading={loading}
+          loading={loading === true}
           disabled={result.length === 0}
           className="gap-1 text-xs"
         >

@@ -4,7 +4,6 @@ import type {
   Message,
   ToolCall,
   ModelSelection,
-  OptimizationProgressData,
   Step,
   Strategy,
 } from "@pathfinder/shared";
@@ -117,10 +116,10 @@ export function useChatStreaming({
     applyGraphSnapshot,
     getStrategy,
     attachThinkingToLastAssistant,
-    setSelectedModelId,
+    ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
     setOptimizationProgress: lifecycle.setOptimizationProgress,
-    onApiError,
-    onWorkbenchGeneSet,
+    ...(onApiError != null ? { onApiError } : {}),
+    ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
   });
 
   // --- Core stream execution ---
@@ -166,7 +165,7 @@ export function useChatStreaming({
 
         lifecycle.trackOperation(result.subscription, result.operationId);
 
-        if (!streamContext.strategyId && result.strategyId) {
+        if (streamContext.strategyId == null && result.strategyId !== "") {
           setStrategyId(result.strategyId);
         }
       } catch (e) {
@@ -195,7 +194,7 @@ export function useChatStreaming({
       const userMessage: Message = {
         role: "user",
         content: finalContent,
-        mentions: mentions?.length ? mentions : undefined,
+        ...(mentions != null && mentions.length > 0 ? { mentions } : {}),
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMessage]);
@@ -204,8 +203,8 @@ export function useChatStreaming({
       }
 
       await executeStream(finalContent, {
-        strategyId: strategyId ?? undefined,
-        mentions,
+        ...(strategyId != null ? { strategyId } : {}),
+        ...(mentions != null ? { mentions } : {}),
       });
     },
     [draftSelection, setMessages, setDraftSelection, strategyId, executeStream],

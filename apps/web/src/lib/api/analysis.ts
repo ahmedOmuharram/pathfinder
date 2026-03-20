@@ -74,13 +74,13 @@ export interface CategoricalSweepRequest {
 
 export type SweepRequest = NumericSweepRequest | CategoricalSweepRequest;
 
-export interface ThresholdSweepProgress {
+interface ThresholdSweepProgress {
   point: ThresholdSweepPoint;
   completedCount: number;
   totalCount: number;
 }
 
-export interface ThresholdSweepCallbacks {
+interface ThresholdSweepCallbacks {
   onPoint: (progress: ThresholdSweepProgress) => void;
   onComplete: (result: ThresholdSweepResult) => void;
   onError: (error: Error) => void;
@@ -99,7 +99,7 @@ export async function streamThresholdSweep(
     {
       method: "POST",
       body: request,
-      signal,
+      ...(signal != null ? { signal } : {}),
     },
     {
       onFrame: ({ event, data }) => {

@@ -85,34 +85,36 @@ class TestNormalizeParameters:
         result = base._normalize_parameters({"optional_param": None})
         assert result == {}
 
-    def test_empty_string_is_omitted(self) -> None:
-        """WDK rejects params like hard_floor='' (Cannot be empty)."""
+    def test_empty_string_is_kept(self) -> None:
+        """Explicit empty strings are kept — the caller set the param intentionally."""
         base, _ = _make_base()
         result = base._normalize_parameters({"hard_floor": ""})
-        assert result == {}
+        assert result == {"hard_floor": ""}
 
-    def test_whitespace_only_is_omitted(self) -> None:
+    def test_whitespace_only_is_kept_as_empty(self) -> None:
+        """Whitespace-only strings are kept (the value was an explicit str)."""
         base, _ = _make_base()
         result = base._normalize_parameters({"param": "   "})
-        assert result == {}
+        assert result == {"param": ""}
 
     def test_keep_empty_preserves_specified_params(self) -> None:
-        """AnswerParams must be kept as '' even when empty."""
+        """AnswerParams must be kept as '' even when empty.
+        Regular empty strings are also kept (explicit str values)."""
         base, _ = _make_base()
         result = base._normalize_parameters(
             {"answer_param": "", "regular_param": ""},
             keep_empty={"answer_param"},
         )
-        assert result == {"answer_param": ""}
-        assert "regular_param" not in result
+        assert result == {"answer_param": "", "regular_param": ""}
 
     def test_keep_empty_with_none_value(self) -> None:
+        """None values are always dropped (even if in keep_empty)."""
         base, _ = _make_base()
         result = base._normalize_parameters(
             {"answer_param": None},
             keep_empty={"answer_param"},
         )
-        assert result == {"answer_param": ""}
+        assert result == {}
 
     def test_none_parameters_returns_empty(self) -> None:
         base, _ = _make_base()
@@ -140,7 +142,7 @@ class TestNormalizeParameters:
         assert "text_expression" in result
         assert "hard_floor" in result
         assert "optional" not in result
-        assert "empty" not in result
+        assert "empty" in result  # explicit str values are kept
 
 
 # ---------------------------------------------------------------------------

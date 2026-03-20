@@ -38,7 +38,7 @@ def score_text_match(query: str, value: str) -> float:
         return 0.80
 
     # rapidfuzz.fuzz.WRatio handles partial, token-sort, and token-set
-    # ratios internally and returns the best score (0–100).
+    # ratios internally and returns the best score (0-100).
     return fuzz.WRatio(q, v) / 100.0
 
 

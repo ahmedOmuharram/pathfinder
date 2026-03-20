@@ -12,6 +12,7 @@ from veupath_chatbot.platform.errors import ForbiddenError, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 from veupath_chatbot.transport.http.deps import CurrentUser, DBSession
 from veupath_chatbot.transport.http.sse import SSE_HEADERS
 
@@ -33,7 +34,7 @@ async def _verify_operation_access(
     )
     stream_owner = stream_result.scalar_one_or_none()
     if stream_owner != user_id:
-        raise ForbiddenError()
+        raise ForbiddenError
 
 
 # Event types that signal end of an operation.
@@ -81,7 +82,7 @@ async def subscribe(
     async def _stream() -> AsyncGenerator[str]:
         redis = get_redis()
         # Start position: after last_event_id, or from the beginning.
-        cursor = last_event_id if last_event_id else "0-0"
+        cursor = last_event_id or "0-0"
 
         while True:
             # XREAD with BLOCK — waits for new events, returns when available.
@@ -105,7 +106,7 @@ async def subscribe(
                     status = result.scalar_one_or_none()
                     if status and status != "active":
                         return
-                except Exception:
+                except OSError, RuntimeError:
                     logger.warning(
                         "Failed to check operation status",
                         operation_id=operation_id,
@@ -164,8 +165,6 @@ async def cancel(
     the LLM agent. The producer's CancelledError handler emits a
     ``message_end`` event so any connected subscribers close cleanly.
     """
-    from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
-
     result = await session.execute(
         select(Operation).where(Operation.operation_id == operation_id)
     )
@@ -191,8 +190,9 @@ async def list_active(
         alias="streamId",
         description="Filter by stream/strategy ID.",
     ),
-    type: str | None = Query(
+    op_type: str | None = Query(
         default=None,
+        alias="type",
         description="Filter by operation type (chat, experiment).",
     ),
 ) -> list[JSONObject]:
@@ -204,8 +204,8 @@ async def list_active(
     )
     if stream_id:
         stmt = stmt.where(Operation.stream_id == stream_id)
-    if type:
-        stmt = stmt.where(Operation.type == type)
+    if op_type:
+        stmt = stmt.where(Operation.type == op_type)
 
     result = await session.execute(stmt)
     ops = result.scalars().all()

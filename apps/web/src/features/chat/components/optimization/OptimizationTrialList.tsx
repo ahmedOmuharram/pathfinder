@@ -54,10 +54,7 @@ function TrialTable({
                   const params = t.parameters ?? {};
                   return (
                     <td key={n} className="px-1.5 py-1 tabular-nums">
-                      {fmt(
-                        typeof params[n] === "number" ? (params[n] as number) : null,
-                        3,
-                      ) === "--"
+                      {fmt(typeof params[n] === "number" ? params[n] : null, 3) === "--"
                         ? String(params[n] ?? "--")
                         : fmt(params[n] as number, 3)}
                     </td>

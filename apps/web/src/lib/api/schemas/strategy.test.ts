@@ -53,7 +53,7 @@ describe("StrategyListItemSchema", () => {
       futureField: 42,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).futureField).toBe(42);
+    expect((result.data as Record<string, unknown>)["futureField"]).toBe(42);
   });
 
   it("rejects missing name", () => {
@@ -101,7 +101,7 @@ describe("OpenStrategyResponseSchema", () => {
       isNew: true,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).isNew).toBe(true);
+    expect((result.data as Record<string, unknown>)["isNew"]).toBe(true);
   });
 
   it("rejects missing strategyId", () => {
@@ -166,7 +166,7 @@ describe("NormalizePlanResponseSchema", () => {
       metadata: { version: 2 },
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>).metadata).toEqual({
+    expect((result.data as Record<string, unknown>)["metadata"]).toEqual({
       version: 2,
     });
   });

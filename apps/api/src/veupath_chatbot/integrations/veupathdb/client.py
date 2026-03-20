@@ -22,6 +22,8 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
+_HTTP_SERVER_ERROR = 500
+
 
 def encode_context_param_values_for_wdk(context: JSONObject) -> JSONObject:
     """Encode contextParamValues in the format WDK expects.
@@ -141,7 +143,7 @@ class VEuPathDBClient:
                 "WDK session initialized",
                 jsessionid=bool(client.cookies.get("JSESSIONID")),
             )
-        except Exception:
+        except httpx.HTTPError, OSError, RuntimeError:
             logger.debug("Failed to initialize WDK session (non-fatal)")
 
     async def close(self) -> None:
@@ -207,10 +209,14 @@ class VEuPathDBClient:
             result = response.json()
             if result is None:
                 return None
-            return cast(JSONValue, result)
+            return cast("JSONValue", result)
         except httpx.HTTPStatusError as e:
             allow = e.response.headers.get("allow") or e.response.headers.get("Allow")
-            log_fn = logger.warning if e.response.status_code >= 500 else logger.error
+            log_fn = (
+                logger.warning
+                if e.response.status_code >= _HTTP_SERVER_ERROR
+                else logger.error
+            )
             log_fn(
                 "VEuPathDB HTTP error",
                 method=method,
@@ -220,19 +226,21 @@ class VEuPathDBClient:
                 response_text=e.response.text[:500],
             )
             # 5xx: re-raise so tenacity retries (up to 3 attempts).
-            if e.response.status_code >= 500:
+            if e.response.status_code >= _HTTP_SERVER_ERROR:
                 raise
             # 4xx: not retryable — convert to domain error immediately.
+            msg = f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}"
             raise WDKError(
-                f"{method} {path} -> HTTP {e.response.status_code}: {e.response.text[:200]}",
+                msg,
                 status=e.response.status_code,
             ) from e
         except httpx.TimeoutException, httpx.ConnectError:
             # Let tenacity retry these transient errors.
             raise
         except httpx.RequestError as e:
-            logger.error("VEuPathDB request error", error=str(e), path=path)
-            raise WDKError(f"Request failed: {e}", status=502) from e
+            logger.exception("VEuPathDB request error", error=str(e), path=path)
+            msg = f"Request failed: {e}"
+            raise WDKError(msg, status=502) from e
 
     async def _request(
         self,
@@ -254,16 +262,15 @@ class VEuPathDBClient:
             status = 502
             if isinstance(last, httpx.HTTPStatusError):
                 status = last.response.status_code
-            log_fn = logger.warning if status >= 500 else logger.error
+            log_fn = logger.warning if status >= _HTTP_SERVER_ERROR else logger.error
             log_fn(
                 "VEuPathDB request failed after retries",
                 method=method,
                 path=path,
                 error=str(last),
             )
-            raise WDKError(
-                f"Request failed after retries: {last}", status=status
-            ) from last
+            msg = f"Request failed after retries: {last}"
+            raise WDKError(msg, status=status) from last
 
     async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
         """GET request."""
@@ -290,25 +297,28 @@ class VEuPathDBClient:
         """DELETE request."""
         return await self._request("DELETE", path)
 
-    async def get_record_types(self, expanded: bool = False) -> JSONArray:
+    async def get_record_types(self, *, expanded: bool = False) -> JSONArray:
         """Get available record types."""
         params: JSONObject | None = {"format": "expanded"} if expanded else None
-        return cast(JSONArray, await self.get("/record-types", params=params))
+        return cast("JSONArray", await self.get("/record-types", params=params))
 
     async def get_searches(self, record_type: str) -> JSONArray:
         """Get searches for a record type."""
-        return cast(JSONArray, await self.get(f"/record-types/{record_type}/searches"))
+        return cast(
+            "JSONArray", await self.get(f"/record-types/{record_type}/searches")
+        )
 
     async def get_search_details(
         self,
         record_type: str,
         search_name: str,
+        *,
         expand_params: bool = True,
     ) -> JSONObject:
         """Get detailed search configuration including parameters."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.get(
                 f"/record-types/{record_type}/searches/{search_name}",
                 params=params,
@@ -320,13 +330,14 @@ class VEuPathDBClient:
         record_type: str,
         search_name: str,
         context: JSONObject,
+        *,
         expand_params: bool = True,
     ) -> JSONObject:
         """Get detailed search configuration using provided parameters."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
         encoded_context = encode_context_param_values_for_wdk(context or {})
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.post(
                 f"/record-types/{record_type}/searches/{search_name}",
                 json={"contextParamValues": encoded_context},
@@ -344,7 +355,7 @@ class VEuPathDBClient:
         """Refresh dependent params using WDK's refreshed-dependent-params endpoint."""
         encoded_context = encode_context_param_values_for_wdk(context or {})
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.post(
                 f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
                 json={
@@ -398,12 +409,10 @@ class VEuPathDBClient:
         if not isinstance(step, dict):
             return []
         answer_spec = step.get("answerSpec")
-        if not isinstance(answer_spec, dict):
-            return []
-        view_filters = answer_spec.get("viewFilters")
-        if not isinstance(view_filters, list):
-            return []
-        return view_filters
+        view_filters = (
+            answer_spec.get("viewFilters") if isinstance(answer_spec, dict) else None
+        )
+        return view_filters if isinstance(view_filters, list) else []
 
     async def update_step_view_filters(
         self, user_id: str, step_id: int, filters: JSONArray
@@ -421,7 +430,7 @@ class VEuPathDBClient:
     async def list_analysis_types(self, user_id: str, step_id: int) -> JSONArray:
         """List available analysis types for a step."""
         return cast(
-            JSONArray,
+            "JSONArray",
             await self.get(f"/users/{user_id}/steps/{step_id}/analysis-types"),
         )
 
@@ -430,7 +439,7 @@ class VEuPathDBClient:
     ) -> JSONObject:
         """Get analysis form metadata for a specific analysis type."""
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.get(
                 f"/users/{user_id}/steps/{step_id}/analysis-types/{analysis_type}"
             ),
@@ -439,7 +448,7 @@ class VEuPathDBClient:
     async def list_step_analyses(self, user_id: str, step_id: int) -> JSONArray:
         """List analyses that have been run on a step."""
         return cast(
-            JSONArray, await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
+            "JSONArray", await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
         )
 
     async def create_step_analysis(
@@ -447,7 +456,7 @@ class VEuPathDBClient:
     ) -> JSONObject:
         """Create a new analysis instance for a step."""
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.post(f"/users/{user_id}/steps/{step_id}/analyses", json=payload),
         )
 
@@ -461,7 +470,7 @@ class VEuPathDBClient:
         returns ``{"status": "RUNNING"|...}``.
         """
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.post(
                 f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
             ),
@@ -476,7 +485,7 @@ class VEuPathDBClient:
         ``{"status": "RUNNING"|"COMPLETE"|"ERROR"|...}``.
         """
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.get(
                 f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result/status"
             ),
@@ -491,7 +500,7 @@ class VEuPathDBClient:
         JSON.  Returns 204 No Content if not yet complete.
         """
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.get(
                 f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
             ),

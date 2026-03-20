@@ -6,7 +6,7 @@ import type {
   GraphSnapshotStepInput,
 } from "@/lib/strategyGraph/types";
 
-export type { GraphSnapshotInput, GraphSnapshotStepInput };
+export type { GraphSnapshotInput };
 
 const toStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -34,39 +34,50 @@ export function buildStrategyFromGraphSnapshot(args: {
     ? snapshotSteps
         .filter(
           (step): step is GraphSnapshotStepInput =>
-            !!step && typeof step.id === "string",
+            step != null && typeof step.id === "string",
         )
         .map((step) => {
           const existing = stepsById[step.id];
-          const incomingName = step.displayName || step.kind;
+          const incomingName =
+            (step.displayName != null && step.displayName !== ""
+              ? step.displayName
+              : null) ?? step.kind;
           const existingName = existing?.displayName;
           const keepExisting =
-            !!existingName &&
-            (!incomingName ||
+            existing != null &&
+            existingName != null &&
+            existingName !== "" &&
+            (incomingName == null ||
+              incomingName === "" ||
               !isFallbackDisplayName(existingName, existing) ||
               isFallbackDisplayName(incomingName, step));
           const resolvedName =
-            (keepExisting ? existingName : incomingName) ||
-            step.searchName ||
-            step.kind ||
+            (keepExisting ? existingName : incomingName) ??
+            step.searchName ??
+            step.kind ??
             step.id;
           const resolvedRecordType = step.recordType ?? existing?.recordType;
           const inputs = toStringArray(step.inputStepIds);
-          const primaryInputStepId = step.primaryInputStepId ?? inputs[0] ?? undefined;
-          const secondaryInputStepId =
-            step.secondaryInputStepId ?? inputs[1] ?? undefined;
+          const primaryInputStepId = step.primaryInputStepId ?? inputs[0] ?? null;
+          const secondaryInputStepId = step.secondaryInputStepId ?? inputs[1] ?? null;
 
           return {
             id: step.id,
-            kind: (step.kind ?? "search") as Step["kind"],
+            kind: step.kind ?? "search",
             displayName: resolvedName,
-            recordType: resolvedRecordType ?? undefined,
-            searchName: step.searchName,
-            operator: (step.operator as Step["operator"]) ?? undefined,
-            parameters: step.parameters,
-            primaryInputStepId,
-            secondaryInputStepId,
-          };
+            ...(resolvedRecordType != null ? { recordType: resolvedRecordType } : {}),
+            ...(step.searchName != null ? { searchName: step.searchName } : {}),
+            ...(step.operator != null ? { operator: step.operator } : {}),
+            ...(step.parameters != null
+              ? { parameters: step.parameters as Record<string, unknown> }
+              : {}),
+            ...(primaryInputStepId != null
+              ? { primaryInputStepId: primaryInputStepId }
+              : {}),
+            ...(secondaryInputStepId != null
+              ? { secondaryInputStepId: secondaryInputStepId }
+              : {}),
+          } satisfies Step;
         })
     : // If the snapshot omitted `steps` entirely, treat this as a metadata-only update
       // and keep the current graph steps instead of wiping the UI.
@@ -75,12 +86,16 @@ export function buildStrategyFromGraphSnapshot(args: {
       : Object.values(stepsById).filter((s): s is Step => !!s);
 
   const now = new Date().toISOString();
+  const resolvedDescription =
+    graphSnapshot.description !== undefined
+      ? graphSnapshot.description
+      : existingStrategy?.description;
   return {
     id: snapshotId,
     name:
-      graphSnapshot.name ||
-      graphSnapshot.graphName ||
-      existingStrategy?.name ||
+      graphSnapshot.name ??
+      graphSnapshot.graphName ??
+      existingStrategy?.name ??
       DEFAULT_STREAM_NAME,
     siteId,
     recordType:
@@ -92,12 +107,9 @@ export function buildStrategyFromGraphSnapshot(args: {
       graphSnapshot.rootStepId !== undefined
         ? (graphSnapshot.rootStepId ?? null)
         : (existingStrategy?.rootStepId ?? null),
-    description:
-      graphSnapshot.description !== undefined
-        ? (graphSnapshot.description ?? undefined)
-        : existingStrategy?.description,
+    ...(resolvedDescription != null ? { description: resolvedDescription } : {}),
     isSaved: existingStrategy?.isSaved ?? false,
-    createdAt: existingStrategy?.createdAt || now,
+    createdAt: existingStrategy?.createdAt ?? now,
     updatedAt: now,
   };
 }

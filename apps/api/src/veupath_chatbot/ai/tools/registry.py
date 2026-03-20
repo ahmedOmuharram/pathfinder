@@ -36,5 +36,3 @@ class AgentToolRegistryMixin(
     - web_search_service: WebSearchService
     - literature_search_service: LiteratureSearchService
     """
-
-    pass

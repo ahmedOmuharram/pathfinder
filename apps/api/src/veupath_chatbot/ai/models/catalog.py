@@ -10,6 +10,9 @@ optional YAML file pointed to by ``OLLAMA_MODELS_CONFIG``.
 from dataclasses import dataclass
 from functools import lru_cache
 
+import yaml
+
+from veupath_chatbot.platform.config import _REPO_ROOT
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
 
 __all__ = [
@@ -95,9 +98,7 @@ class ModelEntry:
     description: str = ""
     supports_reasoning: bool = False
     context_size: int = 0  # known context window; 0 = use engine default
-    default_reasoning_budget: int = (
-        0  # default reasoning token budget at "medium" effort
-    )
+    default_reasoning_budget: int = 0  # default reasoning token budget
     input_price: float = 0.0  # USD per 1M input tokens
     cached_input_price: float = 0.0  # USD per 1M cached input tokens
     output_price: float = 0.0  # USD per 1M output tokens
@@ -303,13 +304,9 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
           - model: qwen3
             name: Qwen 3
     """
-    from veupath_chatbot.platform.config import _REPO_ROOT
-
     path = _REPO_ROOT / "ollama_models.yaml"
     if not path.is_file():
         return ()
-
-    import yaml
 
     with path.open() as f:
         data = yaml.safe_load(f)

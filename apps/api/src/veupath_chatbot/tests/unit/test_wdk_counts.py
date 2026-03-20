@@ -5,6 +5,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.services.strategies import wdk_counts
+from veupath_chatbot.services.strategies.wdk_counts import (
+    _STEP_COUNTS_CACHE,
+    compute_step_counts_for_plan,
+)
 
 
 def _simple_ast() -> StrategyAST:
@@ -21,8 +26,6 @@ def _simple_ast() -> StrategyAST:
 @pytest.fixture(autouse=True)
 def _clear_cache():
     """Clear the module-level cache before each test."""
-    from veupath_chatbot.services.strategies import wdk_counts
-
     wdk_counts._STEP_COUNTS_CACHE.clear()
     yield
     wdk_counts._STEP_COUNTS_CACHE.clear()
@@ -39,11 +42,6 @@ async def test_all_none_results_are_cached():
     For leaf-only strategies, the function now uses anonymous reports
     (not compilation), so we mock ``client.run_search_report``.
     """
-    from veupath_chatbot.services.strategies.wdk_counts import (
-        _STEP_COUNTS_CACHE,
-        compute_step_counts_for_plan,
-    )
-
     plan = _simple_ast().to_dict()
     ast = _simple_ast()
 

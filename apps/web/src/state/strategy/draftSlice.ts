@@ -2,12 +2,13 @@
  * Draft slice — current strategy, step map, step CRUD, display name preservation.
  */
 
-import type { Step, Strategy } from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
 import { serializeStrategyPlan, isFallbackDisplayName } from "@/lib/strategyGraph";
 import type { StrategyState, DraftSlice } from "./types";
 import { buildStrategy } from "./helpers";
 import { pushHistory } from "./historySlice";
+import { applyStepValidationErrors, applyStepCounts } from "./stepAnnotations";
 
 // ---------------------------------------------------------------------------
 // Display-name preservation
@@ -41,7 +42,7 @@ function ensureDisplayName(step: Step, existing: Step | undefined): Step {
   if (step.displayName) return step;
   return {
     ...step,
-    displayName: existing?.displayName || step.searchName || "Untitled step",
+    displayName: existing?.displayName ?? step.searchName ?? "Untitled step",
   };
 }
 
@@ -62,16 +63,20 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
 
       // AI-driven updates often send partial step payloads.
       // Treat as upsert+patch: only overwrite defined fields.
-      const updates = Object.fromEntries(
-        Object.entries(step).filter(([, value]) => value !== undefined),
-      ) as Partial<Step>;
+      // Object.entries omits absent properties, so the spread below
+      // naturally acts as a patch — only present keys overwrite.
+      const updates = Object.fromEntries(Object.entries(step)) as Partial<Step>;
       let nextStep: Step = {
         ...(existing ?? step),
         ...updates,
       };
 
       // Preserve recordType if incoming omits it.
-      if (existing?.recordType && !nextStep.recordType) {
+      if (
+        existing?.recordType !== null &&
+        existing?.recordType !== undefined &&
+        (nextStep.recordType === null || nextStep.recordType === undefined)
+      ) {
         nextStep = { ...nextStep, recordType: existing.recordType };
       }
 
@@ -124,7 +129,7 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
       return;
     }
     const existingSteps = get().stepsById;
-    const incomingSteps = strategy.steps ?? [];
+    const incomingSteps = strategy.steps;
     const mergedSteps = incomingSteps.map((step) => {
       const existing = existingSteps[step.id];
       if (!existing) return step;
@@ -133,7 +138,11 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
       const existingName = existing.displayName;
       const incomingName = step.displayName;
 
-      if (!nextStep.recordType && existing.recordType) {
+      if (
+        (nextStep.recordType === null || nextStep.recordType === undefined) &&
+        existing.recordType !== null &&
+        existing.recordType !== undefined
+      ) {
         nextStep = { ...nextStep, recordType: existing.recordType };
       }
       if (!incomingName && existingName) {
@@ -169,13 +178,16 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
   setWdkInfo: (wdkStrategyId, wdkUrl, name, description) => {
     set((state) => {
       if (!state.strategy) return state;
+      const resolvedDescription =
+        description !== undefined ? description : state.strategy.description;
+      const resolvedWdkUrl = wdkUrl !== undefined ? wdkUrl : state.strategy.wdkUrl;
       return {
         strategy: {
           ...state.strategy,
           name: name ?? state.strategy.name,
-          description: description ?? state.strategy.description,
+          description: resolvedDescription ?? null,
           wdkStrategyId,
-          wdkUrl: wdkUrl ?? state.strategy.wdkUrl,
+          wdkUrl: resolvedWdkUrl ?? null,
           updatedAt: new Date().toISOString(),
         },
       };
@@ -203,18 +215,8 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
   setStepValidationErrors: (errors) => {
     set((state) => {
       if (!state.strategy) return state;
-      let changed = false;
-      const nextStepsById = { ...state.stepsById };
-      for (const [stepId, message] of Object.entries(errors)) {
-        const step = nextStepsById[stepId];
-        if (!step) continue;
-        const nextMessage = message || undefined;
-        if (step.validationError !== nextMessage) {
-          nextStepsById[stepId] = { ...step, validationError: nextMessage };
-          changed = true;
-        }
-      }
-      if (!changed) return state;
+      const nextStepsById = applyStepValidationErrors(state.stepsById, errors);
+      if (!nextStepsById) return state;
       return {
         stepsById: nextStepsById,
         strategy: buildStrategy(nextStepsById, state.strategy),
@@ -225,19 +227,8 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
   setStepCounts: (counts) => {
     set((state) => {
       if (!state.strategy) return state;
-      let changed = false;
-      const nextStepsById = { ...state.stepsById };
-      for (const [stepId, count] of Object.entries(counts)) {
-        const step = nextStepsById[stepId];
-        if (!step) continue;
-        const nextCount =
-          typeof count === "number" || count === null ? count : undefined;
-        if (step.resultCount !== nextCount) {
-          nextStepsById[stepId] = { ...step, resultCount: nextCount };
-          changed = true;
-        }
-      }
-      if (!changed) return state;
+      const nextStepsById = applyStepCounts(state.stepsById, counts);
+      if (!nextStepsById) return state;
       return {
         stepsById: nextStepsById,
         strategy: buildStrategy(nextStepsById, state.strategy),

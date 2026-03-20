@@ -13,7 +13,7 @@ export function GeneSetPicker({ onSelect }: GeneSetPickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const setsWithGenes = geneSets.filter((gs) => gs.geneIds && gs.geneIds.length > 0);
+  const setsWithGenes = geneSets.filter((gs) => gs.geneIds.length > 0);
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +43,7 @@ export function GeneSetPicker({ onSelect }: GeneSetPickerProps) {
               key={gs.id}
               type="button"
               onClick={() => {
-                onSelect(gs.geneIds ?? []);
+                onSelect(gs.geneIds);
                 setOpen(false);
               }}
               className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors duration-75 hover:bg-accent"

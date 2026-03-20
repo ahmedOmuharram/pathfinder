@@ -105,8 +105,8 @@ export function MessageComposer({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (mentionActive) return;
-      if (message.trim() && !disabled) {
+      if (mentionActive === true) return;
+      if (message.trim() !== "" && disabled !== true) {
         onSend(message.trim(), mentions.length > 0 ? mentions : undefined);
         setMessage("");
         setMentions([]);
@@ -117,7 +117,7 @@ export function MessageComposer({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (mentionActive) return;
+      if (mentionActive === true) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit(e);
@@ -138,9 +138,11 @@ export function MessageComposer({
                 <ModelPicker
                   models={models}
                   selectedModelId={selectedModelId}
-                  onSelect={(id) => onModelChange(id || null)}
+                  onSelect={(id) => onModelChange(id ?? null)}
                   disabled={isStreaming}
-                  serverDefaultId={serverDefaultModelId}
+                  {...(serverDefaultModelId != null
+                    ? { serverDefaultId: serverDefaultModelId }
+                    : {})}
                 />
               </div>
             </TooltipTrigger>
@@ -254,15 +256,19 @@ export function buildModelSelection(
   models: ModelCatalogEntry[],
   overrides?: ModelOverrides,
 ): ModelSelection | undefined {
-  if (!selectedModelId) return undefined;
+  if (selectedModelId === null || selectedModelId === "") return undefined;
   const entry = models.find((m) => m.id === selectedModelId);
   if (!entry) return undefined;
   return {
     provider: entry.provider,
     model: entry.id,
-    reasoningEffort: entry.supportsReasoning ? reasoningEffort : undefined,
-    contextSize: overrides?.contextSize,
-    responseTokens: overrides?.responseTokens,
-    reasoningBudget: overrides?.reasoningBudget,
+    ...(entry.supportsReasoning ? { reasoningEffort } : {}),
+    ...(overrides?.contextSize != null ? { contextSize: overrides.contextSize } : {}),
+    ...(overrides?.responseTokens != null
+      ? { responseTokens: overrides.responseTokens }
+      : {}),
+    ...(overrides?.reasoningBudget != null
+      ? { reasoningBudget: overrides.reasoningBudget }
+      : {}),
   };
 }

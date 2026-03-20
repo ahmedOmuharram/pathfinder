@@ -20,7 +20,7 @@ export function isFallbackDisplayName(
   name: string | null | undefined,
   step: DisplayNameStep,
 ): boolean {
-  if (!name) return true;
+  if (name == null || name === "") return true;
   if (isUrlLike(name)) return true;
   const normalized = normalizeName(name);
   const resolvedKind =
@@ -29,7 +29,7 @@ export function isFallbackDisplayName(
     normalizeName(step.searchName),
     normalizeName(resolvedKind),
   ]);
-  if (step.operator) {
+  if (step.operator != null && step.operator !== "") {
     const op = normalizeName(step.operator);
     candidates.add(op);
     candidates.add(`${op} combine`);

@@ -231,7 +231,8 @@ class TestVEuPathDBClientRequests:
     async def test_auth_token_sent_as_cookie(self) -> None:
         """WDK authenticates via Authorization cookie, not header."""
         client = VEuPathDBClient(
-            "https://plasmodb.org/plasmo/service", auth_token="my_token"
+            "https://plasmodb.org/plasmo/service",
+            auth_token="my_token",
         )
         captured_cookies: dict[str, str] = {}
 
@@ -241,6 +242,7 @@ class TestVEuPathDBClientRequests:
                 captured_cookies.update(dict(request.headers.items()))
                 return httpx.Response(200, json=[])
 
+            router.get("https://plasmodb.org/plasmo/app").respond(200)
             router.get("https://plasmodb.org/plasmo/service/record-types").mock(
                 side_effect=capture_request
             )

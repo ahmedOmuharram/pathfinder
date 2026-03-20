@@ -62,19 +62,19 @@ def _make_wdk_result(
         "positive": {
             "controlsCount": len(pos),
             "intersectionCount": n_pos_found,
-            "intersectionIdsSample": cast(JSONArray, pos_found_ids[:50]),
-            "intersectionIds": cast(JSONArray, pos_found_ids),
+            "intersectionIdsSample": cast("JSONArray", pos_found_ids[:50]),
+            "intersectionIds": cast("JSONArray", pos_found_ids),
             "missingIdsSample": cast(
-                JSONArray, [x for x in pos if x not in pos_found_ids][:50]
+                "JSONArray", [x for x in pos if x not in pos_found_ids][:50]
             ),
             "recall": n_pos_found / len(pos) if n_pos_found > 0 else None,
         },
         "negative": {
             "controlsCount": len(neg),
             "intersectionCount": n_neg_found,
-            "intersectionIdsSample": cast(JSONArray, neg_found_ids[:50]),
-            "intersectionIds": cast(JSONArray, neg_found_ids),
-            "unexpectedHitsSample": cast(JSONArray, neg_found_ids[:50]),
+            "intersectionIdsSample": cast("JSONArray", neg_found_ids[:50]),
+            "intersectionIds": cast("JSONArray", neg_found_ids),
+            "unexpectedHitsSample": cast("JSONArray", neg_found_ids[:50]),
             "falsePositiveRate": n_neg_found / len(neg) if n_neg_found > 0 else None,
         },
     }
@@ -84,7 +84,7 @@ COMMON_KWARGS: dict[str, Any] = {
     "site_id": "plasmodb",
     "record_type": "transcript",
     "search_name": "TestSearch",
-    "fixed_parameters": cast(JSONObject, {"organism": "P. falciparum"}),
+    "fixed_parameters": cast("JSONObject", {"organism": "P. falciparum"}),
     "controls_search_name": "GeneByLocusTag",
     "controls_param_name": "ds_gene_ids",
     "positive_controls": [f"POS_{i}" for i in range(10)],
@@ -374,7 +374,8 @@ class TestOptimizeSearchParameters:
             nonlocal call_count
             call_count += 1
             if call_count % 2 == 0:
-                raise RuntimeError("WDK error on even trials")
+                msg = "WDK error on even trials"
+                raise RuntimeError(msg)
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)
 
         specs = [

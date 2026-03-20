@@ -197,16 +197,15 @@ def _step_analysis_section(sa: StepAnalysisResult) -> str:
 
     if sa.step_evaluations:
         header = "<tr><th>Step</th><th class='numeric'>Results</th><th class='numeric'>Recall</th><th class='numeric'>FPR</th><th class='numeric'>TP Δ</th><th class='numeric'>FP Δ</th></tr>"
-        rows = []
-        for ev in sa.step_evaluations:
-            rows.append(
-                f"<tr><td>{_esc(ev.display_name)}</td>"
-                f"<td class='numeric'>{ev.result_count}</td>"
-                f"<td class='numeric'>{_pct(ev.recall)}</td>"
-                f"<td class='numeric'>{_pct(ev.false_positive_rate)}</td>"
-                f"<td class='numeric'>{ev.tp_movement:+d}</td>"
-                f"<td class='numeric'>{ev.fp_movement:+d}</td></tr>"
-            )
+        rows = [
+            f"<tr><td>{_esc(ev.display_name)}</td>"
+            f"<td class='numeric'>{ev.result_count}</td>"
+            f"<td class='numeric'>{_pct(ev.recall)}</td>"
+            f"<td class='numeric'>{_pct(ev.false_positive_rate)}</td>"
+            f"<td class='numeric'>{ev.tp_movement:+d}</td>"
+            f"<td class='numeric'>{ev.fp_movement:+d}</td></tr>"
+            for ev in sa.step_evaluations
+        ]
         parts.append(
             f"<h3>Per-Step Evaluation</h3>\n<table>{header}\n{''.join(rows)}</table>"
         )
@@ -239,14 +238,13 @@ def _enrichment_section(exp: Experiment) -> str:
     parts: list[str] = ["<h2>Enrichment Analysis</h2>"]
     for er in exp.enrichment_results:
         header = "<tr><th>Term</th><th class='numeric'>Genes</th><th class='numeric'>Fold</th><th class='numeric'>FDR</th></tr>"
-        rows = []
-        for t in er.terms[:20]:
-            rows.append(
-                f"<tr><td>{_esc(t.term_name)}</td>"
-                f"<td class='numeric'>{t.gene_count}</td>"
-                f"<td class='numeric'>{t.fold_enrichment:.2f}</td>"
-                f"<td class='numeric'>{t.fdr:.2e}</td></tr>"
-            )
+        rows = [
+            f"<tr><td>{_esc(t.term_name)}</td>"
+            f"<td class='numeric'>{t.gene_count}</td>"
+            f"<td class='numeric'>{t.fold_enrichment:.2f}</td>"
+            f"<td class='numeric'>{t.fdr:.2e}</td></tr>"
+            for t in er.terms[:20]
+        ]
         parts.append(
             f"<h3>{_esc(er.analysis_type)} ({er.total_genes_analyzed} genes)</h3>\n"
             f"<table>{header}\n{''.join(rows)}</table>"

@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { experimentId } = await ctx.params;
   const { pathname } = new URL(req.url);
-  const suffix = pathname.split(`/experiments/${experimentId}`)[1] || "";
+  const suffix = pathname.split(`/experiments/${experimentId}`)[1] ?? "";
   const base = `/api/v1/experiments/${encodeURIComponent(experimentId)}${suffix}`;
   const qs = new URL(req.url).searchParams.toString();
   const path = qs ? `${base}?${qs}` : base;

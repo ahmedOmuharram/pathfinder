@@ -8,7 +8,7 @@ This module is the counterpart to ``domain/parameters/normalize``:
   range values become ``{min, max}``, filter values become dict/list.
 
 Delegates validation and decoding to the shared dispatch chain in
-``_value_helpers._process_value()``, then applies canonicalizer-specific
+``_value_helpers.process_value()``, then applies canonicalizer-specific
 post-processing (FAKE_ALL_SENTINEL rejection, leaf enforcement).
 
 Used at API boundaries (plan normalization, validation) so the frontend
@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from typing import cast
 
 from veupath_chatbot.domain.parameters._value_helpers import (
-    ParameterValueMixin,
     ParamKind,
+    process_value,
 )
 from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.domain.parameters.vocab_utils import (
@@ -40,7 +40,7 @@ FAKE_ALL_SENTINEL = "@@fake@@"
 
 
 @dataclass(frozen=True)
-class ParameterCanonicalizer(ParameterValueMixin):
+class ParameterCanonicalizer:
     """Canonicalize parameter values using canonical parameter specs."""
 
     specs: dict[str, ParamSpecNormalized]
@@ -83,12 +83,12 @@ class ParameterCanonicalizer(ParameterValueMixin):
             )
 
         # Use shared dispatch for common param-type routing
-        result = self._process_value(spec, value)
+        result = process_value(spec, value)
 
         # Canonicalizer-specific post-processing: leaf enforcement
         if result.kind is ParamKind.MULTI_PICK and isinstance(result.value, list):
-            values = cast(list[str], result.value)
-            return cast(JSONValue, self._enforce_leaf_values(spec, values))
+            values = cast("list[str]", result.value)
+            return cast("JSONValue", self._enforce_leaf_values(spec, values))
 
         if (
             result.kind is ParamKind.SINGLE_PICK
@@ -151,8 +151,6 @@ class ParameterCanonicalizer(ParameterValueMixin):
         if not isinstance(vocabulary, dict) or not match:
             return None
         matched_node = find_vocab_node(vocabulary, match)
-        if not matched_node:
-            return None
-        if get_vocab_children(matched_node):
+        if not matched_node or get_vocab_children(matched_node):
             return None
         return get_node_term(matched_node)

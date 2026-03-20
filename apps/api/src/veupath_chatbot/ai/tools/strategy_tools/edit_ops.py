@@ -29,23 +29,7 @@ class StrategyEditOps(StrategyToolsHelpers):
         if step_id not in graph.steps:
             return self._step_not_found(step_id)
 
-        to_remove = {step_id}
-        changed = True
-        while changed:
-            changed = False
-            for sid, step in list(graph.steps.items()):
-                if sid in to_remove:
-                    continue
-                primary_id = getattr(getattr(step, "primary_input", None), "id", None)
-                secondary_id = getattr(
-                    getattr(step, "secondary_input", None), "id", None
-                )
-                if isinstance(primary_id, str) and primary_id in to_remove:
-                    to_remove.add(sid)
-                    changed = True
-                if isinstance(secondary_id, str) and secondary_id in to_remove:
-                    to_remove.add(sid)
-                    changed = True
+        to_remove = _find_dependent_steps(graph, step_id)
 
         remaining = {sid for sid in graph.steps if sid not in to_remove}
         if not remaining:
@@ -59,13 +43,11 @@ class StrategyEditOps(StrategyToolsHelpers):
         for sid in to_remove:
             graph.steps.pop(sid, None)
 
-        # Invalidate stale WDK build state — the strategy tree changed.
         graph.invalidate_build()
         graph.last_step_id = next(iter(remaining), None)
-        # Recompute the subtree-root set after bulk removal.
         graph.recompute_roots()
         response: JSONObject = {
-            "deleted": cast(JSONArray, list(to_remove)),
+            "deleted": cast("JSONArray", list(to_remove)),
             "graphId": graph.id,
         }
         return self._with_full_graph(graph, response)
@@ -90,11 +72,7 @@ class StrategyEditOps(StrategyToolsHelpers):
             )
         return self._with_full_graph(
             graph,
-            tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "Nothing to undo",
-                graphId=graph.id,
-            ),
+            tool_error(ErrorCode.VALIDATION_ERROR, "Nothing to undo", graphId=graph.id),
         )
 
     @ai_function()
@@ -145,7 +123,6 @@ class StrategyEditOps(StrategyToolsHelpers):
                 stepId=step_id,
             )
 
-        # Track whether a substantive field changed (requires rebuild).
         substantive_change = False
 
         if search_name:
@@ -153,44 +130,85 @@ class StrategyEditOps(StrategyToolsHelpers):
             substantive_change = True
 
         if parameters is not None:
-            # Validate parameters for leaf steps (no inputs) and transform
-            # steps (primary_input set, no secondary_input).  Binary combine
-            # steps are structurally defined and have no WDK params to check.
-            if step.secondary_input is None:
-                record_type = graph.record_type or "transcript"
-                try:
-                    await validate_parameters(
-                        site_id=self.session.site_id,
-                        record_type=record_type,
-                        search_name=step.search_name,
-                        parameters=parameters,
-                        resolve_record_type_for_search=self._find_record_type_for_search,
-                        find_record_type_hint=self._find_record_type_hint,
-                        extract_vocab_options=self._extract_vocab_options,
-                    )
-                except ValidationError as exc:
-                    return self._validation_error_payload(
-                        exc, recordType=record_type, searchName=step.search_name
-                    )
-            step.parameters = parameters
+            error = await self._validate_and_set_params(graph, step, parameters)
+            if error is not None:
+                return error
             substantive_change = True
 
         if operator is not None:
-            if step.secondary_input is None:
-                return tool_error(
-                    ErrorCode.VALIDATION_ERROR,
-                    "operator can only be set for binary steps.",
-                    stepId=step_id,
-                )
-            step.operator = parse_op(operator)
+            error = self._validate_and_set_operator(step, step_id, operator)
+            if error is not None:
+                return error
             substantive_change = True
 
         if display_name:
             step.display_name = display_name
 
-        # Invalidate stale WDK build state so estimatedSize is not shown
-        # until the strategy is rebuilt.
         if substantive_change:
             graph.invalidate_build()
 
         return self._step_ok_response(graph, step)
+
+    async def _validate_and_set_params(
+        self,
+        graph: object,
+        step: PlanStepNode,
+        parameters: JSONObject,
+    ) -> JSONObject | None:
+        """Validate and set parameters on a step. Returns error or None."""
+        if step.secondary_input is not None:
+            step.parameters = parameters
+            return None
+        record_type = graph.record_type or "transcript"
+        try:
+            await validate_parameters(
+                site_id=self.session.site_id,
+                record_type=record_type,
+                search_name=step.search_name,
+                parameters=parameters,
+                resolve_record_type_for_search=self._find_record_type_for_search,
+                find_record_type_hint=self._find_record_type_hint,
+                extract_vocab_options=self._extract_vocab_options,
+            )
+        except ValidationError as exc:
+            return self._validation_error_payload(
+                exc, recordType=record_type, searchName=step.search_name
+            )
+        step.parameters = parameters
+        return None
+
+    def _validate_and_set_operator(
+        self,
+        step: PlanStepNode,
+        step_id: str,
+        operator: str,
+    ) -> JSONObject | None:
+        """Validate and set operator on a binary step. Returns error or None."""
+        if step.secondary_input is None:
+            return tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                "operator can only be set for binary steps.",
+                stepId=step_id,
+            )
+        step.operator = parse_op(operator)
+        return None
+
+
+def _find_dependent_steps(graph: object, step_id: str) -> set[str]:
+    """Find all steps transitively dependent on the given step."""
+    to_remove = {step_id}
+    changed = True
+    while changed:
+        changed = False
+        for sid, step in list(graph.steps.items()):
+            if sid in to_remove:
+                continue
+            primary_id = getattr(getattr(step, "primary_input", None), "id", None)
+            secondary_id = getattr(getattr(step, "secondary_input", None), "id", None)
+            if isinstance(primary_id, str) and primary_id in to_remove:
+                to_remove.add(sid)
+                changed = True
+            if isinstance(secondary_id, str) and secondary_id in to_remove:
+                to_remove.add(sid)
+                changed = True
+    return to_remove

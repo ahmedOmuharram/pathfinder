@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import type { StrategyPlan } from "@pathfinder/shared";
 
-export type StepCountsResponse = { counts?: Record<string, number | null> };
+type StepCountsResponse = { counts?: Record<string, number | null> };
 
 export function useStepCounts(args: {
   siteId: string;
@@ -30,7 +30,7 @@ export function useStepCounts(args: {
   const requestIdRef = useRef(0);
 
   const debouncedFetchCounts = useDebouncedCallback(() => {
-    if (!plan || !planHash) return;
+    if (plan == null || planHash == null || planHash === "") return;
 
     const stepIdsKey = stepIds.slice().sort().join("|");
     const requestKey = `${planHash}:${stepIdsKey}:${refreshKey}`;
@@ -44,7 +44,7 @@ export function useStepCounts(args: {
     fetchCounts(siteId, plan)
       .then((response) => {
         if (requestId !== requestIdRef.current) return;
-        const counts = response.counts || {};
+        const counts = response.counts ?? {};
         const next: Record<string, number | null> = {};
         for (const stepId of stepIds) {
           next[stepId] = counts[stepId] ?? null;
@@ -66,7 +66,7 @@ export function useStepCounts(args: {
     // If the graph/plan is currently invalid (e.g. multiple outputs), don't wait on
     // step counts at all. Immediately show unknown counts ("?") and invalidate any
     // in-flight request so it can't overwrite the UI later.
-    if (!plan || !planHash) {
+    if (plan == null || planHash == null || planHash === "") {
       requestIdRef.current += 1;
       lastRequestKeyRef.current = null;
       const next: Record<string, number | null> = {};

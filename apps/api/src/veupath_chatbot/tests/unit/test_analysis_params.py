@@ -1,6 +1,6 @@
 """Tests for WDK analysis parameter merging.
 
-Verifies that ``_extract_default_params`` handles the real WDK response
+Verifies that ``extract_default_params`` handles the real WDK response
 structure — parameters nested under ``searchData`` with default values
 in ``initialDisplayValue`` (not ``defaultValue``) — and that
 ``merge_analysis_params`` always merges defaults with user parameters.
@@ -15,24 +15,12 @@ All vocab param values must be JSON-encoded arrays per
 ``AbstractEnumParam.convertToTerms()`` → ``new JSONArray(stableValue)``.
 """
 
-from veupath_chatbot.services.experiment.enrichment import _extract_default_params
+from veupath_chatbot.services.experiment.enrichment_params import extract_default_params
 from veupath_chatbot.services.wdk.helpers import merge_analysis_params
 
 # ---------------------------------------------------------------------------
-# Real WDK response structure (from GET /analysis-types/go-enrichment):
-#
-#   {
-#     "searchData": {
-#       "parameters": [
-#         { "name": "organism", "type": "single-pick-vocabulary",
-#           "initialDisplayValue": "P. falciparum 3D7", ... },
-#         ...
-#       ]
-#     },
-#     "validation": { ... }
-#   }
-#
-# WDK uses "initialDisplayValue" (from ParamFormatter.java), NOT "defaultValue".
+# Real WDK response structure (from the go-enrichment analysis type endpoint)
+# uses "initialDisplayValue" (from ParamFormatter.java), NOT "defaultValue".
 # Type strings come from EnumParamFormatter.getParamType().
 # ---------------------------------------------------------------------------
 
@@ -126,7 +114,7 @@ _PATHWAY_FORM_META = {
 
 
 class TestExtractDefaultParamsWdkFormat:
-    """_extract_default_params must handle real WDK nested structure."""
+    """extract_default_params must handle real WDK nested structure."""
 
     def test_extracts_from_search_data_with_initial_display_value(self) -> None:
         """WDK uses initialDisplayValue (not defaultValue) for defaults.
@@ -134,7 +122,7 @@ class TestExtractDefaultParamsWdkFormat:
         Vocab params (single-pick-vocabulary) are encoded as JSON arrays
         per AbstractEnumParam.convertToTerms().
         """
-        result = _extract_default_params(_GO_ENRICHMENT_FORM_META)
+        result = extract_default_params(_GO_ENRICHMENT_FORM_META)
         assert result == {
             "organism": '["Plasmodium falciparum 3D7"]',
             "goAssociationsOntologies": '["Biological Process"]',
@@ -144,7 +132,7 @@ class TestExtractDefaultParamsWdkFormat:
         }
 
     def test_extracts_pathway_defaults(self) -> None:
-        result = _extract_default_params(_PATHWAY_FORM_META)
+        result = extract_default_params(_PATHWAY_FORM_META)
         assert result == {
             "organism": '["Plasmodium falciparum 3D7"]',
             "pathwaysSources": '["KEGG"]',

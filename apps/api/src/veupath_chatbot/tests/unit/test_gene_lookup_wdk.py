@@ -1,5 +1,6 @@
 """Tests for services.gene_lookup.wdk -- WDK gene search and ID resolution."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.services.gene_lookup.wdk import (
@@ -423,8 +424,6 @@ class TestFetchWdkTextGenes:
         )
 
         call_json = mock_client.post.call_args[1]["json"]
-        import json
-
         sent_fields = json.loads(call_json["searchConfig"]["parameters"]["text_fields"])
         assert sent_fields == WDK_TEXT_FIELDS_ID
 

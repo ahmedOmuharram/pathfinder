@@ -6,6 +6,7 @@ Each mixin class exists and exposes the expected methods.
 import inspect
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import AnalysisMixin
+from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.records import RecordsMixin
@@ -129,8 +130,6 @@ class TestStrategyAPIComposition:
     """StrategyAPI inherits from all four mixins."""
 
     def test_strategy_api_inherits_all_mixins(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
-
         assert issubclass(StrategyAPI, ReportsMixin)
         assert issubclass(StrategyAPI, AnalysisMixin)
         assert issubclass(StrategyAPI, FilterMixin)

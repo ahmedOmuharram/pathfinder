@@ -12,7 +12,7 @@ export function handleWorkbenchGeneSetEvent(
   data: WorkbenchGeneSetData,
 ) {
   const gs = data.geneSet;
-  if (!gs || !gs.id) return;
+  if (!gs?.id) return;
 
   ctx.onWorkbenchGeneSet?.({
     id: gs.id,

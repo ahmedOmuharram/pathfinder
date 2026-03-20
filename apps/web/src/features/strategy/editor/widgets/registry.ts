@@ -11,7 +11,7 @@ import type { ParamSpec } from "@/features/strategy/parameters/spec";
 
 /** Resolve the canonical displayType string from a param spec. */
 export function resolveDisplayType(spec: ParamSpec): string {
-  return (spec.displayType || "").trim().toLowerCase();
+  return (spec.displayType ?? "").trim().toLowerCase();
 }
 
 /** Check if a param is hidden (should not render UI). */
@@ -36,4 +36,4 @@ export const DISPLAY_TYPES = {
   STRING: "",
 } as const;
 
-export type DisplayType = (typeof DISPLAY_TYPES)[keyof typeof DISPLAY_TYPES];
+type _DisplayType = (typeof DISPLAY_TYPES)[keyof typeof DISPLAY_TYPES];

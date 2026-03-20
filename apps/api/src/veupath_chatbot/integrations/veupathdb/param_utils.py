@@ -25,10 +25,12 @@ def normalize_param_value(value: JSONValue) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, (int, float)):
-        return str(value)
-    if isinstance(value, (list, dict)):
-        return json.dumps(value)
-    return str(value)
+        result = str(value)
+    elif isinstance(value, (list, dict)):
+        result = json.dumps(value)
+    else:
+        result = str(value)
+    return result
 
 
 def wdk_entity_name(obj: JSONObject | JSONValue) -> str:
@@ -65,4 +67,4 @@ def wdk_search_matches(search: JSONValue, search_name: str) -> bool:
     name_raw = search.get("name")
     url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
     name = name_raw if isinstance(name_raw, str) else None
-    return url_seg == search_name or name == search_name
+    return search_name in (url_seg, name)

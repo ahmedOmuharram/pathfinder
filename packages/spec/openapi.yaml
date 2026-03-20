@@ -1739,6 +1739,13 @@ paths:
           - type: string
           - type: 'null'
           title: Redirectto
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          type: string
+          default: veupathdb
+          title: Siteid
       requestBody:
         content:
           application/json:
@@ -1767,6 +1774,14 @@ paths:
       summary: Logout
       description: Clear local auth cookie and log out of VEuPathDB.
       operationId: logout_api_v1_veupathdb_auth_logout_post
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          type: string
+          default: veupathdb
+          title: Siteid
       responses:
         '200':
           description: Successful Response
@@ -1774,6 +1789,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/veupathdb/auth/refresh:
     post:
       tags:
@@ -1786,6 +1807,14 @@ paths:
 
         VEuPathDB ``Authorization`` cookie is still valid.'
       operationId: refresh_internal_auth_api_v1_veupathdb_auth_refresh_post
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          type: string
+          default: veupathdb
+          title: Siteid
       responses:
         '200':
           description: Successful Response
@@ -1793,6 +1822,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/veupathdb/auth/status:
     get:
       tags:
@@ -1807,6 +1842,14 @@ paths:
 
         doesn''t create a VEuPathDB session, so we skip the real WDK call.'
       operationId: auth_status_api_v1_veupathdb_auth_status_get
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        schema:
+          type: string
+          default: veupathdb
+          title: Siteid
       responses:
         '200':
           description: Successful Response
@@ -1814,6 +1857,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/operations/{operation_id}/subscribe:
     get:
       tags:
@@ -2465,7 +2514,7 @@ paths:
     delete:
       tags:
       - user
-      summary: Purge User Data
+      summary: Purge User Data Endpoint
       description: 'Purge user data from all local stores.
 
 
@@ -2485,7 +2534,7 @@ paths:
 
 
         Pass ``?siteId=X`` to limit to one site, or omit for everything.'
-      operationId: purge_user_data_api_v1_user_data_delete
+      operationId: purge_user_data_endpoint_api_v1_user_data_delete
       security:
       - APIKeyCookie: []
       parameters:
@@ -2517,6 +2566,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/eval/build-gold:
+    post:
+      tags:
+      - eval
+      summary: Build Gold Strategy Endpoint
+      description: Materialize a gold strategy AST on WDK and fetch all result gene IDs.
+      operationId: build_gold_strategy_endpoint_api_v1_eval_build_gold_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildGoldRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildGoldResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
+  /api/v1/eval/strategy-gene-ids:
+    post:
+      tags:
+      - eval
+      summary: Get Strategy Gene Ids
+      description: Fetch all gene IDs from a PathFinder strategy's WDK root step.
+      operationId: get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FetchGeneIdsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Get Strategy Gene Ids Api V1 Eval Strategy Gene Ids Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyCookie: []
 components:
   schemas:
     AssistantDeltaEventData:
@@ -2663,6 +2770,56 @@ components:
       type: object
       title: BootstrapResultResponse
       description: Robustness assessment via bootstrap resampling.
+    BuildGoldRequest:
+      properties:
+        goldId:
+          type: string
+          title: Goldid
+        siteId:
+          type: string
+          title: Siteid
+        recordType:
+          type: string
+          title: Recordtype
+          default: gene
+        stepTree:
+          additionalProperties: true
+          type: object
+          title: Steptree
+      type: object
+      required:
+      - goldId
+      - siteId
+      - stepTree
+      title: BuildGoldRequest
+      description: Request to materialize a gold strategy AST on WDK and return gene IDs.
+    BuildGoldResponse:
+      properties:
+        goldId:
+          type: string
+          title: Goldid
+        wdkStrategyId:
+          type: integer
+          title: Wdkstrategyid
+        rootStepId:
+          type: integer
+          title: Rootstepid
+        resultCount:
+          type: integer
+          title: Resultcount
+        geneIds:
+          items:
+            type: string
+          type: array
+          title: Geneids
+      type: object
+      required:
+      - goldId
+      - wdkStrategyId
+      - rootStepId
+      - resultCount
+      - geneIds
+      title: BuildGoldResponse
     ChatMention:
       properties:
         type:
@@ -4325,6 +4482,20 @@ components:
       - createdAt
       title: ExperimentSummaryResponse
       description: Lightweight experiment summary for list views.
+    FetchGeneIdsRequest:
+      properties:
+        strategyId:
+          type: string
+          title: Strategyid
+        siteId:
+          type: string
+          title: Siteid
+      type: object
+      required:
+      - strategyId
+      - siteId
+      title: FetchGeneIdsRequest
+      description: Fetch gene IDs from an existing PathFinder strategy.
     FoldMetricsResponse:
       properties:
         foldIndex:

@@ -50,7 +50,7 @@ def experiment_from_json(d: dict[str, Any]) -> Experiment:
         controls_search_name=cfg.get("controlsSearchName", ""),
         controls_param_name=cfg.get("controlsParamName", ""),
         controls_value_format=cast(
-            ControlValueFormat, cfg.get("controlsValueFormat", "newline")
+            "ControlValueFormat", cfg.get("controlsValueFormat", "newline")
         ),
         enable_cross_validation=cfg.get("enableCrossValidation", False),
         k_folds=cfg.get("kFolds", 5),

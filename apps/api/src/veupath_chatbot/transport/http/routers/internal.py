@@ -40,6 +40,11 @@ from veupath_chatbot.transport.http.schemas.experiment_responses import (
     TreeOptimizationTrialResponse,
     TrialProgressDataResponse,
 )
+from veupath_chatbot.transport.http.schemas.optimization import (
+    OptimizationParameterSpecData,
+    OptimizationProgressEventData,
+    OptimizationTrialData,
+)
 from veupath_chatbot.transport.http.schemas.sse import (
     AssistantDeltaEventData,
     AssistantMessageEventData,
@@ -53,9 +58,6 @@ from veupath_chatbot.transport.http.schemas.sse import (
     MessageEndEventData,
     MessageStartEventData,
     ModelSelectedEventData,
-    OptimizationParameterSpecData,
-    OptimizationProgressEventData,
-    OptimizationTrialData,
     PlanningArtifactEventData,
     ReasoningEventData,
     StrategyLinkEventData,

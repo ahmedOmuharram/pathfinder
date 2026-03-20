@@ -12,7 +12,7 @@ export function parseGeneIds(text: string): string[] {
     .split(/\r?\n/)
     .map((line) => {
       // Split on comma or tab, take first column
-      const first = line.split(/[,\t]/)[0];
+      const first = line.split(/[,\t]/)[0] ?? "";
       return first.trim();
     })
     .filter((id) => id.length > 0 && !id.match(/^gene.?id$/i)); // skip headers

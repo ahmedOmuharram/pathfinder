@@ -10,7 +10,7 @@ import { Label } from "@/lib/components/ui/Label";
 type StepCombineOperatorSelectProps = {
   operatorValue: string;
   onOperatorChange: (nextValue: string) => void;
-  colocationParams?: ColocationParams | null;
+  colocationParams?: ColocationParams | null | undefined;
   onColocationParamsChange: (nextValue: ColocationParams) => void;
 };
 

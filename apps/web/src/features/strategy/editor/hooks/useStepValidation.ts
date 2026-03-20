@@ -15,10 +15,11 @@ export function useStepValidation({
   const [error, setError] = useState<string | null>(null);
 
   const validationErrorKeys = useMemo(() => {
-    if (!stepValidationError) return new Set<string>();
+    if (stepValidationError == null || stepValidationError === "")
+      return new Set<string>();
     const keys = new Set<string>();
     const paramNames = new Set(
-      paramSpecs.map((spec) => spec.name).filter(Boolean) as string[],
+      paramSpecs.map((spec) => spec.name).filter((n) => n !== ""),
     );
     stepValidationError
       .replace(/^Cannot be saved:\s*/i, "")

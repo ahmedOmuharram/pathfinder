@@ -6,6 +6,7 @@ from difflib import SequenceMatcher
 from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
+from rapidfuzz import fuzz
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -58,7 +59,7 @@ def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | No
         return ["et al."]
     if len(cleaned) <= n:
         return cleaned
-    return cleaned[:n] + ["et al."]
+    return [*cleaned[:n], "et al."]
 
 
 def truncate_text(text: str | None, max_chars: int) -> str | None:
@@ -86,8 +87,7 @@ def strip_tags(text: str) -> str:
     """
     cleaned = re.sub(r"<[^>]+>", " ", text)
     cleaned = html.unescape(cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def decode_ddg_redirect(href: str) -> str:
@@ -178,8 +178,7 @@ def norm_for_match(text: str | None) -> str:
     if not isinstance(text, str):
         return ""
     t = text.lower()
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def fallback_ratio(a: str, b: str) -> float:
@@ -206,8 +205,6 @@ def fuzzy_score(query: str, text: str) -> float:
     if not q or not t:
         return 0.0
     try:
-        from rapidfuzz import fuzz
-
         return float(fuzz.token_set_ratio(q, t))
     except Exception as exc:
         logger.debug("rapidfuzz unavailable, using fallback ratio", error=str(exc))

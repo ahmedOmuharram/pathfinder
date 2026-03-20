@@ -15,8 +15,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
 @pytest.fixture
 def mock_client() -> AsyncMock:
     """Create a mock VEuPathDB client."""
-    client = AsyncMock(spec=VEuPathDBClient)
-    return client
+    return AsyncMock(spec=VEuPathDBClient)
 
 
 @pytest.fixture

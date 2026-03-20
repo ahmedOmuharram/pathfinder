@@ -14,8 +14,8 @@ from veupath_chatbot.services.experiment.seed.seeds import (
 from veupath_chatbot.services.experiment.seed.types import ControlSetDef, SeedDef
 
 __all__ = [
-    "ControlSetDef",
     "SEED_DATABASES",
+    "ControlSetDef",
     "SeedDef",
     "get_all_seeds",
     "get_seeds_for_site",

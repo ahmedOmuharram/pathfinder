@@ -404,7 +404,7 @@ class LiteratureSearchService:
                     {
                         **item,
                         "source": src,
-                        "authors": cast(JSONValue, authors_limited),
+                        "authors": cast("JSONValue", authors_limited),
                         "abstract": abstract_value,
                     }
                 )
@@ -415,7 +415,7 @@ class LiteratureSearchService:
                     if authors_raw is not None:
                         authors_list = list_str(authors_raw)
                         authors_limited = limit_authors(authors_list, max_authors)
-                        c2["authors"] = cast(JSONValue, authors_limited)
+                        c2["authors"] = cast("JSONValue", authors_limited)
                     citations_by_key[key] = c2
 
         return filtered, citations_by_key
@@ -458,7 +458,7 @@ class LiteratureSearchService:
                     {
                         **item,
                         "score": round(score, 2),
-                        "scoreParts": cast(JSONValue, parts),
+                        "scoreParts": cast("JSONValue", parts),
                     }
                 )
 
@@ -536,11 +536,11 @@ class LiteratureSearchService:
                 "requireDoi": require_doi,
             },
             "results": sliced,
-            "citations": cast(JSONValue, citations),
+            "citations": cast("JSONValue", citations),
         }
 
         if source == "all":
-            payload["bySource"] = cast(JSONValue, by_source)
+            payload["bySource"] = cast("JSONValue", by_source)
 
         citations_raw = payload.get("citations")
         if isinstance(citations_raw, list):

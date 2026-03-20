@@ -39,7 +39,7 @@ async def test_delete_step_removes_step():
 
 
 async def test_delete_step_not_found():
-    ops, graph = _make_edit_ops()
+    ops, _graph = _make_edit_ops()
 
     result = await ops.delete_step(step_id="nonexistent", graph_id="g1")
 
@@ -119,7 +119,7 @@ async def test_delete_step_invalidates_old_strategy():
 
 
 async def test_undo_with_no_history():
-    ops, graph = _make_edit_ops()
+    ops, _graph = _make_edit_ops()
 
     result = await ops.undo_last_change(graph_id="g1")
 
@@ -163,7 +163,7 @@ async def test_rename_step_updates_display_name():
 
 
 async def test_rename_step_not_found():
-    ops, graph = _make_edit_ops()
+    ops, _graph = _make_edit_ops()
 
     result = await ops.rename_step(step_id="nonexistent", new_name="X", graph_id="g1")
 
@@ -210,7 +210,7 @@ async def test_update_step_operator_on_leaf_step_rejected():
 
 
 async def test_update_step_not_found():
-    ops, graph = _make_edit_ops()
+    ops, _graph = _make_edit_ops()
 
     result = await ops.update_step(step_id="missing", graph_id="g1")
 

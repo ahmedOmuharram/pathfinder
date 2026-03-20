@@ -100,7 +100,9 @@ export function EnrichmentPanel() {
         <div className="flex items-center gap-3">
           <Button
             size="sm"
-            onClick={handleRun}
+            onClick={() => {
+              void handleRun();
+            }}
             disabled={loading || !activeSet || selectedTypes.size === 0}
           >
             {loading ? (
@@ -118,12 +120,16 @@ export function EnrichmentPanel() {
           )}
         </div>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {/* Results */}
-        {results && results.length > 0 && <EnrichmentSection results={results} />}
+        {results != null && results.length > 0 && (
+          <EnrichmentSection results={results} />
+        )}
 
-        {results && results.length === 0 && (
+        {results?.length === 0 && (
           <p className="py-4 text-center text-xs text-muted-foreground">
             No enrichment results returned. Try different enrichment types.
           </p>

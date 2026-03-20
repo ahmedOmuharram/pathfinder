@@ -33,7 +33,7 @@ const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps
+interface ButtonProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -45,15 +45,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       className={cn(buttonVariants({ variant, size, className }))}
       ref={ref}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
+      disabled={(disabled ?? false) || (loading ?? false)}
+      aria-busy={(loading ?? false) || undefined}
       {...props}
     >
-      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+      {(loading ?? false) && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
     </button>
   ),
 );
 Button.displayName = "Button";
 
-export { Button, buttonVariants };
+export { Button };

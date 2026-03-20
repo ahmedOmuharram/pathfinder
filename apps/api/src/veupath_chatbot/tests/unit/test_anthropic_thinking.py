@@ -261,7 +261,7 @@ def _make_mock_agent_thinking_only(thinking_text: str):
     # No text tokens to stream
     async def _token_iter():
         return
-        yield  # noqa: unreachable — makes it an async generator
+        yield  # makes it an async generator
 
     stream.__aiter__ = lambda self: _token_iter()
     stream.message = AsyncMock(return_value=msg)
@@ -304,10 +304,7 @@ def _make_mock_agent_no_thinking(response_text: str):
 
 
 async def _collect_events(agent, message="hi", model_id="anthropic/claude-sonnet-4-5"):
-    events = []
-    async for event in stream_chat(agent, message, model_id=model_id):
-        events.append(event)
-    return events
+    return [event async for event in stream_chat(agent, message, model_id=model_id)]
 
 
 class TestStreamChatReasoning:

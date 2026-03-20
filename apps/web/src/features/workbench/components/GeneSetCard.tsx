@@ -34,7 +34,7 @@ export function GeneSetCard({
 
   // Compute overlap percentage with the active set
   const overlapPct = useMemo(() => {
-    const ids = geneSet.geneIds ?? [];
+    const ids = geneSet.geneIds;
     if (activeGeneIds.length === 0 || ids.length === 0) return null;
     if (isActive) return 100;
     const activeSet = new Set(activeGeneIds);
@@ -116,7 +116,7 @@ export function GeneSetCard({
         )}
 
         {/* Row 3: provenance for derived sets */}
-        {provenance && (
+        {provenance != null && provenance !== "" && (
           <p className="mt-0.5 text-[10px] text-muted-foreground">{provenance}</p>
         )}
       </button>

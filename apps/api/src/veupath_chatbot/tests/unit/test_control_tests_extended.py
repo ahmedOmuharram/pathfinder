@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import _encode_id_list
 from veupath_chatbot.services.control_tests import (
@@ -36,8 +37,6 @@ def _make_mock_api(
     search_details: JSONObject | None = None,
 ) -> AsyncMock:
     """Build an AsyncMock that behaves like StrategyAPI."""
-    from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-
     api = AsyncMock(spec=StrategyAPI)
     api.get_step_count = AsyncMock(return_value=step_count)
     default_answer = step_answer or {
@@ -185,19 +184,19 @@ class TestExtractIntersectionDataEdgeCases:
 
     def test_count_as_float(self) -> None:
         """intersectionCount as float should be converted to int."""
-        count, ids, has_ids = _extract_intersection_data({"intersectionCount": 5.7})
+        count, _ids, _has_ids = _extract_intersection_data({"intersectionCount": 5.7})
         assert count == 5
 
     def test_count_as_string_fallback(self) -> None:
         """intersectionCount as string should default to 0."""
-        count, ids, has_ids = _extract_intersection_data(
+        count, _ids, _has_ids = _extract_intersection_data(
             {"intersectionCount": "not_a_number"}
         )
         assert count == 0
 
     def test_intersection_ids_none(self) -> None:
         """intersectionIds=None should report has_ids=False."""
-        count, ids, has_ids = _extract_intersection_data(
+        count, _ids, has_ids = _extract_intersection_data(
             {"intersectionCount": 5, "intersectionIds": None}
         )
         assert count == 5
@@ -205,7 +204,7 @@ class TestExtractIntersectionDataEdgeCases:
 
     def test_intersection_ids_with_none_elements(self) -> None:
         """None elements in intersectionIds should be excluded from set."""
-        count, ids, has_ids = _extract_intersection_data(
+        _count, ids, has_ids = _extract_intersection_data(
             {"intersectionCount": 3, "intersectionIds": ["A", None, "B"]}
         )
         assert ids == {"A", "B"}
@@ -213,7 +212,7 @@ class TestExtractIntersectionDataEdgeCases:
 
     def test_intersection_ids_empty_list(self) -> None:
         """Empty intersectionIds list: has_ids=True but empty set."""
-        count, ids, has_ids = _extract_intersection_data(
+        _count, ids, has_ids = _extract_intersection_data(
             {"intersectionCount": 0, "intersectionIds": []}
         )
         assert ids == set()

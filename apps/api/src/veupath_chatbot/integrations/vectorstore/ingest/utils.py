@@ -83,7 +83,7 @@ async def embed_and_upsert(
         collection=collection,
         points=[
             cast(
-                Any,
+                "Any",
                 {"id": pid, "vector": v, "payload": payload},
             )
             for pid, v, payload in zip(ids, vectors, payloads, strict=True)

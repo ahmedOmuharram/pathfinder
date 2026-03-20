@@ -3,6 +3,9 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from veupath_chatbot.services.gene_lookup import lookup_genes_by_text, resolve_gene_ids
+from veupath_chatbot.services.wdk import query_site_search
+
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
 
@@ -61,8 +64,6 @@ class OrganismsResponse(BaseModel):
 @router.get("/{siteId}/organisms", response_model=OrganismsResponse)
 async def list_organisms(siteId: str) -> OrganismsResponse:
     """Return all available organism names for a site via site-search."""
-    from veupath_chatbot.services.wdk import query_site_search
-
     data = await query_site_search(
         siteId,
         search_text="*",
@@ -84,8 +85,6 @@ async def search_genes(
     offset: int = 0,
 ) -> GeneSearchResponse:
     """Search genes by text using multi-strategy gene lookup."""
-    from veupath_chatbot.services.gene_lookup import lookup_genes_by_text
-
     data = await lookup_genes_by_text(
         siteId, q, organism=organism or None, limit=limit, offset=offset
     )
@@ -132,8 +131,6 @@ async def resolve_genes(
     payload: GeneResolveRequest,
 ) -> GeneResolveResponse:
     """Resolve gene IDs to full records via WDK standard reporter."""
-    from veupath_chatbot.services.gene_lookup import resolve_gene_ids
-
     data = await resolve_gene_ids(siteId, payload.geneIds)
 
     raw_records = data.get("records") if isinstance(data, dict) else []

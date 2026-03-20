@@ -37,8 +37,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 class TestSingleStepGeneSet:
@@ -110,7 +110,7 @@ class TestSingleStepGeneSet:
                 site_id=SITE,
                 record_type=RECORD_TYPE,
                 target_search_name=gs.search_name,
-                target_parameters=cast(JSONObject, gs.parameters),
+                target_parameters=cast("JSONObject", gs.parameters),
                 controls_search_name="GeneByLocusTag",
                 controls_param_name="ds_gene_ids",
                 positive_controls=POSITIVE,

@@ -3,7 +3,7 @@ import type { RecordAttribute } from "@/lib/types/wdk";
 import { getAttributes, type EntityRef } from "@/features/analysis/api/stepResults";
 import { isDistributableAttr } from "@/features/analysis/components/DistributionExplorer/attributeFilters";
 
-export interface AttributeFilteringState {
+interface AttributeFilteringState {
   attributes: RecordAttribute[];
   selectedAttr: string;
   setSelectedAttr: (attr: string) => void;
@@ -28,8 +28,9 @@ export function useAttributeFiltering(entityRef: EntityRef): AttributeFilteringS
         if (cancelled) return;
         const displayable = attrs.filter(isDistributableAttr);
         setAttributes(displayable);
-        if (displayable.length > 0) {
-          setSelectedAttr(displayable[0].name);
+        const first = displayable[0];
+        if (first != null) {
+          setSelectedAttr(first.name);
         }
       })
       .catch((err) => {

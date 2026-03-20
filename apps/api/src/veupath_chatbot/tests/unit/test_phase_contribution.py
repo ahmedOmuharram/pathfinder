@@ -6,6 +6,8 @@ Tests focus on the pure logic inside analyze_contributions:
 - Ablation with recall/fpr delta edge cases
 """
 
+import copy
+
 from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _collect_leaves,
     _extract_leaf_branch,
@@ -141,8 +143,6 @@ class TestRemoveLeafFromTree:
             "primaryInput": {"id": "s1", "searchName": "A"},
             "secondaryInput": {"id": "s2", "searchName": "B"},
         }
-        import copy
-
         original = copy.deepcopy(tree)
         _remove_leaf_from_tree(tree, "s1")
         assert tree == original
@@ -228,12 +228,11 @@ class TestVerdictClassification:
         """Mirror the verdict logic from phase_contribution.py."""
         if recall_delta < -0.1:
             return "essential"
-        elif recall_delta < -0.02:
+        if recall_delta < -0.02:
             return "helpful"
-        elif fpr_delta < -0.05:
+        if fpr_delta < -0.05:
             return "harmful"
-        else:
-            return "neutral"
+        return "neutral"
 
     def test_essential_large_recall_drop(self) -> None:
         assert self._classify(-0.15, 0.0) == "essential"

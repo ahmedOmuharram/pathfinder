@@ -11,7 +11,7 @@ _USER_A = uuid4()
 
 
 def _make_set(
-    id: str = "gs-1",
+    set_id: str = "gs-1",
     site_id: str = "plasmo",
     gene_ids: list[str] | None = None,
     user_id: UUID | None = None,
@@ -20,8 +20,8 @@ def _make_set(
     name: str | None = None,
 ) -> GeneSet:
     return GeneSet(
-        id=id,
-        name=name or f"Test Set {id}",
+        id=set_id,
+        name=name or f"Test Set {set_id}",
         site_id=site_id,
         gene_ids=gene_ids if gene_ids is not None else ["GENE1", "GENE2"],
         source=source,
@@ -99,14 +99,14 @@ class TestManyGeneSets:
     def test_store_with_many_gene_sets(self) -> None:
         store = GeneSetStore()
         for i in range(500):
-            store.save(_make_set(id=f"gs-{i}"))
+            store.save(_make_set(set_id=f"gs-{i}"))
         assert len(store.list_all()) == 500
 
     def test_list_all_performance_with_site_filter(self) -> None:
         store = GeneSetStore()
         for i in range(200):
             site = "plasmo" if i % 2 == 0 else "toxo"
-            store.save(_make_set(id=f"gs-{i}", site_id=site))
+            store.save(_make_set(set_id=f"gs-{i}", site_id=site))
         plasmo = store.list_all(site_id="plasmo")
         toxo = store.list_all(site_id="toxo")
         assert len(plasmo) == 100

@@ -21,7 +21,6 @@ from veupath_chatbot.transport.http.schemas.chat import (
     ToolCallResponse,
 )
 from veupath_chatbot.transport.http.schemas.experiments import (
-    AiAssistRequest,
     BatchOrganismTargetRequest,
     BenchmarkControlSet,
     CreateBatchExperimentRequest,
@@ -216,7 +215,8 @@ class TestThinkingResponse:
             reasoning="thinking...",
             updatedAt=now,
         )
-        assert t.tool_calls is not None and len(t.tool_calls) == 1
+        assert t.tool_calls is not None
+        assert len(t.tool_calls) == 1
         assert t.last_tool_calls is not None
         assert t.sub_kani_calls is not None
         assert t.updated_at == now
@@ -670,9 +670,12 @@ class TestStepResponse:
         assert s.wdk_step_id == 999
         assert s.primary_input_step_id == "s1"
         assert s.secondary_input_step_id == "s0"
-        assert s.filters is not None and len(s.filters) == 1
-        assert s.analyses is not None and len(s.analyses) == 1
-        assert s.reports is not None and len(s.reports) == 1
+        assert s.filters is not None
+        assert len(s.filters) == 1
+        assert s.analyses is not None
+        assert len(s.analyses) == 1
+        assert s.reports is not None
+        assert len(s.reports) == 1
 
     def test_serialization_by_alias(self) -> None:
         s = StepResponse(id="s1", displayName="S", resultCount=10, wdkStepId=1)
@@ -947,7 +950,8 @@ class TestPlanNormalizeResponse:
         root = PlanNode(searchName="X")
         plan = StrategyPlan(recordType="gene", root=root)
         resp = PlanNormalizeResponse(plan=plan, warnings=["param X normalized"])
-        assert resp.warnings is not None and len(resp.warnings) == 1
+        assert resp.warnings is not None
+        assert len(resp.warnings) == 1
 
 
 # ── Strategy schemas ─────────────────────────────────────────────────────────
@@ -1587,50 +1591,6 @@ class TestEnrichmentCompareRequest:
             EnrichmentCompareRequest(experimentIds=["e1"])
 
 
-class TestAiAssistRequest:
-    def test_valid(self) -> None:
-        req = AiAssistRequest(
-            siteId="plasmodb", step="search", message="Help me find genes"
-        )
-        assert req.site_id == "plasmodb"
-        assert req.step == "search"
-        assert req.context == {}
-        assert req.history == []
-        assert req.model is None
-
-    def test_all_wizard_steps(self) -> None:
-        for ws in ("search", "parameters", "controls", "run", "results", "analysis"):
-            req = AiAssistRequest(siteId="x", step=ws, message="hi")
-            assert req.step == ws
-
-    def test_invalid_step(self) -> None:
-        with pytest.raises(ValidationError):
-            AiAssistRequest(siteId="x", step="invalid", message="hi")  # type: ignore[arg-type]
-
-    def test_empty_message_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            AiAssistRequest(siteId="x", step="search", message="")
-
-    def test_message_max_length(self) -> None:
-        req = AiAssistRequest(siteId="x", step="search", message="a" * 50_000)
-        assert len(req.message) == 50_000
-        with pytest.raises(ValidationError):
-            AiAssistRequest(siteId="x", step="search", message="a" * 50_001)
-
-    def test_with_context_and_history(self) -> None:
-        req = AiAssistRequest(
-            siteId="x",
-            step="controls",
-            message="help",
-            context={"organism": "Pf"},
-            history=[{"role": "user", "content": "hi"}],
-            model="gpt-4",
-        )
-        assert req.context == {"organism": "Pf"}
-        assert len(req.history) == 1
-        assert req.model == "gpt-4"
-
-
 # ── Gene set schemas ─────────────────────────────────────────────────────────
 
 
@@ -1820,9 +1780,7 @@ class TestSSEStream:
             await send({"type": "progress", "data": {"percent": 50}})
             await send({"type": "done", "data": {"result": "ok"}})
 
-        frames: list[str] = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert len(frames) == 2
         assert frames[0] == f"event: progress\ndata: {json.dumps({'percent': 50})}\n\n"
@@ -1837,9 +1795,7 @@ class TestSSEStream:
             # This should never be yielded:
             await send({"type": "progress", "data": {"extra": True}})
 
-        frames: list[str] = []
-        async for frame in sse_stream(producer, {"done", "error"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done", "error"})]
 
         assert len(frames) == 2
         assert "error" in frames[1]
@@ -1851,9 +1807,7 @@ class TestSSEStream:
             await send({"data": {"x": 1}})
             await send({"type": "done", "data": {}})
 
-        frames: list[str] = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert len(frames) == 2
         assert frames[0].startswith("event: experiment_progress")
@@ -1864,9 +1818,7 @@ class TestSSEStream:
         async def producer(send):
             await send({"type": "done"})
 
-        frames: list[str] = []
-        async for frame in sse_stream(producer, {"done"}):
-            frames.append(frame)
+        frames = [frame async for frame in sse_stream(producer, {"done"})]
 
         assert len(frames) == 1
         assert "data: {}" in frames[0]
@@ -1877,9 +1829,10 @@ class TestSSEStream:
         async def producer(send):
             await send({"type": "completed", "data": {}})
 
-        frames: list[str] = []
-        async for frame in sse_stream(producer, {"completed", "error", "cancelled"}):
-            frames.append(frame)
+        frames = [
+            frame
+            async for frame in sse_stream(producer, {"completed", "error", "cancelled"})
+        ]
 
         assert len(frames) == 1
         assert "completed" in frames[0]

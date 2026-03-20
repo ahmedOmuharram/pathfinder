@@ -1,2 +1,2 @@
 export const normalizeRecordType = (value: string | null | undefined) =>
-  value ? value.trim() : value;
+  value != null && value !== "" ? value.trim() : value;

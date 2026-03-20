@@ -7,14 +7,13 @@
  * against strict types that don't declare those keys.
  */
 export function extractSpecVocabulary(spec: Record<string, unknown>): unknown {
-  const s = spec as Record<string, unknown>;
   return (
-    s.vocabulary ??
-    s.values ??
-    s.items ??
-    s.terms ??
-    s.options ??
-    s.allowedValues ??
+    spec["vocabulary"] ??
+    spec["values"] ??
+    spec["items"] ??
+    spec["terms"] ??
+    spec["options"] ??
+    spec["allowedValues"] ??
     undefined
   );
 }

@@ -1,5 +1,7 @@
 """Tests for pure helpers in openai_embeddings.py."""
 
+import pytest
+
 from veupath_chatbot.integrations.embeddings.openai_embeddings import _chunks
 
 
@@ -29,13 +31,9 @@ class TestChunks:
         assert result == [["a"], ["b"], ["c"]]
 
     def test_chunk_size_zero_raises(self) -> None:
-        import pytest
-
         with pytest.raises(ValueError, match="chunk size must be > 0"):
             list(_chunks(["a"], size=0))
 
     def test_negative_chunk_size_raises(self) -> None:
-        import pytest
-
         with pytest.raises(ValueError, match="chunk size must be > 0"):
             list(_chunks(["a"], size=-1))

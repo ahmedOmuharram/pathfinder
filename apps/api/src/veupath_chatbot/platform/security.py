@@ -63,9 +63,10 @@ async def get_optional_user(
         )
         user_id = UUID(payload["sub"])
         user_id_ctx.set(user_id)
-        return user_id
     except jwt.InvalidTokenError, ValueError, KeyError:
         return None
+    else:
+        return user_id
 
 
 async def get_current_user(

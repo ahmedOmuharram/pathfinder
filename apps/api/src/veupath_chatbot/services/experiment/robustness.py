@@ -24,6 +24,10 @@ from veupath_chatbot.services.experiment.types import (
 logger = get_logger(__name__)
 
 
+class _SeededRNG(random.Random):
+    """Deterministic PRNG for statistical sampling (not security use)."""
+
+
 def compute_robustness(
     result_ids: list[str],
     positive_ids: list[str],
@@ -52,7 +56,7 @@ def compute_robustness(
     if k_values is None:
         k_values = DEFAULT_K_VALUES
 
-    rng = random.Random(seed)
+    rng = _SeededRNG(seed)
 
     metric_samples: dict[str, list[float]] = defaultdict(list)
     rank_metric_samples: dict[str, list[float]] = defaultdict(list)
@@ -187,7 +191,7 @@ def _mean_jaccard(sets: list[set[str]]) -> float:
         return 1.0
     n = len(sets)
     max_pairs = 200
-    rng = random.Random(0)
+    rng = _SeededRNG(0)
     total = 0.0
     count = 0
     for _ in range(max_pairs):

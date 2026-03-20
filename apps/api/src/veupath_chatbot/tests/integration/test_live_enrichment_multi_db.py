@@ -417,8 +417,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -443,10 +443,6 @@ class TestBuildEnrichmentParamsMultiDb:
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("plasmodb", PLASMO_GENES)
 
-        print(f"\n  [PlasmoDB] search_name={search_name}, record_type={record_type}")
-        print(f"  [PlasmoDB] parameters={parameters}")
-        print(f"  [PlasmoDB] gene_count={len(PLASMO_GENES)}")
-
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
         assert "ds_gene_ids" in parameters
@@ -462,10 +458,6 @@ class TestBuildEnrichmentParamsMultiDb:
             parameters,
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("toxodb", TOXO_GENES)
-
-        print(f"\n  [ToxoDB] search_name={search_name}, record_type={record_type}")
-        print(f"  [ToxoDB] parameters={parameters}")
-        print(f"  [ToxoDB] gene_count={len(TOXO_GENES)}")
 
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
@@ -483,10 +475,6 @@ class TestBuildEnrichmentParamsMultiDb:
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("cryptodb", CRYPTO_GENES)
 
-        print(f"\n  [CryptoDB] search_name={search_name}, record_type={record_type}")
-        print(f"  [CryptoDB] parameters={parameters}")
-        print(f"  [CryptoDB] gene_count={len(CRYPTO_GENES)}")
-
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
         assert "ds_gene_ids" in parameters
@@ -502,10 +490,6 @@ class TestBuildEnrichmentParamsMultiDb:
             parameters,
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("fungidb", FUNGI_GENES)
-
-        print(f"\n  [FungiDB] search_name={search_name}, record_type={record_type}")
-        print(f"  [FungiDB] parameters={parameters}")
-        print(f"  [FungiDB] gene_count={len(FUNGI_GENES)}")
 
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
@@ -523,10 +507,6 @@ class TestBuildEnrichmentParamsMultiDb:
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("tritrypdb", TRITRYP_GENES)
 
-        print(f"\n  [TriTrypDB] search_name={search_name}, record_type={record_type}")
-        print(f"  [TriTrypDB] parameters={parameters}")
-        print(f"  [TriTrypDB] gene_count={len(TRITRYP_GENES)}")
-
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
         assert "ds_gene_ids" in parameters
@@ -542,10 +522,6 @@ class TestBuildEnrichmentParamsMultiDb:
             parameters,
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("vectorbase", VECTOR_GENES)
-
-        print(f"\n  [VectorBase] search_name={search_name}, record_type={record_type}")
-        print(f"  [VectorBase] parameters={parameters}")
-        print(f"  [VectorBase] gene_count={len(VECTOR_GENES)}")
 
         assert search_name == "GeneByLocusTag"
         assert record_type == "transcript"
@@ -578,7 +554,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("plasmodb", PLASMO_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="plasmodb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -586,19 +562,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [PlasmoDB] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -615,7 +581,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("toxodb", TOXO_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="toxodb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -623,19 +589,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [ToxoDB] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -652,7 +608,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("cryptodb", CRYPTO_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="cryptodb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -660,19 +616,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [CryptoDB] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -689,7 +635,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("fungidb", FUNGI_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="fungidb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -697,19 +643,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [FungiDB] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -726,7 +662,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("tritrypdb", TRITRYP_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="tritrypdb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -734,19 +670,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [TriTrypDB] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -763,7 +689,7 @@ class TestEnrichmentMultiDb:
         ) = await _build_enrichment_params_from_gene_ids("vectorbase", VECTOR_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="vectorbase",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -771,19 +697,9 @@ class TestEnrichmentMultiDb:
             parameters=parameters,
         )
 
-        print(f"\n  [VectorBase] results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -813,7 +729,7 @@ class TestMultiTypeEnrichment:
         ) = await _build_enrichment_params_from_gene_ids("plasmodb", PLASMO_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="plasmodb",
             analysis_types=["go_process", "go_function", "go_component"],
             search_name=search_name,
@@ -821,13 +737,8 @@ class TestMultiTypeEnrichment:
             parameters=parameters,
         )
 
-        print(f"\n  [PlasmoDB multi] results={len(results)}, errors={errors}")
-        for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
+        for _r in results:
+            pass
 
         assert len(results) == 3
         result_types = {r.analysis_type for r in results}
@@ -843,7 +754,7 @@ class TestMultiTypeEnrichment:
         ) = await _build_enrichment_params_from_gene_ids("toxodb", TOXO_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="toxodb",
             analysis_types=["go_process", "go_function"],
             search_name=search_name,
@@ -851,13 +762,8 @@ class TestMultiTypeEnrichment:
             parameters=parameters,
         )
 
-        print(f"\n  [ToxoDB multi] results={len(results)}, errors={errors}")
-        for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
+        for _r in results:
+            pass
 
         assert len(results) == 2
         result_types = {r.analysis_type for r in results}
@@ -873,7 +779,7 @@ class TestMultiTypeEnrichment:
         ) = await _build_enrichment_params_from_gene_ids("fungidb", FUNGI_GENES)
 
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="fungidb",
             analysis_types=["go_process", "go_function", "go_component"],
             search_name=search_name,
@@ -881,13 +787,8 @@ class TestMultiTypeEnrichment:
             parameters=parameters,
         )
 
-        print(f"\n  [FungiDB multi] results={len(results)}, errors={errors}")
-        for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
+        for _r in results:
+            pass
 
         assert len(results) == 3
         result_types = {r.analysis_type for r in results}
@@ -918,10 +819,8 @@ class TestLargeGeneSetEnrichment:
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("plasmodb", large_gene_set)
 
-        print(f"\n  [PlasmoDB 100 genes] dataset created: {parameters}")
-
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="plasmodb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -929,19 +828,9 @@ class TestLargeGeneSetEnrichment:
             parameters=parameters,
         )
 
-        print(f"  results={len(results)}, errors={errors}")
         for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
             if r.terms:
-                top = r.terms[0]
-                print(
-                    f"    top term: {top.term_id} - {top.term_name} "
-                    f"(p={top.p_value:.2e})"
-                )
+                r.terms[0]
 
         assert len(results) == 1
         result = results[0]
@@ -968,11 +857,8 @@ class TestEnrichmentEdgeCases:
             record_type,
         ) = await _build_enrichment_params_from_gene_ids("plasmodb", single_gene)
 
-        print(f"\n  [Single gene] gene={single_gene[0]}")
-        print(f"  search_name={search_name}, parameters={parameters}")
-
         svc = EnrichmentService()
-        results, errors = await svc.run_batch(
+        results, _errors = await svc.run_batch(
             site_id="plasmodb",
             analysis_types=["go_process"],
             search_name=search_name,
@@ -980,13 +866,8 @@ class TestEnrichmentEdgeCases:
             parameters=parameters,
         )
 
-        print(f"  results={len(results)}, errors={errors}")
-        for r in results:
-            print(
-                f"  {r.analysis_type}: {len(r.terms)} terms, "
-                f"{r.total_genes_analyzed} genes, bg={r.background_size}, "
-                f"error={r.error}"
-            )
+        for _r in results:
+            pass
 
         # Should return one result — may have zero terms but should not error
         assert len(results) == 1

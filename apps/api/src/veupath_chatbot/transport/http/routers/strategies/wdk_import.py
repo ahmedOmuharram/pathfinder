@@ -71,7 +71,7 @@ async def open_strategy(
         )
         return OpenStrategyResponse(strategyId=stream.id)
 
-    elif request.strategy_id:
+    if request.strategy_id:
         # Verify the stream exists and belongs to user.
         projection = await stream_repo.get_projection(request.strategy_id)
         if not projection or not projection.stream:
@@ -84,46 +84,46 @@ async def open_strategy(
             )
         return OpenStrategyResponse(strategyId=projection.stream_id)
 
-    else:
-        if not request.site_id:
-            raise ValidationError(
-                detail="siteId is required",
-                errors=[
-                    {
-                        "path": "siteId",
-                        "message": "Required",
-                        "code": "INVALID_PARAMETERS",
-                    }
-                ],
-            )
-        if request.wdk_strategy_id is None:
-            raise ValidationError(
-                detail="wdk_strategy_id is required",
-                errors=[
-                    {
-                        "path": "wdk_strategy_id",
-                        "message": "Required",
-                        "code": "INVALID_PARAMETERS",
-                    }
-                ],
-            )
-        try:
-            api = get_strategy_api(request.site_id)
-            projection = await sync_to_projection(
-                wdk_id=request.wdk_strategy_id,
-                site_id=request.site_id,
-                api=api,
-                stream_repo=stream_repo,
-                user_id=user_id,
-            )
-        except WDKError as e:
-            logger.error("WDK fetch failed", error=str(e))
-            raise
-        except Exception as e:
-            logger.error("WDK fetch failed", error=str(e))
-            raise WDKError(f"Failed to load WDK strategy: {e}") from e
+    if not request.site_id:
+        raise ValidationError(
+            detail="siteId is required",
+            errors=[
+                {
+                    "path": "siteId",
+                    "message": "Required",
+                    "code": "INVALID_PARAMETERS",
+                }
+            ],
+        )
+    if request.wdk_strategy_id is None:
+        raise ValidationError(
+            detail="wdk_strategy_id is required",
+            errors=[
+                {
+                    "path": "wdk_strategy_id",
+                    "message": "Required",
+                    "code": "INVALID_PARAMETERS",
+                }
+            ],
+        )
+    try:
+        api = get_strategy_api(request.site_id)
+        projection = await sync_to_projection(
+            wdk_id=request.wdk_strategy_id,
+            site_id=request.site_id,
+            api=api,
+            stream_repo=stream_repo,
+            user_id=user_id,
+        )
+    except WDKError as e:
+        logger.exception("WDK fetch failed", error=str(e))
+        raise
+    except Exception as e:
+        logger.exception("WDK fetch failed", error=str(e))
+        msg = f"Failed to load WDK strategy: {e}"
+        raise WDKError(msg) from e
 
-        return OpenStrategyResponse(strategyId=projection.stream_id)
+    return OpenStrategyResponse(strategyId=projection.stream_id)
 
 
 @router.post("/sync-wdk", response_model=list[StrategyResponse])
@@ -139,7 +139,7 @@ async def sync_all_wdk_strategies(
         api = get_strategy_api(site.id)
         wdk_items = await api.list_strategies()
         await cleanup_internal_control_test_strategies(api, wdk_items, site_id=site.id)
-    except Exception as e:
+    except (ValueError, RuntimeError, OSError) as e:
         logger.warning("WDK list failed during sync", site_id=site.id, error=str(e))
         wdk_items = []
 
@@ -163,7 +163,7 @@ async def sync_all_wdk_strategies(
                     user_id=user_id,
                     site_id=site.id,
                 )
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning(
                 "Failed to sync WDK strategy",
                 wdk_id=wdk_id,
@@ -184,7 +184,7 @@ async def sync_all_wdk_strategies(
                         site_id=site.id,
                         pruned_count=pruned,
                     )
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             logger.warning(
                 "Failed to prune orphaned streams",
                 site_id=site.id,

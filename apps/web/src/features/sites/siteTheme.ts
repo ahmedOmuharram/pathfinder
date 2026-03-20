@@ -54,7 +54,7 @@ function hexToHsl(hex: string): [number, number, number] {
  * :returns: HSL values as "H S% L%" (without the hsl() wrapper, compatible
  *     with the CSS variable format used by shadcn/tailwind).
  */
-export function getSiteHsl(siteId: string): string {
+function getSiteHsl(siteId: string): string {
   const hex = SITE_COLORS[siteId] ?? DEFAULT_COLOR;
   const [h, s, l] = hexToHsl(hex);
   return `${h} ${s}% ${l}%`;

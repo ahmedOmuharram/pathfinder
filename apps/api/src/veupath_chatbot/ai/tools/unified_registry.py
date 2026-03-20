@@ -6,12 +6,12 @@ single agent can decide which capabilities to use per turn.
 
 **Not included** from the planner:
 
-* ``DelegationToolsMixin`` – the unified agent already has
+* ``DelegationToolsMixin`` - the unified agent already has
   ``delegate_strategy_subtasks``, so plan-session delegation
   drafting/requesting is not applicable.
-* ``SiteCatalogToolsMixin`` – duplicate of executor catalog tools.
+* ``SiteCatalogToolsMixin`` - duplicate of executor catalog tools.
 * ``list_saved_planning_artifacts`` / ``get_saved_planning_artifact``
-  – removed from ArtifactToolsMixin. Artifacts are embedded in
+  - removed from ArtifactToolsMixin. Artifacts are embedded in
   strategy messages.
 """
 
@@ -47,5 +47,3 @@ class UnifiedToolRegistryMixin(
     is provided by ``PathfinderAgent`` which pushes events onto its
     streaming ``event_queue``.
     """
-
-    pass

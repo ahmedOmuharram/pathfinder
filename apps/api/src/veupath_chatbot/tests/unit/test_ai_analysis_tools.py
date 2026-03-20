@@ -1,9 +1,4 @@
-"""Tests for ExperimentAnalysisAgent._get_experiment async fix.
-
-The Kani agent constructor requires complex engine setup, so we test
-the _get_experiment method via patching rather than constructing a
-full agent.
-"""
+"""Tests for ExperimentStore.aget async lookup."""
 
 from unittest.mock import AsyncMock, patch
 

@@ -116,15 +116,15 @@ class TestExtractWdkStepId:
         assert _extract_wdk_step_id({"id": 42.0}) == 42
 
     def test_missing_id_raises(self) -> None:
-        with pytest.raises(ValueError, match="numeric step ID"):
+        with pytest.raises(TypeError, match="numeric step ID"):
             _extract_wdk_step_id({})
 
     def test_string_id_raises(self) -> None:
-        with pytest.raises(ValueError, match="numeric step ID"):
+        with pytest.raises(TypeError, match="numeric step ID"):
             _extract_wdk_step_id({"id": "not_a_number"})
 
     def test_none_id_raises(self) -> None:
-        with pytest.raises(ValueError, match="numeric step ID"):
+        with pytest.raises(TypeError, match="numeric step ID"):
             _extract_wdk_step_id({"id": None})
 
 
@@ -330,11 +330,11 @@ class TestCompileColocation:
         # Verify transform was called (colocation uses create_transform_step)
         api.create_transform_step.assert_awaited_once()
         call_kwargs = api.create_transform_step.call_args.kwargs
-        assert call_kwargs["transform_name"] == "GenesByLocation"
+        assert call_kwargs["transform_name"] == "GenesBySpanLogic"
         params = call_kwargs["parameters"]
-        assert params["upstream"] == "500"
-        assert params["downstream"] == "200"
-        assert params["strand"] == "same"
+        assert params["span_begin_offset_a"] == "500"
+        assert params["span_end_offset_a"] == "200"
+        assert params["span_sentence"] == "sentence"
 
     async def test_colocate_without_params_still_works(self) -> None:
         """When colocation_params is None, no upstream/downstream/strand params added."""

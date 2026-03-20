@@ -13,6 +13,7 @@ Skip with:
 """
 
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -112,7 +113,7 @@ class TestUpdateParameters:
                 authed_client,
                 message="Find gametocyte upregulated genes with fold change 2",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r1.http_status == 202
@@ -145,7 +146,7 @@ class TestUpdateParameters:
                 message="Change the fold change to 5",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r2.http_status == 202
@@ -171,7 +172,7 @@ class TestDeleteStep:
     Everything happens in one turn so the in-memory graph is guaranteed consistent.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         # 1. Create first step (High confidence)
         ScriptedTurn(
             tool_calls=[
@@ -233,7 +234,8 @@ class TestDeleteStep:
         # But since we can't do that with ScriptedKaniEngine easily,
         # let's just do create + create + list + confirm text, and verify the step count.
 
-        turns = list(self.TURNS) + [
+        turns = [
+            *list(self.TURNS),
             ScriptedTurn(
                 content="Created two epitope search steps with different confidence levels."
             ),
@@ -244,7 +246,7 @@ class TestDeleteStep:
                 authed_client,
                 message="Create two epitope searches and list them",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -305,7 +307,7 @@ class TestClearStrategy:
                 authed_client,
                 message="Create an epitope search",
                 site_id="plasmodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r1.http_status == 202
@@ -330,7 +332,7 @@ class TestClearStrategy:
                 message="Clear everything and start over",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r2.http_status == 202
@@ -372,7 +374,7 @@ class TestRenameStrategy:
                 authed_client,
                 message="Create an epitope search",
                 site_id="plasmodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r1.http_status == 202
@@ -402,7 +404,7 @@ class TestRenameStrategy:
                 message="Rename this strategy to Vaccine Target Candidates",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r2.http_status == 202

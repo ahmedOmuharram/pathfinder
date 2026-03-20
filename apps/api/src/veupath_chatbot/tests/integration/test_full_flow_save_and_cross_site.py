@@ -13,6 +13,7 @@ Skip with:
 """
 
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -32,7 +33,7 @@ class TestBuildAndSave:
     strategy_link SSE event.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -70,7 +71,7 @@ class TestBuildAndSave:
                 authed_client,
                 message="Build and save a strategy for epitope vaccine targets",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202
@@ -141,7 +142,7 @@ class TestGetResultCount:
                 authed_client,
                 message="Build an epitope strategy and check results",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert r1.http_status == 202
@@ -187,7 +188,7 @@ class TestGetResultCount:
                 message="How many results?",
                 site_id="plasmodb",
                 strategy_id=strategy_id,
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert r2.http_status == 202
@@ -224,7 +225,7 @@ class TestToxoDBSearch:
     Ensures the system is not hardcoded to PlasmoDB.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -256,7 +257,7 @@ class TestToxoDBSearch:
                 authed_client,
                 message="What expression searches are available on ToxoDB?",
                 site_id="toxodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert result.http_status == 202
@@ -280,7 +281,7 @@ class TestToxoDBSearch:
 class TestCryptoDBLookup:
     """Gene lookup on CryptoDB for Cryptosporidium genes."""
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -311,7 +312,7 @@ class TestCryptoDBLookup:
                 authed_client,
                 message="What gene searches are available on CryptoDB?",
                 site_id="cryptodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert result.http_status == 202
@@ -330,7 +331,7 @@ class TestGeneLookupAndResolve:
     tools against live PlasmoDB.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -367,7 +368,7 @@ class TestGeneLookupAndResolve:
                 authed_client,
                 message="Tell me about Pfs25",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202

@@ -18,7 +18,7 @@ export async function listExperiments(
   return (await requestJsonValidated(
     ExperimentSummaryListSchema,
     "/api/v1/experiments",
-    { query: siteId ? { siteId } : undefined },
+    siteId != null && siteId !== "" ? { query: { siteId } } : {},
   )) as ExperimentSummary[];
 }
 
@@ -30,7 +30,7 @@ export async function seedExperiments(
   onMessage: (message: string) => void,
   siteId?: string,
 ): Promise<void> {
-  const params = siteId ? `?site_id=${siteId}` : "";
+  const params = siteId != null && siteId !== "" ? `?site_id=${siteId}` : "";
   const url = buildUrl(`/api/v1/experiments/seed${params}`);
   const headers = getAuthHeaders({ accept: "text/event-stream" });
 
@@ -40,7 +40,7 @@ export async function seedExperiments(
     credentials: "include",
   });
 
-  if (!response.ok || !response.body) {
+  if (!response.ok || response.body == null) {
     throw new APIError(`Seed failed: HTTP ${response.status}`, {
       status: response.status,
       statusText: response.statusText,
@@ -53,7 +53,7 @@ export async function seedExperiments(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -64,8 +64,11 @@ export async function seedExperiments(
     for (const line of lines) {
       if (!line.startsWith("data:")) continue;
       try {
-        const data = JSON.parse(line.slice(5).trim());
-        if (data.message) onMessage(data.message);
+        const parsed: unknown = JSON.parse(line.slice(5).trim());
+        if (typeof parsed === "object" && parsed != null && "message" in parsed) {
+          const msg = (parsed as { message: unknown }).message;
+          if (typeof msg === "string") onMessage(msg);
+        }
       } catch {
         /* skip malformed SSE frames */
       }

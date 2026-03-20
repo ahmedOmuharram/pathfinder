@@ -1,6 +1,9 @@
 import httpx
 import respx
 
+from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
+from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
+
 
 async def test_open_strategy_requires_site_id_when_creating_new(
     authed_client: httpx.AsyncClient,
@@ -52,8 +55,6 @@ async def test_sync_wdk_creates_projections_from_summary_only(
     """
     base = "https://plasmodb.org/plasmo/service"
 
-    from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
-
     items = [
         strategy_list_item(
             strategy_id=100,
@@ -99,8 +100,6 @@ async def test_sync_wdk_populates_record_type_and_counts(
     """Sync populates recordType, stepCount, and resultCount from WDK summary."""
     base = "https://plasmodb.org/plasmo/service"
 
-    from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
-
     items = [
         strategy_list_item(
             strategy_id=100,
@@ -132,8 +131,6 @@ async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
 ) -> None:
     """GET /strategies/{id} triggers a lazy detail fetch when plan is empty."""
     base = "https://plasmodb.org/plasmo/service"
-
-    from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
 
     # Step 1: Sync to create summary-only projection
     items = [strategy_list_item(strategy_id=500, name="Lazy Load Test")]
@@ -267,8 +264,6 @@ async def test_step_counts_uses_anonymous_reports_for_leaf_only(
     base = "https://plasmodb.org/plasmo/service"
 
     # Clear the module-level cache to avoid stale results
-    from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
-
     _STEP_COUNTS_CACHE.clear()
 
     # Mock anonymous report endpoint — returns totalCount
@@ -327,8 +322,6 @@ async def test_lazy_fetch_multi_step_populates_all_counts(
 ) -> None:
     """GET /strategies/{id} lazy fetch populates resultCount for all steps in a multi-step strategy."""
     base = "https://plasmodb.org/plasmo/service"
-
-    from veupath_chatbot.tests.fixtures.wdk_responses import strategy_list_item
 
     # Step 1: Sync to create summary-only projection
     items = [strategy_list_item(strategy_id=600, name="Multi Step Counts")]

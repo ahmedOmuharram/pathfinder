@@ -16,6 +16,9 @@ from uuid import UUID, uuid4
 
 from kani import ChatMessage, ChatRole, Kani
 
+from veupath_chatbot.ai.prompts.workbench_chat import (
+    build_workbench_system_prompt,
+)
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.repositories.user import UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
@@ -24,6 +27,8 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
 from veupath_chatbot.services.chat.streaming import stream_chat
+from veupath_chatbot.services.experiment.store import get_experiment_store
+from veupath_chatbot.services.experiment.types import to_json
 
 logger = get_logger(__name__)
 
@@ -34,8 +39,8 @@ _active_tasks: dict[str, asyncio.Task[None]] = {}
 # ── Injected AI-layer dependencies ──────────────────────────────────
 # Set once at startup via configure(). Avoids services importing from ai.
 
-_create_workbench_agent: Callable[..., Kani] | None = None
-_resolve_effective_model_id: Callable[..., str] | None = None
+_create_workbench_agent_holder: dict[str, Callable[..., Kani]] = {}
+_resolve_model_id_holder: dict[str, Callable[..., str]] = {}
 
 
 def configure(
@@ -54,9 +59,8 @@ def configure(
     resolve_model_id_fn:
         Resolves the effective model ID from overrides and persisted state.
     """
-    global _create_workbench_agent, _resolve_effective_model_id
-    _create_workbench_agent = create_workbench_agent_fn
-    _resolve_effective_model_id = resolve_model_id_fn
+    _create_workbench_agent_holder["v"] = create_workbench_agent_fn
+    _resolve_model_id_holder["v"] = resolve_model_id_fn
 
 
 async def start_workbench_chat_stream(
@@ -168,11 +172,12 @@ async def _workbench_chat_producer(
     reasoning_effort: ReasoningEffort | None,
 ) -> None:
     """Background task: run the workbench LLM agent and emit every event to Redis."""
-    if _create_workbench_agent is None or _resolve_effective_model_id is None:
-        raise RuntimeError(
+    if "v" not in _create_workbench_agent_holder or "v" not in _resolve_model_id_holder:
+        msg = (
             "Workbench chat orchestrator not configured. "
             "Call services.workbench_chat.orchestrator.configure() at startup."
         )
+        raise RuntimeError(msg)
 
     redis = get_redis()
 
@@ -183,12 +188,6 @@ async def _workbench_chat_producer(
         chat_history = await _build_chat_history_from_redis(stream_id_str)
 
         # Build experiment context for prompt.
-        from veupath_chatbot.ai.prompts.workbench_chat import (
-            build_workbench_system_prompt,
-        )
-        from veupath_chatbot.services.experiment.store import get_experiment_store
-        from veupath_chatbot.services.experiment.types import to_json
-
         store = get_experiment_store()
         exp = await store.aget(experiment_id)
         experiment_context: JSONObject = {}
@@ -205,12 +204,12 @@ async def _workbench_chat_producer(
             experiment_context=experiment_context,
         )
 
-        effective_model: str = _resolve_effective_model_id(
+        effective_model: str = _resolve_model_id_holder["v"](
             model_override=model_override,
             persisted_model_id=None,
         )
 
-        agent = _create_workbench_agent(
+        agent = _create_workbench_agent_holder["v"](
             site_id=site_id,
             user_id=user_id,
             experiment_id=experiment_id,

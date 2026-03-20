@@ -86,8 +86,7 @@ def _remove_leaf_from_tree(
 
         return node
 
-    result = _prune(out)
-    return result
+    return _prune(out)
 
 
 def _extract_leaf_branch(tree: JSONObject, leaf_id: str) -> JSONObject | None:

@@ -28,7 +28,7 @@ describe("handleChatEvent — realistic execute mode", () => {
     });
 
     for (const event of EXECUTE_EPITOPE_SEARCH_EVENTS) {
-      handleChatEvent(ctx, event as ChatSSEEvent);
+      handleChatEvent(ctx, event);
     }
 
     // ── Strategy initialization (callbacks are the component interface) ──
@@ -161,7 +161,7 @@ describe("handleChatEvent — realistic execute mode", () => {
     };
 
     for (const event of EXECUTE_EPITOPE_SEARCH_EVENTS) {
-      handleChatEvent(ctx, event as ChatSSEEvent);
+      handleChatEvent(ctx, event);
     }
 
     // Before flush, messages are queued

@@ -197,12 +197,12 @@ class TestMissingFields:
     def test_step_id_not_integer(self) -> None:
         """stepId must be an integer."""
         step_tree: JSONObject = {"stepId": "abc"}
-        with pytest.raises(ValueError, match="stepId"):
+        with pytest.raises(TypeError, match="stepId"):
             build_node_from_wdk(step_tree, {}, "gene")
 
     def test_step_id_none_raises(self) -> None:
         step_tree: JSONObject = {"stepId": None}
-        with pytest.raises(ValueError, match="stepId"):
+        with pytest.raises(TypeError, match="stepId"):
             build_node_from_wdk(step_tree, {}, "gene")
 
     def test_search_config_parameters_missing(self) -> None:

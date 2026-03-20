@@ -5,6 +5,7 @@ import { parseChatSSEEvent } from "@/lib/sse_events";
 import {
   subscribeToOperation,
   type OperationSubscription,
+  type SubscribeOptions,
 } from "@/lib/operationSubscribe";
 
 interface WorkbenchChatResponse {
@@ -12,7 +13,7 @@ interface WorkbenchChatResponse {
   streamId: string;
 }
 
-export interface WorkbenchChatMessage {
+interface WorkbenchChatMessage {
   role: "user" | "assistant";
   content: string;
   messageId?: string;
@@ -21,18 +22,20 @@ export interface WorkbenchChatMessage {
   citations?: unknown[];
 }
 
-export async function postWorkbenchChat(
+async function postWorkbenchChat(
   experimentId: string,
   message: string,
   siteId: string,
   options?: { model?: string; signal?: AbortSignal },
 ): Promise<WorkbenchChatResponse> {
+  const body: { message: string; siteId: string; model?: string } = { message, siteId };
+  if (options?.model != null) body.model = options.model;
   return requestJson<WorkbenchChatResponse>(
     `/api/v1/experiments/${experimentId}/chat`,
     {
       method: "POST",
-      body: { message, siteId, model: options?.model },
-      signal: options?.signal,
+      body,
+      ...(options?.signal != null ? { signal: options.signal } : {}),
     },
   );
 }
@@ -69,15 +72,16 @@ export function streamWorkbenchChat(
       options,
     );
 
-    subscription = subscribeToOperation<RawSSEData>(operationId, {
+    const subscribeOpts: SubscribeOptions<RawSSEData> = {
       onEvent: ({ type, data }) => {
         const parsed = parseChatSSEEvent({ type, data });
-        if (parsed) callbacks.onMessage(parsed);
+        if (parsed != null) callbacks.onMessage(parsed);
       },
-      onError: callbacks.onError,
-      onComplete: callbacks.onComplete,
       endEventTypes: new Set(["message_end"]),
-    });
+    };
+    if (callbacks.onError != null) subscribeOpts.onError = callbacks.onError;
+    if (callbacks.onComplete != null) subscribeOpts.onComplete = callbacks.onComplete;
+    subscription = subscribeToOperation<RawSSEData>(operationId, subscribeOpts);
 
     return { operationId, streamId };
   })();

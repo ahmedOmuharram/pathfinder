@@ -17,13 +17,13 @@ export function TokenUsageDisplay({ usage }: TokenUsageDisplayProps) {
   if (!show || !usage.totalTokens) return null;
 
   // Guard against old messages missing new fields.
-  const cachedTokens = usage.cachedTokens ?? 0;
-  const llmCallCount = usage.llmCallCount ?? 0;
-  const subPrompt = usage.subKaniPromptTokens ?? 0;
-  const subCompletion = usage.subKaniCompletionTokens ?? 0;
-  const subCalls = usage.subKaniCallCount ?? 0;
-  const cost = usage.estimatedCostUsd ?? 0;
-  const modelId = usage.modelId ?? "";
+  const cachedTokens = usage.cachedTokens;
+  const llmCallCount = usage.llmCallCount;
+  const subPrompt = usage.subKaniPromptTokens;
+  const subCompletion = usage.subKaniCompletionTokens;
+  const subCalls = usage.subKaniCallCount;
+  const cost = usage.estimatedCostUsd;
+  const modelId = usage.modelId;
 
   const modelName = catalog.find((m) => m.id === modelId)?.name ?? modelId;
   const cacheHitRate =

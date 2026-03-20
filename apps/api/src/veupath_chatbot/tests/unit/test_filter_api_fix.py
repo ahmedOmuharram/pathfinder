@@ -7,6 +7,8 @@ the step's answerSpec.viewFilters array via GET/PATCH on the step resource.
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 # ---------------------------------------------------------------------------
@@ -18,8 +20,6 @@ class TestClientGetStepViewFilters:
     """client.get_step_view_filters extracts viewFilters from step GET."""
 
     async def test_returns_view_filters_from_step(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         step_response: JSONObject = {
             "id": 42,
@@ -37,8 +37,6 @@ class TestClientGetStepViewFilters:
         assert result == [{"name": "filter1", "value": {"min": 0}, "disabled": False}]
 
     async def test_returns_empty_when_no_view_filters(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         step_response: JSONObject = {
             "id": 42,
@@ -52,8 +50,6 @@ class TestClientGetStepViewFilters:
         assert result == []
 
     async def test_returns_empty_when_no_answer_spec(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         client.get = AsyncMock(return_value={"id": 42})
         result = await client.get_step_view_filters("12345", 42)
@@ -64,12 +60,10 @@ class TestClientUpdateStepViewFilters:
     """client.update_step_view_filters PATCHes answerSpec.viewFilters."""
 
     async def test_patches_step_with_view_filters(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         client.patch = AsyncMock(return_value={})
         filters: JSONArray = [
-            cast(JSONValue, {"name": "f1", "value": {"min": 0}, "disabled": False})
+            cast("JSONValue", {"name": "f1", "value": {"min": 0}, "disabled": False})
         ]
         await client.update_step_view_filters("12345", 42, filters)
         client.patch.assert_awaited_once_with(
@@ -78,8 +72,6 @@ class TestClientUpdateStepViewFilters:
         )
 
     async def test_patches_with_empty_filters(self) -> None:
-        from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         client.patch = AsyncMock(return_value={})
         await client.update_step_view_filters("12345", 42, [])
@@ -96,8 +88,6 @@ class TestClientUpdateStepViewFilters:
 
 def _make_filter_mixin() -> tuple[object, MagicMock]:
     """Create a FilterMixin instance with a mock client."""
-    from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
-
     client = MagicMock()
     client.get_step_view_filters = AsyncMock(return_value=[])
     client.update_step_view_filters = AsyncMock(return_value={})
@@ -112,7 +102,7 @@ class TestFilterMixinList:
     async def test_list_returns_view_filters(self) -> None:
         mixin, client = _make_filter_mixin()
         expected: JSONArray = [
-            cast(JSONValue, {"name": "f1", "value": {"min": 0}, "disabled": False})
+            cast("JSONValue", {"name": "f1", "value": {"min": 0}, "disabled": False})
         ]
         client.get_step_view_filters.return_value = expected
         result = await mixin.list_step_filters(step_id=42)  # type: ignore[union-attr]

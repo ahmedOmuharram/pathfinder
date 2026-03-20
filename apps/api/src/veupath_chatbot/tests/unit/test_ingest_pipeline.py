@@ -139,7 +139,8 @@ async def test_pipeline_on_error_callback():
 
     async def process(item: int) -> int:
         if item == 3:
-            raise ValueError("bad item")
+            msg = "bad item"
+            raise ValueError(msg)
         return item
 
     def on_error(item: int, exc: Exception) -> None:
@@ -174,7 +175,8 @@ async def test_pipeline_error_without_callback_is_silent():
 
     async def process(item: int) -> int:
         if item == 2:
-            raise RuntimeError("boom")
+            msg = "boom"
+            raise RuntimeError(msg)
         return item
 
     async def flush(batch: list[int]) -> None:

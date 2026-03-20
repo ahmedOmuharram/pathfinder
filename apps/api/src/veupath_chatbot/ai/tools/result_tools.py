@@ -16,6 +16,8 @@ from veupath_chatbot.services.wdk import (
     get_strategy_api,
 )
 
+_MAX_SAMPLE_LIMIT = 500
+
 
 class ResultTools:
     """Tools for fetching step results from VEuPathDB."""
@@ -34,7 +36,8 @@ class ResultTools:
     async def get_download_url(
         self,
         wdk_step_id: Annotated[int, AIParam(desc="WDK step ID")],
-        format: Annotated[
+        *,
+        output_format: Annotated[
             str,
             AIParam(desc="Download format: csv, tab, or json"),
         ] = "csv",
@@ -47,58 +50,24 @@ class ResultTools:
 
         The URL can be used to download results in the specified format.
         """
-        if not isinstance(wdk_step_id, int) or wdk_step_id <= 0:
-            return tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "wdk_step_id must be a positive integer.",
-                wdk_step_id=wdk_step_id,
-                expected="positive integer",
-            )
-        if format not in {"csv", "tab", "json"}:
-            return tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "format must be one of: csv, tab, json.",
-                format=format,
-                allowed=["csv", "tab", "json"],
-            )
+        validation_error = _validate_step_id(wdk_step_id)
+        if validation_error is not None:
+            return validation_error
+        validation_error = _validate_download_format(output_format)
+        if validation_error is not None:
+            return validation_error
         if attributes is not None:
-            if len(attributes) == 0:
-                return tool_error(
-                    ErrorCode.VALIDATION_ERROR,
-                    "attributes cannot be an empty list when provided.",
-                    attributes=cast(JSONValue, attributes),
-                )
-            bad_attrs = [
-                a for a in attributes if not isinstance(a, str) or not a.strip()
-            ]
-            if bad_attrs:
-                return tool_error(
-                    ErrorCode.VALIDATION_ERROR,
-                    "attributes must contain non-empty strings.",
-                    invalidAttributes=cast(JSONValue, bad_attrs),
-                )
+            validation_error = _validate_attributes(attributes)
+            if validation_error is not None:
+                return validation_error
 
         try:
             results_api = self.results_api or get_results_api(self.session.site_id)
             url = await results_api.get_download_url(
                 step_id=wdk_step_id,
-                format=format,
+                output_format=output_format,
                 attributes=attributes,
             )
-            if not isinstance(url, str) or not url:
-                return tool_error(
-                    ErrorCode.WDK_ERROR,
-                    "VEuPathDB did not provide a usable download URL for this step. "
-                    "This usually means the temporary result is still being prepared "
-                    "or the upstream payload shape changed.",
-                    wdk_step_id=wdk_step_id,
-                    format=format,
-                )
-            return {
-                "downloadUrl": url,
-                "format": format,
-                "stepId": wdk_step_id,
-            }
         except WDKError as e:
             return handle_wdk_step_error(
                 e,
@@ -106,13 +75,28 @@ class ResultTools:
                 action="download",
                 fallback_message="generating the download URL",
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return tool_error(
                 ErrorCode.WDK_ERROR,
                 "Failed to generate download URL from VEuPathDB.",
                 wdk_step_id=wdk_step_id,
                 detail=str(e),
             )
+
+        if not isinstance(url, str) or not url:
+            return tool_error(
+                ErrorCode.WDK_ERROR,
+                "VEuPathDB did not provide a usable download URL for this step. "
+                "This usually means the temporary result is still being prepared "
+                "or the upstream payload shape changed.",
+                wdk_step_id=wdk_step_id,
+                output_format=output_format,
+            )
+        return {
+            "downloadUrl": url,
+            "format": output_format,
+            "stepId": wdk_step_id,
+        }
 
     @ai_function()
     async def get_sample_records(
@@ -124,20 +108,16 @@ class ResultTools:
 
         Returns the first N records to show the user what data is available.
         """
-        if not isinstance(wdk_step_id, int) or wdk_step_id <= 0:
+        validation_error = _validate_step_id(wdk_step_id)
+        if validation_error is not None:
+            return validation_error
+        if not isinstance(limit, int) or limit < 1 or limit > _MAX_SAMPLE_LIMIT:
             return tool_error(
                 ErrorCode.VALIDATION_ERROR,
-                "wdk_step_id must be a positive integer.",
-                wdk_step_id=wdk_step_id,
-                expected="positive integer",
-            )
-        if not isinstance(limit, int) or limit < 1 or limit > 500:
-            return tool_error(
-                ErrorCode.VALIDATION_ERROR,
-                "limit must be an integer between 1 and 500.",
+                f"limit must be an integer between 1 and {_MAX_SAMPLE_LIMIT}.",
                 limit=limit,
                 min=1,
-                max=500,
+                max=_MAX_SAMPLE_LIMIT,
             )
 
         try:
@@ -146,28 +126,6 @@ class ResultTools:
                 step_id=wdk_step_id,
                 pagination={"offset": 0, "numRecords": limit},
             )
-            if not isinstance(preview_raw, dict):
-                raise TypeError("Expected dict from get_step_preview")
-            preview: dict[str, JSONValue] = {str(k): v for k, v in preview_raw.items()}
-            records_raw = preview.get("records", [])
-            records: list[JSONValue] = (
-                records_raw if isinstance(records_raw, list) else []
-            )
-            meta_raw = preview.get("meta", {})
-            meta: dict[str, JSONValue] = meta_raw if isinstance(meta_raw, dict) else {}
-            total_count_raw = meta.get("totalCount", 0)
-            total_count: int = (
-                total_count_raw if isinstance(total_count_raw, int) else 0
-            )
-            attributes_list: list[str] = []
-            if records and isinstance(records[0], dict):
-                attributes_list = [str(k) for k in records[0]]
-            attributes: JSONValue = cast(JSONValue, attributes_list)
-            return {
-                "records": records,
-                "totalCount": total_count,
-                "attributes": attributes,
-            }
         except WDKError as e:
             return handle_wdk_step_error(
                 e,
@@ -175,10 +133,77 @@ class ResultTools:
                 action="read",
                 fallback_message="reading step records",
             )
-        except Exception as e:
+        except (OSError, ValueError, TypeError) as e:
             return tool_error(
                 ErrorCode.WDK_ERROR,
                 "Failed to fetch sample records from VEuPathDB.",
                 wdk_step_id=wdk_step_id,
                 detail=str(e),
             )
+
+        if not isinstance(preview_raw, dict):
+            return tool_error(
+                ErrorCode.WDK_ERROR,
+                "VEuPathDB returned unexpected response format.",
+                wdk_step_id=wdk_step_id,
+            )
+
+        return _extract_sample_response(preview_raw)
+
+
+def _validate_step_id(wdk_step_id: int) -> JSONObject | None:
+    if not isinstance(wdk_step_id, int) or wdk_step_id <= 0:
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            "wdk_step_id must be a positive integer.",
+            wdk_step_id=wdk_step_id,
+            expected="positive integer",
+        )
+    return None
+
+
+def _validate_download_format(output_format: str) -> JSONObject | None:
+    if output_format not in {"csv", "tab", "json"}:
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            "format must be one of: csv, tab, json.",
+            output_format=output_format,
+            allowed=["csv", "tab", "json"],
+        )
+    return None
+
+
+def _validate_attributes(attributes: list[str]) -> JSONObject | None:
+    if len(attributes) == 0:
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            "attributes cannot be an empty list when provided.",
+            attributes=cast("JSONValue", attributes),
+        )
+    bad_attrs = [a for a in attributes if not isinstance(a, str) or not a.strip()]
+    if bad_attrs:
+        return tool_error(
+            ErrorCode.VALIDATION_ERROR,
+            "attributes must contain non-empty strings.",
+            invalidAttributes=cast("JSONValue", bad_attrs),
+        )
+    return None
+
+
+def _extract_sample_response(preview_raw: dict[str, JSONValue]) -> JSONObject:
+    preview: dict[str, JSONValue] = {str(k): v for k, v in preview_raw.items()}
+    records_raw = preview.get("records", [])
+    records: list[JSONValue] = records_raw if isinstance(records_raw, list) else []
+    meta_raw = preview.get("meta", {})
+    meta: dict[str, JSONValue] = meta_raw if isinstance(meta_raw, dict) else {}
+    total_count_raw = meta.get("totalCount", 0)
+    total_count: int = total_count_raw if isinstance(total_count_raw, int) else 0
+    attributes_list: list[str] = []
+    if records and isinstance(records[0], dict):
+        attributes_list = [str(k) for k in records[0]]
+    attributes: JSONValue = cast("JSONValue", attributes_list)
+    return {
+        "records": records,
+        "totalCount": total_count,
+        "attributes": attributes,
+    }

@@ -1,7 +1,7 @@
 import { test, expect } from "../fixtures/test";
 import { clearAllGeneSets } from "../fixtures/api-client";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 test.describe("Gene Set Analysis Pipeline", () => {
   test("add overlapping sets, perform intersection, verify counts, run enrichment on derived set", async ({

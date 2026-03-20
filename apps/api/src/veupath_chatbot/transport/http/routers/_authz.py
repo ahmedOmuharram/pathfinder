@@ -23,5 +23,5 @@ async def get_owned_projection_or_404(
 ) -> StreamProjection:
     projection = await get_projection_or_404(stream_repo, stream_id)
     if not projection.stream or projection.stream.user_id != user_id:
-        raise ForbiddenError()
+        raise ForbiddenError
     return projection

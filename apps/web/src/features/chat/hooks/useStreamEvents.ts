@@ -14,6 +14,7 @@ import type {
   PlanningArtifact,
   Step,
   Strategy,
+  SubKaniTokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/lib/sse_events";
@@ -21,6 +22,10 @@ import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
 import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 import { useSessionStore } from "@/state/useSessionStore";
+import {
+  persistReasoningToLastMessage,
+  persistOptimizationDataToLastMessage,
+} from "@/features/chat/hooks/streamCompletionHelpers";
 import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -29,7 +34,7 @@ import type { StreamSessionState } from "@/features/chat/handlers/handleChatEven
 type Thinking = ReturnType<typeof useThinkingState>;
 type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
 
-export interface StreamEventDeps {
+interface StreamEventDeps {
   siteId: string;
   thinking: Thinking;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -60,7 +65,7 @@ export interface StreamEventDeps {
   onWorkbenchGeneSet?: ChatEventContext["onWorkbenchGeneSet"];
 }
 
-export interface StreamEventCallbacks {
+interface StreamEventCallbacks {
   onMessage: (event: ChatSSEEvent) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
@@ -118,10 +123,7 @@ export function useStreamEvents(deps: StreamEventDeps) {
       const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
       const subKaniStatusBuffer: Record<string, string> = {};
       const subKaniModelsBuffer: Record<string, string> = {};
-      const subKaniTokenUsageBuffer: Record<
-        string,
-        import("@pathfinder/shared").SubKaniTokenUsage
-      > = {};
+      const subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage> = {};
 
       const streamState: StreamSessionState = {
         streamingAssistantIndex: null,
@@ -161,9 +163,9 @@ export function useStreamEvents(deps: StreamEventDeps) {
         getStrategy,
         streamState,
         setOptimizationProgress,
-        setSelectedModelId,
-        onApiError,
-        onWorkbenchGeneSet,
+        ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
+        ...(onApiError != null ? { onApiError } : {}),
+        ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
       };
 
       return {
@@ -187,41 +189,20 @@ export function useStreamEvents(deps: StreamEventDeps) {
             subKaniActivity,
           );
 
-          // Persist reasoning to the last assistant message.
-          const savedReasoning = streamState.reasoning;
-          if (savedReasoning) {
-            setMessages((prev) => {
-              for (let i = prev.length - 1; i >= 0; i -= 1) {
-                if (prev[i].role !== "assistant") continue;
-                const msg = prev[i];
-                if (msg.reasoning) return prev;
-                const next = [...prev];
-                next[i] = { ...msg, reasoning: savedReasoning };
-                return next;
-              }
-              return prev;
-            });
-          }
-
-          // Force-write optimization data to the last assistant message.
-          const savedOptimization = streamState.optimizationProgress;
-          if (savedOptimization) {
-            setMessages((prev) => {
-              for (let i = prev.length - 1; i >= 0; i -= 1) {
-                if (prev[i].role !== "assistant") continue;
-                const next = [...prev];
-                next[i] = {
-                  ...prev[i],
-                  optimizationProgress: savedOptimization,
-                };
-                return next;
-              }
-              return prev;
-            });
-          }
+          // Persist buffered reasoning & optimization data to messages.
+          setMessages((prev) =>
+            persistOptimizationDataToLastMessage(
+              persistReasoningToLastMessage(prev, streamState.reasoning),
+              streamState.optimizationProgress,
+            ),
+          );
 
           // Refresh strategy from server if no snapshot was applied.
-          if (effectiveStrategyId && !session.snapshotApplied) {
+          if (
+            effectiveStrategyId != null &&
+            effectiveStrategyId !== "" &&
+            !session.snapshotApplied
+          ) {
             getStrategy(effectiveStrategyId)
               .then((full) => {
                 const currentId = useSessionStore.getState().strategyId;
@@ -229,7 +210,7 @@ export function useStreamEvents(deps: StreamEventDeps) {
                 setStrategy(full);
                 setStrategyMeta({
                   name: full.name,
-                  recordType: full.recordType ?? undefined,
+                  ...(full.recordType != null ? { recordType: full.recordType } : {}),
                   siteId: full.siteId,
                 });
               })

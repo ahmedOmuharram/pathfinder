@@ -118,7 +118,8 @@ export class WorkbenchMainPage {
     for (let i = 0; i < tabCount; i++) {
       const text = (await tabs.nth(i).textContent()) ?? "";
       const match = text.match(/(\d+)\s*$/);
-      if (match && parseInt(match[1], 10) > 0) {
+      const matchedNum = match?.[1];
+      if (matchedNum !== undefined && parseInt(matchedNum, 10) > 0) {
         await tabs.nth(i).click();
         break;
       }

@@ -15,6 +15,8 @@ from uuid import uuid4
 from veupath_chatbot.ai.tools.planner.artifact_tools import ArtifactToolsMixin
 from veupath_chatbot.ai.tools.planner.gene_tools import GeneToolsMixin
 from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
+from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
@@ -138,8 +140,8 @@ class TestArtifactToolsEdgeCases:
             title=None,
             summary_markdown="content",
         )
-        # (title or "").strip() or "New Conversation"
-        # -> ("" or "").strip() or "New Conversation"
+        # Blank title falls through to "New Conversation" via the
+        # `(title or "").strip() or "New Conversation"` logic.
         # -> "" or "New Conversation"
         # -> "New Conversation"
         assert result["planningArtifact"]["title"] == "New Conversation"
@@ -209,24 +211,17 @@ class TestWorkbenchListEdgeCases:
 
 class TestToolErrorFormat:
     def test_tool_error_with_enum_code(self):
-        from veupath_chatbot.platform.errors import ErrorCode
-        from veupath_chatbot.platform.tool_errors import tool_error
-
         result = tool_error(ErrorCode.STEP_NOT_FOUND, "Step not found")
         assert result["ok"] is False
         assert result["code"] == "STEP_NOT_FOUND"
         assert result["message"] == "Step not found"
 
     def test_tool_error_with_string_code(self):
-        from veupath_chatbot.platform.tool_errors import tool_error
-
         result = tool_error("CUSTOM_ERROR", "Something broke")
         assert result["ok"] is False
         assert result["code"] == "CUSTOM_ERROR"
 
     def test_tool_error_with_details(self):
-        from veupath_chatbot.platform.tool_errors import tool_error
-
         result = tool_error("ERR", "msg", step_id="s1", count=42)
         assert result["ok"] is False
         assert "details" in result
@@ -234,16 +229,12 @@ class TestToolErrorFormat:
         assert result["count"] == 42
 
     def test_tool_error_none_details_excluded_from_top_level(self):
-        from veupath_chatbot.platform.tool_errors import tool_error
-
         result = tool_error("ERR", "msg", step_id=None, count=42)
         # None values should NOT be promoted to top level
         assert "step_id" not in result or result["step_id"] is None
         assert result["count"] == 42
 
     def test_tool_error_no_details(self):
-        from veupath_chatbot.platform.tool_errors import tool_error
-
         result = tool_error("ERR", "msg")
         assert result["ok"] is False
         assert "details" not in result

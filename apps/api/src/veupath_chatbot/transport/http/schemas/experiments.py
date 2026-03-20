@@ -4,13 +4,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     EnrichmentAnalysisType,
     ExperimentMode,
     OptimizationObjective,
-    WizardStep,
 )
 
 
@@ -230,18 +229,5 @@ class EnrichmentCompareRequest(BaseModel):
 
     experiment_ids: list[str] = Field(alias="experimentIds", min_length=2)
     analysis_type: str | None = Field(default=None, alias="analysisType")
-
-    model_config = {"populate_by_name": True}
-
-
-class AiAssistRequest(BaseModel):
-    """Request for the experiment wizard AI assistant."""
-
-    site_id: str = Field(alias="siteId")
-    step: WizardStep
-    message: str = Field(min_length=1, max_length=50_000)
-    context: JSONObject = Field(default_factory=dict)
-    history: JSONArray = Field(default_factory=list)
-    model: str | None = Field(default=None)
 
     model_config = {"populate_by_name": True}

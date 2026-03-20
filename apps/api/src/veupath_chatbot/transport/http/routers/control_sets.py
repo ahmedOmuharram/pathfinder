@@ -29,7 +29,7 @@ class CreateControlSetRequest(BaseModel):
     source: str | None = None
     tags: list[str] = Field(default_factory=list)
     provenance_notes: str | None = Field(None, alias="provenanceNotes")
-    is_public: bool = Field(False, alias="isPublic")
+    is_public: bool = Field(default=False, alias="isPublic")
 
     model_config = {"populate_by_name": True}
 

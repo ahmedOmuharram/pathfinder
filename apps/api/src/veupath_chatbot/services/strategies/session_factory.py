@@ -14,6 +14,72 @@ from veupath_chatbot.platform.types import JSONObject
 logger = get_logger(__name__)
 
 
+def _restore_wdk_state(graph: StrategyGraph, strategy_graph: JSONObject) -> None:
+    """Restore WDK build state (strategy ID, step IDs, counts) from persisted data.
+
+    This runs regardless of whether the graph was loaded from plan or
+    from steps hydration, because the plan AST doesn't carry WDK step
+    IDs -- only the persisted steps snapshot does.
+    """
+    wdk_strategy_id = strategy_graph.get("wdkStrategyId")
+    if isinstance(wdk_strategy_id, int):
+        graph.wdk_strategy_id = wdk_strategy_id
+
+    steps_data_for_wdk = strategy_graph.get("steps")
+    if not isinstance(steps_data_for_wdk, list):
+        return
+    for step in steps_data_for_wdk:
+        if not isinstance(step, dict):
+            continue
+        sid = step.get("id")
+        if sid is None:
+            continue
+        sid = str(sid)
+        wdk_step_id = step.get("wdkStepId")
+        if isinstance(wdk_step_id, int) and sid in graph.steps:
+            graph.wdk_step_ids[sid] = wdk_step_id
+        result_count = step.get("resultCount") or step.get("estimatedSize")
+        if isinstance(result_count, int) and sid in graph.steps:
+            graph.step_counts[sid] = result_count
+
+
+def _hydrate_graph_fallback(
+    graph: StrategyGraph, strategy_graph: JSONObject, name: str
+) -> None:
+    """Fall back to persisted steps/rootStepId hydration when plan is missing."""
+    steps_data_value = strategy_graph.get("steps")
+    steps_data = steps_data_value if isinstance(steps_data_value, list) else []
+    root_step_id_value = strategy_graph.get("rootStepId")
+    root_step_id_alt = strategy_graph.get("root_step_id")
+    root_step_id: str | None = None
+    if isinstance(root_step_id_value, str):
+        root_step_id = root_step_id_value
+    elif isinstance(root_step_id_alt, str):
+        root_step_id = root_step_id_alt
+    record_type_value = strategy_graph.get("recordType")
+    record_type_alt = strategy_graph.get("record_type")
+    record_type: str | None = None
+    if isinstance(record_type_value, str):
+        record_type = record_type_value
+    elif isinstance(record_type_alt, str):
+        record_type = record_type_alt
+    try:
+        hydrate_graph_from_steps_data(
+            graph,
+            steps_data,
+            root_step_id=root_step_id,
+            record_type=record_type,
+        )
+        if graph.steps:
+            graph.save_history(f"Loaded graph from persisted steps: {name}")
+    except Exception as e:
+        logger.warning(
+            "Failed to hydrate graph from persisted steps",
+            error=str(e),
+            graph_id=graph.id,
+        )
+
+
 def build_strategy_session(
     *,
     site_id: str,
@@ -28,7 +94,6 @@ def build_strategy_session(
     :param site_id: VEuPathDB site identifier.
     :param strategy_graph: JSONObject | None.
     """
-
     session = StrategySession(site_id)
 
     if strategy_graph:
@@ -62,65 +127,10 @@ def build_strategy_session(
                     graph_id=graph_id,
                 )
 
-        # If plan wasn't available/valid, fall back to persisted steps/
-        # rootStepId hydration.
         if not graph.steps:
-            steps_data_value = strategy_graph.get("steps")
-            steps_data = steps_data_value if isinstance(steps_data_value, list) else []
-            root_step_id_value = strategy_graph.get("rootStepId")
-            root_step_id_alt = strategy_graph.get("root_step_id")
-            root_step_id: str | None = None
-            if isinstance(root_step_id_value, str):
-                root_step_id = root_step_id_value
-            elif isinstance(root_step_id_alt, str):
-                root_step_id = root_step_id_alt
-            record_type_value = strategy_graph.get("recordType")
-            record_type_alt = strategy_graph.get("record_type")
-            record_type: str | None = None
-            if isinstance(record_type_value, str):
-                record_type = record_type_value
-            elif isinstance(record_type_alt, str):
-                record_type = record_type_alt
-            try:
-                hydrate_graph_from_steps_data(
-                    graph,
-                    steps_data,
-                    root_step_id=root_step_id,
-                    record_type=record_type,
-                )
-                if graph.steps:
-                    graph.save_history(f"Loaded graph from persisted steps: {name}")
-            except Exception as e:
-                logger.warning(
-                    "Failed to hydrate graph from persisted steps",
-                    error=str(e),
-                    graph_id=graph_id,
-                )
+            _hydrate_graph_fallback(graph, strategy_graph, name)
 
-        # Restore WDK build state from the persisted projection.
-        # This runs regardless of whether the graph was loaded from plan
-        # or from steps hydration, because the plan AST doesn't carry
-        # WDK step IDs — only the persisted steps snapshot does.
-        wdk_strategy_id = strategy_graph.get("wdkStrategyId")
-        if isinstance(wdk_strategy_id, int):
-            graph.wdk_strategy_id = wdk_strategy_id
-
-        steps_data_for_wdk = strategy_graph.get("steps")
-        if isinstance(steps_data_for_wdk, list):
-            for step in steps_data_for_wdk:
-                if not isinstance(step, dict):
-                    continue
-                sid = step.get("id")
-                if sid is None:
-                    continue
-                sid = str(sid)
-                wdk_step_id = step.get("wdkStepId")
-                if isinstance(wdk_step_id, int) and sid in graph.steps:
-                    graph.wdk_step_ids[sid] = wdk_step_id
-                result_count = step.get("resultCount") or step.get("estimatedSize")
-                if isinstance(result_count, int) and sid in graph.steps:
-                    graph.step_counts[sid] = result_count
-
+        _restore_wdk_state(graph, strategy_graph)
         session.add_graph(graph)
 
     if not session.get_graph(None):

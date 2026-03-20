@@ -12,7 +12,7 @@ export function ResponsePart({ message, onApplyPlanningArtifact }: ResponsePartP
     <div className="rounded-lg px-3 py-2 border border-border bg-muted text-foreground">
       <ChatMarkdown
         content={message.content}
-        citations={message.citations}
+        {...(message.citations != null ? { citations: message.citations } : {})}
         tone="default"
       />
       {Array.isArray(message.planningArtifacts) &&

@@ -55,7 +55,7 @@ class StrategyGraphOps(StrategyToolsHelpers):
         if not graph:
             return self._graph_not_found(graph_id)
         steps: JSONArray = []
-        for _, step in graph.steps.items():
+        for step in graph.steps.values():
             steps.append(self._serialize_step(graph, step))
 
         wdk_strategy_id_value: JSONValue = graph.wdk_strategy_id
@@ -91,9 +91,9 @@ class StrategyGraphOps(StrategyToolsHelpers):
             "ok": ok,
             "graphId": graph.id,
             "graphName": graph.name,
-            "rootStepIds": cast(JSONArray, root_step_ids),
+            "rootStepIds": cast("JSONArray", root_step_ids),
             "rootCount": len(root_step_ids),
-            "errors": cast(JSONArray, errors),
+            "errors": cast("JSONArray", errors),
             "graphSnapshot": self._build_graph_snapshot(graph),
         }
         if not ok:
@@ -101,14 +101,13 @@ class StrategyGraphOps(StrategyToolsHelpers):
             payload["message"] = "Graph validation failed."
             if len(root_step_ids) > 1:
                 payload["suggestedFix"] = cast(
-                    JSONObject,
+                    "JSONObject",
                     {
                         "action": "UNION_ROOTS",
                         "operator": "UNION",
-                        "inputs": cast(JSONArray, root_step_ids),
+                        "inputs": cast("JSONArray", root_step_ids),
                     },
                 )
-            return payload
 
         return payload
 
@@ -143,42 +142,33 @@ class StrategyGraphOps(StrategyToolsHelpers):
 
         validation = await self.validate_graph_structure(graph_id=graph.id)
         if validation.get("ok") is True:
-            root_ids_raw = validation.get("rootStepIds")
-            root_ids = root_ids_raw if isinstance(root_ids_raw, list) else []
-            graph_snapshot = validation.get("graphSnapshot")
-            return {
-                "ok": True,
-                "graphId": graph.id,
-                "graphName": graph.name,
-                "rootStepId": root_ids[0] if root_ids else None,
-                "rootStepIds": root_ids,
-                "graphSnapshot": graph_snapshot,
-            }
+            return _build_single_output_response(graph, validation)
 
         root_ids_raw = validation.get("rootStepIds")
         root_ids = list(root_ids_raw if isinstance(root_ids_raw, list) else [])
-        if len(root_ids) == 0:
-            # Return validation dict directly - it's already JSONObject
-            result: JSONObject = validation
-            return result
-        if len(root_ids) == 1:
-            graph_snapshot = validation.get("graphSnapshot")
-            return {
-                "ok": True,
-                "graphId": graph.id,
-                "graphName": graph.name,
-                "rootStepId": root_ids[0],
-                "rootStepIds": root_ids,
-                "graphSnapshot": graph_snapshot,
-            }
+        if len(root_ids) <= 1:
+            return _build_single_output_response(graph, validation)
 
+        return await self._chain_combines(
+            graph=graph,
+            root_ids=root_ids,
+            operator=operator,
+            display_name=display_name,
+        )
+
+    async def _chain_combines(
+        self,
+        *,
+        graph: object,
+        root_ids: list[JSONValue],
+        operator: str,
+        display_name: str | None,
+    ) -> JSONObject:
+        """Chain binary combines to reduce multiple roots to one."""
         current = root_ids[0]
-        last_response: JSONObject | None = None
         for index, next_id in enumerate(root_ids[1:], start=1):
             is_final = index == len(root_ids) - 1
-            # create_step is provided by StrategyStepOps via multiple inheritance in StrategyTools.
-            # Cast to Protocol to satisfy type checker - this method exists at runtime via mixin.
-            create_step_self = cast("CreateStepProtocol", cast(object, self))
+            create_step_self = cast("CreateStepProtocol", cast("object", self))
             last_response = await create_step_self.create_step(
                 primary_input_step_id=current,
                 secondary_input_step_id=next_id,
@@ -217,3 +207,20 @@ class StrategyGraphOps(StrategyToolsHelpers):
             "graphSnapshot": graph_snapshot,
             "validation": final_validation,
         }
+
+
+def _build_single_output_response(graph: object, validation: JSONObject) -> JSONObject:
+    """Build response when graph already has a single output or no roots."""
+    root_ids_raw = validation.get("rootStepIds")
+    root_ids = root_ids_raw if isinstance(root_ids_raw, list) else []
+    graph_snapshot = validation.get("graphSnapshot")
+    if not root_ids:
+        return validation
+    return {
+        "ok": True,
+        "graphId": graph.id,
+        "graphName": graph.name,
+        "rootStepId": root_ids[0] if root_ids else None,
+        "rootStepIds": root_ids,
+        "graphSnapshot": graph_snapshot,
+    }

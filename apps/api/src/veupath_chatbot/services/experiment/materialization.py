@@ -107,7 +107,7 @@ async def _materialize_step_tree(
         return StepTreeNode(
             step_id, primary_input=primary_tree, secondary_input=secondary_tree
         )
-    elif primary_tree is not None:
+    if primary_tree is not None:
         step = await api.create_transform_step(
             input_step_id=primary_tree.step_id,
             transform_name=search_name,
@@ -117,15 +117,14 @@ async def _materialize_step_tree(
         )
         step_id = coerce_step_id(step)
         return StepTreeNode(step_id, primary_input=primary_tree)
-    else:
-        step = await api.create_step(
-            record_type=record_type,
-            search_name=search_name,
-            parameters=parameters,
-            custom_name=display_name,
-        )
-        step_id = coerce_step_id(step)
-        return StepTreeNode(step_id)
+    step = await api.create_step(
+        record_type=record_type,
+        search_name=search_name,
+        parameters=parameters,
+        custom_name=display_name,
+    )
+    step_id = coerce_step_id(step)
+    return StepTreeNode(step_id)
 
 
 async def _persist_experiment_strategy(
@@ -179,7 +178,8 @@ async def _persist_experiment_strategy(
     )
     strategy_id = extract_wdk_id(created)
     if strategy_id is None:
-        raise ValueError("Failed to create WDK strategy for experiment")
+        msg = "Failed to create WDK strategy for experiment"
+        raise ValueError(msg)
 
     logger.info(
         "Persisted WDK strategy for experiment",
@@ -206,7 +206,8 @@ async def _persist_import_strategy(
     :returns: Dict with ``strategy_id`` and ``step_id``.
     """
     if not config.source_strategy_id:
-        raise ValueError("source_strategy_id is required for import mode")
+        msg = "source_strategy_id is required for import mode"
+        raise ValueError(msg)
     source_id = int(config.source_strategy_id)
 
     # WDK POST .../duplicated-step-tree returns {"stepTree": {...}}
@@ -214,7 +215,8 @@ async def _persist_import_strategy(
         f"/users/{api.user_id}/strategies/{source_id}/duplicated-step-tree"
     )
     if not isinstance(dup_resp, dict) or "stepTree" not in dup_resp:
-        raise ValueError(f"Failed to duplicate step tree from strategy {source_id}")
+        msg = f"Failed to duplicate step tree from strategy {source_id}"
+        raise ValueError(msg)
 
     raw_tree = as_json_object(dup_resp["stepTree"])
 
@@ -227,7 +229,8 @@ async def _persist_import_strategy(
         elif isinstance(raw_sid, (str, float)):
             sid = int(raw_sid)
         else:
-            raise ValueError(f"Invalid stepId type: {type(raw_sid)}")
+            msg = f"Invalid stepId type: {type(raw_sid)}"
+            raise TypeError(msg)
         primary = t.get("primaryInput")
         secondary = t.get("secondaryInput")
         return StepTreeNode(
@@ -248,7 +251,8 @@ async def _persist_import_strategy(
     )
     strategy_id = extract_wdk_id(created)
     if strategy_id is None:
-        raise ValueError("Failed to create WDK strategy from imported tree")
+        msg = "Failed to create WDK strategy from imported tree"
+        raise ValueError(msg)
 
     logger.info(
         "Persisted imported WDK strategy for experiment",

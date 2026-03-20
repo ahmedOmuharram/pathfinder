@@ -11,7 +11,7 @@ from .results import router as results_router
 router = APIRouter(prefix="/api/v1/experiments", tags=["experiments"])
 
 # Include order matters: non-parametric paths (/batch, /benchmark, /overlap,
-# /enrichment-compare, /ai-assist, /importable-strategies) must be registered
+# /enrichment-compare, /importable-strategies) must be registered
 # before /{experiment_id} to avoid route shadowing.
 router.include_router(execution_router)
 router.include_router(analysis_router)

@@ -27,8 +27,12 @@ export function useGraphSnapshot({
 }: UseGraphSnapshotArgs) {
   const applyGraphSnapshot = useCallback(
     (graphSnapshot: GraphSnapshotInput) => {
-      if (!graphSnapshot) return;
-      const snapshotId = graphSnapshot.graphId || strategyId || null;
+      const snapshotId =
+        (graphSnapshot.graphId != null && graphSnapshot.graphId !== ""
+          ? graphSnapshot.graphId
+          : null) ??
+        strategyId ??
+        null;
       if (!snapshotId) return;
       if (strategyId && snapshotId !== strategyId) {
         return;
@@ -45,8 +49,12 @@ export function useGraphSnapshot({
       setStrategy(nextStrategy);
       setStrategyMeta({
         name: nextStrategy.name,
-        description: nextStrategy.description,
-        recordType: nextStrategy.recordType ?? undefined,
+        ...(nextStrategy.description != null
+          ? { description: nextStrategy.description }
+          : {}),
+        ...(nextStrategy.recordType != null
+          ? { recordType: nextStrategy.recordType }
+          : {}),
       });
       session?.markSnapshotApplied();
     },

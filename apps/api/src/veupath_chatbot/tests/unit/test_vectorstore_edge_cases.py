@@ -12,6 +12,7 @@ Covers:
 """
 
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from unittest.mock import AsyncMock
@@ -40,6 +41,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.wdk_transform import (
     build_search_doc,
 )
 from veupath_chatbot.integrations.vectorstore.qdrant_store import (
+    QdrantStore,
     context_hash,
     point_uuid,
     sha256_hex,
@@ -148,8 +150,6 @@ class TestGetWithClientDenseVector:
     async def _call(
         self, vector: list[float] | None, payload: dict[str, object] | None = None
     ) -> dict[str, object] | None:
-        from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
-
         store = QdrantStore(url="http://localhost:6333")
         fake_client = AsyncMock()
         fake_client.retrieve = AsyncMock(
@@ -191,8 +191,6 @@ class TestGetWithClientDenseVector:
 
     @pytest.mark.asyncio
     async def test_empty_result_returns_none(self) -> None:
-        from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
-
         store = QdrantStore(url="http://localhost:6333")
         fake_client = AsyncMock()
         fake_client.retrieve = AsyncMock(return_value=[])
@@ -201,8 +199,6 @@ class TestGetWithClientDenseVector:
 
     @pytest.mark.asyncio
     async def test_qdrant_error_returns_none(self) -> None:
-        from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
-
         store = QdrantStore(url="http://localhost:6333")
         fake_client = AsyncMock()
         fake_client.retrieve = AsyncMock(side_effect=RuntimeError("connection refused"))
@@ -267,7 +263,7 @@ class TestTruncateRobustness:
     def test_max_chars_less_than_suffix_len(self) -> None:
         """When max_chars < suffix length, result is just the suffix."""
         result = truncate("hello world!", max_chars=5)
-        # s[:max(0, 5-20)] = s[:0] = "" + suffix
+        # Slice yields empty string since max_chars < suffix length
         assert result == "\u2026(truncated)"
 
     def test_exact_boundary(self) -> None:
@@ -499,7 +495,7 @@ class TestPreviewVocabEdgeCases:
             {"display": "Display 2", "value": "val2"},
             "plain_string",
         ]
-        values, truncated = _preview_vocab(vocab)
+        values, _truncated = _preview_vocab(vocab)
         # Should handle all three formats
         assert len(values) >= 2
 
@@ -529,8 +525,6 @@ class TestCollectionNameSafety:
             assert " " not in name
 
     def test_no_special_chars(self) -> None:
-        import re
-
         for name in (
             WDK_RECORD_TYPES_V1,
             WDK_SEARCHES_V1,

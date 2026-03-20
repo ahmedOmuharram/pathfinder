@@ -193,9 +193,7 @@ def _find_bound_partner(
 def _is_lower_bound(pname: str) -> bool:
     """Determine if a parameter represents a lower bound."""
     name_l = pname.lower()
-    return (
-        name_l.endswith("_lower") or name_l.endswith("_min") or name_l.startswith("min")
-    )
+    return name_l.endswith(("_lower", "_min")) or name_l.startswith("min")
 
 
 def _constrain_sweep_range(
@@ -217,14 +215,176 @@ def _constrain_sweep_range(
         if effective_max <= min_val:
             effective_max = partner_current
         return min_val, effective_max
-    else:
-        effective_min = max(min_val, partner_current)
-        if effective_min >= max_val:
-            effective_min = partner_current
-        return effective_min, max_val
+    effective_min = max(min_val, partner_current)
+    if effective_min >= max_val:
+        effective_min = partner_current
+    return effective_min, max_val
 
 
 _MINIMUM_F1_IMPROVEMENT = 0.0
+
+
+def _pick_recommendation(
+    pname: str,
+    current: float,
+    sweep_points: list[ParameterSweepPoint],
+    partner_current: float | None,
+) -> tuple[float, str]:
+    """Select the recommended value and build a human-readable recommendation string.
+
+    Returns ``(recommended_value, recommendation_text)``.
+    """
+    cur_point = (
+        min(sweep_points, key=lambda p: abs(p.value - current))
+        if sweep_points
+        else None
+    )
+    cur_f1 = cur_point.f1 if cur_point else 0.0
+
+    best_point = max(sweep_points, key=lambda p: p.f1) if sweep_points else None
+    improvement = (best_point.f1 - cur_f1) if best_point else 0.0
+
+    if best_point and improvement > _MINIMUM_F1_IMPROVEMENT:
+        recommended_value = best_point.value
+    else:
+        recommended_value = current
+        best_point = cur_point
+
+    # For bound params, validate the recommendation doesn't violate its partner
+    if (
+        partner_current is not None
+        and best_point
+        and (
+            (_is_lower_bound(pname) and recommended_value > partner_current)
+            or (not _is_lower_bound(pname) and recommended_value < partner_current)
+        )
+    ):
+        recommended_value = current
+
+    recommendation = ""
+    if best_point and abs(recommended_value - current) > 1e-6 and cur_point:
+        recommendation = (
+            f"Changing {pname} from {current:.4g} to {recommended_value:.4g} "
+            f"changes recall {cur_point.recall:.0%} -> {best_point.recall:.0%}"
+            f" and FPR {cur_point.fpr:.0%} -> {best_point.fpr:.0%}"
+        )
+
+    return recommended_value, recommendation
+
+
+def _prepare_sweep_range(
+    spec: _NumericParamSpec, leaf_all_params: list[_NumericParamSpec]
+) -> tuple[float, float, float, _NumericParamSpec | None, float | None]:
+    """Constrain the sweep range for a parameter, respecting bound partners.
+
+    Returns ``(min_val, max_val, current, partner_spec, partner_current)``.
+    """
+    pname = str(spec["name"])
+    min_val = spec["min"]
+    max_val = spec["max"]
+    current = spec["current"]
+
+    partner_spec = _find_bound_partner(pname, leaf_all_params)
+    partner_current: float | None = None
+    if partner_spec is not None:
+        partner_current = partner_spec["current"]
+        min_val, max_val = _constrain_sweep_range(
+            pname, min_val, max_val, partner_current
+        )
+        if min_val >= max_val:
+            max_val = min_val + 1.0
+        current = max(min_val, min(max_val, current))
+
+    return min_val, max_val, current, partner_spec, partner_current
+
+
+async def _collect_sweep_specs(
+    site_id: str,
+    record_type: str,
+    leaves: list[JSONObject],
+) -> list[tuple[JSONObject, _NumericParamSpec, list[_NumericParamSpec]]]:
+    """Collect deduplicated (leaf, spec, all_params) tuples for sweeping."""
+    seen: set[str] = set()
+    result: list[tuple[JSONObject, _NumericParamSpec, list[_NumericParamSpec]]] = []
+    for leaf in leaves:
+        search_name = str(leaf.get("searchName", ""))
+        params = await _discover_numeric_params(site_id, record_type, leaf)
+        for spec in params:
+            dedup_key = f"{search_name}:{spec['name']}"
+            if dedup_key in seen:
+                logger.debug(
+                    "Skipping duplicate sweep",
+                    search=search_name,
+                    param=spec["name"],
+                )
+                continue
+            seen.add(dedup_key)
+            result.append((leaf, spec, params))
+    return result
+
+
+async def _eval_sweep_value(
+    val: float,
+    lid: str,
+    pname: str,
+    tree: JSONObject,
+    sem: asyncio.Semaphore,
+    site_id: str,
+    record_type: str,
+    controls_search_name: str,
+    controls_param_name: str,
+    controls_value_format: ControlValueFormat,
+    positive_controls: list[str],
+    negative_controls: list[str],
+) -> ParameterSweepPoint | None:
+    """Evaluate a single parameter value by running controls against a patched tree."""
+    modified = copy.deepcopy(tree)
+
+    def _patch_node(node: JSONObject) -> None:
+        if _node_id(node) == lid:
+            params = node.get("parameters")
+            if not isinstance(params, dict):
+                params = {}
+                node["parameters"] = params
+            params[pname] = str(val)
+
+    walk_dict_tree(modified, _patch_node)
+
+    try:
+        async with sem:
+            raw = await run_controls_against_tree(
+                site_id=site_id,
+                record_type=record_type,
+                tree=modified,
+                controls_search_name=controls_search_name,
+                controls_param_name=controls_param_name,
+                controls_value_format=controls_value_format,
+                positive_controls=positive_controls,
+                negative_controls=negative_controls,
+            )
+    except Exception as exc:
+        logger.warning(
+            "Sensitivity sweep point failed",
+            step=lid,
+            param=pname,
+            value=val,
+            error=str(exc),
+        )
+        return None
+
+    counts = _extract_eval_counts(raw)
+    recall = counts.pos_hits / counts.pos_total if counts.pos_total > 0 else 0.0
+    fpr = counts.neg_hits / counts.neg_total if counts.neg_total > 0 else 0.0
+
+    return ParameterSweepPoint(
+        value=round(val, 6),
+        positive_hits=counts.pos_hits,
+        negative_hits=counts.neg_hits,
+        total_results=counts.total_results,
+        recall=recall,
+        fpr=fpr,
+        f1=_f1_from_counts(counts),
+    )
 
 
 async def sweep_parameters(
@@ -252,27 +412,7 @@ async def sweep_parameters(
     if not leaves:
         return []
 
-    # Deduplicate: only sweep unique (searchName, param) combinations.
-    # When multiple leaves share the same search, sweep only the first one
-    # since they would produce identical results.
-    seen_search_params: set[str] = set()
-    all_specs: list[tuple[JSONObject, _NumericParamSpec, list[_NumericParamSpec]]] = []
-
-    for leaf in leaves:
-        search_name = str(leaf.get("searchName", ""))
-        params = await _discover_numeric_params(site_id, record_type, leaf)
-        for spec in params:
-            dedup_key = f"{search_name}:{spec['name']}"
-            if dedup_key in seen_search_params:
-                logger.debug(
-                    "Skipping duplicate sweep",
-                    search=search_name,
-                    param=spec["name"],
-                )
-                continue
-            seen_search_params.add(dedup_key)
-            all_specs.append((leaf, spec, params))
-
+    all_specs = await _collect_sweep_specs(site_id, record_type, leaves)
     if not all_specs:
         return []
 
@@ -283,23 +423,9 @@ async def sweep_parameters(
     for pi, (leaf, spec, leaf_all_params) in enumerate(all_specs):
         lid = _node_id(leaf)
         pname = str(spec["name"])
-        min_val = spec["min"]
-        max_val = spec["max"]
-        current = spec["current"]
-
-        # Constrain sweep range for paired min/max bound parameters
-        partner_spec = _find_bound_partner(pname, leaf_all_params)
-        partner_current: float | None = None
-        if partner_spec is not None:
-            partner_current = partner_spec["current"]
-            min_val, max_val = _constrain_sweep_range(
-                pname, min_val, max_val, partner_current
-            )
-            if min_val >= max_val:
-                max_val = min_val + 1.0
-            # Clamp current into the constrained range so the sweep is sensible
-            current = max(min_val, min(max_val, current))
-
+        min_val, max_val, current, partner_spec, partner_current = (
+            _prepare_sweep_range(spec, leaf_all_params)
+        )
         sweep_values = _generate_sweep_values(min_val, max_val, current)
 
         if progress_callback:
@@ -323,103 +449,21 @@ async def sweep_parameters(
                 }
             )
 
-        sweep_points: list[ParameterSweepPoint] = []
-
-        async def _eval_value(
-            val: float,
-            _lid: str = lid,
-            _pname: str = pname,
-        ) -> ParameterSweepPoint | None:
-            modified = copy.deepcopy(tree)
-
-            def _patch_node(node: JSONObject) -> None:
-                if _node_id(node) == _lid:
-                    params = node.get("parameters")
-                    if not isinstance(params, dict):
-                        params = {}
-                        node["parameters"] = params
-                    params[_pname] = str(val)
-
-            walk_dict_tree(modified, _patch_node)
-
-            try:
-                async with sem:
-                    raw = await run_controls_against_tree(
-                        site_id=site_id,
-                        record_type=record_type,
-                        tree=modified,
-                        controls_search_name=controls_search_name,
-                        controls_param_name=controls_param_name,
-                        controls_value_format=controls_value_format,
-                        positive_controls=positive_controls,
-                        negative_controls=negative_controls,
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "Sensitivity sweep point failed",
-                    step=_lid,
-                    param=_pname,
-                    value=val,
-                    error=str(exc),
-                )
-                return None
-
-            counts = _extract_eval_counts(raw)
-            recall = counts.pos_hits / counts.pos_total if counts.pos_total > 0 else 0.0
-            fpr = counts.neg_hits / counts.neg_total if counts.neg_total > 0 else 0.0
-
-            return ParameterSweepPoint(
-                value=round(val, 6),
-                positive_hits=counts.pos_hits,
-                negative_hits=counts.neg_hits,
-                total_results=counts.total_results,
-                recall=recall,
-                fpr=fpr,
-                f1=_f1_from_counts(counts),
+        tasks = [
+            _eval_sweep_value(
+                v, lid, pname, tree, sem, site_id, record_type,
+                controls_search_name, controls_param_name, controls_value_format,
+                positive_controls, negative_controls,
             )
-
-        tasks = [_eval_value(v) for v in sweep_values]
+            for v in sweep_values
+        ]
         points = await asyncio.gather(*tasks)
         sweep_points = [p for p in points if p is not None]
         sweep_points.sort(key=lambda p: p.value)
 
-        # Pick the best point, but only recommend a change if the F1
-        # improvement is meaningful (> threshold). This prevents noisy
-        # recommendations when multiple values score similarly.
-        cur_point = (
-            min(sweep_points, key=lambda p: abs(p.value - current))
-            if sweep_points
-            else None
+        recommended_value, recommendation = _pick_recommendation(
+            pname, current, sweep_points, partner_current
         )
-        cur_f1 = cur_point.f1 if cur_point else 0.0
-
-        best_point = max(sweep_points, key=lambda p: p.f1) if sweep_points else None
-        improvement = (best_point.f1 - cur_f1) if best_point else 0.0
-
-        if best_point and improvement > _MINIMUM_F1_IMPROVEMENT:
-            recommended_value = best_point.value
-        else:
-            recommended_value = current
-            best_point = cur_point
-
-        # For bound params, validate the recommendation doesn't violate its partner
-        if (
-            partner_current is not None
-            and best_point
-            and (
-                (_is_lower_bound(pname) and recommended_value > partner_current)
-                or (not _is_lower_bound(pname) and recommended_value < partner_current)
-            )
-        ):
-            recommended_value = current
-
-        recommendation = ""
-        if best_point and abs(recommended_value - current) > 1e-6 and cur_point:
-            recommendation = (
-                f"Changing {pname} from {current:.4g} to {recommended_value:.4g} "
-                f"changes recall {cur_point.recall:.0%} -> {best_point.recall:.0%}"
-                f" and FPR {cur_point.fpr:.0%} -> {best_point.fpr:.0%}"
-            )
 
         ps = ParameterSensitivity(
             step_id=lid,

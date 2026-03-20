@@ -15,6 +15,8 @@ Skip with:
     pytest -m "not live_wdk"
 """
 
+from typing import ClassVar
+
 import pytest
 
 from veupath_chatbot.tests.fixtures.scripted_engine import (
@@ -42,7 +44,7 @@ class TestSingleStepRNASeqSearch:
 
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -114,7 +116,7 @@ class TestSingleStepRNASeqSearch:
                 authed_client,
                 message="Find genes upregulated in P. falciparum gametocytes using RNA-Seq data",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202, f"HTTP {result.http_status}: {result.events}"
@@ -170,7 +172,7 @@ class TestSingleStepEpitopeSearch:
     The model creates a search for genes with epitope evidence in P. falciparum.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -229,7 +231,7 @@ class TestSingleStepEpitopeSearch:
                 authed_client,
                 message="Find P. falciparum genes with epitope evidence",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
@@ -262,7 +264,7 @@ class TestSingleStepEpitopeVariant:
     only), verifying that parameter values are passed through correctly.
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall(
@@ -321,7 +323,7 @@ class TestSingleStepEpitopeVariant:
                 authed_client,
                 message="Find P. falciparum genes with low-confidence epitope predictions",
                 site_id="plasmodb",
-                timeout=120.0,
+                request_timeout=120.0,
             )
 
         assert result.http_status == 202, f"HTTP {result.http_status}"
@@ -347,7 +349,7 @@ class TestCatalogExploration:
 
     """
 
-    TURNS = [
+    TURNS: ClassVar[list] = [
         ScriptedTurn(
             tool_calls=[
                 ScriptedToolCall("list_sites", {}),
@@ -383,7 +385,7 @@ class TestCatalogExploration:
                 authed_client,
                 message="What proteomics searches are available on PlasmoDB?",
                 site_id="plasmodb",
-                timeout=60.0,
+                request_timeout=60.0,
             )
 
         assert result.http_status == 202

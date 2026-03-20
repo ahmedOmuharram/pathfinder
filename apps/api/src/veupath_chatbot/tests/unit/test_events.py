@@ -6,6 +6,13 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.platform.events import (
+    _project_event,
+    emit,
+    read_stream_messages,
+    read_stream_thinking,
+)
+
 
 @pytest.fixture
 def mock_redis():
@@ -25,8 +32,6 @@ def mock_session():
 
 @pytest.mark.asyncio
 async def test_emit_writes_to_redis(mock_redis, mock_session):
-    from veupath_chatbot.platform.events import emit
-
     stream_id = str(uuid4())
     entry_id = await emit(
         mock_redis,
@@ -48,8 +53,6 @@ async def test_emit_writes_to_redis(mock_redis, mock_session):
 
 @pytest.mark.asyncio
 async def test_emit_without_session_skips_projection(mock_redis):
-    from veupath_chatbot.platform.events import emit
-
     entry_id = await emit(
         mock_redis,
         str(uuid4()),
@@ -63,8 +66,6 @@ async def test_emit_without_session_skips_projection(mock_redis):
 
 @pytest.mark.asyncio
 async def test_emit_projects_strategy_meta(mock_redis, mock_session):
-    from veupath_chatbot.platform.events import emit
-
     stream_id = str(uuid4())
     await emit(
         mock_redis,
@@ -81,8 +82,6 @@ async def test_emit_projects_strategy_meta(mock_redis, mock_session):
 
 @pytest.mark.asyncio
 async def test_read_stream_messages(mock_redis):
-    from veupath_chatbot.platform.events import read_stream_messages
-
     mock_redis.xrange.return_value = [
         (
             b"1-0",
@@ -122,8 +121,6 @@ async def test_read_stream_messages(mock_redis):
 
 @pytest.mark.asyncio
 async def test_read_stream_messages_includes_optional_fields(mock_redis):
-    from veupath_chatbot.platform.events import read_stream_messages
-
     mock_redis.xrange.return_value = [
         (
             b"1-0",
@@ -151,8 +148,6 @@ async def test_read_stream_messages_includes_optional_fields(mock_redis):
 @pytest.mark.asyncio
 async def test_read_stream_messages_parses_tool_call_arguments(mock_redis):
     """Tool call arguments are stored as JSON strings in Redis but must be dicts."""
-    from veupath_chatbot.platform.events import read_stream_messages
-
     mock_redis.xrange.return_value = [
         (
             b"1-0",
@@ -211,8 +206,6 @@ async def test_read_stream_messages_parses_tool_call_arguments(mock_redis):
 @pytest.mark.asyncio
 async def test_read_stream_messages_handles_dict_arguments(mock_redis):
     """Arguments that are already dicts should pass through unchanged."""
-    from veupath_chatbot.platform.events import read_stream_messages
-
     mock_redis.xrange.return_value = [
         (
             b"1-0",
@@ -250,8 +243,6 @@ async def test_read_stream_messages_handles_dict_arguments(mock_redis):
 @pytest.mark.asyncio
 async def test_read_stream_messages_handles_invalid_arguments(mock_redis):
     """Non-parseable arguments should fall back to empty dict."""
-    from veupath_chatbot.platform.events import read_stream_messages
-
     mock_redis.xrange.return_value = [
         (
             b"1-0",
@@ -291,8 +282,6 @@ async def test_graph_plan_event_updates_step_count(mock_redis, mock_session):
     step_count, causing the sidebar to show stale (usually 0) step counts
     after the AI builds a strategy.
     """
-    from veupath_chatbot.platform.events import _project_event
-
     plan = {
         "recordType": "gene",
         "root": {
@@ -343,8 +332,6 @@ async def test_graph_plan_event_updates_step_count(mock_redis, mock_session):
 
 @pytest.mark.asyncio
 async def test_read_stream_thinking_no_active_turn(mock_redis):
-    from veupath_chatbot.platform.events import read_stream_thinking
-
     mock_redis.xrange.return_value = []
     result = await read_stream_thinking(mock_redis, str(uuid4()))
     assert result is None
@@ -352,8 +339,6 @@ async def test_read_stream_thinking_no_active_turn(mock_redis):
 
 @pytest.mark.asyncio
 async def test_read_stream_thinking_completed_turn(mock_redis):
-    from veupath_chatbot.platform.events import read_stream_thinking
-
     mock_redis.xrange.return_value = [
         (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
         (
@@ -381,8 +366,6 @@ async def test_read_stream_thinking_completed_turn(mock_redis):
 
 @pytest.mark.asyncio
 async def test_read_stream_thinking_active_tool_calls(mock_redis):
-    from veupath_chatbot.platform.events import read_stream_thinking
-
     mock_redis.xrange.return_value = [
         (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
         (

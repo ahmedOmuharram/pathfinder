@@ -7,8 +7,8 @@ export function StringParam({
   fieldBorderClass,
 }: ParamWidgetProps) {
   const isNumeric =
-    spec.isNumber ||
-    ["number", "integer", "float"].includes((spec.type || "").toLowerCase());
+    spec.isNumber === true ||
+    ["number", "integer", "float"].includes((spec.type ?? "").toLowerCase());
 
   return (
     <input
@@ -19,7 +19,7 @@ export function StringParam({
       min={isNumeric && spec.min != null ? spec.min : undefined}
       max={isNumeric && spec.max != null ? spec.max : undefined}
       step={isNumeric && spec.increment != null ? spec.increment : undefined}
-      className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground ${fieldBorderClass || "border-border"}`}
+      className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground ${fieldBorderClass ?? "border-border"}`}
     />
   );
 }

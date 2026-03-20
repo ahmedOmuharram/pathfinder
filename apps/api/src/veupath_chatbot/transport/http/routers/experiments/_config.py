@@ -60,8 +60,7 @@ def config_from_request(req: CreateExperimentRequest) -> ExperimentConfig:
         enable_step_analysis=req.enable_step_analysis,
         step_analysis_phases=(
             req.step_analysis_phases
-            if req.step_analysis_phases
-            else [
+            or [
                 "step_evaluation",
                 "operator_comparison",
                 "contribution",

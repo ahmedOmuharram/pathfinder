@@ -65,7 +65,7 @@ class TestFromDictEdgeCases:
             from_dict({"recordType": "gene", "root": {"searchName": 42}})
 
     def test_parameters_as_list_raises(self) -> None:
-        with pytest.raises(ValueError, match="parameters"):
+        with pytest.raises(TypeError, match="parameters"):
             from_dict(
                 {
                     "recordType": "gene",
@@ -74,20 +74,20 @@ class TestFromDictEdgeCases:
             )
 
     def test_non_string_record_type_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordType"):
+        with pytest.raises(TypeError, match="recordType"):
             from_dict({"recordType": 42, "root": {"searchName": "S1"}})
 
     def test_root_is_list_raises(self) -> None:
-        with pytest.raises(ValueError, match="root"):
+        with pytest.raises(TypeError, match="root"):
             from_dict({"recordType": "gene", "root": [{"searchName": "S1"}]})
 
     def test_root_is_string_raises(self) -> None:
-        with pytest.raises(ValueError, match="root"):
+        with pytest.raises(TypeError, match="root"):
             from_dict({"recordType": "gene", "root": "not_a_dict"})
 
     def test_invalid_operator_string(self) -> None:
         """Invalid operator string should raise ValueError from CombineOp()."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not a valid"):
             from_dict(
                 {
                     "recordType": "gene",
@@ -394,7 +394,7 @@ class TestColocationParamsEdgeCases:
     def test_all_strands_valid(self) -> None:
         for strand in ("same", "opposite", "both"):
             params = ColocationParams(
-                strand=cast(Literal["same", "opposite", "both"], strand)
+                strand=cast("Literal['same', 'opposite', 'both']", strand)
             )
             assert params.validate() == []
 
@@ -447,7 +447,7 @@ class TestMetadataEdgeCases:
         assert desc == ""
 
     def test_multiline_goal_collapsed(self) -> None:
-        name, desc = derive_graph_metadata("line1\n  line2\t  line3")
+        name, _desc = derive_graph_metadata("line1\n  line2\t  line3")
         assert "\n" not in name
         assert "\t" not in name
 
@@ -649,7 +649,7 @@ class TestValidationEdgeCases:
 
     def test_deep_tree_all_nodes_validated(self) -> None:
         """Validator should recurse into deeply nested trees."""
-        # Build: combine(combine(search, search_empty_name), search)
+        # Build a combine(combine(search, search_empty_name), search) tree
         s1 = PlanStepNode(search_name="S1", parameters={})
         s_bad = PlanStepNode(search_name="", parameters={})
         inner = _combine(s1, s_bad, step_id="inner", op=CombineOp.INTERSECT)

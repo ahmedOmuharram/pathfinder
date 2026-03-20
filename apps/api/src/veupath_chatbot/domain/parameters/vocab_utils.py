@@ -21,21 +21,24 @@ def numeric_equivalent(a: str | None, b: str | None) -> bool:
     try:
         fa = float(str(a).strip())
         fb = float(str(b).strip())
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         logger.debug("Failed to compare numeric equivalence", error=str(exc))
         return False
-    if not (math.isfinite(fa) and math.isfinite(fb)):
-        return False
-    return math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-12)
+    return (
+        math.isfinite(fa)
+        and math.isfinite(fb)
+        and math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-12)
+    )
 
 
 def _looks_numeric(value: str) -> bool:
     """Quick check if a string could plausibly be a number."""
     try:
         float(value)
-        return True
     except ValueError:
         return False
+    else:
+        return True
 
 
 def match_vocab_value(
@@ -93,61 +96,96 @@ def normalize_vocab_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).lower()
 
 
-def flatten_vocab(
-    vocabulary: JSONObject | JSONArray, prefer_term: bool = False
-) -> list[dict[str, str | None]]:
-    entries: list[dict[str, str | None]] = []
+def _choose_value(data: JSONObject, *, prefer_term: bool) -> str | None:
+    """Pick the canonical value from a vocab entry dict.
 
-    def choose_value(data: JSONObject) -> str | None:
-        term_raw = data.get("term")
-        value_raw = data.get("value")
-        term = term_raw if isinstance(term_raw, str) else None
-        value = value_raw if isinstance(value_raw, str) else None
-        if prefer_term:
-            return term or value
-        return value or term
+    Prefers ``term`` when *prefer_term* is True, otherwise prefers ``value``.
+    Falls back to the other field when the preferred one is absent.
+    """
+    term_raw = data.get("term")
+    value_raw = data.get("value")
+    term = term_raw if isinstance(term_raw, str) else None
+    value = value_raw if isinstance(value_raw, str) else None
+    if prefer_term:
+        return term or value
+    return value or term
+
+
+def _flatten_tree_vocab(
+    vocabulary: JSONObject, *, prefer_term: bool
+) -> list[dict[str, str | None]]:
+    """Flatten a dict/tree-shaped WDK vocabulary into a flat entry list.
+
+    Walks the tree depth-first, emitting every node (parents **and** leaves).
+    WDK only accepts leaf values, but PathFinder accepts parents and expands
+    them to leaves at WDK submission time via ``_expand_tree_params_to_leaves``.
+    """
+    entries: list[dict[str, str | None]] = []
 
     def walk(node: JSONObject) -> None:
         data_raw = node.get("data", {})
         data = data_raw if isinstance(data_raw, dict) else {}
         display_raw = data.get("display")
         display = display_raw if isinstance(display_raw, str) else None
-        raw_value = choose_value(data)
+        raw_value = _choose_value(data, prefer_term=prefer_term)
         children_raw = node.get("children", [])
         children = [
             c
             for c in (children_raw if isinstance(children_raw, list) else [])
             if isinstance(c, dict)
         ]
-        # Include all nodes (parents and leaves). WDK only accepts leaf
-        # values, but PathFinder accepts parents and expands them to leaves
-        # at WDK submission time via _expand_tree_params_to_leaves.
         entries.append({"display": display, "value": raw_value})
         for child in children:
             walk(child)
 
-    if isinstance(vocabulary, dict) and vocabulary:
-        walk(vocabulary)
-    elif isinstance(vocabulary, list):
-        for item in vocabulary:
-            if isinstance(item, list):
-                if not item or item[0] is None:
-                    continue
-                value = str(item[0])
-                display_from_list = (
-                    str(item[1]) if len(item) > 1 and item[1] is not None else value
-                )
-                entries.append({"display": display_from_list, "value": value})
-            elif isinstance(item, dict):
-                display_raw = item.get("display")
-                display_from_dict = (
-                    display_raw if isinstance(display_raw, str) else None
-                )
-                raw_value = choose_value(item)
-                entries.append({"display": display_from_dict, "value": raw_value})
-            else:
-                entries.append({"display": str(item), "value": str(item)})
+    walk(vocabulary)
     return entries
+
+
+def _flatten_list_vocab(
+    vocabulary: JSONArray, *, prefer_term: bool
+) -> list[dict[str, str | None]]:
+    """Flatten a list-shaped WDK vocabulary into a flat entry list.
+
+    Handles three sub-formats:
+    - **List of lists** -- ``[[value, display], ...]``
+    - **List of dicts** -- ``[{term, display, value}, ...]``
+    - **List of scalars** -- ``["val1", "val2", ...]``
+    """
+    entries: list[dict[str, str | None]] = []
+    for item in vocabulary:
+        if isinstance(item, list):
+            if not item or item[0] is None:
+                continue
+            value = str(item[0])
+            display_from_list = (
+                str(item[1]) if len(item) > 1 and item[1] is not None else value
+            )
+            entries.append({"display": display_from_list, "value": value})
+        elif isinstance(item, dict):
+            display_raw = item.get("display")
+            display_from_dict = display_raw if isinstance(display_raw, str) else None
+            raw_value = _choose_value(item, prefer_term=prefer_term)
+            entries.append({"display": display_from_dict, "value": raw_value})
+        else:
+            entries.append({"display": str(item), "value": str(item)})
+    return entries
+
+
+def flatten_vocab(
+    vocabulary: JSONObject | JSONArray, *, prefer_term: bool = False
+) -> list[dict[str, str | None]]:
+    """Flatten any WDK vocabulary format into a uniform list of entries.
+
+    Dispatches to format-specific helpers based on the vocabulary shape:
+    - Dict (tree) vocabularies are walked depth-first.
+    - List vocabularies handle list-of-lists, list-of-dicts, and list-of-scalars.
+    """
+    if isinstance(vocabulary, dict) and vocabulary:
+        return _flatten_tree_vocab(vocabulary, prefer_term=prefer_term)
+    if isinstance(vocabulary, list):
+        return _flatten_list_vocab(vocabulary, prefer_term=prefer_term)
+    return []
 
 
 # ---------------------------------------------------------------------------

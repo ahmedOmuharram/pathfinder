@@ -46,7 +46,7 @@ describe("features/chat/utils/graphSnapshot", () => {
     const strategy = buildStrategyFromGraphSnapshot({
       snapshotId: "s1",
       siteId: "plasmodb",
-      graphSnapshot: { steps: undefined },
+      graphSnapshot: { steps: undefined } as unknown as GraphSnapshotInput,
       stepsById: { a: { id: "a", displayName: "A", kind: "search" } satisfies Step },
       existingStrategy: {
         id: "s1",

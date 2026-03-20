@@ -11,7 +11,6 @@ This module extracts that pattern into ``sse_stream()``.
 
 import asyncio
 import json
-import traceback
 from collections.abc import AsyncIterator, Awaitable, Callable
 
 from veupath_chatbot.platform.logging import get_logger
@@ -62,11 +61,7 @@ async def sse_stream(
         try:
             await producer(_send)
         except Exception as exc:
-            logger.error(
-                "SSE producer crashed: %s\n%s",
-                exc,
-                traceback.format_exc(),
-            )
+            logger.exception("SSE producer crashed")
             await queue.put(
                 {
                     "type": _INTERNAL_ERROR_EVENT_TYPE,

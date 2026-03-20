@@ -25,8 +25,6 @@ ExperimentProgressPhase = Literal[
 
 ControlValueFormat = Literal["newline", "json_list", "comma"]
 
-WizardStep = Literal["search", "parameters", "controls", "run", "results", "analysis"]
-
 OptimizationObjective = Literal[
     "f1",
     "f_beta",

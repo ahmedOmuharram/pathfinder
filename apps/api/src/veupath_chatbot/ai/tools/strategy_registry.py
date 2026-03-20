@@ -37,11 +37,11 @@ class StrategyToolsMixin:
     - conversation_tools: ConversationTools
     """
 
-    strategy_tools: StrategyTools = cast("StrategyTools", cast(object, None))
-    execution_tools: ExecutionTools = cast("ExecutionTools", cast(object, None))
-    result_tools: ResultTools = cast("ResultTools", cast(object, None))
+    strategy_tools: StrategyTools = cast("StrategyTools", cast("object", None))
+    execution_tools: ExecutionTools = cast("ExecutionTools", cast("object", None))
+    result_tools: ResultTools = cast("ResultTools", cast("object", None))
     conversation_tools: ConversationTools = cast(
-        "ConversationTools", cast(object, None)
+        "ConversationTools", cast("object", None)
     )
 
     def _tool_instances(self) -> list[object]:
@@ -74,6 +74,5 @@ class StrategyToolsMixin:
                 continue
             if inspect.ismethod(member) and hasattr(member, "__ai_function__"):
                 return member
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+        msg = f"'{type(self).__name__}' object has no attribute '{name}'"
+        raise AttributeError(msg)

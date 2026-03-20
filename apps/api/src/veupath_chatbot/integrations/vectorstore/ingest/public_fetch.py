@@ -9,6 +9,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers i
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+_HTTP_BAD_REQUEST = 400
 
 
 async def _sleep_backoff(attempt: int) -> None:
@@ -38,7 +39,8 @@ async def _retry_request[T](
                 await _sleep_backoff(attempt)
             else:
                 raise
-    raise RuntimeError(f"{label} failed after retries: {last_exc!r}")
+    msg = f"{label} failed after retries: {last_exc!r}"
+    raise RuntimeError(msg)
 
 
 async def _fetch_public_strategy_summaries(
@@ -62,7 +64,8 @@ async def _duplicate_strategy(client: httpx.AsyncClient, signature: str) -> int:
         resp.raise_for_status()
         data = resp.json()
         if not isinstance(data, dict) or "id" not in data:
-            raise RuntimeError("Unexpected duplicateStrategy response")
+            msg = "Unexpected duplicateStrategy response"
+            raise RuntimeError(msg)
         return int(data["id"])
 
     return await _retry_request(_do, "duplicate_strategy")
@@ -79,7 +82,8 @@ async def _get_strategy_details(
         resp.raise_for_status()
         data = resp.json()
         if not isinstance(data, dict):
-            raise RuntimeError("Unexpected strategy details response")
+            msg = "Unexpected strategy details response"
+            raise TypeError(msg)
         return data
 
     return await _retry_request(_do, "get_strategy_details")
@@ -87,5 +91,5 @@ async def _get_strategy_details(
 
 async def _delete_strategy(client: httpx.AsyncClient, strategy_id: int) -> None:
     resp = await client.delete(f"/users/current/strategies/{strategy_id}")
-    if resp.status_code >= 400:
+    if resp.status_code >= _HTTP_BAD_REQUEST:
         return

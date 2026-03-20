@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { EntityRef } from "./stepResults";
 
 // Mock requestJson before importing the module under test
 vi.mock("@/lib/api/http", () => ({
@@ -148,8 +147,9 @@ describe("getRecords", () => {
 
     await getRecords({ type: "experiment", id: "e1" }, { offset: 0 });
 
-    const callArgs = mockRequestJson.mock.calls[0];
-    const query = callArgs[1]?.query as Record<string, string>;
+    const callArgs0 = mockRequestJson.mock.calls[0];
+    expect(callArgs0).toBeDefined();
+    const query = callArgs0![1]?.query as Record<string, string>;
     expect(query).toEqual({ offset: "0" });
     expect("limit" in query).toBe(false);
     expect("sort" in query).toBe(false);
@@ -160,8 +160,9 @@ describe("getRecords", () => {
 
     await getRecords({ type: "experiment", id: "e1" }, { attributes: [] });
 
-    const callArgs = mockRequestJson.mock.calls[0];
-    const query = callArgs[1]?.query as Record<string, string>;
+    const callArgs0 = mockRequestJson.mock.calls[0];
+    expect(callArgs0).toBeDefined();
+    const query = callArgs0![1]?.query as Record<string, string>;
     expect("attributes" in query).toBe(false);
   });
 
@@ -174,9 +175,10 @@ describe("getRecords", () => {
       { filterAttribute: "org", filterValue: "" },
     );
 
-    const callArgs = mockRequestJson.mock.calls[0];
-    const query = callArgs[1]?.query as Record<string, string>;
-    expect(query.filterValue).toBe("");
+    const callArgs0 = mockRequestJson.mock.calls[0];
+    expect(callArgs0).toBeDefined();
+    const query = callArgs0![1]?.query as Record<string, string>;
+    expect(query["filterValue"]).toBe("");
   });
 
   it("includes all opts simultaneously", async () => {

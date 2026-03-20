@@ -98,7 +98,7 @@ describe("ParamNameSelect", () => {
         placeholder="Choose parameter"
       />,
     );
-    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    const select = screen.getByRole<HTMLSelectElement>("combobox");
     expect(select.value).toBe("");
   });
 

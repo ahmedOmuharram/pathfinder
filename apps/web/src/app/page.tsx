@@ -6,7 +6,7 @@ import { usePrevious } from "@/lib/hooks/usePrevious";
 import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { useWorkbenchStore } from "@/features/workbench/store";
 
 import { ToastContainer } from "@/app/components/ToastContainer";
@@ -54,7 +54,6 @@ function HomePageInner() {
   const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
-  const strategyId = useSessionStore((state) => state.strategyId);
   const strategy = useStrategyStore((state) => state.strategy);
   const buildPlan = useStrategyStore((state) => state.buildPlan);
   const clearStrategy = useStrategyStore((state) => state.clear);
@@ -72,13 +71,13 @@ function HomePageInner() {
 
   // Lock to a specific site when embedded with a siteId param
   useEffect(() => {
-    if (siteIdParam && siteIdParam !== selectedSite) {
+    if (siteIdParam !== null && siteIdParam !== selectedSite) {
       setSelectedSite(siteIdParam);
     }
   }, [siteIdParam, selectedSite, setSelectedSite]);
 
   useEffect(() => {
-    if (prevSite && prevSite !== selectedSite) {
+    if (prevSite !== undefined && prevSite !== selectedSite) {
       setStrategyId(null);
       clearStrategy();
     }
@@ -96,15 +95,13 @@ function HomePageInner() {
   const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
   const geneSets = useWorkbenchStore((s) => s.geneSets);
   const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport({
-    selectedSite,
     addGeneSet,
   });
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
 
   const planResult = buildPlan();
-  const canBuild = !!planResult;
-  const { isBuilding, handleBuild } = useBuildStrategy({
+  useBuildStrategy({
     selectedSite,
     selectedSiteDisplayName,
     strategy,
@@ -118,7 +115,7 @@ function HomePageInner() {
 
   if (authLoading || configLoading) return <LoadingScreen />;
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
-  if (apiError) return <ApiErrorScreen error={apiError} onRetry={retryAuth} />;
+  if (apiError !== null) return <ApiErrorScreen error={apiError} onRetry={retryAuth} />;
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -172,7 +169,7 @@ function HomePageInner() {
             <CompactStrategyView
               strategy={displayStrategy}
               onEditGraph={modals.openGraphEditor}
-              onExportAsGeneSet={handleExportAsGeneSet}
+              onExportAsGeneSet={(s) => void handleExportAsGeneSet(s)}
               exportingGeneSet={exportingGeneSet}
             />
           )}

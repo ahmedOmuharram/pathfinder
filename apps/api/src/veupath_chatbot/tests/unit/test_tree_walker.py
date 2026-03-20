@@ -1,6 +1,9 @@
 """Tests for domain.strategy.tree -- shared tree walkers."""
 
+import copy
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.tree import (
     collect_dict_leaves,
     collect_dict_nodes,
@@ -49,8 +52,6 @@ def _ast_leaf(lid: str, search: str = "") -> PlanStepNode:
 def _ast_combine(
     nid: str, primary: PlanStepNode, secondary: PlanStepNode
 ) -> PlanStepNode:
-    from veupath_chatbot.domain.strategy.ops import CombineOp
-
     return PlanStepNode(
         search_name="boolean_question",
         primary_input=primary,
@@ -210,8 +211,6 @@ class TestMapDictTree:
         tree = _combine("C1", _leaf("L1"), _leaf("L2"))
 
         def rename(n: dict) -> dict:
-            import copy
-
             out = copy.copy(n)
             out["id"] = "X_" + str(out["id"])
             return out

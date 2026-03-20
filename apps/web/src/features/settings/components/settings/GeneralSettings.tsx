@@ -65,14 +65,14 @@ export function GeneralSettings() {
       </SettingsField>
 
       <SettingsField label="Default reasoning effort">
-        {supportsReasoning || !defaultModelId ? (
+        {supportsReasoning || defaultModelId == null ? (
           <>
             <ReasoningToggle
               value={defaultReasoningEffort}
               onChange={setDefaultReasoningEffort}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              {defaultModelId
+              {defaultModelId != null
                 ? "Applied when the selected model supports reasoning."
                 : "Applied to all reasoning-capable models."}
             </p>
@@ -158,7 +158,7 @@ function ProviderGroup({
           colSpan={4}
           className="pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
-          {PROVIDER_LABELS[provider] ?? provider}
+          {PROVIDER_LABELS[provider]}
         </td>
       </tr>
       {models.map((m) => (

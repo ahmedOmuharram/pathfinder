@@ -91,9 +91,9 @@ class TestRunCustomEnrichment:
             tn=["g9", "g10"],
         )
         # Result set: {g1, g2, g3, g4, g5} = 5
-        # Background: 5 + 3 + 2 = 10
+        # Background is 5 + 3 + 2 = 10
         # Gene set: {g1, g2} size=2
-        # Overlap: {g1, g2} = 2
+        # Overlap is {g1, g2} = 2
         # Expected = 5 * 2 / 10 = 1.0
         # Fold = 2 / 1.0 = 2.0
         result = run_custom_enrichment(exp, ["g1", "g2"], "TP-only")

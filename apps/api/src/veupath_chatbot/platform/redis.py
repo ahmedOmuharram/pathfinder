@@ -9,35 +9,37 @@ from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_redis: Redis | None = None
+_state: dict[str, Redis | None] = {"redis": None}
 
 
 async def init_redis() -> Redis:
     """Initialize the Redis connection pool."""
-    global _redis
     settings = get_settings()
-    _redis = Redis.from_url(
+    redis = Redis.from_url(
         settings.redis_url,
         decode_responses=False,
     )
-    result = _redis.ping()
+    result = redis.ping()
     if isinstance(result, Awaitable):
         await result
     logger.info("Redis connected", url=settings.redis_url)
-    return _redis
+    _state["redis"] = redis
+    return redis
 
 
 def get_redis() -> Redis:
     """Get the Redis client. Must call init_redis() first."""
-    if _redis is None:
-        raise RuntimeError("Redis not initialized. Call init_redis() during startup.")
-    return _redis
+    redis = _state["redis"]
+    if redis is None:
+        msg = "Redis not initialized. Call init_redis() during startup."
+        raise RuntimeError(msg)
+    return redis
 
 
 async def close_redis() -> None:
     """Close the Redis connection pool."""
-    global _redis
-    if _redis:
-        await _redis.aclose()
-        _redis = None
+    redis = _state["redis"]
+    if redis:
+        await redis.aclose()
+        _state["redis"] = None
         logger.info("Redis connection closed")

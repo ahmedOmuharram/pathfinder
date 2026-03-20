@@ -67,14 +67,14 @@ async def readiness_check() -> HealthResponse | JSONResponse:
         async with async_session_factory() as session:
             await check_database(session)
     except Exception as e:
-        logger.error("Readiness check: database unreachable", error=str(e))
+        logger.exception("Readiness check: database unreachable", error=str(e))
         failures.append("database")
 
     if settings.rag_enabled:
         try:
             await check_qdrant()
         except Exception as e:
-            logger.error("Readiness check: Qdrant unreachable", error=str(e))
+            logger.exception("Readiness check: Qdrant unreachable", error=str(e))
             failures.append("qdrant")
 
     if failures:

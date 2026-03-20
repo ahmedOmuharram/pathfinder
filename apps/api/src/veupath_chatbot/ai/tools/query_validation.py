@@ -1,6 +1,9 @@
+import re
 from typing import cast
 
 from veupath_chatbot.platform.types import JSONArray, JSONObject
+
+_MIN_QUERY_TOKENS = 2
 
 VAGUE_RECORD_TYPE_TOKENS = {
     "gene",
@@ -17,8 +20,6 @@ VAGUE_RECORD_TYPE_TOKENS = {
 
 
 def tokenize_query(text: str) -> list[str]:
-    import re
-
     return re.findall(r"[A-Za-z0-9][A-Za-z0-9._-]{2,}", (text or "").lower())
 
 
@@ -32,7 +33,7 @@ def record_type_query_error(query: str) -> JSONObject | None:
     if not q:
         return None
     tokens = tokenize_query(q)
-    if len(tokens) < 2:
+    if len(tokens) < _MIN_QUERY_TOKENS:
         return {
             "error": "query_too_vague",
             "message": "get_record_types(query=...) requires 2+ specific keywords; one-word queries are rejected.",
@@ -51,7 +52,7 @@ def record_type_query_error(query: str) -> JSONObject | None:
             "error": "query_too_vague",
             "message": "Query is too generic; include at least one domain-specific keyword (not only 'gene'/'transcript').",
             "query": q,
-            "tokens": cast(JSONArray, tokens),
+            "tokens": cast("JSONArray", tokens),
         }
     return None
 
@@ -73,7 +74,7 @@ def search_query_error(query: str, *, has_keywords: bool = False) -> JSONObject 
             "message": "search_for_searches(query=...) requires a non-empty query.",
         }
     tokens = tokenize_query(q)
-    if len(tokens) < 2 and not has_keywords:
+    if len(tokens) < _MIN_QUERY_TOKENS and not has_keywords:
         return {
             "error": "query_too_vague",
             "message": "search_for_searches(query=...) requires 2+ specific keywords; one-word/vague queries are rejected.",

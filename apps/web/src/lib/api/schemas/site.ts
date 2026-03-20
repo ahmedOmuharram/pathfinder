@@ -88,14 +88,14 @@ export const ParamSpecListSchema = z.array(ParamSpecSchema);
 // Search Validation
 // ---------------------------------------------------------------------------
 
-export const SearchValidationErrorsSchema = z
+const SearchValidationErrorsSchema = z
   .object({
     general: z.array(z.string()).optional(),
     byKey: z.record(z.string(), z.array(z.string())).optional(),
   })
   .passthrough();
 
-export const SearchValidationPayloadSchema = z
+const SearchValidationPayloadSchema = z
   .object({
     isValid: z.boolean(),
     normalizedContextValues: z.record(z.string(), z.unknown()).optional(),

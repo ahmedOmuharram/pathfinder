@@ -5,7 +5,7 @@ import type { WdkRecord } from "@/lib/types/wdk";
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-export const CLASSIFICATION_STYLES: Record<
+const CLASSIFICATION_STYLES: Record<
   Classification,
   {
     label: string;
@@ -24,8 +24,8 @@ export const CLASSIFICATION_STYLES: Record<
 };
 
 export function getPrimaryKey(record: WdkRecord): string {
-  if (!Array.isArray(record.id) || record.id.length === 0) {
-    return String(record.id ?? "unknown");
+  if (record.id.length === 0) {
+    return "unknown";
   }
   return record.id.map((k) => k.value).join("/");
 }
@@ -44,7 +44,7 @@ const HTML_TAG_RE = /<[^>]+>/;
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  return doc.body.textContent ?? "";
+  return doc.body.textContent;
 }
 
 /** Partial shape of a WDK link-attribute JSON blob. */

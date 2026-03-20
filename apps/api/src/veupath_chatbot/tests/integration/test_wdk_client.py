@@ -32,7 +32,7 @@ from veupath_chatbot.tests.fixtures.wdk_responses import (
 BASE = "https://plasmodb.org/plasmo/service"
 
 
-@pytest.fixture()
+@pytest.fixture
 def client() -> VEuPathDBClient:
     """Standalone VEuPathDBClient pointing at a fake base URL."""
     return VEuPathDBClient(base_url=BASE, timeout=5.0)
@@ -189,8 +189,6 @@ async def test_http_500_raises_wdk_error(client: VEuPathDBClient) -> None:
 @respx.mock
 async def test_transport_error_raises_wdk_error(client: VEuPathDBClient) -> None:
     """TransportError (e.g. connection refused) raises WDKError with 502 status."""
-    from veupath_chatbot.platform.errors import WDKError
-
     respx.get(f"{BASE}/record-types").mock(
         side_effect=httpx.ConnectError("connection refused"),
     )

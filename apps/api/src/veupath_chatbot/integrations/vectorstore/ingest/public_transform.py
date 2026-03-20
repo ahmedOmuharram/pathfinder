@@ -1,5 +1,7 @@
 import json
 
+from openai import AsyncOpenAI
+
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.types import JSONObject
 
@@ -8,7 +10,6 @@ async def _generate_name_and_description(
     *, strategy_compact: JSONObject, model: str
 ) -> tuple[str, str]:
     settings = get_settings()
-    from openai import AsyncOpenAI
 
     compact_json = json.dumps(strategy_compact, ensure_ascii=False)
     prompt = f"""You are generating metadata for a public strategy example.
@@ -40,7 +41,8 @@ Strategy (compact JSON):
         )
     text = (resp.choices[0].message.content or "").strip()
     if not text:
-        raise RuntimeError("Empty LLM response")
+        msg = "Empty LLM response"
+        raise RuntimeError(msg)
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
@@ -53,5 +55,6 @@ Strategy (compact JSON):
     name = str(data.get("name") or "").strip()
     desc = str(data.get("description") or "").strip()
     if not name or not desc:
-        raise RuntimeError("LLM returned empty name/description")
+        msg = "LLM returned empty name/description"
+        raise RuntimeError(msg)
     return name, desc

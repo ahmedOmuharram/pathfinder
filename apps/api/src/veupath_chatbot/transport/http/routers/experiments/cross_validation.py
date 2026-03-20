@@ -7,7 +7,11 @@ from fastapi import APIRouter
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.experiment.cross_validation import (
+    run_cross_validation,
+)
 from veupath_chatbot.services.experiment.store import get_experiment_store
+from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
 from veupath_chatbot.transport.http.schemas.experiments import (
     RunCrossValidationRequest,
@@ -24,11 +28,6 @@ async def run_cv(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Run cross-validation on an existing experiment."""
-    from veupath_chatbot.services.experiment.cross_validation import (
-        run_cross_validation,
-    )
-    from veupath_chatbot.services.experiment.types import to_json
-
     try:
         cv = await run_cross_validation(
             site_id=exp.config.site_id,
@@ -55,8 +54,9 @@ async def run_cv(
             error=str(exc),
             exc_info=True,
         )
-        raise WDKError(f"Cross-validation failed: {exc}") from exc
+        msg = f"Cross-validation failed: {exc}"
+        raise WDKError(msg) from exc
 
     exp.cross_validation = cv
     get_experiment_store().save(exp)
-    return cast(JSONObject, to_json(cv))
+    return cast("JSONObject", to_json(cv))

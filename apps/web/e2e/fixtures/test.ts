@@ -34,7 +34,7 @@ type WorkerFixtures = {
   workerStorageState: string;
 };
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   // ── Worker-scoped ──────────────────────────────────────────────
@@ -55,7 +55,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       // Always re-authenticate to ensure a clean session.
       fs.mkdirSync(dir, { recursive: true });
 
-      const page = await browser.newPage({ storageState: undefined });
+      const page = await browser.newPage();
       await page.goto(BASE_URL);
 
       const resp = await page

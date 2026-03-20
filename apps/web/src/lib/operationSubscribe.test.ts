@@ -1,9 +1,5 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import {
-  subscribeToOperation,
-  fetchActiveOperations,
-  type SubscribeOptions,
-} from "./operationSubscribe";
+import { subscribeToOperation, fetchActiveOperations } from "./operationSubscribe";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -208,7 +204,7 @@ describe("subscribeToOperation", () => {
     await flush();
 
     expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0][0].message).toContain("not found");
+    expect(onError.mock.calls[0]![0]!.message).toContain("not found");
   });
 
   it("auto-reconnects on network failure then succeeds", async () => {
@@ -275,7 +271,7 @@ describe("subscribeToOperation", () => {
 
     // All 2 reconnects exhausted, onError should have been called
     expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0][0].message).toBe("Persistent failure");
+    expect(onError.mock.calls[0]![0]!.message).toBe("Persistent failure");
   });
 
   it("handles response with no body", async () => {
@@ -298,7 +294,7 @@ describe("subscribeToOperation", () => {
     await flush();
 
     expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0][0].message).toContain("No response body");
+    expect(onError.mock.calls[0]![0]!.message).toContain("No response body");
   });
 
   it("skips events with invalid JSON and continues", async () => {
@@ -357,7 +353,7 @@ describe("fetchActiveOperations", () => {
     expect(result).toEqual(mockData);
     expect(global.fetch).toHaveBeenCalledOnce();
     // Should have been called with the active operations URL (no query param)
-    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe(
       "http://localhost/api/v1/operations/active",
     );
   });
@@ -373,7 +369,7 @@ describe("fetchActiveOperations", () => {
 
     await fetchActiveOperations({ type: "experiment" });
 
-    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toBe(
       "http://localhost/api/v1/operations/active?type=experiment",
     );
   });

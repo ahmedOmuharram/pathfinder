@@ -44,20 +44,22 @@ export function subscribeToOperation<T = unknown>(
       "seed_complete",
     ]);
   const maxReconnects = options.maxReconnects ?? 10;
-  let aborted = false;
+  const state: { aborted: boolean } = { aborted: false };
+  /** Check if aborted (extracted to defeat ESLint's narrow-through-closure analysis). */
+  const isAborted = () => state.aborted;
   let reconnectCount = 0;
   let controller = new AbortController();
   /** Last received SSE id — used to resume from this point on reconnect. */
   let lastEventId: string | undefined;
 
   async function connect(): Promise<void> {
-    if (aborted) return;
+    if (isAborted()) return;
     controller = new AbortController();
 
     try {
       const url = buildUrl(
         `/api/v1/operations/${operationId}/subscribe`,
-        lastEventId ? { lastEventId } : undefined,
+        lastEventId != null && lastEventId !== "" ? { lastEventId } : undefined,
       );
       const resp = await fetch(url, {
         headers: {
@@ -82,7 +84,8 @@ export function subscribeToOperation<T = unknown>(
       let buffer = "";
       reconnectCount = 0; // Reset on successful connection
 
-      while (!aborted) {
+      for (;;) {
+        if (isAborted()) break;
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -91,9 +94,9 @@ export function subscribeToOperation<T = unknown>(
         buffer = parsed.rest;
 
         for (const evt of parsed.events) {
-          if (evt.id) lastEventId = evt.id;
+          if (evt.id != null && evt.id !== "") lastEventId = evt.id;
 
-          if (aborted) return;
+          if (isAborted()) return;
 
           try {
             const data = JSON.parse(evt.data) as T;
@@ -110,7 +113,7 @@ export function subscribeToOperation<T = unknown>(
         }
       }
     } catch (err) {
-      if (aborted) return;
+      if (isAborted()) return;
       const error = err instanceof Error ? err : new Error(String(err));
 
       if (error.name === "AbortError") return;
@@ -122,7 +125,7 @@ export function subscribeToOperation<T = unknown>(
           `[subscribe] Reconnecting in ${delay}ms (attempt ${reconnectCount})`,
         );
         await new Promise<void>((r) => setTimeout(r, delay));
-        if (aborted) return;
+        if (isAborted()) return;
         return connect();
       }
 
@@ -135,13 +138,13 @@ export function subscribeToOperation<T = unknown>(
 
   return {
     unsubscribe() {
-      aborted = true;
+      state.aborted = true;
       controller.abort();
     },
   };
 }
 
-export interface ActiveOperation {
+interface ActiveOperation {
   operationId: string;
   streamId: string;
   type: string;
@@ -170,8 +173,9 @@ export async function fetchActiveOperations(filters?: {
 }): Promise<ActiveOperation[]> {
   try {
     const params = new URLSearchParams();
-    if (filters?.type) params.set("type", filters.type);
-    if (filters?.streamId) params.set("streamId", filters.streamId);
+    if (filters?.type != null && filters.type !== "") params.set("type", filters.type);
+    if (filters?.streamId != null && filters.streamId !== "")
+      params.set("streamId", filters.streamId);
     const qs = params.toString();
     const url = buildUrl(`/api/v1/operations/active${qs ? `?${qs}` : ""}`);
     const resp = await fetch(url, {
@@ -179,7 +183,7 @@ export async function fetchActiveOperations(filters?: {
       credentials: "include",
     });
     if (!resp.ok) return [];
-    return resp.json();
+    return (await resp.json()) as ActiveOperation[];
   } catch {
     return [];
   }

@@ -16,7 +16,7 @@ export interface ModelOverrides {
   reasoningBudget?: number;
 }
 
-export interface SettingsState {
+interface SettingsState {
   /** Default model catalog ID (e.g. "openai/gpt-5"). null = use server default. */
   defaultModelId: string | null;
   /** Default reasoning effort. */
@@ -58,7 +58,7 @@ function loadPersistedSettings(): Partial<SettingsState> {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
+    if (raw === null) return {};
     return JSON.parse(raw) as Partial<SettingsState>;
   } catch {
     return {};
@@ -95,14 +95,13 @@ function persist(partial: Partial<SettingsState>) {
 const persisted = loadPersistedSettings();
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
-  defaultModelId: (persisted.defaultModelId as string) ?? null,
-  defaultReasoningEffort:
-    (persisted.defaultReasoningEffort as ReasoningEffort) ?? "medium",
-  modelOverrides: (persisted.modelOverrides as Record<string, ModelOverrides>) ?? {},
-  showRawToolCalls: (persisted.showRawToolCalls as boolean) ?? false,
-  showTokenUsage: (persisted.showTokenUsage as boolean) ?? true,
-  disabledTools: (persisted.disabledTools as string[]) ?? [],
-  deleteFromWdk: (persisted.deleteFromWdk as boolean) ?? false,
+  defaultModelId: persisted.defaultModelId ?? null,
+  defaultReasoningEffort: persisted.defaultReasoningEffort ?? "medium",
+  modelOverrides: persisted.modelOverrides ?? {},
+  showRawToolCalls: persisted.showRawToolCalls ?? false,
+  showTokenUsage: persisted.showTokenUsage ?? true,
+  disabledTools: persisted.disabledTools ?? [],
+  deleteFromWdk: persisted.deleteFromWdk ?? false,
   modelCatalog: [],
   catalogDefault: null,
 

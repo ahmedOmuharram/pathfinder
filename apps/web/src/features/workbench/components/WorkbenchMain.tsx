@@ -32,8 +32,7 @@ function ActiveSetHeader() {
 
   if (!activeSet) return null;
 
-  const colorClass =
-    SOURCE_CONFIG[activeSet.source]?.badgeClass ?? SOURCE_CONFIG.saved.badgeClass;
+  const colorClass = SOURCE_CONFIG[activeSet.source].badgeClass;
 
   return (
     <div className="mb-4 px-4 py-3 animate-fade-in">
@@ -49,10 +48,10 @@ function ActiveSetHeader() {
         </span>
         <span className="text-xs text-muted-foreground">{activeSet.siteId}</span>
       </div>
-      {activeSet.searchName && (
+      {activeSet.searchName != null && activeSet.searchName !== "" && (
         <p className="mt-1 text-xs text-muted-foreground">
           {activeSet.searchName}
-          {activeSet.parameters &&
+          {activeSet.parameters != null &&
             Object.entries(activeSet.parameters)
               .slice(0, 3)
               .map(([k, v]) => ` \u00b7 ${k}: ${String(v)}`)
@@ -91,7 +90,7 @@ export function WorkbenchMain() {
   const lastExperiment = useWorkbenchStore((s) => s.lastExperiment);
   const selectedSite = useSessionStore((s) => s.selectedSite);
 
-  if (!activeSetId) {
+  if (activeSetId == null) {
     return (
       <EmptyState
         icon={<Layers className="h-10 w-10" />}

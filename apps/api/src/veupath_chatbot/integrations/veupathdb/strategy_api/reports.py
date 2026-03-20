@@ -63,13 +63,13 @@ class ReportsMixin(StrategyAPIBase):
         """
         report_config: JSONObject = {}
         if attributes:
-            report_config["attributes"] = cast(JSONValue, attributes)
+            report_config["attributes"] = cast("JSONValue", attributes)
         if tables:
-            report_config["tables"] = cast(JSONValue, tables)
+            report_config["tables"] = cast("JSONValue", tables)
         if pagination:
-            report_config["pagination"] = cast(JSONValue, pagination)
+            report_config["pagination"] = cast("JSONValue", pagination)
         if sorting:
-            report_config["sorting"] = cast(JSONValue, sorting)
+            report_config["sorting"] = cast("JSONValue", sorting)
 
         await self._ensure_session()
         return await self._standard_report(step_id, report_config)
@@ -86,11 +86,13 @@ class ReportsMixin(StrategyAPIBase):
         )
         meta_raw = answer.get("meta")
         if not isinstance(meta_raw, dict):
-            raise ValueError("Step count: response missing 'meta' dict")
+            msg = "Step count: response missing 'meta' dict"
+            raise TypeError(msg)
         total_count_raw = meta_raw.get("totalCount")
         if not isinstance(total_count_raw, int):
-            raise ValueError(
+            msg = (
                 f"Step count: 'meta.totalCount' is not an int "
                 f"(got {type(total_count_raw).__name__}: {total_count_raw!r})"
             )
+            raise TypeError(msg)
         return total_count_raw

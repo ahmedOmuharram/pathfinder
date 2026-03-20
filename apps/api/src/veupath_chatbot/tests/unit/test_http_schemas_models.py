@@ -41,7 +41,8 @@ def test_http_schemas_import_and_basic_model_parsing() -> None:
         timestamp=now,
         toolCalls=[schemas.ToolCallResponse(id="t1", name="tool", arguments={"a": 1})],
     )
-    assert msg.tool_calls and msg.tool_calls[0].name == "tool"
+    assert msg.tool_calls
+    assert msg.tool_calls[0].name == "tool"
 
     step = schemas.StepResponse(
         id="s1",

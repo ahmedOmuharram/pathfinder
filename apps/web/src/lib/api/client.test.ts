@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StrategyPlan } from "@pathfinder/shared";
 
 vi.mock("./http", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./http")>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     requestJson: vi.fn(),

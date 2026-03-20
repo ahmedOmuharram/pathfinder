@@ -69,7 +69,7 @@ function makeGeneSet(overrides: Partial<GeneSet> = {}): GeneSet {
 
 describe("GeneChipInput integration", () => {
   beforeEach(() => {
-    storeState.geneSets = [];
+    storeState["geneSets"] = [];
     mockSearchGenes.mockResolvedValue({ results: [], total: 0 });
     mockResolveGeneIds.mockResolvedValue({ resolved: [], unresolved: [] });
   });
@@ -215,7 +215,7 @@ describe("GeneChipInput integration", () => {
   });
 
   it("GeneSetPicker adds genes from a gene set", () => {
-    storeState.geneSets = [makeGeneSet()];
+    storeState["geneSets"] = [makeGeneSet()];
 
     const onChange = vi.fn();
     render(

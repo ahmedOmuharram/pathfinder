@@ -5,11 +5,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
-from veupath_chatbot.platform.errors import ErrorCode, NotFoundError, ValidationError
+from veupath_chatbot.platform.errors import (
+    ErrorCode,
+    NotFoundError,
+    ValidationError,
+    WDKError,
+)
 from veupath_chatbot.platform.events import read_stream_messages, read_stream_thinking
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.wdk_sync import (
     lazy_fetch_wdk_detail,
@@ -17,13 +23,13 @@ from veupath_chatbot.services.strategies.wdk_sync import (
 )
 from veupath_chatbot.services.wdk import get_strategy_api
 from veupath_chatbot.transport.http.deps import CurrentUser, StreamRepo
+from veupath_chatbot.transport.http.routers._authz import get_owned_projection_or_404
 from veupath_chatbot.transport.http.schemas import (
     CreateStrategyRequest,
     StrategyResponse,
     UpdateStrategyRequest,
 )
 
-from .._authz import get_owned_projection_or_404
 from ._shared import (
     build_projection_response,
     build_projection_summary,
@@ -163,6 +169,7 @@ async def delete_strategy(
     strategyId: UUID,
     stream_repo: StreamRepo,
     user_id: CurrentUser,
+    *,
     delete_from_wdk: Annotated[bool, Query(alias="deleteFromWdk")] = False,
 ) -> Response:
     """Delete a strategy: cancel ops, clean Redis stream, delete CQRS records.
@@ -175,9 +182,6 @@ async def delete_strategy(
     Non-WDK strategies are always hard-deleted.
     """
     projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
-
-    # Cancel any active operations for this stream before deleting.
-    from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 
     active_ops = await stream_repo.get_active_operations(strategyId)
     for op in active_ops:
@@ -198,7 +202,7 @@ async def delete_strategy(
             try:
                 api = get_strategy_api(projection.stream.site_id)
                 await api.delete_strategy(projection.wdk_strategy_id)
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError, WDKError) as e:
                 logger.warning(
                     "WDK strategy delete failed",
                     wdk_strategy_id=projection.wdk_strategy_id,

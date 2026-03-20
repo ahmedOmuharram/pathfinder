@@ -46,7 +46,9 @@ export function StepRawParamsEditor({
       {isLoading && (
         <p className="text-xs text-muted-foreground">Loading parameters...</p>
       )}
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      {error != null && error !== "" && (
+        <p className="mt-1 text-xs text-destructive">{error}</p>
+      )}
     </>
   );
 }

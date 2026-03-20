@@ -16,7 +16,6 @@ from veupath_chatbot.services.experiment.types.core import (
     OptimizationObjective,
     ParameterType,
     StepContributionVerdict,
-    WizardStep,
 )
 from veupath_chatbot.services.experiment.types.enrichment import (
     EnrichmentResult,
@@ -64,52 +63,51 @@ from veupath_chatbot.services.experiment.types.step_analysis import (
 )
 
 __all__ = [
-    # Core type aliases
-    "ControlSetSource",
-    "ControlValueFormat",
     "DEFAULT_K_VALUES",
     "DEFAULT_STEP_ANALYSIS_PHASES",
-    "EnrichmentAnalysisType",
-    "ExperimentMode",
-    "ExperimentProgressPhase",
-    "ExperimentStatus",
-    "OptimizationObjective",
-    "ParameterType",
-    "StepContributionVerdict",
-    "WizardStep",
-    # Metrics
-    "ConfusionMatrix",
-    "CrossValidationResult",
-    "ExperimentMetrics",
-    "FoldMetrics",
-    "GeneInfo",
-    # Enrichment
-    "EnrichmentResult",
-    "EnrichmentTerm",
-    # Rank
-    "BootstrapResult",
-    "ConfidenceInterval",
-    "NegativeSetVariant",
-    "RankMetrics",
-    # Optimization
-    "OperatorKnob",
-    "OptimizationSpec",
-    "ThresholdKnob",
-    "TreeOptimizationResult",
-    "TreeOptimizationTrial",
-    # Step analysis
-    "OperatorComparison",
-    "OperatorVariant",
-    "ParameterSensitivity",
-    "ParameterSweepPoint",
-    "StepAnalysisResult",
-    "StepContribution",
-    "StepEvaluation",
     # Experiment
     "BatchExperimentConfig",
     "BatchOrganismTarget",
+    # Rank
+    "BootstrapResult",
+    "ConfidenceInterval",
+    # Metrics
+    "ConfusionMatrix",
+    # Core type aliases
+    "ControlSetSource",
+    "ControlValueFormat",
+    "CrossValidationResult",
+    "EnrichmentAnalysisType",
+    # Enrichment
+    "EnrichmentResult",
+    "EnrichmentTerm",
     "Experiment",
     "ExperimentConfig",
+    "ExperimentMetrics",
+    "ExperimentMode",
+    "ExperimentProgressPhase",
+    "ExperimentStatus",
+    "FoldMetrics",
+    "GeneInfo",
+    "NegativeSetVariant",
+    # Step analysis
+    "OperatorComparison",
+    # Optimization
+    "OperatorKnob",
+    "OperatorVariant",
+    "OptimizationObjective",
+    "OptimizationSpec",
+    "ParameterSensitivity",
+    "ParameterSweepPoint",
+    "ParameterType",
+    "RankMetrics",
+    "StepAnalysisResult",
+    "StepContribution",
+    "StepContributionVerdict",
+    "StepEvaluation",
+    "ThresholdKnob",
+    "TreeOptimizationResult",
+    "TreeOptimizationTrial",
     # Serialization
     "experiment_summary_to_json",
     "experiment_to_json",

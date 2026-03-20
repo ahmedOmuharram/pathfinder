@@ -4,6 +4,7 @@ Only tests pure-logic functions that don't require Optuna or WDK calls.
 """
 
 import copy
+import math
 
 from veupath_chatbot.services.experiment.tree_knobs import (
     _apply_knobs_recursive,
@@ -44,8 +45,6 @@ def _make_metrics(
 
 
 def _mcc(tp: int, fp: int, fn: int, tn: int) -> float:
-    import math
-
     denom = math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
     if denom == 0:
         return 0.0
@@ -195,8 +194,6 @@ class TestSelectMetric:
 
     def test_mcc_objective(self) -> None:
         result = _select_metric("mcc", metrics=self._base_metrics(), enrichment=2.0)
-        import math
-
         denom = math.sqrt(10 * 10 * 20 * 20)
         expected = (8 * 18 - 2 * 2) / denom
         assert abs(result - expected) < 1e-10

@@ -1,5 +1,6 @@
 """Parsing helpers shared across layers."""
 
+import ast
 import json
 
 from veupath_chatbot.platform.logging import get_logger
@@ -26,15 +27,15 @@ def parse_jsonish(
         return value
     try:
         parsed_json = json.loads(value)
+    except json.JSONDecodeError:
+        pass
+    else:
         if isinstance(parsed_json, (dict, list)):
             return parsed_json
         return None
-    except json.JSONDecodeError:
-        try:
-            import ast
-
-            parsed = ast.literal_eval(value)
-        except Exception as exc:
-            logger.debug("Failed to parse value as Python literal", error=str(exc))
-            return None
-        return parsed if isinstance(parsed, (dict, list)) else None
+    try:
+        parsed = ast.literal_eval(value)
+    except (ValueError, SyntaxError) as exc:
+        logger.debug("Failed to parse value as Python literal", error=str(exc))
+        return None
+    return parsed if isinstance(parsed, (dict, list)) else None

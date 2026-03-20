@@ -4,7 +4,7 @@ from typing import Annotated
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.errors import ErrorCode, WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
@@ -35,9 +35,9 @@ class ExecutionTools(ValidationMixin):
             result = await get_result_count_for_site(
                 self.session.site_id, wdk_step_id, wdk_strategy_id
             )
-            return {"stepId": result.step_id, "count": result.count}
-        except Exception as e:
+        except (WDKError, OSError, ValueError, TypeError, KeyError) as e:
             message = str(e)
             if wdk_strategy_id is None:
                 message = f"{message} (try providing wdk_strategy_id)"
             return tool_error(ErrorCode.WDK_ERROR, message)
+        return {"stepId": result.step_id, "count": result.count}

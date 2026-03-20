@@ -45,7 +45,7 @@ async def _flush_batch(
             texts=safe_texts,
             payloads=payloads,
         )
-    except Exception:
+    except OSError, RuntimeError, ValueError:
         # Per-item fallback: embed one at a time with aggressive truncation
         # so a single oversized text doesn't block the entire batch.
         for point_id, text, payload in zip(ids, safe_texts, payloads, strict=True):

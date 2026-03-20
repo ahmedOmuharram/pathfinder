@@ -33,9 +33,8 @@ class StepsMixin(StrategyAPIBase):
                 self._boolean_search_cache[record_type] = name
                 return name
 
-        raise ValueError(
-            f"No boolean combine search found for record type '{record_type}'"
-        )
+        msg = f"No boolean combine search found for record type '{record_type}'"
+        raise ValueError(msg)
 
     async def _get_boolean_param_names(self, record_type: str) -> tuple[str, str, str]:
         """Resolve parameter names for boolean combine search."""
@@ -47,9 +46,8 @@ class StepsMixin(StrategyAPIBase):
         # WDK emits JsonKeys.PARAM_NAMES = "paramNames" — a list of param name strings.
         param_names_raw = search_data.get("paramNames")
         if not isinstance(param_names_raw, list):
-            raise ValueError(
-                f"Boolean search '{boolean_search}' has no 'paramNames' list"
-            )
+            msg = f"Boolean search '{boolean_search}' has no 'paramNames' list"
+            raise TypeError(msg)
         param_names = [str(p) for p in param_names_raw if p is not None]
 
         left = next((p for p in param_names if p.startswith("bq_left_op")), None)
@@ -57,10 +55,11 @@ class StepsMixin(StrategyAPIBase):
         op = next((p for p in param_names if p.startswith("bq_operator")), None)
 
         if not left or not right or not op:
-            raise ValueError(
+            msg = (
                 f"Boolean param names not found for record type '{record_type}' "
                 f"(left={left}, right={right}, op={op}, params={param_names})"
             )
+            raise ValueError(msg)
 
         return left, right, op
 
@@ -94,8 +93,6 @@ class StepsMixin(StrategyAPIBase):
                 for p in params
                 if isinstance(p, dict) and p.get("type") == "input-step"
             }
-            self._answer_param_cache[cache_key] = names
-            return names
         except httpx.HTTPError, KeyError, TypeError:
             logger.warning(
                 "Failed to fetch answer param names for %s/%s",
@@ -104,6 +101,9 @@ class StepsMixin(StrategyAPIBase):
                 exc_info=True,
             )
             return set()
+        else:
+            self._answer_param_cache[cache_key] = names
+            return names
 
     async def create_dataset(self, ids: list[str]) -> int:
         """Upload an ID list as a WDK dataset and return the dataset ID.
@@ -119,7 +119,7 @@ class StepsMixin(StrategyAPIBase):
         """
         await self._ensure_session()
         payload: JSONObject = cast(
-            JSONObject,
+            "JSONObject",
             {"sourceType": "idList", "sourceContent": {"ids": ids}},
         )
         result = await self.client.post(
@@ -182,7 +182,7 @@ class StepsMixin(StrategyAPIBase):
         )
 
         search_config: JSONObject = {
-            "parameters": cast(JSONObject, normalized_params),
+            "parameters": cast("JSONObject", normalized_params),
         }
         if wdk_weight is not None:
             search_config["wdkWeight"] = wdk_weight
@@ -201,7 +201,7 @@ class StepsMixin(StrategyAPIBase):
 
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.post(
                 f"/users/{self.user_id}/steps",
                 json=payload,
@@ -258,7 +258,7 @@ class StepsMixin(StrategyAPIBase):
         )
 
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.post(
                 f"/users/{self.user_id}/steps",
                 json=payload,
@@ -303,7 +303,7 @@ class StepsMixin(StrategyAPIBase):
             clean_params, keep_empty=answer_param_names
         )
         search_config: JSONObject = {
-            "parameters": cast(JSONObject, normalized_params),
+            "parameters": cast("JSONObject", normalized_params),
         }
         if wdk_weight is not None:
             search_config["wdkWeight"] = wdk_weight
@@ -327,7 +327,7 @@ class StepsMixin(StrategyAPIBase):
 
         await self._ensure_session()
         return cast(
-            JSONObject,
+            "JSONObject",
             await self.client.post(
                 f"/users/{self.user_id}/steps",
                 json=payload,

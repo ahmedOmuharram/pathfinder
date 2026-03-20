@@ -89,7 +89,7 @@ export function ToolCallInspector({
                   </span>
                   {isRunning && (
                     <span className="text-xs text-muted-foreground">
-                      {TOOL_DESCRIPTIONS[tc.name] || "Working..."}
+                      {TOOL_DESCRIPTIONS[tc.name] ?? "Working..."}
                     </span>
                   )}
                 </div>
@@ -113,7 +113,7 @@ export function ToolCallInspector({
 
             {expanded === tc.id && (
               <div className="space-y-2 border-t border-border px-3 py-2">
-                {Object.keys(tc.arguments || {}).length > 0 && (
+                {Object.keys(tc.arguments).length > 0 && (
                   <div>
                     <div className="mb-1 text-xs text-muted-foreground">Arguments:</div>
                     <pre className="rounded bg-muted p-2 text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-words">
@@ -121,7 +121,7 @@ export function ToolCallInspector({
                     </pre>
                   </div>
                 )}
-                {tc.result && (
+                {tc.result != null && tc.result !== "" && (
                   <div>
                     <div className="mb-1 text-xs text-muted-foreground">Result:</div>
                     <pre className="max-h-40 rounded bg-muted p-2 text-xs text-foreground overflow-x-auto whitespace-pre-wrap break-words">

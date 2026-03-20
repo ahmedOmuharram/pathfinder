@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
+    ParamSpecNormalized,
     adapt_param_specs,
     find_input_step_param,
     unwrap_search_data,
@@ -35,7 +36,7 @@ class _CompilerClient(Protocol):
     """Protocol for the WDK HTTP client methods the compiler needs."""
 
     async def get_search_details(
-        self, record_type: str, search_name: str, expand_params: bool = False
+        self, record_type: str, search_name: str, *, expand_params: bool = False
     ) -> JSONObject: ...
 
     async def get_search_details_with_params(
@@ -43,6 +44,7 @@ class _CompilerClient(Protocol):
         record_type: str,
         search_name: str,
         context: JSONObject,
+        *,
         expand_params: bool = False,
     ) -> JSONObject: ...
 
@@ -96,7 +98,12 @@ class StepDecoratorAPI(Protocol):
     """I/O boundary for post-compilation step decorations (filters, analyses, reports)."""
 
     async def set_step_filter(
-        self, step_id: int, filter_name: str, value: JSONValue, disabled: bool = False
+        self,
+        step_id: int,
+        filter_name: str,
+        value: JSONValue,
+        *,
+        disabled: bool = False,
     ) -> JSONValue: ...
 
     async def run_step_analysis(
@@ -154,7 +161,8 @@ def _extract_wdk_step_id(result: JSONObject) -> int:
     """Extract and validate a numeric WDK step ID from an API response."""
     wdk_step_id_value = result.get("id")
     if not isinstance(wdk_step_id_value, (int, float)):
-        raise ValueError(f"Expected numeric step ID, got {wdk_step_id_value}")
+        msg = f"Expected numeric step ID, got {wdk_step_id_value}"
+        raise TypeError(msg)
     return int(wdk_step_id_value)
 
 
@@ -165,6 +173,7 @@ class StrategyCompiler:
         self,
         api: StrategyCompilerAPI,
         site_id: str | None = None,
+        *,
         resolve_record_type: bool = True,
         resolve_search_record_type: ResolveRecordType | None = None,
     ) -> None:
@@ -215,7 +224,8 @@ class StrategyCompiler:
             return await self._compile_combine(node, record_type)
         if kind == "transform":
             return await self._compile_transform(node, record_type)
-        raise ValueError(f"Unknown node kind: {kind}")
+        msg = f"Unknown node kind: {kind}"
+        raise ValueError(msg)
 
     async def _resolve_strategy_record_type(self, strategy: StrategyAST) -> str | None:
         """Resolve the strategy-level record type from leaf searches.
@@ -285,9 +295,11 @@ class StrategyCompiler:
     ) -> StepTreeNode:
         """Compile a combine step."""
         if not step.primary_input or not step.secondary_input:
-            raise ValueError("Combine step missing inputs")
+            msg = "Combine step missing inputs"
+            raise ValueError(msg)
         if step.operator is None:
-            raise ValueError("Combine step missing operator")
+            msg = "Combine step missing operator"
+            raise ValueError(msg)
 
         logger.debug("Compiling combine step", step_id=step.id, op=step.operator.value)
 
@@ -401,7 +413,8 @@ class StrategyCompiler:
     ) -> StepTreeNode:
         """Compile a transform step."""
         if not step.primary_input:
-            raise ValueError("Transform step missing primaryInput")
+            msg = "Transform step missing primaryInput"
+            raise ValueError(msg)
 
         logger.debug(
             "Compiling transform step", step_id=step.id, transform=step.search_name
@@ -435,6 +448,22 @@ class StrategyCompiler:
     async def _coerce_parameters(
         self, record_type: str, search_name: str, parameters: JSONObject
     ) -> JSONObject:
+        specs = await self._load_param_specs(record_type, search_name)
+        normalized = await self._normalize_with_context_retry(
+            record_type, search_name, parameters or {}, specs
+        )
+
+        input_step_param = find_input_step_param(specs)
+        if input_step_param:
+            normalized[input_step_param] = ""
+
+        await self._upload_raw_datasets(specs, normalized)
+        return normalized
+
+    async def _load_param_specs(
+        self, record_type: str, search_name: str
+    ) -> dict[str, ParamSpecNormalized]:
+        """Fetch search metadata from WDK and return adapted param specs."""
         try:
             details = await self.api.client.get_search_details(
                 record_type, search_name, expand_params=True
@@ -445,41 +474,53 @@ class StrategyCompiler:
                 detail=f"Unable to load parameter metadata for '{search_name}' ({record_type}).",
                 errors=[{"searchName": search_name, "recordType": record_type}],
             ) from exc
+        return adapt_param_specs(unwrap_search_data(details) or {})
 
-        details = unwrap_search_data(details) or {}
-        specs = adapt_param_specs(details)
+    async def _normalize_with_context_retry(
+        self,
+        record_type: str,
+        search_name: str,
+        parameters: JSONObject,
+        specs: dict[str, ParamSpecNormalized],
+    ) -> JSONObject:
+        """Normalize parameters, retrying with contextParamValues on failure.
+
+        WDK question param metadata can be context-dependent. When validation
+        fails, we retry with contextParamValues so dependent vocabularies can
+        refresh. If the context POST itself errors (some WDK deployments return
+        500), we re-raise the original validation error.
+        """
         normalizer = ParameterNormalizer(specs)
         try:
-            normalized = normalizer.normalize(parameters or {})
+            return normalizer.normalize(parameters)
         except ValidationError as validation_exc:
-            # WDK question param metadata can be context-dependent. When validation fails, retry
-            # with contextParamValues so dependent vocabularies/constraints can refresh.
-            #
-            # Some WDK deployments/questions error on this POST (500 Internal Error). If that
-            # happens, keep the original specs and re-raise the validation error.
             try:
                 details = await self.api.client.get_search_details_with_params(
                     record_type,
                     search_name,
-                    context=parameters or {},
+                    context=parameters,
                     expand_params=True,
                 )
             except Exception as exc:
                 raise validation_exc from exc
-            details = unwrap_search_data(details) or {}
-            specs = adapt_param_specs(details)
-            normalizer = ParameterNormalizer(specs)
-            normalized = normalizer.normalize(parameters or {})
+            refreshed_specs = adapt_param_specs(unwrap_search_data(details) or {})
+            # Update the caller's specs dict so downstream logic (input-step
+            # param detection, dataset upload) uses the refreshed metadata.
+            specs.clear()
+            specs.update(refreshed_specs)
+            return ParameterNormalizer(refreshed_specs).normalize(parameters)
 
-        input_step_param = find_input_step_param(specs)
-        if input_step_param:
-            normalized[input_step_param] = ""
+    async def _upload_raw_datasets(
+        self,
+        specs: dict[str, ParamSpecNormalized],
+        normalized: JSONObject,
+    ) -> None:
+        """Auto-upload datasets for input-dataset params.
 
-        # Auto-upload datasets for input-dataset params.
-        # WDK DatasetParam fields expect an integer dataset ID. If the LLM provided
-        # raw record IDs (e.g. gene locus tags) instead, upload them as a transient
-        # dataset and swap in the integer ID. This is infrastructure plumbing — the
-        # LLM explicitly chose the IDs; we just translate the transport format.
+        WDK DatasetParam fields expect an integer dataset ID. If the LLM
+        provided raw record IDs (e.g. gene locus tags) instead, upload them
+        as a transient dataset and swap in the integer ID.
+        """
         for param_name, spec in specs.items():
             if spec.param_type != "input-dataset":
                 continue
@@ -487,13 +528,11 @@ class StrategyCompiler:
             if raw_value is None:
                 continue
             str_value = str(raw_value).strip()
-            # Already a valid dataset ID (integer)?
             try:
                 int(str_value)
-                continue  # nothing to do
+                continue  # already a valid dataset ID
             except ValueError, TypeError:
                 pass
-            # Looks like raw IDs — split on commas/newlines and upload.
             ids = [
                 tok.strip()
                 for tok in str_value.replace("\n", ",").split(",")
@@ -509,8 +548,6 @@ class StrategyCompiler:
                 id_count=len(ids),
                 dataset_id=dataset_id,
             )
-
-        return normalized
 
 
 async def apply_step_decorations(
@@ -554,6 +591,7 @@ async def compile_strategy(
     strategy: StrategyAST,
     api: StrategyCompilerAPI,
     site_id: str | None = None,
+    *,
     resolve_record_type: bool = True,
     resolve_search_record_type: ResolveRecordType | None = None,
 ) -> CompilationResult:

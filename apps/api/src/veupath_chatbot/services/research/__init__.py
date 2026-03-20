@@ -4,6 +4,6 @@ from veupath_chatbot.services.research.literature_search import LiteratureSearch
 from veupath_chatbot.services.research.web_search import WebSearchService
 
 __all__ = [
-    "WebSearchService",
     "LiteratureSearchService",
+    "WebSearchService",
 ]

@@ -7,8 +7,7 @@ import { Modal } from "@/lib/components/Modal";
 import { Label } from "@/lib/components/ui/Label";
 
 function looksLikeOrthologSearch(s: Search) {
-  const hay =
-    `${s.displayName || ""} ${s.description || ""} ${s.name || ""}`.toLowerCase();
+  const hay = `${s.displayName} ${s.description ?? ""} ${s.name}`.toLowerCase();
   return (
     hay.includes("ortholog") || hay.includes("orthology") || hay.includes("orthomcl")
   );
@@ -38,13 +37,14 @@ export function OrthologTransformModal(props: {
     getSearches(siteId, recordType)
       .then((all) => {
         if (!alive) return;
-        const matches = (all || []).filter(looksLikeOrthologSearch);
+        const matches = all.filter(looksLikeOrthologSearch);
         setSearches(matches);
-        setSelectedName(matches[0]?.name || "");
+        setSelectedName(matches[0]?.name ?? "");
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         if (!alive) return;
-        setError(e?.message || "Failed to load searches.");
+        const message = e instanceof Error ? e.message : "Failed to load searches.";
+        setError(message);
         setSearches([]);
         setSelectedName("");
       })
@@ -58,7 +58,7 @@ export function OrthologTransformModal(props: {
   }, [open, siteId, recordType]);
 
   const selected = useMemo(
-    () => searches.find((s) => s.name === selectedName) || null,
+    () => searches.find((s) => s.name === selectedName) ?? null,
     [searches, selectedName],
   );
 
@@ -87,7 +87,7 @@ export function OrthologTransformModal(props: {
               <div className="text-sm text-muted-foreground">Loading…</div>
             ) : searches.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                {error || "No ortholog transforms found for this record type."}
+                {error ?? "No ortholog transforms found for this record type."}
               </div>
             ) : (
               <select
@@ -102,7 +102,7 @@ export function OrthologTransformModal(props: {
                 ))}
               </select>
             )}
-            {selected?.description ? (
+            {selected?.description != null && selected.description !== "" ? (
               <div className="mt-2 text-sm text-muted-foreground">
                 {selected.description}
               </div>

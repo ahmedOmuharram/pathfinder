@@ -80,7 +80,7 @@ describe("graphConnectionsLogic", () => {
     const steps = [
       step({ id: "root" }),
       // Target must already be a transform/combine node to accept a primary input.
-      step({ id: "t", kind: "transform", primaryInputStepId: undefined }),
+      step({ id: "t", kind: "transform", primaryInputStepId: null }),
     ];
     const idx = buildGraphIndices(steps);
     const conn = { source: "root", target: "t", targetHandle: "left" } as Connection;
@@ -145,27 +145,27 @@ describe("graphConnectionsLogic", () => {
 
   test("edgeToInputPatch detaches primary/secondary by handle or id suffix", () => {
     expect(edgeToInputPatch({ targetHandle: "left" } as Edge)).toEqual({
-      primaryInputStepId: undefined,
+      primaryInputStepId: null,
     });
     expect(edgeToInputPatch({ targetHandle: "left-secondary" } as Edge)).toEqual({
-      secondaryInputStepId: undefined,
-      operator: undefined,
-      colocationParams: undefined,
+      secondaryInputStepId: null,
+      operator: null,
+      colocationParams: null,
     });
     expect(edgeToInputPatch({ id: "a-b-primary" } as Edge)).toEqual({
-      primaryInputStepId: undefined,
+      primaryInputStepId: null,
     });
     expect(edgeToInputPatch({ id: "a-b-secondary" } as Edge)).toEqual({
-      secondaryInputStepId: undefined,
+      secondaryInputStepId: null,
     });
     expect(edgeToInputPatch({ id: "weird" } as Edge)).toBeNull();
   });
 
   test("edgeToInputPatch clears operator and colocationParams when secondary edge removed", () => {
     const patch = edgeToInputPatch({ targetHandle: "left-secondary" } as Edge);
-    expect(patch).toHaveProperty("operator", undefined);
-    expect(patch).toHaveProperty("colocationParams", undefined);
-    expect(patch).toHaveProperty("secondaryInputStepId", undefined);
+    expect(patch).toHaveProperty("operator", null);
+    expect(patch).toHaveProperty("colocationParams", null);
+    expect(patch).toHaveProperty("secondaryInputStepId", null);
   });
 
   test("inferCombineRecordTypeOrMismatch detects real mismatch and infers recordType", () => {

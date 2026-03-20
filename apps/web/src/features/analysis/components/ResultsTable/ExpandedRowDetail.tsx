@@ -2,7 +2,7 @@ import { Loader2, X } from "lucide-react";
 import type { RecordDetail } from "@/lib/types/wdk";
 import { AttributeValueRich } from "./ResultsTableColumns";
 
-export interface ExpandedRowDetailProps {
+interface ExpandedRowDetailProps {
   pk: string;
   detail: RecordDetail | null;
   error: string | null;
@@ -45,7 +45,7 @@ export function ExpandedRowDetail({
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading details…
         </div>
-      ) : error ? (
+      ) : error != null ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">
           <p className="text-sm text-destructive">{error}</p>
         </div>

@@ -5,10 +5,15 @@ it delegates to the optimization service. These tests exercise every
 validation branch without calling the actual optimization engine.
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.ai.tools.planner.optimization_tools import OptimizationToolsMixin
+from veupath_chatbot.services.parameter_optimization import (
+    OptimizationResult,
+    TrialResult,
+)
 
 _SITE_ID = "plasmodb"
 
@@ -126,11 +131,6 @@ class TestControlsRequirement:
             new_callable=AsyncMock,
         ) as mock_opt:
             # Set up a mock return value
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -164,11 +164,6 @@ class TestControlsRequirement:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -209,11 +204,6 @@ class TestObjectiveValidation:
                 "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
                 new_callable=AsyncMock,
             ) as mock_opt:
-                from veupath_chatbot.services.parameter_optimization import (
-                    OptimizationResult,
-                    TrialResult,
-                )
-
                 mock_opt.return_value = OptimizationResult(
                     optimization_id="test",
                     best_trial=TrialResult(
@@ -252,11 +242,6 @@ class TestMethodValidation:
                 "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
                 new_callable=AsyncMock,
             ) as mock_opt:
-                from veupath_chatbot.services.parameter_optimization import (
-                    OptimizationResult,
-                    TrialResult,
-                )
-
                 mock_opt.return_value = OptimizationResult(
                     optimization_id="test",
                     best_trial=TrialResult(
@@ -317,11 +302,6 @@ class TestBudgetValidation:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -415,11 +395,6 @@ class TestFixedParametersJsonParsing:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -640,11 +615,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -699,11 +669,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -739,11 +704,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -777,11 +737,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -819,11 +774,6 @@ class TestSuccessfulOptimization:
                 return_value={"best": {"score": 0.9}},
             ),
         ):
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -844,11 +794,12 @@ class TestSuccessfulOptimization:
 
         assert isinstance(result, str)
         parsed = json.loads(result)
-        assert parsed == {"best": {"score": 0.9}}
+        assert parsed["best"] == {"score": 0.9}
+        assert "downloads" in parsed
+        assert parsed["downloads"]["expiresInSeconds"] == 600
+        assert parsed["downloads"]["json"].startswith("/api/v1/exports/")
 
     async def test_cancel_event_passed_when_present(self) -> None:
-        import asyncio
-
         tools = _TestableTools()
         tools._cancel_event = asyncio.Event()
         kwargs = _valid_kwargs()
@@ -857,11 +808,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(
@@ -891,11 +837,6 @@ class TestSuccessfulOptimization:
             "veupath_chatbot.ai.tools.planner.optimization_tools._run_optimization",
             new_callable=AsyncMock,
         ) as mock_opt:
-            from veupath_chatbot.services.parameter_optimization import (
-                OptimizationResult,
-                TrialResult,
-            )
-
             mock_opt.return_value = OptimizationResult(
                 optimization_id="test",
                 best_trial=TrialResult(

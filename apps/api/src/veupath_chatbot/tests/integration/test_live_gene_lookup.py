@@ -39,8 +39,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -259,84 +259,78 @@ class TestResolveGeneIdsMultiDb:
         """Resolve 10 P. falciparum genes from PlasmoDB."""
         result = await resolve_gene_ids("plasmodb", PLASMO_GENES)
 
-        print(f"\n  PlasmoDB resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_toxodb_resolve_10_genes(self) -> None:
         """Resolve 10 T. gondii genes from ToxoDB."""
         result = await resolve_gene_ids("toxodb", TOXO_GENES)
 
-        print(f"\n  ToxoDB resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_cryptodb_resolve_10_genes(self) -> None:
         """Resolve 10 C. parvum genes from CryptoDB."""
         result = await resolve_gene_ids("cryptodb", CRYPTO_GENES)
 
-        print(f"\n  CryptoDB resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_fungidb_resolve_10_genes(self) -> None:
         """Resolve 10 A. fumigatus genes from FungiDB."""
         result = await resolve_gene_ids("fungidb", FUNGI_GENES)
 
-        print(f"\n  FungiDB resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_tritrypdb_resolve_10_genes(self) -> None:
         """Resolve 10 T. brucei genes from TriTrypDB."""
         result = await resolve_gene_ids("tritrypdb", TRITRYP_GENES)
 
-        print(f"\n  TriTrypDB resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_vectorbase_resolve_10_genes(self) -> None:
         """Resolve 10 A. gambiae genes from VectorBase."""
         result = await resolve_gene_ids("vectorbase", VECTOR_GENES)
 
-        print(f"\n  VectorBase resolve: totalCount={result.get('totalCount')}")
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) > 0
-        assert isinstance(result["totalCount"], int) and result["totalCount"] > 0
+        assert isinstance(result["totalCount"], int)
+        assert result["totalCount"] > 0
         for rec in records[:3]:
             assert isinstance(rec, dict)
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
 
 
 # ===================================================================
@@ -355,9 +349,6 @@ class TestResolveGeneIdsLargeSet:
         total = result.get("totalCount")
         records = result.get("records")
         assert isinstance(records, list)
-        print(
-            f"\n  PlasmoDB 50-gene resolve: totalCount={total}, records={len(records)}"
-        )
 
         # Some IDs may not map to transcripts, but most should resolve
         assert isinstance(total, int)
@@ -372,7 +363,6 @@ class TestResolveGeneIdsLargeSet:
         total = result.get("totalCount")
         records = result.get("records")
         assert isinstance(records, list)
-        print(f"\n  ToxoDB 50-gene resolve: totalCount={total}, records={len(records)}")
 
         assert isinstance(total, int)
         assert total >= 40, f"Expected >= 40 resolved, got {total}"
@@ -397,14 +387,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  PlasmoDB text 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
     @pytest.mark.asyncio
     async def test_toxodb_text_search(self) -> None:
@@ -416,14 +402,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  ToxoDB text 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
     @pytest.mark.asyncio
     async def test_cryptodb_text_search(self) -> None:
@@ -435,14 +417,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  CryptoDB text 'protease': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
     @pytest.mark.asyncio
     async def test_fungidb_text_search(self) -> None:
@@ -454,14 +432,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  FungiDB text 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
     @pytest.mark.asyncio
     async def test_tritrypdb_text_search(self) -> None:
@@ -473,14 +447,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  TriTrypDB text 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
     @pytest.mark.asyncio
     async def test_vectorbase_text_search(self) -> None:
@@ -492,14 +462,10 @@ class TestTextSearchMultiDb:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  VectorBase text 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass
 
 
 # ===================================================================
@@ -529,7 +495,6 @@ class TestResolveEdgeCases:
         rec = records[0]
         assert isinstance(rec, dict)
         assert rec.get("geneId") == "PF3D7_1222600"
-        print(f"\n  Single gene: {rec.get('geneId')} — {rec.get('product')}")
 
     @pytest.mark.asyncio
     async def test_nonexistent_gene_id(self) -> None:
@@ -539,7 +504,6 @@ class TestResolveEdgeCases:
         records = result.get("records")
         assert isinstance(records, list)
         assert len(records) == 0
-        print(f"\n  Nonexistent gene resolve: totalCount={result.get('totalCount')}")
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid(self) -> None:
@@ -554,7 +518,6 @@ class TestResolveEdgeCases:
         returned_ids = {str(r.get("geneId")) for r in records if isinstance(r, dict)}
         assert "PF3D7_1222600" in returned_ids
         assert "PF3D7_1031000" in returned_ids
-        print(f"\n  Mixed resolve: {returned_ids}")
 
 
 # ===================================================================
@@ -599,11 +562,7 @@ class TestTextSearchEdgeCases:
             text_fields=WDK_TEXT_FIELDS_BROAD,
         )
 
-        print(
-            f"\n  Broad text fields 'kinase': total={result.total_count}, "
-            f"records={len(result.records)}"
-        )
         assert result.total_count > 0
         assert len(result.records) > 0
-        for rec in result.records[:3]:
-            print(f"    {rec.get('geneId')} — {rec.get('product')}")
+        for _rec in result.records[:3]:
+            pass

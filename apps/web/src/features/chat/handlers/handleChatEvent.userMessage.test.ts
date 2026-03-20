@@ -76,7 +76,7 @@ describe("handleUserMessageEvent", () => {
 
     handleUserMessageEvent(ctx, { content: "hello", messageId: "m1" });
 
-    const updater = setMessages.mock.calls[0][0] as (prev: Message[]) => Message[];
+    const updater = setMessages.mock.calls[0]![0] as (prev: Message[]) => Message[];
     const result = updater([]);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ role: "user", content: "hello" });
@@ -91,7 +91,7 @@ describe("handleUserMessageEvent", () => {
 
     handleUserMessageEvent(ctx, { content: "hello", messageId: "m1" });
 
-    const updater = setMessages.mock.calls[0][0] as (prev: Message[]) => Message[];
+    const updater = setMessages.mock.calls[0]![0] as (prev: Message[]) => Message[];
     const result = updater(existing);
     // Should return existing array unchanged (dedup)
     expect(result).toBe(existing);
@@ -108,7 +108,7 @@ describe("handleUserMessageEvent", () => {
 
     handleUserMessageEvent(ctx, { content: "second question", messageId: "m2" });
 
-    const updater = setMessages.mock.calls[0][0] as (prev: Message[]) => Message[];
+    const updater = setMessages.mock.calls[0]![0] as (prev: Message[]) => Message[];
     const result = updater(existing);
     expect(result).toHaveLength(3);
     expect(result[2]).toMatchObject({ role: "user", content: "second question" });
@@ -164,7 +164,7 @@ describe("recovery catch-up produces complete conversation", () => {
     });
 
     expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe("user");
+    expect(messages[0]!.role).toBe("user");
 
     handleChatEvent(ctx, {
       type: "message_start",
@@ -177,15 +177,15 @@ describe("recovery catch-up produces complete conversation", () => {
     });
 
     expect(messages).toHaveLength(2);
-    expect(messages[1].role).toBe("assistant");
-    expect(messages[1].content).toBe("Here are ");
+    expect(messages[1]!.role).toBe("assistant");
+    expect(messages[1]!.content).toBe("Here are ");
 
     handleChatEvent(ctx, {
       type: "assistant_delta",
       data: { delta: "the results", messageId: "a1" },
     });
 
-    expect(messages[1].content).toBe("Here are the results");
+    expect(messages[1]!.content).toBe("Here are the results");
 
     handleChatEvent(ctx, {
       type: "assistant_message",

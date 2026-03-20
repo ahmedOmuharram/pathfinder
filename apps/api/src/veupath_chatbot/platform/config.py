@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     )
 
     # API
-    api_host: str = "0.0.0.0"
+    api_host: str = "0.0.0.0"  # noqa: S104
     api_port: int = 8000
     api_env: Literal["development", "staging", "production"] = "development"
     api_debug: bool = False
@@ -105,14 +105,14 @@ class Settings(BaseSettings):
         description="Extra OpenAI chat-completions params passed through to the engine.",
     )
 
-    # Anthropic (Claude)
+    # Anthropic
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
     anthropic_temperature: float = 0.0
     anthropic_top_p: float = 1.0
     anthropic_hyperparams: dict[str, object] = Field(default_factory=dict)
 
-    # Google (Gemini)
+    # Google
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-pro"
     gemini_temperature: float = 0.0
@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     rag_startup_public_strategies_concurrency: int | None = None
     rag_startup_public_strategies_llm_model: str = "gpt-4.1-nano"
     rag_startup_public_strategies_report_path: str = (
-        "/tmp/ingest_public_strategies_report.jsonl"
+        "/tmp/ingest_public_strategies_report.jsonl"  # noqa: S108
     )
 
     # Embeddings
@@ -186,10 +186,11 @@ class Settings(BaseSettings):
     def model_post_init(self, __context: object) -> None:
         """Validate settings after initialization."""
         if self.api_env != "development" and "dev-only" in self.api_secret_key:
-            raise ValueError(
+            msg = (
                 "API_SECRET_KEY must be set to a real secret in production and staging. "
                 "The default development key is not allowed."
             )
+            raise ValueError(msg)
 
     @classmethod
     def settings_customise_sources(

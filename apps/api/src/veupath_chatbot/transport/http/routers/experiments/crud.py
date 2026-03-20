@@ -4,6 +4,9 @@ from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.experiment.materialization import (
+    cleanup_experiment_strategy,
+)
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     experiment_summary_to_json,
@@ -62,10 +65,6 @@ async def update_experiment(
 @router.delete("/{experiment_id}", status_code=204, response_class=Response)
 async def delete_experiment(exp: ExperimentDep, user_id: CurrentUser) -> Response:
     """Delete an experiment and clean up its WDK strategy."""
-    from veupath_chatbot.services.experiment.materialization import (
-        cleanup_experiment_strategy,
-    )
-
     await cleanup_experiment_strategy(exp)
 
     store = get_experiment_store()

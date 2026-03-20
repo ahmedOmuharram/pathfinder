@@ -15,7 +15,7 @@ export function SelectParam({
       <select
         value={value ?? ""}
         onChange={(e) => onChangeSingle(e.target.value)}
-        className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground ${fieldBorderClass || "border-border"}`}
+        className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground ${fieldBorderClass ?? "border-border"}`}
       >
         {spec.allowEmptyValue !== false && <option value="">-- Select --</option>}
         {options.map((opt) => (
@@ -43,7 +43,7 @@ export function SelectParam({
 
   return (
     <div
-      className={`rounded-md border ${fieldBorderClass || "border-border"} bg-card max-h-48 overflow-y-auto p-2`}
+      className={`rounded-md border ${fieldBorderClass ?? "border-border"} bg-card max-h-48 overflow-y-auto p-2`}
     >
       {options.length > 3 && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground mb-1 pb-1 border-b border-border">

@@ -1,6 +1,6 @@
 """Tests for the shared param-type dispatch mechanism.
 
-Verifies that ``_value_helpers._process_value()`` correctly routes each
+Verifies that ``_value_helpers.process_value()`` correctly routes each
 param_type through its handler and returns the appropriate ``ProcessedParam``
 with the correct ``ParamKind``.
 """
@@ -8,20 +8,11 @@ with the correct ``ParamKind``.
 import pytest
 
 from veupath_chatbot.domain.parameters._value_helpers import (
-    ParameterValueMixin,
     ParamKind,
+    process_value,
 )
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.tests.fixtures.builders import make_param_spec
-
-
-class Processor(ParameterValueMixin):
-    """Concrete subclass for testing the mixin's _process_value."""
-
-    pass
-
-
-_proc = Processor()
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +34,7 @@ class TestDispatchMultiPick:
             param_type="multi-pick-vocabulary",
             vocabulary=[["a", "A"], ["b", "B"]],
         )
-        result = _proc._process_value(spec, ["A", "B"])
+        result = process_value(spec, ["A", "B"])
         assert result.kind is ParamKind.MULTI_PICK
         assert result.value == ["a", "b"]
 
@@ -53,7 +44,7 @@ class TestDispatchMultiPick:
             param_type="multi-pick-vocabulary",
             vocabulary=[["x", "x"], ["y", "y"]],
         )
-        result = _proc._process_value(spec, "x,y")
+        result = process_value(spec, "x,y")
         assert result.kind is ParamKind.MULTI_PICK
         assert result.value == ["x", "y"]
 
@@ -65,7 +56,7 @@ class TestDispatchMultiPick:
             vocabulary=[["a", "a"]],
         )
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, ["a"])
+            process_value(spec, ["a"])
         assert "at least 2" in (exc_info.value.detail or "")
 
     def test_validates_max_count(self) -> None:
@@ -76,7 +67,7 @@ class TestDispatchMultiPick:
             vocabulary=[["a", "a"], ["b", "b"]],
         )
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, ["a", "b"])
+            process_value(spec, ["a", "b"])
         assert "at most 1" in (exc_info.value.detail or "")
 
 
@@ -90,7 +81,7 @@ class TestDispatchSinglePick:
             param_type="single-pick-vocabulary",
             vocabulary=[["ring", "Ring"]],
         )
-        result = _proc._process_value(spec, "Ring")
+        result = process_value(spec, "Ring")
         assert result.kind is ParamKind.SINGLE_PICK
         assert result.value == "ring"
 
@@ -101,7 +92,7 @@ class TestDispatchSinglePick:
             vocabulary=[["a", "A"], ["b", "B"]],
         )
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, ["A", "B"])
+            process_value(spec, ["A", "B"])
         assert "only one value" in (exc_info.value.detail or "")
 
     def test_empty_with_allow_empty(self) -> None:
@@ -110,7 +101,7 @@ class TestDispatchSinglePick:
             param_type="single-pick-vocabulary",
             allow_empty=True,
         )
-        result = _proc._process_value(spec, "")
+        result = process_value(spec, "")
         assert result.kind is ParamKind.SINGLE_PICK
         assert result.value == ""
 
@@ -121,7 +112,7 @@ class TestDispatchSinglePick:
             allow_empty=False,
         )
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, "")
+            process_value(spec, "")
         assert "requires a value" in (exc_info.value.detail or "")
 
 
@@ -132,14 +123,14 @@ class TestDispatchScalar:
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_string_value(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
-        result = _proc._process_value(spec, "value")
+        result = process_value(spec, "value")
         assert result.kind is ParamKind.SCALAR
         assert result.value == "value"
 
     @pytest.mark.parametrize("param_type", ["number", "date", "timestamp", "string"])
     def test_int_stringified(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
-        result = _proc._process_value(spec, 42)
+        result = process_value(spec, 42)
         assert result.kind is ParamKind.SCALAR
         assert result.value == "42"
 
@@ -147,7 +138,7 @@ class TestDispatchScalar:
     def test_list_raises(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, [1, 2])
+            process_value(spec, [1, 2])
         assert "scalar" in (exc_info.value.detail or "")
 
 
@@ -158,14 +149,14 @@ class TestDispatchRange:
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_dict_value(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
-        result = _proc._process_value(spec, {"min": 1, "max": 10})
+        result = process_value(spec, {"min": 1, "max": 10})
         assert result.kind is ParamKind.RANGE
         assert result.value == {"min": 1, "max": 10}
 
     @pytest.mark.parametrize("param_type", ["number-range", "date-range"])
     def test_list_pair_coerced(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
-        result = _proc._process_value(spec, [1, 10])
+        result = process_value(spec, [1, 10])
         assert result.kind is ParamKind.RANGE
         assert result.value == {"min": 1, "max": 10}
 
@@ -173,7 +164,7 @@ class TestDispatchRange:
     def test_invalid_raises(self, param_type: str) -> None:
         spec = make_param_spec(name="p", param_type=param_type)
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, "invalid")
+            process_value(spec, "invalid")
         assert "must be a range" in (exc_info.value.detail or "")
 
 
@@ -183,19 +174,19 @@ class TestDispatchRange:
 class TestDispatchFilter:
     def test_dict_value(self) -> None:
         spec = make_param_spec(name="p", param_type="filter")
-        result = _proc._process_value(spec, {"filters": []})
+        result = process_value(spec, {"filters": []})
         assert result.kind is ParamKind.FILTER
         assert result.value == {"filters": []}
 
     def test_list_value(self) -> None:
         spec = make_param_spec(name="p", param_type="filter")
-        result = _proc._process_value(spec, [{"field": "x"}])
+        result = process_value(spec, [{"field": "x"}])
         assert result.kind is ParamKind.FILTER
         assert result.value == [{"field": "x"}]
 
     def test_string_value(self) -> None:
         spec = make_param_spec(name="p", param_type="filter")
-        result = _proc._process_value(spec, "filter_val")
+        result = process_value(spec, "filter_val")
         assert result.kind is ParamKind.FILTER
         assert result.value == "filter_val"
 
@@ -206,14 +197,14 @@ class TestDispatchFilter:
 class TestDispatchInputDataset:
     def test_single_list_item(self) -> None:
         spec = make_param_spec(name="p", param_type="input-dataset")
-        result = _proc._process_value(spec, ["dataset_1"])
+        result = process_value(spec, ["dataset_1"])
         assert result.kind is ParamKind.INPUT_DATASET
         assert result.value == "dataset_1"
 
     def test_multi_list_raises(self) -> None:
         spec = make_param_spec(name="p", param_type="input-dataset")
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, ["a", "b"])
+            process_value(spec, ["a", "b"])
         assert "single value" in (exc_info.value.detail or "")
 
 
@@ -223,7 +214,7 @@ class TestDispatchInputDataset:
 class TestDispatchUnknown:
     def test_passthrough(self) -> None:
         spec = make_param_spec(name="p", param_type="unknown_type")
-        result = _proc._process_value(spec, {"complex": "data"})
+        result = process_value(spec, {"complex": "data"})
         assert result.kind is ParamKind.UNKNOWN
         assert result.value == {"complex": "data"}
 
@@ -234,12 +225,12 @@ class TestDispatchUnknown:
 class TestDispatchNone:
     def test_none_with_allow_empty_returns_empty(self) -> None:
         spec = make_param_spec(name="p", param_type="string", allow_empty=True)
-        result = _proc._process_value(spec, None)
+        result = process_value(spec, None)
         assert result.kind is ParamKind.EMPTY
         assert result.value == ""
 
     def test_none_without_allow_empty_raises(self) -> None:
         spec = make_param_spec(name="p", param_type="string", allow_empty=False)
         with pytest.raises(ValidationError) as exc_info:
-            _proc._process_value(spec, None)
+            process_value(spec, None)
         assert "requires a value" in (exc_info.value.detail or "")

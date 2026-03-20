@@ -10,6 +10,10 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+from veupath_chatbot.services.experiment.enrichment_params import (
+    encode_vocab_params,
+    extract_default_params,
+)
 
 _SORTABLE_WDK_TYPES = {"number", "float", "integer", "double"}
 
@@ -225,13 +229,17 @@ def extract_detail_attributes(
     """
     items: list[tuple[str, JSONObject]] = []
     if isinstance(attrs_raw, dict):
-        for name, meta in attrs_raw.items():
-            if isinstance(meta, dict):
-                items.append((str(name), meta))
+        items = [
+            (str(name), meta)
+            for name, meta in attrs_raw.items()
+            if isinstance(meta, dict)
+        ]
     elif isinstance(attrs_raw, list):
-        for meta in attrs_raw:
-            if isinstance(meta, dict):
-                items.append((str(meta.get("name", "")), meta))
+        items = [
+            (str(meta.get("name", "")), meta)
+            for meta in attrs_raw
+            if isinstance(meta, dict)
+        ]
 
     names: list[str] = []
     display_names: dict[str, str] = {}
@@ -268,11 +276,6 @@ def merge_analysis_params(
     don't bypass the encoding required by
     ``AbstractEnumParam.convertToTerms()``.
     """
-    from veupath_chatbot.services.experiment.enrichment import (
-        _extract_default_params,
-        encode_vocab_params,
-    )
-
-    defaults = _extract_default_params(form_meta)
+    defaults = extract_default_params(form_meta)
     merged: JSONObject = {**defaults, **user_params}
     return encode_vocab_params(merged, form_meta)

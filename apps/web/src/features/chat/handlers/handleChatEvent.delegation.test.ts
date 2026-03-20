@@ -22,7 +22,7 @@ describe("handleChatEvent — realistic delegation (sub-kani) events", () => {
     });
 
     for (const event of DELEGATION_EVENTS) {
-      handleChatEvent(ctx, event as ChatSSEEvent);
+      handleChatEvent(ctx, event);
     }
 
     // ── Strategy initialized ──

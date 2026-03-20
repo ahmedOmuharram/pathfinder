@@ -11,7 +11,7 @@ export function DistributionsPanel() {
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
   // Distribution explorer requires a WDK step (strategy-backed gene set).
-  const hasWdkStep = !!activeSet?.wdkStepId;
+  const hasWdkStep = activeSet?.wdkStepId != null;
   const isDisabled = !activeSet || !hasWdkStep;
 
   return (

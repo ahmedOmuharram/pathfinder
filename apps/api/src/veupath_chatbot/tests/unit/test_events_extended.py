@@ -79,7 +79,7 @@ class TestEntryIdToIso:
     def test_valid_entry_id(self):
         # 1709234567890 ms = some specific datetime
         result = _entry_id_to_iso("1709234567890-0")
-        assert result.endswith("+00:00") or result.endswith("Z")
+        assert result.endswith(("+00:00", "Z"))
         # Should parse as a valid ISO 8601 datetime
         dt = datetime.fromisoformat(result)
         assert dt.tzinfo is not None

@@ -5,7 +5,7 @@ import { useEventListener } from "usehooks-ts";
 import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
 import { usePrevious } from "@/lib/hooks/usePrevious";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { computeStepCounts } from "@/lib/api/strategies";
 import { listSites } from "@/lib/api/sites";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
@@ -115,7 +115,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   // --- WDK fallback URL ---
   const wdkUrlFallback = useWdkUrlFallback({
     wdkStrategyId: strategy?.wdkStrategyId,
-    siteId: strategy?.siteId || selectedSite,
+    siteId: strategy?.siteId ?? selectedSite,
     listSites,
   });
 
@@ -126,18 +126,17 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
       ? null
       : (graphNodes.planResult?.plan ?? null),
     planHash: graphNodes.graphHasValidationIssues ? null : graphNodes.planHash,
-    stepIds: (draftStrategy?.steps || strategy?.steps || []).map((step) => step.id),
+    stepIds: (draftStrategy?.steps ?? strategy?.steps ?? []).map((step) => step.id),
     setStepCounts,
     fetchCounts: computeStepCounts,
   });
 
   // --- Save ---
-  const { isSaving, canSave, handleSave } = useGraphSave({
+  const graphSaveArgs: Parameters<typeof useGraphSave>[0] = {
     strategy,
     draftStrategy,
     buildPlan,
     combineMismatchGroups: graphNodes.combineMismatchGroups,
-    onToast,
     setStrategyMeta,
     buildStepSignature: graphNodes.buildStepSignature,
     setLastSavedSteps: graphNodes.setLastSavedSteps,
@@ -146,13 +145,17 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     nameValue,
     setNameValue,
     descriptionValue,
-  });
+  };
+  if (onToast != null) {
+    graphSaveArgs.onToast = onToast;
+  }
+  const { isSaving, canSave, handleSave } = useGraphSave(graphSaveArgs);
 
   const saveDisabledReason = useMemo(() => {
     if (canSave && !isSaving && !graphNodes.graphHasValidationIssues) return undefined;
     if (isSaving) return "Saving...";
-    if (!draftStrategy) return "No draft strategy loaded.";
-    if (!strategy || strategy.id !== draftStrategy.id) {
+    if (draftStrategy == null) return "No draft strategy loaded.";
+    if (strategy?.id !== draftStrategy.id) {
       return "Open the active draft to save.";
     }
     if (graphNodes.graphHasValidationIssues) {
@@ -185,8 +188,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   // --- Draft details sync (defer setState to avoid synchronous setState in effect) ---
   useEffect(() => {
     if (!graphNodes.isDraftView) return;
-    const name = draftStrategy?.name || DEFAULT_STREAM_NAME;
-    const description = draftStrategy?.description || "";
+    const name = draftStrategy?.name ?? DEFAULT_STREAM_NAME;
+    const description = draftStrategy?.description ?? "";
     queueMicrotask(() => {
       setNameValue(name);
       setDescriptionValue(description);
@@ -200,10 +203,11 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   ]);
 
   // --- Saved snapshot sync ---
-  const snapshotId = strategy?.id || null;
+  const snapshotId = strategy?.id ?? null;
   const prevSnapshotId = usePrevious(snapshotId);
   useEffect(() => {
-    if (!snapshotId || snapshotId === prevSnapshotId) return;
+    if (snapshotId == null || snapshotId === "" || snapshotId === prevSnapshotId)
+      return;
     if (strategy?.steps) {
       graphNodes.setLastSavedSteps(
         new Map(
@@ -217,8 +221,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   // --- Name/description commit ---
   const handleNameCommit = useCallback(async () => {
     const name = nameValue.trim();
-    if (!name || name === draftStrategy?.name) {
-      setNameValue(draftStrategy?.name || DEFAULT_STREAM_NAME);
+    if (name === "" || name === draftStrategy?.name) {
+      setNameValue(draftStrategy?.name ?? DEFAULT_STREAM_NAME);
       return;
     }
     setStrategyMeta({ name });
@@ -226,8 +230,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
 
   const handleDescriptionCommit = useCallback(async () => {
     const description = descriptionValue.trim();
-    if (description === (draftStrategy?.description || "")) {
-      setDescriptionValue(draftStrategy?.description || "");
+    if (description === (draftStrategy?.description ?? "")) {
+      setDescriptionValue(draftStrategy?.description ?? "");
       return;
     }
     setStrategyMeta({ description });

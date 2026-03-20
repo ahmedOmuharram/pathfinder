@@ -12,12 +12,13 @@ from uuid import UUID
 from sqlalchemy import select
 
 from veupath_chatbot.persistence.models import GeneSetRow
-from veupath_chatbot.platform.store import WriteThruStore
-from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
 
 # ---------------------------------------------------------------------------
 # Row conversion helpers
 # ---------------------------------------------------------------------------
+from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.store import WriteThruStore
+from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
 
 
 def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
@@ -49,7 +50,7 @@ def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
     )
     valid_sources: set[str] = {"strategy", "paste", "upload", "derived", "saved"}
     source: GeneSetSource = (
-        cast(GeneSetSource, row.source) if row.source in valid_sources else "paste"
+        cast("GeneSetSource", row.source) if row.source in valid_sources else "paste"
     )
     return GeneSet(
         id=row.id,
@@ -79,8 +80,6 @@ async def _list_from_db(
     user_id: str | None = None,
     site_id: str | None = None,
 ) -> list[GeneSet]:
-    from veupath_chatbot.persistence.session import async_session_factory
-
     stmt = select(GeneSetRow)
     if user_id:
         stmt = stmt.where(GeneSetRow.user_id == user_id)

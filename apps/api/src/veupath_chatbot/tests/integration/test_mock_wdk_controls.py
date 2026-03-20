@@ -10,7 +10,7 @@ running PlasmoDB instance) but with deterministic, pre-canned responses.
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -74,6 +74,7 @@ STRATEGY_ID = 20001
 DATASET_ID = 30001
 
 PATCH_TARGET = "veupath_chatbot.services.control_tests.get_strategy_api"
+PATCH_FIND_RT = "veupath_chatbot.services.control_tests.find_record_type_for_search"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -244,7 +245,8 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 **_common_kwargs(POSITIVE_CONTROLS)
             )
@@ -268,7 +270,8 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 **_common_kwargs(NEGATIVE_CONTROLS)
             )
@@ -289,7 +292,8 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS[:3]))
 
         # Verify that a DELETE was issued against the strategies endpoint
@@ -313,7 +317,8 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
 
         dataset_calls = [
@@ -339,7 +344,8 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS[:3]))
 
         dataset_calls = [
@@ -425,7 +431,11 @@ class TestPositiveNegativeControls:
             ]
         )
 
-        with patch(PATCH_TARGET, side_effect=lambda sid: _make_api()):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with (
+            patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
+            patch(PATCH_FIND_RT, find_rt),
+        ):
             result = await run_positive_negative_controls(
                 site_id=SITE_ID,
                 record_type=RECORD_TYPE,
@@ -496,7 +506,11 @@ class TestPositiveNegativeControls:
         )
         respx.delete(url__regex=rf".*/users/{USER_ID}/strategies/\d+").respond(204)
 
-        with patch(PATCH_TARGET, side_effect=lambda sid: _make_api()):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with (
+            patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
+            patch(PATCH_FIND_RT, find_rt),
+        ):
             result = await run_positive_negative_controls(
                 site_id=SITE_ID,
                 record_type=RECORD_TYPE,
@@ -524,6 +538,7 @@ class TestErrorHandling:
     async def test_step_creation_422_propagates(self) -> None:
         """WDK 422 on step creation raises WDKError."""
         _mock_session(respx)
+        _mock_search_details(respx)
 
         respx.post(f"{BASE}/users/{USER_ID}/steps").respond(
             422,
@@ -535,7 +550,12 @@ class TestErrorHandling:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api), pytest.raises(WDKError) as exc_info:
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with (
+            patch(PATCH_TARGET, return_value=api),
+            patch(PATCH_FIND_RT, find_rt),
+            pytest.raises(WDKError) as exc_info,
+        ):
             await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
 
         assert exc_info.value.status == 422
@@ -564,7 +584,12 @@ class TestErrorHandling:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api), pytest.raises(WDKError) as exc_info:
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with (
+            patch(PATCH_TARGET, return_value=api),
+            patch(PATCH_FIND_RT, find_rt),
+            pytest.raises(WDKError) as exc_info,
+        ):
             await _run_intersection_control(**_common_kwargs(POSITIVE_CONTROLS))
 
         assert exc_info.value.status == 500
@@ -591,8 +616,8 @@ class TestErrorHandling:
             200, json=strategy_creation_response(STRATEGY_ID)
         )
 
-        # Target count returns 500 error -> retried 3× by tenacity -> WDKError -> None
-        # Combined count returns 500 error -> retried 3× by tenacity -> WDKError -> None
+        # Target count returns 500 error -> retried 3x by tenacity -> WDKError -> None
+        # Combined count returns 500 error -> retried 3x by tenacity -> WDKError -> None
         # get_step_answer returns records
         respx.post(url__regex=rf".*/users/{USER_ID}/steps/\d+/reports/standard").mock(
             side_effect=[
@@ -612,7 +637,8 @@ class TestErrorHandling:
         respx.delete(f"{BASE}/users/{USER_ID}/strategies/{STRATEGY_ID}").respond(204)
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 **_common_kwargs(POSITIVE_CONTROLS)
             )
@@ -685,7 +711,11 @@ class TestEmptyResults:
             side_effect=[_resp(204), _resp(204)]
         )
 
-        with patch(PATCH_TARGET, side_effect=lambda sid: _make_api()):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with (
+            patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
+            patch(PATCH_FIND_RT, find_rt),
+        ):
             result = await run_positive_negative_controls(
                 site_id=SITE_ID,
                 record_type=RECORD_TYPE,
@@ -726,7 +756,8 @@ class TestEmptyResults:
         )
 
         api = _make_api()
-        with patch(PATCH_TARGET, return_value=api):
+        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 **_common_kwargs(POSITIVE_CONTROLS)
             )

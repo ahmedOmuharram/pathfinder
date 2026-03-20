@@ -7,6 +7,7 @@ import jwt
 import pytest
 
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import Experiment, ExperimentConfig
 
 # ---------------------------------------------------------------------------
@@ -65,8 +66,6 @@ async def _seed_experiment(
     site_id: str = "plasmodb",
 ) -> Experiment:
     """Create and persist an experiment owned by the authed user."""
-    from veupath_chatbot.services.experiment.store import get_experiment_store
-
     user_id = _user_id_from_client(authed_client)
     exp = _make_experiment(experiment_id, user_id, name=name, site_id=site_id)
     store = get_experiment_store()
@@ -181,8 +180,6 @@ async def test_get_experiment_not_found(authed_client: httpx.AsyncClient) -> Non
 @pytest.mark.asyncio
 async def test_get_experiment_wrong_user(authed_client: httpx.AsyncClient) -> None:
     """Experiment owned by a different user returns 403."""
-    from veupath_chatbot.services.experiment.store import get_experiment_store
-
     exp = _make_experiment("exp-other-user", "00000000-0000-0000-0000-000000000099")
     store = get_experiment_store()
     store.save(exp)

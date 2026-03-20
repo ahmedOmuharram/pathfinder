@@ -153,14 +153,14 @@ export function SitePicker({
     name?: string | null;
   } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [_authBusy, setAuthBusy] = useState(false);
+  const [_authError, setAuthError] = useState<string | null>(null);
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const veupathdbName = useSessionStore((state) => state.veupathdbName);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
 
-  const displaySignedIn = veupathdbSignedIn || !!authStatus?.signedIn;
+  const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
   const displayName = veupathdbName ?? authStatus?.name ?? "";
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export function SitePicker({
   }, []);
 
   useEffect(() => {
-    if (!value) return;
+    if (value === "") return;
     setAuthError(null);
     getVeupathdbAuthStatus(value)
       .then((status) => {
@@ -190,21 +190,22 @@ export function SitePicker({
   }, [value, setVeupathdbAuth]);
 
   const selectedSite = sites.find((s) => s.id === value);
-  const visitUrl = selectedSite?.baseUrl
-    ? (() => {
-        try {
-          return new URL(selectedSite.baseUrl).origin;
-        } catch {
-          return selectedSite.baseUrl.split("/").slice(0, 3).join("/");
-        }
-      })()
-    : null;
+  const visitUrl =
+    selectedSite?.baseUrl != null
+      ? (() => {
+          try {
+            return new URL(selectedSite.baseUrl).origin;
+          } catch {
+            return selectedSite.baseUrl.split("/").slice(0, 3).join("/");
+          }
+        })()
+      : null;
 
   useEffect(() => {
     if (selectedSite) {
       setSelectedSiteInfo(
         selectedSite.id,
-        selectedSite.displayName || selectedSite.name,
+        selectedSite.displayName !== "" ? selectedSite.displayName : selectedSite.name,
       );
     }
   }, [selectedSite, setSelectedSiteInfo]);
@@ -306,7 +307,7 @@ export function SitePicker({
         >
           {showVisit && (
             <a
-              href={visitUrl || selectedSite.baseUrl}
+              href={visitUrl ?? selectedSite.baseUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground transition-colors duration-150 hover:text-foreground"
@@ -323,22 +324,24 @@ export function SitePicker({
                     : "text-muted-foreground"
                 }
               >
-                Logged in as {displayName || "—"}
+                Logged in as {displayName !== "" ? displayName : "—"}
               </span>
               <button
                 type="button"
-                onClick={async () => {
-                  setAuthBusy(true);
-                  setAuthError(null);
-                  try {
-                    await logoutVeupathdb(value);
-                    setAuthStatus({ signedIn: false });
-                    setVeupathdbAuth(false, null);
-                  } catch {
-                    setAuthError("Failed to log out. Please try again.");
-                  } finally {
-                    setAuthBusy(false);
-                  }
+                onClick={() => {
+                  void (async () => {
+                    setAuthBusy(true);
+                    setAuthError(null);
+                    try {
+                      await logoutVeupathdb(value);
+                      setAuthStatus({ signedIn: false });
+                      setVeupathdbAuth(false, null);
+                    } catch {
+                      setAuthError("Failed to log out. Please try again.");
+                    } finally {
+                      setAuthBusy(false);
+                    }
+                  })();
                 }}
                 className={
                   headerTextVariant === "light"

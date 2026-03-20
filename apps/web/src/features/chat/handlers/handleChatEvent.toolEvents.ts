@@ -28,7 +28,7 @@ export function handleToolCallEndEvent(ctx: ChatEventContext, data: ToolCallEndD
   }
   const parsed = ctx.parseToolResult(result);
   const snapshot = parsed?.graphSnapshot;
-  if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
+  if (snapshot != null && typeof snapshot === "object" && !Array.isArray(snapshot)) {
     ctx.applyGraphSnapshot(snapshot);
   }
 }
@@ -38,11 +38,12 @@ export function handleSubKaniTaskStartEvent(
   data: SubKaniTaskStartData,
 ) {
   const { task } = data;
-  if (!task) return;
+  if (task == null || task === "") return;
   ctx.thinking.subKaniTaskStart(task, data.modelId ?? undefined);
   ctx.subKaniStatusBuffer[task] = "running";
-  ctx.subKaniCallsBuffer[task] = ctx.subKaniCallsBuffer[task] || [];
-  if (data.modelId) ctx.subKaniModelsBuffer[task] = data.modelId;
+  ctx.subKaniCallsBuffer[task] = ctx.subKaniCallsBuffer[task] ?? [];
+  if (data.modelId != null && data.modelId !== "")
+    ctx.subKaniModelsBuffer[task] = data.modelId;
 }
 
 export function handleSubKaniToolCallStartEvent(
@@ -50,10 +51,10 @@ export function handleSubKaniToolCallStartEvent(
   data: SubKaniToolCallStartData,
 ) {
   const { task, id, name, arguments: args } = data;
-  if (!task) return;
+  if (task == null || task === "") return;
   const newToolCall: ToolCall = { id, name, arguments: ctx.parseToolArguments(args) };
   ctx.thinking.subKaniToolCallStart(task, newToolCall);
-  const taskCalls = ctx.subKaniCallsBuffer[task] || [];
+  const taskCalls = ctx.subKaniCallsBuffer[task] ?? [];
   taskCalls.push(newToolCall);
   ctx.subKaniCallsBuffer[task] = taskCalls;
 }
@@ -63,12 +64,12 @@ export function handleSubKaniToolCallEndEvent(
   data: SubKaniToolCallEndData,
 ) {
   const { task, id, result } = data;
-  if (!task) return;
+  if (task == null || task === "") return;
   ctx.thinking.subKaniToolCallEnd(task, id, result ?? "");
   const taskCalls = ctx.subKaniCallsBuffer[task];
   if (taskCalls) {
     const call = taskCalls.find((c) => c.id === id);
-    if (call) call.result = result;
+    if (call) call.result = result ?? null;
   }
 }
 
@@ -77,7 +78,7 @@ export function handleSubKaniTaskEndEvent(
   data: SubKaniTaskEndData,
 ) {
   const { task, status } = data;
-  if (!task) return;
+  if (task == null || task === "") return;
   ctx.thinking.subKaniTaskEnd(task, status ?? undefined);
   ctx.subKaniStatusBuffer[task] = status ?? "done";
   if (data.promptTokens != null) {

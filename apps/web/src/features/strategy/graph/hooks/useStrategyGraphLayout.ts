@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Node, ReactFlowInstance } from "reactflow";
+import type { Edge, Node, ReactFlowInstance } from "reactflow";
 import { useEventListener } from "usehooks-ts";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/useStrategyStore";
+import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
 import { deserializeStrategyToGraph } from "@/lib/strategyGraph";
@@ -15,8 +15,8 @@ interface UseStrategyGraphLayoutOptions {
   isCompact: boolean;
   nodes: Node[];
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-  setEdges: React.Dispatch<React.SetStateAction<import("reactflow").Edge[]>>;
-  nodePositionsRef: React.MutableRefObject<Map<string, { x: number; y: number }>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+  nodePositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
   dirtyStepIds: Set<string>;
   isUnsaved: boolean;
   handleAddToChat: (stepId: string) => void;
@@ -125,12 +125,13 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   // Deserialize strategy to graph nodes/edges
   useEffect(() => {
     const forceRelayout =
-      prevLayoutSeed !== layoutSeed || prevStrategyId !== (strategy?.id || null);
+      prevLayoutSeed !== layoutSeed || prevStrategyId !== (strategy?.id ?? null);
 
     const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
       strategy,
       (stepId, operator) => {
-        updateStep(stepId, { operator: operator as Step["operator"] });
+        const patch: Partial<Step> = { operator };
+        updateStep(stepId, patch);
       },
       handleAddToChat,
       handleOpenDetails,

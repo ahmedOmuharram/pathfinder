@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import Any
 
 from veupath_chatbot.integrations.vectorstore.ingest.public_strategies import (
     ingest_public_strategies,
@@ -12,8 +13,10 @@ from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_startup_task: asyncio.Task[None] | None = None
+_state: dict[str, Any] = {"startup_task": None}
 _startup_lock = asyncio.Lock()
+
+_DEFAULT_REPORT_PATH = "/tmp/ingest_public_strategies_report.jsonl"  # noqa: S108
 
 
 async def start_rag_startup_ingestion_background() -> None:
@@ -23,8 +26,6 @@ async def start_rag_startup_ingestion_background() -> None:
     - Never blocks API startup.
     - Only runs once per process.
     """
-    global _startup_task
-
     settings = get_settings()
     if not settings.rag_enabled:
         return
@@ -35,7 +36,8 @@ async def start_rag_startup_ingestion_background() -> None:
         return
 
     async with _startup_lock:
-        if _startup_task is not None and not _startup_task.done():
+        task = _state["startup_task"]
+        if task is not None and not task.done():
             return
 
         async def _run() -> None:
@@ -46,7 +48,7 @@ async def start_rag_startup_ingestion_background() -> None:
             ).strip()
             report_path = Path(
                 settings.rag_startup_public_strategies_report_path
-                or "/tmp/ingest_public_strategies_report.jsonl"
+                or _DEFAULT_REPORT_PATH
             )
 
             logger.info(
@@ -69,7 +71,7 @@ async def start_rag_startup_ingestion_background() -> None:
                     max_strategies_per_site=max_per_site,
                     concurrency=conc,
                 )
-            except Exception as exc:
+            except RuntimeError as exc:
                 logger.warning(
                     "RAG startup ingestion incomplete",
                     error=str(exc),
@@ -79,4 +81,4 @@ async def start_rag_startup_ingestion_background() -> None:
 
             logger.info("RAG startup ingestion complete")
 
-        _startup_task = asyncio.create_task(_run())
+        _state["startup_task"] = asyncio.create_task(_run())

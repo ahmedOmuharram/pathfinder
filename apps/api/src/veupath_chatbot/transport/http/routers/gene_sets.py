@@ -62,7 +62,7 @@ def _svc() -> GeneSetService:
 def _to_response(gs: GeneSet) -> GeneSetResponse:
     valid_ops = get_args(SetOperation)
     operation: SetOperation | None = (
-        cast(SetOperation, gs.operation) if gs.operation in valid_ops else None
+        cast("SetOperation", gs.operation) if gs.operation in valid_ops else None
     )
     return GeneSetResponse(
         id=gs.id,
@@ -292,7 +292,7 @@ async def get_gene_set_records(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     sort: str | None = None,
-    dir: Literal["ASC", "DESC"] = "ASC",
+    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir"),
     attributes: str | None = None,
     filter_attribute: str | None = Query(None, alias="filterAttribute"),
     filter_value: str | None = Query(None, alias="filterValue"),
@@ -315,7 +315,7 @@ async def get_gene_set_records(
             offset=0,
             limit=10_000,
             sort=sort,
-            direction=dir,
+            direction=sort_dir,
             attributes=attr_list,
         )
         records = answer.get("records", [])
@@ -330,14 +330,14 @@ async def get_gene_set_records(
                 filtered.append(r)
         page = filtered[offset : offset + limit]
         return {
-            "records": cast(JSONValue, page),
+            "records": cast("JSONValue", page),
             "meta": {
                 "totalCount": len(filtered),
                 "displayTotalCount": len(filtered),
                 "responseCount": len(page),
                 "pagination": {"offset": offset, "numRecords": limit},
-                "attributes": cast(JSONValue, attr_list or []),
-                "tables": cast(JSONValue, []),
+                "attributes": cast("JSONValue", attr_list or []),
+                "tables": cast("JSONValue", []),
             },
         }
 
@@ -345,7 +345,7 @@ async def get_gene_set_records(
         offset=offset,
         limit=limit,
         sort=sort,
-        direction=dir,
+        direction=sort_dir,
         attributes=attr_list,
     )
 

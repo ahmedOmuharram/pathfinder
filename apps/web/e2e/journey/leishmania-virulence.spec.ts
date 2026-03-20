@@ -22,7 +22,9 @@ test.describe("Leishmania Virulence Journey", () => {
     workbenchSidebarPage,
     workbenchMainPage,
   }) => {
-    const tritrypGenes = seedData.siteData.tritrypdb.geneIds;
+    const tritrypSiteData = seedData.siteData["tritrypdb"];
+    if (tritrypSiteData === undefined) throw new Error("tritrypdb seed data missing");
+    const tritrypGenes = tritrypSiteData.geneIds;
     const fullCount = tritrypGenes.length;
 
     // ── Setup: Clean stale gene sets for TriTrypDB ───────────────

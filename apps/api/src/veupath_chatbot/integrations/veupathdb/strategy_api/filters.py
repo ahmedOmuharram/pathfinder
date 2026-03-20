@@ -24,7 +24,12 @@ class FilterMixin(StrategyAPIBase):
         return await self.client.get_step_view_filters(self.user_id, step_id)
 
     async def set_step_filter(
-        self, step_id: int, filter_name: str, value: JSONValue, disabled: bool = False
+        self,
+        step_id: int,
+        filter_name: str,
+        value: JSONValue,
+        *,
+        disabled: bool = False,
     ) -> JSONValue:
         """Create or update a viewFilter on a step.
 

@@ -11,7 +11,14 @@ from veupath_chatbot.services.control_tests import (
     _extract_intersection_data,
     resolve_controls_param_type,
 )
-from veupath_chatbot.services.experiment.helpers import safe_int
+from veupath_chatbot.services.experiment.helpers import (
+    coerce_step_id,
+    extract_wdk_id,
+    safe_int,
+)
+from veupath_chatbot.services.experiment.materialization import (
+    _materialize_step_tree,
+)
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
@@ -42,14 +49,6 @@ async def run_controls_against_tree(
     Returns the same shape as :func:`run_positive_negative_controls` so
     :func:`metrics_from_control_result` can consume it directly.
     """
-    from veupath_chatbot.services.experiment.helpers import (
-        coerce_step_id,
-        extract_wdk_id,
-    )
-    from veupath_chatbot.services.experiment.materialization import (
-        _materialize_step_tree,
-    )
-
     api = get_strategy_api(site_id)
 
     pos = [s.strip() for s in (positive_controls or []) if s.strip()]

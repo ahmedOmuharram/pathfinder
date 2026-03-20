@@ -7,6 +7,8 @@ VEuPathDB strategy during a chat session.
 from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
+    COMBINE_SEARCH_NAME,
+    UNKNOWN_SEARCH_NAME,
     PlanStepNode,
     StrategyAST,
     from_dict,
@@ -16,11 +18,16 @@ from veupath_chatbot.domain.strategy.ast import (
     parse_reports,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
     JSONArray,
     JSONObject,
     as_json_object,
 )
+
+logger = get_logger(__name__)
+
+_MIN_UNDO_HISTORY = 2
 
 
 class StrategyGraph:
@@ -138,7 +145,7 @@ class StrategyGraph:
         (``steps``, ``roots``, ``last_step_id``) so that tools that inspect
         the step graph see a consistent picture after undo.
         """
-        if len(self.history) < 2:
+        if len(self.history) < _MIN_UNDO_HISTORY:
             return False
         self.history.pop()  # remove current
         previous = self.history[-1]
@@ -161,14 +168,25 @@ class StrategySession:
     def add_graph(self, graph: StrategyGraph) -> None:
         """Register an existing graph in the session.
 
+        Logs a warning if a different graph is already active (the new graph
+        is ignored to avoid silently discarding in-progress work).
+
         :param graph: Strategy graph to register.
         """
         if self.graph and self.graph.id != graph.id:
+            logger.warning(
+                "Ignoring add_graph: session already has an active graph",
+                active_graph_id=self.graph.id,
+                rejected_graph_id=graph.id,
+            )
             return
         self.graph = graph
 
     def create_graph(self, name: str, graph_id: str | None = None) -> StrategyGraph:
-        """Create a new empty graph and register it.
+        """Create a new empty graph, or return the existing one.
+
+        When a graph already exists the session reuses it (single-graph
+        model). The name is updated if it differs.
 
         :param name: Graph name.
         :param graph_id: Optional graph ID (default: None).
@@ -176,6 +194,12 @@ class StrategySession:
         """
         if self.graph:
             if name and name != self.graph.name:
+                logger.debug(
+                    "Reusing existing graph with updated name",
+                    graph_id=self.graph.id,
+                    old_name=self.graph.name,
+                    new_name=name,
+                )
                 self.graph.name = name
             return self.graph
         new_id = graph_id or str(uuid4())
@@ -196,9 +220,86 @@ class StrategySession:
         return None
 
 
+def _build_node_from_step(
+    step: JSONObject,
+    graph: StrategyGraph,
+    input_refs: dict[str, tuple[str | None, str | None]],
+) -> tuple[str, PlanStepNode] | None:
+    """Parse a single persisted step dict into a PlanStepNode.
+
+    Returns ``(step_id, node)`` on success, or ``None`` if the step is
+    malformed.  Side-effects: populates ``graph.wdk_step_ids``,
+    ``graph.step_counts``, ``graph.record_type``, and ``input_refs``.
+    """
+    step_id = step.get("id")
+    if step_id is None:
+        return None
+    step_id = str(step_id)
+    if not step_id:
+        return None
+
+    kind = str(step.get("kind") or "").strip().lower()
+    search_name = step.get("searchName")
+    if not isinstance(search_name, str) or not search_name:
+        search_name = (
+            COMBINE_SEARCH_NAME if kind == "combine" else UNKNOWN_SEARCH_NAME
+        )
+
+    parameters_raw = step.get("parameters")
+    parameters: JSONObject = (
+        parameters_raw if isinstance(parameters_raw, dict) else {}
+    )
+    display_name = step.get("displayName")
+    if not isinstance(display_name, str) or not display_name.strip():
+        display_name = search_name
+
+    node = PlanStepNode(
+        search_name=search_name,
+        parameters=parameters,
+        display_name=display_name,
+        id=step_id,
+    )
+
+    node.filters = parse_filters(step.get("filters"))
+    node.analyses = parse_analyses(step.get("analyses"))
+    node.reports = parse_reports(step.get("reports"))
+
+    op_raw = step.get("operator")
+    if isinstance(op_raw, str) and op_raw:
+        try:
+            node.operator = CombineOp(op_raw)
+        except ValueError:
+            node.operator = None
+
+    node.colocation_params = parse_colocation_params(step.get("colocationParams"))
+
+    # Collect input references for the linking pass.
+    primary_raw = step.get("primaryInputStepId")
+    secondary_raw = step.get("secondaryInputStepId")
+    if primary_raw is not None or secondary_raw is not None:
+        input_refs[step_id] = (
+            str(primary_raw) if primary_raw is not None else None,
+            str(secondary_raw) if secondary_raw is not None else None,
+        )
+
+    # Restore WDK build state.
+    wdk_step_id = step.get("wdkStepId")
+    if isinstance(wdk_step_id, int):
+        graph.wdk_step_ids[step_id] = wdk_step_id
+    result_count = step.get("resultCount")
+    if isinstance(result_count, int):
+        graph.step_counts[step_id] = result_count
+
+    # Best-effort record type from first step that has one.
+    if not graph.record_type and step.get("recordType"):
+        graph.record_type = str(step["recordType"])
+
+    return step_id, node
+
+
 def hydrate_graph_from_steps_data(
     graph: StrategyGraph,
-    steps_data: JSONArray | object,
+    steps_data: JSONArray | None,
     *,
     root_step_id: str | None = None,
     record_type: str | None = None,
@@ -209,86 +310,24 @@ def hydrate_graph_from_steps_data(
     no canonical `plan` to parse into an AST. It enables tools like `list_current_steps`
     to reflect existing UI-visible nodes.
 
-    Accepts arbitrary input; non-list values are silently ignored.
-
     :param graph: Strategy graph to hydrate.
-    :param steps_data: Flat steps list from persistence (or any value).
+    :param steps_data: Flat steps list from persistence, or None.
     :param root_step_id: Root step ID (default: None).
     :param record_type: Record type (default: None).
     """
-    if not steps_data or not isinstance(steps_data, list):
+    if not steps_data:
         return
 
     nodes: dict[str, PlanStepNode] = {}
-    # Maps step_id -> (primaryInputStepId, secondaryInputStepId) for the linking pass.
     input_refs: dict[str, tuple[str | None, str | None]] = {}
 
-    # Single pass: build nodes, collect input refs, restore WDK state, detect record type.
     for step in steps_data:
         if not isinstance(step, dict):
             continue
-        step_id = step.get("id")
-        if step_id is None:
-            continue
-        step_id = str(step_id)
-        if not step_id:
-            continue
-
-        kind = str(step.get("kind") or "").strip().lower()
-        search_name = step.get("searchName")
-        if not isinstance(search_name, str) or not search_name:
-            search_name = "__combine__" if kind == "combine" else "__unknown__"
-
-        parameters_raw = step.get("parameters")
-        parameters: JSONObject = (
-            parameters_raw if isinstance(parameters_raw, dict) else {}
-        )
-        display_name = step.get("displayName")
-        if not isinstance(display_name, str) or not display_name.strip():
-            display_name = search_name
-
-        node = PlanStepNode(
-            search_name=search_name,
-            parameters=parameters,
-            display_name=display_name,
-            id=step_id,
-        )
-
-        node.filters = parse_filters(step.get("filters"))
-        node.analyses = parse_analyses(step.get("analyses"))
-        node.reports = parse_reports(step.get("reports"))
-
-        op_raw = step.get("operator")
-        if isinstance(op_raw, str) and op_raw:
-            try:
-                node.operator = CombineOp(op_raw)
-            except Exception:
-                node.operator = None
-
-        node.colocation_params = parse_colocation_params(step.get("colocationParams"))
-
-        nodes[step_id] = node
-
-        # Collect input references for the linking pass.
-        primary_raw = step.get("primaryInputStepId")
-        secondary_raw = step.get("secondaryInputStepId")
-        if primary_raw is not None or secondary_raw is not None:
-            input_refs[step_id] = (
-                str(primary_raw) if primary_raw is not None else None,
-                str(secondary_raw) if secondary_raw is not None else None,
-            )
-
-        # Restore WDK build state.
-        wdk_step_id = step.get("wdkStepId")
-        if isinstance(wdk_step_id, int):
-            graph.wdk_step_ids[step_id] = wdk_step_id
-        result_count = step.get("resultCount")
-        if isinstance(result_count, int):
-            graph.step_counts[step_id] = result_count
-
-        # Best-effort record type from first step that has one.
-        if not graph.record_type and step.get("recordType"):
-            graph.record_type = str(step["recordType"])
+        result = _build_node_from_step(step, graph, input_refs)
+        if result is not None:
+            step_id, node = result
+            nodes[step_id] = node
 
     # Second pass: connect inputs (needs all nodes to exist).
     for step_id, (primary_id, secondary_id) in input_refs.items():

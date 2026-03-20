@@ -14,6 +14,7 @@ from kani.models import ChatMessage, ChatRole
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
 from veupath_chatbot.ai.agents.subtask import SubtaskAgent
+from veupath_chatbot.ai.engines.cached_anthropic import CachedAnthropicEngine
 from veupath_chatbot.ai.engines.responses_openai import ResponsesOpenAIEngine
 from veupath_chatbot.ai.models.pricing import estimate_cost as _estimate_subkani_cost
 from veupath_chatbot.ai.orchestration.delegation import (
@@ -34,7 +35,7 @@ from veupath_chatbot.ai.orchestration.subkani.utils import (
 )
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
-from veupath_chatbot.domain.strategy.session import StrategySession
+from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
@@ -48,18 +49,169 @@ logger = get_logger(__name__)
 
 EmitEvent = Callable[[JSONObject], Awaitable[None]]
 
+_MAX_SUBKANI_RETRIES = 5
+_LAST_RETRY_INDEX = _MAX_SUBKANI_RETRIES - 1
+
 
 def _derive_model_id(engine: BaseEngine) -> str:
     """Derive a catalog-style model ID from an engine instance."""
-    from veupath_chatbot.ai.engines.cached_anthropic import CachedAnthropicEngine
-
     model = getattr(engine, "model", "unknown")
     if isinstance(engine, CachedAnthropicEngine):
         return f"anthropic/{model}"
     if isinstance(engine, ResponsesOpenAIEngine):
         return f"openai/{model}"
-    # Google, Ollama, etc.
     return model
+
+
+def _clean_chat_history(chat_history: list[ChatMessage]) -> list[ChatMessage]:
+    """Remove tool-related messages from chat history for sub-kani use."""
+    return [
+        message
+        for message in chat_history
+        if message.role != ChatRole.FUNCTION
+        and not getattr(message, "tool_calls", None)
+        and getattr(message, "tool_call_id", None) is None
+    ]
+
+
+def _resolve_graph_id(
+    strategy_session: StrategySession,
+    graph_id: str | None,
+) -> str:
+    """Resolve or create a graph ID for the sub-kani."""
+    if not graph_id:
+        graph = strategy_session.get_graph(None)
+        graph_id = graph.id if graph else None
+    if not graph_id:
+        graph = strategy_session.create_graph(DEFAULT_STREAM_NAME)
+        return graph.id
+    if not strategy_session.get_graph(graph_id):
+        graph = strategy_session.create_graph(DEFAULT_STREAM_NAME, graph_id=graph_id)
+        return graph.id
+    return graph_id
+
+
+def _create_subkani_engine(
+    settings: object,
+    engine_factory: Callable[[], BaseEngine] | None,
+) -> BaseEngine:
+    """Create the engine for a sub-kani agent."""
+    if engine_factory is not None:
+        return engine_factory()
+    return ResponsesOpenAIEngine(
+        api_key=settings.openai_api_key,
+        model=settings.subkani_model,
+        temperature=settings.subkani_temperature,
+        top_p=settings.subkani_top_p,
+    )
+
+
+async def _emit_step_events(
+    *,
+    created_steps: JSONArray,
+    emitted_step_ids: set[str],
+    graph: object,
+    graph_id: str | None,
+    emit_event: EmitEvent,
+) -> None:
+    """Emit strategy_update and graph_snapshot events for newly created steps."""
+    if not isinstance(graph, StrategyGraph):
+        return
+
+    for step_value in created_steps:
+        if not isinstance(step_value, dict):
+            continue
+        step = step_value
+        step_id_raw = step.get("stepId")
+        step_id = step_id_raw if isinstance(step_id_raw, str) else None
+        if not step_id or step_id in emitted_step_ids:
+            continue
+        emitted_step_ids.add(step_id)
+        graph_id_raw = step.get("graphId")
+        graph_id_str = graph_id_raw if isinstance(graph_id_raw, str) else graph_id
+        await emit_event(
+            {
+                "type": "strategy_update",
+                "data": {
+                    "graphId": graph_id_str,
+                    "step": step,
+                    "allSteps": [
+                        {
+                            "stepId": sid,
+                            "kind": getattr(s, "infer_kind", lambda: None)(),
+                            "displayName": s.display_name,
+                        }
+                        for sid, s in graph.steps.items()
+                    ],
+                },
+            }
+        )
+        snapshot_raw = step.get("graphSnapshot")
+        snapshot = snapshot_raw if isinstance(snapshot_raw, dict) else None
+        if snapshot:
+            await emit_event(
+                {
+                    "type": "graph_snapshot",
+                    "data": {
+                        "graphId": snapshot.get("graphId") or graph_id,
+                        "graphSnapshot": snapshot,
+                    },
+                }
+            )
+
+
+async def _emit_task_end(
+    *,
+    task: str,
+    subkani_model_id: str,
+    emit_event: EmitEvent,
+    status: str = "done",
+) -> None:
+    """Emit a subkani_task_end event with token usage."""
+    round_result = get_round_result(task)
+    sub_cost = _estimate_subkani_cost(
+        subkani_model_id,
+        prompt_tokens=round_result.prompt_tokens if round_result else 0,
+        completion_tokens=round_result.completion_tokens if round_result else 0,
+    )
+    await emit_event(
+        {
+            "type": "subkani_task_end",
+            "data": SubKaniTaskEndEventData(
+                task=task,
+                status=status,
+                modelId=subkani_model_id,
+                promptTokens=round_result.prompt_tokens if round_result else 0,
+                completionTokens=round_result.completion_tokens if round_result else 0,
+                llmCallCount=round_result.llm_call_count if round_result else 0,
+                estimatedCostUsd=sub_cost,
+            ).model_dump(by_alias=True),
+        }
+    )
+
+
+def _build_retry_prompt(
+    task: str,
+    graph_id: str | None,
+    last_errors: list[str],
+) -> str:
+    """Build a retry prompt for a sub-kani that produced no steps."""
+    error_hint = "; ".join(last_errors) if last_errors else "no steps created"
+    return (
+        "Retry the task and you MUST create at least one valid step.\n"
+        "Before creating anything:\n"
+        "- Use get_record_types() if record type is unclear.\n"
+        "- Use search_for_searches(query) to find relevant searches.\n"
+        "- Use get_search_parameters(record_type, search_name) to learn required params.\n"
+        "Execution rules:\n"
+        "- All parameter values must be strings.\n"
+        "- Use create_step for all step creation.\n"
+        "- If the step depends on a prior step, set primary_input_step_id.\n"
+        "- If the step needs a binary operator, set secondary_input_step_id + operator.\n"
+        f"Previous issue: {error_hint}\n"
+        f"Task: {task}\n"
+        f"Graph: {graph_id}\n"
+    )
 
 
 async def run_subkani_task(
@@ -76,34 +228,10 @@ async def run_subkani_task(
     engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
-    if engine_factory is not None:
-        engine = engine_factory()
-    else:
-        engine = ResponsesOpenAIEngine(
-            api_key=settings.openai_api_key,
-            model=settings.subkani_model,
-            temperature=settings.subkani_temperature,
-            top_p=settings.subkani_top_p,
-        )
+    engine = _create_subkani_engine(settings, engine_factory)
     subkani_model_id = _derive_model_id(engine)
-
-    if not graph_id:
-        graph = strategy_session.get_graph(None)
-        graph_id = graph.id if graph else None
-    if not graph_id:
-        graph = strategy_session.create_graph(DEFAULT_STREAM_NAME)
-        graph_id = graph.id
-    elif not strategy_session.get_graph(graph_id):
-        graph = strategy_session.create_graph(DEFAULT_STREAM_NAME, graph_id=graph_id)
-        graph_id = graph.id
-
-    clean_history = [
-        message
-        for message in chat_history
-        if message.role != ChatRole.FUNCTION
-        and not getattr(message, "tool_calls", None)
-        and getattr(message, "tool_call_id", None) is None
-    ]
+    graph_id = _resolve_graph_id(strategy_session, graph_id)
+    clean_history = _clean_chat_history(chat_history)
 
     sub_kani = SubtaskAgent(
         engine=engine,
@@ -128,19 +256,38 @@ async def run_subkani_task(
         dependency_context=dependency_context,
     )
 
+    return await _run_subkani_retry_loop(
+        sub_kani=sub_kani,
+        task=task,
+        graph_id=graph_id,
+        subkani_model_id=subkani_model_id,
+        strategy_session=strategy_session,
+        emit_event=emit_event,
+        subkani_timeout_seconds=subkani_timeout_seconds,
+        prompt=prompt,
+    )
+
+
+async def _run_subkani_retry_loop(
+    *,
+    sub_kani: SubtaskAgent,
+    task: str,
+    graph_id: str,
+    subkani_model_id: str,
+    strategy_session: StrategySession,
+    emit_event: EmitEvent,
+    subkani_timeout_seconds: int,
+    prompt: str,
+) -> JSONObject:
+    """Execute the sub-kani with retry logic for no-step results."""
     created_steps: JSONArray = []
     emitted_step_ids: set[str] = set()
     last_errors: list[str] = []
 
-    # Snapshot the graph's subtree roots before the sub-kani runs so we
-    # can verify the single-subtree-root contract afterwards.
     graph = strategy_session.get_graph(graph_id)
     roots_before: set[str] = set(graph.roots) if graph else set()
 
-    # If a sub-kani produces no steps, treat it as a retryable failure.
-    # These retries are intentionally more aggressive than tool-level retries
-    # because "no_steps" usually means "wrong search" or "missing required params".
-    for attempt in range(5):
+    for attempt in range(_MAX_SUBKANI_RETRIES):
         try:
             _, round_steps, round_errors = await asyncio.wait_for(
                 consume_subkani_round(
@@ -167,115 +314,25 @@ async def run_subkani_task(
         last_errors = round_errors
         created_steps.extend(round_steps)
         if created_steps:
-            graph = strategy_session.get_graph(graph_id)
-            for step_value in created_steps:
-                if not isinstance(step_value, dict):
-                    continue
-                step = step_value
-                step_id_raw = step.get("stepId")
-                step_id = step_id_raw if isinstance(step_id_raw, str) else None
-                if not step_id or step_id in emitted_step_ids:
-                    continue
-                emitted_step_ids.add(step_id)
-                graph_id_raw = step.get("graphId")
-                graph_id_str = (
-                    graph_id_raw if isinstance(graph_id_raw, str) else graph_id
-                )
-                await emit_event(
-                    {
-                        "type": "strategy_update",
-                        "data": {
-                            "graphId": graph_id_str,
-                            "step": step,
-                            "allSteps": [
-                                {
-                                    "stepId": sid,
-                                    "kind": getattr(s, "infer_kind", lambda: None)(),
-                                    "displayName": s.display_name,
-                                }
-                                for sid, s in (graph.steps.items() if graph else [])
-                            ],
-                        },
-                    }
-                )
-                snapshot_raw = step.get("graphSnapshot")
-                snapshot = snapshot_raw if isinstance(snapshot_raw, dict) else None
-                if snapshot:
-                    await emit_event(
-                        {
-                            "type": "graph_snapshot",
-                            "data": {
-                                "graphId": snapshot.get("graphId") or graph_id,
-                                "graphSnapshot": snapshot,
-                            },
-                        }
-                    )
-            roots_after: set[str] = set(graph.roots) if graph else set()
-            new_roots = roots_after - roots_before
-            if len(new_roots) != 1:
-                logger.warning(
-                    "Sub-kani subtree-root contract violation",
-                    task=task,
-                    new_roots=sorted(new_roots),
-                    expected=1,
-                    actual=len(new_roots),
-                )
-            subtree_root = next(iter(new_roots)) if len(new_roots) == 1 else None
-
-            round_result = get_round_result(task)
-            sub_cost = _estimate_subkani_cost(
-                subkani_model_id,
-                prompt_tokens=round_result.prompt_tokens if round_result else 0,
-                completion_tokens=round_result.completion_tokens if round_result else 0,
+            return await _finalize_successful_run(
+                task=task,
+                graph_id=graph_id,
+                subkani_model_id=subkani_model_id,
+                strategy_session=strategy_session,
+                emit_event=emit_event,
+                created_steps=created_steps,
+                emitted_step_ids=emitted_step_ids,
+                roots_before=roots_before,
             )
-            await emit_event(
-                {
-                    "type": "subkani_task_end",
-                    "data": SubKaniTaskEndEventData(
-                        task=task,
-                        status="done",
-                        modelId=subkani_model_id,
-                        promptTokens=round_result.prompt_tokens if round_result else 0,
-                        completionTokens=round_result.completion_tokens
-                        if round_result
-                        else 0,
-                        llmCallCount=round_result.llm_call_count if round_result else 0,
-                        estimatedCostUsd=sub_cost,
-                    ).model_dump(by_alias=True),
-                }
-            )
-            result: JSONObject = {
-                "task": task,
-                "steps": created_steps,
-                "notes": "created",
-            }
-            if subtree_root:
-                result["subtreeRoot"] = subtree_root
-            return result
 
-        if attempt < 4:
+        if attempt < _LAST_RETRY_INDEX:
             await emit_event(
                 {
                     "type": "subkani_task_retry",
                     "data": {"task": task, "attempt": attempt + 2},
                 }
             )
-            error_hint = "; ".join(last_errors) if last_errors else "no steps created"
-            prompt = (
-                "Retry the task and you MUST create at least one valid step.\n"
-                "Before creating anything:\n"
-                "- Use get_record_types() if record type is unclear.\n"
-                "- Use search_for_searches(query) to find relevant searches.\n"
-                "- Use get_search_parameters(record_type, search_name) to learn required params.\n"
-                "Execution rules:\n"
-                "- All parameter values must be strings.\n"
-                "- Use create_step for all step creation.\n"
-                "- If the step depends on a prior step, set primary_input_step_id.\n"
-                "- If the step needs a binary operator, set secondary_input_step_id + operator.\n"
-                f"Previous issue: {error_hint}\n"
-                f"Task: {task}\n"
-                f"Graph: {graph_id}\n"
-            )
+            prompt = _build_retry_prompt(task, graph_id, last_errors)
 
     await emit_event(
         {
@@ -291,8 +348,215 @@ async def run_subkani_task(
         "task": task,
         "steps": [],
         "notes": "no_steps",
-        "errors": cast(JSONArray, last_errors),
+        "errors": cast("JSONArray", last_errors),
     }
+
+
+async def _finalize_successful_run(
+    *,
+    task: str,
+    graph_id: str,
+    subkani_model_id: str,
+    strategy_session: StrategySession,
+    emit_event: EmitEvent,
+    created_steps: JSONArray,
+    emitted_step_ids: set[str],
+    roots_before: set[str],
+) -> JSONObject:
+    """Finalize a successful sub-kani run: emit events and return result."""
+    graph = strategy_session.get_graph(graph_id)
+    await _emit_step_events(
+        created_steps=created_steps,
+        emitted_step_ids=emitted_step_ids,
+        graph=graph,
+        graph_id=graph_id,
+        emit_event=emit_event,
+    )
+    roots_after: set[str] = set(graph.roots) if graph else set()
+    new_roots = roots_after - roots_before
+    if len(new_roots) != 1:
+        logger.warning(
+            "Sub-kani subtree-root contract violation",
+            task=task,
+            new_roots=sorted(new_roots),
+            expected=1,
+            actual=len(new_roots),
+        )
+    subtree_root = next(iter(new_roots)) if len(new_roots) == 1 else None
+
+    await _emit_task_end(
+        task=task,
+        subkani_model_id=subkani_model_id,
+        emit_event=emit_event,
+    )
+    result: JSONObject = {
+        "task": task,
+        "steps": created_steps,
+        "notes": "created",
+    }
+    if subtree_root:
+        result["subtreeRoot"] = subtree_root
+    return result
+
+
+# -- Delegation entrypoint ---------------------------------------------------
+
+
+async def _run_combine_node(
+    *,
+    node_id: str,
+    combine: JSONObject,
+    results_by_id: dict[str, JSONObject],
+    strategy_tools: StrategyTools,
+    emit_event: EmitEvent,
+) -> JSONObject:
+    """Execute a combine node by chaining binary create_step calls."""
+    input_refs_raw = combine.get("inputs")
+    input_refs = input_refs_raw if isinstance(input_refs_raw, list) else []
+    operator = combine.get("operator")
+
+    resolved_inputs: list[str] = []
+    missing: list[str] = []
+    for ref_value in input_refs:
+        ref = str(ref_value) if ref_value is not None else ""
+        dep_result = results_by_id.get(ref)
+        step_id = extract_primary_step_id(dep_result)
+        if step_id:
+            resolved_inputs.append(step_id)
+        else:
+            missing.append(ref)
+
+    if missing:
+        payload = tool_error(
+            "MISSING_COMBINE_INPUTS",
+            "Combine requires input steps.",
+            missing=cast("JSONArray", missing),
+        )
+        payload.update(
+            {
+                "id": node_id,
+                "task": combine.get("task"),
+                "kind": "combine",
+                "missing": cast("JSONArray", missing),
+                "steps": [],
+            }
+        )
+        return payload
+
+    current_step_id = resolved_inputs[0]
+    last_response: JSONObject | None = None
+    for index, next_step_id in enumerate(resolved_inputs[1:], start=1):
+        is_final = index == len(resolved_inputs) - 1
+        response = await strategy_tools.create_step(
+            primary_input_step_id=current_step_id,
+            secondary_input_step_id=next_step_id,
+            operator=str(operator),
+            display_name=combine.get("display_name") if is_final else None,
+            upstream=combine.get("upstream"),
+            downstream=combine.get("downstream"),
+        )
+        last_response = response
+        if response.get("ok") is False or response.get("error"):
+            payload = tool_error(
+                "COMBINE_FAILED",
+                "Combine failed while executing tool calls.",
+                response=response,
+            )
+            payload.update(
+                {
+                    "id": node_id,
+                    "task": combine.get("task"),
+                    "kind": "combine",
+                    "steps": [],
+                }
+            )
+            return payload
+        await emit_event(
+            {
+                "type": "strategy_update",
+                "data": {"graphId": response.get("graphId"), "step": response},
+            }
+        )
+        current_step_id = response.get("stepId") or current_step_id
+
+    step_payload: JSONObject = {
+        "stepId": current_step_id,
+        "displayName": combine.get("display_name") or combine.get("task") or node_id,
+    }
+    return {
+        "id": node_id,
+        "task": combine.get("task"),
+        "kind": "combine",
+        "operator": operator,
+        "inputs": input_refs,
+        "steps": [step_payload],
+        "stepId": current_step_id,
+        "graphId": (last_response or {}).get("graphId")
+        if isinstance(last_response, dict)
+        else None,
+    }
+
+
+async def _run_task_node(
+    *,
+    node_id: str,
+    node: JSONObject,
+    goal: str,
+    site_id: str,
+    strategy_session: StrategySession,
+    graph_id: str | None,
+    dependency_context: str | None,
+    chat_history: list[ChatMessage],
+    emit_event: EmitEvent,
+    settings: object,
+    engine_factory: Callable[[], BaseEngine] | None,
+) -> JSONObject:
+    """Execute a task node by running a sub-kani."""
+    task_text = str(node.get("task") or "").strip()
+    instructions = str(node.get("instructions") or "").strip()
+    if instructions:
+        task_text = f"{task_text}\n\nInstructions: {instructions}"
+    extra_context = format_task_context(node.get("context"))
+    if extra_context:
+        dependency_context = (
+            ((dependency_context + "\n\n") if dependency_context else "")
+            + "Planner-provided context (JSON/text):\n"
+            + extra_context
+        )
+    try:
+        result = await run_subkani_task(
+            task=task_text,
+            goal=goal,
+            site_id=site_id,
+            strategy_session=strategy_session,
+            graph_id=graph_id,
+            dependency_context=dependency_context,
+            chat_history=chat_history,
+            emit_event=emit_event,
+            subkani_timeout_seconds=settings.subkani_timeout_seconds,
+            engine_factory=engine_factory,
+        )
+    except (OSError, ValueError, TypeError, KeyError, TimeoutError) as exc:
+        logger.error(
+            "Sub-kani task crashed",
+            task=task_text,
+            node_id=node_id,
+            error=str(exc),
+            exc_info=True,
+        )
+        result = tool_error(
+            "SUBKANI_FAILED",
+            str(exc),
+            notes="failed",
+            nodeId=node_id,
+            task=task_text,
+        )
+    if isinstance(result, dict):
+        result["id"] = node_id
+        result["task"] = task_text
+        result["kind"] = "task"
+        result["instructions"] = instructions
+    return result
 
 
 async def delegate_strategy_subtasks(
@@ -307,15 +571,10 @@ async def delegate_strategy_subtasks(
     engine_factory: Callable[[], BaseEngine] | None = None,
 ) -> JSONObject:
     settings = get_settings()
-    compiled = build_delegation_plan(
-        goal=goal,
-        plan=plan,
-    )
+    compiled = build_delegation_plan(goal=goal, plan=plan)
     if isinstance(compiled, dict):
-        # Plan validation error payload; return immediately.
         return compiled
     if not isinstance(compiled, DelegationPlan):
-        # Defensive: should never happen, but prevents confusing attribute errors.
         return tool_error(
             "DELEGATION_PLAN_INVALID",
             "Delegation plan normalization returned an unexpected type.",
@@ -351,140 +610,26 @@ async def delegate_strategy_subtasks(
     ) -> JSONObject:
         kind = node.get("kind")
         if kind == "combine":
-            combine = node
-            input_refs_raw = combine.get("inputs")
-            input_refs = input_refs_raw if isinstance(input_refs_raw, list) else []
-            operator = combine.get("operator")
-
-            resolved_inputs: list[str] = []
-            missing: list[str] = []
-            for ref_value in input_refs:
-                ref = str(ref_value) if ref_value is not None else ""
-                dep_result = results_by_id.get(ref)
-                step_id = extract_primary_step_id(dep_result)
-                if step_id:
-                    resolved_inputs.append(step_id)
-                else:
-                    missing.append(ref)
-
-            if missing:
-                payload = tool_error(
-                    "MISSING_COMBINE_INPUTS",
-                    "Combine requires input steps.",
-                    missing=cast(JSONArray, missing),
-                )
-                payload.update(
-                    {
-                        "id": node_id,
-                        "task": combine.get("task"),
-                        "kind": "combine",
-                        "missing": cast(JSONArray, missing),
-                        "steps": [],
-                    }
-                )
-                return payload
-
-            current_step_id = resolved_inputs[0]
-            last_response: JSONObject | None = None
-            for index, next_step_id in enumerate(resolved_inputs[1:], start=1):
-                is_final = index == len(resolved_inputs) - 1
-                create_step_method = strategy_tools.create_step
-                response = await create_step_method(
-                    primary_input_step_id=current_step_id,
-                    secondary_input_step_id=next_step_id,
-                    operator=str(operator),
-                    display_name=combine.get("display_name") if is_final else None,
-                    upstream=combine.get("upstream"),
-                    downstream=combine.get("downstream"),
-                )
-                last_response = response
-                if response.get("ok") is False or response.get("error"):
-                    payload = tool_error(
-                        "COMBINE_FAILED",
-                        "Combine failed while executing tool calls.",
-                        response=response,
-                    )
-                    payload.update(
-                        {
-                            "id": node_id,
-                            "task": combine.get("task"),
-                            "kind": "combine",
-                            "steps": [],
-                        }
-                    )
-                    return payload
-                await emit_event(
-                    {
-                        "type": "strategy_update",
-                        "data": {"graphId": response.get("graphId"), "step": response},
-                    }
-                )
-                current_step_id = response.get("stepId") or current_step_id
-
-            step_payload: JSONObject = {
-                "stepId": current_step_id,
-                "displayName": combine.get("display_name")
-                or combine.get("task")
-                or node_id,
-            }
-            return {
-                "id": node_id,
-                "task": combine.get("task"),
-                "kind": "combine",
-                "operator": operator,
-                "inputs": input_refs,
-                "steps": [step_payload],
-                "stepId": current_step_id,
-                "graphId": (last_response or {}).get("graphId")
-                if isinstance(last_response, dict)
-                else None,
-            }
-
-        task_text = str(node.get("task") or "").strip()
-        instructions = str(node.get("instructions") or "").strip()
-        if instructions:
-            task_text = f"{task_text}\n\nInstructions: {instructions}"
-        extra_context = format_task_context(node.get("context"))
-        if extra_context:
-            dependency_context = (
-                ((dependency_context + "\n\n") if dependency_context else "")
-                + "Planner-provided context (JSON/text):\n"
-                + extra_context
-            )
-        try:
-            result = await run_subkani_task(
-                task=task_text,
-                goal=goal,
-                site_id=site_id,
-                strategy_session=strategy_session,
-                graph_id=graph_id,
-                dependency_context=dependency_context,
-                chat_history=chat_history,
-                emit_event=emit_event,
-                subkani_timeout_seconds=settings.subkani_timeout_seconds,
-                engine_factory=engine_factory,
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.error(
-                "Sub-kani task crashed",
-                task=task_text,
+            return await _run_combine_node(
                 node_id=node_id,
-                error=str(exc),
-                exc_info=True,
+                combine=node,
+                results_by_id=results_by_id,
+                strategy_tools=strategy_tools,
+                emit_event=emit_event,
             )
-            result = tool_error(
-                "SUBKANI_FAILED",
-                str(exc),
-                notes="failed",
-                nodeId=node_id,
-                task=task_text,
-            )
-        if isinstance(result, dict):
-            result["id"] = node_id
-            result["task"] = task_text
-            result["kind"] = "task"
-            result["instructions"] = instructions
-        return result
+        return await _run_task_node(
+            node_id=node_id,
+            node=node,
+            goal=goal,
+            site_id=site_id,
+            strategy_session=strategy_session,
+            graph_id=graph_id,
+            dependency_context=dependency_context,
+            chat_history=chat_history,
+            emit_event=emit_event,
+            settings=settings,
+            engine_factory=engine_factory,
+        )
 
     results, _results_by_id = await run_nodes_with_dependencies(
         nodes_by_id=nodes_by_id,
@@ -494,8 +639,39 @@ async def delegate_strategy_subtasks(
         format_dependency_context=format_dependency_context,
         results_by_id=results_by_id,
     )
+
+    return await _build_delegation_response(
+        goal=goal,
+        graph=graph,
+        graph_id=graph_id,
+        graph_name=graph_name,
+        graph_description=graph_description,
+        normalized=normalized,
+        normalized_combines=normalized_combines,
+        results=results,
+        start=start,
+        strategy_tools=strategy_tools,
+        emit_event=emit_event,
+    )
+
+
+async def _build_delegation_response(
+    *,
+    goal: str,
+    graph: object,
+    graph_id: str | None,
+    graph_name: str,
+    graph_description: str,
+    normalized: JSONArray,
+    normalized_combines: JSONArray,
+    results: JSONArray,
+    start: float,
+    strategy_tools: StrategyTools,
+    emit_event: EmitEvent,
+) -> JSONObject:
+    """Build the final delegation response from results."""
     task_results: JSONArray = [
-        cast(JSONValue, r)
+        cast("JSONValue", r)
         for r in results
         if isinstance(r, dict) and r.get("kind") == "task"
     ]
@@ -509,19 +685,19 @@ async def delegate_strategy_subtasks(
     )
 
     combine_results: JSONArray = [
-        cast(JSONValue, r)
+        cast("JSONValue", r)
         for r in results
         if isinstance(r, dict) and r.get("kind") == "combine" and r.get("stepId")
     ]
     combine_errors: JSONArray = [
-        cast(JSONValue, r)
+        cast("JSONValue", r)
         for r in results
         if isinstance(r, dict)
         and r.get("kind") == "combine"
         and (r.get("ok") is False or r.get("error"))
     ]
 
-    if graph.current_strategy:
+    if isinstance(graph, StrategyGraph) and graph.current_strategy:
         graph.current_strategy.name = graph_name
         graph.current_strategy.description = graph_description
         graph.name = graph_name

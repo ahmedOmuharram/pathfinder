@@ -293,7 +293,7 @@ class TestRerankScore:
         assert "journal" in parts
 
     def test_empty_item(self) -> None:
-        score, parts = rerank_score("malaria", {})
+        score, _parts = rerank_score("malaria", {})
         assert score == 0.0
 
     def test_weights_title_higher(self) -> None:

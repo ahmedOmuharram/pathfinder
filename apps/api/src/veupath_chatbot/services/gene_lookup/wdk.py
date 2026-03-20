@@ -1,10 +1,14 @@
 """WDK-based gene search and ID resolution."""
 
+import json
 from dataclasses import dataclass
 from typing import cast
 
+from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
+from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
+from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -95,8 +99,6 @@ async def fetch_wdk_text_genes(
     if not expressions or not organism:
         return WdkTextResult(records=[], total_count=0)
 
-    import json
-
     fields = text_fields or WDK_TEXT_FIELDS_ID
     client = get_wdk_client(site_id)
 
@@ -106,7 +108,7 @@ async def fetch_wdk_text_genes(
         answer = await client.post(
             f"/record-types/{record_type}/searches/GenesByText/reports/standard",
             json=cast(
-                JSONObject,
+                "JSONObject",
                 {
                     "searchConfig": {
                         "parameters": {
@@ -174,10 +176,6 @@ async def resolve_gene_ids(
     if not gene_ids:
         return {"records": [], "totalCount": 0}
 
-    from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-    from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-    from veupath_chatbot.platform.config import get_settings
-
     router = get_site_router()
     site = router.get_site(site_id)
     settings = get_settings()
@@ -197,7 +195,7 @@ async def resolve_gene_ids(
         dataset_resp = await client.post(
             "/users/current/datasets",
             json=cast(
-                JSONObject,
+                "JSONObject",
                 {"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
             ),
         )
@@ -218,7 +216,7 @@ async def resolve_gene_ids(
         answer = await client.post(
             f"/record-types/{record_type}/searches/{search_name}/reports/standard",
             json=cast(
-                JSONObject,
+                "JSONObject",
                 {
                     "searchConfig": {
                         "parameters": {param_name: str(dataset_id)},
@@ -265,4 +263,4 @@ async def resolve_gene_ids(
         meta.get("totalCount", len(records)) if isinstance(meta, dict) else len(records)
     )
 
-    return cast(JSONObject, {"records": records, "totalCount": total})
+    return cast("JSONObject", {"records": records, "totalCount": total})

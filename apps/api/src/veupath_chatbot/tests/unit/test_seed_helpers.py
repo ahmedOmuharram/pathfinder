@@ -7,27 +7,38 @@ that the seed files previously produced with their local definitions.
 
 import json
 
+from veupath_chatbot.services.experiment.seed.helpers import (
+    ec_search_params,
+    exon_count_params,
+    gene_type_params,
+    go_search_params,
+    interpro_params,
+    location_params,
+    mol_weight_params,
+    org,
+    paralog_count_params,
+    rnaseq_fc_params,
+    signal_peptide_params,
+    taxon_params,
+    text_search_params,
+    transmembrane_params,
+)
+
 
 class TestOrg:
     """Tests for org() — JSON-encodes organism name list."""
 
     def test_single_organism(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import org
-
         result = org(["Plasmodium falciparum 3D7"])
         assert result == json.dumps(["Plasmodium falciparum 3D7"])
         assert result == '["Plasmodium falciparum 3D7"]'
 
     def test_multiple_organisms(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import org
-
         names = ["Homo sapiens REF", "Mus musculus"]
         result = org(names)
         assert result == json.dumps(names)
 
     def test_empty_list(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import org
-
         assert org([]) == "[]"
 
 
@@ -35,8 +46,6 @@ class TestGoSearchParams:
     """Tests for go_search_params() — GenesByGoTerm parameters."""
 
     def test_default_evidence(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import go_search_params
-
         result = go_search_params("Plasmodium falciparum 3D7", "GO:0004672")
         assert result == {
             "organism": json.dumps(["Plasmodium falciparum 3D7"]),
@@ -47,8 +56,6 @@ class TestGoSearchParams:
         }
 
     def test_custom_evidence(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import go_search_params
-
         result = go_search_params(
             "Anopheles gambiae PEST",
             "GO:0003824",
@@ -57,8 +64,6 @@ class TestGoSearchParams:
         assert result["go_term_evidence"] == json.dumps(["Computed"])
 
     def test_custom_go_term_value(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import go_search_params
-
         # GiardiaDB uses "N/A" for go_term field
         result = go_search_params(
             "Giardia Assemblage A isolate WB",
@@ -73,8 +78,6 @@ class TestTextSearchParams:
     """Tests for text_search_params() — GenesByText parameters."""
 
     def test_default_product_field(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import text_search_params
-
         result = text_search_params("Plasmodium falciparum 3D7", "kinase")
         assert result == {
             "text_search_organism": json.dumps(["Plasmodium falciparum 3D7"]),
@@ -84,8 +87,6 @@ class TestTextSearchParams:
         }
 
     def test_custom_fields(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import text_search_params
-
         result = text_search_params(
             "Homo sapiens REF",
             "TLR",
@@ -94,8 +95,6 @@ class TestTextSearchParams:
         assert result["text_fields"] == json.dumps(["name"])
 
     def test_multiple_fields(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import text_search_params
-
         result = text_search_params(
             "Homo sapiens REF",
             "interferon",
@@ -108,10 +107,6 @@ class TestSignalPeptideParams:
     """Tests for signal_peptide_params() — GenesWithSignalPeptide parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import (
-            signal_peptide_params,
-        )
-
         result = signal_peptide_params("Toxoplasma gondii ME49")
         assert result == {
             "organism": json.dumps(["Toxoplasma gondii ME49"]),
@@ -122,10 +117,6 @@ class TestTransmembraneParams:
     """Tests for transmembrane_params() — GenesByTransmembraneDomains parameters."""
 
     def test_with_string_args(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import (
-            transmembrane_params,
-        )
-
         result = transmembrane_params("Anopheles gambiae PEST", "1", "99")
         assert result == {
             "organism": json.dumps(["Anopheles gambiae PEST"]),
@@ -134,10 +125,6 @@ class TestTransmembraneParams:
         }
 
     def test_different_values(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import (
-            transmembrane_params,
-        )
-
         result = transmembrane_params("Leishmania major strain Friedlin", "3", "20")
         assert result["min_tm"] == "3"
         assert result["max_tm"] == "20"
@@ -147,8 +134,6 @@ class TestMolWeightParams:
     """Tests for mol_weight_params() — GenesByMolecularWeight parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import mol_weight_params
-
         result = mol_weight_params("Anopheles gambiae PEST", "10000", "50000")
         assert result == {
             "organism": json.dumps(["Anopheles gambiae PEST"]),
@@ -161,8 +146,6 @@ class TestEcSearchParams:
     """Tests for ec_search_params() — GenesByEcNumber parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import ec_search_params
-
         result = ec_search_params(
             "Plasmodium falciparum 3D7",
             ec_number="2.7.11.1",
@@ -176,8 +159,6 @@ class TestEcSearchParams:
         }
 
     def test_custom_wildcard(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import ec_search_params
-
         result = ec_search_params(
             "Toxoplasma gondii ME49",
             ec_number="2.7.11.1",
@@ -191,8 +172,6 @@ class TestGeneTypeParams:
     """Tests for gene_type_params() — GenesByGeneType parameters."""
 
     def test_default_protein_coding(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import gene_type_params
-
         result = gene_type_params("Homo sapiens REF")
         assert result == {
             "organism": json.dumps(["Homo sapiens REF"]),
@@ -201,8 +180,6 @@ class TestGeneTypeParams:
         }
 
     def test_custom_gene_type(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import gene_type_params
-
         result = gene_type_params("Homo sapiens REF", gene_type="rRNA")
         assert result["geneType"] == json.dumps(["rRNA"])
 
@@ -211,8 +188,6 @@ class TestInterproParams:
     """Tests for interpro_params() — GenesByInterproDomain parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import interpro_params
-
         result = interpro_params("Anopheles gambiae PEST", "Pfam", "PF00069")
         assert result == {
             "organism": json.dumps(["Anopheles gambiae PEST"]),
@@ -226,8 +201,6 @@ class TestLocationParams:
     """Tests for location_params() — GenesByLocation parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import location_params
-
         result = location_params("Anopheles gambiae PEST", "2L", "1", "10000000")
         assert result == {
             "organismSinglePick": json.dumps(["Anopheles gambiae PEST"]),
@@ -242,8 +215,6 @@ class TestExonCountParams:
     """Tests for exon_count_params() — GenesByExonCount parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import exon_count_params
-
         result = exon_count_params("Anopheles gambiae PEST", "5", "100")
         assert result == {
             "organism": json.dumps(["Anopheles gambiae PEST"]),
@@ -257,8 +228,6 @@ class TestTaxonParams:
     """Tests for taxon_params() — GenesByTaxon parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import taxon_params
-
         result = taxon_params("Anopheles gambiae PEST")
         assert result == {
             "organism": json.dumps(["Anopheles gambiae PEST"]),
@@ -269,8 +238,6 @@ class TestRnaseqFcParams:
     """Tests for rnaseq_fc_params() — RNA-Seq fold-change parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import rnaseq_fc_params
-
         result = rnaseq_fc_params(
             dataset_url="https://example.org/dataset",
             profileset="Some experiment",
@@ -294,8 +261,6 @@ class TestRnaseqFcParams:
         }
 
     def test_custom_ops(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import rnaseq_fc_params
-
         result = rnaseq_fc_params(
             dataset_url="https://example.org/dataset",
             profileset="Experiment",
@@ -317,10 +282,6 @@ class TestParalogCountParams:
     """Tests for paralog_count_params() — GenesByParalogCount parameters."""
 
     def test_basic(self) -> None:
-        from veupath_chatbot.services.experiment.seed.helpers import (
-            paralog_count_params,
-        )
-
         result = paralog_count_params("Giardia Assemblage A isolate WB", "5", "500")
         assert result == {
             "organism": json.dumps(["Giardia Assemblage A isolate WB"]),

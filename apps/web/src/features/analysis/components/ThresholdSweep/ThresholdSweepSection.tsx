@@ -51,7 +51,9 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
         onStepsChange={state.setSteps}
         onSelectedValuesChange={state.setSelectedValues}
         onParamChange={state.handleParamChange}
-        onRun={state.handleRun}
+        onRun={() => {
+          void state.handleRun();
+        }}
         onCancel={state.handleCancel}
       />
 
@@ -71,7 +73,9 @@ export function ThresholdSweepSection({ experiment }: ThresholdSweepSectionProps
           parameter={state.finalResult.parameter}
           sweepType={state.activeSweepType}
           formatValue={state.formatValue}
-          currentValue={state.selectedParam?.currentValue}
+          {...(state.selectedParam != null
+            ? { currentValue: state.selectedParam.currentValue }
+            : {})}
           failedCount={state.failedPoints.length}
         />
       )}

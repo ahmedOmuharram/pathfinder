@@ -1,8 +1,8 @@
 import type { Message, OptimizationProgressData } from "@pathfinder/shared";
 
-export type AssistantPartTag = "thought" | "response" | "sources" | "optimization";
+type AssistantPartTag = "thought" | "response" | "sources" | "optimization";
 
-export interface AssistantPart {
+interface AssistantPart {
   tag: AssistantPartTag;
   key: string;
 }

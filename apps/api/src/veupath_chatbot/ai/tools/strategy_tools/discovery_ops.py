@@ -26,6 +26,84 @@ from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelp
 logger = get_logger(__name__)
 
 
+def _extract_terms(keywords: list[str] | str) -> list[str]:
+    """Extract and lowercase search terms from keywords input."""
+    if isinstance(keywords, str):
+        raw_terms = re.findall(r"[A-Za-z0-9]+", keywords)
+    else:
+        raw_terms_list: list[str] = []
+        for item in keywords:
+            raw_terms_list.extend(re.findall(r"[A-Za-z0-9]+", str(item)))
+        raw_terms = raw_terms_list
+    return [t.lower() for t in raw_terms if t]
+
+
+async def _resolve_record_types(
+    session_site_id: str,
+    resolved_record_type: str | None,
+) -> list[str]:
+    """Resolve the list of record types to search."""
+    if resolved_record_type:
+        return [resolved_record_type]
+    record_types_list: list[str] = []
+    record_types_raw = await get_raw_record_types(session_site_id)
+    for rt_value in record_types_raw:
+        if not isinstance(rt_value, dict):
+            continue
+        rt = as_json_object(rt_value)
+        url_segment = rt.get("urlSegment")
+        name_value = rt.get("name")
+        if isinstance(url_segment, str):
+            record_types_list.append(url_segment)
+        elif isinstance(name_value, str):
+            record_types_list.append(name_value)
+    return record_types_list
+
+
+def _extract_search_info(search: JSONObject) -> tuple[str, str, str, str]:
+    """Extract name, display, short, and description from a search dict."""
+    url_segment_value = search.get("urlSegment")
+    name_value = search.get("name")
+    display_value = search.get("displayName")
+    short_value = search.get("shortDisplayName")
+    description_value = search.get("description")
+    name = (
+        str(url_segment_value)
+        if isinstance(url_segment_value, str)
+        else (str(name_value) if isinstance(name_value, str) else "")
+    )
+    display = str(display_value) if isinstance(display_value, str) else ""
+    short = str(short_value) if isinstance(short_value, str) else ""
+    description = str(description_value) if isinstance(description_value, str) else ""
+    return name, display, short, description
+
+
+def _score_search(
+    terms: list[str],
+    name: str,
+    display: str,
+    short: str,
+    description: str,
+) -> int:
+    """Score a search against terms."""
+    haystack = " ".join([name, display, short, description]).lower()
+    return sum(1 for term in terms if term in haystack)
+
+
+def _sort_key(item_value: JSONValue) -> tuple[int, str]:
+    """Sort key for search results: by score descending, then display name."""
+    if not isinstance(item_value, dict):
+        return (0, "")
+    item = as_json_object(item_value)
+    score_value = item.get("score")
+    display_name_value = item.get("displayName")
+    score = int(score_value) if isinstance(score_value, (int, float)) else 0
+    display_name = (
+        str(display_name_value) if isinstance(display_name_value, str) else ""
+    )
+    return (-score, display_name)
+
+
 class StrategyDiscoveryOps(StrategyToolsHelpers):
     """Discovery/search tools."""
 
@@ -42,45 +120,30 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
         limit: Annotated[int, AIParam(desc="Max number of results")] = 20,
     ) -> JSONObject:
         """Search available questions by keywords across name/display/description."""
-        if isinstance(keywords, str):
-            raw_terms = re.findall(r"[A-Za-z0-9]+", keywords)
-        else:
-            raw_terms_list: list[str] = []
-            for item in keywords:
-                raw_terms_list.extend(re.findall(r"[A-Za-z0-9]+", str(item)))
-            raw_terms = raw_terms_list
-        terms = [t.lower() for t in raw_terms if t]
+        terms = _extract_terms(keywords)
         if not terms:
             return tool_error(
                 ErrorCode.VALIDATION_ERROR, "No keywords provided", keywords=[]
             )
 
-        matches: JSONArray = []
-
-        record_types: list[str] = []
         resolved_record_type = (
             await self._resolve_record_type(record_type) if record_type else None
         )
-        if resolved_record_type:
-            record_types = [resolved_record_type]
-        else:
-            record_types_list: list[str] = []
-            record_types_raw = await get_raw_record_types(self.session.site_id)
-            for rt_value in record_types_raw:
-                if not isinstance(rt_value, dict):
-                    continue
-                rt = as_json_object(rt_value)
-                url_segment = rt.get("urlSegment")
-                name_value = rt.get("name")
-                rt_name: str | None = None
-                if isinstance(url_segment, str):
-                    rt_name = url_segment
-                elif isinstance(name_value, str):
-                    rt_name = name_value
-                if rt_name:
-                    record_types_list.append(rt_name)
-            record_types = record_types_list
+        record_types = await _resolve_record_types(
+            self.session.site_id, resolved_record_type
+        )
 
+        matches = await self._collect_matches(record_types, terms)
+        matches.sort(key=_sort_key)
+        return {"keywords": terms, "results": matches[: max(limit, 1)]}
+
+    async def _collect_matches(
+        self,
+        record_types: list[str],
+        terms: list[str],
+    ) -> JSONArray:
+        """Collect matching searches across all record types."""
+        matches: JSONArray = []
         for rt_name in record_types:
             try:
                 searches = await get_raw_searches(self.session.site_id, rt_name)
@@ -91,55 +154,36 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
                     exc_info=True,
                 )
                 continue
+            self._match_searches(searches, rt_name, terms, matches)
+        return matches
 
-            for search_value in searches:
-                if not isinstance(search_value, dict):
-                    continue
-                search = as_json_object(search_value)
-                url_segment_value = search.get("urlSegment")
-                name_value = search.get("name")
-                display_value = search.get("displayName")
-                short_value = search.get("shortDisplayName")
-                description_value = search.get("description")
-                name = (
-                    str(url_segment_value)
-                    if isinstance(url_segment_value, str)
-                    else (str(name_value) if isinstance(name_value, str) else "")
-                )
-                display = str(display_value) if isinstance(display_value, str) else ""
-                short = str(short_value) if isinstance(short_value, str) else ""
-                description = (
-                    str(description_value) if isinstance(description_value, str) else ""
-                )
-                haystack = " ".join([name, display, short, description]).lower()
-                score = sum(1 for term in terms if term in haystack)
-                if score == 0:
-                    continue
-                matches.append(
-                    {
-                        "recordType": rt_name,
-                        "searchName": name or display,
-                        "displayName": display or name,
-                        "description": description,
-                        "score": score,
-                        "matchedKeywords": [t for t in terms if t in haystack],
-                    }
-                )
-
-        def sort_key(item_value: JSONValue) -> tuple[int, str]:
-            if not isinstance(item_value, dict):
-                return (0, "")
-            item = as_json_object(item_value)
-            score_value = item.get("score")
-            display_name_value = item.get("displayName")
-            score = int(score_value) if isinstance(score_value, (int, float)) else 0
-            display_name = (
-                str(display_name_value) if isinstance(display_name_value, str) else ""
+    def _match_searches(
+        self,
+        searches: list[object],
+        rt_name: str,
+        terms: list[str],
+        matches: JSONArray,
+    ) -> None:
+        """Match individual searches and append to matches."""
+        for search_value in searches:
+            if not isinstance(search_value, dict):
+                continue
+            search = as_json_object(search_value)
+            name, display, short, description = _extract_search_info(search)
+            score = _score_search(terms, name, display, short, description)
+            if score == 0:
+                continue
+            haystack = " ".join([name, display, short, description]).lower()
+            matches.append(
+                {
+                    "recordType": rt_name,
+                    "searchName": name or display,
+                    "displayName": display or name,
+                    "description": description,
+                    "score": score,
+                    "matchedKeywords": [t for t in terms if t in haystack],
+                }
             )
-            return (-score, display_name)
-
-        matches.sort(key=sort_key)
-        return {"keywords": terms, "results": matches[: max(limit, 1)]}
 
     @ai_function()
     async def explain_operator(

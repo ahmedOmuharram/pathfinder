@@ -47,7 +47,7 @@ def _make_service(
 
 
 # ===========================================================================
-# StepResultsService: get_attributes
+# StepResultsService -get_attributes
 # ===========================================================================
 
 
@@ -93,7 +93,7 @@ class TestGetAttributes:
 
 
 # ===========================================================================
-# StepResultsService: get_records
+# StepResultsService -get_records
 # ===========================================================================
 
 
@@ -169,7 +169,7 @@ class TestGetRecords:
 
 
 # ===========================================================================
-# StepResultsService: get_distribution
+# StepResultsService -get_distribution
 # ===========================================================================
 
 
@@ -188,7 +188,7 @@ class TestGetDistribution:
 
 
 # ===========================================================================
-# StepResultsService: list_analysis_types
+# StepResultsService -list_analysis_types
 # ===========================================================================
 
 
@@ -204,7 +204,7 @@ class TestListAnalysisTypes:
 
 
 # ===========================================================================
-# StepResultsService: get_record_detail
+# StepResultsService -get_record_detail
 # ===========================================================================
 
 

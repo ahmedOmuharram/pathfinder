@@ -3,7 +3,7 @@ import type { Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { resolveRecordType } from "@/lib/strategyGraph";
 
-export type GraphIndices = {
+type GraphIndices = {
   stepsById: Map<string, Step>;
   usedAsInputCount: Map<string, number>;
   rootIds: string[];
@@ -17,13 +17,13 @@ export function buildGraphIndices(steps: Step[]): GraphIndices {
     stepsById.set(step.id, step);
   }
   for (const step of steps) {
-    if (step.primaryInputStepId) {
+    if (step.primaryInputStepId != null && step.primaryInputStepId !== "") {
       usedAsInputCount.set(
         step.primaryInputStepId,
         (usedAsInputCount.get(step.primaryInputStepId) ?? 0) + 1,
       );
     }
-    if (step.secondaryInputStepId) {
+    if (step.secondaryInputStepId != null && step.secondaryInputStepId !== "") {
       usedAsInputCount.set(
         step.secondaryInputStepId,
         (usedAsInputCount.get(step.secondaryInputStepId) ?? 0) + 1,
@@ -56,8 +56,10 @@ export function isUpstream(
     visited.add(current);
     const step = stepsById.get(current);
     if (!step) continue;
-    if (step.primaryInputStepId) stack.push(step.primaryInputStepId);
-    if (step.secondaryInputStepId) stack.push(step.secondaryInputStepId);
+    if (step.primaryInputStepId != null && step.primaryInputStepId !== "")
+      stack.push(step.primaryInputStepId);
+    if (step.secondaryInputStepId != null && step.secondaryInputStepId !== "")
+      stack.push(step.secondaryInputStepId);
   }
   return false;
 }
@@ -65,7 +67,8 @@ export function isUpstream(
 export function isValidGraphConnection(connection: Connection, indices: GraphIndices) {
   const sourceId = connection.source;
   const targetId = connection.target;
-  if (!sourceId || !targetId) return false;
+  if (sourceId == null || sourceId === "" || targetId == null || targetId === "")
+    return false;
   if (sourceId === targetId) return false;
 
   const sourceStep = indices.stepsById.get(sourceId);
@@ -79,14 +82,19 @@ export function isValidGraphConnection(connection: Connection, indices: GraphInd
   if (connection.targetHandle === "left") {
     const kind = inferStepKind(targetStep);
     if (kind !== "transform" && kind !== "combine") return false;
-    if (targetStep.primaryInputStepId) return false;
+    if (targetStep.primaryInputStepId != null && targetStep.primaryInputStepId !== "")
+      return false;
     if (isUpstream(sourceId, targetId, indices.stepsById)) return false;
     return true;
   }
   if (connection.targetHandle === "left-secondary") {
     const kind = inferStepKind(targetStep);
     if (kind !== "combine") return false;
-    if (targetStep.secondaryInputStepId) return false;
+    if (
+      targetStep.secondaryInputStepId != null &&
+      targetStep.secondaryInputStepId !== ""
+    )
+      return false;
     if (isUpstream(sourceId, targetId, indices.stepsById)) return false;
     return true;
   }
@@ -98,7 +106,7 @@ export function isValidGraphConnection(connection: Connection, indices: GraphInd
   return true;
 }
 
-export type ConnectionEffect =
+type ConnectionEffect =
   | { type: "patch"; targetId: string; patch: Partial<Step> }
   | { type: "pendingCombine"; sourceId: string; targetId: string }
   | { type: "noop" };
@@ -121,15 +129,15 @@ export function getConnectionEffect(
 }
 
 export function edgeToInputPatch(edge: Edge): Partial<Step> | null {
-  if (edge.targetHandle === "left") return { primaryInputStepId: undefined };
+  if (edge.targetHandle === "left") return { primaryInputStepId: null };
   if (edge.targetHandle === "left-secondary")
     return {
-      secondaryInputStepId: undefined,
-      operator: undefined,
-      colocationParams: undefined,
+      secondaryInputStepId: null,
+      operator: null,
+      colocationParams: null,
     };
-  if (edge.id.endsWith("-primary")) return { primaryInputStepId: undefined };
-  if (edge.id.endsWith("-secondary")) return { secondaryInputStepId: undefined };
+  if (edge.id.endsWith("-primary")) return { primaryInputStepId: null };
+  if (edge.id.endsWith("-secondary")) return { secondaryInputStepId: null };
   return null;
 }
 
@@ -141,7 +149,10 @@ export function inferCombineRecordTypeOrMismatch(args: {
   const { sourceId, targetId, indices } = args;
   const leftType = resolveRecordType(sourceId, indices.stepsById);
   const rightType = resolveRecordType(targetId, indices.stepsById);
-  const recordType = leftType && leftType !== "__mismatch__" ? leftType : rightType;
+  const recordType =
+    leftType != null && leftType !== "" && leftType !== "__mismatch__"
+      ? leftType
+      : rightType;
   const mismatch =
     Boolean(leftType) &&
     Boolean(rightType) &&

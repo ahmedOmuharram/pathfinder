@@ -67,13 +67,13 @@ class TestBuildAgentContext:
         mock_resolve = MagicMock(return_value="claude-sonnet-4-20250514")
 
         with (
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._create_agent",
-                mock_create,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._create_agent_holder",
+                {"v": mock_create},
             ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._resolve_effective_model_id",
-                mock_resolve,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._resolve_model_id_holder",
+                {"v": mock_resolve},
             ),
             patch(
                 "veupath_chatbot.services.chat.orchestrator._build_chat_history_from_redis",
@@ -108,13 +108,13 @@ class TestBuildAgentContext:
         mock_resolve = MagicMock(return_value="claude-sonnet-4-20250514")
 
         with (
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._create_agent",
-                mock_create,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._create_agent_holder",
+                {"v": mock_create},
             ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._resolve_effective_model_id",
-                mock_resolve,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._resolve_model_id_holder",
+                {"v": mock_resolve},
             ),
             patch(
                 "veupath_chatbot.services.chat.orchestrator._build_chat_history_from_redis",
@@ -148,20 +148,20 @@ class TestBuildAgentContext:
         mock_build = AsyncMock(return_value="Step 1 context")
 
         with (
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._create_agent",
-                MagicMock(return_value=MagicMock()),
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._create_agent_holder",
+                {"v": MagicMock(return_value=MagicMock())},
             ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._resolve_effective_model_id",
-                MagicMock(return_value="claude-sonnet-4-20250514"),
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._resolve_model_id_holder",
+                {"v": MagicMock(return_value="claude-sonnet-4-20250514")},
             ),
             patch(
                 "veupath_chatbot.services.chat.orchestrator._build_chat_history_from_redis",
                 AsyncMock(return_value=[]),
             ),
             patch(
-                "veupath_chatbot.services.chat.mention_context.build_mention_context",
+                "veupath_chatbot.services.chat.orchestrator.build_mention_context",
                 mock_build,
             ),
         ):
@@ -187,13 +187,13 @@ class TestBuildAgentContext:
         mock_create = MagicMock(return_value=MagicMock())
 
         with (
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._create_agent",
-                mock_create,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._create_agent_holder",
+                {"v": mock_create},
             ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._resolve_effective_model_id",
-                MagicMock(return_value="claude-sonnet-4-20250514"),
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._resolve_model_id_holder",
+                {"v": MagicMock(return_value="claude-sonnet-4-20250514")},
             ),
             patch(
                 "veupath_chatbot.services.chat.orchestrator._build_chat_history_from_redis",
@@ -221,13 +221,15 @@ class TestBuildAgentContext:
         projection = _make_projection()
 
         with (
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._create_agent",
-                None,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._create_agent_holder",
+                {},
+                clear=True,
             ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._resolve_effective_model_id",
-                None,
+            patch.dict(
+                "veupath_chatbot.services.chat.orchestrator._resolve_model_id_holder",
+                {},
+                clear=True,
             ),
             pytest.raises(RuntimeError, match="not configured"),
         ):

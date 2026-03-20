@@ -23,4 +23,3 @@ class Kani:
         **kwargs: Any,
     ) -> None:
         """Initialize a Kani agent."""
-        ...

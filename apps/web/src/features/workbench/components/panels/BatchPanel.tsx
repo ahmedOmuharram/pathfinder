@@ -41,13 +41,13 @@ export function BatchPanel() {
   const [organismsLoading, setOrganismsLoading] = useState(false);
 
   useEffect(() => {
-    if (!activeSet?.siteId) return;
+    if (activeSet?.siteId == null || activeSet.siteId === "") return;
     let cancelled = false;
     // Defer so setState runs outside the effect body (avoids cascading renders)
     queueMicrotask(() => {
       if (!cancelled) setOrganismsLoading(true);
     });
-    listOrganisms(activeSet.siteId)
+    void listOrganisms(activeSet.siteId)
       .then((orgs) => {
         if (!cancelled) setAvailableOrganisms(orgs);
       })
@@ -59,12 +59,16 @@ export function BatchPanel() {
     };
   }, [activeSet?.siteId]);
 
-  const hasSearchContext = Boolean(activeSet?.searchName && activeSet.parameters);
+  const hasSearchContext = Boolean(
+    activeSet?.searchName != null &&
+    activeSet.searchName !== "" &&
+    activeSet.parameters != null,
+  );
 
   const handleRun = useCallback(async () => {
     if (!activeSet) return;
     if (selectedOrganisms.length === 0) return;
-    if (!organismParamName) return;
+    if (organismParamName == null || organismParamName === "") return;
 
     setBatchParamName(organismParamName);
 
@@ -182,7 +186,13 @@ export function BatchPanel() {
         </div>
 
         {/* Run button */}
-        <Button size="sm" onClick={handleRun} disabled={loading}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void handleRun();
+          }}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
@@ -191,7 +201,9 @@ export function BatchPanel() {
           {loading ? "Running..." : "Run Batch"}
         </Button>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error != null && error !== "" && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
 
         {/* Results table */}
         {results && results.length > 0 && (
@@ -220,22 +232,23 @@ export function BatchPanel() {
                 {results.map((exp) => {
                   const paramKey = batchParamName;
                   const orgValue =
-                    (paramKey ? exp.config.parameters?.[paramKey] : undefined) ??
-                    exp.config.name;
+                    (paramKey != null && paramKey !== ""
+                      ? exp.config.parameters[paramKey]
+                      : undefined) ?? exp.config.name;
                   return (
                     <tr key={exp.id} className="border-b last:border-b-0">
                       <td className="px-3 py-2 text-foreground">{String(orgValue)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {exp.metrics?.sensitivity?.toFixed(3) ?? "—"}
+                        {exp.metrics?.sensitivity.toFixed(3) ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {exp.metrics?.specificity?.toFixed(3) ?? "—"}
+                        {exp.metrics?.specificity.toFixed(3) ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {exp.metrics?.f1Score?.toFixed(3) ?? "—"}
+                        {exp.metrics?.f1Score.toFixed(3) ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {exp.metrics?.totalResults ?? "—"}
+                        {exp.metrics?.totalResults.toLocaleString() ?? "—"}
                       </td>
                     </tr>
                   );

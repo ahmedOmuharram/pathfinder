@@ -95,7 +95,9 @@ export function AddGeneSetPasteTab({ onClose, onCreated }: AddGeneSetPasteTabPro
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => handleVerify(parsedIds)}
+            onClick={() => {
+              void handleVerify(parsedIds);
+            }}
             loading={verifying}
             disabled={verifying || isSubmitting}
             className="gap-1 text-xs"
@@ -115,7 +117,7 @@ export function AddGeneSetPasteTab({ onClose, onCreated }: AddGeneSetPasteTabPro
       )}
 
       {/* Error */}
-      {error && (
+      {error != null && error !== "" && (
         <p className="mt-3 text-xs text-destructive" role="alert">
           {error}
         </p>
@@ -135,7 +137,9 @@ export function AddGeneSetPasteTab({ onClose, onCreated }: AddGeneSetPasteTabPro
         <Button
           type="button"
           size="sm"
-          onClick={() => handleSubmit(name, parsedIds, "paste")}
+          onClick={() => {
+            void handleSubmit(name, parsedIds, "paste");
+          }}
           loading={isSubmitting}
           disabled={detectedCount === 0}
         >

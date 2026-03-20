@@ -2,6 +2,11 @@
 
 from fastapi import APIRouter
 
+from veupath_chatbot.domain.parameters.specs import (
+    adapt_param_specs,
+    extract_param_specs,
+    unwrap_search_data,
+)
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services import catalog
 from veupath_chatbot.transport.http.schemas import (
@@ -15,11 +20,6 @@ router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
 
 def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
-    from veupath_chatbot.domain.parameters.specs import (
-        adapt_param_specs,
-        extract_param_specs,
-    )
-
     spec_map = adapt_param_specs(payload)
     raw_specs = extract_param_specs(payload)
     by_name = {
@@ -142,7 +142,5 @@ async def get_param_specs_with_context(
         search_name=searchName,
         context_values=payload.context_values or {},
     )
-    from veupath_chatbot.domain.parameters.specs import unwrap_search_data
-
     details = unwrap_search_data(details_raw) or {}
     return _build_param_specs(details)

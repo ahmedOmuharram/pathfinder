@@ -1,6 +1,7 @@
 """Edge-case and bug-hunting tests for domain/parameters."""
 
 import json
+import math
 
 import pytest
 
@@ -8,7 +9,11 @@ from veupath_chatbot.domain.parameters._decode_values import (
     decode_values,
     parse_json5_value,
 )
-from veupath_chatbot.domain.parameters._value_helpers import ParameterValueMixin
+from veupath_chatbot.domain.parameters._value_helpers import (
+    handle_empty,
+    stringify,
+    validate_multi_count,
+)
 from veupath_chatbot.domain.parameters.canonicalize import (
     ParameterCanonicalizer,
 )
@@ -35,10 +40,6 @@ def _canonicalizer(*specs: ParamSpecNormalized) -> ParameterCanonicalizer:
 
 def _normalizer(*specs: ParamSpecNormalized) -> ParameterNormalizer:
     return ParameterNormalizer(specs={s.name: s for s in specs})
-
-
-class Mixin(ParameterValueMixin):
-    pass
 
 
 # ===========================================================================
@@ -162,8 +163,6 @@ class TestParseJson5ValueEdgeCases:
         result = parse_json5_value("NaN")
         # json5 supports NaN
         if result is not None:
-            import math
-
             assert math.isnan(result)
 
     def test_single_quoted_string(self) -> None:
@@ -449,23 +448,20 @@ class TestFindMissingRequiredParamsEdgeCases:
 
 
 # ===========================================================================
-# 4. ParameterValueMixin edge cases
+# 4. Value helper function edge cases
 # ===========================================================================
 
 
-class TestParameterValueMixinEdgeCases:
-    def setup_method(self) -> None:
-        self.m = Mixin()
-
+class TestValueHelperEdgeCases:
     def test_stringify_large_number(self) -> None:
-        assert self.m._stringify(10**20) == str(10**20)
+        assert stringify(10**20) == str(10**20)
 
     def test_stringify_negative_number(self) -> None:
-        assert self.m._stringify(-42) == "-42"
+        assert stringify(-42) == "-42"
 
     def test_stringify_float_precision(self) -> None:
         """Float stringification should work normally."""
-        result = self.m._stringify(0.1 + 0.2)
+        result = stringify(0.1 + 0.2)
         # Python's str(0.30000000000000004) gives "0.30000000000000004"
         assert result.startswith("0.3")
 
@@ -473,25 +469,25 @@ class TestParameterValueMixinEdgeCases:
         """max_selected=0 means no values are allowed."""
         spec = make_param_spec(max_selected=0)
         with pytest.raises(ValidationError):
-            self.m._validate_multi_count(spec, ["a"])
+            validate_multi_count(spec, ["a"])
 
     def test_validate_multi_count_max_zero_empty_list(self) -> None:
         """max_selected=0 with empty list should pass."""
         spec = make_param_spec(max_selected=0, min_selected=0)
-        self.m._validate_multi_count(spec, [])
+        validate_multi_count(spec, [])
 
     def test_handle_empty_non_vocab_with_none_value_raises(self) -> None:
         """Non-vocab type with None value should raise when allow_empty is False."""
         spec = make_param_spec(param_type="number", allow_empty=False)
         with pytest.raises(ValidationError) as exc_info:
-            self.m._handle_empty(spec, None)
+            handle_empty(spec, None)
         assert "requires a value" in (exc_info.value.detail or "")
 
     def test_handle_empty_allows_all_types(self) -> None:
         """When allow_empty is True, always returns '' regardless of param_type."""
         for pt in ["string", "number", "multi-pick-vocabulary", "filter"]:
             spec = make_param_spec(param_type=pt, allow_empty=True)
-            assert self.m._handle_empty(spec, "anything") == ""
+            assert handle_empty(spec, "anything") == ""
 
 
 # ===========================================================================

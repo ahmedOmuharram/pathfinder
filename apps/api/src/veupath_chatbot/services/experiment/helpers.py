@@ -3,11 +3,13 @@
 Provides gene-list extraction utilities and the progress callback type alias.
 """
 
+import math
 from collections.abc import Awaitable, Callable
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import GeneInfo
+from veupath_chatbot.services.gene_lookup.wdk import resolve_gene_ids
 
 logger = get_logger(__name__)
 
@@ -34,8 +36,6 @@ def safe_float(val: object, default: float = 0.0) -> float:
     *default* because they are not JSON-serializable and PostgreSQL
     rejects them in JSON columns.
     """
-    import math
-
     result: float
     if isinstance(val, (int, float)):
         result = float(val)
@@ -78,7 +78,8 @@ def coerce_step_id(payload: JSONObject | None) -> int:
     """
     step_id = extract_wdk_id(payload)
     if step_id is None:
-        raise ValueError("Failed to extract step ID from WDK response")
+        msg = "Failed to extract step ID from WDK response"
+        raise ValueError(msg)
     return step_id
 
 
@@ -149,8 +150,6 @@ async def _resolve_gene_lookup(
     gene_lists: tuple[list[GeneInfo], ...],
 ) -> dict[str, JSONObject]:
     """Resolve all unique gene IDs across multiple lists into a lookup dict."""
-    from veupath_chatbot.services.gene_lookup.wdk import resolve_gene_ids
-
     all_ids: list[str] = []
     seen: set[str] = set()
     for gl in gene_lists:

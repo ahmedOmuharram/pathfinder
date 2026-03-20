@@ -2,6 +2,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import type { EntityRef } from "@/features/analysis/api/stepResults";
 import { useAttributeFiltering } from "@/features/analysis/hooks/useAttributeFiltering";
 import { useDistributionData } from "@/features/analysis/hooks/useDistributionData";
+import { useDistributionModal } from "@/features/analysis/hooks/useDistributionModal";
 import { AttributeSelector } from "./AttributeSelector";
 import { DistributionChart } from "./DistributionChart";
 
@@ -12,6 +13,7 @@ interface DistributionExplorerProps {
 export function DistributionExplorer({ entityRef }: DistributionExplorerProps) {
   const attrs = useAttributeFiltering(entityRef);
   const dist = useDistributionData(entityRef, attrs.selectedAttr);
+  const modal = useDistributionModal(entityRef, attrs.selectedAttr);
 
   if (attrs.loading) {
     return (
@@ -22,7 +24,7 @@ export function DistributionExplorer({ entityRef }: DistributionExplorerProps) {
     );
   }
 
-  if (attrs.error && attrs.attributes.length === 0) {
+  if (attrs.error != null && attrs.attributes.length === 0) {
     return (
       <div className="flex items-center gap-2 py-8 text-sm text-destructive">
         <AlertCircle className="h-4 w-4" />
@@ -49,7 +51,7 @@ export function DistributionExplorer({ entityRef }: DistributionExplorerProps) {
         refreshing={dist.loading}
       />
 
-      {dist.error && (
+      {dist.error != null && (
         <div className="flex items-center gap-2 text-xs text-destructive">
           <AlertCircle className="h-3.5 w-3.5" />
           {dist.error}
@@ -61,11 +63,11 @@ export function DistributionExplorer({ entityRef }: DistributionExplorerProps) {
         loading={dist.loading}
         selectedAttr={attrs.selectedAttr}
         attributes={attrs.attributes}
-        modalValue={dist.modalValue}
-        modalRecords={dist.modalRecords}
-        loadingModal={dist.loadingModal}
-        onBarClick={dist.handleBarClick}
-        onCloseModal={dist.closeModal}
+        modalValue={modal.modalValue}
+        modalRecords={modal.modalRecords}
+        loadingModal={modal.loadingModal}
+        onBarClick={modal.handleBarClick}
+        onCloseModal={modal.closeModal}
       />
     </div>
   );

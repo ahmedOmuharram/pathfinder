@@ -6,9 +6,6 @@
  */
 import { z } from "zod";
 
-/** A string that can also be `null`. */
-export const nullable = <T extends z.ZodType>(schema: T) => schema.nullable();
-
 /** ISO-8601 datetime string. Intentionally loose (plain `z.string()`) because
  *  the backend sometimes returns non-standard suffixes. */
 export const DateTimeString = z.string();

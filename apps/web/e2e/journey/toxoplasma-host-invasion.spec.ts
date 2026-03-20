@@ -22,7 +22,9 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
     workbenchSidebarPage,
     workbenchMainPage,
   }) => {
-    const toxoGenes = seedData.siteData.toxodb.geneIds;
+    const toxoSiteData = seedData.siteData["toxodb"];
+    if (toxoSiteData === undefined) throw new Error("toxodb seed data missing");
+    const toxoGenes = toxoSiteData.geneIds;
     const fullCount = toxoGenes.length;
     const subsetGenes = toxoGenes.slice(0, 2);
     const subsetCount = subsetGenes.length;

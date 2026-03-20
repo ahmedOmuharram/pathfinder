@@ -88,16 +88,19 @@ export function ThinkingPanel(props: {
 
             {subKaniTasks.length > 0 && (
               <div className="space-y-2">
-                {subKaniTasks.map((task) => (
-                  <SubAgentCard
-                    key={task}
-                    task={task}
-                    toolCalls={subKaniCalls[task] || []}
-                    status={subKaniStatus[task] || "running"}
-                    modelId={subKaniModels?.[task]}
-                    isLive
-                  />
-                ))}
+                {subKaniTasks.map((task) => {
+                  const taskModelId = subKaniModels?.[task];
+                  return (
+                    <SubAgentCard
+                      key={task}
+                      task={task}
+                      toolCalls={subKaniCalls[task] ?? []}
+                      status={subKaniStatus[task] ?? "running"}
+                      {...(taskModelId != null ? { modelId: taskModelId } : {})}
+                      isLive
+                    />
+                  );
+                })}
               </div>
             )}
 

@@ -55,8 +55,8 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
     try:
         router = get_site_router()
         await router.close_all()
-    except Exception:
-        pass
+    except RuntimeError, OSError:
+        pass  # Client already closed or event loop torn down
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "PlasmoDB should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  PlasmoDB record types ({len(result)}): {segments}")
         assert "transcript" in segments, "PlasmoDB must have a 'transcript' record type"
 
     @pytest.mark.asyncio
@@ -105,7 +104,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "ToxoDB should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  ToxoDB record types ({len(result)}): {segments}")
         assert "transcript" in segments, "ToxoDB must have a 'transcript' record type"
 
     @pytest.mark.asyncio
@@ -115,7 +113,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "CryptoDB should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  CryptoDB record types ({len(result)}): {segments}")
         assert "transcript" in segments, "CryptoDB must have a 'transcript' record type"
 
     @pytest.mark.asyncio
@@ -125,7 +122,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "FungiDB should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  FungiDB record types ({len(result)}): {segments}")
         assert "transcript" in segments, "FungiDB must have a 'transcript' record type"
 
     @pytest.mark.asyncio
@@ -135,7 +131,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "TriTrypDB should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  TriTrypDB record types ({len(result)}): {segments}")
         assert "transcript" in segments, (
             "TriTrypDB must have a 'transcript' record type"
         )
@@ -147,7 +142,6 @@ class TestRecordTypesMultiDb:
         assert len(result) > 0, "VectorBase should have at least one record type"
 
         segments = _extract_url_segments(result)
-        print(f"\n  VectorBase record types ({len(result)}): {segments}")
         assert "transcript" in segments, (
             "VectorBase must have a 'transcript' record type"
         )
@@ -165,7 +159,6 @@ class TestListSearchesMultiDb:
     async def test_plasmodb_transcript_searches(self) -> None:
         result = await list_searches("plasmodb", "transcript")
         names = _search_names(result)
-        print(f"\n  PlasmoDB transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"PlasmoDB should have many transcript searches, got {len(result)}"
@@ -177,7 +170,6 @@ class TestListSearchesMultiDb:
     async def test_toxodb_transcript_searches(self) -> None:
         result = await list_searches("toxodb", "transcript")
         names = _search_names(result)
-        print(f"\n  ToxoDB transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"ToxoDB should have many transcript searches, got {len(result)}"
@@ -189,7 +181,6 @@ class TestListSearchesMultiDb:
     async def test_cryptodb_transcript_searches(self) -> None:
         result = await list_searches("cryptodb", "transcript")
         names = _search_names(result)
-        print(f"\n  CryptoDB transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"CryptoDB should have many transcript searches, got {len(result)}"
@@ -201,7 +192,6 @@ class TestListSearchesMultiDb:
     async def test_fungidb_transcript_searches(self) -> None:
         result = await list_searches("fungidb", "transcript")
         names = _search_names(result)
-        print(f"\n  FungiDB transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"FungiDB should have many transcript searches, got {len(result)}"
@@ -213,7 +203,6 @@ class TestListSearchesMultiDb:
     async def test_tritrypdb_transcript_searches(self) -> None:
         result = await list_searches("tritrypdb", "transcript")
         names = _search_names(result)
-        print(f"\n  TriTrypDB transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"TriTrypDB should have many transcript searches, got {len(result)}"
@@ -225,7 +214,6 @@ class TestListSearchesMultiDb:
     async def test_vectorbase_transcript_searches(self) -> None:
         result = await list_searches("vectorbase", "transcript")
         names = _search_names(result)
-        print(f"\n  VectorBase transcript searches ({len(result)}): {names[:15]}...")
 
         assert len(result) >= 10, (
             f"VectorBase should have many transcript searches, got {len(result)}"
@@ -245,9 +233,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_plasmodb_search_kinase(self) -> None:
         result = await search_for_searches("plasmodb", "transcript", "kinase")
-        print(f"\n  PlasmoDB 'kinase' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "PlasmoDB should find kinase-related searches"
@@ -258,9 +245,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_toxodb_search_go_term(self) -> None:
         result = await search_for_searches("toxodb", "transcript", "GO term")
-        print(f"\n  ToxoDB 'GO term' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "ToxoDB should find GO-term-related searches"
@@ -271,9 +257,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_cryptodb_search_location(self) -> None:
         result = await search_for_searches("cryptodb", "transcript", "location")
-        print(f"\n  CryptoDB 'location' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "CryptoDB should find location-related searches"
@@ -284,9 +269,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_fungidb_search_ortholog(self) -> None:
         result = await search_for_searches("fungidb", "transcript", "ortholog")
-        print(f"\n  FungiDB 'ortholog' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "FungiDB should find ortholog-related searches"
@@ -297,9 +281,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_tritrypdb_search_domain(self) -> None:
         result = await search_for_searches("tritrypdb", "transcript", "domain")
-        print(f"\n  TriTrypDB 'domain' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "TriTrypDB should find domain-related searches"
@@ -310,9 +293,8 @@ class TestSearchForSearchesMultiDb:
     @pytest.mark.asyncio
     async def test_vectorbase_search_expression(self) -> None:
         result = await search_for_searches("vectorbase", "transcript", "expression")
-        print(f"\n  VectorBase 'expression' matches ({len(result)}):")
-        for r in result[:5]:
-            print(f"    {r['name']}: {r.get('displayName', '')}")
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, "VectorBase should find expression-related searches"
@@ -332,11 +314,8 @@ class TestSearchForSearchesNoRecordType:
     @pytest.mark.asyncio
     async def test_plasmodb_broad_search(self) -> None:
         result = await search_for_searches("plasmodb", None, "RNA")
-        print(f"\n  PlasmoDB broad 'RNA' matches ({len(result)}):")
-        for r in result[:5]:
-            print(
-                f"    {r['name']}: {r.get('displayName', '')} [{r.get('recordType', '')}]"
-            )
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, (
@@ -349,11 +328,8 @@ class TestSearchForSearchesNoRecordType:
     @pytest.mark.asyncio
     async def test_toxodb_broad_search(self) -> None:
         result = await search_for_searches("toxodb", None, "phenotype")
-        print(f"\n  ToxoDB broad 'phenotype' matches ({len(result)}):")
-        for r in result[:5]:
-            print(
-                f"    {r['name']}: {r.get('displayName', '')} [{r.get('recordType', '')}]"
-            )
+        for _ in result[:5]:
+            pass
 
         assert isinstance(result, list)
         assert len(result) > 0, (
@@ -377,7 +353,6 @@ class TestFindRecordTypeForSearch:
         result = await find_record_type_for_search(
             "plasmodb", "transcript", "GenesByTaxon"
         )
-        print(f"\n  PlasmoDB GenesByTaxon -> {result}")
         assert result == "transcript"
 
     @pytest.mark.asyncio
@@ -385,7 +360,6 @@ class TestFindRecordTypeForSearch:
         result = await find_record_type_for_search(
             "plasmodb", "transcript", "GeneByLocusTag"
         )
-        print(f"\n  PlasmoDB GeneByLocusTag -> {result}")
         assert result == "transcript"
 
     @pytest.mark.asyncio
@@ -394,7 +368,6 @@ class TestFindRecordTypeForSearch:
         result = await find_record_type_for_search(
             "plasmodb", "transcript", "NonexistentSearch123"
         )
-        print(f"\n  PlasmoDB NonexistentSearch123 -> {result}")
         assert result == "transcript", (
             "Unknown search should fall back to the provided record type"
         )
@@ -404,7 +377,6 @@ class TestFindRecordTypeForSearch:
         result = await find_record_type_for_search(
             "toxodb", "transcript", "GenesByTaxon"
         )
-        print(f"\n  ToxoDB GenesByTaxon -> {result}")
         assert result == "transcript"
 
     @pytest.mark.asyncio
@@ -412,7 +384,6 @@ class TestFindRecordTypeForSearch:
         result = await find_record_type_for_search(
             "fungidb", "transcript", "GenesByTaxon"
         )
-        print(f"\n  FungiDB GenesByTaxon -> {result}")
         assert result == "transcript"
 
 
@@ -430,8 +401,6 @@ class TestGetRawSearches:
         assert isinstance(result, list)
         assert len(result) > 0, "PlasmoDB should have raw transcript searches"
 
-        print(f"\n  PlasmoDB raw transcript searches: {len(result)}")
-
         # Spot-check structure of first item
         first = result[0]
         assert isinstance(first, dict), "Each raw search should be a dict"
@@ -440,10 +409,6 @@ class TestGetRawSearches:
         assert has_identifier, (
             f"Raw search must have 'urlSegment' or 'name', got keys: {list(first.keys())}"
         )
-        print(f"  First search keys: {list(first.keys())}")
-        print(
-            f"  First search name/urlSegment: {first.get('urlSegment') or first.get('name')}"
-        )
 
     @pytest.mark.asyncio
     async def test_toxodb_raw_transcript_searches(self) -> None:
@@ -451,17 +416,11 @@ class TestGetRawSearches:
         assert isinstance(result, list)
         assert len(result) > 0, "ToxoDB should have raw transcript searches"
 
-        print(f"\n  ToxoDB raw transcript searches: {len(result)}")
-
         first = result[0]
         assert isinstance(first, dict), "Each raw search should be a dict"
         has_identifier = "urlSegment" in first or "name" in first
         assert has_identifier, (
             f"Raw search must have 'urlSegment' or 'name', got keys: {list(first.keys())}"
-        )
-        print(f"  First search keys: {list(first.keys())}")
-        print(
-            f"  First search name/urlSegment: {first.get('urlSegment') or first.get('name')}"
         )
 
 
@@ -480,9 +439,6 @@ class TestSearchConsistency:
         for db in ALL_DBS:
             result = await list_searches(db, "transcript")
             names = _search_names(result)
-            print(
-                f"  {db}: {len(result)} searches, GenesByTaxon={'YES' if 'GenesByTaxon' in names else 'NO'}"
-            )
             if "GenesByTaxon" not in names:
                 missing.append(db)
 
@@ -495,9 +451,6 @@ class TestSearchConsistency:
         for db in ALL_DBS:
             result = await list_searches(db, "transcript")
             names = _search_names(result)
-            print(
-                f"  {db}: GeneByLocusTag={'YES' if 'GeneByLocusTag' in names else 'NO'}"
-            )
             if "GeneByLocusTag" not in names:
                 missing.append(db)
 
@@ -513,7 +466,6 @@ class TestSearchConsistency:
             has_text_search = any(
                 n in ("GenesByText", "GenesByTextSearch") for n in names
             )
-            print(f"  {db}: text search={'YES' if has_text_search else 'NO'}")
             if not has_text_search:
                 missing.append(db)
 

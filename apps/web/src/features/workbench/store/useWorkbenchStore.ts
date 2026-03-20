@@ -156,7 +156,7 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
       const removeSet = new Set(ids);
       const geneSets = s.geneSets.filter((gs) => !removeSet.has(gs.id));
       const activeSetId =
-        s.activeSetId && removeSet.has(s.activeSetId)
+        s.activeSetId != null && removeSet.has(s.activeSetId)
           ? (geneSets[0]?.id ?? null)
           : s.activeSetId;
       const selectedSetIds = s.selectedSetIds.filter((sid) => !removeSet.has(sid));

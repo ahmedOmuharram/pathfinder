@@ -17,6 +17,7 @@ from veupath_chatbot.platform.tasks import spawn
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import ProgressCallback
 from veupath_chatbot.services.experiment.service import run_experiment
+from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     BatchExperimentConfig,
     Experiment,
@@ -134,7 +135,6 @@ async def start_batch_experiment(
     batch_config: BatchExperimentConfig, *, user_id: str | None = None
 ) -> str:
     """Launch a batch experiment as a background task. Returns operation ID."""
-    from veupath_chatbot.services.experiment.store import get_experiment_store
 
     operation_id = f"op_{uuid4().hex[:12]}"
     batch_id = f"batch_{int(asyncio.get_running_loop().time() * 1000)}"
@@ -195,7 +195,7 @@ async def start_batch_experiment(
                     store.save(exp)
                     results.append(exp)
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Batch organism experiment failed",
                         organism=target.organism,
                         error=str(exc),
@@ -227,7 +227,6 @@ async def start_benchmark(
     user_id: str | None = None,
 ) -> str:
     """Launch a benchmark suite as a background task. Returns operation ID."""
-    from veupath_chatbot.services.experiment.store import get_experiment_store
 
     operation_id = f"op_{uuid4().hex[:12]}"
     benchmark_id = f"bench_{int(asyncio.get_running_loop().time() * 1000)}"
@@ -242,6 +241,7 @@ async def start_benchmark(
                 positives: list[str],
                 negatives: list[str],
                 control_set_id: str | None,
+                *,
                 is_primary: bool,
             ) -> Experiment | None:
                 cfg = copy.deepcopy(base_config)
@@ -256,22 +256,23 @@ async def start_benchmark(
                         user_id=user_id,
                         progress_callback=_make_progress_callback(operation_id),
                     )
+                except Exception as exc:
+                    logger.exception(
+                        "Benchmark experiment failed",
+                        label=label,
+                        error=str(exc),
+                    )
+                    return None
+                else:
                     exp.benchmark_id = benchmark_id
                     exp.control_set_label = label
                     exp.is_primary_benchmark = is_primary
                     store = get_experiment_store()
                     store.save(exp)
                     return exp
-                except Exception as exc:
-                    logger.error(
-                        "Benchmark experiment failed",
-                        label=label,
-                        error=str(exc),
-                    )
-                    return None
 
             tasks = [
-                _run_one(label, pos, neg, csid, primary)
+                _run_one(label, pos, neg, csid, is_primary=primary)
                 for label, pos, neg, csid, primary in control_sets
             ]
             results = await asyncio.gather(*tasks)

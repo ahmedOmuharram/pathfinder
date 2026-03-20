@@ -77,7 +77,7 @@ class TestFetchRecordTypesAndSearches:
                 ]
             }
         )
-        record_types, searches = await fetch_record_types_and_searches(client)
+        record_types, _searches = await fetch_record_types_and_searches(client)
         assert len(record_types) == 1
 
     async def test_dict_wrapped_with_records_key(self) -> None:
@@ -108,7 +108,7 @@ class TestFetchRecordTypesAndSearches:
                 "gene": [{"urlSegment": "GenesByTaxon"}],
             },
         )
-        record_types, searches = await fetch_record_types_and_searches(client)
+        _record_types, searches = await fetch_record_types_and_searches(client)
         assert len(searches) == 1
 
     async def test_skips_non_dict_non_str_entries(self) -> None:
@@ -228,7 +228,7 @@ class TestFetchSearchDetails:
         }
         client = _mock_client(search_details=details_response)
 
-        details, error = await fetch_search_details(
+        _details, error = await fetch_search_details(
             client, "gene", "GenesByTaxon", summary_unwrapped
         )
 
@@ -279,7 +279,7 @@ class TestFetchSearchDetails:
         }
         client = _mock_client()
 
-        details, error = await fetch_search_details(
+        _details, error = await fetch_search_details(
             client, "gene", "GenesByTaxon", summary_unwrapped
         )
 

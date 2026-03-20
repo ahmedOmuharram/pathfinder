@@ -37,18 +37,19 @@ async function runOnce(
   const headers: Record<string, string> = {
     ...getAuthHeaders({
       accept: "text/event-stream",
-      contentType: hasBody ? "application/json" : undefined,
+      ...(hasBody ? { contentType: "application/json" } : {}),
     }),
     ...(args.headers ?? {}),
   };
 
-  const resp = await fetch(url, {
+  const fetchOpts: RequestInit = {
     method: args.method ?? "POST",
     headers,
-    body: hasBody ? JSON.stringify(args.body) : undefined,
-    signal: args.signal,
     credentials: "include",
-  });
+  };
+  if (hasBody) fetchOpts.body = JSON.stringify(args.body);
+  if (args.signal != null) fetchOpts.signal = args.signal;
+  const resp = await fetch(url, fetchOpts);
 
   if (!resp.ok) {
     throw new AppError(
@@ -65,7 +66,7 @@ async function runOnce(
   let buffer = "";
   const readTimeout = options.readTimeoutMs ?? 900_000;
 
-  while (true) {
+  for (;;) {
     // Race the reader against a timeout so we detect hung connections
     // (e.g. model process died but the TCP socket stays open).
     // Use a clearable timeout to avoid leaking handles when the reader wins.
@@ -84,9 +85,11 @@ async function runOnce(
     const result = await Promise.race([reader.read(), timeoutPromise]);
     clearTimeout(timeoutId!);
 
-    if ("timedOut" in result && result.timedOut) {
+    if ("timedOut" in result) {
       // Reader.cancel() can throw if the stream is already closed/errored — benign.
-      reader.cancel().catch((err) => console.debug("[sse] reader.cancel()", err));
+      reader.cancel().catch(() => {
+        /* benign */
+      });
       throw new AppError(
         `No data received for ${Math.round(readTimeout / 1000)}s — connection appears hung.`,
         "TIMEOUT",
