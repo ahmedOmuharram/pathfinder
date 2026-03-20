@@ -143,7 +143,7 @@ class TestValidateSearchParamsErrors:
     """Test validation error handling."""
 
     async def test_expand_failure_returns_is_valid_false(self) -> None:
-        with _patch_expand(side_effect=RuntimeError("Network error")):
+        with _patch_expand(side_effect=ValueError("Network error")):
             result = await validate_search_params(
                 site_id="plasmodb",
                 record_type="gene",
@@ -280,7 +280,7 @@ class TestValidateSearchParamsStructure:
         assert "byKey" in errors
 
     async def test_error_response_structure_on_expand_failure(self) -> None:
-        with _patch_expand(side_effect=RuntimeError("fail")):
+        with _patch_expand(side_effect=ValueError("fail")):
             result = await validate_search_params(
                 site_id="plasmodb",
                 record_type="gene",

@@ -199,7 +199,7 @@ class TestErrorTolerance:
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", good_payload)
-        svc._crossref.search = AsyncMock(side_effect=RuntimeError("timeout"))
+        svc._crossref.search = AsyncMock(side_effect=ValueError("timeout"))
         _patch_client(svc, "_openalex", _source_payload([], source="openalex"))
         _patch_client(
             svc, "_semanticscholar", _source_payload([], source="semanticscholar")

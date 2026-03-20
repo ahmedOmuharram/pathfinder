@@ -7,6 +7,7 @@ from typing import cast
 import httpx
 
 from veupath_chatbot.domain.research.citations import ensure_unique_citation_tags
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import make_citation
 from veupath_chatbot.services.research.utils import (
@@ -21,6 +22,38 @@ from veupath_chatbot.services.research.utils import (
 # DuckDuckGo sometimes returns very short or empty snippets; replace
 # them with the fetched page summary for a more useful search result.
 _MIN_SNIPPET_LENGTH = 40
+
+
+def _parse_ddg_results(html: str, *, limit: int) -> JSONArray:
+    """Parse DuckDuckGo HTML search results into structured items."""
+    parsed: JSONArray = []
+    for m in re.finditer(
+        r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+        html,
+        flags=re.IGNORECASE,
+    ):
+        if len(parsed) >= limit:
+            break
+        href = m.group(1)
+        title = strip_tags(m.group(2))
+        if not title:
+            continue
+        window = html[m.end() : m.end() + 2000]
+        m_snip = re.search(
+            r'class="result__snippet"[^>]*>(.*?)</',
+            window,
+            flags=re.IGNORECASE,
+        )
+        snippet_html = m_snip.group(1) if m_snip else ""
+        snippet = strip_tags(snippet_html) or None
+        parsed.append(
+            {
+                "title": title,
+                "url": decode_ddg_redirect(href),
+                "snippet": snippet,
+            }
+        )
+    return parsed
 
 
 class WebSearchService:
@@ -72,7 +105,10 @@ class WebSearchService:
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
                 r["summary"] = cast("JSONValue", summary)
                 snip = r.get("snippet")
-                if ((not isinstance(snip, str)) or len(snip.strip()) < _MIN_SNIPPET_LENGTH) and summary:
+                if (
+                    (not isinstance(snip, str))
+                    or len(snip.strip()) < _MIN_SNIPPET_LENGTH
+                ) and summary:
                     r["snippet"] = cast("JSONValue", summary)
 
         citations: list[JSONObject] = []
@@ -121,64 +157,37 @@ class WebSearchService:
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        def _parse_results(html: str) -> JSONArray:
-            parsed: JSONArray = []
-            # Find result links; snippets are nearby in the HTML.
-            for m in re.finditer(
-                r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
-                html,
-                flags=re.IGNORECASE,
-            ):
-                if len(parsed) >= limit:
-                    break
-                href = m.group(1)
-                title = strip_tags(m.group(2))
-                if not title:
-                    continue
-                window = html[m.end() : m.end() + 2000]
-                m_snip = re.search(
-                    r'class="result__snippet"[^>]*>(.*?)</',
-                    window,
-                    flags=re.IGNORECASE,
-                )
-                snippet_html = m_snip.group(1) if m_snip else ""
-                snippet = strip_tags(snippet_html) or None
-                parsed.append(
-                    {
-                        "title": title,
-                        "url": decode_ddg_redirect(href),
-                        "snippet": snippet,
-                    }
-                )
-            return parsed
-
         diag: JSONObject = {
             "blocked": False,
             "attempts": 0,
             "statusCodes": cast("JSONValue", []),
         }
         last_html = ""
-        async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
-            for cand in candidate_queries(q):
-                resp = await client.get(url, params={"q": cand}, follow_redirects=True)
-                attempts_raw = diag.get("attempts")
-                attempts = (
-                    int(attempts_raw) if isinstance(attempts_raw, (int, float)) else 0
-                )
-                diag["attempts"] = attempts + 1
-                status_codes_raw = diag.get("statusCodes")
-                if isinstance(status_codes_raw, list):
-                    status_codes_raw.append(resp.status_code)
-                else:
-                    diag["statusCodes"] = cast("JSONValue", [resp.status_code])
-                last_html = resp.text or ""
-                if looks_blocked(resp.status_code, last_html):
-                    diag["blocked"] = True
-                    continue
-                results = _parse_results(last_html)
-                if results:
-                    return results, cand, diag
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+                for cand in candidate_queries(q):
+                    resp = await client.get(url, params={"q": cand}, follow_redirects=True)
+                    attempts_raw = diag.get("attempts")
+                    attempts = (
+                        int(attempts_raw) if isinstance(attempts_raw, (int, float)) else 0
+                    )
+                    diag["attempts"] = attempts + 1
+                    status_codes_raw = diag.get("statusCodes")
+                    if isinstance(status_codes_raw, list):
+                        status_codes_raw.append(resp.status_code)
+                    else:
+                        diag["statusCodes"] = cast("JSONValue", [resp.status_code])
+                    last_html = resp.text or ""
+                    if looks_blocked(resp.status_code, last_html):
+                        diag["blocked"] = True
+                        continue
+                    results = _parse_ddg_results(last_html, limit=limit)
+                    if results:
+                        return results, cand, diag
+        except httpx.HTTPError as exc:
+            service = "DuckDuckGo (web search)"
+            raise ExternalServiceError(service, str(exc)) from exc
 
         if last_html and not diag.get("blocked"):
-            return _parse_results(last_html), q, diag
+            return _parse_ddg_results(last_html, limit=limit), q, diag
         return [], q, diag

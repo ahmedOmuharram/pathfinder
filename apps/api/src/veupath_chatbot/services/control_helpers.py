@@ -7,6 +7,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     is_internal_wdk_strategy_name,
     strip_internal_wdk_strategy_name,
 )
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.experiment.types import ControlValueFormat
 
@@ -33,7 +34,7 @@ async def delete_temp_strategy(api: StrategyAPI, strategy_id: int | None) -> Non
         return
     try:
         await api.delete_strategy(strategy_id)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Failed to delete temp WDK strategy during cleanup",
             temp_strategy_id=strategy_id,
@@ -45,7 +46,7 @@ async def _get_total_count_for_step(api: StrategyAPI, step_id: int) -> int | Non
     """Get totalCount for a step. Returns None on failure."""
     try:
         return await api.get_step_count(step_id)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.debug(
             "Failed to get total count for step", step_id=step_id, error=str(exc)
         )
@@ -85,7 +86,7 @@ async def cleanup_internal_control_test_strategies(
                 site_id=site_id,
                 wdk_strategy_id=wdk_id,
             )
-        except Exception as e:
+        except (AppError, ValueError, TypeError) as e:
             logger.warning(
                 "Failed to delete leaked internal control-test strategy",
                 site_id=site_id,

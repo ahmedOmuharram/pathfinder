@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.services.chat.orchestrator import (
     _build_agent_context,
     _handle_cancellation,
@@ -231,7 +232,7 @@ class TestBuildAgentContext:
                 {},
                 clear=True,
             ),
-            pytest.raises(RuntimeError, match="not configured"),
+            pytest.raises(InternalError, match="not configured"),
         ):
             await _build_agent_context(
                 stream_id_str=str(uuid4()),

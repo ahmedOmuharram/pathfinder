@@ -2,6 +2,7 @@
 
 import pytest
 
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.services.experiment.helpers import (
     coerce_step_id,
     extract_wdk_id,
@@ -139,13 +140,13 @@ class TestCoerceStepId:
         assert coerce_step_id({"id": 123}) == 123
 
     def test_raises_on_missing_id(self) -> None:
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id({})
 
     def test_raises_on_none_payload(self) -> None:
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id(None)
 
     def test_raises_on_string_id(self) -> None:
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id({"id": "abc"})

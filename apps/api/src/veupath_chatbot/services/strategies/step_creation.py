@@ -19,7 +19,7 @@ from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, par
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
-from veupath_chatbot.platform.errors import ErrorCode, ValidationError
+from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -327,7 +327,7 @@ async def _validate_transform_input_param(
     try:
         wdk = get_wdk_client(site_id)
         details = await wdk.get_search_details(rt, search_name, expand_params=True)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         return tool_error(
             ErrorCode.VALIDATION_ERROR,
             "Failed to load search metadata for transform validation.",

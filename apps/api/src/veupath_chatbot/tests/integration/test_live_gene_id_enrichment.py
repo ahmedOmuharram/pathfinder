@@ -22,6 +22,7 @@ from collections.abc import AsyncGenerator
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.services.gene_sets.operations import (
     _build_enrichment_params_from_gene_ids,
 )
@@ -171,7 +172,7 @@ class TestEnrichmentServiceWithGeneIds:
         This confirms the original bug exists and our fix is necessary.
         """
         svc = EnrichmentService()
-        with pytest.raises(ValueError, match="step_id or search_name"):
+        with pytest.raises(ValidationError, match="step_id or search_name"):
             await svc.run_batch(
                 site_id=SITE_ID,
                 analysis_types=["go_process"],

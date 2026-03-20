@@ -220,7 +220,7 @@ class TestSearchForSearchesViaSiteSearch:
         with patch(
             "veupath_chatbot.services.catalog.searches.query_site_search",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("Network error"),
+            side_effect=ValueError("Network error"),
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 

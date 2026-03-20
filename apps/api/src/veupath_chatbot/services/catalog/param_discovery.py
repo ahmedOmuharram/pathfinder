@@ -7,11 +7,13 @@ fetch fails.
 
 from typing import Any, cast
 
+import httpx
+
 from veupath_chatbot.integrations.veupathdb.param_utils import (
     wdk_entity_name,
     wdk_search_matches,
 )
-from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -38,7 +40,7 @@ async def fetch_search_details(
         details = await discovery.get_search_details(
             site_id, resolved_record_type, search_name, expand_params=True
         )
-    except Exception as e:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as e:
         return await _fallback_scan_record_types(
             discovery,
             site_id,
@@ -75,7 +77,7 @@ async def _fallback_scan_record_types(
                 details = await discovery.get_search_details(
                     site_id, rt_name, search_name, expand_params=True
                 )
-            except Exception:
+            except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
                 details = None
             break
 

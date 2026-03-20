@@ -17,7 +17,11 @@ from veupath_chatbot.domain.strategy.ast import (
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
-from veupath_chatbot.platform.errors import InternalError, ValidationError
+from veupath_chatbot.platform.errors import (
+    InternalError,
+    StrategyCompilationError,
+    ValidationError,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -162,7 +166,7 @@ def _extract_wdk_step_id(result: JSONObject) -> int:
     wdk_step_id_value = result.get("id")
     if not isinstance(wdk_step_id_value, (int, float)):
         msg = f"Expected numeric step ID, got {wdk_step_id_value}"
-        raise TypeError(msg)
+        raise StrategyCompilationError(msg)
     return int(wdk_step_id_value)
 
 
@@ -225,7 +229,7 @@ class StrategyCompiler:
         if kind == "transform":
             return await self._compile_transform(node, record_type)
         msg = f"Unknown node kind: {kind}"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     async def _resolve_strategy_record_type(self, strategy: StrategyAST) -> str | None:
         """Resolve the strategy-level record type from leaf searches.
@@ -296,10 +300,10 @@ class StrategyCompiler:
         """Compile a combine step."""
         if not step.primary_input or not step.secondary_input:
             msg = "Combine step missing inputs"
-            raise ValueError(msg)
+            raise StrategyCompilationError(msg)
         if step.operator is None:
             msg = "Combine step missing operator"
-            raise ValueError(msg)
+            raise StrategyCompilationError(msg)
 
         logger.debug("Compiling combine step", step_id=step.id, op=step.operator.value)
 
@@ -414,7 +418,7 @@ class StrategyCompiler:
         """Compile a transform step."""
         if not step.primary_input:
             msg = "Transform step missing primaryInput"
-            raise ValueError(msg)
+            raise StrategyCompilationError(msg)
 
         logger.debug(
             "Compiling transform step", step_id=step.id, transform=step.search_name

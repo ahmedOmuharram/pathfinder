@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import veupath_chatbot.services.experiment.store as store_module
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.service import (
     _phase_cross_validate,
@@ -263,7 +264,7 @@ class TestPhasePersistStrategy:
         with patch(
             "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("WDK down"),
+            side_effect=WDKError(detail="WDK down"),
         ):
             await _phase_persist_strategy(config, experiment, store, None)
 
@@ -335,7 +336,7 @@ class TestPhaseRankMetrics:
         with patch(
             "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
             new_callable=AsyncMock,
-            side_effect=RuntimeError("fetch failed"),
+            side_effect=ValueError("fetch failed"),
         ):
             ordered = await _phase_rank_metrics(config, experiment, _noop_emit, store)
 
@@ -412,7 +413,7 @@ class TestPhaseRobustness:
 
         with patch(
             "veupath_chatbot.services.experiment.service.compute_robustness",
-            side_effect=RuntimeError("boom"),
+            side_effect=ValueError("boom"),
         ):
             await _phase_robustness(
                 config, experiment, _noop_emit, store, ["G1"], is_ranked=False

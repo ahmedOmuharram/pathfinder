@@ -6,6 +6,7 @@ from typing import TypedDict
 
 from veupath_chatbot.domain.strategy.tree import collect_dict_leaves, walk_dict_tree
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import ProgressCallback, safe_float
@@ -71,7 +72,7 @@ async def _discover_numeric_params(
     api = get_strategy_api(site_id)
     try:
         details = await api.client.get_search_details(record_type, search_name)
-    except Exception as exc:
+    except AppError as exc:
         logger.warning(
             "Failed to fetch search details for numeric param discovery",
             search_name=search_name,
@@ -264,7 +265,11 @@ def _pick_recommendation(
         recommended_value = current
 
     recommendation = ""
-    if best_point and abs(recommended_value - current) > _FLOAT_COMPARISON_EPSILON and cur_point:
+    if (
+        best_point
+        and abs(recommended_value - current) > _FLOAT_COMPARISON_EPSILON
+        and cur_point
+    ):
         recommendation = (
             f"Changing {pname} from {current:.4g} to {recommended_value:.4g} "
             f"changes recall {cur_point.recall:.0%} -> {best_point.recall:.0%}"
@@ -364,7 +369,7 @@ async def _eval_sweep_value(
                 positive_controls=positive_controls,
                 negative_controls=negative_controls,
             )
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Sensitivity sweep point failed",
             step=lid,
@@ -425,8 +430,8 @@ async def sweep_parameters(
     for pi, (leaf, spec, leaf_all_params) in enumerate(all_specs):
         lid = _node_id(leaf)
         pname = str(spec["name"])
-        min_val, max_val, current, partner_spec, partner_current = (
-            _prepare_sweep_range(spec, leaf_all_params)
+        min_val, max_val, current, partner_spec, partner_current = _prepare_sweep_range(
+            spec, leaf_all_params
         )
         sweep_values = _generate_sweep_values(min_val, max_val, current)
 
@@ -453,9 +458,18 @@ async def sweep_parameters(
 
         tasks = [
             _eval_sweep_value(
-                v, lid, pname, tree, sem, site_id, record_type,
-                controls_search_name, controls_param_name, controls_value_format,
-                positive_controls, negative_controls,
+                v,
+                lid,
+                pname,
+                tree,
+                sem,
+                site_id,
+                record_type,
+                controls_search_name,
+                controls_param_name,
+                controls_value_format,
+                positive_controls,
+                negative_controls,
             )
             for v in sweep_values
         ]

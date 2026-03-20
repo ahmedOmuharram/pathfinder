@@ -5,6 +5,7 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
@@ -57,55 +58,59 @@ class PubmedClient(BaseClient):
         self, query: str, *, limit: int, include_abstract: bool
     ) -> list[JSONValue]:
         """esearch + esummary (+ optional efetch) -> list of per-PMID dicts."""
-        async with httpx.AsyncClient(
-            timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
-        ) as client:
-            esearch = await client.get(
-                "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
-                params={
-                    "db": "pubmed",
-                    "term": query,
-                    "retmax": str(limit),
-                    "retmode": "json",
-                },
-            )
-            esearch.raise_for_status()
-            search_payload = esearch.json()
-            idlist = (
-                (search_payload.get("esearchresult") or {}).get("idlist") or []
-                if isinstance(search_payload, dict)
-                else []
-            )
-            pmids = [str(x) for x in idlist if str(x).strip()]
-            if not pmids:
-                return []
-
-            esummary = await client.get(
-                "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
-                params={"db": "pubmed", "id": ",".join(pmids), "retmode": "json"},
-            )
-            esummary.raise_for_status()
-            sum_payload = esummary.json()
-            sum_result = (
-                sum_payload.get("result") if isinstance(sum_payload, dict) else {}
-            )
-
-            abstracts_by_pmid: dict[str, str] = {}
-            if include_abstract:
-                efetch = await client.get(
-                    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
-                    params={"db": "pubmed", "id": ",".join(pmids), "retmode": "xml"},
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
+            ) as client:
+                esearch = await client.get(
+                    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+                    params={
+                        "db": "pubmed",
+                        "term": query,
+                        "retmax": str(limit),
+                        "retmode": "json",
+                    },
                 )
-                efetch.raise_for_status()
-                xml = efetch.text or ""
-                for pmid in pmids:
-                    m = re.search(
-                        rf"<PMID>{re.escape(pmid)}</PMID>.*?<Abstract>.*?<AbstractText[^>]*>(.*?)</AbstractText>",
-                        xml,
-                        flags=re.IGNORECASE | re.DOTALL,
+                esearch.raise_for_status()
+                search_payload = esearch.json()
+                idlist = (
+                    (search_payload.get("esearchresult") or {}).get("idlist") or []
+                    if isinstance(search_payload, dict)
+                    else []
+                )
+                pmids = [str(x) for x in idlist if str(x).strip()]
+                if not pmids:
+                    return []
+
+                esummary = await client.get(
+                    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
+                    params={"db": "pubmed", "id": ",".join(pmids), "retmode": "json"},
+                )
+                esummary.raise_for_status()
+                sum_payload = esummary.json()
+                sum_result = (
+                    sum_payload.get("result") if isinstance(sum_payload, dict) else {}
+                )
+
+                abstracts_by_pmid: dict[str, str] = {}
+                if include_abstract:
+                    efetch = await client.get(
+                        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+                        params={"db": "pubmed", "id": ",".join(pmids), "retmode": "xml"},
                     )
-                    if m:
-                        abstracts_by_pmid[pmid] = strip_tags(m.group(1))
+                    efetch.raise_for_status()
+                    xml = efetch.text or ""
+                    for pmid in pmids:
+                        m = re.search(
+                            rf"<PMID>{re.escape(pmid)}</PMID>.*?<Abstract>.*?<AbstractText[^>]*>(.*?)</AbstractText>",
+                            xml,
+                            flags=re.IGNORECASE | re.DOTALL,
+                        )
+                        if m:
+                            abstracts_by_pmid[pmid] = strip_tags(m.group(1))
+        except httpx.HTTPError as exc:
+            service = "PubMed"
+            raise ExternalServiceError(service, str(exc)) from exc
 
         items: list[JSONValue] = []
         for pmid in pmids:
@@ -140,7 +145,7 @@ class PubmedClient(BaseClient):
         if m_year:
             try:
                 year = int(m_year.group(1))
-            except Exception:
+            except ValueError:
                 year = None
 
         authors: list[str] | None = None

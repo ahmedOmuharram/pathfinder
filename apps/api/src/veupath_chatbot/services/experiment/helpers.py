@@ -6,6 +6,7 @@ Provides gene-list extraction utilities and the progress callback type alias.
 import math
 from collections.abc import Awaitable, Callable
 
+from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import GeneInfo
@@ -74,12 +75,12 @@ def coerce_step_id(payload: JSONObject | None) -> int:
 
     :param payload: WDK step-creation response.
     :returns: Step ID.
-    :raises ValueError: If step ID not found.
+    :raises DataParsingError: If step ID not found.
     """
     step_id = extract_wdk_id(payload)
     if step_id is None:
         msg = "Failed to extract step ID from WDK response"
-        raise ValueError(msg)
+        raise DataParsingError(msg)
     return step_id
 
 
@@ -201,7 +202,7 @@ async def extract_and_enrich_genes(
 
     try:
         lookup = await _resolve_gene_lookup(site_id, (tp, fn, fp, tn))
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning("Gene enrichment failed, returning bare IDs", error=str(exc))
         return tp, fn, fp, tn
 

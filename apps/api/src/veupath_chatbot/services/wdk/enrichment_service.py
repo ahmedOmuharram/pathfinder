@@ -16,6 +16,7 @@ import asyncio
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
@@ -72,7 +73,7 @@ class EnrichmentService:
                 analysis_type=analysis_type,
             )
         msg = "Either step_id or search_name+parameters required"
-        raise ValueError(msg)
+        raise ValidationError(detail=msg)
 
     async def run_batch(
         self,
@@ -106,7 +107,7 @@ class EnrichmentService:
         # No step — need search_name + parameters to create one.
         if not search_name or parameters is None:
             msg = "Either step_id or search_name+parameters required"
-            raise ValueError(msg)
+            raise ValidationError(detail=msg)
 
         # Create ONE temp step/strategy, run all analyses, then clean up.
         api = get_strategy_api(site_id)
@@ -160,7 +161,7 @@ class EnrichmentService:
         ) -> EnrichmentResult:
             try:
                 return await _execute_analysis(api, step_id, analysis_type)
-            except Exception as exc:
+            except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
                 logger.warning(
                     "Enrichment failed",
                     analysis_type=analysis_type,

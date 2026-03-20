@@ -359,7 +359,7 @@ class TestFindRecordTypeHint:
     @pytest.mark.asyncio
     async def test_handles_discovery_exception(self) -> None:
         mock_discovery = MagicMock()
-        mock_discovery.get_catalog = AsyncMock(side_effect=RuntimeError("fail"))
+        mock_discovery.get_catalog = AsyncMock(side_effect=ValueError("fail"))
         with patch(_PATCH_TARGET, return_value=mock_discovery):
             mixin = _make_mixin()
             result = await mixin._find_record_type_hint("AnySearch")

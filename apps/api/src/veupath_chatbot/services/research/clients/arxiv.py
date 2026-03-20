@@ -4,6 +4,7 @@ import re
 
 import httpx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
@@ -25,12 +26,16 @@ class ArxivClient(StandardClient):
             "start": "0",
             "max_results": str(limit),
         }
-        async with httpx.AsyncClient(
-            timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
-        ) as client:
-            resp = await client.get(url, params=params, follow_redirects=True)
-            resp.raise_for_status()
-            xml = resp.text or ""
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
+            ) as client:
+                resp = await client.get(url, params=params, follow_redirects=True)
+                resp.raise_for_status()
+                xml = resp.text or ""
+        except httpx.HTTPError as exc:
+            service = "arXiv"
+            raise ExternalServiceError(service, str(exc)) from exc
         entries = re.findall(
             r"<entry>(.*?)</entry>", xml, flags=re.IGNORECASE | re.DOTALL
         )

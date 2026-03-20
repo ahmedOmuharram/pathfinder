@@ -143,7 +143,7 @@ class TestExtractAndEnrichGenes:
             "negative": {"intersectionIds": ["g2"]},
         }
 
-        mock_resolve = AsyncMock(side_effect=Exception("WDK down"))
+        mock_resolve = AsyncMock(side_effect=ValueError("WDK down"))
 
         with patch(
             "veupath_chatbot.services.experiment.helpers.resolve_gene_ids",

@@ -11,6 +11,7 @@ import random
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -167,8 +168,16 @@ async def _run_kfold(
     # k must be at most the size of the smallest non-empty control set,
     # but at least 2.  If either set has fewer than 2 items, skip it
     # in the min() so we can still cross-validate the other set.
-    size_caps = [len(s) for s in (positive_controls, negative_controls) if len(s) >= _MIN_CONTROLS_FOR_FOLD]
-    k = max(_MIN_CONTROLS_FOR_FOLD, min(k, *size_caps)) if size_caps else _MIN_CONTROLS_FOR_FOLD
+    size_caps = [
+        len(s)
+        for s in (positive_controls, negative_controls)
+        if len(s) >= _MIN_CONTROLS_FOR_FOLD
+    ]
+    k = (
+        max(_MIN_CONTROLS_FOR_FOLD, min(k, *size_caps))
+        if size_caps
+        else _MIN_CONTROLS_FOR_FOLD
+    )
 
     pos_folds = _stratified_kfold(positive_controls, k)
     neg_folds = _stratified_kfold(negative_controls, k)
@@ -188,7 +197,7 @@ async def _run_kfold(
                 holdout_neg or None,
             )
             fold_metrics = metrics_from_control_result(result)
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError) as exc:
             logger.warning("Fold %d failed: %s", fold_idx, exc)
             cm = compute_confusion_matrix(
                 positive_hits=0,
@@ -272,7 +281,7 @@ async def run_cross_validation(
     else:
         if search_name is None or parameters is None:
             msg = "search_name and parameters are required for single-step cross-validation"
-            raise ValueError(msg)
+            raise ValidationError(detail=msg)
         # Bind to locals so the closure captures the non-None values.
         _search_name = search_name
         _parameters = parameters

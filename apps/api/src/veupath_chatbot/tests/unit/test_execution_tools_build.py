@@ -13,6 +13,7 @@ not present there.
 
 import pytest
 
+from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.session import StrategyGraph
@@ -266,22 +267,22 @@ class TestCreateStrategyASTEdgeCases:
         assert ast.record_type == "transcript"
 
     def test_non_plan_step_dict_raises_type_error(self):
-        """Passing a dict (not PlanStepNode) raises TypeError."""
+        """Passing a dict (not PlanStepNode) raises StrategyCompilationError."""
         graph = _graph()
-        with pytest.raises(TypeError, match="PlanStepNode"):
+        with pytest.raises(StrategyCompilationError, match="PlanStepNode"):
             create_strategy_ast(graph, {"search_name": "x"}, None, None)
 
     def test_non_plan_step_int_raises_type_error(self):
-        """Passing an int raises TypeError with the type name."""
+        """Passing an int raises StrategyCompilationError with the type name."""
         graph = _graph()
-        with pytest.raises(TypeError, match="int"):
+        with pytest.raises(StrategyCompilationError, match="int"):
             create_strategy_ast(graph, 42, None, None)
 
     def test_no_record_type_raises(self):
         """graph has no record_type."""
         graph = _graph(record_type=None)
         step = _step()
-        with pytest.raises(ValueError, match="Record type"):
+        with pytest.raises(StrategyCompilationError, match="Record type"):
             create_strategy_ast(graph, step, None, None)
 
 
@@ -447,7 +448,7 @@ class TestCreateOrUpdateEdgeCases:
     async def test_update_failure_triggers_create(self):
         """After update fails, create is called and its ID is returned."""
         api = _FakeBuildAPI(
-            update_strategy_error=RuntimeError("gone"),
+            update_strategy_error=ValueError("gone"),
             create_strategy_response={"id": 777},
         )
         compilation = CompilationResult(

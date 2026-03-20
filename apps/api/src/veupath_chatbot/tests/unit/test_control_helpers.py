@@ -3,6 +3,7 @@
 import json
 from unittest.mock import AsyncMock
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
     _get_total_count_for_step,
@@ -60,7 +61,7 @@ class TestDeleteTempStrategy:
 
     async def test_swallows_errors(self) -> None:
         api = AsyncMock()
-        api.delete_strategy.side_effect = RuntimeError("WDK error")
+        api.delete_strategy.side_effect = WDKError(detail="WDK error")
         # Should not raise
         await delete_temp_strategy(api, 42)
 
@@ -138,7 +139,7 @@ class TestGetTotalCountForStep:
 
     async def test_returns_none_on_error(self) -> None:
         api = AsyncMock()
-        api.get_step_count.side_effect = RuntimeError("fail")
+        api.get_step_count.side_effect = ValueError("fail")
         result = await _get_total_count_for_step(api, 1)
         assert result is None
 
@@ -195,7 +196,7 @@ class TestCleanupInternalControlTestStrategies:
 
     async def test_swallows_delete_errors(self) -> None:
         api = AsyncMock()
-        api.delete_strategy.side_effect = RuntimeError("WDK error")
+        api.delete_strategy.side_effect = WDKError(detail="WDK error")
         items = [
             {
                 "name": "__pathfinder_internal__:Pathfinder control test A",

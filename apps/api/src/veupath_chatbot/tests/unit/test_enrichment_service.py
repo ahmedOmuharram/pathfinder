@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.services.experiment.types import EnrichmentResult
 from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
@@ -99,7 +100,7 @@ class TestRunOnSearch:
     @pytest.mark.asyncio
     async def test_raises_without_step_or_search(self) -> None:
         svc = EnrichmentService()
-        with pytest.raises(ValueError, match="Either step_id or search_name"):
+        with pytest.raises(ValidationError, match="Either step_id or search_name"):
             await svc.run(site_id="plasmodb", analysis_type="go_process")
 
 

@@ -116,7 +116,7 @@ def decode_ddg_redirect(href: str) -> str:
             uddg = qs.get("uddg", [None])[0]
             if isinstance(uddg, str) and uddg:
                 return unquote(uddg)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         logger.debug("Failed to decode DDG redirect URL", error=str(exc))
         return h
     return h
@@ -214,7 +214,7 @@ def fuzzy_score(query: str, text: str) -> float:
         return 0.0
     try:
         return float(fuzz.token_set_ratio(q, t))
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         logger.debug("rapidfuzz unavailable, using fallback ratio", error=str(exc))
         return fallback_ratio(q, t)
 
@@ -397,7 +397,7 @@ async def fetch_page_summary(
                     break
                 if len(buf) >= _HEAD_LIMIT:
                     break
-    except Exception as exc:
+    except httpx.HTTPError as exc:
         logger.debug("Failed to fetch page for summary extraction", error=str(exc))
         return None
 

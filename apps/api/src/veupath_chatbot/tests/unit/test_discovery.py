@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     SearchCatalog,
@@ -158,7 +159,7 @@ class TestSearchCatalogLoadWrapped:
         client = _mock_client(record_types=bad_wrapped)
         catalog = SearchCatalog("plasmodb")
 
-        with pytest.raises(TypeError, match="Unexpected record-types response shape"):
+        with pytest.raises(DataParsingError, match="Unexpected record-types response shape"):
             await catalog.load(client)
 
 

@@ -16,6 +16,7 @@ from veupath_chatbot.domain.strategy.ops import (
 )
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import resolve_controls_param_type
 from veupath_chatbot.services.experiment.ai_analysis_helpers import (
@@ -206,10 +207,10 @@ class RefinementToolsMixin:
         """
         if exp.wdk_strategy_id is None:
             msg = "exp.wdk_strategy_id must not be None"
-            raise RuntimeError(msg)
+            raise InternalError(detail=msg)
         if exp.wdk_step_id is None:
             msg = "exp.wdk_step_id must not be None"
-            raise RuntimeError(msg)
+            raise InternalError(detail=msg)
 
         combined = await api.create_combined_step(
             primary_step_id=exp.wdk_step_id,
@@ -235,7 +236,7 @@ class RefinementToolsMixin:
 
         try:
             count = await api.get_step_count(combined_id)
-        except Exception:
+        except AppError:
             count = None
 
         return cast(

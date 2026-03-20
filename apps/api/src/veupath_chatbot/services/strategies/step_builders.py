@@ -35,7 +35,7 @@ def build_steps_data_from_ast(
         if isinstance(step.id, str) and step.id.isdigit():
             try:
                 wdk_step_id = int(step.id)
-            except Exception:
+            except ValueError, TypeError:
                 wdk_step_id = None
         steps_data.append(
             {

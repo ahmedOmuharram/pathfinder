@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import extract_wdk_id
@@ -32,9 +33,9 @@ _MAX_CONCURRENT_SEEDS = 10
 
 
 def _raise_missing_strategy_id(seed_name: str) -> None:
-    """Raise ValueError when WDK does not return a strategy ID."""
+    """Raise StrategyCompilationError when WDK does not return a strategy ID."""
     msg = f"WDK did not return a strategy ID for '{seed_name}'"
-    raise ValueError(msg)
+    raise StrategyCompilationError(msg)
 
 
 async def _process_single_seed(

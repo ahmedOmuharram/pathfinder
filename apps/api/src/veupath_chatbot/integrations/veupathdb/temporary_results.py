@@ -3,6 +3,7 @@
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -95,7 +96,7 @@ class TemporaryResultsAPI(StrategyAPIBase):
         result_id_raw = result.get("id")
         if result_id_raw is None:
             msg = "VEuPathDB temporary-results response did not include an id."
-            raise RuntimeError(msg)
+            raise DataParsingError(msg)
         result_id = str(result_id_raw)
 
         base = self.client.base_url.rstrip("/")

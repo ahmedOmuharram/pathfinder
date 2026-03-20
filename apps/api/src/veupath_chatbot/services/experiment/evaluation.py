@@ -7,6 +7,7 @@ whatever transport format they need.
 Threshold sweep orchestration lives in ``sweep_service.py``.
 """
 
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -34,7 +35,7 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
         step_tree = exp.config.step_tree
         if not isinstance(step_tree, dict):
             msg = "step_tree must be a dict in tree mode"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
 
         result = await run_controls_against_tree(
             site_id=exp.config.site_id,

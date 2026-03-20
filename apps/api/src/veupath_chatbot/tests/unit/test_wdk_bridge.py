@@ -2,6 +2,7 @@
 
 import pytest
 
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.services.strategies.wdk_conversion import (
     build_node_from_wdk,
     build_snapshot_from_wdk,
@@ -67,15 +68,15 @@ class TestExtractRecordType:
         assert extract_record_type({"recordClassName": "  gene  "}) == "gene"
 
     def test_missing_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({})
 
     def test_empty_string_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({"recordClassName": ""})
 
     def test_non_string_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({"recordClassName": 42})
 
 
@@ -90,7 +91,7 @@ class TestGetStepInfo:
 
     def test_missing_step_raises(self) -> None:
         steps = {"456": {"searchName": "S1"}}
-        with pytest.raises(ValueError, match="Step 123 not found"):
+        with pytest.raises(DataParsingError, match="Step 123 not found"):
             get_step_info(steps, 123)
 
 
@@ -211,19 +212,19 @@ class TestBuildNodeFromWdk:
         assert node.secondary_input is not None
 
     def test_missing_step_id_raises(self) -> None:
-        with pytest.raises(TypeError, match="stepId"):
+        with pytest.raises(DataParsingError, match="stepId"):
             build_node_from_wdk({"stepId": "not_an_int"}, {}, "gene")
 
     def test_missing_search_name_raises(self) -> None:
         step_tree = {"stepId": 1}
         steps = {"1": {"searchConfig": {"parameters": {}}}}
-        with pytest.raises(ValueError, match="searchName"):
+        with pytest.raises(DataParsingError, match="searchName"):
             build_node_from_wdk(step_tree, steps, "gene")
 
     def test_missing_search_config_raises(self) -> None:
         step_tree = {"stepId": 1}
         steps = {"1": {"searchName": "S1"}}
-        with pytest.raises(TypeError, match="searchConfig"):
+        with pytest.raises(DataParsingError, match="searchConfig"):
             build_node_from_wdk(step_tree, steps, "gene")
 
     def test_combine_without_operator_raises(self) -> None:
@@ -237,7 +238,7 @@ class TestBuildNodeFromWdk:
             "2": _wdk_step(2, "S2"),
             "3": _wdk_step(3, "BQ", {}),
         }
-        with pytest.raises(ValueError, match="boolean operator"):
+        with pytest.raises(DataParsingError, match="boolean operator"):
             build_node_from_wdk(step_tree, steps, "gene")
 
     def test_custom_name_preferred(self) -> None:
@@ -307,11 +308,11 @@ class TestBuildSnapshotFromWdk:
         assert len(steps_data) == 3
 
     def test_missing_step_tree_raises(self) -> None:
-        with pytest.raises(TypeError, match="stepTree"):
+        with pytest.raises(DataParsingError, match="stepTree"):
             build_snapshot_from_wdk({"recordClassName": "gene", "steps": {}})
 
     def test_missing_steps_dict_raises(self) -> None:
-        with pytest.raises(TypeError, match="steps"):
+        with pytest.raises(DataParsingError, match="steps"):
             build_snapshot_from_wdk(
                 {"recordClassName": "gene", "stepTree": {"stepId": 1}}
             )

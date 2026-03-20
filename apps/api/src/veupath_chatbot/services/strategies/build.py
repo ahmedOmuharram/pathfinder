@@ -19,6 +19,7 @@ from veupath_chatbot.domain.strategy.compile import (
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_site, get_strategy_api
+from veupath_chatbot.platform.errors import AppError, StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import (
@@ -186,11 +187,11 @@ def create_strategy_ast(
     """
     if not isinstance(root_step, PlanStepNode):
         msg = f"Expected PlanStepNode, got {type(root_step).__name__}"
-        raise TypeError(msg)
+        raise StrategyCompilationError(msg)
 
     if not graph.record_type:
         msg = "Record type could not be inferred for execution."
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     strategy = StrategyAST(
         record_type=graph.record_type,
@@ -204,7 +205,7 @@ def create_strategy_ast(
             {"path": e.path, "message": e.message} for e in validation_result.errors
         ]
         msg = f"Strategy validation failed: {errors}"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     return strategy
 
@@ -241,7 +242,7 @@ async def create_or_update_wdk_strategy(
                 "Updated existing WDK strategy",
                 wdk_strategy_id=existing_wdk_id,
             )
-        except Exception as update_err:
+        except (AppError, ValueError, TypeError) as update_err:
             logger.warning(
                 "Failed to update WDK strategy, will create new",
                 wdk_strategy_id=existing_wdk_id,
@@ -391,7 +392,7 @@ async def build_strategy(
                 step_counts, root_count = extract_step_counts(
                     strategy_info, compiled_map
                 )
-        except Exception as e:
+        except (AppError, ValueError, TypeError, KeyError) as e:
             logger.warning("Strategy count lookup failed", error=str(e))
 
     graph.step_counts = step_counts
@@ -432,7 +433,7 @@ async def get_result_count(
         strategy_raw = await api.get_strategy(wdk_strategy_id)
         if not isinstance(strategy_raw, dict):
             msg = "Expected dict from get_strategy"
-            raise TypeError(msg)
+            raise StrategyCompilationError(msg)
         steps_raw = strategy_raw.get("steps")
         if isinstance(steps_raw, dict):
             step_info = steps_raw.get(str(wdk_step_id))

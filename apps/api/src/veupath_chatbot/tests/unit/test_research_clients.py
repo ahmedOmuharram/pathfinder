@@ -11,6 +11,8 @@ import httpx
 import pytest
 import respx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
+
 from veupath_chatbot.services.research.clients.arxiv import ArxivClient
 from veupath_chatbot.services.research.clients.crossref import CrossrefClient
 from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
@@ -115,7 +117,7 @@ class TestArxivClient:
             return_value=httpx.Response(500)
         )
         client = ArxivClient(timeout_seconds=5.0)
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(ExternalServiceError):
             await client.search("test", limit=5, abstract_max_chars=500)
 
 
@@ -242,7 +244,7 @@ class TestCrossrefClient:
             return_value=httpx.Response(503)
         )
         client = CrossrefClient(timeout_seconds=5.0)
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(ExternalServiceError):
             await client.search("test", limit=5, abstract_max_chars=500)
 
 
@@ -554,7 +556,7 @@ class TestSemanticScholarClient:
             return_value=httpx.Response(429)
         )
         client = SemanticScholarClient(timeout_seconds=5.0)
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(ExternalServiceError):
             await client.search("test", limit=5, abstract_max_chars=500)
 
 

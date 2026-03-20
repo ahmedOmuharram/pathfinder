@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
-from veupath_chatbot.platform.errors import InternalError
+from veupath_chatbot.platform.errors import DataParsingError, InternalError
 
 
 def _make_mixin(user_id: str = "12345") -> tuple[StepsMixin, MagicMock]:
@@ -65,7 +65,7 @@ class TestGetBooleanSearchName:
         client.get_searches.return_value = [
             {"urlSegment": "GenesByTaxonGene"},
         ]
-        with pytest.raises(ValueError, match="No boolean combine search"):
+        with pytest.raises(DataParsingError, match="No boolean combine search"):
             await mixin._get_boolean_search_name("gene")
 
     async def test_skips_non_dict_entries(self) -> None:
@@ -121,7 +121,7 @@ class TestGetBooleanParamNames:
         client.get_search_details.return_value = {
             "searchData": {"paramNames": ["bq_operator"]},
         }
-        with pytest.raises(ValueError, match="Boolean param names not found"):
+        with pytest.raises(DataParsingError, match="Boolean param names not found"):
             await mixin._get_boolean_param_names("gene")
 
     async def test_raises_when_no_param_names_list(self) -> None:
@@ -132,7 +132,7 @@ class TestGetBooleanParamNames:
         client.get_search_details.return_value = {
             "searchData": {},
         }
-        with pytest.raises(TypeError, match="no 'paramNames' list"):
+        with pytest.raises(DataParsingError, match="no 'paramNames' list"):
             await mixin._get_boolean_param_names("gene")
 
     async def test_falls_back_to_top_level_when_no_search_data(self) -> None:

@@ -110,7 +110,7 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        mock_site_search.side_effect = RuntimeError("boom")
+        mock_site_search.side_effect = ValueError("boom")
 
         results, orgs, total = await _run_primary_searches(
             "plasmodb",
@@ -133,7 +133,7 @@ class TestRunPrimarySearches:
             call_count += 1
             if query.startswith('"'):
                 msg = "phrase search broke"
-                raise RuntimeError(msg)
+                raise ValueError(msg)
             return ([_gene("G1")], ["Org A"], 1)
 
         mock_site_search.side_effect = side_effect
@@ -253,7 +253,7 @@ class TestRunSupplementarySearches:
         mock_wdk_text: AsyncMock,
     ) -> None:
         intent = QueryIntent(raw="kinase")
-        mock_site_search.side_effect = RuntimeError("boom")
+        mock_site_search.side_effect = ValueError("boom")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
 
         org_results, _wdk_id, _wdk_broad = await _run_supplementary_searches(

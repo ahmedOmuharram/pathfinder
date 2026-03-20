@@ -1,6 +1,6 @@
 """Tests for WorkbenchToolsMixin — verifying async store usage."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
@@ -264,6 +264,11 @@ class TestRunGeneSetEnrichment:
             },
         ]
 
+        mock_export_svc = MagicMock()
+        mock_export_svc.export_enrichment = AsyncMock(return_value=MagicMock(url="http://x/csv", expires_in_seconds=300))
+        mock_export_svc.export_enrichment_tsv = AsyncMock(return_value=MagicMock(url="http://x/tsv", expires_in_seconds=300))
+        mock_export_svc.export_enrichment_json = AsyncMock(return_value=MagicMock(url="http://x/json", expires_in_seconds=300))
+
         with (
             patch(
                 "veupath_chatbot.ai.tools.planner.workbench_tools.get_gene_set_store",
@@ -278,6 +283,10 @@ class TestRunGeneSetEnrichment:
             patch(
                 "veupath_chatbot.services.gene_sets.enrichment.to_json",
                 side_effect=mock_serialized,
+            ),
+            patch(
+                "veupath_chatbot.services.gene_sets.enrichment.get_export_service",
+                return_value=mock_export_svc,
             ),
         ):
             result = await tools.run_gene_set_enrichment(gene_set_id="gs-sig")

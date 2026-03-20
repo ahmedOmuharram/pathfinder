@@ -277,7 +277,7 @@ class TestFetchSearchDetails:
             call_count += 1
             if call_count == 1:
                 msg = "not found on first try"
-                raise RuntimeError(msg)
+                raise ValueError(msg)
             return {"displayName": "Found", "parameters": []}
 
         discovery = MagicMock()
@@ -307,7 +307,7 @@ class TestFetchSearchDetails:
 
     async def test_raises_validation_error_when_not_found_anywhere(self) -> None:
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(side_effect=RuntimeError("not found"))
+        discovery.get_search_details = AsyncMock(side_effect=ValueError("not found"))
         discovery.get_searches = AsyncMock(return_value=[])
 
         record_types: list[Any] = [
@@ -329,7 +329,7 @@ class TestFetchSearchDetails:
         it should still raise ValidationError."""
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(
-            side_effect=RuntimeError("always fails")
+            side_effect=ValueError("always fails")
         )
         discovery.get_searches = AsyncMock(
             side_effect=lambda _sid, rt: (
@@ -354,7 +354,7 @@ class TestFetchSearchDetails:
 
     async def test_skips_non_dict_record_types(self) -> None:
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(side_effect=RuntimeError("not found"))
+        discovery.get_search_details = AsyncMock(side_effect=ValueError("not found"))
         discovery.get_searches = AsyncMock(return_value=[])
 
         record_types: list[Any] = [
@@ -433,7 +433,7 @@ class TestGetSearchParametersAfterDecomposition:
             call_count += 1
             if call_count == 1:
                 msg = "not found"
-                raise RuntimeError(msg)
+                raise ValueError(msg)
             return {
                 "displayName": "Found",
                 "description": "desc",

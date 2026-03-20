@@ -7,6 +7,7 @@ from enum import Enum
 
 import optuna
 
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -365,7 +366,7 @@ async def _evaluate_trial(
                 controls_extra_parameters=ctx.controls_extra_parameters,
                 id_field=ctx.id_field,
             )
-        except Exception as trial_exc:
+        except (AppError, ValueError, TypeError, KeyError) as trial_exc:
             wdk_error = str(trial_exc)
             wdk_result = None
 
@@ -730,7 +731,7 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
                 break
             trial_idx += batch_size
 
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
         logger.error("Optimization failed", error=str(exc), exc_info=True)
         if ctx.progress_callback:
             await emit_error(

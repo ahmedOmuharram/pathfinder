@@ -11,6 +11,7 @@ from veupath_chatbot.integrations.veupathdb.param_utils import (
     wdk_search_matches,
 )
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -23,7 +24,7 @@ def _unwrap_record_types(raw_record_types: JSONArray | JSONObject) -> JSONArray:
     WDK's record-types endpoint returns an array directly, but some
     deployments wrap it under ``"recordTypes"``.
 
-    :raises TypeError: If the response is a dict without a ``recordTypes`` list.
+    :raises DataParsingError: If the response is a dict without a ``recordTypes`` list.
     """
     if isinstance(raw_record_types, dict):
         wrapped = raw_record_types.get("recordTypes")
@@ -33,7 +34,7 @@ def _unwrap_record_types(raw_record_types: JSONArray | JSONObject) -> JSONArray:
             f"Unexpected record-types response shape: "
             f"dict without 'recordTypes' list (keys: {list(raw_record_types.keys())})"
         )
-        raise TypeError(msg)
+        raise DataParsingError(msg)
     return raw_record_types
 
 
@@ -112,7 +113,7 @@ class SearchCatalog:
                     record_types=len(self._record_types),
                     total_searches=sum(len(s) for s in self._searches.values()),
                 )
-            except (httpx.HTTPError, OSError, RuntimeError, TypeError) as e:
+            except (httpx.HTTPError, OSError, RuntimeError, TypeError, DataParsingError) as e:
                 logger.exception(
                     "Failed to load catalog", site_id=self.site_id, error=str(e)
                 )
@@ -264,7 +265,7 @@ class DiscoveryService:
         async def load_site(site_id: str) -> None:
             try:
                 await self.get_catalog(site_id)
-            except (httpx.HTTPError, OSError, RuntimeError, TypeError) as e:
+            except (httpx.HTTPError, OSError, RuntimeError, TypeError, DataParsingError) as e:
                 logger.warning("Failed to preload site", site_id=site_id, error=str(e))
 
         await asyncio.gather(*[load_site(s.id) for s in sites])

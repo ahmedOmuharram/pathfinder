@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.service import (
     _phase_persist_strategy,
     _phase_rank_metrics,
@@ -262,7 +263,7 @@ class TestPhasePersistStrategy:
             patch(
                 "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
                 new_callable=AsyncMock,
-                side_effect=RuntimeError("WDK down"),
+                side_effect=WDKError(detail="WDK down"),
             ),
             patch("veupath_chatbot.platform.store.spawn"),
         ):

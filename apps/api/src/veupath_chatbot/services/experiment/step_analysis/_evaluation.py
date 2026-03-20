@@ -126,7 +126,12 @@ async def run_controls_against_tree(
             if len(control_ids) <= _MAX_CONTROL_IDS_FOR_ANSWER:
                 answer = await api.get_step_answer(
                     combined_step_id,
-                    pagination={"offset": 0, "numRecords": min(len(control_ids), _MAX_CONTROL_IDS_FOR_ANSWER)},
+                    pagination={
+                        "offset": 0,
+                        "numRecords": min(
+                            len(control_ids), _MAX_CONTROL_IDS_FOR_ANSWER
+                        ),
+                    },
                 )
                 if isinstance(answer, dict):
                     intersection_ids = extract_record_ids(answer.get("records"))

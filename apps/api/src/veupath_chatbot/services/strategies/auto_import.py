@@ -11,6 +11,7 @@ from uuid import UUID
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.gene_sets import GeneSet, GeneSetService
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
@@ -61,7 +62,7 @@ async def auto_import_gene_sets(
         wdk_id = proj.wdk_strategy_id
         if wdk_id is None:
             msg = "wdk_id must not be None (guaranteed by _is_eligible)"
-            raise RuntimeError(msg)
+            raise InternalError(detail=msg)
 
         # Skip if already processed in this batch.
         if wdk_id in seen_wdk_ids:
@@ -106,7 +107,7 @@ async def auto_import_gene_sets(
                 wdk_strategy_id=wdk_id,
                 gene_count=len(gs.gene_ids),
             )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
             logger.warning(
                 "Failed to auto-import gene set for strategy",
                 wdk_strategy_id=wdk_id,
@@ -139,7 +140,7 @@ async def background_auto_import_gene_sets(
                 user_id=user_id,
             )
             await session.commit()
-        except Exception as e:
+        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as e:
             await session.rollback()
             logger.warning(
                 "Background gene set auto-import failed",

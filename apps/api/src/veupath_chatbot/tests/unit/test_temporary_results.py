@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
+from veupath_chatbot.platform.errors import DataParsingError
 
 
 def _make_api(
@@ -185,7 +186,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {}
 
-        with pytest.raises(RuntimeError, match=r"did not include.*id"):
+        with pytest.raises(DataParsingError, match=r"did not include.*id"):
             await api.get_download_url(step_id=42, output_format="csv")
 
 

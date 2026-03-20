@@ -16,6 +16,7 @@ from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
+from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk import get_strategy_api
@@ -63,7 +64,7 @@ async def fetch_and_convert(
 
     try:
         await normalize_synced_parameters(ast, steps_data, api)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",
             wdk_id=wdk_id,
@@ -152,7 +153,7 @@ async def upsert_projection(
 
     if proj is None:
         msg = f"Projection disappeared for WDK strategy {wdk_id}"
-        raise RuntimeError(msg)
+        raise InternalError(detail=msg)
     return proj
 
 
@@ -277,7 +278,7 @@ async def lazy_fetch_wdk_detail(
         updated = await stream_repo.get_projection(projection.stream_id)
         if updated is not None:
             return updated
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
         logger.warning(
             "Lazy WDK detail fetch failed",
             stream_id=str(projection.stream_id),
@@ -308,7 +309,7 @@ async def sync_is_saved_to_wdk(
     try:
         api = get_strategy_api(site_id)
         await api.set_saved(wdk_id, is_saved=projection.is_saved)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Failed to sync isSaved to WDK",
             stream_id=str(projection.stream_id),

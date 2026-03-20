@@ -24,6 +24,7 @@ from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository, UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.events import emit, read_stream_messages
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -230,7 +231,7 @@ async def _build_agent_context(
             "Chat orchestrator not configured. "
             "Call services.chat.orchestrator.configure() at startup."
         )
-        raise RuntimeError(msg)
+        raise InternalError(detail=msg)
 
     # Build rich context from @-mentions.
     mentioned_context: str | None = None
@@ -308,7 +309,7 @@ async def _run_stream_loop(
         try:
             site = get_site(site_id)
             wdk_url = site.strategy_url(projection.wdk_strategy_id)
-        except Exception as exc:
+        except (AppError, ValueError) as exc:
             logger.warning(
                 "Failed to build WDK URL",
                 site_id=site_id,
@@ -505,7 +506,7 @@ async def _chat_producer(
                 stream_repo=bg_stream_repo,
             )
             return
-        except Exception as e:
+        except (AppError, ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             await _handle_error(
                 error=e,
                 redis=redis,

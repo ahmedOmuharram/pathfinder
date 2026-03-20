@@ -72,7 +72,7 @@ def _hydrate_graph_fallback(
         )
         if graph.steps:
             graph.save_history(f"Loaded graph from persisted steps: {name}")
-    except Exception as e:
+    except (ValueError, TypeError, KeyError) as e:
         logger.warning(
             "Failed to hydrate graph from persisted steps",
             error=str(e),
@@ -120,7 +120,7 @@ def build_strategy_session(
                 graph.recompute_roots()
                 graph.last_step_id = strategy.root.id
                 graph.save_history(f"Loaded graph: {strategy.name or name}")
-            except Exception as e:
+            except (ValueError, TypeError, KeyError) as e:
                 logger.warning(
                     "Failed to load graph plan",
                     error=str(e),

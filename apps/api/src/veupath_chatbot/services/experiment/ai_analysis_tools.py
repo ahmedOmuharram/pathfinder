@@ -10,6 +10,7 @@ from typing import Annotated, cast
 from kani import AIParam, ai_function
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.ai_analysis_helpers import (
     build_primary_key,
@@ -126,7 +127,7 @@ class _AnalysisToolsMixin:
             )
             tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
             classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError) as exc:
             return {"error": str(exc), "geneId": gene_id}
         else:
             return {
@@ -153,7 +154,7 @@ class _AnalysisToolsMixin:
         api = get_strategy_api(self.site_id)
         try:
             return await api.get_column_distribution(exp.wdk_step_id, attribute_name)
-        except Exception as exc:
+        except AppError as exc:
             return {"error": str(exc), "attribute": attribute_name}
 
     @ai_function()

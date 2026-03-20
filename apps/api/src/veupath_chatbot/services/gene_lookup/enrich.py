@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -65,7 +66,7 @@ async def enrich_sparse_gene_results(
             ids_to_enrich[:50],
             record_type="transcript",
         )
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.debug(
             "Gene enrichment via WDK skipped",
             site_id=site_id,

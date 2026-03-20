@@ -4,6 +4,8 @@ import asyncio
 import collections.abc
 from typing import cast
 
+import httpx
+
 from veupath_chatbot.domain.research.citations import (
     LiteratureSort,
     LiteratureSource,
@@ -286,7 +288,7 @@ class LiteratureSearchService:
                     name,
                     res if isinstance(res, dict) else {"error": "invalid_response"},
                 )
-            except Exception as exc:
+            except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
                 return (
                     name,
                     {

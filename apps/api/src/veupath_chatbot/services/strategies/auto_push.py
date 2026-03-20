@@ -17,7 +17,7 @@ from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
-from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.platform.errors import AppError, WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.catalog.searches import make_record_type_resolver
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
@@ -150,7 +150,7 @@ async def try_auto_push_to_wdk(
                         wdk_strategy_id_set=True,
                     )
                     await session.commit()
-                except Exception:
+                except AppError, ValueError, TypeError, RuntimeError:
                     await session.rollback()
                     logger.exception(
                         "Failed to clear stale wdk_strategy_id",
@@ -162,7 +162,7 @@ async def try_auto_push_to_wdk(
                     strategy_id=str(strategy_id),
                     error=str(e),
                 )
-        except Exception as e:
+        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as e:
             await session.rollback()
             logger.warning(
                 "Auto-push to WDK failed (best-effort)",

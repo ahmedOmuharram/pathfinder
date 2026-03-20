@@ -140,7 +140,7 @@ def _compute_sensitivity(
             )
         # Ensure every param is represented (evaluator may omit some).
         return {name: importances.get(name, 0.0) for name in param_names}
-    except Exception:
+    except ValueError, TypeError, RuntimeError:
         logger.debug(
             "PED-ANOVA importance estimation failed, returning zeros",
             exc_info=True,

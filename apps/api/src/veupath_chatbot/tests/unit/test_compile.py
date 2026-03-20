@@ -21,7 +21,12 @@ from veupath_chatbot.domain.strategy.compile import (
     compile_strategy,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
-from veupath_chatbot.platform.errors import InternalError, ValidationError
+from veupath_chatbot.platform.errors import (
+    InternalError,
+    StrategyCompilationError,
+    ValidationError,
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -116,15 +121,15 @@ class TestExtractWdkStepId:
         assert _extract_wdk_step_id({"id": 42.0}) == 42
 
     def test_missing_id_raises(self) -> None:
-        with pytest.raises(TypeError, match="numeric step ID"):
+        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
             _extract_wdk_step_id({})
 
     def test_string_id_raises(self) -> None:
-        with pytest.raises(TypeError, match="numeric step ID"):
+        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
             _extract_wdk_step_id({"id": "not_a_number"})
 
     def test_none_id_raises(self) -> None:
-        with pytest.raises(TypeError, match="numeric step ID"):
+        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
             _extract_wdk_step_id({"id": None})
 
 
@@ -244,7 +249,7 @@ class TestCompileCombineStep:
         # Actually, infer_kind() returns "search" here. We need to test the
         # explicit guard in _compile_combine. Let's call it directly.
         compiler = StrategyCompiler(api, resolve_record_type=False)
-        with pytest.raises(ValueError, match="missing inputs"):
+        with pytest.raises(StrategyCompilationError, match="missing inputs"):
             await compiler._compile_combine(node, "gene")
 
     async def test_combine_missing_operator_raises(self) -> None:
@@ -259,7 +264,7 @@ class TestCompileCombineStep:
             id="c1",
         )
         compiler = StrategyCompiler(api, resolve_record_type=False)
-        with pytest.raises(ValueError, match="missing operator"):
+        with pytest.raises(StrategyCompilationError, match="missing operator"):
             await compiler._compile_combine(node, "gene")
 
 
@@ -293,7 +298,7 @@ class TestCompileTransformStep:
             id="t1",
         )
         compiler = StrategyCompiler(api, resolve_record_type=False)
-        with pytest.raises(ValueError, match="missing primaryInput"):
+        with pytest.raises(StrategyCompilationError, match="missing primaryInput"):
             await compiler._compile_transform(node, "gene")
 
 

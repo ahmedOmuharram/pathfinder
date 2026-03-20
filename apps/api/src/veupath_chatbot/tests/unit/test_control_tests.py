@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
@@ -196,7 +197,7 @@ class TestGetTotalCountForStep:
     @pytest.mark.asyncio
     async def test_returns_none_on_exception(self) -> None:
         api = _make_mock_api()
-        api.get_step_count = AsyncMock(side_effect=Exception("WDK error"))
+        api.get_step_count = AsyncMock(side_effect=ValueError("WDK error"))
         result = await _get_total_count_for_step(api, 42)
         assert result is None
 
@@ -230,7 +231,7 @@ class TestResolveControlsParamType:
     async def test_returns_none_on_exception(self) -> None:
         api = _make_mock_api()
         api.client.get_search_details = AsyncMock(
-            side_effect=Exception("network error")
+            side_effect=ValueError("network error")
         )
         result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "ds_gene_ids"
@@ -590,7 +591,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(TypeError, match="missing 'meta'"),
+            pytest.raises(DataParsingError, match="missing 'meta'"),
         ):
             await api.get_step_count(step_id=999)
 
@@ -606,7 +607,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(TypeError, match="not an int"),
+            pytest.raises(DataParsingError, match="not an int"),
         ):
             await api.get_step_count(step_id=999)
 

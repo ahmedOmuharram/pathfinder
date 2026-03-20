@@ -111,9 +111,7 @@ def _format_single_param(
     }
 
     vocabulary_raw = spec.get("vocabulary")
-    vocabulary = (
-        vocabulary_raw if isinstance(vocabulary_raw, (dict, list)) else None
-    )
+    vocabulary = vocabulary_raw if isinstance(vocabulary_raw, (dict, list)) else None
 
     if param_type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
         tree_lines = render_vocab_tree(vocabulary, max_lines=80)

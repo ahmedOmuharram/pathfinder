@@ -14,6 +14,12 @@ from veupath_chatbot.integrations.veupathdb.factory import (
     get_wdk_client,
 )
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
+from veupath_chatbot.platform.errors import (
+    AppError,
+    InternalError,
+    NotFoundError,
+    ValidationError,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import EnrichmentResult
@@ -63,7 +69,7 @@ async def _build_enrichment_params_from_gene_ids(
     )
     if not isinstance(dataset_resp, dict) or "id" not in dataset_resp:
         msg = "Failed to create WDK dataset for gene ID enrichment"
-        raise ValueError(msg)
+        raise ValidationError(detail=msg)
 
     dataset_id = dataset_resp["id"]
     return (
@@ -126,11 +132,11 @@ class GeneSetService:
     # -- Lookup / ownership ---------------------------------------------------
 
     async def get_for_user(self, user_id: UUID, gene_set_id: str) -> GeneSet:
-        """Retrieve a gene set, raising KeyError if not found or wrong owner."""
+        """Retrieve a gene set, raising NotFoundError if not found or wrong owner."""
         gs = await self._store.aget(gene_set_id)
         if gs is None or gs.user_id != user_id:
             msg = f"Gene set not found: {gene_set_id}"
-            raise KeyError(msg)
+            raise NotFoundError(detail=msg)
         return gs
 
     # -- CRUD -----------------------------------------------------------------
@@ -167,7 +173,7 @@ class GeneSetService:
                         strategy_id=wdk_strategy_id,
                         step_id=wdk_step_id,
                     )
-                except Exception as exc:
+                except (AppError, ValueError, TypeError, KeyError) as exc:
                     logger.warning(
                         "Failed to resolve root step from strategy",
                         strategy_id=wdk_strategy_id,
@@ -183,7 +189,7 @@ class GeneSetService:
                         step_id=wdk_step_id,
                         gene_count=len(gene_ids),
                     )
-                except Exception as exc:
+                except (AppError, ValueError, TypeError, KeyError) as exc:
                     logger.warning(
                         "Failed to fetch gene IDs from WDK step",
                         step_id=wdk_step_id,
@@ -195,7 +201,7 @@ class GeneSetService:
                 strategy = await api.get_strategy(wdk_strategy_id)
                 step_tree = strategy.get("stepTree")
                 step_count = count_steps_in_tree(step_tree)
-            except Exception as exc:
+            except (AppError, ValueError, TypeError, KeyError) as exc:
                 logger.warning(
                     "Failed to count strategy steps",
                     strategy_id=wdk_strategy_id,
@@ -241,7 +247,7 @@ class GeneSetService:
                         search_name=search_name,
                         has_params=parameters is not None,
                     )
-                except Exception as exc:
+                except (AppError, ValueError, TypeError, KeyError) as exc:
                     logger.warning(
                         "Failed to extract search context from step",
                         step_id=wdk_step_id,
@@ -298,11 +304,11 @@ class GeneSetService:
         return None
 
     async def delete(self, user_id: UUID, gene_set_id: str) -> None:
-        """Delete a gene set, raising KeyError if not found or wrong owner."""
+        """Delete a gene set, raising NotFoundError if not found or wrong owner."""
         await self.get_for_user(user_id, gene_set_id)
         if not self._store.delete(gene_set_id):
             msg = f"Gene set not found: {gene_set_id}"
-            raise KeyError(msg)
+            raise NotFoundError(detail=msg)
         logger.info("Gene set deleted", gene_set_id=gene_set_id)
 
     # -- Set operations -------------------------------------------------------
@@ -332,7 +338,7 @@ class GeneSetService:
                 result_ids = ids_a - ids_b
             case _:
                 msg = f"Invalid operation: must be 'intersect', 'union', or 'minus', got '{operation}'"
-                raise ValueError(msg)
+                raise ValidationError(detail=msg)
 
         gs = GeneSet(
             id=str(uuid4()),
@@ -391,7 +397,8 @@ class GeneSetService:
         )
 
         if not results and errors:
-            raise RuntimeError("Enrichment analysis failed: " + "; ".join(errors))
+            msg = "Enrichment analysis failed: " + "; ".join(errors)
+            raise InternalError(detail=msg)
         return results
 
     # -- Step results access --------------------------------------------------
@@ -401,7 +408,7 @@ class GeneSetService:
     ) -> StepResultsService:
         """Get a StepResultsService for a gene set.
 
-        Raises ValueError if the gene set has no associated WDK step.
+        Raises ValidationError if the gene set has no associated WDK step.
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_step_id:
@@ -409,7 +416,7 @@ class GeneSetService:
                 "No WDK strategy: this gene set has no associated WDK strategy "
                 "for result browsing."
             )
-            raise ValueError(msg)
+            raise ValidationError(detail=msg)
         api = get_strategy_api(gs.site_id)
         return StepResultsService(
             api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"
@@ -421,18 +428,18 @@ class GeneSetService:
         """Get the WDK strategy tree for a gene set.
 
         Returns the gene set and the strategy tree dict.
-        Raises ValueError if no WDK strategy is associated.
+        Raises ValidationError if no WDK strategy is associated.
         """
         gs = await self.get_for_user(user_id, gene_set_id)
         if not gs.wdk_strategy_id:
             msg = "No WDK strategy: this gene set has no associated WDK strategy."
-            raise ValueError(msg)
+            raise ValidationError(detail=msg)
         if not gs.wdk_step_id:
             msg = (
                 "No WDK strategy: this gene set has no associated WDK strategy "
                 "for result browsing."
             )
-            raise ValueError(msg)
+            raise ValidationError(detail=msg)
         api = get_strategy_api(gs.site_id)
         svc = StepResultsService(
             api, step_id=gs.wdk_step_id, record_type=gs.record_type or "transcript"

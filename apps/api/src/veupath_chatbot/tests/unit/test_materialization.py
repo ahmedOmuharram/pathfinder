@@ -8,6 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.platform.errors import (
+    StrategyCompilationError,
+    ValidationError,
+    WDKError,
+)
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
     _persist_experiment_strategy,
@@ -141,7 +146,7 @@ class TestPersistExperimentStrategy:
         api.create_strategy.return_value = {}  # no "id" key
         mock_get_api.return_value = api
 
-        with pytest.raises(ValueError, match="Failed to create WDK strategy"):
+        with pytest.raises(StrategyCompilationError, match="Failed to create WDK strategy"):
             await _persist_experiment_strategy(_cfg("single"), "exp-001")
 
 
@@ -169,7 +174,7 @@ class TestPersistImportStrategy:
     async def test_raises_without_source_strategy(self) -> None:
         api = AsyncMock()
         cfg = _cfg("import")  # no source_strategy_id
-        with pytest.raises(ValueError, match="source_strategy_id is required"):
+        with pytest.raises(ValidationError, match="source_strategy_id is required"):
             await _persist_import_strategy(api, cfg, "exp-001")
 
     async def test_raises_on_bad_dup_response(self) -> None:
@@ -179,7 +184,7 @@ class TestPersistImportStrategy:
         api.client.post.return_value = {"error": "not found"}
 
         cfg = _cfg("import", source_strategy_id="999")
-        with pytest.raises(ValueError, match="Failed to duplicate step tree"):
+        with pytest.raises(StrategyCompilationError, match="Failed to duplicate step tree"):
             await _persist_import_strategy(api, cfg, "exp-001")
 
 
@@ -205,7 +210,7 @@ class TestCleanupExperimentStrategy:
     @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
     async def test_suppresses_delete_errors(self, mock_get_api: MagicMock) -> None:
         api = AsyncMock()
-        api.delete_strategy.side_effect = RuntimeError("WDK down")
+        api.delete_strategy.side_effect = WDKError(detail="WDK down")
         mock_get_api.return_value = api
 
         exp = Experiment(id="exp-001", config=_cfg())

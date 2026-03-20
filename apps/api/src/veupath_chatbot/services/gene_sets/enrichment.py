@@ -2,6 +2,8 @@
 
 from typing import cast
 
+from redis.exceptions import RedisError
+
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType, to_json
@@ -49,7 +51,8 @@ async def run_enrichment_for_gene_set(
             sum(
                 1
                 for t in r.get("terms", [])
-                if isinstance(t, dict) and t.get("pValue", 1) < _PVALUE_SIGNIFICANCE_THRESHOLD
+                if isinstance(t, dict)
+                and t.get("pValue", 1) < _PVALUE_SIGNIFICANCE_THRESHOLD
             )
             for r in serialized
         ),
@@ -68,7 +71,7 @@ async def run_enrichment_for_gene_set(
                 "json": json_result.url,
                 "expiresInSeconds": csv_result.expires_in_seconds,
             }
-        except Exception as export_err:
+        except (RedisError, OSError, ValueError, TypeError) as export_err:
             logger.warning("Enrichment export failed", error=str(export_err))
 
     summary["enrichmentResults"] = serialized

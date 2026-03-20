@@ -7,6 +7,7 @@ and enrichment edge cases.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
     extract_pk,
@@ -241,7 +242,7 @@ class TestGetRecordDetail:
     async def test_falls_back_on_record_type_info_failure(self) -> None:
         """If record type info fails, use raw PK parts."""
         svc, api = _make_service()
-        api.get_record_type_info.side_effect = RuntimeError("WDK timeout")
+        api.get_record_type_info.side_effect = WDKError(detail="WDK timeout")
         api.get_single_record.return_value = {}
 
         raw_pk = [{"name": "source_id", "value": "PF3D7_0100100"}]

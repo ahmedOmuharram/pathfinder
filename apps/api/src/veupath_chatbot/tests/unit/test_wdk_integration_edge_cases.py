@@ -21,7 +21,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.platform.errors import DataParsingError, WDKError
 
 # ---------------------------------------------------------------------------
 # Helper: create a client that bypasses settings/auth_token_ctx
@@ -533,7 +533,7 @@ class TestTemporaryResultsEdgeCases:
         api, client = _make_temp_api()
         client.post.return_value = {}
 
-        with pytest.raises(RuntimeError, match=r"did not include.*id"):
+        with pytest.raises(DataParsingError, match=r"did not include.*id"):
             await api.get_download_url(step_id=42, output_format="csv")
 
     async def test_tab_format_uses_standard_reporter(self) -> None:

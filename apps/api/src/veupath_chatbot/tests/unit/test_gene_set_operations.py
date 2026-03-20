@@ -5,6 +5,11 @@ from uuid import uuid4
 
 import pytest
 
+from veupath_chatbot.platform.errors import (
+    InternalError,
+    NotFoundError,
+    ValidationError,
+)
 from veupath_chatbot.services.gene_sets.operations import (
     GeneSetService,
     count_steps_in_tree,
@@ -184,7 +189,7 @@ class TestGetForUser:
         svc = GeneSetService(store)
 
         other_user = uuid4()
-        with pytest.raises(KeyError):
+        with pytest.raises(NotFoundError):
             await svc.get_for_user(other_user, "gs-1")
 
     async def test_raises_for_missing(self) -> None:
@@ -193,7 +198,7 @@ class TestGetForUser:
 
         with (
             patch.object(store, "_load", new_callable=AsyncMock, return_value=None),
-            pytest.raises(KeyError),
+            pytest.raises(NotFoundError),
         ):
             await svc.get_for_user(_USER, "nonexistent")
 
@@ -260,7 +265,7 @@ class TestPerformSetOperation:
         b = _make_set("b")
         svc = self._svc_with_sets(a, b)
 
-        with pytest.raises(ValueError, match="Invalid operation"):
+        with pytest.raises(ValidationError, match="Invalid operation"):
             await svc.perform_set_operation(
                 user_id=_USER,
                 set_a_id="a",
@@ -380,7 +385,7 @@ class TestDelete:
 
         with (
             patch.object(store, "_load", new_callable=AsyncMock, return_value=None),
-            pytest.raises(KeyError),
+            pytest.raises(NotFoundError),
         ):
             await svc.delete(_USER, "ghost")
 
@@ -389,7 +394,7 @@ class TestDelete:
         store.save(_make_set("owned"))
         svc = GeneSetService(store)
 
-        with pytest.raises(KeyError):
+        with pytest.raises(NotFoundError):
             await svc.delete(uuid4(), "owned")
 
 
@@ -456,7 +461,7 @@ class TestGetStepResultsService:
         store.save(gs)
         svc = GeneSetService(store)
 
-        with pytest.raises(ValueError, match="No WDK strategy"):
+        with pytest.raises(ValidationError, match="No WDK strategy"):
             await svc.get_step_results_service(_USER, "gs-1")
 
 
@@ -497,5 +502,5 @@ class TestRunEnrichment:
         store.save(gs)
         svc = GeneSetService(store)
 
-        with pytest.raises(RuntimeError, match="Enrichment analysis failed"):
+        with pytest.raises(InternalError, match="Enrichment analysis failed"):
             await svc.run_enrichment(_USER, "gs-1", ["go_enrichment"])

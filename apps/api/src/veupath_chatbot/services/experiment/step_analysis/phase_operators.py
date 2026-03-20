@@ -3,6 +3,7 @@
 import asyncio
 
 from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import ProgressCallback
@@ -93,7 +94,7 @@ async def compare_operators(
                         positive_controls=positive_controls,
                         negative_controls=negative_controls,
                     )
-            except Exception as exc:
+            except (AppError, ValueError, TypeError) as exc:
                 logger.warning(
                     "Operator comparison failed", node=_cid, op=op, error=str(exc)
                 )

@@ -11,6 +11,7 @@ import json
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
@@ -68,7 +69,7 @@ async def _execute_analysis(
             analysis_type=wdk_analysis_type,
             param_names=list(analysis_params.keys()),
         )
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Could not fetch analysis form metadata, using empty params",
             analysis_type=wdk_analysis_type,
@@ -116,7 +117,7 @@ async def _execute_analysis(
                 parameters=analysis_params,
             )
             break
-        except Exception as exc:
+        except AppError as exc:
             last_err = exc
             err_str = str(exc)
             if "500" in err_str or "502" in err_str or "503" in err_str:
@@ -133,7 +134,7 @@ async def _execute_analysis(
         if last_err is not None:
             raise last_err
         msg = "Enrichment analysis failed after retries"
-        raise RuntimeError(msg)
+        raise InternalError(detail=msg)
 
     rows = extract_analysis_rows(result)
     terms = parse_enrichment_terms(rows)

@@ -2,6 +2,7 @@
 
 import asyncio
 
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import ProgressCallback
@@ -101,7 +102,7 @@ async def analyze_contributions(
                     positive_controls=positive_controls,
                     negative_controls=negative_controls,
                 )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError) as exc:
             logger.warning("Ablation failed", step=lid, error=str(exc))
             return None
 
@@ -122,7 +123,10 @@ async def analyze_contributions(
             verdict = "essential"
         elif recall_delta < _RECALL_HELPFUL_THRESHOLD:
             verdict = "helpful"
-        elif fpr_delta < _FPR_HARMFUL_THRESHOLD or recall_delta > _RECALL_HARMFUL_IMPROVEMENT:
+        elif (
+            fpr_delta < _FPR_HARMFUL_THRESHOLD
+            or recall_delta > _RECALL_HARMFUL_IMPROVEMENT
+        ):
             # Step is harmful if removing it either reduces FPR meaningfully
             # or *improves* recall (meaning the step was hurting recall).
             verdict = "harmful"

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import extract_wdk_id
@@ -59,7 +60,7 @@ async def build_gold_strategy(
     wdk_strategy_id = extract_wdk_id(created)
     if wdk_strategy_id is None:
         msg = f"WDK did not return a strategy ID for '{gold_id}'"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     logger.info(
         "Built gold strategy on WDK",

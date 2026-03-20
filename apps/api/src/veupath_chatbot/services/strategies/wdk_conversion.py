@@ -21,6 +21,7 @@ from veupath_chatbot.domain.strategy.ast import (
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -66,7 +67,7 @@ def extract_record_type(wdk_strategy: JSONObject) -> str:
         f"WDK strategy is missing a valid 'recordClassName' "
         f"(got {type(value).__name__}: {value!r})"
     )
-    raise ValueError(msg)
+    raise DataParsingError(msg)
 
 
 def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
@@ -78,7 +79,7 @@ def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
         f"Step {step_id} not found in WDK steps dict "
         f"(available keys: {list(steps.keys())[:20]})"
     )
-    raise ValueError(msg)
+    raise DataParsingError(msg)
 
 
 def extract_operator(parameters: JSONObject) -> str | None:
@@ -113,7 +114,7 @@ def build_node_from_wdk(
             f"Expected int 'stepId' in stepTree node, got "
             f"{type(step_id_value).__name__}: {step_id_value!r}"
         )
-        raise TypeError(msg)
+        raise DataParsingError(msg)
     step_id: int = step_id_value
 
     step_info = get_step_info(steps, step_id)
@@ -124,13 +125,13 @@ def build_node_from_wdk(
             f"Step {step_id} is missing a valid 'searchName' "
             f"(got {type(search_name_value).__name__}: {search_name_value!r})"
         )
-        raise ValueError(msg)
+        raise DataParsingError(msg)
     search_name: str = search_name_value
 
     search_config_value = step_info.get("searchConfig")
     if not isinstance(search_config_value, dict):
         msg = f"Step {step_id} is missing 'searchConfig'"
-        raise TypeError(msg)
+        raise DataParsingError(msg)
     search_config = as_json_object(search_config_value)
     parameters_value = search_config.get("parameters")
     parameters: JSONObject = (
@@ -154,7 +155,7 @@ def build_node_from_wdk(
             secondary_input_value, dict
         ):
             msg = "primaryInput and secondaryInput must be objects"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         left = build_node_from_wdk(
             as_json_object(primary_input_value), steps, record_type
         )
@@ -167,7 +168,7 @@ def build_node_from_wdk(
                 f"Combine step {step_id} has no boolean operator in "
                 f"searchConfig.parameters (keys: {list(parameters.keys())})"
             )
-            raise ValueError(msg)
+            raise DataParsingError(msg)
         return PlanStepNode(
             search_name=search_name,
             operator=parse_op(raw_operator),
@@ -179,7 +180,7 @@ def build_node_from_wdk(
     if primary_input_value:
         if not isinstance(primary_input_value, dict):
             msg = "primaryInput must be an object"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         input_node = build_node_from_wdk(
             as_json_object(primary_input_value), steps, record_type
         )
@@ -213,13 +214,13 @@ def build_snapshot_from_wdk(
     step_tree_value = wdk_strategy.get("stepTree")
     if not isinstance(step_tree_value, dict):
         msg = "WDK strategy is missing 'stepTree'"
-        raise TypeError(msg)
+        raise DataParsingError(msg)
     step_tree = as_json_object(step_tree_value)
 
     steps_value = wdk_strategy.get("steps")
     if not isinstance(steps_value, dict):
         msg = f"WDK strategy is missing 'steps' dict (got {type(steps_value).__name__})"
-        raise TypeError(msg)
+        raise DataParsingError(msg)
     steps: JSONObject = as_json_object(steps_value)
 
     record_type = extract_record_type(wdk_strategy)
@@ -300,7 +301,7 @@ async def normalize_synced_parameters(
                     context=step.parameters or {},
                     expand_params=True,
                 )
-            except Exception as exc:
+            except (AppError, ValueError, TypeError) as exc:
                 logger.warning(
                     "Failed to load search details with params during WDK sync",
                     record_type=record_type,
@@ -311,7 +312,7 @@ async def normalize_synced_parameters(
                     details = await api.client.get_search_details(
                         record_type, search_name, expand_params=True
                     )
-                except Exception as fallback_exc:
+                except (AppError, ValueError, TypeError) as fallback_exc:
                     logger.warning(
                         "Failed to load search details during WDK sync",
                         record_type=record_type,
@@ -329,7 +330,7 @@ async def normalize_synced_parameters(
         try:
             normalizer = ParameterNormalizer(specs)
             normalized = normalizer.normalize(step.parameters or {})
-        except Exception as exc:
+        except (ValueError, TypeError, KeyError) as exc:
             logger.warning(
                 "Failed to normalize synced parameters",
                 record_type=record_type,

@@ -2,6 +2,7 @@
 
 import asyncio
 
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -108,7 +109,7 @@ async def evaluate_steps(
                         positive_controls=positive_controls,
                         negative_controls=negative_controls,
                     )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError) as exc:
             logger.warning("Step evaluation failed", step=lid, error=str(exc))
             return None
 

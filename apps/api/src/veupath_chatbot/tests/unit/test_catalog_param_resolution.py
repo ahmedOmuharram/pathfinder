@@ -535,7 +535,7 @@ class TestGetSearchParameters:
     async def test_raises_validation_error_when_search_not_found(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene", "name": "Genes"}],
-            search_details_raises=RuntimeError("not found"),
+            search_details_raises=ValueError("not found"),
             searches_by_rt={
                 "gene": [
                     {"urlSegment": "GenesByTaxon", "name": "Q1"},
@@ -564,7 +564,7 @@ class TestGetSearchParameters:
             call_count += 1
             if call_count == 1:
                 msg = "not found on first try"
-                raise RuntimeError(msg)
+                raise ValueError(msg)
             return {
                 "displayName": "Found It",
                 "description": "desc",
@@ -624,7 +624,7 @@ class TestGetSearchParametersTool:
     async def test_returns_tool_error_on_validation_error(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene"}],
-            search_details_raises=RuntimeError("fail"),
+            search_details_raises=ValueError("fail"),
             searches_by_rt={"gene": []},
         )
         with patch(
@@ -641,7 +641,7 @@ class TestGetSearchParametersTool:
     async def test_tool_error_extracts_error_code(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene"}],
-            search_details_raises=RuntimeError("fail"),
+            search_details_raises=ValueError("fail"),
             searches_by_rt={"gene": []},
         )
         with patch(

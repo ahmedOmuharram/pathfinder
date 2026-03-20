@@ -9,6 +9,7 @@ from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -228,7 +229,7 @@ async def resolve_gene_ids(
                 },
             ),
         )
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Gene ID resolution via standard reporter failed",
             site_id=site_id,

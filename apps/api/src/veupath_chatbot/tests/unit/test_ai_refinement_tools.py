@@ -6,6 +6,7 @@ refine_with_gene_ids, re_evaluate_controls, and _combine_and_update.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.ai_refinement_tools import RefinementToolsMixin
 from veupath_chatbot.services.experiment.store import ExperimentStore
 from veupath_chatbot.services.experiment.types import (
@@ -442,7 +443,7 @@ class TestCombineAndUpdate:
         api = AsyncMock()
         api.create_combined_step.return_value = {"id": 300}
         api.update_strategy = AsyncMock()
-        api.get_step_count.side_effect = RuntimeError("WDK error")
+        api.get_step_count.side_effect = WDKError(detail="WDK error")
         mock_get_api.return_value = api
 
         exp = _exp()

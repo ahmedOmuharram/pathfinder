@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import cast
 
+import httpx
+
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
@@ -16,7 +18,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
 )
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
-from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -64,7 +66,7 @@ async def validate_search_params(
             context_values=raw_context,
         )
         allowed = _extract_param_names(details if isinstance(details, dict) else {})
-    except Exception as exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         return {
             "validation": {
                 "isValid": False,
@@ -167,7 +169,7 @@ async def _resolve_search_details(
                 context=context,
                 expand_params=True,
             )
-        except Exception as exc:
+        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
             logger.warning(
                 "Contextual param fetch failed, falling back to non-contextual specs",
                 record_type=resolved_record_type,
@@ -177,7 +179,7 @@ async def _resolve_search_details(
             return await discovery.get_search_details(
                 site_id, resolved_record_type, search_name, expand_params=True
             )
-    except Exception as exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         hint_record_type = await _find_search_record_type_hint(
             discovery, site_id, record_type, search_name
         )
@@ -240,13 +242,11 @@ async def _find_search_record_type_hint(
                     continue
                 s_url_seg_raw = s.get("urlSegment")
                 s_name_raw = s.get("name")
-                s_url_seg = (
-                    s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
-                )
+                s_url_seg = s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
                 s_name = s_name_raw if isinstance(s_name_raw, str) else None
                 if search_name in (s_url_seg, s_name):
                     return rt_name
-    except Exception as hint_exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as hint_exc:
         logger.warning(
             "Record type hint resolution failed",
             search_name=search_name,
@@ -359,7 +359,9 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": search_name,
                         "unknown": cast("JSONValue", extra_params),
-                        "known": cast("JSONValue", sorted(param_names)[:_MAX_KNOWN_PARAM_NAMES]),
+                        "known": cast(
+                            "JSONValue", sorted(param_names)[:_MAX_KNOWN_PARAM_NAMES]
+                        ),
                         "truncated": len(param_names) > _MAX_KNOWN_PARAM_NAMES,
                     }
                 }

@@ -12,6 +12,7 @@ Covers:
 
 import pytest
 
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.services.experiment.helpers import (
     _enrich_list,
     _extract_gene_list,
@@ -219,16 +220,16 @@ class TestCoerceStepId:
         assert coerce_step_id({"id": 42}) == 42
 
     def test_missing_id_raises(self) -> None:
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id({})
 
     def test_none_payload_raises(self) -> None:
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id(None)
 
     def test_string_id_raises(self) -> None:
         """String IDs are not accepted."""
-        with pytest.raises(ValueError, match="Failed to extract step ID"):
+        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
             coerce_step_id({"id": "not_an_int"})
 
 

@@ -8,6 +8,7 @@ from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk.helpers import extract_pk
@@ -87,7 +88,7 @@ async def build_primary_key(
                 default_val = pk_defaults.get(col)
                 if default_val:
                     pk_parts.append({"name": col, "value": default_val})
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.debug(
             "Failed to build full primary key, falling back to source_id only",
             gene_id=gene_id,
@@ -133,7 +134,7 @@ async def fetch_group_records(
                         "attributes": rec.get("attributes", {}),
                     }
                 )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError) as exc:
             logger.debug(
                 "Failed to fetch record for gene", gene_id=gene_id, error=str(exc)
             )

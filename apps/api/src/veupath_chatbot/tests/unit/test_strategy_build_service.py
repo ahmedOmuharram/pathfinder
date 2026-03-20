@@ -6,6 +6,7 @@ extraction, full build orchestration, and result count lookup.
 
 import pytest
 
+from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
@@ -248,12 +249,12 @@ class TestCreateStrategyAST:
     def test_missing_record_type_raises(self):
         graph = _make_graph(record_type=None)
         step = _make_step()
-        with pytest.raises(ValueError, match="Record type"):
+        with pytest.raises(StrategyCompilationError, match="Record type"):
             create_strategy_ast(graph, step, None, None)
 
     def test_wrong_type_raises(self):
         graph = _make_graph()
-        with pytest.raises(TypeError, match="PlanStepNode"):
+        with pytest.raises(StrategyCompilationError, match="PlanStepNode"):
             create_strategy_ast(graph, "not a step", None, None)
 
     def test_name_falls_back_to_graph_name(self):
@@ -436,7 +437,7 @@ class TestCreateOrUpdateWdkStrategy:
 
     async def test_update_fails_falls_back_to_create(self):
         api = FakeBuildAPI(
-            update_strategy_error=Exception("404 Not Found"),
+            update_strategy_error=ValueError("404 Not Found"),
             create_strategy_response={"id": 888},
         )
         compilation = CompilationResult(
@@ -484,7 +485,7 @@ class TestGetResultCount:
                 return []  # type: ignore[return-value]
 
         api = BadAPI()
-        with pytest.raises(TypeError, match="Expected dict"):
+        with pytest.raises(StrategyCompilationError, match="Expected dict"):
             await get_result_count(api, wdk_step_id=1, wdk_strategy_id=1)
 
     async def test_estimated_size_not_int_falls_back(self):

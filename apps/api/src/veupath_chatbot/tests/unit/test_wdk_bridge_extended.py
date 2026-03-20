@@ -7,6 +7,7 @@ in WDK responses, deep tree structures, and snapshot conversion boundaries.
 import pytest
 
 from veupath_chatbot.domain.strategy.ops import CombineOp, parse_op
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.wdk_conversion import (
     build_node_from_wdk,
@@ -191,18 +192,18 @@ class TestMissingFields:
         """If a stepTree references a step that's not in the steps dict."""
         step_tree: JSONObject = {"stepId": 999}
         steps: JSONObject = {"1": _wdk_step(1, "S1")}
-        with pytest.raises(ValueError, match="Step 999 not found"):
+        with pytest.raises(DataParsingError, match="Step 999 not found"):
             build_node_from_wdk(step_tree, steps, "gene")
 
     def test_step_id_not_integer(self) -> None:
         """stepId must be an integer."""
         step_tree: JSONObject = {"stepId": "abc"}
-        with pytest.raises(TypeError, match="stepId"):
+        with pytest.raises(DataParsingError, match="stepId"):
             build_node_from_wdk(step_tree, {}, "gene")
 
     def test_step_id_none_raises(self) -> None:
         step_tree: JSONObject = {"stepId": None}
-        with pytest.raises(TypeError, match="stepId"):
+        with pytest.raises(DataParsingError, match="stepId"):
             build_node_from_wdk(step_tree, {}, "gene")
 
     def test_search_config_parameters_missing(self) -> None:
@@ -403,15 +404,15 @@ class TestRecordTypeExtraction:
         )
 
     def test_numeric_value_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({"recordClassName": 42})
 
     def test_boolean_value_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({"recordClassName": True})
 
     def test_list_value_raises(self) -> None:
-        with pytest.raises(ValueError, match="recordClassName"):
+        with pytest.raises(DataParsingError, match="recordClassName"):
             extract_record_type({"recordClassName": ["gene"]})
 
 
@@ -464,12 +465,12 @@ class TestGetStepInfoEdgeCases:
     def test_step_value_not_dict_raises(self) -> None:
         """If the step entry is not a dict, it should raise."""
         steps: JSONObject = {"42": "not_a_dict"}
-        with pytest.raises(ValueError, match="Step 42 not found"):
+        with pytest.raises(DataParsingError, match="Step 42 not found"):
             get_step_info(steps, 42)
 
     def test_step_value_none_raises(self) -> None:
         steps: JSONObject = {"42": None}
-        with pytest.raises(ValueError, match="Step 42 not found"):
+        with pytest.raises(DataParsingError, match="Step 42 not found"):
             get_step_info(steps, 42)
 
     def test_large_step_id(self) -> None:

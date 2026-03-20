@@ -490,9 +490,9 @@ class TestFetchAndConvertEdgeCases:
         api = _mock_api(wdk)
         # Make the normalization path raise
         api.client.get_search_details_with_params = AsyncMock(
-            side_effect=Exception("boom")
+            side_effect=ValueError("boom")
         )
-        api.client.get_search_details = AsyncMock(side_effect=Exception("boom"))
+        api.client.get_search_details = AsyncMock(side_effect=ValueError("boom"))
 
         # Should not raise -- normalization failures are logged and swallowed
         ast, _, _ = await fetch_and_convert(api, 1)

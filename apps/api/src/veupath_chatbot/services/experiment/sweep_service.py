@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 
 from veupath_chatbot.domain.strategy.tree import walk_dict_tree
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.platform.errors import AppError, DataParsingError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import (
@@ -186,6 +186,7 @@ async def run_sweep_point(
         m = metrics_from_control_result(result)
         return {"value": response_value, "metrics": format_metrics_dict(m)}
     except (
+        AppError,
         OSError,
         ValueError,
         TypeError,
@@ -216,7 +217,7 @@ async def _run_sweep_point_tree(
     tree = copy.deepcopy(exp.config.step_tree)
     if not isinstance(tree, dict):
         msg = "step_tree must be a dict in tree mode"
-        raise TypeError(msg)
+        raise DataParsingError(msg)
 
     def _inject(node: JSONObject) -> None:
         params = node.get("parameters")

@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import run_positive_negative_controls
@@ -225,7 +226,7 @@ async def _phase_persist_strategy(
         experiment.wdk_strategy_id = raw_sid if isinstance(raw_sid, int) else None
         experiment.wdk_step_id = raw_step if isinstance(raw_step, int) else None
         store.save(experiment)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Failed to persist WDK strategy for experiment",
             experiment_id=experiment.id,
@@ -265,7 +266,7 @@ async def _phase_rank_metrics(
                 negative_ids=neg_set,
             )
             store.save(experiment)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
         logger.warning(
             "Rank metrics computation failed",
             experiment_id=experiment.id,
@@ -307,7 +308,7 @@ async def _phase_robustness(
                 include_rank_metrics=is_ranked,
             )
             store.save(experiment)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
         logger.warning(
             "Robustness computation failed",
             experiment_id=experiment.id,
@@ -444,7 +445,7 @@ async def _phase_optimize_tree_knobs(
             if tree_opt_result.best_trial
             else "Tree optimization complete — no improving trial found",
         )
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Tree knob optimization failed",
             experiment_id=experiment.id,

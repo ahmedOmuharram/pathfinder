@@ -7,6 +7,7 @@ answers and records, and get step counts.
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
@@ -87,12 +88,12 @@ class ReportsMixin(StrategyAPIBase):
         meta_raw = answer.get("meta")
         if not isinstance(meta_raw, dict):
             msg = "Step count: response missing 'meta' dict"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         total_count_raw = meta_raw.get("totalCount")
         if not isinstance(total_count_raw, int):
             msg = (
                 f"Step count: 'meta.totalCount' is not an int "
                 f"(got {type(total_count_raw).__name__}: {total_count_raw!r})"
             )
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         return total_count_raw

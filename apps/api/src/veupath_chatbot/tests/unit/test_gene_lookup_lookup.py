@@ -188,7 +188,7 @@ class TestLookupSiteSearchFailure:
         mock_enrich: AsyncMock,
     ) -> None:
         # Strategy A fails
-        mock_site_search.side_effect = RuntimeError("Site search down")
+        mock_site_search.side_effect = ValueError("Site search down")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
         mock_enrich.side_effect = lambda _site, results, _lim: results
 

@@ -4,6 +4,7 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     StandardClient,
@@ -20,10 +21,14 @@ class CrossrefClient(StandardClient):
         url = "https://api.crossref.org/works"
         params = {"query": query, "rows": str(limit)}
         headers = {"User-Agent": "pathfinder-planner/1.0 (mailto:unknown@example.com)"}
-        async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
-            resp = await client.get(url, params=params, follow_redirects=True)
-            resp.raise_for_status()
-            payload = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+                resp = await client.get(url, params=params, follow_redirects=True)
+                resp.raise_for_status()
+                payload = resp.json()
+        except httpx.HTTPError as exc:
+            service = "CrossRef"
+            raise ExternalServiceError(service, str(exc)) from exc
         items = (
             payload.get("message", {}).get("items", [])
             if isinstance(payload, dict)
@@ -60,7 +65,7 @@ class CrossrefClient(StandardClient):
             try:
                 raw_year = parts[0][0]
                 year_i = int(raw_year) if isinstance(raw_year, (int, str)) else None
-            except Exception:
+            except ValueError, TypeError:
                 year_i = None
 
         authors: list[str] | None = None

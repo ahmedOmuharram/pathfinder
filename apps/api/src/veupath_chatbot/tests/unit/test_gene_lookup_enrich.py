@@ -206,7 +206,7 @@ class TestEnrichSparseGeneResults:
     async def test_wdk_error_returns_original_results(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.side_effect = RuntimeError("WDK down")
+        mock_resolve.side_effect = ValueError("WDK down")
         results = [self._gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         # Should return original results unchanged

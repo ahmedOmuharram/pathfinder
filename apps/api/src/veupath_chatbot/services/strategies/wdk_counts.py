@@ -17,6 +17,7 @@ from veupath_chatbot.domain.strategy.compile import compile_strategy
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
@@ -57,7 +58,7 @@ async def _count_via_anonymous_report(
             count = meta.get("totalCount")
             if isinstance(count, int):
                 return count
-    except Exception as e:
+    except (AppError, ValueError, TypeError) as e:
         logger.warning(
             "Anonymous report count failed",
             record_type=record_type,
@@ -148,7 +149,7 @@ async def _compute_counts_via_compilation(
             is_internal=True,
         )
         temp_strategy_id = extract_wdk_id(created)
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.exception(
             "Failed to create temporary WDK strategy for step counts",
             error=str(exc),
@@ -170,7 +171,7 @@ async def _compute_counts_via_compilation(
                             estimated = step_info.get("estimatedSize")
                             if isinstance(estimated, int):
                                 counts[step.local_id] = estimated
-        except Exception as e:
+        except (AppError, ValueError, TypeError, KeyError) as e:
             logger.warning("Failed to read counts from strategy payload", error=str(e))
 
     await delete_temp_strategy(api, temp_strategy_id)

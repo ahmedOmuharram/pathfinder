@@ -11,7 +11,7 @@ import httpx
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.platform.errors import InternalError
+from veupath_chatbot.platform.errors import DataParsingError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -34,7 +34,7 @@ class StepsMixin(StrategyAPIBase):
                 return name
 
         msg = f"No boolean combine search found for record type '{record_type}'"
-        raise ValueError(msg)
+        raise DataParsingError(msg)
 
     async def _get_boolean_param_names(self, record_type: str) -> tuple[str, str, str]:
         """Resolve parameter names for boolean combine search."""
@@ -47,7 +47,7 @@ class StepsMixin(StrategyAPIBase):
         param_names_raw = search_data.get("paramNames")
         if not isinstance(param_names_raw, list):
             msg = f"Boolean search '{boolean_search}' has no 'paramNames' list"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         param_names = [str(p) for p in param_names_raw if p is not None]
 
         left = next((p for p in param_names if p.startswith("bq_left_op")), None)
@@ -59,7 +59,7 @@ class StepsMixin(StrategyAPIBase):
                 f"Boolean param names not found for record type '{record_type}' "
                 f"(left={left}, right={right}, op={op}, params={param_names})"
             )
-            raise ValueError(msg)
+            raise DataParsingError(msg)
 
         return left, right, op
 
@@ -83,14 +83,14 @@ class StepsMixin(StrategyAPIBase):
         try:
             details = await self.client.get_search_details(record_type, search_name)
             search_data = unwrap_search_data(details)
-            if not isinstance(search_data, dict):
-                return set()
-            params = search_data.get("parameters", [])
-            if not isinstance(params, list):
-                return set()
+            params = (
+                search_data.get("parameters", [])
+                if isinstance(search_data, dict)
+                else []
+            )
             names = {
                 str(p["name"])
-                for p in params
+                for p in (params if isinstance(params, list) else [])
                 if isinstance(p, dict) and p.get("type") == "input-step"
             }
         except httpx.HTTPError, KeyError, TypeError:
@@ -101,9 +101,8 @@ class StepsMixin(StrategyAPIBase):
                 exc_info=True,
             )
             return set()
-        else:
-            self._answer_param_cache[cache_key] = names
-            return names
+        self._answer_param_cache[cache_key] = names
+        return names
 
     async def create_dataset(self, ids: list[str]) -> int:
         """Upload an ID list as a WDK dataset and return the dataset ID.

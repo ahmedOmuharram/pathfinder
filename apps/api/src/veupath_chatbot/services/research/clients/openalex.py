@@ -4,6 +4,7 @@ from typing import cast
 
 import httpx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
@@ -21,12 +22,16 @@ class OpenAlexClient(StandardClient):
     async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
         url = "https://api.openalex.org/works"
         params = {"search": query, "per-page": str(limit)}
-        async with httpx.AsyncClient(
-            timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
-        ) as client:
-            resp = await client.get(url, params=params, follow_redirects=True)
-            resp.raise_for_status()
-            payload = resp.json()
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
+            ) as client:
+                resp = await client.get(url, params=params, follow_redirects=True)
+                resp.raise_for_status()
+                payload = resp.json()
+        except httpx.HTTPError as exc:
+            service = "OpenAlex"
+            raise ExternalServiceError(service, str(exc)) from exc
         items = payload.get("results", []) if isinstance(payload, dict) else []
         return list(items)
 

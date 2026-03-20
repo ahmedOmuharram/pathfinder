@@ -6,6 +6,7 @@ import httpx
 from veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers import (
     backoff_delay_seconds,
 )
+from veupath_chatbot.platform.errors import DataParsingError, InternalError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
@@ -40,7 +41,7 @@ async def _retry_request[T](
             else:
                 raise
     msg = f"{label} failed after retries: {last_exc!r}"
-    raise RuntimeError(msg)
+    raise InternalError(detail=msg)
 
 
 async def _fetch_public_strategy_summaries(
@@ -65,7 +66,7 @@ async def _duplicate_strategy(client: httpx.AsyncClient, signature: str) -> int:
         data = resp.json()
         if not isinstance(data, dict) or "id" not in data:
             msg = "Unexpected duplicateStrategy response"
-            raise RuntimeError(msg)
+            raise DataParsingError(msg)
         return int(data["id"])
 
     return await _retry_request(_do, "duplicate_strategy")
@@ -83,7 +84,7 @@ async def _get_strategy_details(
         data = resp.json()
         if not isinstance(data, dict):
             msg = "Unexpected strategy details response"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         return data
 
     return await _retry_request(_do, "get_strategy_details")

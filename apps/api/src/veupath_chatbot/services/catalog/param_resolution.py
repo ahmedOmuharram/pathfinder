@@ -2,6 +2,8 @@
 
 from typing import cast
 
+import httpx
+
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
@@ -13,7 +15,7 @@ from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
-from veupath_chatbot.platform.errors import ErrorCode, WDKError
+from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
@@ -198,7 +200,7 @@ async def lookup_phyletic_codes(
                 "Leaf codes need no quantifier."
             ),
         }
-    except Exception as exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         return tool_error(
             ErrorCode.INTERNAL_ERROR,
             f"Failed to look up phyletic codes: {exc}",
@@ -295,7 +297,7 @@ async def _load_discovery_details_and_allowed(
             details,
             _extract_param_names(details if isinstance(details, dict) else {}),
         )
-    except Exception as exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Failed to load discovery details for param resolution",
             site_id=site_id,

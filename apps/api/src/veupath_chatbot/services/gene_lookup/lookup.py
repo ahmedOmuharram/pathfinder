@@ -12,6 +12,9 @@ D. WDK ``GenesByText`` broad -- fires when an explicit organism filter is given.
 import asyncio
 from typing import cast
 
+import httpx
+
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.search_rerank import (
@@ -63,7 +66,7 @@ async def _run_primary_searches(
                 query,
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except Exception as exc:
+        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
             logger.warning(
                 "Gene text lookup via site-search failed; falling back to WDK strategies",
                 site_id=site_id,
@@ -81,7 +84,7 @@ async def _run_primary_searches(
                 f'"{query.strip()}"',
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except Exception as exc:
+        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
             logger.warning(
                 "Phrase-quoted gene search failed", query=query, error=str(exc)
             )
@@ -125,7 +128,7 @@ async def _run_supplementary_searches(
                 organisms=[effective_organism],
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except Exception as exc:
+        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
             logger.debug(
                 "Organism-restricted gene search failed (non-fatal)",
                 site_id=site_id,
@@ -147,7 +150,7 @@ async def _run_supplementary_searches(
                 text_fields=WDK_TEXT_FIELDS_ID,
                 limit=max(WDK_WILDCARD_LIMIT, needed),
             )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError) as exc:
             logger.debug(
                 "WDK wildcard gene search failed (non-fatal)",
                 site_id=site_id,
@@ -167,7 +170,7 @@ async def _run_supplementary_searches(
                 text_fields=WDK_TEXT_FIELDS_BROAD,
                 limit=max(WDK_WILDCARD_LIMIT, needed),
             )
-        except Exception as exc:
+        except (AppError, ValueError, TypeError, KeyError) as exc:
             logger.debug(
                 "WDK broad text gene search failed (non-fatal)",
                 site_id=site_id,

@@ -22,6 +22,7 @@ from veupath_chatbot.ai.prompts.workbench_chat import (
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.repositories.user import UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.events import emit, read_stream_messages
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -177,7 +178,7 @@ async def _workbench_chat_producer(
             "Workbench chat orchestrator not configured. "
             "Call services.workbench_chat.orchestrator.configure() at startup."
         )
-        raise RuntimeError(msg)
+        raise InternalError(detail=msg)
 
     redis = get_redis()
 

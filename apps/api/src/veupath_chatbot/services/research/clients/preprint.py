@@ -6,6 +6,7 @@ from typing import Literal
 
 import httpx
 
+from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     BaseClient,
@@ -81,10 +82,14 @@ class PreprintClient(BaseClient):
         ddg_url = "https://duckduckgo.com/html/"
         params = {"q": f"site:{site} {query}"}
         headers = {"User-Agent": "pathfinder-planner/1.0"}
-        async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
-            resp = await client.get(ddg_url, params=params, follow_redirects=True)
-            resp.raise_for_status()
-            html = resp.text or ""
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, headers=headers) as client:
+                resp = await client.get(ddg_url, params=params, follow_redirects=True)
+                resp.raise_for_status()
+                html = resp.text or ""
+        except httpx.HTTPError as exc:
+            service = "DuckDuckGo (preprint search)"
+            raise ExternalServiceError(service, str(exc)) from exc
 
         items: list[JSONValue] = []
         for m in re.finditer(

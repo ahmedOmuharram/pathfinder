@@ -10,7 +10,7 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.platform.errors import InternalError
+from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
 from veupath_chatbot.services.catalog.searches import find_record_type_for_search
@@ -29,7 +29,7 @@ def _require_step_id(raw: JSONObject | None, label: str) -> int:
     """Coerce a WDK step response to an int ID, raising InternalError on failure."""
     try:
         return coerce_step_id(raw)
-    except ValueError as exc:
+    except (ValueError, DataParsingError) as exc:
         raise InternalError(
             title="Step creation failed",
             detail=f"WDK returned no id for {label}: {exc}",
@@ -88,7 +88,7 @@ async def resolve_controls_param_type(
             if isinstance(p, dict) and p.get("name") == controls_param_name:
                 ptype = p.get("type")
                 return str(ptype) if ptype else None
-    except Exception as exc:
+    except (AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Could not resolve param type for controls",
             search=controls_search_name,
@@ -232,7 +232,7 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
     """
     try:
         strategies = await api.list_strategies()
-    except Exception as exc:
+    except (AppError, ValueError, TypeError) as exc:
         logger.warning(
             "Failed to list strategies for control-test cleanup", error=str(exc)
         )

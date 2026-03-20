@@ -8,6 +8,12 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.platform.errors import (
+    AppError,
+    DataParsingError,
+    StrategyCompilationError,
+    ValidationError,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 from veupath_chatbot.services.experiment.helpers import coerce_step_id, extract_wdk_id
@@ -179,7 +185,7 @@ async def _persist_experiment_strategy(
     strategy_id = extract_wdk_id(created)
     if strategy_id is None:
         msg = "Failed to create WDK strategy for experiment"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     logger.info(
         "Persisted WDK strategy for experiment",
@@ -207,7 +213,7 @@ async def _persist_import_strategy(
     """
     if not config.source_strategy_id:
         msg = "source_strategy_id is required for import mode"
-        raise ValueError(msg)
+        raise ValidationError(detail=msg)
     source_id = int(config.source_strategy_id)
 
     # WDK POST .../duplicated-step-tree returns {"stepTree": {...}}
@@ -216,7 +222,7 @@ async def _persist_import_strategy(
     )
     if not isinstance(dup_resp, dict) or "stepTree" not in dup_resp:
         msg = f"Failed to duplicate step tree from strategy {source_id}"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     raw_tree = as_json_object(dup_resp["stepTree"])
 
@@ -230,7 +236,7 @@ async def _persist_import_strategy(
             sid = int(raw_sid)
         else:
             msg = f"Invalid stepId type: {type(raw_sid)}"
-            raise TypeError(msg)
+            raise DataParsingError(msg)
         primary = t.get("primaryInput")
         secondary = t.get("secondaryInput")
         return StepTreeNode(
@@ -252,7 +258,7 @@ async def _persist_import_strategy(
     strategy_id = extract_wdk_id(created)
     if strategy_id is None:
         msg = "Failed to create WDK strategy from imported tree"
-        raise ValueError(msg)
+        raise StrategyCompilationError(msg)
 
     logger.info(
         "Persisted imported WDK strategy for experiment",
@@ -278,7 +284,7 @@ async def cleanup_experiment_strategy(experiment: Experiment) -> None:
             experiment_id=experiment.id,
             strategy_id=experiment.wdk_strategy_id,
         )
-    except Exception as exc:
+    except AppError as exc:
         logger.warning(
             "Failed to delete WDK strategy during experiment cleanup",
             experiment_id=experiment.id,

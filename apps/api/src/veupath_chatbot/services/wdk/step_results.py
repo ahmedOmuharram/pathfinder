@@ -8,6 +8,7 @@ from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.enrichment_parser import (
@@ -165,7 +166,7 @@ class StepResultsService:
 
             attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
             detail_attrs, display_names = extract_detail_attributes(attrs_raw)
-        except Exception:
+        except AppError, ValueError, TypeError, KeyError:
             logger.warning(
                 "Failed to fetch record type info; falling back to raw PK",
                 record_type=self._record_type,

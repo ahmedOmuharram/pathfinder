@@ -4,6 +4,8 @@ import math
 import re
 from collections import Counter
 
+import httpx
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.compile import ResolveRecordType
 from veupath_chatbot.domain.strategy.tree import collect_plan_leaves
@@ -13,6 +15,7 @@ from veupath_chatbot.integrations.veupathdb.site_search import (
     query_site_search,
     strip_html_tags,
 )
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -230,7 +233,7 @@ async def _search_for_searches_via_site_search(
             limit=limit,
             offset=0,
         )
-    except Exception as exc:
+    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Site-search lookup failed; falling back to discovery search",
             site_id=site_id,
@@ -248,7 +251,10 @@ async def _search_for_searches_via_site_search(
         if not isinstance(doc, dict):
             continue
         primary_key = doc.get("primaryKey")
-        if not isinstance(primary_key, list) or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH:
+        if (
+            not isinstance(primary_key, list)
+            or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH
+        ):
             continue
         search_name = str(primary_key[0] or "").strip()
         record_type = str(primary_key[1] or "").strip()
@@ -435,7 +441,7 @@ async def search_for_searches(
             bonus = site_bonus.get(entry["name"], 0.0)
             if bonus > 0:
                 scored[i] = (sc + bonus, entry)
-    except Exception:
+    except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
         logger.debug("Site-search merge failed (non-fatal)")
 
     # --- Sort by score desc, then record type priority ---

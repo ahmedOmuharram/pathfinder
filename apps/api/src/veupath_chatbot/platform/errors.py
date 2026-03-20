@@ -44,6 +44,11 @@ class ErrorCode(StrEnum):
     INCOMPATIBLE_STEPS = "INCOMPATIBLE_STEPS"
     ENSURE_SINGLE_OUTPUT_FAILED = "ENSURE_SINGLE_OUTPUT_FAILED"
 
+    # Compilation / data processing
+    STRATEGY_COMPILATION_ERROR = "STRATEGY_COMPILATION_ERROR"
+    EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
+    DATA_PARSING_ERROR = "DATA_PARSING_ERROR"
+
     # Conversation
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
 
@@ -161,6 +166,57 @@ class WDKError(AppError):
             code=ErrorCode.WDK_ERROR,
             title="VEuPathDB service error",
             status=status,
+            detail=detail,
+        )
+
+
+class StrategyCompilationError(AppError):
+    """Strategy compilation or build failure.
+
+    Raised when strategy compilation, step creation, or step-tree
+    assembly fails — distinguishes build-pipeline errors from generic
+    ValueError/TypeError so callers and log filters can react specifically.
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(
+            code=ErrorCode.STRATEGY_COMPILATION_ERROR,
+            title="Strategy compilation failed",
+            status=500,
+            detail=detail,
+        )
+
+
+class ExternalServiceError(AppError):
+    """Non-WDK external service failure.
+
+    Raised when an external HTTP service (CrossRef, PubMed, EuropePMC,
+    OpenAlex, etc.) is unreachable or returns an unexpected response.
+    Distinguishes "PubMed is down" from "our parsing code has a bug".
+    """
+
+    def __init__(self, service: str, detail: str, status: int = 502) -> None:
+        super().__init__(
+            code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+            title=f"External service error: {service}",
+            status=status,
+            detail=detail,
+        )
+
+
+class DataParsingError(AppError):
+    """Unexpected data shape from an API response.
+
+    Raised when an external API (WDK, site-search, research services)
+    returns data that cannot be parsed into the expected structure.
+    Distinguishes "API returned garbage" from "our logic has a bug".
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(
+            code=ErrorCode.DATA_PARSING_ERROR,
+            title="Data parsing failed",
+            status=500,
             detail=detail,
         )
 

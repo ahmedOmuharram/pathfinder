@@ -208,7 +208,9 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
                 for term in er.terms[:_MAX_DISPLAYED_ENRICHMENT_TERMS]
             )
             if len(er.terms) > _MAX_DISPLAYED_ENRICHMENT_TERMS:
-                lines.append(f"- ... {len(er.terms) - _MAX_DISPLAYED_ENRICHMENT_TERMS} more terms")
+                lines.append(
+                    f"- ... {len(er.terms) - _MAX_DISPLAYED_ENRICHMENT_TERMS} more terms"
+                )
 
     if experiment.optimization_result:
         best = experiment.optimization_result.get("bestTrial")
