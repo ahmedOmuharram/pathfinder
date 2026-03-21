@@ -24,7 +24,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
 )
 from veupath_chatbot.services.experiment.types import (
     StepEvaluation,
-    to_json,
 )
 
 logger = get_logger(__name__)
@@ -133,7 +132,7 @@ async def evaluate_steps(
                         "message": f"Evaluated {display}: recall {recall:.0%}, FPR {fpr:.0%}",
                         "current": idx + 1,
                         "total": len(leaves),
-                        "stepEvaluation": to_json(ev),
+                        "stepEvaluation": ev.model_dump(by_alias=True),
                     },
                 }
             )

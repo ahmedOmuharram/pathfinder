@@ -1,45 +1,51 @@
-"""Rank-based evaluation dataclasses for the Experiment Lab."""
+"""Rank-based evaluation types for the Experiment Lab."""
 
-from dataclasses import dataclass, field
+from pydantic import ConfigDict, Field
+
+from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat
 
 
-@dataclass(frozen=True, slots=True)
-class RankMetrics:
+class RankMetrics(CamelModel):
     """Rank-based evaluation metrics computed over an ordered result list."""
 
-    precision_at_k: dict[int, float] = field(default_factory=dict)
-    recall_at_k: dict[int, float] = field(default_factory=dict)
-    enrichment_at_k: dict[int, float] = field(default_factory=dict)
-    pr_curve: list[tuple[float, float]] = field(default_factory=list)
-    list_size_vs_recall: list[tuple[int, float]] = field(default_factory=list)
+    model_config = ConfigDict(frozen=True)
+
+    precision_at_k: dict[int, float] = Field(default_factory=dict)
+    recall_at_k: dict[int, float] = Field(default_factory=dict)
+    enrichment_at_k: dict[int, float] = Field(default_factory=dict)
+    pr_curve: list[tuple[float, float]] = Field(default_factory=list)
+    list_size_vs_recall: list[tuple[int, float]] = Field(default_factory=list)
     total_results: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class ConfidenceInterval:
+class ConfidenceInterval(CamelModel):
     """Bootstrap confidence interval for a single metric."""
 
-    lower: float = 0.0
-    mean: float = 0.0
-    upper: float = 0.0
-    std: float = 0.0
+    model_config = ConfigDict(frozen=True)
+
+    lower: RoundedFloat = 0.0
+    mean: RoundedFloat = 0.0
+    upper: RoundedFloat = 0.0
+    std: RoundedFloat = 0.0
 
 
-@dataclass(frozen=True, slots=True)
-class NegativeSetVariant:
+class NegativeSetVariant(CamelModel):
     """Rank metrics evaluated with an alternative negative control set."""
+
+    model_config = ConfigDict(frozen=True)
 
     label: str
     rank_metrics: RankMetrics
     negative_count: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class BootstrapResult:
+class BootstrapResult(CamelModel):
     """Robustness assessment via bootstrap resampling."""
 
+    model_config = ConfigDict(frozen=True)
+
     n_iterations: int = 0
-    metric_cis: dict[str, ConfidenceInterval] = field(default_factory=dict)
-    rank_metric_cis: dict[str, ConfidenceInterval] = field(default_factory=dict)
-    top_k_stability: float = 0.0
-    negative_set_sensitivity: list[NegativeSetVariant] = field(default_factory=list)
+    metric_cis: dict[str, ConfidenceInterval] = Field(default_factory=dict)
+    rank_metric_cis: dict[str, ConfidenceInterval] = Field(default_factory=dict)
+    top_k_stability: RoundedFloat = 0.0
+    negative_set_sensitivity: list[NegativeSetVariant] = Field(default_factory=list)

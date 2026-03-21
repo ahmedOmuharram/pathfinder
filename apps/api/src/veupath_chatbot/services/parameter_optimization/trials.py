@@ -332,7 +332,13 @@ def _cache_key(params: dict[str, JSONValue]) -> tuple[tuple[str, str], ...]:
     return tuple(items)
 
 
-_EvalCache = dict[tuple[tuple[str, str], ...], tuple[JSONObject | None, str]]
+_CacheKey = tuple[tuple[str, str], ...]
+_CacheValue = tuple[JSONObject | None, str]
+_EvalCache = dict[_CacheKey, _CacheValue]
+
+# Per-key locks prevent duplicate WDK calls when multiple trials in the
+# same asyncio.gather batch share identical params.
+_KeyLocks = dict[_CacheKey, asyncio.Lock]
 
 
 async def _evaluate_trial(
@@ -341,47 +347,67 @@ async def _evaluate_trial(
     optimised_params: dict[str, JSONValue],
     sem: asyncio.Semaphore,
     cache: _EvalCache,
+    key_locks: _KeyLocks,
 ) -> tuple[JSONObject | None, str]:
     """Run WDK evaluation for a single trial (semaphore-guarded + cached).
+
+    Uses double-checked locking: a fast cache lookup outside the lock,
+    then a per-key lock with a second check to prevent duplicate WDK
+    calls when ``asyncio.gather`` launches multiple trials with the same
+    parameters concurrently.
 
     Returns (wdk_result_or_None, error_string).
     """
     key = _cache_key(optimised_params)
+
+    # Fast path: already cached from a previous batch.
     cached = cache.get(key)
     if cached is not None:
         logger.debug("Cache hit for params", key=key)
         return cached
 
-    async with sem:
-        wdk_error = ""
-        wdk_result: JSONObject | None = None
-        try:
-            wdk_result = await run_positive_negative_controls(
-                IntersectionConfig(
-                    site_id=ctx.site_id,
-                    record_type=ctx.record_type,
-                    target_search_name=ctx.search_name,
-                    target_parameters=trial_params,
-                    controls_search_name=ctx.controls_search_name,
-                    controls_param_name=ctx.controls_param_name,
-                    controls_value_format=ctx.controls_value_format,
-                    controls_extra_parameters=ctx.controls_extra_parameters,
-                    id_field=ctx.id_field,
-                ),
-                positive_controls=ctx.positive_controls,
-                negative_controls=ctx.negative_controls,
-            )
-        except (AppError, ValueError, TypeError, KeyError) as trial_exc:
-            wdk_error = str(trial_exc)
-            wdk_result = None
+    # Per-key lock: only one coroutine evaluates a given param set.
+    if key not in key_locks:
+        key_locks[key] = asyncio.Lock()
+    klock = key_locks[key]
 
-        if wdk_result is not None and isinstance(wdk_result.get("error"), str):
-            wdk_error = str(wdk_result["error"])
-            wdk_result = None
+    async with klock:
+        # Re-check: another coroutine may have populated while we waited.
+        cached = cache.get(key)
+        if cached is not None:
+            logger.debug("Cache hit after lock for params", key=key)
+            return cached
 
-        result_pair = (wdk_result, wdk_error)
-        cache[key] = result_pair
-        return result_pair
+        async with sem:
+            wdk_error = ""
+            wdk_result: JSONObject | None = None
+            try:
+                wdk_result = await run_positive_negative_controls(
+                    IntersectionConfig(
+                        site_id=ctx.site_id,
+                        record_type=ctx.record_type,
+                        target_search_name=ctx.search_name,
+                        target_parameters=trial_params,
+                        controls_search_name=ctx.controls_search_name,
+                        controls_param_name=ctx.controls_param_name,
+                        controls_value_format=ctx.controls_value_format,
+                        controls_extra_parameters=ctx.controls_extra_parameters,
+                        id_field=ctx.id_field,
+                    ),
+                    positive_controls=ctx.positive_controls,
+                    negative_controls=ctx.negative_controls,
+                )
+            except (AppError, ValueError, TypeError, KeyError) as trial_exc:
+                wdk_error = str(trial_exc)
+                wdk_result = None
+
+            if wdk_result is not None and isinstance(wdk_result.get("error"), str):
+                wdk_error = str(wdk_result["error"])
+                wdk_result = None
+
+            result_pair = (wdk_result, wdk_error)
+            cache[key] = result_pair
+            return result_pair
 
 
 # ---------------------------------------------------------------------------
@@ -707,6 +733,7 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
     state = _LoopState()
     sem = asyncio.Semaphore(_PARALLEL_CONCURRENCY)
     eval_cache: _EvalCache = {}
+    eval_key_locks: _KeyLocks = {}
     clean_fixed = {k: v for k, v in ctx.fixed_parameters.items() if v not in ("", None)}
 
     try:
@@ -729,7 +756,7 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
             full_params = [{**clean_fixed, **p} for p in batch_params]
             wdk_results = await asyncio.gather(
                 *(
-                    _evaluate_trial(ctx, fp, bp, sem, eval_cache)
+                    _evaluate_trial(ctx, fp, bp, sem, eval_cache, eval_key_locks)
                     for fp, bp in zip(full_params, batch_params, strict=False)
                 ),
                 return_exceptions=True,

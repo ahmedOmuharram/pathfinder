@@ -23,7 +23,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
 from veupath_chatbot.services.experiment.types import (
     OperatorComparison,
     OperatorVariant,
-    to_json,
 )
 
 COMPARISON_OPERATORS = [
@@ -147,7 +146,7 @@ async def compare_operators(
                         ),
                         "current": ci + 1,
                         "total": len(combine_nodes),
-                        "operatorComparison": to_json(oc),
+                        "operatorComparison": oc.model_dump(by_alias=True),
                     },
                 }
             )

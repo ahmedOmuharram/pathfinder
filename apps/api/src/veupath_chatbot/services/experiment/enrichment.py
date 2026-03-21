@@ -167,7 +167,7 @@ async def run_enrichment_analysis(
     )
     step_id = coerce_step_id(step)
 
-    root = StepTreeNode(step_id)
+    root = StepTreeNode(step_id=step_id)
     strategy_id: int | None = None
 
     try:

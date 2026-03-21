@@ -1,5 +1,7 @@
 """Tests for citation domain types and utilities."""
 
+from pydantic import ValidationError
+
 from veupath_chatbot.domain.research.citations import (
     Citation,
     _new_citation_id,
@@ -179,7 +181,7 @@ class TestCitation:
 
     def test_frozen(self) -> None:
         c = Citation(id="x", source="web", title="T")
-        with __import__("pytest").raises(AttributeError):
+        with __import__("pytest").raises(ValidationError):
             c.id = "y"  # type: ignore[misc]
 
 

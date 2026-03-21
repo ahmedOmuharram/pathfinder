@@ -1,13 +1,15 @@
 """Citation domain types and utilities."""
 
 import re
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from string import ascii_lowercase
 from typing import Literal, cast
 from uuid import uuid4
 
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from pydantic import ConfigDict
+
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.types import JSONObject
 
 CitationSource = Literal[
     "web",
@@ -34,8 +36,7 @@ LiteratureSource = Literal[
 LiteratureSort = Literal["relevance", "newest"]
 
 
-@dataclass
-class LiteratureFilters:
+class LiteratureFilters(CamelModel):
     """Post-retrieval filters for literature results."""
 
     year_from: int | None = None
@@ -48,8 +49,7 @@ class LiteratureFilters:
     require_doi: bool = False
 
 
-@dataclass
-class LiteratureOutputOptions:
+class LiteratureOutputOptions(CamelModel):
     """Output formatting options for literature results."""
 
     include_abstract: bool = False
@@ -97,13 +97,14 @@ def _suggest_tag(citation: "Citation") -> str:
     return stable or str(citation.source)
 
 
-@dataclass(frozen=True)
-class Citation:
+class Citation(CamelModel):
+    model_config = ConfigDict(frozen=True)
+
     id: str
     source: CitationSource
     title: str
     url: str | None = None
-    authors: list[str] | None = field(default=None)
+    authors: list[str] | None = None
     year: int | None = None
     doi: str | None = None
     pmid: str | None = None
@@ -111,20 +112,9 @@ class Citation:
     accessed_at: str | None = None
 
     def to_dict(self) -> JSONObject:
-        tag = _suggest_tag(self)
-        return {
-            "id": self.id,
-            "source": self.source,
-            "tag": tag,
-            "title": self.title,
-            "url": self.url,
-            "authors": cast("JSONValue", self.authors),
-            "year": self.year,
-            "doi": self.doi,
-            "pmid": self.pmid,
-            "snippet": self.snippet,
-            "accessedAt": self.accessed_at,
-        }
+        d = cast("JSONObject", self.model_dump(by_alias=True))
+        d["tag"] = _suggest_tag(self)
+        return d
 
 
 def _now_iso() -> str:

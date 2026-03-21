@@ -207,19 +207,18 @@ def _select_metric(
     """
     obj = objective.lower()
 
-    if "precision" in obj:
-        return metrics.precision
-    if obj in ("sensitivity", "recall") or obj.startswith("recall"):
-        return metrics.sensitivity
-    if "enrichment" in obj:
-        return enrichment
-    if "specificity" in obj:
-        return metrics.specificity
-    if "balanced_accuracy" in obj:
-        return metrics.balanced_accuracy
-    if "mcc" in obj:
-        return metrics.mcc
-    if "f1" in obj:
-        return metrics.f1_score
+    lookup: dict[str, float] = {
+        "precision": metrics.precision,
+        "recall": metrics.sensitivity,
+        "sensitivity": metrics.sensitivity,
+        "enrichment": enrichment,
+        "specificity": metrics.specificity,
+        "balanced_accuracy": metrics.balanced_accuracy,
+        "mcc": metrics.mcc,
+        "f1": metrics.f1_score,
+    }
+    for keyword, value in lookup.items():
+        if keyword in obj:
+            return value
 
     return metrics.precision

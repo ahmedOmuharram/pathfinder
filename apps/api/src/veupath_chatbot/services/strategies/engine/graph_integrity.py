@@ -8,31 +8,21 @@ Design goals:
 - Separation of concerns: keep logic out of AI prompt text and tool mixins.
 """
 
-from dataclasses import dataclass
-from typing import cast
+from pydantic import ConfigDict
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.pydantic_base import CamelModel
 
 
-@dataclass(frozen=True)
-class GraphIntegrityError:
+class GraphIntegrityError(CamelModel):
+    model_config = ConfigDict(frozen=True)
+
     code: str
     message: str
     step_id: str | None = None
     input_step_id: str | None = None
     kind: str | None = None
-
-    def to_dict(self) -> JSONObject:
-        payload: dict[str, str | None] = {"code": self.code, "message": self.message}
-        if self.step_id:
-            payload["stepId"] = self.step_id
-        if self.input_step_id:
-            payload["inputStepId"] = self.input_step_id
-        if self.kind:
-            payload["kind"] = self.kind
-        return cast("JSONObject", payload)
 
 
 def find_root_step_ids(graph: StrategyGraph) -> list[str]:
@@ -58,7 +48,7 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
     """
     all_ids = set(graph.steps.keys())
     if not all_ids:
-        return [GraphIntegrityError("EMPTY_GRAPH", "No steps in graph.")]
+        return [GraphIntegrityError(code="EMPTY_GRAPH", message="No steps in graph.")]
 
     errors: list[GraphIntegrityError] = []
 
@@ -88,13 +78,15 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
     root_count = len(graph.roots)
     if root_count == 0:
         errors.append(
-            GraphIntegrityError("NO_ROOTS", "Strategy graph has no root/output steps.")
+            GraphIntegrityError(
+                code="NO_ROOTS", message="Strategy graph has no root/output steps."
+            )
         )
     elif root_count > 1:
         errors.append(
             GraphIntegrityError(
-                "MULTIPLE_ROOTS",
-                f"Strategy graph has {root_count} roots — expected 1. "
+                code="MULTIPLE_ROOTS",
+                message=f"Strategy graph has {root_count} roots — expected 1. "
                 f"Roots: {sorted(graph.roots)}",
             )
         )

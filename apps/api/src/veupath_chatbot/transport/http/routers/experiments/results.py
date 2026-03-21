@@ -228,9 +228,9 @@ async def refine_experiment(
             raise InternalError(title="Failed to create combined step")
 
         new_tree = StepTreeNode(
-            combined_id,
-            primary_input=StepTreeNode(exp.wdk_step_id),
-            secondary_input=StepTreeNode(new_step_id),
+            step_id=combined_id,
+            primary_input=StepTreeNode(step_id=exp.wdk_step_id),
+            secondary_input=StepTreeNode(step_id=new_step_id),
         )
         await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
         exp.wdk_step_id = combined_id
@@ -251,8 +251,8 @@ async def refine_experiment(
             raise InternalError(title="Failed to create transform step")
 
         new_tree = StepTreeNode(
-            new_step_id,
-            primary_input=StepTreeNode(exp.wdk_step_id),
+            step_id=new_step_id,
+            primary_input=StepTreeNode(step_id=exp.wdk_step_id),
         )
         await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
         exp.wdk_step_id = new_step_id

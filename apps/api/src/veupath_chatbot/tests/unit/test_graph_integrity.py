@@ -1,6 +1,7 @@
 """Unit tests for services.strategies.engine.graph_integrity."""
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph
@@ -45,9 +46,9 @@ class TestGraphIntegrityError:
         assert d["inputStepId"] == "s2"
         assert d["kind"] == "primary_input"
 
-    def test_frozen_dataclass(self) -> None:
+    def test_frozen(self) -> None:
         err = GraphIntegrityError(code="A", message="B")
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError):
             err.code = "C"  # type: ignore[misc]
 
 

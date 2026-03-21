@@ -1,10 +1,12 @@
 """AST node types for strategy representation (WDK-aligned, untyped tree)."""
 
-from dataclasses import dataclass, field
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
+from pydantic import Field
+
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 # Sentinel search names for non-search nodes in the step graph.
@@ -12,7 +14,7 @@ COMBINE_SEARCH_NAME = "__combine__"
 UNKNOWN_SEARCH_NAME = "__unknown__"
 
 
-class StepTreeNode:
+class StepTreeNode(CamelModel):
     """Node in a WDK step tree.
 
     Represents a single step with optional primary (and for combines, secondary)
@@ -20,24 +22,9 @@ class StepTreeNode:
     creation. Pure data structure with no I/O.
     """
 
-    def __init__(
-        self,
-        step_id: int,
-        primary_input: StepTreeNode | None = None,
-        secondary_input: StepTreeNode | None = None,
-    ) -> None:
-        self.step_id = step_id
-        self.primary_input = primary_input
-        self.secondary_input = secondary_input
-
-    def to_dict(self) -> JSONObject:
-        """Convert to WDK stepTree format."""
-        result: JSONObject = {"stepId": self.step_id}
-        if self.primary_input:
-            result["primaryInput"] = self.primary_input.to_dict()
-        if self.secondary_input:
-            result["secondaryInput"] = self.secondary_input.to_dict()
-        return result
+    step_id: int
+    primary_input: StepTreeNode | None = None
+    secondary_input: StepTreeNode | None = None
 
 
 def generate_step_id() -> str:
@@ -134,56 +121,37 @@ def parse_colocation_params(raw: JSONValue) -> ColocationParams | None:
     return ColocationParams(upstream=upstream, downstream=downstream, strand=strand)
 
 
-@dataclass
-class StepFilter:
+class StepFilter(CamelModel):
     """Filter applied to a step's result."""
 
     name: str
     value: JSONValue
     disabled: bool = False
 
-    def to_dict(self) -> JSONObject:
-        return {
-            "name": self.name,
-            "value": self.value,
-            "disabled": self.disabled,
-        }
 
-
-@dataclass
-class StepAnalysis:
+class StepAnalysis(CamelModel):
     """Analysis configuration for a step."""
 
     analysis_type: str
-    parameters: JSONObject = field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = None
 
-    def to_dict(self) -> JSONObject:
-        result: JSONObject = {
-            "analysisType": self.analysis_type,
-            "parameters": self.parameters,
-        }
-        if self.custom_name:
-            result["customName"] = self.custom_name
-        return result
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize; omits customName when empty."""
+        d = super().to_dict()
+        if not self.custom_name:
+            d.pop("customName", None)
+        return d
 
 
-@dataclass
-class StepReport:
+class StepReport(CamelModel):
     """Report request attached to a step."""
 
     report_name: str = "standard"
-    config: JSONObject = field(default_factory=dict)
-
-    def to_dict(self) -> JSONObject:
-        return {
-            "reportName": self.report_name,
-            "config": self.config,
-        }
+    config: JSONObject = Field(default_factory=dict)
 
 
-@dataclass
-class PlanStepNode:
+class PlanStepNode(CamelModel):
     """Untyped recursive strategy node.
 
     Kind is inferred from structure:
@@ -195,17 +163,17 @@ class PlanStepNode:
     """
 
     search_name: str
-    parameters: JSONObject = field(default_factory=dict)
+    parameters: JSONObject = Field(default_factory=dict)
     primary_input: PlanStepNode | None = None
     secondary_input: PlanStepNode | None = None
     operator: CombineOp | None = None
     colocation_params: ColocationParams | None = None
     display_name: str | None = None
-    filters: list[StepFilter] = field(default_factory=list)
-    analyses: list[StepAnalysis] = field(default_factory=list)
-    reports: list[StepReport] = field(default_factory=list)
+    filters: list[StepFilter] = Field(default_factory=list)
+    analyses: list[StepAnalysis] = Field(default_factory=list)
+    reports: list[StepReport] = Field(default_factory=list)
     wdk_weight: int | None = None
-    id: str = field(default_factory=generate_step_id)
+    id: str = Field(default_factory=generate_step_id)
 
     def infer_kind(self) -> str:
         if self.primary_input is not None and self.secondary_input is not None:
@@ -229,11 +197,7 @@ class PlanStepNode:
         if self.operator is not None:
             result["operator"] = self.operator.value
         if self.colocation_params is not None:
-            result["colocationParams"] = {
-                "upstream": self.colocation_params.upstream,
-                "downstream": self.colocation_params.downstream,
-                "strand": self.colocation_params.strand,
-            }
+            result["colocationParams"] = self.colocation_params.to_dict()
         if self.filters:
             result["filters"] = [f.to_dict() for f in self.filters]
         if self.analyses:
@@ -245,8 +209,7 @@ class PlanStepNode:
         return result
 
 
-@dataclass
-class StrategyAST:
+class StrategyAST(CamelModel):
     """Complete strategy represented as an AST."""
 
     record_type: str

@@ -1,7 +1,8 @@
-"""Experiment and ExperimentConfig dataclasses."""
+"""Experiment and ExperimentConfig types."""
 
-from dataclasses import dataclass, field
+from pydantic import Field
 
+from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat2
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types.core import (
     DEFAULT_STEP_ANALYSIS_PHASES,
@@ -30,8 +31,7 @@ from veupath_chatbot.services.experiment.types.rank import (
 from veupath_chatbot.services.experiment.types.step_analysis import StepAnalysisResult
 
 
-@dataclass(slots=True)
-class ExperimentConfig:
+class ExperimentConfig(CamelModel):
     """Full configuration for an experiment run.
 
     Supports three modes:
@@ -52,7 +52,7 @@ class ExperimentConfig:
     controls_value_format: ControlValueFormat = "newline"
     enable_cross_validation: bool = False
     k_folds: int = 5
-    enrichment_types: list[EnrichmentAnalysisType] = field(default_factory=list)
+    enrichment_types: list[EnrichmentAnalysisType] = Field(default_factory=list)
     name: str = ""
     description: str = ""
     optimization_specs: list[OptimizationSpec] | None = None
@@ -64,7 +64,7 @@ class ExperimentConfig:
     source_strategy_id: str | None = None
     optimization_target_step: str | None = None
     enable_step_analysis: bool = False
-    step_analysis_phases: list[str] = field(
+    step_analysis_phases: list[str] = Field(
         default_factory=lambda: list(DEFAULT_STEP_ANALYSIS_PHASES)
     )
     control_set_id: str | None = None
@@ -86,8 +86,7 @@ class ExperimentConfig:
         )
 
 
-@dataclass(slots=True)
-class BatchOrganismTarget:
+class BatchOrganismTarget(CamelModel):
     """Per-organism overrides for a cross-organism batch experiment."""
 
     organism: str
@@ -95,17 +94,15 @@ class BatchOrganismTarget:
     negative_controls: list[str] | None = None
 
 
-@dataclass(slots=True)
-class BatchExperimentConfig:
+class BatchExperimentConfig(CamelModel):
     """Configuration for running the same search across multiple organisms."""
 
     base_config: ExperimentConfig
     organism_param_name: str
-    target_organisms: list[BatchOrganismTarget] = field(default_factory=list)
+    target_organisms: list[BatchOrganismTarget] = Field(default_factory=list)
 
 
-@dataclass(slots=True)
-class Experiment:
+class Experiment(CamelModel):
     """Full experiment with config and results."""
 
     id: str
@@ -114,13 +111,13 @@ class Experiment:
     status: ExperimentStatus = "pending"
     metrics: ExperimentMetrics | None = None
     cross_validation: CrossValidationResult | None = None
-    enrichment_results: list[EnrichmentResult] = field(default_factory=list)
-    true_positive_genes: list[GeneInfo] = field(default_factory=list)
-    false_negative_genes: list[GeneInfo] = field(default_factory=list)
-    false_positive_genes: list[GeneInfo] = field(default_factory=list)
-    true_negative_genes: list[GeneInfo] = field(default_factory=list)
+    enrichment_results: list[EnrichmentResult] = Field(default_factory=list)
+    true_positive_genes: list[GeneInfo] = Field(default_factory=list)
+    false_negative_genes: list[GeneInfo] = Field(default_factory=list)
+    false_positive_genes: list[GeneInfo] = Field(default_factory=list)
+    true_negative_genes: list[GeneInfo] = Field(default_factory=list)
     error: str | None = None
-    total_time_seconds: float | None = field(default=None, metadata={"round": 2})
+    total_time_seconds: RoundedFloat2 | None = None
     created_at: str = ""
     completed_at: str | None = None
     batch_id: str | None = None

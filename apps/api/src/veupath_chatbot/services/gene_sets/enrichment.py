@@ -6,7 +6,7 @@ from redis.exceptions import RedisError
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType, to_json
+from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType
 from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.types import GeneSet
 from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
@@ -44,7 +44,7 @@ async def run_enrichment_for_gene_set(
         parameters=params,
     )
 
-    serialized = [to_json(r) for r in results]
+    serialized = [r.model_dump(by_alias=True) for r in results]
     summary: JSONObject = {
         "analysisTypesRun": [r.get("analysisType", "unknown") for r in serialized],
         "totalSignificantTerms": sum(

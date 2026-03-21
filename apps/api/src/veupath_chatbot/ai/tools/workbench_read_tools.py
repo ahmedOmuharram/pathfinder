@@ -16,7 +16,7 @@ from kani import AIParam, ai_function
 
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import Experiment, to_json
+from veupath_chatbot.services.experiment.types import Experiment
 
 ClassificationCategory = Literal["tp", "fp", "fn", "tn"]
 
@@ -53,7 +53,7 @@ class WorkbenchReadToolsMixin:
         return cast(
             "JSONObject",
             {
-                "metrics": to_json(exp.metrics),
+                "metrics": exp.metrics.model_dump(by_alias=True),
                 "classificationCounts": {
                     "truePositives": len(exp.true_positive_genes),
                     "falsePositives": len(exp.false_positive_genes),
@@ -87,7 +87,9 @@ class WorkbenchReadToolsMixin:
         return cast(
             "JSONObject",
             {
-                "enrichmentResults": [to_json(r) for r in exp.enrichment_results],
+                "enrichmentResults": [
+                    r.model_dump(by_alias=True) for r in exp.enrichment_results
+                ],
                 "count": len(exp.enrichment_results),
             },
         )
@@ -110,7 +112,7 @@ class WorkbenchReadToolsMixin:
         return cast(
             "JSONObject",
             {
-                "crossValidation": to_json(exp.cross_validation),
+                "crossValidation": exp.cross_validation.model_dump(by_alias=True),
             },
         )
 
@@ -131,7 +133,8 @@ class WorkbenchReadToolsMixin:
             "JSONObject",
             {
                 "stepContributions": [
-                    to_json(c) for c in exp.step_analysis.step_contributions
+                    c.model_dump(by_alias=True)
+                    for c in exp.step_analysis.step_contributions
                 ],
                 "count": len(exp.step_analysis.step_contributions),
             },
@@ -151,7 +154,7 @@ class WorkbenchReadToolsMixin:
         return cast(
             "JSONObject",
             {
-                "config": to_json(exp.config),
+                "config": exp.config.model_dump(by_alias=True),
                 "status": exp.status,
                 "wdkStrategyId": exp.wdk_strategy_id,
                 "wdkStepId": exp.wdk_step_id,
@@ -178,7 +181,7 @@ class WorkbenchReadToolsMixin:
         return cast(
             "JSONObject",
             {
-                "stepAnalysis": to_json(exp.step_analysis),
+                "stepAnalysis": exp.step_analysis.model_dump(by_alias=True),
             },
         )
 
@@ -233,7 +236,7 @@ class WorkbenchReadToolsMixin:
             "JSONObject",
             {
                 "classification": classification,
-                "genes": [to_json(g) for g in selected],
+                "genes": [g.model_dump(by_alias=True) for g in selected],
                 "returned": len(selected),
                 "total": len(gene_list),
             },

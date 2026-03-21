@@ -74,7 +74,12 @@ def _average_metrics(fold_metrics_list: list[ExperimentMetrics]) -> ExperimentMe
     """Compute element-wise mean of a list of metrics."""
     n = len(fold_metrics_list)
     if n == 0:
-        cm = ConfusionMatrix(0, 0, 0, 0)
+        cm = ConfusionMatrix(
+            true_positives=0,
+            false_positives=0,
+            true_negatives=0,
+            false_negatives=0,
+        )
         return compute_metrics(cm)
 
     def _mean(getter: Callable[[ExperimentMetrics], float]) -> float:

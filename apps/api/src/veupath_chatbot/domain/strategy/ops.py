@@ -5,9 +5,10 @@ RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
 (same as RMINUS); we keep both for round-trip fidelity with WDK.
 """
 
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal, cast
+
+from veupath_chatbot.platform.pydantic_base import CamelModel
 
 # Order matches WDK; use this tuple for iteration / descriptions
 COMBINE_OP_ORDER = (
@@ -52,8 +53,7 @@ OP_LABELS: dict[CombineOp, str] = {
 }
 
 
-@dataclass
-class ColocationParams:
+class ColocationParams(CamelModel):
     """Parameters for colocation operator."""
 
     upstream: int = 0

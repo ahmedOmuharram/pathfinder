@@ -1,6 +1,6 @@
 """Tests for WorkbenchToolsMixin — verifying async store usage."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from veupath_chatbot.ai.tools.planner.workbench_tools import (
@@ -252,33 +252,27 @@ class TestRunGeneSetEnrichment:
         store = GeneSetStore()
         mock_aget = AsyncMock(return_value=gs)
 
-        # Simulate serialized enrichment results with p-values
-        mock_serialized = [
-            {
-                "analysisType": "go_function",
-                "terms": [
-                    {"term": "kinase", "pValue": 0.001},
-                    {"term": "binding", "pValue": 0.10},
-                ],
-            },
-            {
-                "analysisType": "go_process",
-                "terms": [
-                    {"term": "phosphorylation", "pValue": 0.02},
-                ],
-            },
-        ]
-
-        mock_export_svc = MagicMock()
-        mock_export_svc.export_enrichment = AsyncMock(
-            return_value=MagicMock(url="http://x/csv", expires_in_seconds=300)
-        )
-        mock_export_svc.export_enrichment_tsv = AsyncMock(
-            return_value=MagicMock(url="http://x/tsv", expires_in_seconds=300)
-        )
-        mock_export_svc.export_enrichment_json = AsyncMock(
-            return_value=MagicMock(url="http://x/json", expires_in_seconds=300)
-        )
+        # run_enrichment_for_gene_set now returns a complete summary dict.
+        # Mock it at the import site in the workbench_tools module.
+        mock_summary = {
+            "analysisTypesRun": ["go_function", "go_process"],
+            "totalSignificantTerms": 2,
+            "enrichmentResults": [
+                {
+                    "analysisType": "go_function",
+                    "terms": [
+                        {"term": "kinase", "pValue": 0.001},
+                        {"term": "binding", "pValue": 0.10},
+                    ],
+                },
+                {
+                    "analysisType": "go_process",
+                    "terms": [
+                        {"term": "phosphorylation", "pValue": 0.02},
+                    ],
+                },
+            ],
+        }
 
         with (
             patch(
@@ -287,17 +281,9 @@ class TestRunGeneSetEnrichment:
             ),
             patch.object(store, "aget", mock_aget),
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
+                "veupath_chatbot.ai.tools.planner.workbench_tools.run_enrichment_for_gene_set",
                 new_callable=AsyncMock,
-                return_value=(["placeholder1", "placeholder2"], []),
-            ),
-            patch(
-                "veupath_chatbot.services.gene_sets.enrichment.to_json",
-                side_effect=mock_serialized,
-            ),
-            patch(
-                "veupath_chatbot.services.gene_sets.enrichment.get_export_service",
-                return_value=mock_export_svc,
+                return_value=mock_summary,
             ),
         ):
             result = await tools.run_gene_set_enrichment(gene_set_id="gs-sig")

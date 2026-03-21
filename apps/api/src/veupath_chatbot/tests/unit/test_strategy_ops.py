@@ -1,8 +1,7 @@
 """Unit tests for strategy combine operations."""
 
-from typing import Literal, cast
-
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ops import (
     BOOLEAN_OPERATOR_OPTIONS_DESC,
@@ -113,11 +112,8 @@ class TestColocationParamsValidate:
         assert len(errors) == 2
 
     def test_invalid_strand(self) -> None:
-        bad_strand = cast("Literal['same', 'opposite', 'both']", "invalid")
-        params = ColocationParams(strand=bad_strand)
-        errors = params.validate()
-        assert len(errors) == 1
-        assert "strand" in errors[0].lower()
+        with pytest.raises(ValidationError, match="strand"):
+            ColocationParams(strand="invalid")
 
     def test_opposite_strand_valid(self) -> None:
         params = ColocationParams(strand="opposite")

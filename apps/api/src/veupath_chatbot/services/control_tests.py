@@ -182,9 +182,9 @@ async def _run_intersection_control(
     # WDK requires steps to be part of a strategy before they can be
     # queried for results (StepService enforces this).
     root = StepTreeNode(
-        combined_step_id,
-        primary_input=StepTreeNode(target_step_id),
-        secondary_input=StepTreeNode(controls_step_id),
+        step_id=combined_step_id,
+        primary_input=StepTreeNode(step_id=target_step_id),
+        secondary_input=StepTreeNode(step_id=controls_step_id),
     )
     temp_strategy_id: int | None = None
     try:

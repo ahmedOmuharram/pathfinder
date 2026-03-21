@@ -58,7 +58,7 @@ class TestSingleStepGeneSet:
         step_id = step["id"]
         assert isinstance(step_id, int)
 
-        tree = StepTreeNode(step_id)
+        tree = StepTreeNode(step_id=step_id)
         strategy = await api.create_strategy(tree, name="Test Single")
         sid = strategy["id"]
         assert isinstance(sid, int)
@@ -94,7 +94,7 @@ class TestSingleStepGeneSet:
         api = get_strategy_api(SITE)
 
         step = await api.create_step(RECORD_TYPE, SEARCH, PARAMS)
-        tree = StepTreeNode(step["id"])
+        tree = StepTreeNode(step_id=step["id"])
         strategy = await api.create_strategy(tree, name="Eval Test")
         sid = strategy["id"]
 
@@ -152,9 +152,9 @@ class TestMultiStepGeneSet:
             RECORD_TYPE,
         )
         tree = StepTreeNode(
-            combined["id"],
-            primary_input=StepTreeNode(step1["id"]),
-            secondary_input=StepTreeNode(step2["id"]),
+            step_id=combined["id"],
+            primary_input=StepTreeNode(step_id=step1["id"]),
+            secondary_input=StepTreeNode(step_id=step2["id"]),
         )
         strategy = await api.create_strategy(tree, name="Test Multi")
         sid = strategy["id"]

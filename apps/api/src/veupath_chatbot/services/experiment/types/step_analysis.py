@@ -1,13 +1,15 @@
-"""Step analysis dataclasses for multi-step experiment decomposition."""
+"""Step analysis types for multi-step experiment decomposition."""
 
-from dataclasses import dataclass, field
+from pydantic import ConfigDict, Field
 
+from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat
 from veupath_chatbot.services.experiment.types.core import StepContributionVerdict
 
 
-@dataclass(frozen=True, slots=True)
-class StepEvaluation:
+class StepEvaluation(CamelModel):
     """Per-leaf-step evaluation against controls."""
+
+    model_config = ConfigDict(frozen=True)
 
     step_id: str
     search_name: str
@@ -17,87 +19,93 @@ class StepEvaluation:
     positive_total: int
     negative_hits: int
     negative_total: int
-    recall: float
-    false_positive_rate: float
-    captured_positive_ids: list[str] = field(default_factory=list)
-    captured_negative_ids: list[str] = field(default_factory=list)
+    recall: RoundedFloat
+    false_positive_rate: RoundedFloat
+    captured_positive_ids: list[str] = Field(default_factory=list)
+    captured_negative_ids: list[str] = Field(default_factory=list)
     tp_movement: int = 0
     fp_movement: int = 0
     fn_movement: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class OperatorVariant:
+class OperatorVariant(CamelModel):
     """Metrics for one boolean operator at a combine node."""
+
+    model_config = ConfigDict(frozen=True)
 
     operator: str
     positive_hits: int
     negative_hits: int
     total_results: int
-    recall: float
-    false_positive_rate: float
-    f1_score: float
+    recall: RoundedFloat
+    false_positive_rate: RoundedFloat
+    f1_score: RoundedFloat
 
 
-@dataclass(frozen=True, slots=True)
-class OperatorComparison:
+class OperatorComparison(CamelModel):
     """Comparison of operators at a single combine node."""
+
+    model_config = ConfigDict(frozen=True)
 
     combine_node_id: str
     current_operator: str
-    variants: list[OperatorVariant] = field(default_factory=list)
+    variants: list[OperatorVariant] = Field(default_factory=list)
     recommendation: str = ""
     recommended_operator: str = ""
-    precision_at_k_delta: dict[int, float] = field(default_factory=dict)
+    precision_at_k_delta: dict[int, float] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
-class StepContribution:
+class StepContribution(CamelModel):
     """Ablation analysis for one leaf step."""
+
+    model_config = ConfigDict(frozen=True)
 
     step_id: str
     search_name: str
-    baseline_recall: float
-    ablated_recall: float
-    recall_delta: float
-    baseline_fpr: float
-    ablated_fpr: float
-    fpr_delta: float
+    baseline_recall: RoundedFloat
+    ablated_recall: RoundedFloat
+    recall_delta: RoundedFloat
+    baseline_fpr: RoundedFloat
+    ablated_fpr: RoundedFloat
+    fpr_delta: RoundedFloat
     verdict: StepContributionVerdict
-    enrichment_delta: float = 0.0
+    enrichment_delta: RoundedFloat = 0.0
     narrative: str = ""
 
 
-@dataclass(frozen=True, slots=True)
-class ParameterSweepPoint:
+class ParameterSweepPoint(CamelModel):
     """One data point in a parameter sensitivity sweep."""
 
-    value: float
+    model_config = ConfigDict(frozen=True)
+
+    value: RoundedFloat
     positive_hits: int
     negative_hits: int
     total_results: int
-    recall: float
-    fpr: float
-    f1: float
+    recall: RoundedFloat
+    fpr: RoundedFloat
+    f1: RoundedFloat
 
 
-@dataclass(frozen=True, slots=True)
-class ParameterSensitivity:
+class ParameterSensitivity(CamelModel):
     """Sensitivity sweep for one numeric parameter on one leaf step."""
+
+    model_config = ConfigDict(frozen=True)
 
     step_id: str
     param_name: str
-    current_value: float
-    sweep_points: list[ParameterSweepPoint] = field(default_factory=list)
-    recommended_value: float = 0.0
+    current_value: RoundedFloat
+    sweep_points: list[ParameterSweepPoint] = Field(default_factory=list)
+    recommended_value: RoundedFloat = 0.0
     recommendation: str = ""
 
 
-@dataclass(frozen=True, slots=True)
-class StepAnalysisResult:
+class StepAnalysisResult(CamelModel):
     """Container for all deterministic step analysis results."""
 
-    step_evaluations: list[StepEvaluation] = field(default_factory=list)
-    operator_comparisons: list[OperatorComparison] = field(default_factory=list)
-    step_contributions: list[StepContribution] = field(default_factory=list)
-    parameter_sensitivities: list[ParameterSensitivity] = field(default_factory=list)
+    model_config = ConfigDict(frozen=True)
+
+    step_evaluations: list[StepEvaluation] = Field(default_factory=list)
+    operator_comparisons: list[OperatorComparison] = Field(default_factory=list)
+    step_contributions: list[StepContribution] = Field(default_factory=list)
+    parameter_sensitivities: list[ParameterSensitivity] = Field(default_factory=list)

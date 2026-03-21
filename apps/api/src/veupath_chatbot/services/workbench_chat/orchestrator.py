@@ -31,7 +31,6 @@ from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningE
 from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import to_json
 
 logger = get_logger(__name__)
 
@@ -212,9 +211,9 @@ async def _workbench_chat_producer(
             experiment_context["experimentId"] = exp.id
             experiment_context["status"] = exp.status
             if exp.metrics:
-                experiment_context["metrics"] = to_json(exp.metrics)
+                experiment_context["metrics"] = exp.metrics.model_dump(by_alias=True)
             if exp.config:
-                experiment_context["config"] = to_json(exp.config)
+                experiment_context["config"] = exp.config.model_dump(by_alias=True)
 
         system_prompt = build_workbench_system_prompt(
             site_id=ids.site_id,

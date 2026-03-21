@@ -50,40 +50,45 @@ def _remove_leaf_from_tree(
         si = node.get("secondaryInput")
 
         if isinstance(pi, dict) and isinstance(si, dict):
-            # --- Combine node ---
-            pi_id = _node_id(pi)
-            si_id = _node_id(si)
-            if pi_id == target_leaf_id:
-                return si
-            if si_id == target_leaf_id:
-                return pi
-
-            replacement_pi = _prune(pi)
-            replacement_si = _prune(si)
-
-            if replacement_pi is None:
-                return replacement_si
-            if replacement_si is None:
-                return replacement_pi
-
-            if replacement_pi is not pi:
-                node["primaryInput"] = replacement_pi
-            if replacement_si is not si:
-                node["secondaryInput"] = replacement_si
-            return node
+            return _prune_combine(node, pi, si)
 
         if isinstance(pi, dict):
-            # --- Transform / unary node ---
-            pi_id = _node_id(pi)
-            if pi_id == target_leaf_id:
-                return None
-            replacement = _prune(pi)
-            if replacement is None:
-                return None
-            if replacement is not pi:
-                node["primaryInput"] = replacement
-            return node
+            return _prune_unary(node, pi)
 
+        return node
+
+    def _prune_combine(
+        node: JSONObject, pi: JSONObject, si: JSONObject
+    ) -> JSONObject | None:
+        pi_id = _node_id(pi)
+        si_id = _node_id(si)
+        if pi_id == target_leaf_id:
+            return si
+        if si_id == target_leaf_id:
+            return pi
+
+        replacement_pi = _prune(pi)
+        replacement_si = _prune(si)
+
+        if replacement_pi is None:
+            return replacement_si
+        if replacement_si is None:
+            return replacement_pi
+
+        if replacement_pi is not pi:
+            node["primaryInput"] = replacement_pi
+        if replacement_si is not si:
+            node["secondaryInput"] = replacement_si
+        return node
+
+    def _prune_unary(node: JSONObject, pi: JSONObject) -> JSONObject | None:
+        if _node_id(pi) == target_leaf_id:
+            return None
+        replacement = _prune(pi)
+        if replacement is None:
+            return None
+        if replacement is not pi:
+            node["primaryInput"] = replacement
         return node
 
     return _prune(out)

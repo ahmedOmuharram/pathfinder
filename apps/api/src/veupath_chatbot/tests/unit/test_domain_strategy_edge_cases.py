@@ -3,6 +3,7 @@
 from typing import Literal, cast
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -628,12 +629,9 @@ class TestHydrateGraphEdgeCases:
 
 class TestValidationEdgeCases:
     def test_none_root_strategy(self) -> None:
-        """Strategy with root=None should report EMPTY_STRATEGY."""
-        strategy = StrategyAST(record_type="gene", root=None)
-        result = validate_strategy(strategy)
-        assert not result.valid
-        codes = {e.code for e in result.errors}
-        assert "EMPTY_STRATEGY" in codes
+        """Strategy with root=None should be rejected by Pydantic validation."""
+        with pytest.raises(ValidationError):
+            StrategyAST(record_type="gene", root=None)
 
     def test_empty_record_type_and_empty_search_name(self) -> None:
         """Multiple simultaneous errors should all be reported."""

@@ -25,7 +25,6 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
 from veupath_chatbot.services.experiment.types import (
     ParameterSensitivity,
     ParameterSweepPoint,
-    to_json,
 )
 
 SENSITIVITY_SWEEP_POINTS = 5
@@ -479,7 +478,7 @@ async def sweep_parameters(
                         or f"Parameter {pname}: no change recommended",
                         "current": pi + 1,
                         "total": total_params,
-                        "parameterSensitivity": to_json(ps),
+                        "parameterSensitivity": ps.model_dump(by_alias=True),
                     },
                 }
             )

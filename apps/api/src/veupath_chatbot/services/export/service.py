@@ -13,7 +13,7 @@ from redis.asyncio import Redis
 
 from veupath_chatbot.platform.context import request_base_url_ctx
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.services.experiment.types import Experiment, to_json
+from veupath_chatbot.services.experiment.types import Experiment
 from veupath_chatbot.services.experiment.types.enrichment import EnrichmentResult
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
@@ -176,7 +176,7 @@ class ExportService:
     ) -> ExportResult:
         """Export enrichment results as JSON."""
         name_part = _sanitize_filename(name or "enrichment")
-        serialized = [to_json(r) for r in results]
+        serialized = [r.model_dump(by_alias=True) for r in results]
         content = json.dumps(serialized, indent=2).encode("utf-8")
         return await self._store(
             content, f"{name_part}_enrichment.json", "application/json"

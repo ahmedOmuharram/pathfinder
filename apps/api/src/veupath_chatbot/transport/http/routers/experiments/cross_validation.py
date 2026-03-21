@@ -13,7 +13,6 @@ from veupath_chatbot.services.experiment.cross_validation import (
 )
 from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
 from veupath_chatbot.transport.http.schemas.experiments import (
     RunCrossValidationRequest,
@@ -66,4 +65,4 @@ async def run_cv(
 
     exp.cross_validation = cv
     get_experiment_store().save(exp)
-    return cast("JSONObject", to_json(cv))
+    return cast("JSONObject", cv.model_dump(by_alias=True))

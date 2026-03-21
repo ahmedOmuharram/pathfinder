@@ -1,11 +1,14 @@
-"""Classification metrics dataclasses for the Experiment Lab."""
+"""Classification metrics for the Experiment Lab."""
 
-from dataclasses import dataclass, field
+from pydantic import ConfigDict, Field
+
+from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat
 
 
-@dataclass(frozen=True, slots=True)
-class ConfusionMatrix:
+class ConfusionMatrix(CamelModel):
     """2x2 confusion matrix counts."""
+
+    model_config = ConfigDict(frozen=True)
 
     true_positives: int
     false_positives: int
@@ -13,30 +16,32 @@ class ConfusionMatrix:
     false_negatives: int
 
 
-@dataclass(frozen=True, slots=True)
-class ExperimentMetrics:
+class ExperimentMetrics(CamelModel):
     """Full classification metrics derived from a confusion matrix."""
 
+    model_config = ConfigDict(frozen=True)
+
     confusion_matrix: ConfusionMatrix
-    sensitivity: float
-    specificity: float
-    precision: float
-    f1_score: float
-    mcc: float
-    balanced_accuracy: float
+    sensitivity: RoundedFloat
+    specificity: RoundedFloat
+    precision: RoundedFloat
+    f1_score: RoundedFloat
+    mcc: RoundedFloat
+    balanced_accuracy: RoundedFloat
     # Fields below may be absent in older persisted data.
-    negative_predictive_value: float = 0.0
-    false_positive_rate: float = 0.0
-    false_negative_rate: float = 0.0
-    youdens_j: float = 0.0
+    negative_predictive_value: RoundedFloat = 0.0
+    false_positive_rate: RoundedFloat = 0.0
+    false_negative_rate: RoundedFloat = 0.0
+    youdens_j: RoundedFloat = 0.0
     total_results: int = 0
     total_positives: int = 0
     total_negatives: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class GeneInfo:
+class GeneInfo(CamelModel):
     """Minimal gene metadata."""
+
+    model_config = ConfigDict(frozen=True)
 
     id: str
     name: str | None = None
@@ -44,23 +49,25 @@ class GeneInfo:
     product: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class FoldMetrics:
+class FoldMetrics(CamelModel):
     """Metrics for a single cross-validation fold."""
+
+    model_config = ConfigDict(frozen=True)
 
     fold_index: int
     metrics: ExperimentMetrics
-    positive_control_ids: list[str] = field(default_factory=list)
-    negative_control_ids: list[str] = field(default_factory=list)
+    positive_control_ids: list[str] = Field(default_factory=list)
+    negative_control_ids: list[str] = Field(default_factory=list)
 
 
-@dataclass(frozen=True, slots=True)
-class CrossValidationResult:
+class CrossValidationResult(CamelModel):
     """Aggregated cross-validation result."""
+
+    model_config = ConfigDict(frozen=True)
 
     k: int
     folds: list[FoldMetrics]
     mean_metrics: ExperimentMetrics
-    std_metrics: dict[str, float] = field(default_factory=dict)
-    overfitting_score: float = 0.0
+    std_metrics: dict[str, float] = Field(default_factory=dict)
+    overfitting_score: RoundedFloat = 0.0
     overfitting_level: str = "low"

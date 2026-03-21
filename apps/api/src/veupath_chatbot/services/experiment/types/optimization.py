@@ -1,13 +1,17 @@
-"""Optimization-related dataclasses for the Experiment Lab."""
+"""Optimization-related types for the Experiment Lab."""
 
-from dataclasses import dataclass, field
+from pydantic import ConfigDict, Field
 
+from veupath_chatbot.platform.pydantic_base import (
+    CamelModel,
+    RoundedFloat,
+    RoundedFloat2,
+)
 from veupath_chatbot.services.experiment.types.core import ParameterType
 from veupath_chatbot.services.experiment.types.rank import RankMetrics
 
 
-@dataclass(slots=True)
-class OptimizationSpec:
+class OptimizationSpec(CamelModel):
     """Describes a single parameter to optimise."""
 
     name: str
@@ -18,9 +22,10 @@ class OptimizationSpec:
     choices: list[str] | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class ThresholdKnob:
+class ThresholdKnob(CamelModel):
     """A numeric parameter on a leaf step that can be tuned."""
+
+    model_config = ConfigDict(frozen=True)
 
     step_id: str
     param_name: str
@@ -29,30 +34,33 @@ class ThresholdKnob:
     step_size: float | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class OperatorKnob:
+class OperatorKnob(CamelModel):
     """A combine-node operator that can be switched during optimization."""
 
+    model_config = ConfigDict(frozen=True)
+
     combine_node_id: str
-    options: list[str] = field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
+    options: list[str] = Field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
 
 
-@dataclass(frozen=True, slots=True)
-class TreeOptimizationTrial:
+class TreeOptimizationTrial(CamelModel):
     """One trial during tree-knob optimization."""
 
+    model_config = ConfigDict(frozen=True)
+
     trial_number: int
-    parameters: dict[str, float | str] = field(default_factory=dict)
-    score: float = 0.0
+    parameters: dict[str, float | str] = Field(default_factory=dict)
+    score: RoundedFloat = 0.0
     rank_metrics: RankMetrics | None = None
     list_size: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class TreeOptimizationResult:
+class TreeOptimizationResult(CamelModel):
     """Result of multi-step tree-knob optimization."""
 
+    model_config = ConfigDict(frozen=True)
+
     best_trial: TreeOptimizationTrial | None = None
-    all_trials: list[TreeOptimizationTrial] = field(default_factory=list)
-    total_time_seconds: float = field(default=0.0, metadata={"round": 2})
+    all_trials: list[TreeOptimizationTrial] = Field(default_factory=list)
+    total_time_seconds: RoundedFloat2 = 0.0
     objective: str = ""

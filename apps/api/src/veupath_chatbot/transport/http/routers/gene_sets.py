@@ -17,7 +17,6 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.services.gene_sets.confidence import (
     GeneClassification,
     compute_gene_confidence,
@@ -287,7 +286,7 @@ async def enrich_gene_set(
         raise InternalError(
             title="Enrichment analysis failed", detail=str(exc)
         ) from exc
-    return [to_json(r) for r in results]
+    return [r.model_dump(by_alias=True) for r in results]
 
 
 # ---------------------------------------------------------------------------

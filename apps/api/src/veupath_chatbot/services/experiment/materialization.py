@@ -111,7 +111,7 @@ async def _materialize_step_tree(
             )
         step_id = coerce_step_id(step)
         return StepTreeNode(
-            step_id, primary_input=primary_tree, secondary_input=secondary_tree
+            step_id=step_id, primary_input=primary_tree, secondary_input=secondary_tree
         )
     if primary_tree is not None:
         step = await api.create_transform_step(
@@ -122,7 +122,7 @@ async def _materialize_step_tree(
             custom_name=display_name,
         )
         step_id = coerce_step_id(step)
-        return StepTreeNode(step_id, primary_input=primary_tree)
+        return StepTreeNode(step_id=step_id, primary_input=primary_tree)
     step = await api.create_step(
         record_type=record_type,
         search_name=search_name,
@@ -130,7 +130,7 @@ async def _materialize_step_tree(
         custom_name=display_name,
     )
     step_id = coerce_step_id(step)
-    return StepTreeNode(step_id)
+    return StepTreeNode(step_id=step_id)
 
 
 async def _persist_experiment_strategy(
@@ -174,7 +174,7 @@ async def _persist_experiment_strategy(
             custom_name=f"Experiment: {config.name}",
         )
         step_id = coerce_step_id(step_payload)
-        root_tree = StepTreeNode(step_id)
+        root_tree = StepTreeNode(step_id=step_id)
 
     created = await api.create_strategy(
         step_tree=root_tree,
@@ -240,7 +240,7 @@ async def _persist_import_strategy(
         primary = t.get("primaryInput")
         secondary = t.get("secondaryInput")
         return StepTreeNode(
-            sid,
+            step_id=sid,
             primary_input=_tree_to_node(primary) if isinstance(primary, dict) else None,
             secondary_input=_tree_to_node(secondary)
             if isinstance(secondary, dict)

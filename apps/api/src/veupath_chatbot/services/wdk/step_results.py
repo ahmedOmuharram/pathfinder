@@ -15,7 +15,6 @@ from veupath_chatbot.services.experiment.enrichment_parser import (
     is_enrichment_analysis,
     parse_enrichment_from_raw,
 )
-from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
     extract_detail_attributes,
@@ -130,7 +129,7 @@ class StepResultsService:
             er = parse_enrichment_from_raw(analysis_name, params, result)
             return {
                 "_resultType": "enrichment",
-                "enrichmentResults": [to_json(er)],
+                "enrichmentResults": [er.model_dump(by_alias=True)],
             }
 
         return result

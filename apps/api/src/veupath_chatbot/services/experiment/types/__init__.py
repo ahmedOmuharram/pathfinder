@@ -27,7 +27,6 @@ from veupath_chatbot.services.experiment.types.experiment import (
     Experiment,
     ExperimentConfig,
 )
-from veupath_chatbot.services.experiment.types.json_codec import from_json, to_json
 from veupath_chatbot.services.experiment.types.metrics import (
     ConfusionMatrix,
     CrossValidationResult,
@@ -111,6 +110,4 @@ __all__ = [
     # Serialization
     "experiment_summary_to_json",
     "experiment_to_json",
-    "from_json",
-    "to_json",
 ]

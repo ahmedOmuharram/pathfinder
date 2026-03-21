@@ -67,7 +67,7 @@ def _exp(
     with_cross_validation: bool = False,
     with_step_analysis: bool = False,
 ) -> Experiment:
-    exp = Experiment(id=exp_id, config=_cfg(), status="complete")
+    exp = Experiment(id=exp_id, config=_cfg(), status="completed")
     exp.true_positive_genes = [
         GeneInfo(id="g1", name="PfCRT"),
         GeneInfo(id="g2", name="PfMDR1"),
@@ -84,7 +84,7 @@ def _exp(
     if with_enrichment:
         exp.enrichment_results = [
             EnrichmentResult(
-                analysis_type="go",
+                analysis_type="go_function",
                 terms=[
                     EnrichmentTerm(
                         term_id="GO:0006813",
@@ -177,7 +177,7 @@ class TestGetEvaluationSummary:
         assert "metrics" in result
         assert "classificationCounts" in result
         assert "sampleGeneIds" in result
-        assert result["status"] == "complete"
+        assert result["status"] == "completed"
 
         counts = result["classificationCounts"]
         assert isinstance(counts, dict)
@@ -258,7 +258,7 @@ class TestGetEnrichmentResults:
         assert result["count"] == 1
         enrichment_list = result["enrichmentResults"]
         assert isinstance(enrichment_list, list)
-        assert enrichment_list[0]["analysisType"] == "go"
+        assert enrichment_list[0]["analysisType"] == "go_function"
 
     async def test_returns_error_when_experiment_not_found(self) -> None:
         store = _make_mock_store(None)
@@ -412,7 +412,7 @@ class TestGetExperimentConfig:
 
         assert "error" not in result
         assert "config" in result
-        assert result["status"] == "complete"
+        assert result["status"] == "completed"
         assert result["wdkStrategyId"] == 42
         assert result["wdkStepId"] == 99
         assert result["notes"] is None

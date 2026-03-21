@@ -100,9 +100,9 @@ async def run_controls_against_tree(
         combined_step_id = coerce_step_id(combined)
 
         full_tree = StepTreeNode(
-            combined_step_id,
+            step_id=combined_step_id,
             primary_input=root_tree,
-            secondary_input=StepTreeNode(controls_step_id),
+            secondary_input=StepTreeNode(step_id=controls_step_id),
         )
         created = await api.create_strategy(
             step_tree=full_tree,

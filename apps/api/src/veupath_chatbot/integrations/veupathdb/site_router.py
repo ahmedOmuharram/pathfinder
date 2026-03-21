@@ -3,16 +3,15 @@
 import threading
 from functools import lru_cache
 from pathlib import Path
-from typing import cast
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
 
@@ -69,31 +68,28 @@ def load_sites_config(config_path: str | None = None) -> SitesConfig:
     return config
 
 
-class SiteInfo:
+class SiteInfo(CamelModel):
     """VEuPathDB site information."""
 
-    def __init__(
-        self,
-        *,
-        site_id: str,
-        name: str,
-        display_name: str,
-        base_url: str,
-        project_id: str,
-        is_portal: bool,
-    ) -> None:
-        self.id = site_id
-        self.name = name
-        self.display_name = display_name
-        self.base_url = base_url.rstrip("/")
-        self.project_id = project_id
-        self.is_portal = is_portal
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(validation_alias=AliasChoices("id", "site_id"))
+    name: str
+    display_name: str
+    base_url: str
+    project_id: str
+    is_portal: bool
+
+    @field_validator("base_url", mode="before")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        return v.rstrip("/") if isinstance(v, str) else v
 
     @classmethod
     def from_config(cls, site_id: str, cfg: SiteConfig) -> SiteInfo:
         """Construct a SiteInfo from a validated SiteConfig."""
         return cls(
-            site_id=site_id,
+            id=site_id,
             name=cfg.name,
             display_name=cfg.display_name,
             base_url=cfg.base_url,
@@ -109,8 +105,7 @@ class SiteInfo:
     @property
     def web_base_url(self) -> str:
         """Get web UI base URL (strip /service if present)."""
-        base = self.base_url.rstrip("/")
-        return base.removesuffix("/service")
+        return self.base_url.removesuffix("/service")
 
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
         """Build a strategy URL for the web UI.
@@ -122,20 +117,6 @@ class SiteInfo:
         if root_step_id is not None:
             return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}/{root_step_id}"
         return f"{self.web_base_url}/app/workspace/strategies/{strategy_id}"
-
-    def to_dict(self) -> JSONObject:
-        """Convert to dictionary."""
-        return cast(
-            "JSONObject",
-            {
-                "id": self.id,
-                "name": self.name,
-                "displayName": self.display_name,
-                "baseUrl": self.base_url,
-                "projectId": self.project_id,
-                "isPortal": self.is_portal,
-            },
-        )
 
 
 class SiteRouter:

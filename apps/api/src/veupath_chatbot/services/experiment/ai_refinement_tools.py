@@ -30,7 +30,6 @@ from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     Experiment,
     GeneInfo,
-    to_json,
 )
 
 
@@ -184,7 +183,7 @@ class RefinementToolsMixin:
             {
                 "success": True,
                 "totalResults": len(result_ids),
-                "metrics": to_json(metrics),
+                "metrics": metrics.model_dump(by_alias=True),
             },
         )
 
@@ -224,9 +223,9 @@ class RefinementToolsMixin:
             return {"error": "Failed to create combined step"}
 
         new_tree = StepTreeNode(
-            combined_id,
-            primary_input=StepTreeNode(exp.wdk_step_id),
-            secondary_input=StepTreeNode(new_step_id),
+            step_id=combined_id,
+            primary_input=StepTreeNode(step_id=exp.wdk_step_id),
+            secondary_input=StepTreeNode(step_id=new_step_id),
         )
         await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
 

@@ -13,7 +13,6 @@ from veupath_chatbot.services.experiment.enrichment_parser import (
     upsert_enrichment_result,
 )
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import to_json
 from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 from veupath_chatbot.transport.http.deps import CurrentUser, ExperimentDep
 from veupath_chatbot.transport.http.schemas.experiments import (
@@ -51,7 +50,7 @@ async def run_enrichment(
             detail="; ".join(errors),
         )
 
-    return [to_json(r) for r in results]
+    return [r.model_dump(by_alias=True) for r in results]
 
 
 @router.post("/{experiment_id}/custom-enrich")

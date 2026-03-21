@@ -1,5 +1,8 @@
 """Tests for strategy DSL validation."""
 
+import pytest
+from pydantic import ValidationError
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.validate import (
@@ -158,10 +161,8 @@ class TestStrategyValidator:
         assert result.valid
 
     def test_validate_empty_strategy(self) -> None:
-        strategy = StrategyAST(record_type="gene", root=None)
-        result = validate_strategy(strategy)
-        assert not result.valid
-        assert any(e.code == "EMPTY_STRATEGY" for e in result.errors)
+        with pytest.raises(ValidationError):
+            StrategyAST(record_type="gene", root=None)
 
     def test_recursive_validation_of_children(self) -> None:
         """Child nodes with missing searchName should be flagged."""
@@ -222,12 +223,13 @@ class TestStrategyValidator:
 
     def test_multiple_errors_accumulated(self) -> None:
         """Multiple errors should all appear."""
-        strategy = StrategyAST(record_type="", root=None)
+        leaf = PlanStepNode(search_name="", parameters={})
+        strategy = StrategyAST(record_type="", root=leaf)
         result = validate_strategy(strategy)
         assert not result.valid
         codes = {e.code for e in result.errors}
         assert "MISSING_RECORD_TYPE" in codes
-        assert "EMPTY_STRATEGY" in codes
+        assert "MISSING_SEARCH_NAME" in codes
 
     def test_colocate_both_negative_distances(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})

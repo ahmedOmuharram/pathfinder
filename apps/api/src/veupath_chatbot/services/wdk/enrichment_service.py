@@ -118,7 +118,7 @@ class EnrichmentService:
             custom_name="Enrichment target",
         )
         shared_step_id = coerce_step_id(step)
-        root = StepTreeNode(shared_step_id)
+        root = StepTreeNode(step_id=shared_step_id)
         strategy_id: int | None = None
 
         async with _WDK_ENRICHMENT_SEMAPHORE:

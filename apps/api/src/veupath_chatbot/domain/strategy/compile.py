@@ -1,8 +1,9 @@
 """Compile strategy AST to WDK API calls."""
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+from pydantic import Field
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
@@ -23,6 +24,7 @@ from veupath_chatbot.platform.errors import (
     ValidationError,
 )
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 # Callback type: given a search name, returns the owning record type (or None).
@@ -126,39 +128,21 @@ class StepDecoratorAPI(Protocol):
 logger = get_logger(__name__)
 
 
-@dataclass
-class CompiledStep:
+class CompiledStep(CamelModel):
     """A compiled step with WDK step ID."""
 
     local_id: str
     wdk_step_id: int
-    step_type: str
+    step_type: str = Field(alias="type")
     display_name: str
 
 
-@dataclass
-class CompilationResult:
+class CompilationResult(CamelModel):
     """Result of compiling a strategy to WDK."""
 
     steps: list[CompiledStep]
     step_tree: StepTreeNode
     root_step_id: int
-
-    def to_dict(self) -> JSONObject:
-        """Convert to dictionary."""
-        return {
-            "steps": [
-                {
-                    "localId": s.local_id,
-                    "wdkStepId": s.wdk_step_id,
-                    "type": s.step_type,
-                    "displayName": s.display_name,
-                }
-                for s in self.steps
-            ],
-            "stepTree": self.step_tree.to_dict(),
-            "rootStepId": self.root_step_id,
-        }
 
 
 def _extract_wdk_step_id(result: JSONObject) -> int:

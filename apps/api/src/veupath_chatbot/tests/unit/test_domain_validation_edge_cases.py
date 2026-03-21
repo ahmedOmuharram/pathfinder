@@ -1,6 +1,8 @@
 """Edge-case and bug-hunting tests for domain/research/citations.py and
 cross-domain validation concerns."""
 
+from pydantic import ValidationError
+
 from veupath_chatbot.domain.research.citations import (
     Citation,
     _new_citation_id,
@@ -93,11 +95,10 @@ class TestSuggestCitationTagEdgeCases:
         # Whitespace author -> empty first_last -> falls to title-based tag
         assert tag == "title2020"
 
-    def test_author_non_string_in_list(self) -> None:
-        tag = _suggest_tag(_c(title="Title", authors=[42], year=2020))  # type: ignore[list-item]
-        # authors[0] is 42 (int), not a str, so first_author = None
-        # Falls through to title-based tag
-        assert isinstance(tag, str)
+    def test_author_non_string_in_list_rejected(self) -> None:
+        # Pydantic validates authors as list[str]; non-string elements are rejected
+        with __import__("pytest").raises(ValidationError):
+            _c(title="Title", authors=[42], year=2020)  # type: ignore[list-item]
 
     def test_no_title_no_authors_with_url(self) -> None:
         tag = _suggest_tag(
@@ -228,9 +229,9 @@ class TestCitationEdgeCases:
         assert d["tag"] == "smith2020"
 
     def test_citation_immutable(self) -> None:
-        """Citation is frozen dataclass."""
+        """Citation is frozen Pydantic model."""
         c = Citation(id="x", source="web", title="T")
-        with __import__("pytest").raises(AttributeError):
+        with __import__("pytest").raises(ValidationError):
             c.title = "New"  # type: ignore[misc]
 
 

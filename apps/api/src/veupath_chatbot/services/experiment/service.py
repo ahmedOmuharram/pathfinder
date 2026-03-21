@@ -8,6 +8,7 @@ intermediate state to the store.  The public ``run_experiment()`` function
 orchestrates phase sequencing, lifecycle management, and error handling.
 """
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -66,7 +67,6 @@ from veupath_chatbot.services.experiment.types import (
     ExperimentMetrics,
     ExperimentProgressPhase,
     OptimizationSpec,
-    to_json,
 )
 from veupath_chatbot.services.gene_sets.operations import (
     _build_enrichment_params_from_gene_ids,
@@ -84,6 +84,34 @@ logger = get_logger(__name__)
 
 # Type alias for the progress-emit callback threaded through phases.
 EmitFn = Callable[..., Awaitable[None]]
+
+# Per-experiment lock to prevent concurrent mutations of the same experiment
+# (e.g., DELETE while a run_experiment() is in-flight).
+_experiment_locks: dict[str, asyncio.Lock] = {}
+_EXPERIMENT_LOCKS_MAX = 200
+
+
+def _get_experiment_lock(experiment_id: str) -> asyncio.Lock:
+    """Get or create a per-experiment lock for serialising mutations.
+
+    Uses LRU eviction of unlocked entries to bound memory.  Eviction of
+    an unlocked entry is safe: no operation is in-flight for that
+    experiment, so a fresh lock will be created if needed later.
+    """
+    if experiment_id in _experiment_locks:
+        return _experiment_locks[experiment_id]
+
+    if len(_experiment_locks) >= _EXPERIMENT_LOCKS_MAX:
+        to_evict: str | None = None
+        for cand_id, lock in _experiment_locks.items():
+            if not lock.locked():
+                to_evict = cand_id
+                break
+        if to_evict is not None:
+            del _experiment_locks[to_evict]
+
+    _experiment_locks[experiment_id] = asyncio.Lock()
+    return _experiment_locks[experiment_id]
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +208,11 @@ async def _phase_evaluate(
 
     metrics = await _apply_control_result(config, experiment, result)
 
-    await emit("evaluating", message="Evaluation complete", metrics=to_json(metrics))
+    await emit(
+        "evaluating",
+        message="Evaluation complete",
+        metrics=metrics.model_dump(by_alias=True),
+    )
     store.save(experiment)
 
     return result, metrics
@@ -221,7 +253,9 @@ async def _phase_step_analysis(
     )
     store.save(experiment)
 
-    metrics_json = to_json(experiment.metrics) if experiment.metrics else {}
+    metrics_json = (
+        experiment.metrics.model_dump(by_alias=True) if experiment.metrics else {}
+    )
     await emit("step_analysis", message="Step analysis complete", metrics=metrics_json)
 
 
@@ -606,6 +640,8 @@ async def run_experiment(
             }
             await progress_callback(event)
 
+    experiment_lock = _get_experiment_lock(experiment_id)
+    await experiment_lock.acquire()
     try:
         await _emit("started", message="Starting evaluation...")
 
@@ -701,3 +737,5 @@ async def run_experiment(
         raise
     else:
         return experiment
+    finally:
+        experiment_lock.release()

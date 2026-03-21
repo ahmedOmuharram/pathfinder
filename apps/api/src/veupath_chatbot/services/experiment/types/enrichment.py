@@ -1,29 +1,32 @@
-"""Enrichment analysis dataclasses for the Experiment Lab."""
+"""Enrichment analysis types for the Experiment Lab."""
 
-from dataclasses import dataclass, field
+from pydantic import ConfigDict, Field
 
+from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat
 from veupath_chatbot.services.experiment.types.core import EnrichmentAnalysisType
 
 
-@dataclass(frozen=True, slots=True)
-class EnrichmentTerm:
+class EnrichmentTerm(CamelModel):
     """Single enriched term from WDK analysis."""
+
+    model_config = ConfigDict(frozen=True)
 
     term_id: str
     term_name: str
     gene_count: int
     background_count: int
-    fold_enrichment: float
-    odds_ratio: float
-    p_value: float = field(metadata={"round": None})
-    fdr: float = field(metadata={"round": None})
-    bonferroni: float = field(metadata={"round": None})
-    genes: list[str] = field(default_factory=list)
+    fold_enrichment: RoundedFloat
+    odds_ratio: RoundedFloat
+    p_value: float
+    fdr: float
+    bonferroni: float
+    genes: list[str] = Field(default_factory=list)
 
 
-@dataclass(frozen=True, slots=True)
-class EnrichmentResult:
+class EnrichmentResult(CamelModel):
     """Results for a single enrichment analysis type."""
+
+    model_config = ConfigDict(frozen=True)
 
     analysis_type: EnrichmentAnalysisType
     terms: list[EnrichmentTerm]
