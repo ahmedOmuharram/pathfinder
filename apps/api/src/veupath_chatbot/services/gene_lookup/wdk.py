@@ -4,10 +4,13 @@ import json
 from dataclasses import dataclass
 from typing import cast
 
+import pydantic
+
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -97,18 +100,16 @@ def _accumulate_text_answer(
     """Parse a WDK GenesByText answer and accumulate results. Returns updated wdk_total."""
     if not isinstance(answer, dict):
         return wdk_total
-    meta = answer.get("meta")
-    if isinstance(meta, dict):
-        mt = meta.get("totalCount")
-        if isinstance(mt, int):
-            wdk_total = max(wdk_total, mt)
-    raw_records = answer.get("records")
-    if isinstance(raw_records, list):
-        for rec in raw_records:
-            if isinstance(rec, dict):
-                parsed = _parse_wdk_record(rec)
-                if parsed:
-                    all_results.append(parsed)
+    try:
+        parsed_answer = WDKAnswer.model_validate(answer)
+    except pydantic.ValidationError:
+        return wdk_total
+    wdk_total = max(wdk_total, parsed_answer.meta.total_count)
+    for rec in parsed_answer.records:
+        if isinstance(rec, dict):
+            parsed = _parse_wdk_record(rec)
+            if parsed:
+                all_results.append(parsed)
     return wdk_total
 
 
@@ -173,29 +174,22 @@ def _build_gene_result_from_answer(answer: object) -> JSONObject:
     # _fetch_gene_answer returns an error dict when dataset creation fails
     if "error" in answer and "records" in answer:
         return answer
-    raw_records = answer.get("records")
-    return (
-        _parse_records_to_result(answer, raw_records)
-        if isinstance(raw_records, list)
-        else _EMPTY_GENE_RESULT
-    )
+    try:
+        parsed_answer = WDKAnswer.model_validate(answer)
+    except pydantic.ValidationError:
+        return _EMPTY_GENE_RESULT
+    return _parse_records_to_result(parsed_answer)
 
 
-def _parse_records_to_result(
-    answer: dict[str, object], raw_records: list[object]
-) -> JSONObject:
-    """Parse raw WDK records into the final gene result dict."""
+def _parse_records_to_result(answer: WDKAnswer) -> JSONObject:
+    """Parse WDK answer records into the final gene result dict."""
     records: list[JSONObject] = []
-    for rec in raw_records:
+    for rec in answer.records:
         if isinstance(rec, dict):
             parsed = _parse_wdk_record(rec)
             if parsed:
                 records.append(parsed)
-    meta = answer.get("meta") or {}
-    total = (
-        meta.get("totalCount", len(records)) if isinstance(meta, dict) else len(records)
-    )
-    return cast("JSONObject", {"records": records, "totalCount": total})
+    return cast("JSONObject", {"records": records, "totalCount": answer.meta.total_count})
 
 
 def _empty_gene_result(error: str | None = None) -> JSONObject:
@@ -226,16 +220,12 @@ async def _fetch_gene_answer(
         ),
     )
     if not isinstance(dataset_resp, dict):
-        return cast(
-            "JSONObject", _empty_gene_result("Failed to create dataset for ID lookup.")
-        )
+        return _empty_gene_result("Failed to create dataset for ID lookup.")
     dataset_id = dataset_resp.get("id")
     if dataset_id is None:
-        return cast(
-            "JSONObject", _empty_gene_result("Dataset creation returned no ID.")
-        )
+        return _empty_gene_result("Dataset creation returned no ID.")
 
-    return await client.post(
+    result = await client.post(
         f"/record-types/{record_type}/searches/{search_name}/reports/standard",
         json=cast(
             "JSONObject",
@@ -245,6 +235,9 @@ async def _fetch_gene_answer(
             },
         ),
     )
+    if not isinstance(result, dict):
+        return None
+    return result
 
 
 async def resolve_gene_ids(

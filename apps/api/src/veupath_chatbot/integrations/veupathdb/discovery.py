@@ -46,7 +46,7 @@ async def _load_searches_for_rt(
     """Fetch searches for a record type, returning None on error."""
     try:
         return await client.get_searches(rt_name)
-    except (httpx.HTTPError, OSError, RuntimeError, ValueError) as e:
+    except (httpx.HTTPError, OSError, RuntimeError, AppError) as e:
         logger.warning(
             "Failed to load searches",
             record_type=rt_name,

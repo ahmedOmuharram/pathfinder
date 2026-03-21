@@ -8,6 +8,7 @@ from typing import Annotated, cast
 from kani import AIParam, ai_function
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import (
@@ -96,7 +97,7 @@ class ExperimentToolsMixin:
                 "json": json_export.url,
                 "expiresInSeconds": json_export.expires_in_seconds,
             }
-        except (OSError, ValueError, TypeError, KeyError) as e:
+        except (AppError, OSError) as e:
             logger.warning("Control test export failed", error=str(e))
         return result
 

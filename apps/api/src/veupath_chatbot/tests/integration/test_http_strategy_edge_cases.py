@@ -111,8 +111,22 @@ async def test_sync_prunes_orphaned_wdk_strategies(
         200, json=step_get_response(step_id=100)
     )
     # Lazy-fetch triggers search details call for parameter normalisation.
+    _valid_search = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+    wdk_respx.get(url__regex=rf"{base}/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search
+    )
     wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+        200, json=_valid_search
     )
 
     # First sync: 3 strategies
@@ -165,8 +179,22 @@ async def test_sync_idempotent_upsert_updates_name(
         200, json=step_get_response(step_id=100)
     )
     # Lazy-fetch triggers search details call for parameter normalisation.
+    _valid_search = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+    wdk_respx.get(url__regex=rf"{base}/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search
+    )
     wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+        200, json=_valid_search
     )
 
     # First sync
@@ -216,8 +244,22 @@ async def test_sync_filters_internal_strategy_names(
         200, json=step_get_response(step_id=100)
     )
     # Lazy-fetch triggers search details call for parameter normalisation.
+    _valid_search = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+    wdk_respx.get(url__regex=rf"{base}/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search
+    )
     wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+        200, json=_valid_search
     )
 
     items = [
@@ -303,10 +345,38 @@ async def test_complex_step_counts_via_compilation(
         200,
         json={
             "strategyId": 999,
+            "name": "__pathfinder_internal__:Pathfinder step counts",
+            "rootStepId": 1003,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isSaved": False,
+            "isValid": True,
+            "isPublic": False,
+            "isDeleted": False,
+            "estimatedSize": 42,
+            "stepTree": {
+                "stepId": 1003,
+                "primaryInput": {"stepId": 1001},
+                "secondaryInput": {"stepId": 1002},
+            },
             "steps": {
-                "1001": {"estimatedSize": 5000},
-                "1002": {"estimatedSize": 300},
-                "1003": {"estimatedSize": 42},
+                "1001": {
+                    "id": 1001,
+                    "searchName": "GenesByTaxon",
+                    "searchConfig": {"parameters": {}},
+                    "estimatedSize": 5000,
+                },
+                "1002": {
+                    "id": 1002,
+                    "searchName": "GenesByLocation",
+                    "searchConfig": {"parameters": {}},
+                    "estimatedSize": 300,
+                },
+                "1003": {
+                    "id": 1003,
+                    "searchName": "boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+                    "searchConfig": {"parameters": {}},
+                    "estimatedSize": 42,
+                },
             },
         },
     )

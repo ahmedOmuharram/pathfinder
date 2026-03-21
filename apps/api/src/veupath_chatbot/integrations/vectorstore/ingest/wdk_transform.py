@@ -2,10 +2,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, cast
 
-from veupath_chatbot.domain.parameters.specs import (
-    extract_param_specs,
-    unwrap_search_data,
-)
 from veupath_chatbot.domain.parameters.vocab_utils import flatten_vocab
 from veupath_chatbot.integrations.vectorstore.qdrant_store import (
     point_uuid,
@@ -273,7 +269,8 @@ def _should_skip_search(s: JSONObject) -> bool:
     """Return True if the search dict should be skipped."""
     if not isinstance(s, dict):
         return True
-    if s.get("isInternal", False):
+    full_name = s.get("fullName", "")
+    if isinstance(full_name, str) and full_name.startswith("InternalQuestions."):
         return True
     return not wdk_entity_name(s)
 
@@ -290,9 +287,10 @@ def build_search_doc(
         return None
     search_name = wdk_entity_name(s)
 
-    summary_unwrapped = unwrap_search_data(s if isinstance(s, dict) else {}) or {}
+    summary_unwrapped = s if isinstance(s, dict) else {}
 
-    raw_specs = extract_param_specs(details_unwrapped) if details_unwrapped else []
+    raw_specs = details_unwrapped.get("parameters", []) if details_unwrapped else []
+    raw_specs = raw_specs if isinstance(raw_specs, list) else []
     canonical_params = _extract_canonical_params(raw_specs)
 
     display_name, short, description, summary, help_text = _resolve_display_fields(
@@ -312,7 +310,7 @@ def build_search_doc(
         details_unwrapped=details_unwrapped,
         summary_unwrapped=summary_unwrapped,
         base_url=base_url,
-        is_internal=bool(s.get("isInternal", False)),
+        is_internal=str(s.get("fullName", "")).startswith("InternalQuestions."),
         details_error=details_error,
     )
     payload = _assemble_search_payload(payload_fields)

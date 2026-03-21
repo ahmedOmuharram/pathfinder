@@ -1,8 +1,9 @@
 import httpx
 
-from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -23,7 +24,7 @@ async def _fetch_searches_for_rt(client: VEuPathDBClient, rt_name: str) -> JSONA
     try:
         searches = await client.get_searches(rt_name)
         return [s.model_dump(by_alias=True) for s in searches]
-    except httpx.HTTPError, OSError, RuntimeError, ValueError:
+    except httpx.HTTPError, OSError, RuntimeError:
         return []
 
 
@@ -85,33 +86,34 @@ async def fetch_search_details(
     client: VEuPathDBClient,
     rt_name: str,
     search_name: str,
-    summary_unwrapped: JSONObject,
+    summary: WDKSearch | JSONObject,
 ) -> tuple[JSONObject, str | None]:
     details_error: str | None = None
-    details_unwrapped: JSONObject = {}
+    details_dict: JSONObject = {}
     try:
-        search_data = summary_unwrapped.get("searchData")
-        has_param_defs = any(
-            k in summary_unwrapped
-            for k in ("parameters", "paramSpecs", "parameterSpecs")
-        ) or (
-            isinstance(search_data, dict)
-            and any(
-                k in search_data for k in ("parameters", "paramSpecs", "parameterSpecs")
-            )
-        )
-        param_names = summary_unwrapped.get("paramNames")
-        if has_param_defs or (isinstance(param_names, list) and len(param_names) == 0):
-            details_unwrapped = summary_unwrapped
+        if isinstance(summary, WDKSearch):
+            if summary.parameters is not None:
+                details_dict = summary.model_dump(by_alias=True)
+            else:
+                response = await client.get_search_details(
+                    rt_name, search_name, expand_params=True
+                )
+                details_dict = response.search_data.model_dump(by_alias=True)
         else:
-            details = await client.get_search_details(
-                rt_name, search_name, expand_params=True
+            # Legacy dict path — check if it already has params
+            has_params = any(
+                k in summary for k in ("parameters", "paramSpecs", "parameterSpecs")
             )
-            details_unwrapped = (
-                unwrap_search_data(details if isinstance(details, dict) else {}) or {}
-            )
-    except (httpx.HTTPError, OSError, RuntimeError, ValueError, KeyError) as exc:
+            param_names = summary.get("paramNames")
+            if has_params or (isinstance(param_names, list) and len(param_names) == 0):
+                details_dict = summary
+            else:
+                response = await client.get_search_details(
+                    rt_name, search_name, expand_params=True
+                )
+                details_dict = response.search_data.model_dump(by_alias=True)
+    except (httpx.HTTPError, OSError, RuntimeError, AppError) as exc:
         details_error = str(exc)
-        details_unwrapped = {}
+        details_dict = {}
 
-    return details_unwrapped, details_error
+    return details_dict, details_error

@@ -404,45 +404,45 @@ class TestAdaptParamSpecsEdgeCases:
 class TestFindMissingRequiredParamsEdgeCases:
     def test_multi_pick_with_non_empty_json_string(self) -> None:
         """Non-empty JSON array string should not be flagged as missing."""
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": '["Plasmodium"]'})
         assert missing == []
 
     def test_multi_pick_with_none_value(self) -> None:
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": None})
         assert missing == ["p1"]
 
     def test_multi_pick_with_empty_string(self) -> None:
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": ""})
         assert missing == ["p1"]
 
     def test_value_is_zero(self) -> None:
         """Zero is falsy but should NOT be treated as missing for non-multi-pick."""
-        specs = [{"name": "p1", "type": "number", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="number", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": 0})
         # 0 is not in (None, "", [], {})
         assert missing == []
 
     def test_value_is_false(self) -> None:
         """Boolean False should NOT be treated as missing."""
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": False})
         # False is not in (None, "", [], {})
         assert missing == []
 
-    def test_type_case_insensitive(self) -> None:
-        """Type comparison uses .lower() so 'Multi-Pick-Vocabulary' works."""
-        specs = [
-            {"name": "p1", "type": "Multi-Pick-Vocabulary", "allowEmptyValue": False}
-        ]
+    def test_multi_pick_type_exact_match(self) -> None:
+        """Multi-pick-vocabulary type must match exactly for the multi-pick logic branch."""
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": "[]"})
         assert missing == ["p1"]
 

@@ -19,7 +19,8 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     resolve_wdk_user_id,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
+from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -127,66 +128,49 @@ class StrategyAPIBase:
         with ``countOnlyLeaves``, and expand any parent values to their leaves.
         """
         try:
-            raw_specs = await self._fetch_tree_param_specs(record_type, search_name)
-            if raw_specs is None:
+            response = await self.client.get_search_details(
+                record_type, search_name, expand_params=True
+            )
+            wdk_params = response.search_data.parameters
+            if not wdk_params:
                 return params
-            return self._expand_specs(raw_specs, params, search_name)
-        except OSError, RuntimeError, ValueError, KeyError:
+            return self._expand_specs(wdk_params, params, search_name)
+        except OSError, RuntimeError, AppError, KeyError:
             logger.debug("Failed to expand tree params (non-fatal)")
             return params
 
-    async def _fetch_tree_param_specs(
-        self, record_type: str, search_name: str
-    ) -> list[JSONValue] | None:
-        """Fetch parameter specs for tree expansion."""
-        search_def = await self.client.get(
-            f"/record-types/{record_type}/searches/{search_name}",
-            params={"expandParams": "true"},
-        )
-        if not isinstance(search_def, dict):
-            return None
-        search_data = search_def.get("searchData", search_def)
-        if not isinstance(search_data, dict):
-            return None
-        raw_specs = search_data.get("parameters", [])
-        if not isinstance(raw_specs, list):
-            return None
-        return raw_specs
-
     def _expand_specs(
         self,
-        raw_specs: list[JSONValue],
+        wdk_params: list[WDKParameter],
         params: dict[str, str],
         search_name: str,
     ) -> dict[str, str]:
-        """Expand tree param values using specs."""
+        """Expand tree param values using typed WDK parameter specs."""
         result = dict(params)
-        for spec in raw_specs:
-            if not isinstance(spec, dict):
+        for spec in wdk_params:
+            if spec.name not in result:
                 continue
-            name = str(spec.get("name", ""))
-            if name not in result:
+            if spec.type not in ("multi-pick-vocabulary", "single-pick-vocabulary"):
                 continue
-            if spec.get("type") != "multi-pick-vocabulary":
+            count_only_leaves = getattr(spec, "count_only_leaves", False)
+            if not count_only_leaves:
                 continue
-            if not spec.get("countOnlyLeaves"):
-                continue
-            vocab = spec.get("vocabulary")
+            vocab = getattr(spec, "vocabulary", None)
             if not isinstance(vocab, dict):
                 continue
-            expanded = self._expand_single_tree_param(vocab, result[name])
+            expanded = self._expand_single_tree_param(vocab, result[spec.name])
             if expanded is not None:
-                original_raw = result[name]
+                original_raw = result[spec.name]
                 original_values = self._parse_param_values(original_raw)
                 if expanded != [str(v) for v in original_values]:
                     logger.info(
                         "Expanded tree param to leaves",
-                        param=name,
+                        param=spec.name,
                         search=search_name,
                         original_count=len(original_values),
                         expanded_count=len(expanded),
                     )
-                    result[name] = json.dumps(expanded)
+                    result[spec.name] = json.dumps(expanded)
         return result
 
     def _parse_param_values(self, raw: str) -> list[JSONValue]:
@@ -257,27 +241,18 @@ class StrategyAPIBase:
             children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
             expanded = _expand_entries(entries, children_of, leaf_codes)
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
-        except OSError, RuntimeError, ValueError, KeyError:
+        except OSError, RuntimeError, AppError, KeyError:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 
     async def _fetch_indent_vocab(self, record_type: str) -> list[JSONValue]:
         """Fetch the phyletic_indent_map vocabulary."""
-        search_def = await self.client.get(
-            f"/record-types/{record_type}/searches/GenesByOrthologPattern",
-            params={"expandParams": "true"},
+        response = await self.client.get_search_details(
+            record_type, "GenesByOrthologPattern", expand_params=True
         )
-        if not isinstance(search_def, dict):
-            return []
-        search_data = search_def.get("searchData", search_def)
-        if not isinstance(search_data, dict):
-            return []
-        params = search_data.get("parameters", [])
-        if not isinstance(params, list):
-            return []
-        for spec in params:
-            if isinstance(spec, dict) and spec.get("name") == "phyletic_indent_map":
-                vocab = spec.get("vocabulary")
+        for param in response.search_data.parameters or []:
+            if param.name == "phyletic_indent_map":
+                vocab = getattr(param, "vocabulary", None)
                 if isinstance(vocab, list):
                     return vocab
         return []

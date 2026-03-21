@@ -39,6 +39,7 @@ from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.platform.config import Settings, get_settings
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
@@ -544,7 +545,7 @@ async def _run_task_node(
             graph_id=graph_id,
             dependency_context=dependency_context,
         )
-    except (OSError, ValueError, TypeError, KeyError, TimeoutError) as exc:
+    except (AppError, OSError, TimeoutError) as exc:
         logger.error(
             "Sub-kani task crashed",
             task=task_text,

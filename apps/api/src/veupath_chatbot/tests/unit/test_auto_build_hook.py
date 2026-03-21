@@ -20,6 +20,7 @@ from veupath_chatbot.domain.strategy.compile import (
     CompilationResult,
     StepTreeNode,
 )
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.parsing import parse_jsonish
 from veupath_chatbot.services.strategies.build import BuildResult
 
@@ -167,7 +168,7 @@ class TestAutoBuildResultFormat:
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
                 "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                side_effect=ValueError("WDK rejected the strategy"),
+                side_effect=WDKError("WDK rejected the strategy"),
             ),
         ):
             result = await agent.do_function_call(call, "tc1")
@@ -187,7 +188,7 @@ class TestAutoBuildResultFormat:
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
                 "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                side_effect=ValueError("WDK error"),
+                side_effect=WDKError("WDK error"),
             ),
         ):
             result = await agent.do_function_call(call, "tc1")
@@ -318,7 +319,7 @@ class TestAutoBuildEventEmission:
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
                 "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                side_effect=ValueError("WDK down"),
+                side_effect=WDKError("WDK down"),
             ),
         ):
             await agent.do_function_call(call, "tc1")

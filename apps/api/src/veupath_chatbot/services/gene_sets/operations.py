@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import Literal, cast
 from uuid import UUID, uuid4
 
-from veupath_chatbot.domain.strategy.tree import count_dict_nodes
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_strategy_api,
     get_wdk_client,
@@ -45,16 +44,6 @@ class GeneSetWdkContext:
     search_name: str | None = None
     record_type: str | None = None
     parameters: dict[str, str] | None = None
-
-
-# ---------------------------------------------------------------------------
-# Pure helpers (no I/O, no dependencies)
-# ---------------------------------------------------------------------------
-
-
-def count_steps_in_tree(node: object) -> int:
-    """Recursively count steps in a WDK strategy step tree."""
-    return count_dict_nodes(node)
 
 
 # ---------------------------------------------------------------------------
@@ -94,10 +83,7 @@ async def _build_enrichment_params_from_gene_ids(
 async def resolve_root_step_id(api: StrategyAPI, *, strategy_id: int) -> int | None:
     """Get the root step ID from a WDK strategy."""
     strategy = await api.get_strategy(strategy_id)
-    root_step_id = strategy.get("rootStepId")
-    if isinstance(root_step_id, int):
-        return root_step_id
-    return None
+    return strategy.root_step_id
 
 
 async def fetch_gene_ids_from_step(api: StrategyAPI, *, step_id: int) -> list[str]:
@@ -238,8 +224,7 @@ class GeneSetService:
     async def _count_strategy_steps(self, api: StrategyAPI, strategy_id: int) -> int:
         try:
             strategy = await api.get_strategy(strategy_id)
-            step_tree = strategy.get("stepTree")
-            return count_steps_in_tree(step_tree)
+            return len(strategy.steps)
         except AppError as exc:
             logger.warning(
                 "Failed to count strategy steps",
@@ -253,10 +238,10 @@ class GeneSetService:
         api: StrategyAPI,
         step_id: int,
         record_type: str | None,
-    ) -> tuple[str | None, str | None, JSONObject | None]:
+    ) -> tuple[str | None, str | None, dict[str, str] | None]:
         """Extract searchName, recordType, parameters from a WDK step."""
         search_name: str | None = None
-        parameters: JSONObject | None = None
+        parameters: dict[str, str] | None = None
         try:
             await api._ensure_session()
             step_data = await api.client.get(f"/users/{api.user_id}/steps/{step_id}")

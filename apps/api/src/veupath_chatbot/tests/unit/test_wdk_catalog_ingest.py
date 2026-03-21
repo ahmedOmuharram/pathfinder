@@ -3,7 +3,7 @@
 Covers:
   - fetch_record_types_and_searches with various WDK response shapes
   - fetch_search_details with summary data already present vs needing fetch
-  - ingest_site pipeline orchestration
+  - Typed WDKSearch path and legacy dict path
   - Edge cases: malformed record types, empty searches, dict-wrapped responses
 """
 
@@ -15,11 +15,24 @@ from veupath_chatbot.integrations.vectorstore.ingest.wdk_fetch import (
     fetch_record_types_and_searches,
     fetch_search_details,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKStringParam
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _make_search_response(search_data: dict[str, Any]) -> WDKSearchResponse:
+    """Build a WDKSearchResponse from a search data dict."""
+    return WDKSearchResponse(
+        search_data=WDKSearch.model_validate(search_data),
+        validation=WDKValidation(),
+    )
 
 
 def _mock_client(
@@ -39,7 +52,15 @@ def _mock_client(
         )
     else:
         client.get_searches = AsyncMock(return_value=[])
-    client.get_search_details = AsyncMock(return_value=search_details or {})
+    # Return a proper WDKSearchResponse when search_details are provided
+    if search_details is not None:
+        client.get_search_details = AsyncMock(
+            return_value=_make_search_response(search_details),
+        )
+    else:
+        client.get_search_details = AsyncMock(
+            return_value=_make_search_response({"urlSegment": "stub"}),
+        )
     return client
 
 
@@ -179,116 +200,149 @@ class TestFetchRecordTypesAndSearches:
 class TestFetchSearchDetails:
     """Test the fetch_search_details function."""
 
-    async def test_uses_summary_when_parameters_present(self) -> None:
-        """If summary already has parameters, no fetch is needed."""
-        summary_unwrapped = {
+    # ---- Legacy dict path ----
+
+    async def test_dict_uses_summary_when_parameters_present(self) -> None:
+        """If dict summary already has parameters, no fetch is needed."""
+        summary = {
             "searchName": "GenesByTaxon",
             "parameters": [{"name": "organism"}],
         }
         client = _mock_client()
 
         details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+            client, "gene", "GenesByTaxon", summary
         )
 
         assert error is None
-        assert details is summary_unwrapped
+        assert details is summary
         client.get_search_details.assert_not_called()
 
-    async def test_uses_summary_when_param_specs_present(self) -> None:
-        summary_unwrapped = {
+    async def test_dict_uses_summary_when_param_specs_present(self) -> None:
+        summary = {
             "searchName": "GenesByTaxon",
             "paramSpecs": [{"name": "organism"}],
         }
         client = _mock_client()
 
         details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+            client, "gene", "GenesByTaxon", summary
         )
 
         assert error is None
-        assert details is summary_unwrapped
+        assert details is summary
 
-    async def test_uses_summary_when_empty_param_names(self) -> None:
+    async def test_dict_uses_summary_when_empty_param_names(self) -> None:
         """Searches with empty paramNames list need no further fetch."""
-        summary_unwrapped = {
+        summary = {
             "searchName": "AllGenes",
             "paramNames": [],
         }
         client = _mock_client()
 
         details, error = await fetch_search_details(
-            client, "gene", "AllGenes", summary_unwrapped
+            client, "gene", "AllGenes", summary
         )
 
         assert error is None
-        assert details is summary_unwrapped
+        assert details is summary
 
-    async def test_fetches_details_when_no_params_in_summary(self) -> None:
-        summary_unwrapped = {"searchName": "GenesByTaxon"}
-        details_response = {
+    async def test_dict_fetches_details_when_no_params(self) -> None:
+        """Dict without param keys triggers API fetch."""
+        summary = {"searchName": "GenesByTaxon"}
+        search_data = {
+            "urlSegment": "GenesByTaxon",
             "displayName": "Genes by Taxon",
-            "parameters": [{"name": "organism"}],
         }
-        client = _mock_client(search_details=details_response)
+        client = _mock_client(search_details=search_data)
 
-        _details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+        details, error = await fetch_search_details(
+            client, "gene", "GenesByTaxon", summary
         )
 
         assert error is None
         client.get_search_details.assert_called_once()
+        # Details come from WDKSearchResponse.search_data.model_dump()
+        assert details.get("displayName") == "Genes by Taxon"
 
-    async def test_returns_error_on_fetch_failure(self) -> None:
-        summary_unwrapped = {"searchName": "GenesByTaxon"}
+    async def test_dict_returns_error_on_fetch_failure(self) -> None:
+        summary = {"searchName": "GenesByTaxon"}
         client = MagicMock()
         client.get_search_details = AsyncMock(
             side_effect=RuntimeError("Connection refused")
         )
 
         details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+            client, "gene", "GenesByTaxon", summary
         )
 
         assert error is not None
         assert "Connection refused" in error
         assert details == {}
 
-    async def test_search_data_in_details_is_unwrapped(self) -> None:
-        """The searchData envelope from WDK should be unwrapped."""
-        summary_unwrapped = {"searchName": "GenesByTaxon"}
-        details_response = {
-            "searchData": {
-                "displayName": "Genes by Taxon",
-                "parameters": [{"name": "organism"}],
-            }
-        }
-        client = _mock_client(search_details=details_response)
+    # ---- Typed WDKSearch path ----
 
-        details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+    async def test_typed_search_with_parameters_skips_fetch(self) -> None:
+        """WDKSearch with parameters set returns model_dump without API call."""
+        typed_summary = WDKSearch(
+            url_segment="GenesByTaxon",
+            display_name="Genes by Taxon",
+            parameters=[
+                WDKStringParam(name="organism"),
+            ],
         )
-
-        assert error is None
-        # The details should be unwrapped from searchData
-        assert details.get("displayName") == "Genes by Taxon"
-
-    async def test_has_param_defs_from_search_data(self) -> None:
-        """Parameters nested inside searchData should still be detected."""
-        summary_unwrapped = {
-            "searchName": "GenesByTaxon",
-            "searchData": {
-                "parameters": [{"name": "organism"}],
-            },
-        }
         client = _mock_client()
 
-        _details, error = await fetch_search_details(
-            client, "gene", "GenesByTaxon", summary_unwrapped
+        details, error = await fetch_search_details(
+            client, "gene", "GenesByTaxon", typed_summary
         )
 
         assert error is None
-        # Should recognize that param defs exist and not fetch
+        assert details["urlSegment"] == "GenesByTaxon"
+        assert details["displayName"] == "Genes by Taxon"
+        assert isinstance(details["parameters"], list)
+        assert len(details["parameters"]) == 1
+        client.get_search_details.assert_not_called()
+
+    async def test_typed_search_without_parameters_fetches(self) -> None:
+        """WDKSearch with parameters=None triggers API fetch."""
+        typed_summary = WDKSearch(
+            url_segment="GenesByTaxon",
+            display_name="Genes by Taxon",
+            parameters=None,
+        )
+        search_data = {
+            "urlSegment": "GenesByTaxon",
+            "displayName": "Genes by Taxon (detailed)",
+        }
+        client = _mock_client(search_details=search_data)
+
+        details, error = await fetch_search_details(
+            client, "gene", "GenesByTaxon", typed_summary
+        )
+
+        assert error is None
+        client.get_search_details.assert_called_once()
+        assert details["displayName"] == "Genes by Taxon (detailed)"
+
+    async def test_typed_search_fetch_failure_returns_error(self) -> None:
+        """WDKSearch path returns error on API failure."""
+        typed_summary = WDKSearch(
+            url_segment="GenesByTaxon",
+            parameters=None,
+        )
+        client = MagicMock()
+        client.get_search_details = AsyncMock(
+            side_effect=RuntimeError("timeout")
+        )
+
+        details, error = await fetch_search_details(
+            client, "gene", "GenesByTaxon", typed_summary
+        )
+
+        assert error is not None
+        assert "timeout" in error
+        assert details == {}
 
 
 # ---------------------------------------------------------------------------

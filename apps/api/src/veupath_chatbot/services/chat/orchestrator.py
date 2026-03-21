@@ -295,7 +295,7 @@ async def _run_stream_loop(
         try:
             site = get_site(site_id)
             wdk_url = site.strategy_url(projection.wdk_strategy_id)
-        except (AppError, ValueError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to build WDK URL",
                 site_id=site_id,

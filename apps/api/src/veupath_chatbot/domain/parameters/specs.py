@@ -226,7 +226,7 @@ def find_input_step_param(specs: dict[str, ParamSpecNormalized]) -> str | None:
 
 
 def find_missing_required_params(
-    param_specs: JSONArray,
+    param_specs: dict[str, ParamSpecNormalized],
     parameters: JSONObject,
 ) -> list[str]:
     """Find required parameters that are missing or empty in the given values.
@@ -234,38 +234,23 @@ def find_missing_required_params(
     Shared by ``validation.py`` and ``param_validation.py`` to keep the
     required-check logic in a single place.
 
-    :param param_specs: Raw WDK parameter spec dicts.
+    :param param_specs: Normalized parameter specs (from ``adapt_param_specs``
+        or ``adapt_param_specs_from_search``).
     :param parameters: Parameter values to check.
     :returns: List of missing required parameter names.
     """
-    required_specs: list[JSONObject] = []
-    for p in param_specs:
-        if not isinstance(p, dict):
-            continue
-        allow_empty_raw = p.get("allowEmptyValue")
-        allow_empty = (
-            bool(allow_empty_raw) if isinstance(allow_empty_raw, bool) else True
-        )
-        min_selected_raw = p.get("minSelectedCount")
-        min_selected = min_selected_raw if isinstance(min_selected_raw, int) else 0
-        if not allow_empty or min_selected >= 1:
-            required_specs.append(p)
-
     missing: list[str] = []
-    for spec in required_specs:
-        if not isinstance(spec, dict):
-            continue
-        name_raw = spec.get("name")
-        name = name_raw if isinstance(name_raw, str) else None
-        if not name:
+    for name, spec in param_specs.items():
+        is_required = not spec.allow_empty_value or (
+            spec.min_selected_count is not None and spec.min_selected_count >= 1
+        )
+        if not is_required:
             continue
         if name not in parameters:
             missing.append(name)
             continue
         value = parameters.get(name)
-        type_raw = spec.get("type")
-        param_type = (type_raw if isinstance(type_raw, str) else "").lower()
-        if param_type == "multi-pick-vocabulary":
+        if spec.param_type == "multi-pick-vocabulary":
             if value in (None, "", "[]") or (
                 isinstance(value, list) and len(value) == 0
             ):

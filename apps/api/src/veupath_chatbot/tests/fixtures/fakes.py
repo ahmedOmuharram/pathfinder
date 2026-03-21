@@ -4,7 +4,10 @@ Consolidates fake/stub classes that were duplicated across 3+ test files.
 Import from here instead of redefining in each test module.
 """
 
+import pydantic
+
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.platform.errors import DataParsingError
 
 
 class FakeResultToolsSession:
@@ -25,6 +28,10 @@ class FakeStrategyAPI:
     """Fake strategy API that returns a canned WDKAnswer or raises an error.
 
     Used by ResultTools tests for get_step_answer.
+
+    Mirrors the real ``_standard_report`` behavior: pydantic validation
+    errors are converted to ``DataParsingError`` (an ``AppError`` subclass)
+    so that the caller's ``except (AppError, OSError)`` handler catches them.
     """
 
     def __init__(self, response: object = None, error: Exception | None = None) -> None:
@@ -41,9 +48,13 @@ class FakeStrategyAPI:
         if isinstance(self._response, WDKAnswer):
             return self._response
         if isinstance(self._response, dict):
-            return WDKAnswer.model_validate(self._response)
+            try:
+                return WDKAnswer.model_validate(self._response)
+            except pydantic.ValidationError as e:
+                msg = f"Unexpected WDK answer response: {e}"
+                raise DataParsingError(msg) from e
         msg = f"Cannot parse response as WDKAnswer: {type(self._response).__name__}"
-        raise ValueError(msg)
+        raise DataParsingError(msg)
 
 
 class FakeResultsAPI:

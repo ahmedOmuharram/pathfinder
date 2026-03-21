@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.services.catalog.param_resolution import (
     get_search_parameters,
@@ -124,7 +125,7 @@ class TestGetSearchParametersPhyleticTrimming:
     @pytest.mark.asyncio
     async def test_structural_params_excluded(self) -> None:
         result = await get_search_parameters(
-            "plasmodb", "transcript", "GenesByOrthologPattern"
+            SearchContext("plasmodb", "transcript", "GenesByOrthologPattern")
         )
         names = _param_names(result)
 
@@ -138,7 +139,7 @@ class TestGetSearchParametersPhyleticTrimming:
     @pytest.mark.asyncio
     async def test_essential_params_present(self) -> None:
         result = await get_search_parameters(
-            "plasmodb", "transcript", "GenesByOrthologPattern"
+            SearchContext("plasmodb", "transcript", "GenesByOrthologPattern")
         )
         names = _param_names(result)
 
@@ -150,7 +151,7 @@ class TestGetSearchParametersPhyleticTrimming:
     @pytest.mark.asyncio
     async def test_profile_pattern_help_enriched(self) -> None:
         result = await get_search_parameters(
-            "plasmodb", "transcript", "GenesByOrthologPattern"
+            SearchContext("plasmodb", "transcript", "GenesByOrthologPattern")
         )
         pp = _find_param(result, "profile_pattern")
 
@@ -172,7 +173,7 @@ class TestGetSearchParametersNormalSearch:
 
     @pytest.mark.asyncio
     async def test_genes_by_taxon_unaffected(self) -> None:
-        result = await get_search_parameters("plasmodb", "transcript", "GenesByTaxon")
+        result = await get_search_parameters(SearchContext("plasmodb", "transcript", "GenesByTaxon"))
         names = _param_names(result)
 
         # GenesByTaxon has organism param — it should be present

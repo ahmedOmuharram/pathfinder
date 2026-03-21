@@ -165,9 +165,23 @@ def _register_gene_id_fetch(
         },
     )
     # Lazy-fetch of strategy detail triggers search details call for parameter
-    # normalisation; return empty to avoid full schema setup in tests.
+    # normalisation; return valid WDKSearchResponse.
+    _valid_search_response: dict = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+    wdk_respx.get(url__regex=rf"{_BASE}/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search_response
+    )
     wdk_respx.post(url__regex=rf"{_BASE}/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+        200, json=_valid_search_response
     )
 
 

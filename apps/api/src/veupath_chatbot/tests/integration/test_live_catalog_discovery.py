@@ -20,6 +20,7 @@ from collections.abc import AsyncGenerator
 import pytest
 
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.types import JSONArray
 from veupath_chatbot.services.catalog.searches import (
@@ -404,12 +405,8 @@ class TestGetRawSearches:
 
         # Spot-check structure of first item
         first = result[0]
-        assert isinstance(first, dict), "Each raw search should be a dict"
-        # WDK search objects have either urlSegment or name (or both)
-        has_identifier = "urlSegment" in first or "name" in first
-        assert has_identifier, (
-            f"Raw search must have 'urlSegment' or 'name', got keys: {list(first.keys())}"
-        )
+        assert isinstance(first, WDKSearch), "Each raw search should be a WDKSearch"
+        assert first.url_segment, "Raw search must have url_segment"
 
     @pytest.mark.asyncio
     async def test_toxodb_raw_transcript_searches(self) -> None:
@@ -418,11 +415,8 @@ class TestGetRawSearches:
         assert len(result) > 0, "ToxoDB should have raw transcript searches"
 
         first = result[0]
-        assert isinstance(first, dict), "Each raw search should be a dict"
-        has_identifier = "urlSegment" in first or "name" in first
-        assert has_identifier, (
-            f"Raw search must have 'urlSegment' or 'name', got keys: {list(first.keys())}"
-        )
+        assert isinstance(first, WDKSearch), "Each raw search should be a WDKSearch"
+        assert first.url_segment, "Raw search must have url_segment"
 
 
 # ===========================================================================

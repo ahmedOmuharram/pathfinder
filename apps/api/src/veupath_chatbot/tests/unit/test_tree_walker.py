@@ -9,7 +9,6 @@ from veupath_chatbot.domain.strategy.tree import (
     collect_dict_nodes,
     collect_plan_leaves,
     collect_plan_nodes,
-    count_dict_nodes,
     map_dict_tree,
     walk_dict_tree,
     walk_plan_tree,
@@ -158,28 +157,6 @@ class TestCollectDictLeaves:
         ids = {str(n["id"]) for n in leaves}
         assert "C1" not in ids
 
-
-# =========================================================================
-# count_dict_nodes
-# =========================================================================
-
-
-class TestCountDictNodes:
-    def test_single_leaf(self) -> None:
-        assert count_dict_nodes(_leaf("L1")) == 1
-
-    def test_combine(self) -> None:
-        tree = _combine("C1", _leaf("L1"), _leaf("L2"))
-        assert count_dict_nodes(tree) == 3
-
-    def test_deep_tree(self) -> None:
-        inner = _combine("C2", _leaf("L1"), _leaf("L2"))
-        tree = _combine("C1", inner, _leaf("L3"))
-        assert count_dict_nodes(tree) == 5
-
-    def test_non_dict_returns_zero(self) -> None:
-        assert count_dict_nodes("not a dict") == 0  # type: ignore[arg-type]
-        assert count_dict_nodes(None) == 0  # type: ignore[arg-type]
 
 
 # =========================================================================

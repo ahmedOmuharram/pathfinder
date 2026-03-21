@@ -4,6 +4,10 @@ import asyncio
 import copy
 from typing import TypedDict
 
+from veupath_chatbot.domain.parameters.specs import (
+    ParamSpecNormalized,
+    adapt_param_specs_from_search,
+)
 from veupath_chatbot.domain.strategy.tree import collect_dict_leaves, walk_dict_tree
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.errors import AppError
@@ -62,21 +66,19 @@ def _safe_float(v: object) -> float | None:
 
 
 def _build_param_spec(
-    p: JSONObject,
+    spec: ParamSpecNormalized,
     node_params: JSONObject,
 ) -> _NumericParamSpec | None:
-    """Build a numeric param spec dict from a WDK param object, or None if not numeric."""
-    pname = str(p.get("name", ""))
-    ptype = str(p.get("type", ""))
-    if ptype not in ("number", "string"):
+    """Build a numeric param spec from a normalized spec, or None if not numeric."""
+    if spec.param_type not in ("number", "string"):
         return None
-    if not (p.get("isNumber") is True or ptype == "number"):
+    if not (spec.is_number or spec.param_type == "number"):
         return None
 
-    min_val = _safe_float(p.get("min"))
-    max_val = _safe_float(p.get("max"))
-    current = _safe_float(node_params.get(pname))
-    initial = _safe_float(p.get("initialDisplayValue"))
+    min_val = spec.min_value
+    max_val = spec.max_value
+    current = _safe_float(node_params.get(spec.name))
+    initial = _safe_float(spec.initial_display_value)
     ref = current if current is not None else initial
 
     if min_val is None:
@@ -87,19 +89,19 @@ def _build_param_spec(
         max_val = min_val + 1.0
 
     return {
-        "name": pname,
+        "name": spec.name,
         "min": min_val,
         "max": max_val,
         "current": ref if ref is not None else (min_val + max_val) / 2,
     }
 
 
-async def _fetch_search_params(
+async def _fetch_search_specs(
     site_id: str,
     record_type: str,
     search_name: str,
-) -> list[JSONObject] | None:
-    """Fetch WDK search parameter list, or None on failure."""
+) -> dict[str, ParamSpecNormalized] | None:
+    """Fetch normalized WDK search parameter specs, or None on failure."""
     api = get_strategy_api(site_id)
     try:
         response = await api.client.get_search_details(record_type, search_name)
@@ -111,10 +113,7 @@ async def _fetch_search_params(
             error=str(exc),
         )
         return None
-    params = response.search_data.parameters
-    if params is None:
-        return None
-    return [p.model_dump(by_alias=True) for p in params]
+    return adapt_param_specs_from_search(response.search_data)
 
 
 async def _discover_numeric_params(
@@ -127,8 +126,8 @@ async def _discover_numeric_params(
     if not search_name:
         return []
 
-    params = await _fetch_search_params(site_id, record_type, search_name)
-    if params is None:
+    specs = await _fetch_search_specs(site_id, record_type, search_name)
+    if specs is None:
         return []
 
     node_params = leaf.get("parameters", {})
@@ -136,12 +135,10 @@ async def _discover_numeric_params(
         node_params = {}
 
     result: list[_NumericParamSpec] = []
-    for p in params:
-        if not isinstance(p, dict):
-            continue
-        spec = _build_param_spec(p, node_params)
-        if spec is not None:
-            result.append(spec)
+    for spec in specs.values():
+        built = _build_param_spec(spec, node_params)
+        if built is not None:
+            result.append(built)
 
     return result
 

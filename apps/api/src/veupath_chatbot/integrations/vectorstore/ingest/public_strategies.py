@@ -43,6 +43,7 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
 )
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
@@ -365,7 +366,7 @@ async def ingest_public_strategies(run_cfg: IngestRunConfig) -> None:
         )
         try:
             await ingest_site(cfg)
-        except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
+        except (httpx.HTTPError, OSError, RuntimeError, AppError) as exc:
             _write_jsonl(
                 run_cfg.report_path,
                 {

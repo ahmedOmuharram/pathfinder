@@ -1,12 +1,10 @@
-"""WDK → AST conversion: parse WDK strategy payloads into internal AST.
+"""WDK → AST conversion: parse typed WDK strategy models into internal AST.
 
-Pure conversion functions (no I/O except `_normalize_synced_parameters` which
+Pure conversion functions (no I/O except ``normalize_synced_parameters`` which
 fetches param specs from WDK).
 
 Public API:
-- ``build_snapshot_from_wdk`` — full WDK strategy → (AST, steps_data, step_counts)
-- ``extract_wdk_is_saved`` — extract isSaved flag from WDK payload
-- ``parse_wdk_strategy_id`` — extract int ID from WDK list-strategies item
+- ``build_snapshot_from_wdk`` — WDKStrategyDetails → (AST, steps_data, step_counts)
 - ``normalize_synced_parameters`` — enrich AST nodes with normalized param values
 """
 
@@ -18,7 +16,12 @@ from veupath_chatbot.domain.strategy.ast import (
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKStep,
+    WDKStepTree,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
@@ -32,134 +35,40 @@ from .step_builders import build_steps_data_from_ast
 logger = get_logger(__name__)
 
 
-# ── Public helpers ─────────────────────────────────────────────────────
-
-
-def extract_wdk_is_saved(payload: JSONObject) -> bool:
-    """Extract ``payload["isSaved"]`` with isinstance guard, defaults False."""
-    raw = payload.get("isSaved") if isinstance(payload, dict) else None
-    return bool(raw) if isinstance(raw, bool) else False
-
-
-def parse_wdk_strategy_id(item: JSONObject) -> int | None:
-    """Extract integer WDK strategy ID from a list-strategies item.
-
-    WDK's ``StrategyFormatter`` emits ``strategyId`` (``JsonKeys.STRATEGY_ID``)
-    as a Java long (always an int in JSON).
-    """
-    wdk_id = item.get("strategyId")
-    if isinstance(wdk_id, int):
-        return wdk_id
-    return None
-
-
 # ── Internal conversion helpers ────────────────────────────────────────
 
 
-def extract_record_type(wdk_strategy: JSONObject) -> str:
-    """Extract the record type (urlSegment) from a WDK strategy payload."""
-    value = wdk_strategy.get("recordClassName")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    msg = (
-        f"WDK strategy is missing a valid 'recordClassName' "
-        f"(got {type(value).__name__}: {value!r})"
-    )
-    raise DataParsingError(msg)
-
-
-def get_step_info(steps: JSONObject, step_id: int) -> JSONObject:
-    """Look up a step object from the WDK ``steps`` dict."""
-    result = steps.get(str(step_id))
-    if isinstance(result, dict):
-        return result
-    msg = (
-        f"Step {step_id} not found in WDK steps dict "
-        f"(available keys: {list(steps.keys())[:20]})"
-    )
-    raise DataParsingError(msg)
-
-
-def extract_operator(parameters: JSONObject) -> str | None:
-    for key, value in (parameters or {}).items():
-        if "operator" not in str(key).lower():
-            continue
-        if isinstance(value, str):
+def _extract_operator(parameters: dict[str, str]) -> str | None:
+    """Find the boolean operator in a combine step's parameter dict."""
+    for key, value in parameters.items():
+        if "operator" in key.lower():
             return value
-        if isinstance(value, list) and value:
-            return str(value[0])
     return None
 
 
-def extract_estimated_size(step_info: JSONObject) -> int | None:
-    """Extract the result count from a WDK step object."""
-    value = step_info.get("estimatedSize")
-    if isinstance(value, int):
-        return value
-    return None
-
-
-def build_node_from_wdk(
-    step_tree: JSONObject,
-    steps: JSONObject,
+def _build_node(
+    tree_node: WDKStepTree,
+    steps: dict[str, WDKStep],
     record_type: str,
 ) -> PlanStepNode:
-    """Recursively build a ``PlanStepNode`` tree from WDK stepTree + steps."""
-    step_id_value = step_tree.get("stepId")
-    if not isinstance(step_id_value, int):
+    """Recursively build a ``PlanStepNode`` tree from typed WDK models."""
+    step_id = tree_node.step_id
+    step = steps.get(str(step_id))
+    if step is None:
         msg = (
-            f"Expected int 'stepId' in stepTree node, got "
-            f"{type(step_id_value).__name__}: {step_id_value!r}"
+            f"Step {step_id} not found in WDK steps dict "
+            f"(available keys: {list(steps.keys())[:20]})"
         )
         raise DataParsingError(msg)
-    step_id: int = step_id_value
 
-    step_info = get_step_info(steps, step_id)
+    search_name = step.search_name
+    parameters: JSONObject = dict(step.search_config.parameters)
+    display_name = step.custom_name or step.display_name or None
 
-    search_name_value = step_info.get("searchName")
-    if not isinstance(search_name_value, str) or not search_name_value:
-        msg = (
-            f"Step {step_id} is missing a valid 'searchName' "
-            f"(got {type(search_name_value).__name__}: {search_name_value!r})"
-        )
-        raise DataParsingError(msg)
-    search_name: str = search_name_value
-
-    search_config_value = step_info.get("searchConfig")
-    if not isinstance(search_config_value, dict):
-        msg = f"Step {step_id} is missing 'searchConfig'"
-        raise DataParsingError(msg)
-    search_config = as_json_object(search_config_value)
-    parameters_value = search_config.get("parameters")
-    parameters: JSONObject = (
-        as_json_object(parameters_value) if isinstance(parameters_value, dict) else {}
-    )
-
-    custom_name = step_info.get("customName")
-    display_name_value = step_info.get("displayName")
-    display_name: str | None = (
-        str(custom_name)
-        if isinstance(custom_name, str) and custom_name
-        else str(display_name_value)
-        if isinstance(display_name_value, str) and display_name_value
-        else None
-    )
-
-    primary_input_value = step_tree.get("primaryInput")
-    secondary_input_value = step_tree.get("secondaryInput")
-    if primary_input_value and secondary_input_value:
-        if not isinstance(primary_input_value, dict) or not isinstance(
-            secondary_input_value, dict
-        ):
-            msg = "primaryInput and secondaryInput must be objects"
-            raise DataParsingError(msg)
-        left = build_node_from_wdk(
-            as_json_object(primary_input_value), steps, record_type
-        )
-        right = build_node_from_wdk(
-            as_json_object(secondary_input_value), steps, record_type
-        )
-        raw_operator = extract_operator(parameters)
+    if tree_node.primary_input and tree_node.secondary_input:
+        left = _build_node(tree_node.primary_input, steps, record_type)
+        right = _build_node(tree_node.secondary_input, steps, record_type)
+        raw_operator = _extract_operator(step.search_config.parameters)
         if raw_operator is None:
             msg = (
                 f"Combine step {step_id} has no boolean operator in "
@@ -174,13 +83,8 @@ def build_node_from_wdk(
             display_name=display_name,
             id=str(step_id),
         )
-    if primary_input_value:
-        if not isinstance(primary_input_value, dict):
-            msg = "primaryInput must be an object"
-            raise DataParsingError(msg)
-        input_node = build_node_from_wdk(
-            as_json_object(primary_input_value), steps, record_type
-        )
+    if tree_node.primary_input:
+        input_node = _build_node(tree_node.primary_input, steps, record_type)
         return PlanStepNode(
             search_name=search_name,
             primary_input=input_node,
@@ -196,10 +100,13 @@ def build_node_from_wdk(
     )
 
 
+# ── Public API ─────────────────────────────────────────────────────────
+
+
 def build_snapshot_from_wdk(
-    wdk_strategy: JSONObject,
+    wdk_strategy: WDKStrategyDetails,
 ) -> tuple[StrategyAST, JSONArray, JSONObject]:
-    """Convert a WDK strategy payload into an internal AST, steps list, and step counts.
+    """Convert a typed WDK strategy into an internal AST, steps list, and step counts.
 
     The steps list is used only for parameter normalization enrichment ---
     steps are derived from plan at read time and not persisted.
@@ -208,30 +115,18 @@ def build_snapshot_from_wdk(
     values from the WDK response, enabling zero-cost count display for
     WDK-linked strategies.
     """
-    step_tree_value = wdk_strategy.get("stepTree")
-    if not isinstance(step_tree_value, dict):
-        msg = "WDK strategy is missing 'stepTree'"
+    record_type = wdk_strategy.record_class_name or ""
+    if not record_type.strip():
+        msg = "WDK strategy is missing a valid 'recordClassName'"
         raise DataParsingError(msg)
-    step_tree = as_json_object(step_tree_value)
+    record_type = record_type.strip()
 
-    steps_value = wdk_strategy.get("steps")
-    if not isinstance(steps_value, dict):
-        msg = f"WDK strategy is missing 'steps' dict (got {type(steps_value).__name__})"
-        raise DataParsingError(msg)
-    steps: JSONObject = as_json_object(steps_value)
-
-    record_type = extract_record_type(wdk_strategy)
-
-    root = build_node_from_wdk(step_tree, steps, record_type)
-    name_value = wdk_strategy.get("name")
-    name = str(name_value) if isinstance(name_value, str) else None
-    description_value = wdk_strategy.get("description")
-    description = str(description_value) if isinstance(description_value, str) else None
+    root = _build_node(wdk_strategy.step_tree, wdk_strategy.steps, record_type)
     ast = StrategyAST(
         record_type=record_type,
         root=root,
-        name=name,
-        description=description,
+        name=wdk_strategy.name or None,
+        description=wdk_strategy.description or None,
     )
 
     steps_data = build_steps_data_from_ast(ast)
@@ -251,14 +146,15 @@ def build_snapshot_from_wdk(
 
         if wdk_step_id is None:
             continue
-        step_info_raw = steps.get(str(wdk_step_id))
-        if isinstance(step_info_raw, dict):
-            count = extract_estimated_size(as_json_object(step_info_raw))
-            if count is not None:
-                step["resultCount"] = count
-                step_counts[str(wdk_step_id)] = count
+        wdk_step = wdk_strategy.steps.get(str(wdk_step_id))
+        if wdk_step is not None and wdk_step.estimated_size is not None:
+            step["resultCount"] = wdk_step.estimated_size
+            step_counts[str(wdk_step_id)] = wdk_step.estimated_size
 
     return ast, steps_data, step_counts
+
+
+# ── Parameter normalization ────────────────────────────────────────────
 
 
 async def _load_search_spec(
@@ -348,7 +244,7 @@ async def normalize_synced_parameters(
         try:
             normalizer = ParameterNormalizer(specs)
             normalized = normalizer.normalize(step.parameters or {})
-        except (ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to normalize synced parameters",
                 record_type=record_type,

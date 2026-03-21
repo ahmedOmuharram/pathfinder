@@ -9,11 +9,15 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping
 
+import pydantic
+
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.specs import (
+    ParamSpecNormalized,
     adapt_param_specs,
-    unwrap_search_data,
+    adapt_param_specs_from_search,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -77,7 +81,7 @@ def _validate_node_params(node: JSONObject) -> JSONObject:
 
 
 async def _load_and_cache_spec(
-    specs_cache: dict[tuple[str, str, str], JSONObject],
+    specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]],
     load_search_details: Callable[
         [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
     ],
@@ -85,30 +89,40 @@ async def _load_and_cache_spec(
     name: str,
     site_id: str,
     params: JSONObject,
-) -> JSONObject:
+) -> dict[str, ParamSpecNormalized]:
     """Load search spec into cache if not already present, then return it."""
     ctx_raw = json.dumps(params, sort_keys=True, default=str)
     ctx_hash = hashlib.sha256(ctx_raw.encode("utf-8")).hexdigest()
     cache_key = (record_type, name, ctx_hash)
-    details = specs_cache.get(cache_key)
-    if details is None:
-        try:
-            details = await load_search_details(record_type, name, params)
-        except Exception as exc:
-            raise ValidationError(
-                title="Failed to load search metadata",
-                detail=f"Unable to load parameter metadata for '{name}' ({record_type}).",
-                errors=[
-                    {
-                        "searchName": name,
-                        "recordType": record_type,
-                        "siteId": site_id,
-                    }
-                ],
-            ) from exc
-        raw = unwrap_search_data(details) or {}
-        specs_cache[cache_key] = raw if isinstance(raw, dict) else {}
-    return specs_cache[cache_key]
+    cached = specs_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        details = await load_search_details(record_type, name, params)
+    except Exception as exc:
+        raise ValidationError(
+            title="Failed to load search metadata",
+            detail=f"Unable to load parameter metadata for '{name}' ({record_type}).",
+            errors=[
+                {
+                    "searchName": name,
+                    "recordType": record_type,
+                    "siteId": site_id,
+                }
+            ],
+        ) from exc
+    # Try typed parsing first; fall back to dict-based adaptation
+    try:
+        response = WDKSearchResponse.model_validate(details)
+        spec_map = adapt_param_specs_from_search(response.search_data)
+    except (pydantic.ValidationError, TypeError, KeyError, AttributeError):
+        # Inline unwrap: if the payload has a searchData wrapper, use it
+        raw = details if isinstance(details, dict) else {}
+        inner = raw.get("searchData")
+        payload = inner if isinstance(inner, dict) else raw
+        spec_map = adapt_param_specs(payload)
+    specs_cache[cache_key] = spec_map
+    return spec_map
 
 
 async def canonicalize_plan_parameters(
@@ -131,7 +145,7 @@ async def canonicalize_plan_parameters(
 
     # NOTE: search details can be context-dependent (dependent vocabularies).
     # Cache by (record_type, search_name, context_hash) to avoid incorrect reuse.
-    specs_cache: dict[tuple[str, str, str], JSONObject] = {}
+    specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]] = {}
 
     async def canonicalize_node(node: JSONObject) -> JSONObject:
         name = _validate_node_search_name(node)
@@ -151,10 +165,9 @@ async def canonicalize_plan_parameters(
             _strip_combine_bq_keys(params)
             node["parameters"] = params
         else:
-            details = await _load_and_cache_spec(
+            spec_map = await _load_and_cache_spec(
                 specs_cache, load_search_details, record_type, name, site_id, params
             )
-            spec_map = adapt_param_specs(details if isinstance(details, dict) else {})
             canonicalizer = ParameterCanonicalizer(spec_map)
             node["parameters"] = canonicalizer.canonicalize(params)
 

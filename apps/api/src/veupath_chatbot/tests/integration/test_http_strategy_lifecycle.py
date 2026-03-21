@@ -195,9 +195,23 @@ async def test_delete_wdk_linked_strategy_does_not_call_wdk_by_default(
         200, json=step_get_response(step_id=100)
     )
     # Lazy-fetch of strategy detail triggers search details call for parameter
-    # normalisation during GET /strategies/{id}; return empty schema.
+    # normalisation during GET /strategies/{id}; return valid WDKSearchResponse.
+    _valid_search_response: dict = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+    wdk_respx.get(url__regex=rf"{base}/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search_response
+    )
     wdk_respx.post(url__regex=rf"{base}/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+        200, json=_valid_search_response
     )
 
     sync_resp = await authed_client.post(
@@ -323,15 +337,29 @@ async def test_open_wdk_strategy_imports_full_plan(
         "lastModified": "2026-03-06T00:00:00Z",
     }
 
+    _valid_search_response_900: dict = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
     wdk_respx.get(f"{base}/users/guest/strategies/900").respond(200, json=wdk_detail)
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})
-    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+    wdk_respx.get(url__regex=r".*/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search_response_900
     )
-    wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
+    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
+        200, json=_valid_search_response_900
+    )
 
     # Open the WDK strategy
     open_resp = await authed_client.post(
@@ -390,14 +418,28 @@ async def test_open_same_wdk_strategy_twice_reuses_projection(
     }
 
     wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
+    _valid_search_response_901: dict = {
+        "searchData": {
+            "urlSegment": "mock",
+            "fullName": "Mock.mock",
+            "displayName": "Mock",
+            "paramNames": [],
+            "groups": [],
+            "parameters": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
     wdk_respx.get(f"{base}/users/guest/strategies/901").respond(200, json=wdk_detail)
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})
-    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
-        200, json={"searchData": {}}
+    wdk_respx.get(url__regex=r".*/record-types/.*/searches/[^/]+$").respond(
+        200, json=_valid_search_response_901
     )
-    wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
+    wdk_respx.post(url__regex=r".*/record-types/.*/searches/.*").respond(
+        200, json=_valid_search_response_901
+    )
 
     # Open once
     open1 = await authed_client.post(

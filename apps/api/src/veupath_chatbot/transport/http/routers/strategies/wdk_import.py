@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Query
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
 from veupath_chatbot.platform.errors import (
+    AppError,
     ErrorCode,
     NotFoundError,
     ValidationError,
@@ -18,7 +19,6 @@ from veupath_chatbot.services.control_helpers import (
 from veupath_chatbot.services.strategies.auto_import import (
     background_auto_import_gene_sets,
 )
-from veupath_chatbot.services.strategies.wdk_conversion import parse_wdk_strategy_id
 from veupath_chatbot.services.strategies.wdk_sync import (
     sync_to_projection,
     upsert_summary_projection,
@@ -139,22 +139,15 @@ async def sync_all_wdk_strategies(
         api = get_strategy_api(site.id)
         wdk_items = await api.list_strategies()
         await cleanup_internal_control_test_strategies(api, wdk_items, site_id=site.id)
-    except (ValueError, RuntimeError, OSError) as e:
+    except (AppError, OSError, RuntimeError) as e:
         logger.warning("WDK list failed during sync", site_id=site.id, error=str(e))
         wdk_items = []
 
     synced_wdk_ids: set[int] = set()
     for item in wdk_items:
-        if not isinstance(item, dict):
+        if is_internal_wdk_strategy_name(item.name):
             continue
-        wdk_id = parse_wdk_strategy_id(item)
-        if wdk_id is None:
-            continue
-        name_raw = item.get("name")
-        name = name_raw if isinstance(name_raw, str) else ""
-        if is_internal_wdk_strategy_name(name):
-            continue
-        synced_wdk_ids.add(wdk_id)
+        synced_wdk_ids.add(item.strategy_id)
         try:
             async with stream_repo.session.begin_nested():
                 await upsert_summary_projection(
@@ -163,10 +156,10 @@ async def sync_all_wdk_strategies(
                     user_id=user_id,
                     site_id=site.id,
                 )
-        except (ValueError, RuntimeError, OSError) as e:
+        except (AppError, OSError, RuntimeError) as e:
             logger.warning(
                 "Failed to sync WDK strategy",
-                wdk_id=wdk_id,
+                wdk_id=item.strategy_id,
                 site_id=site.id,
                 error=str(e),
             )
@@ -184,7 +177,7 @@ async def sync_all_wdk_strategies(
                         site_id=site.id,
                         pruned_count=pruned,
                     )
-        except (ValueError, RuntimeError, OSError) as e:
+        except (AppError, OSError, RuntimeError) as e:
             logger.warning(
                 "Failed to prune orphaned streams",
                 site_id=site.id,

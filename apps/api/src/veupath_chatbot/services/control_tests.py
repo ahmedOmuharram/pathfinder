@@ -39,7 +39,7 @@ def _require_step_id(raw: JSONObject | None, label: str) -> int:
     """Coerce a WDK step response to an int ID, raising InternalError on failure."""
     try:
         return coerce_step_id(raw)
-    except (ValueError, DataParsingError) as exc:
+    except DataParsingError as exc:
         raise InternalError(
             title="Step creation failed",
             detail=f"WDK returned no id for {label}: {exc}",

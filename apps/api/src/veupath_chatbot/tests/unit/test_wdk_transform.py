@@ -179,7 +179,10 @@ class TestBuildSearchDoc:
         assert isinstance(payload["ingestedAt"], int)
 
     def test_internal_search_returns_none(self) -> None:
-        s = {"urlSegment": "internal_search", "isInternal": True}
+        s = {
+            "urlSegment": "internal_search",
+            "fullName": "InternalQuestions.InternalSearch",
+        }
         doc = build_search_doc("site", "rt", s, {}, None, "http://example.com")
         assert doc is None
 

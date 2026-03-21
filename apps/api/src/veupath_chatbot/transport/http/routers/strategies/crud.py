@@ -7,10 +7,10 @@ from fastapi import APIRouter, Query, Response
 
 from veupath_chatbot.persistence.repositories.stream import ProjectionUpdate
 from veupath_chatbot.platform.errors import (
+    AppError,
     ErrorCode,
     NotFoundError,
     ValidationError,
-    WDKError,
 )
 from veupath_chatbot.platform.events import read_stream_messages, read_stream_thinking
 from veupath_chatbot.platform.logging import get_logger
@@ -207,7 +207,7 @@ async def delete_strategy(
             try:
                 api = get_strategy_api(projection.stream.site_id)
                 await api.delete_strategy(projection.wdk_strategy_id)
-            except (ValueError, RuntimeError, OSError, WDKError) as e:
+            except (AppError, OSError, RuntimeError) as e:
                 logger.warning(
                     "WDK strategy delete failed",
                     wdk_strategy_id=projection.wdk_strategy_id,

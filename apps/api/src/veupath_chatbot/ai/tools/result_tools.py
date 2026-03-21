@@ -7,7 +7,7 @@ from kani import AIParam, ai_function
 from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
-from veupath_chatbot.platform.errors import ErrorCode, WDKError
+from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.wdk import (
@@ -143,7 +143,7 @@ async def _fetch_download_url(
             action="download",
             fallback_message="generating the download URL",
         )
-    except (OSError, ValueError, TypeError) as e:
+    except (AppError, OSError) as e:
         return tool_error(
             ErrorCode.WDK_ERROR,
             "Failed to generate download URL from VEuPathDB.",
@@ -186,7 +186,7 @@ async def _fetch_step_preview(
             action="read",
             fallback_message="reading step records",
         )
-    except (OSError, ValueError, TypeError) as e:
+    except (AppError, OSError) as e:
         return tool_error(
             ErrorCode.WDK_ERROR,
             "Failed to fetch sample records from VEuPathDB.",

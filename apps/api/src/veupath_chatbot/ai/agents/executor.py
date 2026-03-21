@@ -29,6 +29,7 @@ from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.ai.tools.unified_registry import UnifiedToolRegistryMixin
 from veupath_chatbot.domain.strategy.session import StrategyGraph
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.gene_sets import GeneSetService
@@ -228,7 +229,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
 
             result.message.content = _merge_auto_build(result.message.text, build_data)
 
-        except (OSError, ValueError, TypeError, KeyError) as exc:
+        except (AppError, OSError) as exc:
             result.message.content = _merge_auto_build(
                 result.message.text,
                 {"autoBuild": {"ok": False, "error": str(exc)}},
@@ -287,7 +288,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                 "source": gs.source,
                 "siteId": gs.site_id,
             }
-        except (OSError, ValueError, TypeError, KeyError) as gs_exc:
+        except (AppError, OSError) as gs_exc:
             logger.warning("Gene set creation failed", error=str(gs_exc))
 
     async def _emit_strategy_link(self, build_result: object, graph: object) -> None:

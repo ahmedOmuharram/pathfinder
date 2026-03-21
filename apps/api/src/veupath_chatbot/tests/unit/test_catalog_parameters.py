@@ -199,7 +199,7 @@ class TestGetSearchParametersUnknownTypes:
         assert p["isVisible"] is True
 
     async def test_parameter_visibility_explicit_false(self) -> None:
-        """Hidden params (isVisible=False) are filtered out by the typed formatter."""
+        """Hidden params (isVisible=False) are included with their flag for the AI."""
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
@@ -218,7 +218,8 @@ class TestGetSearchParametersUnknownTypes:
 
         params = result["parameters"]
         assert isinstance(params, list)
-        assert len(params) == 0
+        assert len(params) == 1
+        assert params[0]["isVisible"] is False
 
     async def test_no_default_value_when_both_absent(self) -> None:
         """When neither initialDisplayValue nor defaultValue are present."""

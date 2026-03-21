@@ -10,6 +10,10 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX,
     StrategyAPI,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+)
 
 
 @pytest.fixture
@@ -57,10 +61,29 @@ class TestStrategyAPI:
     ) -> None:
         """Test creating a combined step."""
         mock_client.post.return_value = {"id": 12346}
-        mock_client.get_searches.return_value = [{"urlSegment": "boolean_question"}]
-        mock_client.get_search_details.return_value = {
-            "searchData": {"paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"]}
-        }
+        mock_client.get_searches.return_value = [
+            WDKSearch.model_validate({
+                "urlSegment": "boolean_question",
+                "fullName": "InternalQuestions.boolean_question",
+                "displayName": "Boolean",
+                "outputRecordClassName": "gene",
+                "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "groups": [],
+            })
+        ]
+        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate({
+            "searchData": {
+                "urlSegment": "boolean_question",
+                "fullName": "InternalQuestions.boolean_question",
+                "displayName": "Boolean",
+                "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
+                "groups": [],
+                "parameters": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        })
 
         result = await strategy_api.create_combined_step(
             primary_step_id=100,

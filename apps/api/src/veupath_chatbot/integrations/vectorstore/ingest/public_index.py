@@ -6,6 +6,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.public_strategies_helpers i
 )
 from veupath_chatbot.integrations.vectorstore.ingest.utils import embed_and_upsert
 from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 
@@ -45,7 +46,7 @@ async def _flush_batch(
             texts=safe_texts,
             payloads=payloads,
         )
-    except OSError, RuntimeError, ValueError:
+    except OSError, RuntimeError, AppError:
         # Per-item fallback: embed one at a time with aggressive truncation
         # so a single oversized text doesn't block the entire batch.
         for point_id, text, payload in zip(ids, safe_texts, payloads, strict=True):

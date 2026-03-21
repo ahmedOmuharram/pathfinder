@@ -3,6 +3,7 @@
 import json
 from unittest.mock import AsyncMock
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategySummary
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
@@ -150,17 +151,21 @@ class TestGetTotalCountForStep:
 
 
 class TestCleanupInternalControlTestStrategies:
+    @staticmethod
+    def _summary(
+        strategy_id: int = 100, name: str = "Test"
+    ) -> WDKStrategySummary:
+        return WDKStrategySummary(
+            strategy_id=strategy_id,
+            name=name,
+            root_step_id=1,
+        )
+
     async def test_deletes_pathfinder_control_test_strategies(self) -> None:
         api = AsyncMock()
         items = [
-            {
-                "name": "__pathfinder_internal__:Pathfinder control test A",
-                "strategyId": 100,
-            },
-            {
-                "name": "__pathfinder_internal__:Pathfinder control test B",
-                "strategyId": 200,
-            },
+            self._summary(100, "__pathfinder_internal__:Pathfinder control test A"),
+            self._summary(200, "__pathfinder_internal__:Pathfinder control test B"),
         ]
         await cleanup_internal_control_test_strategies(api, items)
         assert api.delete_strategy.call_count == 2
@@ -170,49 +175,28 @@ class TestCleanupInternalControlTestStrategies:
     async def test_skips_non_control_test_strategies(self) -> None:
         api = AsyncMock()
         items = [
-            {"name": "__pathfinder_internal__:Some other name", "strategyId": 100},
-            {"name": "User strategy", "strategyId": 200},
+            self._summary(100, "__pathfinder_internal__:Some other name"),
+            self._summary(200, "User strategy"),
         ]
         await cleanup_internal_control_test_strategies(api, items)
         api.delete_strategy.assert_not_called()
 
     async def test_skips_non_internal_strategies(self) -> None:
         api = AsyncMock()
-        items = [
-            {"name": "Pathfinder control test A", "strategyId": 100},
-        ]
+        items = [self._summary(100, "Pathfinder control test A")]
         await cleanup_internal_control_test_strategies(api, items)
         api.delete_strategy.assert_not_called()
 
-    async def test_handles_non_list(self) -> None:
+    async def test_empty_list(self) -> None:
         api = AsyncMock()
-        await cleanup_internal_control_test_strategies(api, "not a list")
-        api.delete_strategy.assert_not_called()
-
-    async def test_handles_non_dict_items(self) -> None:
-        api = AsyncMock()
-        await cleanup_internal_control_test_strategies(api, [None, "str", 42])
+        await cleanup_internal_control_test_strategies(api, [])
         api.delete_strategy.assert_not_called()
 
     async def test_swallows_delete_errors(self) -> None:
         api = AsyncMock()
         api.delete_strategy.side_effect = WDKError(detail="WDK error")
         items = [
-            {
-                "name": "__pathfinder_internal__:Pathfinder control test A",
-                "strategyId": 100,
-            },
+            self._summary(100, "__pathfinder_internal__:Pathfinder control test A"),
         ]
         # Should not raise
         await cleanup_internal_control_test_strategies(api, items)
-
-    async def test_skips_non_int_strategy_id(self) -> None:
-        api = AsyncMock()
-        items = [
-            {
-                "name": "__pathfinder_internal__:Pathfinder control test A",
-                "strategyId": "not_int",
-            },
-        ]
-        await cleanup_internal_control_test_strategies(api, items)
-        api.delete_strategy.assert_not_called()

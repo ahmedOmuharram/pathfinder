@@ -1,60 +1,70 @@
-"""Unit tests for WDK import: wdk_bridge public functions + fetch_and_convert.
+"""Unit tests for WDK import: fetch_and_convert and graph reconstruction.
 
 Covers:
-- parse_wdk_strategy_id: extraction of int strategy IDs from WDK items
-- extract_wdk_is_saved: extraction of isSaved flag with type guards
 - fetch_and_convert: WDK → AST conversion via mocked StrategyAPI
 - Graph reconstruction: linear chains, nested trees, parameter preservation
+- Metadata: name, description, record_type, is_saved, display_name
+- Serialization: to_dict round-trip
 """
 
 from unittest.mock import AsyncMock, MagicMock
 
 from veupath_chatbot.domain.strategy.ops import CombineOp
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
-from veupath_chatbot.platform.errors import WDKError
-from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.strategies.wdk_conversion import (
-    extract_wdk_is_saved,
-    parse_wdk_strategy_id,
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearchConfig,
+    WDKSearchResponse,
+    WDKStep,
+    WDKStepTree,
+    WDKStrategyDetails,
 )
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.wdk_sync import fetch_and_convert
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
 
-def _wdk_step(search_name: str, params: dict | None = None) -> JSONObject:
-    """Build a minimal WDK step dict for use in fake strategy payloads."""
-    return {
-        "searchName": search_name,
-        "searchConfig": {"parameters": params or {}},
-    }
+def _wdk_step(
+    step_id: int,
+    search_name: str,
+    params: dict[str, str] | None = None,
+    *,
+    custom_name: str | None = None,
+    display_name: str = "",
+) -> WDKStep:
+    """Build a minimal WDKStep for use in fake strategy payloads."""
+    return WDKStep(
+        id=step_id,
+        search_name=search_name,
+        search_config=WDKSearchConfig(parameters=params or {}),
+        custom_name=custom_name,
+        display_name=display_name,
+    )
 
 
 def _make_wdk_strategy(
-    step_tree: JSONObject,
-    steps: JSONObject,
+    step_tree: WDKStepTree,
+    steps: dict[str, WDKStep],
     *,
-    record_type: str = "gene",
-    name: str | None = "Test Strategy",
-    description: str | None = None,
+    record_class_name: str = "gene",
+    name: str = "Test Strategy",
+    description: str = "",
     is_saved: bool = False,
-) -> JSONObject:
-    """Build a complete WDK strategy payload."""
-    payload: JSONObject = {
-        "recordClassName": record_type,
-        "stepTree": step_tree,
-        "steps": steps,
-        "isSaved": is_saved,
-    }
-    if name is not None:
-        payload["name"] = name
-    if description is not None:
-        payload["description"] = description
-    return payload
+) -> WDKStrategyDetails:
+    """Build a complete WDKStrategyDetails model."""
+    return WDKStrategyDetails(
+        strategy_id=1,
+        name=name,
+        root_step_id=step_tree.step_id,
+        record_class_name=record_class_name,
+        step_tree=step_tree,
+        steps=steps,
+        description=description,
+        is_saved=is_saved,
+    )
 
 
-def _mock_api(wdk_strategy: JSONObject) -> AsyncMock:
-    """Create a mock StrategyAPI whose get_strategy returns the given payload."""
+def _mock_api(wdk_strategy: WDKStrategyDetails) -> AsyncMock:
+    """Create a mock StrategyAPI whose get_strategy returns the given model."""
     _empty_response = WDKSearchResponse.model_validate({
         "searchData": {"urlSegment": "_stub"},
         "validation": {"level": "DISPLAYABLE", "isValid": True},
@@ -69,70 +79,6 @@ def _mock_api(wdk_strategy: JSONObject) -> AsyncMock:
     return api
 
 
-# ── parse_wdk_strategy_id ─────────────────────────────────────────────
-
-
-class TestParseWdkStrategyId:
-    """Extraction of int strategy IDs from WDK list-strategies items."""
-
-    def test_int_strategy_id(self) -> None:
-        assert parse_wdk_strategy_id({"strategyId": 42}) == 42
-
-    def test_string_strategy_id_returns_none(self) -> None:
-        """WDK emits strategyId as a Java long (int in JSON).
-        String values are not valid and return None."""
-        assert parse_wdk_strategy_id({"strategyId": "42"}) is None
-
-    def test_missing_key_returns_none(self) -> None:
-        assert parse_wdk_strategy_id({}) is None
-
-    def test_none_value_returns_none(self) -> None:
-        assert parse_wdk_strategy_id({"strategyId": None}) is None
-
-    def test_zero_is_valid(self) -> None:
-        assert parse_wdk_strategy_id({"strategyId": 0}) == 0
-
-    def test_negative_id(self) -> None:
-        """Negative IDs should still parse (WDK shouldn't emit these, but guard is int-only)."""
-        assert parse_wdk_strategy_id({"strategyId": -1}) == -1
-
-    def test_float_returns_none(self) -> None:
-        assert parse_wdk_strategy_id({"strategyId": 42.0}) is None
-
-    def test_extra_keys_ignored(self) -> None:
-        result = parse_wdk_strategy_id({"strategyId": 7, "name": "S1", "isSaved": True})
-        assert result == 7
-
-
-# ── extract_wdk_is_saved ──────────────────────────────────────────────
-
-
-class TestExtractWdkIsSaved:
-    """Extraction of isSaved flag with isinstance guard."""
-
-    def test_true(self) -> None:
-        assert extract_wdk_is_saved({"isSaved": True}) is True
-
-    def test_false(self) -> None:
-        assert extract_wdk_is_saved({"isSaved": False}) is False
-
-    def test_missing_defaults_false(self) -> None:
-        assert extract_wdk_is_saved({}) is False
-
-    def test_non_bool_string_returns_false(self) -> None:
-        assert extract_wdk_is_saved({"isSaved": "yes"}) is False
-
-    def test_non_bool_int_returns_false(self) -> None:
-        assert extract_wdk_is_saved({"isSaved": 1}) is False
-
-    def test_non_bool_none_returns_false(self) -> None:
-        assert extract_wdk_is_saved({"isSaved": None}) is False
-
-    def test_with_other_keys(self) -> None:
-        payload: JSONObject = {"isSaved": True, "name": "S1", "strategyId": 5}
-        assert extract_wdk_is_saved(payload) is True
-
-
 # ── fetch_and_convert: single step tree → AST ─────────────────────────
 
 
@@ -141,8 +87,8 @@ class TestFetchAndConvertSingleStep:
 
     async def test_single_leaf_step(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch", {"text_expression": "kinase"})},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})},
             name="Kinase Search",
             is_saved=True,
         )
@@ -162,8 +108,8 @@ class TestFetchAndConvertSingleStep:
 
     async def test_single_step_unsaved(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 10},
-            steps={"10": _wdk_step("GenesByGoTerm", {"GoTerm": "GO:0006915"})},
+            step_tree=WDKStepTree(step_id=10),
+            steps={"10": _wdk_step(10, "GenesByGoTerm", {"GoTerm": "GO:0006915"})},
             is_saved=False,
         )
         api = _mock_api(wdk)
@@ -176,8 +122,8 @@ class TestFetchAndConvertSingleStep:
     async def test_single_step_id_is_string(self) -> None:
         """AST step IDs are always strings (from the WDK int step ID)."""
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 99},
-            steps={"99": _wdk_step("GenesByLocation")},
+            step_tree=WDKStepTree(step_id=99),
+            steps={"99": _wdk_step(99, "GenesByLocation")},
         )
         api = _mock_api(wdk)
 
@@ -195,15 +141,15 @@ class TestFetchAndConvertCombine:
 
     async def test_two_step_combine(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {"stepId": 1},
-                "secondaryInput": {"stepId": 2},
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(step_id=1),
+                secondary_input=WDKStepTree(step_id=2),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch", {"text_expression": "kinase"}),
-                "2": _wdk_step("GenesByGoTerm", {"GoTerm": "GO:0006915"}),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "INTERSECT"}),
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"}),
+                "2": _wdk_step(2, "GenesByGoTerm", {"GoTerm": "GO:0006915"}),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "INTERSECT"}),
             },
             name="Combined Search",
         )
@@ -221,15 +167,15 @@ class TestFetchAndConvertCombine:
 
     async def test_combine_with_union(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {"stepId": 1},
-                "secondaryInput": {"stepId": 2},
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(step_id=1),
+                secondary_input=WDKStepTree(step_id=2),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch"),
-                "2": _wdk_step("GenesByLocation"),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "UNION"}),
+                "1": _wdk_step(1, "GenesByTextSearch"),
+                "2": _wdk_step(2, "GenesByLocation"),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "UNION"}),
             },
         )
         api = _mock_api(wdk)
@@ -240,15 +186,15 @@ class TestFetchAndConvertCombine:
 
     async def test_combine_with_minus(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {"stepId": 1},
-                "secondaryInput": {"stepId": 2},
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(step_id=1),
+                secondary_input=WDKStepTree(step_id=2),
+            ),
             steps={
-                "1": _wdk_step("S1"),
-                "2": _wdk_step("S2"),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "MINUS"}),
+                "1": _wdk_step(1, "S1"),
+                "2": _wdk_step(2, "S2"),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "MINUS"}),
             },
         )
         api = _mock_api(wdk)
@@ -271,8 +217,8 @@ class TestFetchAndConvertParameters:
             "min_score": "0.5",
         }
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch", params)},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch", params)},
         )
         api = _mock_api(wdk)
 
@@ -284,8 +230,8 @@ class TestFetchAndConvertParameters:
 
     async def test_empty_parameters(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch", {})},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch", {})},
         )
         api = _mock_api(wdk)
 
@@ -295,15 +241,15 @@ class TestFetchAndConvertParameters:
 
     async def test_combine_children_have_their_own_parameters(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {"stepId": 1},
-                "secondaryInput": {"stepId": 2},
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(step_id=1),
+                secondary_input=WDKStepTree(step_id=2),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch", {"text_expression": "kinase"}),
-                "2": _wdk_step("GenesByGoTerm", {"GoTerm": "GO:0006915"}),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "INTERSECT"}),
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"}),
+                "2": _wdk_step(2, "GenesByGoTerm", {"GoTerm": "GO:0006915"}),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "INTERSECT"}),
             },
         )
         api = _mock_api(wdk)
@@ -327,17 +273,17 @@ class TestGraphReconstructionLinearChain:
     async def test_linear_three_step_chain(self) -> None:
         """Chain: step3(transform) <- step2(transform) <- step1(leaf)."""
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {
-                    "stepId": 2,
-                    "primaryInput": {"stepId": 1},
-                },
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(
+                    step_id=2,
+                    primary_input=WDKStepTree(step_id=1),
+                ),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch", {"text_expression": "kinase"}),
-                "2": _wdk_step("GenesByOrthologs", {"organism": "Pf3D7"}),
-                "3": _wdk_step("GenesByRNASeqEvidence", {"threshold": "10"}),
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"}),
+                "2": _wdk_step(2, "GenesByOrthologs", {"organism": "Pf3D7"}),
+                "3": _wdk_step(3, "GenesByRNASeqEvidence", {"threshold": "10"}),
             },
         )
         api = _mock_api(wdk)
@@ -377,21 +323,21 @@ class TestGraphReconstructionNestedTree:
         Step 5 = UNION of (step 3 INTERSECT) and step 4.
         """
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 5,
-                "primaryInput": {
-                    "stepId": 3,
-                    "primaryInput": {"stepId": 1},
-                    "secondaryInput": {"stepId": 2},
-                },
-                "secondaryInput": {"stepId": 4},
-            },
+            step_tree=WDKStepTree(
+                step_id=5,
+                primary_input=WDKStepTree(
+                    step_id=3,
+                    primary_input=WDKStepTree(step_id=1),
+                    secondary_input=WDKStepTree(step_id=2),
+                ),
+                secondary_input=WDKStepTree(step_id=4),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch"),
-                "2": _wdk_step("GenesByGoTerm"),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "INTERSECT"}),
-                "4": _wdk_step("GenesByLocation"),
-                "5": _wdk_step("BooleanQuestion", {"bq_operator": "UNION"}),
+                "1": _wdk_step(1, "GenesByTextSearch"),
+                "2": _wdk_step(2, "GenesByGoTerm"),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "INTERSECT"}),
+                "4": _wdk_step(4, "GenesByLocation"),
+                "5": _wdk_step(5, "BooleanQuestion", {"bq_operator": "UNION"}),
             },
             name="Nested Strategy",
         )
@@ -427,19 +373,19 @@ class TestGraphReconstructionNestedTree:
         Step 4 transforms the result of combining S1 and S2.
         """
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 4,
-                "primaryInput": {
-                    "stepId": 3,
-                    "primaryInput": {"stepId": 1},
-                    "secondaryInput": {"stepId": 2},
-                },
-            },
+            step_tree=WDKStepTree(
+                step_id=4,
+                primary_input=WDKStepTree(
+                    step_id=3,
+                    primary_input=WDKStepTree(step_id=1),
+                    secondary_input=WDKStepTree(step_id=2),
+                ),
+            ),
             steps={
-                "1": _wdk_step("GenesByTextSearch"),
-                "2": _wdk_step("GenesByGoTerm"),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "INTERSECT"}),
-                "4": _wdk_step("GenesByOrthologs", {"organism": "Pf3D7"}),
+                "1": _wdk_step(1, "GenesByTextSearch"),
+                "2": _wdk_step(2, "GenesByGoTerm"),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "INTERSECT"}),
+                "4": _wdk_step(4, "GenesByOrthologs", {"organism": "Pf3D7"}),
             },
         )
         api = _mock_api(wdk)
@@ -465,11 +411,12 @@ class TestGraphReconstructionNestedTree:
 class TestFetchAndConvertEdgeCases:
     """Edge cases for fetch_and_convert: missing name, normalization failures."""
 
-    async def test_missing_name_defaults_none(self) -> None:
+    async def test_empty_name_defaults_none(self) -> None:
+        """An empty name string becomes None in the AST."""
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch")},
-            name=None,
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch")},
+            name="",
         )
         api = _mock_api(wdk)
 
@@ -479,8 +426,8 @@ class TestFetchAndConvertEdgeCases:
 
     async def test_description_preserved(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch")},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch")},
             description="A useful description",
         )
         api = _mock_api(wdk)
@@ -492,8 +439,8 @@ class TestFetchAndConvertEdgeCases:
     async def test_normalization_failure_is_swallowed(self) -> None:
         """If parameter normalization fails, the raw values survive."""
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch", {"text": "kinase"})},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text": "kinase"})},
         )
         api = _mock_api(wdk)
         # Make the normalization path raise
@@ -509,8 +456,8 @@ class TestFetchAndConvertEdgeCases:
 
     async def test_api_get_strategy_called_with_wdk_id(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("S1")},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "S1")},
         )
         api = _mock_api(wdk)
 
@@ -520,9 +467,9 @@ class TestFetchAndConvertEdgeCases:
 
     async def test_record_type_from_strategy(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("TranscriptsByTextSearch")},
-            record_type="transcript",
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "TranscriptsByTextSearch")},
+            record_class_name="transcript",
         )
         api = _mock_api(wdk)
 
@@ -533,14 +480,14 @@ class TestFetchAndConvertEdgeCases:
     async def test_display_name_from_custom_name(self) -> None:
         """customName in step info takes precedence over displayName."""
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
+            step_tree=WDKStepTree(step_id=1),
             steps={
-                "1": {
-                    "searchName": "GenesByTextSearch",
-                    "searchConfig": {"parameters": {}},
-                    "customName": "My Custom Step",
-                    "displayName": "Text Search",
-                }
+                "1": _wdk_step(
+                    1,
+                    "GenesByTextSearch",
+                    custom_name="My Custom Step",
+                    display_name="Text Search",
+                ),
             },
         )
         api = _mock_api(wdk)
@@ -552,13 +499,13 @@ class TestFetchAndConvertEdgeCases:
     async def test_display_name_fallback(self) -> None:
         """If customName is absent, displayName is used."""
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
+            step_tree=WDKStepTree(step_id=1),
             steps={
-                "1": {
-                    "searchName": "GenesByTextSearch",
-                    "searchConfig": {"parameters": {}},
-                    "displayName": "Text Search",
-                }
+                "1": _wdk_step(
+                    1,
+                    "GenesByTextSearch",
+                    display_name="Text Search",
+                ),
             },
         )
         api = _mock_api(wdk)
@@ -576,8 +523,8 @@ class TestFetchAndConvertToDict:
 
     async def test_to_dict_has_required_keys(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={"stepId": 1},
-            steps={"1": _wdk_step("GenesByTextSearch", {"text": "kinase"})},
+            step_tree=WDKStepTree(step_id=1),
+            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text": "kinase"})},
             name="My Strategy",
         )
         api = _mock_api(wdk)
@@ -595,15 +542,15 @@ class TestFetchAndConvertToDict:
 
     async def test_combine_to_dict_has_operator(self) -> None:
         wdk = _make_wdk_strategy(
-            step_tree={
-                "stepId": 3,
-                "primaryInput": {"stepId": 1},
-                "secondaryInput": {"stepId": 2},
-            },
+            step_tree=WDKStepTree(
+                step_id=3,
+                primary_input=WDKStepTree(step_id=1),
+                secondary_input=WDKStepTree(step_id=2),
+            ),
             steps={
-                "1": _wdk_step("S1"),
-                "2": _wdk_step("S2"),
-                "3": _wdk_step("BooleanQuestion", {"bq_operator": "UNION"}),
+                "1": _wdk_step(1, "S1"),
+                "2": _wdk_step(2, "S2"),
+                "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "UNION"}),
             },
         )
         api = _mock_api(wdk)

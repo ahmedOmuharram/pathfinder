@@ -16,6 +16,7 @@ from tenacity import (
 )
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
     WDKSearch,
     WDKSearchResponse,
 )
@@ -395,7 +396,7 @@ class VEuPathDBClient:
         search_name: str,
         search_config: JSONObject,
         report_config: JSONObject | None = None,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Run a report on a search without creating a step or strategy.
 
         Uses WDK's anonymous report endpoint:
@@ -408,7 +409,7 @@ class VEuPathDBClient:
         :param search_name: WDK search name (e.g. ``"GenesByTaxon"``).
         :param search_config: Search config with ``parameters`` dict.
         :param report_config: Report config (pagination, attributes, etc.).
-        :returns: Standard report response with ``meta.totalCount``.
+        :returns: Parsed ``WDKAnswer`` with typed ``meta`` and ``records``.
         """
         payload: JSONObject = {
             "searchConfig": search_config,
@@ -418,7 +419,11 @@ class VEuPathDBClient:
             f"/record-types/{record_type}/searches/{search_name}/reports/standard",
             json=payload,
         )
-        return result if isinstance(result, dict) else {}
+        try:
+            return WDKAnswer.model_validate(result)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK answer for {record_type}/{search_name}: {e}"
+            raise DataParsingError(msg) from e
 
     async def get_step_view_filters(self, user_id: str, step_id: int) -> JSONArray:
         """Get viewFilters from a step's answerSpec.

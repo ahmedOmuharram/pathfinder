@@ -352,6 +352,7 @@ class TestFetchWdkTextGenes:
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_non_list_records_skipped(self, mock_get_client: MagicMock) -> None:
+        """When records is not a list, WDKAnswer validation fails and the answer is skipped."""
         mock_client = self._mock_client(
             [
                 {"meta": {"totalCount": 5}, "records": "not a list"},
@@ -365,12 +366,13 @@ class TestFetchWdkTextGenes:
             organism="Pf",
         )
         assert result.records == []
-        assert result.total_count == 5
+        assert result.total_count == 0
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_non_dict_record_entries_skipped(
         self, mock_get_client: MagicMock
     ) -> None:
+        """When a record entry is not a dict, WDKAnswer validation rejects the answer."""
         mock_client = self._mock_client(
             [
                 {
@@ -400,8 +402,9 @@ class TestFetchWdkTextGenes:
             ["kinase*"],
             organism="Pf",
         )
-        assert len(result.records) == 1
-        assert result.records[0]["geneId"] == "GENE_OK"
+        # Pydantic rejects the entire answer because "not a dict" is not a valid JSONObject
+        assert result.records == []
+        assert result.total_count == 0
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_default_text_fields_used(self, mock_get_client: MagicMock) -> None:

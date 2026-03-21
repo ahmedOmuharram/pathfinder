@@ -13,6 +13,7 @@ from veupath_chatbot.ai.tools.query_validation import (
     search_query_error,
 )
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.rag_search import RagSearchService
 
@@ -277,7 +278,7 @@ class CatalogToolsMixin:
                 rag_note="Qdrant-backed cache keyed by context hash; will call WDK on cache miss.",
                 wdk_note="Authoritative WDK response (same payload as rag.wdkResponse).",
             )
-        except (OSError, ValueError, TypeError, KeyError) as exc:
+        except (AppError, OSError) as exc:
             wdk_fallback = await _fallback_from_search_details()
             return combined_result(
                 rag={"error": "dependent_vocab_failed", "detail": str(exc)},

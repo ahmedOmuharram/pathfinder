@@ -14,7 +14,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKSearchResponse,
+    WDKStrategySummary,
+)
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import _encode_id_list
@@ -72,7 +76,7 @@ def _make_mock_api(
     combined_count: int = 3,
     answer_gene_ids: list[str] | None = None,
     param_type: str | None = None,
-    stale_strategies: list[dict] | None = None,
+    stale_strategies: list[WDKStrategySummary] | None = None,
 ) -> AsyncMock:
     """Build a mock ``StrategyAPI`` with sensible defaults.
 
@@ -100,13 +104,26 @@ def _make_mock_api(
     resolved_type = param_type or "string"
     api.client = MagicMock()
     api.client.get_search_details = AsyncMock(
-        return_value={
+        return_value=WDKSearchResponse.model_validate({
             "searchData": {
+                "urlSegment": CONTROLS_SEARCH_NAME,
+                "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                "displayName": "Controls Search",
+                "paramNames": [CONTROLS_PARAM_NAME],
+                "groups": [],
                 "parameters": [
-                    {"name": CONTROLS_PARAM_NAME, "type": resolved_type},
+                    {
+                        "name": CONTROLS_PARAM_NAME,
+                        "type": resolved_type,
+                        "isVisible": True,
+                        "group": "empty",
+                        "allowEmptyValue": True,
+                        "dependentParams": [],
+                    },
                 ],
             },
-        }
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        })
     )
 
     # create_dataset (only called when param_type == "input-dataset")
@@ -202,13 +219,26 @@ class TestResolveControlsParamType:
         api = AsyncMock()
         api.client = MagicMock()
         api.client.get_search_details = AsyncMock(
-            return_value={
+            return_value=WDKSearchResponse.model_validate({
                 "searchData": {
+                    "urlSegment": CONTROLS_SEARCH_NAME,
+                    "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                    "displayName": "Gene by Locus Tag",
+                    "paramNames": [CONTROLS_PARAM_NAME],
+                    "groups": [],
                     "parameters": [
-                        {"name": "ds_gene_ids", "type": "input-dataset"},
+                        {
+                            "name": CONTROLS_PARAM_NAME,
+                            "type": "input-dataset",
+                            "isVisible": True,
+                            "group": "empty",
+                            "allowEmptyValue": True,
+                            "dependentParams": [],
+                        },
                     ],
                 },
-            }
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            })
         )
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
@@ -220,13 +250,26 @@ class TestResolveControlsParamType:
         api = AsyncMock()
         api.client = MagicMock()
         api.client.get_search_details = AsyncMock(
-            return_value={
+            return_value=WDKSearchResponse.model_validate({
                 "searchData": {
+                    "urlSegment": CONTROLS_SEARCH_NAME,
+                    "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                    "displayName": "Gene by Locus Tag",
+                    "paramNames": ["other_param"],
+                    "groups": [],
                     "parameters": [
-                        {"name": "other_param", "type": "string"},
+                        {
+                            "name": "other_param",
+                            "type": "string",
+                            "isVisible": True,
+                            "group": "empty",
+                            "allowEmptyValue": True,
+                            "dependentParams": [],
+                        },
                     ],
                 },
-            }
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            })
         )
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
@@ -237,7 +280,9 @@ class TestResolveControlsParamType:
     async def test_returns_none_on_exception(self) -> None:
         api = AsyncMock()
         api.client = MagicMock()
-        api.client.get_search_details = AsyncMock(side_effect=ValueError("boom"))
+        api.client.get_search_details = AsyncMock(
+            side_effect=InternalError(detail="boom"),
+        )
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
         )
@@ -584,10 +629,20 @@ class TestCleanupOnSuccess:
     async def test_stale_strategies_cleaned_up(self) -> None:
         """Stale internal strategies from previous interrupted runs are deleted."""
         stale = [
-            {
-                "name": "__pathfinder_internal__:Pathfinder control test",
+            WDKStrategySummary.model_validate({
                 "strategyId": 999,
-            },
+                "name": "__pathfinder_internal__:Pathfinder control test",
+                "rootStepId": 1,
+                "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                "estimatedSize": 0,
+                "isSaved": False,
+                "isDeleted": False,
+                "isValid": True,
+                "isPublic": False,
+                "signature": "stale",
+                "createdTime": "2026-01-01T00:00:00Z",
+                "lastModified": "2026-01-01T00:00:00Z",
+            }),
         ]
         cleanup_api = _make_mock_api(stale_strategies=stale)
         pos_api = _make_mock_api(

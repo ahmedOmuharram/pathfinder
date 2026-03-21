@@ -20,6 +20,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     error_response_404,
@@ -69,11 +70,9 @@ async def test_get_searches(client: VEuPathDBClient) -> None:
 
     result = await client.get_searches("gene")
 
-    assert result == expected
     assert len(result) == 4
-    assert any(
-        isinstance(s, dict) and s.get("urlSegment") == "GenesByTaxon" for s in result
-    )
+    assert all(isinstance(s, WDKSearch) for s in result)
+    assert any(s.url_segment == "GenesByTaxon" for s in result)
 
 
 @respx.mock
@@ -88,14 +87,11 @@ async def test_get_search_details(client: VEuPathDBClient) -> None:
     result = await client.get_search_details("transcript", "GenesByTaxon")
 
     assert route.called
-    assert result == expected
-    # Real WDK wraps everything in {searchData, validation} at top level.
-    assert "searchData" in result
-    assert "validation" in result
-    search_data = result["searchData"]
-    assert isinstance(search_data, dict)
-    assert search_data["urlSegment"] == "GenesByTaxon"
-    assert "parameters" in search_data
+    assert isinstance(result, WDKSearchResponse)
+    assert result.search_data is not None
+    assert result.validation is not None
+    assert result.search_data.url_segment == "GenesByTaxon"
+    assert result.search_data.parameters is not None
 
 
 @respx.mock

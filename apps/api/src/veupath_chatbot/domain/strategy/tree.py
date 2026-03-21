@@ -77,18 +77,6 @@ def collect_dict_combine_nodes(root: object) -> list[JSONObject]:
     return combines
 
 
-def count_dict_nodes(root: object) -> int:
-    """Count all nodes in a dict-based tree."""
-    if not isinstance(root, dict):
-        return 0
-    count = 1
-    pi = root.get("primaryInput")
-    if isinstance(pi, dict):
-        count += count_dict_nodes(pi)
-    si = root.get("secondaryInput")
-    if isinstance(si, dict):
-        count += count_dict_nodes(si)
-    return count
 
 
 def map_dict_tree(

@@ -2,12 +2,14 @@
 
 from fastapi import APIRouter
 
-from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
-    extract_param_specs,
-)
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
+    WDKEnumParam,
+    WDKNumberParam,
+    WDKNumberRangeParam,
+    WDKStringParam,
+)
 from veupath_chatbot.services import catalog
 from veupath_chatbot.transport.http.schemas import (
     ParamSpecResponse,
@@ -19,87 +21,72 @@ from veupath_chatbot.transport.http.schemas import (
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
 
-def _build_param_specs(payload: JSONObject) -> list[ParamSpecResponse]:
-    spec_map = adapt_param_specs(payload)
-    raw_specs = extract_param_specs(payload)
-    by_name = {
-        s.get("name"): s for s in raw_specs if isinstance(s, dict) and s.get("name")
-    }
+def _build_param_specs(search: WDKSearch) -> list[ParamSpecResponse]:
     results: list[ParamSpecResponse] = []
-    for name, normalized in spec_map.items():
-        raw = by_name.get(name, {})
-        if not isinstance(raw, dict):
-            raw = {}
-        display_name_raw = (
-            raw.get("displayName") or raw.get("display") or raw.get("label")
+    for param in search.parameters or []:
+        # Enum-specific fields
+        vocabulary = param.vocabulary if isinstance(param, WDKEnumParam) else None
+        display_type = param.display_type if isinstance(param, WDKEnumParam) else None
+        min_selected_count = (
+            param.min_selected_count if isinstance(param, WDKEnumParam) else None
         )
-        display_name = display_name_raw if isinstance(display_name_raw, str) else None
-        allow_multiple_raw = raw.get("allowMultipleValues")
-        allow_multiple = (
-            bool(allow_multiple_raw) if isinstance(allow_multiple_raw, bool) else None
+        max_selected_raw = (
+            param.max_selected_count if isinstance(param, WDKEnumParam) else None
         )
-        multi_pick_raw = raw.get("multiPick")
-        multi_pick = bool(multi_pick_raw) if isinstance(multi_pick_raw, bool) else None
-        vocabulary_raw = raw.get("vocabulary")
-        initial_display_value = raw.get("initialDisplayValue")
-        min_val = raw.get("min") or raw.get("minValue") or raw.get("numberMin")
-        max_val = raw.get("max") or raw.get("maxValue") or raw.get("numberMax")
-        if min_val is not None and not isinstance(min_val, (int, float)):
-            min_val = None
-        if max_val is not None and not isinstance(max_val, (int, float)):
-            max_val = None
-        min_value = float(min_val) if min_val is not None else None
-        max_value = float(max_val) if max_val is not None else None
+        max_selected_count = (
+            max_selected_raw
+            if isinstance(max_selected_raw, int) and max_selected_raw >= 0
+            else None
+        )
+        count_only_leaves = (
+            param.count_only_leaves if isinstance(param, WDKEnumParam) else False
+        )
 
-        is_number_raw = raw.get("isNumber")
-        is_number = bool(is_number_raw) if isinstance(is_number_raw, bool) else False
-
-        increment_raw = raw.get("increment") or raw.get("step")
+        # Number-specific fields
+        min_value = (
+            param.min
+            if isinstance(param, (WDKNumberParam, WDKNumberRangeParam))
+            else None
+        )
+        max_value = (
+            param.max
+            if isinstance(param, (WDKNumberParam, WDKNumberRangeParam))
+            else None
+        )
         increment = (
-            float(increment_raw) if isinstance(increment_raw, (int, float)) else None
+            param.increment
+            if isinstance(param, (WDKNumberParam, WDKNumberRangeParam))
+            else None
         )
 
-        # WDK UI metadata
-        display_type_raw = raw.get("displayType")
-        display_type = (
-            str(display_type_raw) if isinstance(display_type_raw, str) else None
-        )
-        is_visible_raw = raw.get("isVisible")
-        is_visible = bool(is_visible_raw) if isinstance(is_visible_raw, bool) else True
-        group_raw = raw.get("group")
-        group_str = str(group_raw) if isinstance(group_raw, str) else None
-        dependent_params_raw = raw.get("dependentParams")
-        dependent_params = (
-            [str(p) for p in dependent_params_raw]
-            if isinstance(dependent_params_raw, list)
-            else []
-        )
-        help_raw = raw.get("help")
-        help_text = str(help_raw) if isinstance(help_raw, str) else None
+        # String-specific fields
+        is_number = param.is_number if isinstance(param, WDKStringParam) else False
 
         results.append(
-            ParamSpecResponse(
-                name=name,
-                displayName=display_name,
-                type=normalized.param_type,
-                allowEmptyValue=normalized.allow_empty_value,
-                allowMultipleValues=allow_multiple,
-                multiPick=multi_pick,
-                minSelectedCount=normalized.min_selected_count,
-                maxSelectedCount=normalized.max_selected_count,
-                countOnlyLeaves=normalized.count_only_leaves,
-                initialDisplayValue=initial_display_value,
-                vocabulary=vocabulary_raw,
-                min=min_value,
-                max=max_value,
-                isNumber=is_number,
-                increment=increment,
-                displayType=display_type,
-                isVisible=is_visible,
-                group=group_str,
-                dependentParams=dependent_params,
-                help=help_text,
-            )
+            ParamSpecResponse.model_validate(
+                {
+                    "name": param.name,
+                    "displayName": param.display_name or None,
+                    "type": param.type,
+                    "allowEmptyValue": param.allow_empty_value,
+                    "allowMultipleValues": None,
+                    "multiPick": None,
+                    "minSelectedCount": min_selected_count,
+                    "maxSelectedCount": max_selected_count,
+                    "countOnlyLeaves": count_only_leaves,
+                    "initialDisplayValue": param.initial_display_value,
+                    "vocabulary": vocabulary,
+                    "min": min_value,
+                    "max": max_value,
+                    "isNumber": is_number,
+                    "increment": increment,
+                    "displayType": display_type,
+                    "isVisible": param.is_visible,
+                    "group": param.group or None,
+                    "dependentParams": list(param.dependent_params),
+                    "help": param.help,
+                }
+            ),
         )
     results.sort(key=lambda s: s.name)
     return results
@@ -138,5 +125,4 @@ async def get_param_specs_with_context(
         SearchContext(siteId, recordType, searchName),
         payload.context_values or {},
     )
-    search_dict = response.search_data.model_dump(by_alias=True)
-    return _build_param_specs(search_dict)
+    return _build_param_specs(response.search_data)

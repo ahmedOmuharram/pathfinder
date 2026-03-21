@@ -131,10 +131,16 @@ def _mock_search_details(
         200,
         json={
             "searchData": {
+                "urlSegment": CONTROLS_SEARCH_NAME,
+                "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                "displayName": "Gene by Locus Tag",
+                "paramNames": [CONTROLS_PARAM_NAME],
+                "groups": [],
                 "parameters": [
                     {"name": CONTROLS_PARAM_NAME, "type": controls_param_type},
                 ],
             },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
         },
     )
 
@@ -144,11 +150,17 @@ def _mock_search_details(
         200,
         json={
             "searchData": {
+                "urlSegment": TARGET_SEARCH_NAME,
+                "fullName": f"GeneQuestions.{TARGET_SEARCH_NAME}",
+                "displayName": "RNA-Seq",
+                "paramNames": ["regulated_dir", "fold_change"],
+                "groups": [],
                 "parameters": [
                     {"name": "regulated_dir", "type": "single-pick-vocabulary"},
                     {"name": "fold_change", "type": "number"},
                 ],
             },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
         },
     )
 

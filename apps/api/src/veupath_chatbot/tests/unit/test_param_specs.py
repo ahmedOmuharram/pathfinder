@@ -1,12 +1,19 @@
 """Tests for domain/parameters/specs.py."""
 
+import pytest
+
 from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
+    _safe_float,
+    _safe_int,
     adapt_param_specs,
+    adapt_param_specs_from_search,
     extract_param_specs,
     find_input_step_param,
     find_missing_required_params,
+    unwrap_search_data,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +88,9 @@ class TestExtractParamSpecs:
         }
         specs = extract_param_specs(payload)
         assert len(specs) == 1
-        assert specs[0]["name"] == "from_params"
+        first = specs[0]
+        assert isinstance(first, dict)
+        assert first["name"] == "from_params"
 
     def test_empty_payload(self) -> None:
         assert extract_param_specs({}) == []
@@ -259,98 +268,79 @@ class TestFindInputStepParam:
 # ---------------------------------------------------------------------------
 class TestFindMissingRequiredParams:
     def test_no_required_params(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": True}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=True)}
         missing = find_missing_required_params(specs, {"p1": "val"})
         assert missing == []
 
     def test_required_param_present(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": "val"})
         assert missing == []
 
     def test_required_param_missing(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {})
         assert missing == ["p1"]
 
     def test_required_param_none_value(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": None})
         assert missing == ["p1"]
 
     def test_required_param_empty_string(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": ""})
         assert missing == ["p1"]
 
     def test_required_param_empty_list(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": []})
         assert missing == ["p1"]
 
     def test_required_param_empty_dict(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {"p1": {}})
         assert missing == ["p1"]
 
     def test_not_allow_empty_treated_as_required(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": False}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
         missing = find_missing_required_params(specs, {})
         assert missing == ["p1"]
 
     def test_allow_empty_not_treated_as_required(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": True}]
+        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=True)}
         missing = find_missing_required_params(specs, {})
         assert missing == []
 
     def test_multi_pick_empty_json_string(self) -> None:
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": "[]"})
         assert missing == ["p1"]
 
     def test_multi_pick_empty_list(self) -> None:
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": []})
         assert missing == ["p1"]
 
     def test_multi_pick_with_values(self) -> None:
-        specs = [
-            {"name": "p1", "type": "multi-pick-vocabulary", "allowEmptyValue": False}
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+        }
         missing = find_missing_required_params(specs, {"p1": '["a"]'})
         assert missing == []
 
-    def test_skips_non_dict_specs(self) -> None:
-        specs = [
-            "not_a_dict",
-            {"name": "p1", "type": "string", "allowEmptyValue": False},
-        ]
-        missing = find_missing_required_params(specs, {})
-        assert missing == ["p1"]
-
-    def test_skips_spec_without_name(self) -> None:
-        specs = [{"type": "string", "allowEmptyValue": False}]
-        missing = find_missing_required_params(specs, {})
-        assert missing == []
-
     def test_multiple_missing(self) -> None:
-        specs = [
-            {"name": "p1", "type": "string", "allowEmptyValue": False},
-            {"name": "p2", "type": "string", "allowEmptyValue": False},
-            {"name": "p3", "type": "string", "allowEmptyValue": True},
-        ]
+        specs = {
+            "p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False),
+            "p2": ParamSpecNormalized(name="p2", param_type="string", allow_empty_value=False),
+            "p3": ParamSpecNormalized(name="p3", param_type="string", allow_empty_value=True),
+        }
         missing = find_missing_required_params(specs, {"p3": "val"})
         assert missing == ["p1", "p2"]
-
-    def test_allow_empty_non_bool_defaults_true(self) -> None:
-        specs = [{"name": "p1", "type": "string", "allowEmptyValue": "yes"}]
-        # "yes" is not bool, defaults to True for allow_empty
-        missing = find_missing_required_params(specs, {})
-        assert missing == []
 
 
 # ---------------------------------------------------------------------------
@@ -423,3 +413,163 @@ class TestWdkMetadataExtraction:
         payload = {"parameters": [{"name": "p", "type": "string"}]}
         specs = adapt_param_specs(payload)
         assert specs["p"].group == ""
+
+
+# ---------------------------------------------------------------------------
+# unwrap_search_data
+# ---------------------------------------------------------------------------
+class TestUnwrapSearchData:
+    def test_none_returns_none(self) -> None:
+        assert unwrap_search_data(None) is None
+
+    def test_non_dict_returns_none(self) -> None:
+        assert unwrap_search_data("not a dict") is None
+        assert unwrap_search_data(42) is None
+
+    def test_dict_without_search_data_returns_itself(self) -> None:
+        payload = {"parameters": [{"name": "org"}]}
+        result = unwrap_search_data(payload)
+        assert result is payload
+
+    def test_dict_with_search_data_dict_returns_inner(self) -> None:
+        inner = {"parameters": [{"name": "org"}]}
+        payload = {"searchData": inner}
+        result = unwrap_search_data(payload)
+        assert result is inner
+
+    def test_non_dict_search_data_returns_outer(self) -> None:
+        """If searchData exists but isn't a dict, return the outer dict."""
+        payload = {"searchData": "bad", "parameters": []}
+        result = unwrap_search_data(payload)
+        assert result is payload
+
+    def test_empty_dict_returns_itself(self) -> None:
+        payload: dict[str, object] = {}
+        assert unwrap_search_data(payload) is payload
+
+
+# ---------------------------------------------------------------------------
+# _safe_float / _safe_int
+# ---------------------------------------------------------------------------
+class TestSafeFloat:
+    def test_int(self) -> None:
+        assert _safe_float(42) == 42.0
+
+    def test_float(self) -> None:
+        assert _safe_float(3.14) == 3.14
+
+    def test_numeric_string(self) -> None:
+        assert _safe_float("1.5") == 1.5
+
+    def test_non_numeric_string(self) -> None:
+        assert _safe_float("abc") is None
+
+    def test_bool_excluded(self) -> None:
+        """Booleans are ints in Python but should not be treated as floats."""
+        assert _safe_float(True) is None
+        assert _safe_float(False) is None
+
+    def test_none(self) -> None:
+        assert _safe_float(None) is None
+
+    def test_list(self) -> None:
+        assert _safe_float([1, 2]) is None
+
+    def test_empty_string(self) -> None:
+        assert _safe_float("") is None
+
+
+class TestSafeInt:
+    def test_int(self) -> None:
+        assert _safe_int(42) == 42
+
+    def test_int_string(self) -> None:
+        assert _safe_int("42") == 42
+
+    def test_float_string(self) -> None:
+        assert _safe_int("3.14") is None
+
+    def test_bool_excluded(self) -> None:
+        assert _safe_int(True) is None
+        assert _safe_int(False) is None
+
+    def test_none(self) -> None:
+        assert _safe_int(None) is None
+
+    def test_non_numeric_string(self) -> None:
+        assert _safe_int("abc") is None
+
+    def test_negative(self) -> None:
+        assert _safe_int(-5) == -5
+
+
+# ---------------------------------------------------------------------------
+# adapt_param_specs — numeric constraints
+# ---------------------------------------------------------------------------
+class TestAdaptParamSpecsNumeric:
+    def test_is_number_on_string_param(self) -> None:
+        """StringParam can have isNumber=true for numeric constraints."""
+        payload = {
+            "parameters": [
+                {"name": "threshold", "type": "string", "isNumber": True, "min": 0, "max": 100}
+            ]
+        }
+        specs = adapt_param_specs(payload)
+        assert specs["threshold"].is_number is True
+        assert specs["threshold"].min_value == 0.0
+        assert specs["threshold"].max_value == 100.0
+
+    def test_is_number_non_bool_treated_as_false(self) -> None:
+        payload = {"parameters": [{"name": "x", "type": "string", "isNumber": "yes"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["x"].is_number is False
+
+    def test_increment_from_step_key(self) -> None:
+        """WDK sometimes uses 'step' instead of 'increment'."""
+        payload = {"parameters": [{"name": "n", "type": "number", "step": 0.1}]}
+        specs = adapt_param_specs(payload)
+        assert specs["n"].increment == pytest.approx(0.1)
+
+    def test_increment_from_increment_key(self) -> None:
+        payload = {"parameters": [{"name": "n", "type": "number", "increment": 5}]}
+        specs = adapt_param_specs(payload)
+        assert specs["n"].increment == 5.0
+
+    def test_max_length_zero_becomes_none(self) -> None:
+        """WDK uses length=0 to mean 'no limit'."""
+        payload = {"parameters": [{"name": "q", "type": "string", "length": 0}]}
+        specs = adapt_param_specs(payload)
+        assert specs["q"].max_length is None
+
+    def test_max_length_negative_becomes_none(self) -> None:
+        payload = {"parameters": [{"name": "q", "type": "string", "maxLength": -1}]}
+        specs = adapt_param_specs(payload)
+        assert specs["q"].max_length is None
+
+    def test_max_length_positive_preserved(self) -> None:
+        payload = {"parameters": [{"name": "q", "type": "string", "maxLength": 200}]}
+        specs = adapt_param_specs(payload)
+        assert specs["q"].max_length == 200
+
+    def test_is_visible_non_bool_defaults_true(self) -> None:
+        payload = {"parameters": [{"name": "q", "type": "string", "isVisible": "yes"}]}
+        specs = adapt_param_specs(payload)
+        assert specs["q"].is_visible is True
+
+
+# ---------------------------------------------------------------------------
+# adapt_param_specs_from_search
+# ---------------------------------------------------------------------------
+class TestAdaptParamSpecsFromSearch:
+    def test_search_with_no_parameters_returns_empty(self) -> None:
+        search = WDKSearch(
+            url_segment="GenesByTextSearch",
+            full_name="Genes matching text",
+            display_name="Text Search",
+            description="Detailed description",
+            is_analyzable=True,
+            parameters=None,
+            groups=[],
+        )
+        result = adapt_param_specs_from_search(search)
+        assert result == {}

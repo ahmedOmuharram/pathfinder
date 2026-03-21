@@ -20,10 +20,7 @@ import pytest
 
 from veupath_chatbot.domain.parameters._decode_values import decode_values
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
-from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
-    unwrap_search_data,
-)
+from veupath_chatbot.domain.parameters.specs import adapt_param_specs_from_search
 from veupath_chatbot.domain.parameters.vocab_utils import (
     flatten_vocab,
     match_vocab_value,
@@ -47,12 +44,13 @@ RECORD_TYPE = "transcript"
 async def _get_organism_vocab(search_name: str = "GenesByTaxon") -> dict:
     """Fetch the organism parameter vocabulary from a real WDK search."""
     wdk = get_wdk_client(SITE)
-    details = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
-    search_data = unwrap_search_data(details) or details
-    params = search_data.get("parameters", [])
+    response = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
+    params = response.search_data.parameters or []
     for p in params:
-        if isinstance(p, dict) and p.get("name") == "organism":
-            return p.get("vocabulary", {})
+        if p.name == "organism":
+            vocab = getattr(p, "vocabulary", None)
+            if vocab is not None:
+                return vocab
     msg = f"No organism param found in {search_name}"
     raise AssertionError(msg)
 
@@ -60,9 +58,8 @@ async def _get_organism_vocab(search_name: str = "GenesByTaxon") -> dict:
 async def _get_organism_spec(search_name: str = "GenesByTaxon") -> dict:
     """Fetch the full organism parameter spec."""
     wdk = get_wdk_client(SITE)
-    details = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
-    search_data = unwrap_search_data(details) or details
-    specs = adapt_param_specs(search_data)
+    response = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
+    specs = adapt_param_specs_from_search(response.search_data)
     assert "organism" in specs, f"No organism param in {search_name}"
     return specs
 

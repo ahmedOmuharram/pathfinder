@@ -15,6 +15,7 @@ from uuid import UUID
 
 from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategySummary
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories.stream import (
     ProjectionUpdate,
@@ -27,9 +28,7 @@ from veupath_chatbot.services.wdk import get_strategy_api
 
 from .wdk_conversion import (
     build_snapshot_from_wdk,
-    extract_wdk_is_saved,
     normalize_synced_parameters,
-    parse_wdk_strategy_id,
 )
 
 logger = get_logger(__name__)
@@ -91,8 +90,7 @@ async def fetch_and_convert(
             error=str(exc),
         )
 
-    is_saved = extract_wdk_is_saved(wdk_strategy)
-    return ast, is_saved, step_counts
+    return ast, wdk_strategy.is_saved, step_counts
 
 
 async def sync_to_projection(
@@ -179,7 +177,7 @@ async def upsert_projection(
 
 
 async def upsert_summary_projection(
-    wdk_item: JSONObject,
+    wdk_item: WDKStrategySummary,
     *,
     stream_repo: StreamRepository,
     user_id: UUID,
@@ -194,33 +192,18 @@ async def upsert_summary_projection(
     The ``plan`` field is left untouched (empty for new projections, preserved
     for existing ones). Full plan data is fetched lazily on first GET.
 
-    Returns the projection, or ``None`` if the WDK item has no valid ID.
+    Returns the projection.
     """
-    wdk_id = parse_wdk_strategy_id(wdk_item)
-    if wdk_id is None:
-        return None
-
-    name_raw = wdk_item.get("name")
-    name = (
-        str(name_raw)
-        if isinstance(name_raw, str) and name_raw
-        else f"WDK Strategy {wdk_id}"
-    )
-
-    record_class = wdk_item.get("recordClassName")
+    wdk_id = wdk_item.strategy_id
+    name = wdk_item.name or f"WDK Strategy {wdk_id}"
     record_type = (
-        str(record_class).strip()
-        if isinstance(record_class, str) and record_class
+        wdk_item.record_class_name.strip()
+        if wdk_item.record_class_name
         else None
     )
-
-    is_saved = extract_wdk_is_saved(wdk_item)
-
-    estimated_raw = wdk_item.get("estimatedSize")
-    estimated_size = estimated_raw if isinstance(estimated_raw, int) else None
-
-    step_count_raw = wdk_item.get("leafAndTransformStepCount")
-    step_count = step_count_raw if isinstance(step_count_raw, int) else 0
+    is_saved = wdk_item.is_saved
+    estimated_size = wdk_item.estimated_size
+    step_count = wdk_item.leaf_and_transform_step_count
 
     existing = await stream_repo.get_by_wdk_strategy_id(user_id, wdk_id)
     if existing and existing.dismissed_at is not None:

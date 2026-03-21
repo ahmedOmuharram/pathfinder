@@ -7,6 +7,7 @@ from typing import Protocol, cast
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
+    ParamSpecNormalized,
     adapt_param_specs_from_search,
     find_missing_required_params,
 )
@@ -22,7 +23,7 @@ from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 from .param_resolution import (
     _extract_param_names_from_response,
@@ -98,7 +99,6 @@ async def validate_search_params(
 
     filtered_context = _filter_context_values(raw_context, allowed)
     spec_map = adapt_param_specs_from_search(response.search_data)
-    raw_specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
 
     try:
         canonicalizer = ParameterCanonicalizer(spec_map)
@@ -135,7 +135,7 @@ async def validate_search_params(
         }
 
     # Required checks using raw WDK specs (keeps semantics aligned with WDK).
-    missing = find_missing_required_params(raw_specs, normalized_context)
+    missing = find_missing_required_params(spec_map, normalized_context)
 
     if missing:
         by_key = {name: ["Required"] for name in missing}
@@ -258,30 +258,29 @@ async def _find_search_record_type_hint(
 
 
 def _build_missing_param_options(
-    param_specs: list[JSONObject],
+    spec_map: dict[str, ParamSpecNormalized],
     missing: list[str],
     extract_vocab_options: Callable[[JSONObject], list[str]],
 ) -> JSONObject:
     """Build vocabulary option hints for missing required parameters."""
     options: JSONObject = {}
-    for param_spec in param_specs:
-        name_raw = param_spec.get("name")
-        name = name_raw if isinstance(name_raw, str) else None
-        if not name or name not in missing:
+    for name in missing:
+        spec = spec_map.get(name)
+        if spec is None:
             continue
-        vocab_raw = param_spec.get("vocabulary")
+        vocab = spec.vocabulary
         opts: list[str] = []
-        if isinstance(vocab_raw, dict):
-            opts = extract_vocab_options(vocab_raw)
-        elif isinstance(vocab_raw, list):
-            if vocab_raw and isinstance(vocab_raw[0], list):
+        if isinstance(vocab, dict):
+            opts = extract_vocab_options(vocab)
+        elif isinstance(vocab, list):
+            if vocab and isinstance(vocab[0], list):
                 opts = [
                     str(v[0])
-                    for v in vocab_raw[:_MAX_OPTION_EXAMPLES]
+                    for v in vocab[:_MAX_OPTION_EXAMPLES]
                     if isinstance(v, list) and v
                 ]
             else:
-                opts = [str(v) for v in vocab_raw[:_MAX_OPTION_EXAMPLES]]
+                opts = [str(v) for v in vocab[:_MAX_OPTION_EXAMPLES]]
         if opts:
             options[name] = cast(
                 "JSONValue",
@@ -331,7 +330,6 @@ async def validate_parameters(
         parameters=parameters,
     )
 
-    param_specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     normalizer = ParameterNormalizer(param_spec_map)
     normalized = normalizer.normalize(parameters)
@@ -356,12 +354,11 @@ async def validate_parameters(
                 }
             ],
         )
-    missing = find_missing_required_params(param_specs, parameters)
+    missing = find_missing_required_params(param_spec_map, parameters)
 
     if missing:
-        valid_specs = [p for p in param_specs if isinstance(p, dict)]
         options = _build_missing_param_options(
-            valid_specs, missing, callbacks.extract_vocab_options
+            param_spec_map, missing, callbacks.extract_vocab_options
         )
         raise ValidationError(
             title="Missing required parameters",

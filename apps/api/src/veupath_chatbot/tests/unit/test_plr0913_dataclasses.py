@@ -14,7 +14,12 @@ from veupath_chatbot.domain.research.citations import (
     LiteratureFilters,
     LiteratureOutputOptions,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKSearchConfig,
+    WDKStep,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
 from veupath_chatbot.services.chat.types import ChatTurnConfig
@@ -739,7 +744,12 @@ class TestGeneSetServiceHelpers:
     async def test_resolve_root_step_fetches_from_strategy_when_none(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_strategy.return_value = {"rootStepId": 77}
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
+            "strategyId": 100,
+            "name": "test",
+            "rootStepId": 77,
+            "stepTree": {"stepId": 77},
+        })
         result = await svc._resolve_root_step(api, strategy_id=100, step_id=None)
         assert result == 77
         api.get_strategy.assert_called_once_with(100)
@@ -787,7 +797,16 @@ class TestGeneSetServiceHelpers:
     async def test_count_strategy_steps_returns_one_for_single_step(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_strategy.return_value = {"stepTree": {"stepId": 10}}
+        _sc = WDKSearchConfig()
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
+            "strategyId": 200,
+            "name": "test",
+            "rootStepId": 10,
+            "stepTree": {"stepId": 10},
+            "steps": {
+                "10": {"id": 10, "searchName": "GenesByTextSearch", "searchConfig": _sc.model_dump(by_alias=True)},
+            },
+        })
         count = await svc._count_strategy_steps(api, strategy_id=200)
         assert count == 1
 
@@ -795,13 +814,22 @@ class TestGeneSetServiceHelpers:
     async def test_count_strategy_steps_counts_nested_tree(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_strategy.return_value = {
+        _sc = WDKSearchConfig()
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
+            "strategyId": 300,
+            "name": "test",
+            "rootStepId": 30,
             "stepTree": {
                 "stepId": 30,
                 "primaryInput": {"stepId": 10},
                 "secondaryInput": {"stepId": 20},
-            }
-        }
+            },
+            "steps": {
+                "10": {"id": 10, "searchName": "Search1", "searchConfig": _sc.model_dump(by_alias=True)},
+                "20": {"id": 20, "searchName": "Search2", "searchConfig": _sc.model_dump(by_alias=True)},
+                "30": {"id": 30, "searchName": "BooleanQuestion", "searchConfig": _sc.model_dump(by_alias=True)},
+            },
+        })
         count = await svc._count_strategy_steps(api, strategy_id=300)
         assert count == 3
 

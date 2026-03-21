@@ -5,7 +5,13 @@ from uuid import uuid4
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKSearchConfig,
+    WDKStep,
+    WDKStepTree,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import (
     InternalError,
     NotFoundError,
@@ -14,7 +20,6 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.services.gene_sets.operations import (
     GeneSetService,
     GeneSetWdkContext,
-    count_steps_in_tree,
     fetch_gene_ids_from_step,
     resolve_root_step_id,
 )
@@ -50,54 +55,6 @@ def _make_set(
 
 
 # ---------------------------------------------------------------------------
-# count_steps_in_tree
-# ---------------------------------------------------------------------------
-
-
-class TestCountStepsInTree:
-    def test_single_node(self) -> None:
-        assert count_steps_in_tree({"id": 1}) == 1
-
-    def test_empty_dict(self) -> None:
-        assert count_steps_in_tree({}) == 1
-
-    def test_not_a_dict(self) -> None:
-        assert count_steps_in_tree(None) == 0
-        assert count_steps_in_tree("junk") == 0
-        assert count_steps_in_tree(42) == 0
-
-    def test_linear_chain(self) -> None:
-        tree = {
-            "id": 3,
-            "primaryInput": {
-                "id": 2,
-                "primaryInput": {"id": 1},
-            },
-        }
-        assert count_steps_in_tree(tree) == 3
-
-    def test_binary_tree(self) -> None:
-        tree = {
-            "id": 3,
-            "primaryInput": {"id": 1},
-            "secondaryInput": {"id": 2},
-        }
-        assert count_steps_in_tree(tree) == 3
-
-    def test_complex_tree(self) -> None:
-        tree = {
-            "id": 5,
-            "primaryInput": {
-                "id": 3,
-                "primaryInput": {"id": 1},
-                "secondaryInput": {"id": 2},
-            },
-            "secondaryInput": {"id": 4},
-        }
-        assert count_steps_in_tree(tree) == 5
-
-
-# ---------------------------------------------------------------------------
 # resolve_root_step_id
 # ---------------------------------------------------------------------------
 
@@ -105,25 +62,16 @@ class TestCountStepsInTree:
 class TestResolveRootStepId:
     async def test_returns_root_step_id(self) -> None:
         mock_api = AsyncMock()
-        mock_api.get_strategy.return_value = {"rootStepId": 42}
+        mock_api.get_strategy.return_value = WDKStrategyDetails(
+            strategy_id=10,
+            name="test",
+            root_step_id=42,
+            step_tree=WDKStepTree(step_id=42),
+        )
 
         result = await resolve_root_step_id(mock_api, strategy_id=10)
         assert result == 42
         mock_api.get_strategy.assert_awaited_once_with(10)
-
-    async def test_returns_none_when_missing(self) -> None:
-        mock_api = AsyncMock()
-        mock_api.get_strategy.return_value = {}
-
-        result = await resolve_root_step_id(mock_api, strategy_id=10)
-        assert result is None
-
-    async def test_returns_none_for_non_int(self) -> None:
-        mock_api = AsyncMock()
-        mock_api.get_strategy.return_value = {"rootStepId": "not-an-int"}
-
-        result = await resolve_root_step_id(mock_api, strategy_id=10)
-        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -320,13 +268,19 @@ class TestCreate:
         mock_api = AsyncMock()
         mock_get_api.return_value = mock_api
         # get_strategy called twice: once for resolve_root_step_id, once for step count
-        mock_api.get_strategy.return_value = {
-            "rootStepId": 42,
-            "stepTree": {
-                "id": 42,
-                "primaryInput": {"id": 41},
+        mock_api.get_strategy.return_value = WDKStrategyDetails(
+            strategy_id=100,
+            name="test",
+            root_step_id=42,
+            step_tree=WDKStepTree(
+                step_id=42,
+                primary_input=WDKStepTree(step_id=41),
+            ),
+            steps={
+                "41": WDKStep(id=41, search_name="GenesByTextSearch", search_config=WDKSearchConfig()),
+                "42": WDKStep(id=42, search_name="BooleanQuestion", search_config=WDKSearchConfig()),
             },
-        }
+        )
         mock_api.get_step_answer.return_value = WDKAnswer.model_validate({
             "records": [
                 {"id": [{"name": "source_id", "value": "RESOLVED_G1"}]},

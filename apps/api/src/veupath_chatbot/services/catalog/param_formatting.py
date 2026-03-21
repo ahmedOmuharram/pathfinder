@@ -291,7 +291,7 @@ def format_param_info_typed(params: list[WDKParameter]) -> list[JSONObject]:
     ``WDKParameter`` models instead of raw JSON dicts, using attribute
     access for type safety.
 
-    Phyletic structural params and non-visible params are filtered out.
+    Phyletic structural params are filtered out.
 
     :param params: Typed WDK parameter models.
     :returns: Formatted parameter info dicts.
@@ -301,5 +301,5 @@ def format_param_info_typed(params: list[WDKParameter]) -> list[JSONObject]:
     return [
         _format_typed_param(p, depends_on, controls)
         for p in params
-        if p.is_visible and p.name not in _PHYLETIC_STRUCTURAL_PARAMS
+        if p.name not in _PHYLETIC_STRUCTURAL_PARAMS
     ]

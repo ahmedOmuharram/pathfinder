@@ -28,6 +28,7 @@ async def test_sync_wdk_deletes_internal_control_test_strategies(
             {
                 "strategyId": 329824883,
                 "name": "__pathfinder_internal__:Pathfinder control test",
+                "rootStepId": 1,
                 "isSaved": False,
             }
         ],

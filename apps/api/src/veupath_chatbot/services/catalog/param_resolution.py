@@ -4,6 +4,7 @@ from typing import cast
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
+    ParamSpecNormalized,
     adapt_param_specs_from_search,
     find_input_step_param,
 )
@@ -89,23 +90,17 @@ async def get_search_parameters_tool(ctx: SearchContext) -> JSONObject:
 
 
 def _extract_phyletic_vocabs(
-    specs: JSONArray,
+    specs: dict[str, ParamSpecNormalized],
 ) -> tuple[JSONArray, JSONArray]:
     """Extract phyletic_term_map and phyletic_indent_map vocabularies from param specs."""
     term_map_vocab: JSONArray = []
     indent_map_vocab: JSONArray = []
-    for spec in specs:
-        if not isinstance(spec, dict):
-            continue
-        name = spec.get("name")
-        if name == "phyletic_term_map":
-            vocab = spec.get("vocabulary")
-            if isinstance(vocab, list):
-                term_map_vocab = vocab
-        elif name == "phyletic_indent_map":
-            vocab = spec.get("vocabulary")
-            if isinstance(vocab, list):
-                indent_map_vocab = vocab
+    term_spec = specs.get("phyletic_term_map")
+    if term_spec and isinstance(term_spec.vocabulary, list):
+        term_map_vocab = term_spec.vocabulary
+    indent_spec = specs.get("phyletic_indent_map")
+    if indent_spec and isinstance(indent_spec.vocabulary, list):
+        indent_map_vocab = indent_spec.vocabulary
     return term_map_vocab, indent_map_vocab
 
 
@@ -174,8 +169,8 @@ async def lookup_phyletic_codes(
             SearchContext(site_id, resolved, "GenesByOrthologPattern"),
             record_types=record_types,
         )
-        specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
-        term_map_vocab, indent_map_vocab = _extract_phyletic_vocabs(specs)
+        spec_map = adapt_param_specs_from_search(response.search_data)
+        term_map_vocab, indent_map_vocab = _extract_phyletic_vocabs(spec_map)
         group_codes = _build_group_codes(indent_map_vocab)
         matches = _match_phyletic_entries(term_map_vocab, group_codes, query)
 

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import httpx
 from qdrant_client import AsyncQdrantClient
 
-from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.integrations.embeddings.openai_embeddings import OpenAIEmbeddings
 from veupath_chatbot.integrations.vectorstore.bootstrap import get_embedding_dim
 from veupath_chatbot.integrations.vectorstore.collections import (
@@ -33,6 +32,7 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import QdrantStore
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -77,18 +77,18 @@ async def ingest_site(cfg: IngestSiteConfig) -> None:
     async def make_doc(rt_name: str, s: JSONObject) -> tuple[JSONObject | None, bool]:
         if not isinstance(s, dict):
             return None, False
-        if s.get("isInternal", False):
+        full_name = s.get("fullName", "")
+        if isinstance(full_name, str) and full_name.startswith("InternalQuestions."):
             return None, False
         search_name = wdk_entity_name(s)
         if not search_name:
             return None, False
 
-        summary_unwrapped = unwrap_search_data(s if isinstance(s, dict) else {}) or {}
-        details_unwrapped, details_error = await fetch_search_details(
-            client, rt_name, search_name, summary_unwrapped
+        details_dict, details_error = await fetch_search_details(
+            client, rt_name, search_name, s
         )
         doc = build_search_doc(
-            cfg.site_id, rt_name, s, details_unwrapped, details_error, client.base_url
+            cfg.site_id, rt_name, s, details_dict, details_error, client.base_url
         )
         return doc, details_error is not None
 
@@ -168,7 +168,7 @@ async def ingest_wdk_catalog(
             )
             try:
                 await ingest_site(cfg)
-            except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
+            except (httpx.HTTPError, OSError, RuntimeError, AppError) as exc:
                 logger.warning(
                     "WDK ingest site failed, continuing with remaining sites",
                     siteId=site_id,

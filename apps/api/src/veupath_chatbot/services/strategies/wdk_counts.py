@@ -50,14 +50,9 @@ async def _count_via_anonymous_report(
     search_config: JSONObject = {"parameters": parameters}
     report_config: JSONObject = {"pagination": {"offset": 0, "numRecords": 0}}
     try:
-        result = await client.run_search_report(
+        answer = await client.run_search_report(
             record_type, search_name, search_config, report_config
         )
-        meta = result.get("meta")
-        if isinstance(meta, dict):
-            count = meta.get("totalCount")
-            if isinstance(count, int):
-                return count
     except AppError as e:
         logger.warning(
             "Anonymous report count failed",
@@ -65,7 +60,9 @@ async def _count_via_anonymous_report(
             search_name=search_name,
             error=str(e),
         )
-    return None
+        return None
+    else:
+        return answer.meta.total_count
 
 
 def is_leaf_only_strategy(strategy_ast: StrategyAST) -> bool:
@@ -162,15 +159,10 @@ async def _compute_counts_via_compilation(
     if temp_strategy_id is not None:
         try:
             wdk_strategy = await api.get_strategy(temp_strategy_id)
-            if isinstance(wdk_strategy, dict):
-                steps_dict = wdk_strategy.get("steps")
-                if isinstance(steps_dict, dict):
-                    for step in result.steps:
-                        step_info = steps_dict.get(str(step.wdk_step_id))
-                        if isinstance(step_info, dict):
-                            estimated = step_info.get("estimatedSize")
-                            if isinstance(estimated, int):
-                                counts[step.local_id] = estimated
+            for step in result.steps:
+                wdk_step = wdk_strategy.steps.get(str(step.wdk_step_id))
+                if wdk_step is not None and wdk_step.estimated_size is not None:
+                    counts[step.local_id] = wdk_step.estimated_size
         except AppError as e:
             logger.warning("Failed to read counts from strategy payload", error=str(e))
 
