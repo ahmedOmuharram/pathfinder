@@ -17,7 +17,6 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
     close_all_qdrant_stores,
 )
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
-from veupath_chatbot.integrations.veupathdb.site_search import close_site_search_client
 from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory, close_db, init_db
@@ -106,7 +105,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Shutting down Pathfinder API")
     await close_all_qdrant_stores()
     await close_all_clients()
-    await close_site_search_client()
     await close_redis()
     await close_db()
 

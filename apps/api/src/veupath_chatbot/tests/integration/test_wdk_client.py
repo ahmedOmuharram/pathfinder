@@ -20,7 +20,10 @@ from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     encode_context_param_values_for_wdk,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch, WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     error_response_404,

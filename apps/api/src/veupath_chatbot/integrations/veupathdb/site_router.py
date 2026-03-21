@@ -3,11 +3,13 @@
 import threading
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchClient
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import ErrorCode, NotFoundError
 from veupath_chatbot.platform.logging import get_logger
@@ -107,6 +109,16 @@ class SiteInfo(CamelModel):
         """Get web UI base URL (strip /service if present)."""
         return self.base_url.removesuffix("/service")
 
+    @property
+    def site_origin(self) -> str:
+        """Get the site origin URL (scheme + host, no path).
+
+        Site-search lives at the origin (e.g. https://plasmodb.org/site-search),
+        not under the WDK service prefix.
+        """
+        parsed = urlparse(self.base_url)
+        return f"{parsed.scheme}://{parsed.netloc}"
+
     def strategy_url(self, strategy_id: int, root_step_id: int | None = None) -> str:
         """Build a strategy URL for the web UI.
 
@@ -127,6 +139,7 @@ class SiteRouter:
         self._config = load_sites_config(settings.veupathdb_sites_config)
         self._sites: dict[str, SiteInfo] = {}
         self._clients: dict[str, VEuPathDBClient] = {}
+        self._site_search_clients: dict[str, SiteSearchClient] = {}
         self._client_lock = threading.Lock()
         self._load_sites()
 
@@ -193,11 +206,32 @@ class SiteRouter:
         """Get client for the portal."""
         return self.get_client("veupathdb")
 
+    def get_site_search_client(self, site_id: str) -> SiteSearchClient:
+        """Get or create site-search client for a site.
+
+        Site-search is a separate VEuPathDB microservice (VEuPathDB/SiteSearchService)
+        that lives at the site origin URL, not under the WDK service prefix.
+        """
+        if site_id in self._site_search_clients:
+            return self._site_search_clients[site_id]
+        with self._client_lock:
+            if site_id not in self._site_search_clients:
+                site = self.get_site(site_id)
+                self._site_search_clients[site_id] = SiteSearchClient(
+                    base_url=site.site_origin,
+                    project_id=site.project_id,
+                    timeout=float(self._config.routing.component_timeout),
+                )
+            return self._site_search_clients[site_id]
+
     async def close_all(self) -> None:
         """Close all HTTP clients."""
-        for client in self._clients.values():
-            await client.close()
+        for wdk_client in self._clients.values():
+            await wdk_client.close()
         self._clients.clear()
+        for ss_client in self._site_search_clients.values():
+            await ss_client.close()
+        self._site_search_clients.clear()
 
 
 # Global router instance

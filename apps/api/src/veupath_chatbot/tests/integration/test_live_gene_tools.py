@@ -19,7 +19,6 @@ import pytest
 
 from veupath_chatbot.ai.tools.planner.gene_tools import GeneToolsMixin
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.site_search import close_site_search_client
 
 pytestmark = pytest.mark.live_wdk
 
@@ -42,13 +41,9 @@ class _LiveTools(GeneToolsMixin):
 @pytest.fixture(autouse=True)
 async def _close_clients() -> AsyncGenerator[None]:
     with contextlib.suppress(Exception):
-        await close_site_search_client()
-    with contextlib.suppress(Exception):
         router = get_site_router()
         await router.close_all()
     yield
-    with contextlib.suppress(Exception):
-        await close_site_search_client()
     with contextlib.suppress(Exception):
         router = get_site_router()
         await router.close_all()

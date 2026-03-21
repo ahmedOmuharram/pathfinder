@@ -20,8 +20,8 @@ from collections.abc import AsyncGenerator
 import pytest
 
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.types import JSONArray
 from veupath_chatbot.services.catalog.searches import (
     find_record_type_for_search,

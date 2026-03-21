@@ -3,8 +3,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.services.gene_lookup import lookup_genes_by_text, resolve_gene_ids
-from veupath_chatbot.services.wdk import query_site_search
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
@@ -64,15 +64,10 @@ class OrganismsResponse(BaseModel):
 @router.get("/{siteId}/organisms", response_model=OrganismsResponse)
 async def list_organisms(siteId: str) -> OrganismsResponse:
     """Return all available organism names for a site via site-search."""
-    data = await query_site_search(
-        siteId,
-        search_text="*",
-        document_type="gene",
-        limit=1,
-    )
-    data_dict = data if isinstance(data, dict) else {}
-    org_counts = data_dict.get("organismCounts")
-    orgs = sorted(org_counts.keys()) if isinstance(org_counts, dict) else []
+    site_router = get_site_router()
+    client = site_router.get_site_search_client(siteId)
+    response = await client.search(search_text="*", document_type="gene", limit=1)
+    orgs = sorted(response.organism_counts.keys())
     return OrganismsResponse(organisms=orgs)
 
 

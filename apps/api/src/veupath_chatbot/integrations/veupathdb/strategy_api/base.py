@@ -135,7 +135,7 @@ class StrategyAPIBase:
             if not wdk_params:
                 return params
             return self._expand_specs(wdk_params, params, search_name)
-        except OSError, RuntimeError, AppError, KeyError:
+        except AppError:
             logger.debug("Failed to expand tree params (non-fatal)")
             return params
 
@@ -241,7 +241,7 @@ class StrategyAPIBase:
             children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
             expanded = _expand_entries(entries, children_of, leaf_codes)
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
-        except OSError, RuntimeError, AppError, KeyError:
+        except AppError:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 

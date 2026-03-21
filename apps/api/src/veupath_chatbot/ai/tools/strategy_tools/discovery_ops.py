@@ -3,13 +3,12 @@
 import re
 from typing import Annotated, cast
 
-import httpx
 from kani import AIParam, ai_function
 
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
-from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import (
@@ -140,7 +139,7 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
         for rt_name in record_types:
             try:
                 searches = await get_raw_searches(self.session.site_id, rt_name)
-            except httpx.HTTPError, KeyError:
+            except AppError:
                 logger.warning(
                     "Failed to fetch searches for record type %s",
                     rt_name,

@@ -11,11 +11,11 @@ Covers:
 - Dedup determinism
 """
 
-from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
 from veupath_chatbot.services.gene_lookup.enrich import (
     enrich_sparse_gene_results,
 )
@@ -180,77 +180,59 @@ class TestSiteSearchEdgeCases:
     def test_doc_with_html_in_gene_id(self) -> None:
         """Gene IDs wrapped in <em> tags should be cleaned."""
         docs = [
-            {
-                "wdkPrimaryKeyString": "<em>PF3D7</em>_0100100",
-                "summaryFieldData": {},
-            }
+            SiteSearchDocument(
+                wdk_primary_key_string="<em>PF3D7</em>_0100100",
+            )
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert len(results) == 1
         assert results[0]["geneId"] == "PF3D7_0100100"
 
     def test_doc_with_only_whitespace_gene_id(self) -> None:
         """Whitespace-only gene ID should be skipped."""
         docs = [
-            {
-                "wdkPrimaryKeyString": "   ",
-                "primaryKey": [],
-                "summaryFieldData": {},
-            }
+            SiteSearchDocument(
+                wdk_primary_key_string="   ",
+                primary_key=[],
+            )
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert results == []
 
-    def test_doc_with_none_summary_field_data(self) -> None:
-        """summaryFieldData that is None should be treated as empty dict."""
+    def test_doc_with_empty_summary_field_data(self) -> None:
+        """Empty summaryFieldData should be treated as missing (all fields empty)."""
         docs = [
-            {
-                "wdkPrimaryKeyString": "GENE_X",
-                "summaryFieldData": None,
-            }
+            SiteSearchDocument(
+                wdk_primary_key_string="GENE_X",
+            )
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert len(results) == 1
         assert results[0]["geneId"] == "GENE_X"
         assert results[0]["organism"] == ""
 
-    def test_doc_with_integer_summary_field_data(self) -> None:
-        """summaryFieldData that is not a dict should be treated as empty dict."""
+    def test_doc_found_in_fields_empty(self) -> None:
+        """Empty found_in_fields should result in empty matchedFields."""
         docs = [
-            {
-                "wdkPrimaryKeyString": "GENE_X",
-                "summaryFieldData": 42,
-            }
+            SiteSearchDocument(
+                wdk_primary_key_string="GENE_X",
+            )
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
-        assert len(results) == 1
-        assert results[0]["geneId"] == "GENE_X"
-
-    def test_doc_found_in_fields_not_dict(self) -> None:
-        """foundInFields that is not a dict should result in empty matchedFields."""
-        docs = [
-            {
-                "wdkPrimaryKeyString": "GENE_X",
-                "summaryFieldData": {},
-                "foundInFields": "not a dict",
-            }
-        ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert results[0]["matchedFields"] == []
 
-    def test_doc_found_in_fields_non_list_values(self) -> None:
-        """Field values that are not lists should be skipped."""
+    def test_doc_found_in_fields_skips_empty_lists(self) -> None:
+        """Field entries with empty lists should not appear in matchedFields."""
         docs = [
-            {
-                "wdkPrimaryKeyString": "GENE_X",
-                "summaryFieldData": {},
-                "foundInFields": {
-                    "TEXT__gene_product": "not a list",
+            SiteSearchDocument(
+                wdk_primary_key_string="GENE_X",
+                found_in_fields={
+                    "TEXT__gene_product": [],
                     "TEXT__gene_name": ["valid"],
                 },
-            }
+            )
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_name" in matched

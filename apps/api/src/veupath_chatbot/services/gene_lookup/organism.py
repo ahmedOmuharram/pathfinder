@@ -3,7 +3,7 @@
 import json
 import re
 
-from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
+from veupath_chatbot.platform.text import strip_html_tags
 
 _MIN_WORDS_FOR_COMPACT_CODE = 2
 

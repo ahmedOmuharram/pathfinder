@@ -1,11 +1,8 @@
 """Site-search gene fetching and document parsing."""
 
-from typing import cast
-
-from veupath_chatbot.integrations.veupathdb.site_search import (
-    query_site_search,
-    strip_html_tags,
-)
+from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
+from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
@@ -14,54 +11,44 @@ from .result import GeneResultInput, build_gene_result
 SITE_SEARCH_FETCH_LIMIT = 50
 
 
-def _extract_gene_id(doc: dict[str, object]) -> str:
+def _extract_gene_id(doc: SiteSearchDocument) -> str:
     """Extract the gene ID from a site-search document."""
-    gene_id = strip_html_tags(str(doc.get("wdkPrimaryKeyString", ""))).strip()
-    if not gene_id:
-        pk = doc.get("primaryKey")
-        if isinstance(pk, list) and pk:
-            gene_id = str(pk[0]).strip()
+    gene_id = strip_html_tags(doc.wdk_primary_key_string).strip()
+    if not gene_id and doc.primary_key:
+        gene_id = doc.primary_key[0].strip()
     return gene_id
 
 
-def _extract_matched_fields(doc: dict[str, object]) -> list[str]:
+def _extract_matched_fields(doc: SiteSearchDocument) -> list[str]:
     """Extract matched field names from a site-search document."""
-    found = doc.get("foundInFields")
-    if not isinstance(found, dict):
-        return []
     matched_fields: list[str] = []
-    for field_key, field_values in found.items():
-        if isinstance(field_values, list) and field_values:
+    for field_key, field_values in doc.found_in_fields.items():
+        if field_values:
             clean_key = field_key.replace("MULTITEXT__", "").replace("TEXT__", "")
             matched_fields.append(clean_key)
     return matched_fields
 
 
-def parse_site_search_docs(docs: list[object]) -> list[JSONObject]:
-    """Convert raw site-search documents into standardised gene dicts."""
+def parse_site_search_docs(docs: list[SiteSearchDocument]) -> list[JSONObject]:
+    """Convert typed site-search documents into standardised gene dicts."""
     results: list[JSONObject] = []
     for doc in docs:
-        if not isinstance(doc, dict):
-            continue
-
         gene_id = _extract_gene_id(doc)
         if not gene_id:
             continue
 
-        summary = doc.get("summaryFieldData")
-        if not isinstance(summary, dict):
-            summary = {}
+        summary = doc.summary_field_data
 
-        doc_organism = normalize_organism(summary.get("TEXT__gene_organism_full", ""))
-        doc_product = strip_html_tags(summary.get("TEXT__gene_product", ""))
-        doc_gene_name = strip_html_tags(summary.get("TEXT__gene_name", ""))
-        doc_gene_type = strip_html_tags(summary.get("TEXT__gene_type", ""))
+        doc_organism = normalize_organism(str(summary.get("TEXT__gene_organism_full", "")))
+        doc_product = strip_html_tags(str(summary.get("TEXT__gene_product", "")))
+        doc_gene_name = strip_html_tags(str(summary.get("TEXT__gene_name", "")))
+        doc_gene_type = strip_html_tags(str(summary.get("TEXT__gene_type", "")))
 
-        hyperlink_name = strip_html_tags(str(doc.get("hyperlinkName", ""))).strip()
+        hyperlink_name = strip_html_tags(doc.hyperlink_name).strip()
         display_name = hyperlink_name or doc_gene_name or doc_product
 
-        if not doc_organism and doc.get("organism"):
-            doc_organism = normalize_organism(str(doc.get("organism", "")))
+        if not doc_organism and doc.organism:
+            doc_organism = normalize_organism(doc.organism[0])
 
         results.append(
             build_gene_result(
@@ -90,24 +77,16 @@ async def fetch_site_search_genes(
 
     :returns: ``(gene_results, available_organisms, total_count)``
     """
-    data = await query_site_search(
-        site_id,
-        search_text=search_text,
+    response = await get_site_router().get_site_search_client(site_id).search(
+        search_text,
         document_type="gene",
         organisms=organisms,
         limit=limit,
         offset=0,
     )
-    data_dict = data if isinstance(data, dict) else {}
-    sr_raw = data_dict.get("searchResults")
-    sr = sr_raw if isinstance(sr_raw, dict) else {}
-    total = sr.get("totalCount", 0)
-    docs = sr.get("documents")
-    doc_list = docs if isinstance(docs, list) else []
 
-    results = parse_site_search_docs(cast("list[object]", doc_list))
+    results = parse_site_search_docs(response.search_results.documents)
+    orgs = sorted(response.organism_counts.keys())
+    total = response.search_results.total_count
 
-    org_counts = data_dict.get("organismCounts")
-    orgs = sorted(org_counts.keys()) if isinstance(org_counts, dict) else []
-
-    return results, orgs, total if isinstance(total, int) else len(results)
+    return results, orgs, total

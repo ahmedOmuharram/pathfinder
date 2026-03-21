@@ -597,5 +597,5 @@ async def _attach_export(result_json: JSONObject, search_name: str) -> None:
             "json": json_export.url,
             "expiresInSeconds": json_export.expires_in_seconds,
         }
-    except OSError, ValueError, TypeError, KeyError:
+    except OSError:
         pass

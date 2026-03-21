@@ -12,8 +12,6 @@ D. WDK ``GenesByText`` broad -- fires when an explicit organism filter is given.
 import asyncio
 from typing import cast
 
-import httpx
-
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -66,7 +64,7 @@ async def _run_primary_searches(
                 query,
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except (httpx.HTTPError, AppError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Gene text lookup via site-search failed; falling back to WDK strategies",
                 site_id=site_id,
@@ -84,7 +82,7 @@ async def _run_primary_searches(
                 f'"{query.strip()}"',
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except (httpx.HTTPError, AppError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Phrase-quoted gene search failed", query=query, error=str(exc)
             )
@@ -104,6 +102,88 @@ async def _run_primary_searches(
     return primary_results, available_organisms, total_count
 
 
+async def _strategy_b(
+    site_id: str,
+    query: str,
+    effective_organism: str | None,
+) -> list[JSONObject]:
+    """Strategy B: organism-restricted site-search."""
+    if not effective_organism:
+        return []
+    try:
+        results, _, _ = await fetch_site_search_genes(
+            site_id,
+            query,
+            organisms=[effective_organism],
+            limit=SITE_SEARCH_FETCH_LIMIT,
+        )
+    except AppError as exc:
+        logger.debug(
+            "Organism-restricted gene search failed (non-fatal)",
+            site_id=site_id,
+            organism=effective_organism,
+            error=str(exc),
+        )
+        return []
+    else:
+        return results
+
+
+async def _strategy_c(
+    site_id: str,
+    intent: QueryIntent,
+    effective_organism: str | None,
+    needed: int,
+) -> WdkTextResult:
+    """Strategy C: WDK wildcard ID search."""
+    if not intent.wildcard_ids or not effective_organism:
+        return _EMPTY_WDK
+    try:
+        return await fetch_wdk_text_genes(
+            site_id,
+            list(intent.wildcard_ids),
+            organism=effective_organism,
+            text_fields=WDK_TEXT_FIELDS_ID,
+            limit=max(WDK_WILDCARD_LIMIT, needed),
+        )
+    except AppError as exc:
+        logger.debug(
+            "WDK wildcard gene search failed (non-fatal)",
+            site_id=site_id,
+            wildcard_ids=intent.wildcard_ids,
+            error=str(exc),
+        )
+        return _EMPTY_WDK
+
+
+async def _strategy_d(
+    site_id: str,
+    query: str,
+    explicit_organism: str | None,
+    needed: int,
+) -> WdkTextResult:
+    """Strategy D: WDK broad text search."""
+    if not explicit_organism:
+        return _EMPTY_WDK
+    try:
+        return await fetch_wdk_text_genes(
+            site_id,
+            [query],
+            organism=explicit_organism,
+            text_fields=WDK_TEXT_FIELDS_BROAD,
+            limit=max(WDK_WILDCARD_LIMIT, needed),
+        )
+    except AppError as exc:
+        logger.debug(
+            "WDK broad text gene search failed (non-fatal)",
+            site_id=site_id,
+            query=query,
+            organism=explicit_organism,
+            error=str(exc),
+        )
+        return _EMPTY_WDK
+
+
 async def _run_supplementary_searches(
     site_id: str,
     query: str,
@@ -117,70 +197,11 @@ async def _run_supplementary_searches(
 
     :returns: ``(organism_results, wdk_id_result, wdk_broad_result)``
     """
-
-    async def _strategy_b() -> list[JSONObject]:
-        if not effective_organism:
-            return []
-        try:
-            results, _, _ = await fetch_site_search_genes(
-                site_id,
-                query,
-                organisms=[effective_organism],
-                limit=SITE_SEARCH_FETCH_LIMIT,
-            )
-        except (httpx.HTTPError, AppError) as exc:
-            logger.debug(
-                "Organism-restricted gene search failed (non-fatal)",
-                site_id=site_id,
-                organism=effective_organism,
-                error=str(exc),
-            )
-            return []
-        else:
-            return results
-
-    async def _strategy_c() -> WdkTextResult:
-        if not intent.wildcard_ids or not effective_organism:
-            return _EMPTY_WDK
-        try:
-            return await fetch_wdk_text_genes(
-                site_id,
-                list(intent.wildcard_ids),
-                organism=effective_organism,
-                text_fields=WDK_TEXT_FIELDS_ID,
-                limit=max(WDK_WILDCARD_LIMIT, needed),
-            )
-        except AppError as exc:
-            logger.debug(
-                "WDK wildcard gene search failed (non-fatal)",
-                site_id=site_id,
-                wildcard_ids=intent.wildcard_ids,
-                error=str(exc),
-            )
-            return _EMPTY_WDK
-
-    async def _strategy_d() -> WdkTextResult:
-        if not explicit_organism:
-            return _EMPTY_WDK
-        try:
-            return await fetch_wdk_text_genes(
-                site_id,
-                [query],
-                organism=explicit_organism,
-                text_fields=WDK_TEXT_FIELDS_BROAD,
-                limit=max(WDK_WILDCARD_LIMIT, needed),
-            )
-        except AppError as exc:
-            logger.debug(
-                "WDK broad text gene search failed (non-fatal)",
-                site_id=site_id,
-                query=query,
-                organism=explicit_organism,
-                error=str(exc),
-            )
-            return _EMPTY_WDK
-
-    return await asyncio.gather(_strategy_b(), _strategy_c(), _strategy_d())
+    return await asyncio.gather(
+        _strategy_b(site_id, query, effective_organism),
+        _strategy_c(site_id, intent, effective_organism, needed),
+        _strategy_d(site_id, query, explicit_organism, needed),
+    )
 
 
 async def _merge_and_rank(

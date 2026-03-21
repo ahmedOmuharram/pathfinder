@@ -17,7 +17,6 @@ from veupath_chatbot.domain.research.citations import (
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKSearchConfig,
-    WDKStep,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import InternalError

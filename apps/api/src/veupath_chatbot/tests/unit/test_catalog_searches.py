@@ -8,6 +8,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    SiteSearchDocument,
+    SiteSearchResponse,
+    SiteSearchResults,
+)
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.catalog.searches import (
@@ -206,27 +211,46 @@ class TestListSearches:
 # ---------------------------------------------------------------------------
 
 
+def _make_site_search_response(docs: list[SiteSearchDocument]) -> SiteSearchResponse:
+    """Build a SiteSearchResponse from a list of SiteSearchDocument objects."""
+    return SiteSearchResponse(
+        search_results=SiteSearchResults(total_count=len(docs), documents=docs)
+    )
+
+
+def _mock_site_router(response: SiteSearchResponse) -> MagicMock:
+    """Build a mock site router whose site-search client returns *response*."""
+    router = MagicMock()
+    search_client = MagicMock()
+    search_client.search = AsyncMock(return_value=response)
+    router.get_site_search_client = MagicMock(return_value=search_client)
+    return router
+
+
+def _mock_site_router_raising(exc: Exception) -> MagicMock:
+    """Build a mock site router whose site-search client raises *exc*."""
+    router = MagicMock()
+    search_client = MagicMock()
+    search_client.search = AsyncMock(side_effect=exc)
+    router.get_site_search_client = MagicMock(return_value=search_client)
+    return router
+
+
 class TestSearchForSearchesViaSiteSearch:
     """Test the _search_for_searches_via_site_search() function."""
 
     async def test_basic_site_search_result(self) -> None:
-        site_search_response = {
-            "searchResults": {
-                "documents": [
-                    {
-                        "primaryKey": ["GenesByTaxon", "gene"],
-                        "hyperlinkName": "Genes by Taxon",
-                        "foundInFields": {
-                            "TEXT__search_description": ["Find genes by taxonomy"],
-                        },
-                    },
-                ]
-            }
-        }
+        doc = SiteSearchDocument(
+            primary_key=["GenesByTaxon", "gene"],
+            hyperlink_name="Genes by Taxon",
+            found_in_fields={
+                "TEXT__search_description": ["Find genes by taxonomy"],
+            },
+        )
+        router = _mock_site_router(_make_site_search_response([doc]))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
@@ -237,34 +261,26 @@ class TestSearchForSearchesViaSiteSearch:
         assert result[0]["description"] == "Find genes by taxonomy"
 
     async def test_returns_empty_on_exception(self) -> None:
+        router = _mock_site_router_raising(WDKError(detail="Network error"))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            side_effect=WDKError(detail="Network error"),
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
         assert result == []
 
     async def test_skips_bad_primary_keys(self) -> None:
-        site_search_response = {
-            "searchResults": {
-                "documents": [
-                    {"primaryKey": ["onlyone"]},  # too short
-                    {"primaryKey": None},  # not a list
-                    {"primaryKey": ["", "gene"]},  # empty search name
-                    {"primaryKey": ["GenesByTaxon", ""]},  # empty record type
-                    {
-                        "primaryKey": ["ValidSearch", "gene"],
-                        "hyperlinkName": "Valid",
-                    },
-                ]
-            }
-        }
+        docs = [
+            SiteSearchDocument(primary_key=["onlyone"]),  # too short
+            SiteSearchDocument(primary_key=["", "gene"]),  # empty search name
+            SiteSearchDocument(primary_key=["GenesByTaxon", ""]),  # empty record type
+            SiteSearchDocument(primary_key=["ValidSearch", "gene"], hyperlink_name="Valid"),
+        ]
+        router = _mock_site_router(_make_site_search_response(docs))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "test")
 
@@ -273,17 +289,16 @@ class TestSearchForSearchesViaSiteSearch:
 
     async def test_respects_limit(self) -> None:
         docs = [
-            {
-                "primaryKey": [f"Search{i}", "gene"],
-                "hyperlinkName": f"Search {i}",
-            }
+            SiteSearchDocument(
+                primary_key=[f"Search{i}", "gene"],
+                hyperlink_name=f"Search {i}",
+            )
             for i in range(10)
         ]
-        site_search_response = {"searchResults": {"documents": docs}}
+        router = _mock_site_router(_make_site_search_response(docs))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search(
                 "plasmodb", "search", limit=3
@@ -292,23 +307,17 @@ class TestSearchForSearchesViaSiteSearch:
         assert len(result) == 3
 
     async def test_display_name_falls_back_to_found_in_fields(self) -> None:
-        site_search_response = {
-            "searchResults": {
-                "documents": [
-                    {
-                        "primaryKey": ["GenesByTaxon", "gene"],
-                        "hyperlinkName": "",
-                        "foundInFields": {
-                            "TEXT__search_displayName": ["<em>Genes</em> by Taxon"],
-                        },
-                    },
-                ]
-            }
-        }
+        doc = SiteSearchDocument(
+            primary_key=["GenesByTaxon", "gene"],
+            hyperlink_name="",
+            found_in_fields={
+                "TEXT__search_displayName": ["<em>Genes</em> by Taxon"],
+            },
+        )
+        router = _mock_site_router(_make_site_search_response([doc]))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
@@ -316,46 +325,19 @@ class TestSearchForSearchesViaSiteSearch:
         assert result[0]["displayName"] == "Genes by Taxon"
 
     async def test_display_name_falls_back_to_search_name(self) -> None:
-        site_search_response = {
-            "searchResults": {
-                "documents": [
-                    {
-                        "primaryKey": ["GenesByTaxon", "gene"],
-                        "hyperlinkName": "",
-                        "foundInFields": {},
-                    },
-                ]
-            }
-        }
+        doc = SiteSearchDocument(
+            primary_key=["GenesByTaxon", "gene"],
+            hyperlink_name="",
+            found_in_fields={},
+        )
+        router = _mock_site_router(_make_site_search_response([doc]))
         with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
+            "veupath_chatbot.services.catalog.searches.get_site_router",
+            return_value=router,
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
         assert result[0]["displayName"] == "GenesByTaxon"
-
-    async def test_non_dict_docs_skipped(self) -> None:
-        site_search_response = {
-            "searchResults": {
-                "documents": [
-                    "not_a_dict",
-                    {
-                        "primaryKey": ["GenesByTaxon", "gene"],
-                        "hyperlinkName": "Valid",
-                    },
-                ]
-            }
-        }
-        with patch(
-            "veupath_chatbot.services.catalog.searches.query_site_search",
-            new_callable=AsyncMock,
-            return_value=site_search_response,
-        ):
-            result = await _search_for_searches_via_site_search("plasmodb", "test")
-
-        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------

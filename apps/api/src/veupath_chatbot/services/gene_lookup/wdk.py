@@ -9,11 +9,11 @@ import pydantic
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism

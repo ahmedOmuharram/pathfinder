@@ -21,7 +21,6 @@ from veupath_chatbot.integrations.veupathdb.factory import (
     list_sites,
 )
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
-from veupath_chatbot.integrations.veupathdb.site_search import query_site_search
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StrategyAPI,
     is_internal_wdk_strategy_name,
@@ -43,6 +42,5 @@ __all__ = [
     "get_wdk_client",
     "is_internal_wdk_strategy_name",
     "list_sites",
-    "query_site_search",
     "strip_internal_wdk_strategy_name",
 ]

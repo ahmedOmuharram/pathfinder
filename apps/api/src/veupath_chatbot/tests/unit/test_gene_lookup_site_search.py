@@ -1,8 +1,12 @@
 """Tests for services.gene_lookup.site_search -- site-search parsing and fetching."""
 
-from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    SiteSearchDocument,
+    SiteSearchResponse,
+    SiteSearchResults,
+)
 from veupath_chatbot.services.gene_lookup.site_search import (
     SITE_SEARCH_FETCH_LIMIT,
     fetch_site_search_genes,
@@ -21,28 +25,29 @@ def _make_doc(
     product: str = "erythrocyte membrane protein",
     gene_name: str = "PfEMP1",
     gene_type: str = "protein coding",
-    extra: dict[str, object] | None = None,
-) -> dict[str, object]:
-    doc: dict[str, object] = {
-        "wdkPrimaryKeyString": gene_id,
-        "summaryFieldData": {
-            "TEXT__gene_organism_full": organism,
-            "TEXT__gene_product": product,
-            "TEXT__gene_name": gene_name,
-            "TEXT__gene_type": gene_type,
-        },
+    extra_fields: dict[str, object] | None = None,
+) -> SiteSearchDocument:
+    summary: dict[str, str | list[str]] = {
+        "TEXT__gene_organism_full": organism,
+        "TEXT__gene_product": product,
+        "TEXT__gene_name": gene_name,
+        "TEXT__gene_type": gene_type,
     }
-    if extra:
-        doc.update(extra)
-    return doc
+    kwargs: dict[str, object] = {
+        "wdk_primary_key_string": gene_id,
+        "summary_field_data": summary,
+    }
+    if extra_fields:
+        kwargs.update(extra_fields)
+    return SiteSearchDocument(**kwargs)
 
 
 class TestParseSiteSearchDocs:
-    """Tests for converting raw site-search documents into gene dicts."""
+    """Tests for converting typed site-search documents into gene dicts."""
 
     def test_basic_parsing(self) -> None:
         docs = [_make_doc()]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert len(results) == 1
         r = results[0]
         assert r["geneId"] == "PF3D7_0100100"
@@ -57,62 +62,63 @@ class TestParseSiteSearchDocs:
             product="<em>erythrocyte</em> membrane protein",
             gene_name="<b>PfEMP1</b>",
         )
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        results = parse_site_search_docs([doc])
         assert results[0]["geneId"] == "PF3D7_0100100"
         assert results[0]["product"] == "erythrocyte membrane protein"
         assert results[0]["geneName"] == "PfEMP1"
 
     def test_fallback_to_primary_key_list(self) -> None:
-        doc = _make_doc()
-        doc["wdkPrimaryKeyString"] = ""
-        doc["primaryKey"] = ["PF3D7_0200200"]
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        doc = SiteSearchDocument(
+            wdk_primary_key_string="",
+            primary_key=["PF3D7_0200200"],
+        )
+        results = parse_site_search_docs([doc])
         assert results[0]["geneId"] == "PF3D7_0200200"
 
     def test_skip_doc_without_gene_id(self) -> None:
-        doc = _make_doc(gene_id="")
-        doc["primaryKey"] = []
-        results = parse_site_search_docs(cast("list[object]", [doc]))
-        assert results == []
-
-    def test_non_dict_docs_skipped(self) -> None:
-        results = parse_site_search_docs(cast("list[object]", ["not a dict", 42, None]))
+        doc = SiteSearchDocument(
+            wdk_primary_key_string="",
+            primary_key=[],
+        )
+        results = parse_site_search_docs([doc])
         assert results == []
 
     def test_missing_summary_field_data(self) -> None:
-        doc: dict[str, object] = {"wdkPrimaryKeyString": "PF3D7_0100100"}
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        doc = SiteSearchDocument(wdk_primary_key_string="PF3D7_0100100")
+        results = parse_site_search_docs([doc])
         assert len(results) == 1
         assert results[0]["geneId"] == "PF3D7_0100100"
         assert results[0]["organism"] == ""
         assert results[0]["product"] == ""
 
     def test_hyperlink_name_used_as_display_name(self) -> None:
-        doc = _make_doc(extra={"hyperlinkName": "My Gene Display Name"})
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        doc = _make_doc(
+            extra_fields={"hyperlink_name": "My Gene Display Name"},
+        )
+        results = parse_site_search_docs([doc])
         assert results[0]["displayName"] == "My Gene Display Name"
 
     def test_display_name_fallback_chain(self) -> None:
         # No hyperlinkName, no gene_name => falls back to product
         doc = _make_doc(gene_name="")
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        results = parse_site_search_docs([doc])
         assert results[0]["displayName"] == "erythrocyte membrane protein"
 
     def test_display_name_fallback_to_gene_name(self) -> None:
         doc = _make_doc(gene_name="MyGene")
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        results = parse_site_search_docs([doc])
         assert results[0]["displayName"] == "MyGene"
 
     def test_found_in_fields_parsed(self) -> None:
         doc = _make_doc(
-            extra={
-                "foundInFields": {
+            extra_fields={
+                "found_in_fields": {
                     "TEXT__gene_product": ["match1"],
                     "MULTITEXT__gene_Notes": ["note1"],
                 }
             }
         )
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        results = parse_site_search_docs([doc])
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_product" in matched
@@ -120,14 +126,14 @@ class TestParseSiteSearchDocs:
 
     def test_found_in_fields_skips_empty_values(self) -> None:
         doc = _make_doc(
-            extra={
-                "foundInFields": {
+            extra_fields={
+                "found_in_fields": {
                     "TEXT__gene_product": [],  # empty => skip
                     "TEXT__gene_name": ["match"],
                 }
             }
         )
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        results = parse_site_search_docs([doc])
         matched = results[0]["matchedFields"]
         assert isinstance(matched, list)
         assert "gene_product" not in matched
@@ -135,9 +141,11 @@ class TestParseSiteSearchDocs:
 
     def test_organism_fallback_to_doc_level(self) -> None:
         """When summary organism is empty, fall back to doc-level organism."""
-        doc = _make_doc(organism="")
-        doc["organism"] = "Toxoplasma gondii ME49"
-        results = parse_site_search_docs(cast("list[object]", [doc]))
+        doc = SiteSearchDocument(
+            wdk_primary_key_string="PF3D7_0100100",
+            organism=["Toxoplasma gondii ME49"],
+        )
+        results = parse_site_search_docs([doc])
         assert results[0]["organism"] == "Toxoplasma gondii ME49"
 
     def test_multiple_docs(self) -> None:
@@ -146,7 +154,7 @@ class TestParseSiteSearchDocs:
             _make_doc(gene_id="GENE_B"),
             _make_doc(gene_id="GENE_C"),
         ]
-        results = parse_site_search_docs(cast("list[object]", docs))
+        results = parse_site_search_docs(docs)
         assert len(results) == 3
         assert [r["geneId"] for r in results] == ["GENE_A", "GENE_B", "GENE_C"]
 
@@ -156,34 +164,50 @@ class TestParseSiteSearchDocs:
 # ---------------------------------------------------------------------------
 
 
+def _make_response(
+    total_count: int = 0,
+    documents: list[SiteSearchDocument] | None = None,
+    organism_counts: dict[str, int] | None = None,
+) -> SiteSearchResponse:
+    return SiteSearchResponse(
+        search_results=SiteSearchResults(
+            total_count=total_count,
+            documents=documents or [],
+        ),
+        organism_counts=organism_counts or {},
+    )
+
+
 class TestFetchSiteSearchGenes:
     """Tests for the async site-search wrapper."""
 
     @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
+        "veupath_chatbot.services.gene_lookup.site_search.get_site_router",
     )
-    async def test_basic_fetch(self, mock_query: AsyncMock) -> None:
-        mock_query.return_value = {
-            "searchResults": {
-                "totalCount": 1,
-                "documents": [
-                    {
-                        "wdkPrimaryKeyString": "PF3D7_0100100",
-                        "summaryFieldData": {
+    async def test_basic_fetch(self, mock_get_router: MagicMock) -> None:
+        mock_search = AsyncMock(
+            return_value=_make_response(
+                total_count=1,
+                documents=[
+                    SiteSearchDocument(
+                        wdk_primary_key_string="PF3D7_0100100",
+                        summary_field_data={
                             "TEXT__gene_organism_full": "Plasmodium falciparum 3D7",
                             "TEXT__gene_product": "some product",
                             "TEXT__gene_name": "SomeName",
                             "TEXT__gene_type": "protein coding",
                         },
-                    }
+                    )
                 ],
-            },
-            "organismCounts": {
-                "Plasmodium falciparum 3D7": 100,
-                "Plasmodium vivax P01": 10,
-            },
-        }
+                organism_counts={
+                    "Plasmodium falciparum 3D7": 100,
+                    "Plasmodium vivax P01": 10,
+                },
+            )
+        )
+        mock_get_router.return_value.get_site_search_client.return_value.search = (
+            mock_search
+        )
 
         results, organisms, total = await fetch_site_search_genes("plasmodb", "kinase")
         assert len(results) == 1
@@ -192,9 +216,11 @@ class TestFetchSiteSearchGenes:
         assert "Plasmodium falciparum 3D7" in organisms
         assert "Plasmodium vivax P01" in organisms
 
-        mock_query.assert_called_once_with(
-            "plasmodb",
-            search_text="kinase",
+        mock_get_router.return_value.get_site_search_client.assert_called_once_with(
+            "plasmodb"
+        )
+        mock_search.assert_called_once_with(
+            "kinase",
             document_type="gene",
             organisms=None,
             limit=SITE_SEARCH_FETCH_LIMIT,
@@ -202,14 +228,13 @@ class TestFetchSiteSearchGenes:
         )
 
     @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
+        "veupath_chatbot.services.gene_lookup.site_search.get_site_router",
     )
-    async def test_with_organisms_filter(self, mock_query: AsyncMock) -> None:
-        mock_query.return_value = {
-            "searchResults": {"totalCount": 0, "documents": []},
-            "organismCounts": {},
-        }
+    async def test_with_organisms_filter(self, mock_get_router: MagicMock) -> None:
+        mock_search = AsyncMock(return_value=_make_response())
+        mock_get_router.return_value.get_site_search_client.return_value.search = (
+            mock_search
+        )
 
         await fetch_site_search_genes(
             "plasmodb",
@@ -218,9 +243,8 @@ class TestFetchSiteSearchGenes:
             limit=10,
         )
 
-        mock_query.assert_called_once_with(
-            "plasmodb",
-            search_text="kinase",
+        mock_search.assert_called_once_with(
+            "kinase",
             document_type="gene",
             organisms=["Plasmodium falciparum 3D7"],
             limit=10,
@@ -228,11 +252,13 @@ class TestFetchSiteSearchGenes:
         )
 
     @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
+        "veupath_chatbot.services.gene_lookup.site_search.get_site_router",
     )
-    async def test_empty_response(self, mock_query: AsyncMock) -> None:
-        mock_query.return_value = {}
+    async def test_empty_response(self, mock_get_router: MagicMock) -> None:
+        mock_search = AsyncMock(return_value=_make_response())
+        mock_get_router.return_value.get_site_search_client.return_value.search = (
+            mock_search
+        )
 
         results, organisms, total = await fetch_site_search_genes("plasmodb", "zzz")
         assert results == []
@@ -240,51 +266,21 @@ class TestFetchSiteSearchGenes:
         assert total == 0
 
     @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
+        "veupath_chatbot.services.gene_lookup.site_search.get_site_router",
     )
-    async def test_non_dict_response(self, mock_query: AsyncMock) -> None:
-        mock_query.return_value = "not a dict"
-
-        results, organisms, _total = await fetch_site_search_genes("plasmodb", "zzz")
-        assert results == []
-        assert organisms == []
-
-    @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
-    )
-    async def test_total_count_fallback_to_len(self, mock_query: AsyncMock) -> None:
-        """When totalCount is not an int, fall back to len(results)."""
-        mock_query.return_value = {
-            "searchResults": {
-                "totalCount": "not an int",
-                "documents": [
-                    {
-                        "wdkPrimaryKeyString": "GENE_A",
-                        "summaryFieldData": {},
-                    },
-                ],
-            },
-        }
-
-        results, _, total = await fetch_site_search_genes("plasmodb", "kinase")
-        assert len(results) == 1
-        assert total == 1
-
-    @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.query_site_search",
-        new_callable=AsyncMock,
-    )
-    async def test_organism_counts_sorted(self, mock_query: AsyncMock) -> None:
-        mock_query.return_value = {
-            "searchResults": {"totalCount": 0, "documents": []},
-            "organismCounts": {
-                "Zzzorganism": 5,
-                "Aaaorganism": 10,
-                "Mmmorganism": 3,
-            },
-        }
+    async def test_organism_counts_sorted(self, mock_get_router: MagicMock) -> None:
+        mock_search = AsyncMock(
+            return_value=_make_response(
+                organism_counts={
+                    "Zzzorganism": 5,
+                    "Aaaorganism": 10,
+                    "Mmmorganism": 3,
+                }
+            )
+        )
+        mock_get_router.return_value.get_site_search_client.return_value.search = (
+            mock_search
+        )
 
         _, organisms, _ = await fetch_site_search_genes("plasmodb", "kinase")
         assert organisms == ["Aaaorganism", "Mmmorganism", "Zzzorganism"]

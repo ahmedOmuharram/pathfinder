@@ -3,8 +3,6 @@
 import asyncio
 import threading
 
-import httpx
-
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
@@ -13,31 +11,11 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKSearchResponse,
 )
-from veupath_chatbot.platform.errors import AppError, DataParsingError
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
-
-
-def _unwrap_record_types(raw_record_types: JSONArray | JSONObject) -> JSONArray:
-    """Unwrap record types from the WDK response.
-
-    WDK's record-types endpoint returns an array directly, but some
-    deployments wrap it under ``"recordTypes"``.
-
-    :raises DataParsingError: If the response is a dict without a ``recordTypes`` list.
-    """
-    if isinstance(raw_record_types, dict):
-        wrapped = raw_record_types.get("recordTypes")
-        if isinstance(wrapped, list):
-            return wrapped
-        msg = (
-            f"Unexpected record-types response shape: "
-            f"dict without 'recordTypes' list (keys: {list(raw_record_types.keys())})"
-        )
-        raise DataParsingError(msg)
-    return raw_record_types
 
 
 async def _load_searches_for_rt(
@@ -46,7 +24,7 @@ async def _load_searches_for_rt(
     """Fetch searches for a record type, returning None on error."""
     try:
         return await client.get_searches(rt_name)
-    except (httpx.HTTPError, OSError, RuntimeError, AppError) as e:
+    except AppError as e:
         logger.warning(
             "Failed to load searches",
             record_type=rt_name,
@@ -99,14 +77,13 @@ class SearchCatalog:
             logger.info("Loading search catalog", site_id=self.site_id)
 
             try:
-                raw_record_types = await client.get_record_types(expanded=True)
-                unwrapped = _unwrap_record_types(raw_record_types)
+                record_types = await client.get_record_types(expanded=True)
                 expanded_supported = any(
-                    isinstance(rt, dict) and "searches" in rt for rt in unwrapped
+                    isinstance(rt, dict) and "searches" in rt for rt in record_types
                 )
 
                 await self._populate_from_record_types(
-                    client, unwrapped, expanded_supported=expanded_supported
+                    client, record_types, expanded_supported=expanded_supported
                 )
 
                 self._loaded = True

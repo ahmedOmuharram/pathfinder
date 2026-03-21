@@ -2,9 +2,9 @@
 
 from collections.abc import Callable
 
-from veupath_chatbot.integrations.veupathdb.site_search import strip_html_tags
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism

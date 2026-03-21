@@ -11,9 +11,6 @@ Run::
 
 import inspect
 
-from veupath_chatbot.integrations.veupathdb.site_search import (
-    query_site_search,
-)
 from veupath_chatbot.integrations.veupathdb.temporary_results import (
     TemporaryResultsAPI,
 )
@@ -500,30 +497,6 @@ class TestUserCurrentShape:
     def test_has_is_guest(self) -> None:
         data = user_current_response()
         assert "isGuest" in data
-
-
-# ---------------------------------------------------------------------------
-# Site search is GET-only
-# ---------------------------------------------------------------------------
-class TestSiteSearchContract:
-    """The VEuPathDB site-search endpoint only accepts GET requests."""
-
-    def test_query_site_search_uses_get(self) -> None:
-        """Verify site_search.py sends GET, not POST.
-
-        Confirmed by CURL: POST to /site-search returns HTTP 500.
-        GET with query params returns 200.
-        """
-        source = inspect.getsource(query_site_search)
-        # The function should use client.get(), not client.post()
-        assert "client.get(" in source, (
-            "query_site_search must use GET, not POST. "
-            "The VEuPathDB site-search endpoint returns HTTP 500 for POST."
-        )
-        assert "client.post(" not in source, (
-            "query_site_search must NOT use POST. "
-            "The VEuPathDB site-search endpoint returns HTTP 500 for POST."
-        )
 
 
 # ---------------------------------------------------------------------------

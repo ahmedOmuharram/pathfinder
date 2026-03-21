@@ -5,8 +5,6 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
-import httpx
-
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.compile import ResolveRecordType
@@ -16,13 +14,12 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     get_discovery_service,
 )
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
-from veupath_chatbot.integrations.veupathdb.site_search import (
-    query_site_search,
-    strip_html_tags,
-)
+from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
@@ -203,38 +200,29 @@ async def list_transforms(site_id: str, record_type: str) -> list[dict[str, str]
     return result
 
 
-def _parse_site_search_doc(doc: object) -> dict[str, str] | None:
+def _parse_site_search_doc(doc: SiteSearchDocument) -> dict[str, str] | None:
     """Parse a single site-search document into a search entry dict, or None to skip."""
-    if not isinstance(doc, dict):
+    if len(doc.primary_key) < _MIN_PRIMARY_KEY_LENGTH:
         return None
-    primary_key = doc.get("primaryKey")
-    if not isinstance(primary_key, list) or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH:
-        return None
-    search_name = str(primary_key[0] or "").strip()
-    record_type = str(primary_key[1] or "").strip()
+    search_name = doc.primary_key[0].strip()
+    record_type = doc.primary_key[1].strip()
     if not search_name or not record_type:
         return None
 
-    found = doc.get("foundInFields") or {}
-    display = doc.get("hyperlinkName") or ""
-    if not display and isinstance(found, dict):
-        candidates = (
-            found.get("TEXT__search_displayName") or found.get("autocomplete") or []
-        )
-        if isinstance(candidates, list) and candidates:
-            first_candidate = candidates[0]
-            display = str(first_candidate) if first_candidate is not None else ""
-    display_name = strip_html_tags(str(display or "")) or search_name
+    found = doc.found_in_fields
+    display = doc.hyperlink_name
+    if not display:
+        candidates = found.get("TEXT__search_displayName") or found.get("autocomplete") or []
+        if candidates:
+            display = str(candidates[0]) if candidates[0] is not None else ""
+    display_name = strip_html_tags(display) or search_name
 
-    desc_val = ""
-    if isinstance(found, dict):
-        descs = (
-            found.get("TEXT__search_description")
-            or found.get("TEXT__search_summary")
-            or []
-        )
-        if isinstance(descs, list) and descs:
-            desc_val = str(descs[0] or "")
+    descs = (
+        found.get("TEXT__search_description")
+        or found.get("TEXT__search_summary")
+        or []
+    )
+    desc_val = str(descs[0]) if descs else ""
     description = strip_html_tags(desc_val)
 
     return {
@@ -257,14 +245,13 @@ async def _search_for_searches_via_site_search(
     documentType=search.
     """
     try:
-        data = await query_site_search(
-            site_id,
-            search_text=query,
+        response = await get_site_router().get_site_search_client(site_id).search(
+            query,
             document_type="search",
             limit=limit,
             offset=0,
         )
-    except (httpx.HTTPError, AppError) as exc:
+    except AppError as exc:
         logger.warning(
             "Site-search lookup failed; falling back to discovery search",
             site_id=site_id,
@@ -272,13 +259,8 @@ async def _search_for_searches_via_site_search(
         )
         return []
 
-    data_dict = data if isinstance(data, dict) else {}
-    search_results_raw = data_dict.get("searchResults")
-    search_results = search_results_raw if isinstance(search_results_raw, dict) else {}
-    docs_raw = search_results.get("documents")
-    docs = docs_raw if isinstance(docs_raw, list) else []
     results: list[dict[str, str]] = []
-    for doc in docs:
+    for doc in response.search_results.documents:
         entry = _parse_site_search_doc(doc)
         if entry is not None:
             results.append(entry)
@@ -410,7 +392,7 @@ async def _apply_site_search_bonus(
             bonus = site_bonus.get(entry["name"], 0.0)
             if bonus > 0:
                 scored[i] = (sc + bonus, entry)
-    except httpx.HTTPError, AppError:
+    except AppError:
         logger.debug("Site-search merge failed (non-fatal)")
 
 

@@ -20,7 +20,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
     WDKValidation,
 )
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -162,43 +162,6 @@ class TestSearchCatalogLoadNonExpanded:
 
 
 # ---------------------------------------------------------------------------
-# SearchCatalog.load — wrapped response ({recordTypes: [...]})
-# ---------------------------------------------------------------------------
-
-
-class TestSearchCatalogLoadWrapped:
-    """Test handling of the dict wrapper some WDK deployments use."""
-
-    @pytest.mark.asyncio
-    async def test_load_dict_wrapper_unwraps_record_types(self) -> None:
-        wrapped: dict[str, Any] = {
-            "recordTypes": [
-                {"urlSegment": "gene", "name": "Genes", "searches": []},
-            ]
-        }
-        client = _mock_client(record_types=wrapped)
-        catalog = SearchCatalog("plasmodb")
-        await catalog.load(client)
-
-        rts = catalog.get_record_types()
-        assert len(rts) == 1
-        first = rts[0]
-        assert isinstance(first, dict)
-        assert first["urlSegment"] == "gene"
-
-    @pytest.mark.asyncio
-    async def test_load_dict_wrapper_without_record_types_key_raises(self) -> None:
-        bad_wrapped: dict[str, Any] = {"somethingElse": []}
-        client = _mock_client(record_types=bad_wrapped)
-        catalog = SearchCatalog("plasmodb")
-
-        with pytest.raises(
-            DataParsingError, match="Unexpected record-types response shape"
-        ):
-            await catalog.load(client)
-
-
-# ---------------------------------------------------------------------------
 # SearchCatalog — find_search / get_search_details
 # ---------------------------------------------------------------------------
 
@@ -317,8 +280,7 @@ class TestSearchCatalogEdgeCases:
 
         async def _get_searches(rt: str) -> list[WDKSearch]:
             if rt == "gene":
-                msg = "Network error"
-                raise RuntimeError(msg)
+                raise AppError(ErrorCode.WDK_ERROR, "Network error")
             return [WDKSearch(url_segment="TranscriptsByTaxon")]
 
         client = _mock_client(record_types=raw)
