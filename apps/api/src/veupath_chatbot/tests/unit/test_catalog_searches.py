@@ -7,6 +7,7 @@ find_record_type_for_search(), and the term_variants helper.
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.services.catalog.searches import (
     _search_for_searches_via_site_search,
     find_record_type_for_search,
@@ -689,27 +690,27 @@ class TestResolveRecordTypeForSearch:
     async def test_returns_resolved_type_when_found(self) -> None:
         with self._patch_catalog("transcript"):
             result = await find_record_type_for_search(
-                "plasmodb", "gene", "TranscriptsByTaxon"
+                SearchContext("plasmodb", "gene", "TranscriptsByTaxon")
             )
         assert result == "transcript"
 
     async def test_returns_same_type_when_search_belongs_to_it(self) -> None:
         with self._patch_catalog("gene"):
             result = await find_record_type_for_search(
-                "plasmodb", "gene", "GenesByTaxon"
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
             )
         assert result == "gene"
 
     async def test_falls_back_to_record_type_when_not_found(self) -> None:
         with self._patch_catalog(None):
             result = await find_record_type_for_search(
-                "plasmodb", "gene", "NonexistentSearch"
+                SearchContext("plasmodb", "gene", "NonexistentSearch")
             )
         assert result == "gene"
 
     async def test_falls_back_to_record_type_on_empty_string(self) -> None:
         with self._patch_catalog(""):
-            result = await find_record_type_for_search("plasmodb", "gene", "SomeSearch")
+            result = await find_record_type_for_search(SearchContext("plasmodb", "gene", "SomeSearch"))
         assert result == "gene"
 
     async def test_passes_site_id_to_get_catalog(self) -> None:
@@ -721,7 +722,7 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search("toxodb", "gene", "GenesByTaxon")
+            await find_record_type_for_search(SearchContext("toxodb", "gene", "GenesByTaxon"))
         discovery.get_catalog.assert_awaited_once_with("toxodb")
 
     async def test_passes_search_name_to_catalog(self) -> None:
@@ -733,5 +734,5 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search("plasmodb", "gene", "GenesByTaxon")
+            await find_record_type_for_search(SearchContext("plasmodb", "gene", "GenesByTaxon"))
         catalog.find_record_type_for_search.assert_called_once_with("GenesByTaxon")

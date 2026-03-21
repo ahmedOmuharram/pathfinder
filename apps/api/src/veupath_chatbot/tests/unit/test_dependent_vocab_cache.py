@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.vectorstore.bootstrap import _KNOWN_DIMS
 from veupath_chatbot.integrations.vectorstore.dependent_vocab_cache import (
     ensure_dependent_vocab_collection,
@@ -151,9 +152,7 @@ class TestCacheHit:
         store = _mock_store(cached_payload=cached_payload)
         with _patches(store):
             result = await get_dependent_vocab_authoritative_cached(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="GenesByTaxon",
+                SearchContext("plasmodb", "gene", "GenesByTaxon"),
                 param_name="organism",
                 context_values={"taxon": "Plasmodium"},
                 store=store,
@@ -178,9 +177,7 @@ class TestCacheMiss:
 
         with _patches(store, wdk_client=wdk_client):
             result = await get_dependent_vocab_authoritative_cached(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="GenesByTaxon",
+                SearchContext("plasmodb", "gene", "GenesByTaxon"),
                 param_name="organism",
                 context_values={},
                 store=store,
@@ -217,9 +214,7 @@ class TestPortalFallback:
 
         with _patches(store, wdk_client=failing_client, portal_client=portal_client):
             result = await get_dependent_vocab_authoritative_cached(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="GenesByTaxon",
+                SearchContext("plasmodb", "gene", "GenesByTaxon"),
                 param_name="organism",
                 context_values={},
                 store=store,
@@ -240,9 +235,7 @@ class TestPortalFallback:
 
         with _patches(store, wdk_client=failing_client), pytest.raises(WDKError):
             await get_dependent_vocab_authoritative_cached(
-                site_id="veupathdb",
-                record_type="gene",
-                search_name="GenesByTaxon",
+                SearchContext("veupathdb", "gene", "GenesByTaxon"),
                 param_name="organism",
                 context_values={},
                 store=store,

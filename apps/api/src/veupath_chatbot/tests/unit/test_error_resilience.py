@@ -17,6 +17,7 @@ from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.store import WriteThruStore
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.experiment.service import (
+    PhaseContext,
     _phase_evaluate,
     _run_single_step_controls,
     run_experiment,
@@ -409,9 +410,10 @@ class TestPhaseEvaluateErrorHandling:
         experiment = Experiment(id="exp_test123", config=config, status="running")
         store = ExperimentStore()
         emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
 
         with pytest.raises(httpx.ConnectError):
-            await _phase_evaluate(config, experiment, emit, store)
+            await _phase_evaluate(pctx)
 
     @patch("veupath_chatbot.platform.store.spawn")
     @patch(
@@ -440,8 +442,9 @@ class TestPhaseEvaluateErrorHandling:
         experiment = Experiment(id="exp_test456", config=config, status="running")
         store = ExperimentStore()
         emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
 
-        _result, metrics = await _phase_evaluate(config, experiment, emit, store)
+        _result, metrics = await _phase_evaluate(pctx)
 
         assert metrics is not None
         assert metrics.confusion_matrix.true_positives == 0

@@ -207,6 +207,100 @@ describe("useOperationRecovery", () => {
     });
   });
 
+  // ── Bug 1: Stale operation → isStreaming stuck true ───────────────
+  //
+  // When the backend has a stale "active" operation (producer died
+  // without cleanup), the SSE endpoint loops forever. The frontend's
+  // subscribeToOperation never calls onComplete or onError because
+  // the connection stays open (keepalive comments aren't events).
+  //
+  // In this scenario, isStreaming is set to true and NEVER reset.
+  // The chat UI is locked in "streaming" state indefinitely.
+
+  it("resets isStreaming when subscription completes normally", async () => {
+    fetchActiveOperationsMock.mockResolvedValue([
+      { operationId: "op-ok", streamId: "strategy-a", type: "chat", status: "active" },
+    ]);
+
+    let capturedOnComplete: (() => void) | undefined;
+    subscribeToOperationMock.mockImplementation(
+      (_opId: string, opts: { onComplete?: () => void }) => {
+        capturedOnComplete = opts.onComplete;
+        return { unsubscribe: vi.fn() };
+      },
+    );
+
+    const setIsStreaming = vi.fn();
+    renderHook(() =>
+      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    );
+
+    await waitFor(() => {
+      expect(capturedOnComplete).toBeDefined();
+    });
+
+    // Simulate message_end arriving
+    act(() => capturedOnComplete!());
+
+    expect(setIsStreaming).toHaveBeenCalledWith(false);
+  });
+
+  it("resets isStreaming when subscription errors (e.g., 404 stale op)", async () => {
+    fetchActiveOperationsMock.mockResolvedValue([
+      { operationId: "op-stale", streamId: "strategy-a", type: "chat", status: "active" },
+    ]);
+
+    let capturedOnError: (() => void) | undefined;
+    subscribeToOperationMock.mockImplementation(
+      (_opId: string, opts: { onError?: () => void }) => {
+        capturedOnError = opts.onError;
+        return { unsubscribe: vi.fn() };
+      },
+    );
+
+    const setIsStreaming = vi.fn();
+    renderHook(() =>
+      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    );
+
+    await waitFor(() => {
+      expect(capturedOnError).toBeDefined();
+    });
+
+    act(() => capturedOnError!());
+
+    expect(setIsStreaming).toHaveBeenCalledWith(false);
+  });
+
+  it("isStreaming stays true when subscription never completes (stale op)", async () => {
+    // This test documents the behavior when a stale "active" operation
+    // causes the SSE connection to hang indefinitely. The subscription
+    // never fires onComplete or onError, so isStreaming stays true.
+    // A proper fix would add a timeout or heartbeat mechanism.
+    fetchActiveOperationsMock.mockResolvedValue([
+      { operationId: "op-orphaned", streamId: "strategy-a", type: "chat", status: "active" },
+    ]);
+
+    // Subscription that never fires any callbacks (simulates hanging SSE)
+    subscribeToOperationMock.mockReturnValue({ unsubscribe: vi.fn() });
+
+    const setIsStreaming = vi.fn();
+    renderHook(() =>
+      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    );
+
+    await waitFor(() => {
+      expect(setIsStreaming).toHaveBeenCalledWith(true);
+    });
+
+    // Verify setIsStreaming(false) was NEVER called — confirming stuck state.
+    // This test passes, documenting the existing gap: there's no timeout.
+    const falseCallCount = (setIsStreaming.mock.calls as boolean[][]).filter(
+      (call) => call[0] === false,
+    ).length;
+    expect(falseCallCount).toBe(0);
+  });
+
   it("unsubscribes from previous operation when strategy changes", async () => {
     const unsubscribe = vi.fn();
     fetchActiveOperationsMock.mockResolvedValue([

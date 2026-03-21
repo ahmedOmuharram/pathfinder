@@ -15,7 +15,7 @@ from veupath_chatbot.services.experiment.metrics import (
     evaluate_gene_ids_against_controls,
     metrics_from_control_result,
 )
-from veupath_chatbot.services.experiment.service import _phase_evaluate
+from veupath_chatbot.services.experiment.service import PhaseContext, _phase_evaluate
 from veupath_chatbot.services.experiment.store import (
     ExperimentStore,
     get_experiment_store,
@@ -196,9 +196,13 @@ class TestPhaseEvaluateWithGeneIds:
                 new_callable=AsyncMock,
             ) as mock_tree,
         ):
-            _result, metrics = await _phase_evaluate(
-                config, experiment, _noop_emit, store
+            pctx = PhaseContext(
+                config=config,
+                experiment=experiment,
+                emit=_noop_emit,
+                store=store,
             )
+            _result, metrics = await _phase_evaluate(pctx)
 
         mock_wdk.assert_not_awaited()
         mock_tree.assert_not_awaited()
@@ -211,7 +215,13 @@ class TestPhaseEvaluateWithGeneIds:
         experiment = _make_experiment(config)
         store = get_experiment_store()
 
-        await _phase_evaluate(config, experiment, _noop_emit, store)
+        pctx = PhaseContext(
+            config=config,
+            experiment=experiment,
+            emit=_noop_emit,
+            store=store,
+        )
+        await _phase_evaluate(pctx)
 
         assert len(experiment.true_positive_genes) == 5
         assert len(experiment.false_negative_genes) == 0

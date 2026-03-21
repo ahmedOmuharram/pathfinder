@@ -7,6 +7,7 @@ from veupath_chatbot.domain.parameters.specs import (
     extract_param_specs,
     unwrap_search_data,
 )
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services import catalog
 from veupath_chatbot.transport.http.schemas import (
@@ -117,9 +118,7 @@ async def validate_search_params(
 ) -> SearchValidationResponse:
     """Validate search parameters (UI-friendly)."""
     result = await catalog.validate_search_params(
-        site_id=siteId,
-        record_type=recordType,
-        search_name=searchName,
+        SearchContext(siteId, recordType, searchName),
         context_values=payload.context_values or {},
     )
     return SearchValidationResponse.model_validate(result)
@@ -137,10 +136,8 @@ async def get_param_specs_with_context(
 ) -> list[ParamSpecResponse]:
     """Return normalized parameter specs, using contextual WDK vocab when provided."""
     details_raw = await catalog.expand_search_details_with_params(
-        site_id=siteId,
-        record_type=recordType,
-        search_name=searchName,
-        context_values=payload.context_values or {},
+        SearchContext(siteId, recordType, searchName),
+        payload.context_values or {},
     )
     details = unwrap_search_data(details_raw) or {}
     return _build_param_specs(details)

@@ -174,14 +174,8 @@ async def run_sweep_point(
             modified_params[param_name] = value
             result = await asyncio.wait_for(
                 run_positive_negative_controls(
-                    IntersectionConfig(
-                        site_id=exp.config.site_id,
-                        record_type=exp.config.record_type,
-                        target_search_name=exp.config.search_name,
-                        target_parameters=modified_params,
-                        controls_search_name=exp.config.controls_search_name,
-                        controls_param_name=exp.config.controls_param_name,
-                        controls_value_format=exp.config.controls_value_format,
+                    IntersectionConfig.from_experiment_config(
+                        exp.config, target_parameters=modified_params
                     ),
                     positive_controls=exp.config.positive_controls or None,
                     negative_controls=exp.config.negative_controls or None,
@@ -234,15 +228,7 @@ async def _run_sweep_point_tree(
 
     return await asyncio.wait_for(
         run_controls_against_tree(
-            ControlsContext(
-                site_id=exp.config.site_id,
-                record_type=exp.config.record_type,
-                controls_search_name=exp.config.controls_search_name,
-                controls_param_name=exp.config.controls_param_name,
-                controls_value_format=exp.config.controls_value_format,
-                positive_controls=exp.config.positive_controls or [],
-                negative_controls=exp.config.negative_controls or [],
-            ),
+            ControlsContext.from_config(exp.config),
             tree,
         ),
         timeout=SWEEP_POINT_TIMEOUT_S,

@@ -5,6 +5,7 @@ import threading
 
 import httpx
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import (
     wdk_entity_name,
@@ -246,20 +247,18 @@ class DiscoveryService:
 
     async def get_search_details(
         self,
-        site_id: str,
-        record_type: str,
-        search_name: str,
+        ctx: SearchContext,
         *,
         expand_params: bool = True,
     ) -> JSONObject:
         """Get detailed search configuration."""
-        catalog = await self.get_catalog(site_id)
+        catalog = await self.get_catalog(ctx.site_id)
         router = get_site_router()
-        client = router.get_client(site_id)
+        client = router.get_client(ctx.site_id)
         return await catalog.get_search_details(
             client,
-            record_type,
-            search_name,
+            ctx.record_type,
+            ctx.search_name,
             expand_params=expand_params,
         )
 

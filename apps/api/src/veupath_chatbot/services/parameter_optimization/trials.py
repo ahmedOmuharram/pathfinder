@@ -156,6 +156,22 @@ class _TrialContext:
     trials: list[TrialResult]
     best_trial: TrialResult | None = None
 
+    def build_intersection_config(
+        self, target_parameters: JSONObject
+    ) -> IntersectionConfig:
+        """Build an :class:`IntersectionConfig` for a trial evaluation."""
+        return IntersectionConfig(
+            site_id=self.site_id,
+            record_type=self.record_type,
+            target_search_name=self.search_name,
+            target_parameters=target_parameters,
+            controls_search_name=self.controls_search_name,
+            controls_param_name=self.controls_param_name,
+            controls_value_format=self.controls_value_format,
+            controls_extra_parameters=self.controls_extra_parameters,
+            id_field=self.id_field,
+        )
+
 
 # ---------------------------------------------------------------------------
 # WDK metrics extraction
@@ -383,17 +399,7 @@ async def _evaluate_trial(
             wdk_result: JSONObject | None = None
             try:
                 wdk_result = await run_positive_negative_controls(
-                    IntersectionConfig(
-                        site_id=ctx.site_id,
-                        record_type=ctx.record_type,
-                        target_search_name=ctx.search_name,
-                        target_parameters=trial_params,
-                        controls_search_name=ctx.controls_search_name,
-                        controls_param_name=ctx.controls_param_name,
-                        controls_value_format=ctx.controls_value_format,
-                        controls_extra_parameters=ctx.controls_extra_parameters,
-                        id_field=ctx.id_field,
-                    ),
+                    ctx.build_intersection_config(trial_params),
                     positive_controls=ctx.positive_controls,
                     negative_controls=ctx.negative_controls,
                 )

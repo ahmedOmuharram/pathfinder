@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError, WDKError
 from veupath_chatbot.services.catalog.param_resolution import (
     _extract_param_names,
@@ -264,7 +265,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "GenesByTaxon")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "GenesByTaxon"))
 
         assert result["searchName"] == "GenesByTaxon"
         assert result["displayName"] == "Genes by Taxon"
@@ -293,7 +294,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         assert result["resolvedRecordType"] == "gene"
 
@@ -308,7 +309,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "GENE", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "GENE", "S"))
 
         assert result["resolvedRecordType"] == "gene"
 
@@ -327,7 +328,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "genes", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "genes", "S"))
 
         assert result["resolvedRecordType"] == "gene"
 
@@ -344,7 +345,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "genes", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "genes", "S"))
 
         # Falls back to the original
         assert result["resolvedRecordType"] == "genes"
@@ -367,7 +368,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -388,7 +389,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         opt = _get_param_by_name(result, "optional_param")
         req = _get_param_by_name(result, "required_param")
@@ -411,7 +412,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         p = _get_param_by_name(result, "param1")
         assert p["defaultValue"] == "default_val"
@@ -429,7 +430,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         p = _get_param_by_name(result, "param1")
         assert p["defaultValue"] == "fallback_val"
@@ -451,7 +452,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         p = _get_param_by_name(result, "param1")
         assert p["defaultValue"] == "preferred"
@@ -476,7 +477,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         p = _get_param_by_name(result, "organism")
         allowed = p["allowedValues"]
@@ -501,7 +502,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         p = _get_param_by_name(result, "big_param")
         allowed = p["allowedValues"]
@@ -523,7 +524,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -549,7 +550,7 @@ class TestGetSearchParameters:
             ),
             pytest.raises(ValidationError) as exc_info,
         ):
-            await get_search_parameters("plasmodb", "gene", "NonexistentSearch")
+            await get_search_parameters(SearchContext("plasmodb", "gene", "NonexistentSearch"))
 
         assert "NonexistentSearch" in (exc_info.value.detail or "")
 
@@ -558,7 +559,7 @@ class TestGetSearchParameters:
         call_count = 0
 
         async def _get_search_details(
-            _site_id: str, rt: str, search: str, expand_params: bool = True
+            ctx: SearchContext, expand_params: bool = True
         ) -> dict[str, Any]:
             nonlocal call_count
             call_count += 1
@@ -589,7 +590,7 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "SharedSearch")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "SharedSearch"))
 
         assert result["resolvedRecordType"] == "transcript"
         assert result["displayName"] == "Found It"
@@ -616,7 +617,7 @@ class TestGetSearchParametersTool:
             return_value=discovery,
         ):
             result = await get_search_parameters_tool(
-                "plasmodb", "gene", "GenesByTaxon"
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
             )
 
         assert result["searchName"] == "GenesByTaxon"
@@ -632,7 +633,7 @@ class TestGetSearchParametersTool:
             return_value=discovery,
         ):
             result = await get_search_parameters_tool(
-                "plasmodb", "gene", "NonexistentSearch"
+                SearchContext("plasmodb", "gene", "NonexistentSearch")
             )
 
         assert result["ok"] is False
@@ -649,7 +650,7 @@ class TestGetSearchParametersTool:
             return_value=discovery,
         ):
             result = await get_search_parameters_tool(
-                "plasmodb", "gene", "NonexistentSearch"
+                SearchContext("plasmodb", "gene", "NonexistentSearch")
             )
 
         assert result["code"] == ErrorCode.SEARCH_NOT_FOUND.value
@@ -749,7 +750,7 @@ class TestExpandSearchDetailsWithParams:
             ),
         ):
             result = await expand_search_details_with_params(
-                "plasmodb", "gene", "GenesByTaxon", {"organism": "Pf3D7"}
+                SearchContext("plasmodb", "gene", "GenesByTaxon"), {"organism": "Pf3D7"}
             )
 
         assert result == expected_details
@@ -776,9 +777,7 @@ class TestExpandSearchDetailsWithParams:
             ),
         ):
             await expand_search_details_with_params(
-                "plasmodb",
-                "gene",
-                "GenesByTaxon",
+                SearchContext("plasmodb", "gene", "GenesByTaxon"),
                 {"organism": "Pf3D7", "unknown": "value"},
             )
 
@@ -806,7 +805,7 @@ class TestExpandSearchDetailsWithParams:
             ),
         ):
             result = await expand_search_details_with_params(
-                "plasmodb", "gene", "GenesByTaxon", None
+                SearchContext("plasmodb", "gene", "GenesByTaxon"), None
             )
 
         assert isinstance(result, dict)

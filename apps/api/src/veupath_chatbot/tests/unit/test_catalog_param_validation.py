@@ -6,6 +6,7 @@ Covers validate_search_params() with mocked expand_search_details_with_params().
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.services.catalog.param_validation import validate_search_params
 
 # ---------------------------------------------------------------------------
@@ -67,9 +68,7 @@ class TestValidateSearchParamsValid:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="GenesByTaxon",
+                SearchContext("plasmodb", "gene", "GenesByTaxon"),
                 context_values={"organism": "Pf3D7"},
             )
 
@@ -91,9 +90,7 @@ class TestValidateSearchParamsValid:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -103,9 +100,7 @@ class TestValidateSearchParamsValid:
         details: dict[str, Any] = {"parameters": []}
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values=None,
             )
 
@@ -124,9 +119,7 @@ class TestValidateSearchParamsValid:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"organism": "Pf3D7"},
             )
 
@@ -145,9 +138,7 @@ class TestValidateSearchParamsErrors:
     async def test_expand_failure_returns_is_valid_false(self) -> None:
         with _patch_expand(side_effect=ValueError("Network error")):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"organism": "Pf3D7"},
             )
 
@@ -170,9 +161,7 @@ class TestValidateSearchParamsErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -200,9 +189,7 @@ class TestValidateSearchParamsErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -224,9 +211,7 @@ class TestValidateSearchParamsErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"organism": ""},
             )
 
@@ -244,9 +229,7 @@ class TestValidateSearchParamsStructure:
     async def test_always_has_validation_key(self) -> None:
         with _patch_expand(return_value={"parameters": []}):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -255,9 +238,7 @@ class TestValidateSearchParamsStructure:
     async def test_validation_has_required_keys(self) -> None:
         with _patch_expand(return_value={"parameters": []}):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -269,9 +250,7 @@ class TestValidateSearchParamsStructure:
     async def test_errors_has_general_and_by_key(self) -> None:
         with _patch_expand(return_value={"parameters": []}):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -282,9 +261,7 @@ class TestValidateSearchParamsStructure:
     async def test_error_response_structure_on_expand_failure(self) -> None:
         with _patch_expand(side_effect=ValueError("fail")):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -307,9 +284,7 @@ class TestValidateSearchParamsStructure:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={},
             )
 
@@ -347,9 +322,7 @@ class TestValidateSearchParamsCanonicalizationErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"unknown_param": "value"},
             )
 
@@ -369,9 +342,7 @@ class TestValidateSearchParamsCanonicalizationErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"scalar_param": ["a", "b"]},
             )
 
@@ -395,9 +366,7 @@ class TestValidateSearchParamsCanonicalizationErrors:
         }
         with _patch_expand(return_value=details):
             result = await validate_search_params(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="S",
+                SearchContext("plasmodb", "gene", "S"),
                 context_values={"organisms": "[]"},
             )
 

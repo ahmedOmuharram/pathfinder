@@ -7,6 +7,7 @@ positive controls are returned and known negative controls are excluded.
 from dataclasses import dataclass, field
 from typing import cast
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
@@ -21,8 +22,15 @@ from veupath_chatbot.services.control_helpers import (
     cleanup_internal_control_test_strategies,
     delete_temp_strategy,
 )
-from veupath_chatbot.services.experiment.helpers import coerce_step_id, extract_wdk_id
-from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.services.experiment.helpers import (
+    ControlsContext,
+    coerce_step_id,
+    extract_wdk_id,
+)
+from veupath_chatbot.services.experiment.types import (
+    ControlValueFormat,
+    ExperimentConfig,
+)
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
 
@@ -71,6 +79,65 @@ class IntersectionConfig:
         default_factory=lambda: DEFAULT_COMBINE_OPERATOR.value
     )
     id_field: str | None = None
+
+    @classmethod
+    def from_experiment_config(
+        cls,
+        config: ExperimentConfig,
+        *,
+        target_parameters: JSONObject | None = None,
+    ) -> "IntersectionConfig":
+        """Build an IntersectionConfig from an ExperimentConfig.
+
+        :param config: The experiment configuration.
+        :param target_parameters: Override for ``config.parameters`` (e.g.
+            when evaluating modified/optimized parameters).
+        """
+        return cls(
+            site_id=config.site_id,
+            record_type=config.record_type,
+            target_search_name=config.search_name,
+            target_parameters=(
+                target_parameters
+                if target_parameters is not None
+                else config.parameters
+            ),
+            controls_search_name=config.controls_search_name,
+            controls_param_name=config.controls_param_name,
+            controls_value_format=config.controls_value_format,
+        )
+
+    @classmethod
+    def from_controls_context(
+        cls,
+        ctx: ControlsContext,
+        *,
+        target_search_name: str,
+        target_parameters: JSONObject,
+        controls_extra_parameters: JSONObject | None = None,
+        id_field: str | None = None,
+    ) -> "IntersectionConfig":
+        """Build an IntersectionConfig from a ControlsContext.
+
+        :param ctx: The controls context (provides site, record type, and
+            controls search configuration).
+        :param target_search_name: WDK search name for the target step.
+        :param target_parameters: WDK parameters for the target step.
+        :param controls_extra_parameters: Extra parameters for the controls
+            search (e.g. organism scope).
+        :param id_field: Override for the gene-ID field name.
+        """
+        return cls(
+            site_id=ctx.site_id,
+            record_type=ctx.record_type,
+            target_search_name=target_search_name,
+            target_parameters=target_parameters,
+            controls_search_name=ctx.controls_search_name,
+            controls_param_name=ctx.controls_param_name,
+            controls_value_format=ctx.controls_value_format,
+            controls_extra_parameters=controls_extra_parameters,
+            id_field=id_field,
+        )
 
 
 def _find_param_type(params: list[object], param_name: str) -> str | None:
@@ -133,10 +200,10 @@ async def _run_intersection_control(
     # The AI often passes 'gene' but VEuPathDB gene searches live under
     # 'transcript'.  The catalog knows the correct mapping.
     target_rt = await find_record_type_for_search(
-        config.site_id, config.record_type, config.target_search_name
+        SearchContext(config.site_id, config.record_type, config.target_search_name)
     )
     controls_rt = await find_record_type_for_search(
-        config.site_id, config.record_type, config.controls_search_name
+        SearchContext(config.site_id, config.record_type, config.controls_search_name)
     )
 
     target_step = await api.create_step(

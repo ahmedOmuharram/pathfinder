@@ -1,5 +1,6 @@
 import time
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
 from veupath_chatbot.integrations.vectorstore.bootstrap import get_embedding_dim
 from veupath_chatbot.integrations.vectorstore.collections import (
@@ -31,10 +32,8 @@ async def ensure_dependent_vocab_collection(store: QdrantStore) -> None:
 
 
 async def get_dependent_vocab_authoritative_cached(
+    ctx: SearchContext,
     *,
-    site_id: str,
-    record_type: str,
-    search_name: str,
     param_name: str,
     context_values: JSONObject,
     store: QdrantStore | None = None,
@@ -49,7 +48,7 @@ async def get_dependent_vocab_authoritative_cached(
 
     wdk_context = encode_context_param_values_for_wdk(context_values or {})
     ch = context_hash(wdk_context)
-    key = f"{site_id}:{record_type}:{search_name}:{param_name}:{ch}"
+    key = f"{ctx.site_id}:{ctx.record_type}:{ctx.search_name}:{param_name}:{ch}"
     pid = point_uuid(key)
 
     cached = await store.get(collection=WDK_DEPENDENT_VOCAB_CACHE_V1, point_id=pid)
@@ -59,35 +58,35 @@ async def get_dependent_vocab_authoritative_cached(
             payload_dict: JSONObject = {str(k): v for k, v in payload_value.items()}
             return {"cache": "hit", **payload_dict}
 
-    client = get_wdk_client(site_id)
+    client = get_wdk_client(ctx.site_id)
     try:
         response = await client.get_refreshed_dependent_params(
-            record_type, search_name, param_name, wdk_context
+            ctx.record_type, ctx.search_name, param_name, wdk_context
         )
     except WDKError:
-        if site_id != "veupathdb":
+        if ctx.site_id != "veupathdb":
             portal_client = get_wdk_client("veupathdb")
             response = await portal_client.get_refreshed_dependent_params(
-                record_type, search_name, param_name, wdk_context
+                ctx.record_type, ctx.search_name, param_name, wdk_context
             )
         else:
             raise
 
     payload: JSONObject = {
-        "siteId": site_id,
-        "recordType": record_type,
-        "searchName": search_name,
+        "siteId": ctx.site_id,
+        "recordType": ctx.record_type,
+        "searchName": ctx.search_name,
         "paramName": param_name,
         "contextParamValues": wdk_context,
         "contextHash": ch,
         "wdkResponse": response,
         "ingestedAt": int(time.time()),
-        "sourceUrl": f"{client.base_url}/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
+        "sourceUrl": f"{client.base_url}/record-types/{ctx.record_type}/searches/{ctx.search_name}/refreshed-dependent-params",
     }
 
     # Minimal vector (not used for correctness; just to satisfy collection vector config)
     vec = await embed_one(
-        text=f"{site_id} {record_type} {search_name} {param_name}",
+        text=f"{ctx.site_id} {ctx.record_type} {ctx.search_name} {param_name}",
         model=get_settings().embeddings_model,
     )
     # Convert list[float] to list[JSONValue] for type compatibility

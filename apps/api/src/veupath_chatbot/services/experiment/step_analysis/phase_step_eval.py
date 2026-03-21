@@ -87,14 +87,10 @@ async def evaluate_steps(
                         raw_params if isinstance(raw_params, dict) else {}
                     )
                     raw = await run_positive_negative_controls(
-                        IntersectionConfig(
-                            site_id=ctx.site_id,
-                            record_type=ctx.record_type,
+                        IntersectionConfig.from_controls_context(
+                            ctx,
                             target_search_name=search_name,
                             target_parameters=parameters,
-                            controls_search_name=ctx.controls_search_name,
-                            controls_param_name=ctx.controls_param_name,
-                            controls_value_format=ctx.controls_value_format,
                         ),
                         positive_controls=ctx.positive_controls,
                         negative_controls=ctx.negative_controls,

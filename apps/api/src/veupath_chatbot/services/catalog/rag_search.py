@@ -7,6 +7,7 @@ so that the AI tool layer never touches integrations directly.
 from collections.abc import Sequence
 from typing import cast
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
 from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.integrations.vectorstore.collections import (
@@ -199,9 +200,7 @@ class RagSearchService:
         if not settings.rag_enabled:
             return {"error": "rag_disabled"}
         return await get_dependent_vocab_authoritative_cached(
-            site_id=self.site_id,
-            record_type=record_type,
-            search_name=search_name,
+            SearchContext(self.site_id, record_type, search_name),
             param_name=param_name,
             context_values=context_values or {},
             store=self._store,
@@ -272,5 +271,6 @@ class RagSearchService:
         """Proxy to DiscoveryService.get_search_details for dependent-vocab fallbacks."""
         discovery = get_discovery_service()
         return await discovery.get_search_details(
-            self.site_id, record_type, search_name, expand_params=expand_params
+            SearchContext(self.site_id, record_type, search_name),
+            expand_params=expand_params,
         )

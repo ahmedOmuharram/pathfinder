@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     SearchCatalog,
@@ -403,7 +404,7 @@ class TestDiscoveryService:
         ):
             service = DiscoveryService()
             result = await service.get_search_details(
-                "plasmodb", "gene", "GenesByTaxon"
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
             )
             params = result["parameters"]
             assert isinstance(params, list)

@@ -11,6 +11,7 @@ from veupath_chatbot.domain.parameters.specs import (
     find_input_step_param,
     unwrap_search_data,
 )
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
@@ -38,30 +39,25 @@ _MAX_TREE_MATCHES = 20
 # ---------------------------------------------------------------------------
 
 
-async def get_search_parameters(
-    site_id: str,
-    record_type: str,
-    search_name: str,
-) -> JSONObject:
+async def get_search_parameters(ctx: SearchContext) -> JSONObject:
     """Get detailed parameter info for a specific search.
 
     This is intentionally defensive: WDK responses can vary by site/endpoint.
     """
     discovery = get_discovery_service()
-    resolved_record_type = record_type
+    resolved_record_type = ctx.record_type
 
-    record_types = await discovery.get_record_types(site_id)
+    record_types = await discovery.get_record_types(ctx.site_id)
 
-    if record_type:
-        resolved = resolve_record_type(record_types, record_type)
+    if ctx.record_type:
+        resolved = resolve_record_type(record_types, ctx.record_type)
         if resolved:
             resolved_record_type = resolved
 
+    resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
     details, resolved_record_type = await fetch_search_details(
         discovery,
-        site_id,
-        resolved_record_type,
-        search_name,
+        resolved_ctx,
         record_types=record_types,
     )
 
@@ -69,7 +65,7 @@ async def get_search_parameters(
     param_specs = extract_param_specs(details if isinstance(details, dict) else {})
     param_info = format_param_info(param_specs)
 
-    details_display_name = search_name
+    details_display_name = ctx.search_name
     details_description = ""
     if isinstance(details, dict):
         display_name_raw = details.get("displayName")
@@ -80,7 +76,7 @@ async def get_search_parameters(
             details_description = description_raw
 
     return {
-        "searchName": search_name,
+        "searchName": ctx.search_name,
         "displayName": details_display_name,
         "description": details_description,
         "parameters": param_info,
@@ -88,14 +84,10 @@ async def get_search_parameters(
     }
 
 
-async def get_search_parameters_tool(
-    site_id: str,
-    record_type: str,
-    search_name: str,
-) -> JSONObject:
+async def get_search_parameters_tool(ctx: SearchContext) -> JSONObject:
     """Tool-friendly wrapper that returns standardized tool_error payloads."""
     try:
-        return await get_search_parameters(site_id, record_type, search_name)
+        return await get_search_parameters(ctx)
     except CoreValidationError as exc:
         code = None
         if exc.errors and isinstance(exc.errors, list) and exc.errors:
@@ -133,9 +125,7 @@ async def lookup_phyletic_codes(
 
         details, _ = await fetch_search_details(
             discovery,
-            site_id,
-            resolved,
-            "GenesByOrthologPattern",
+            SearchContext(site_id, resolved, "GenesByOrthologPattern"),
             record_types=record_types,
         )
         details = unwrap_search_data(details) or details
@@ -208,9 +198,7 @@ async def lookup_phyletic_codes(
 
 
 async def expand_search_details_with_params(
-    site_id: str,
-    record_type: str,
-    search_name: str,
+    ctx: SearchContext,
     context_values: JSONObject | None,
 ) -> JSONObject:
     """Return WDK search details after applying (WDK-wire) context values.
@@ -218,16 +206,12 @@ async def expand_search_details_with_params(
     NOTE: despite the historical name, this is *not* a pure validation API; it returns
     WDK search details payload. Keep it separate from the public validation endpoint.
     """
-    client = get_wdk_client(site_id)
+    client = get_wdk_client(ctx.site_id)
     raw_context = context_values or {}
     normalized_context: JSONObject = {}
     details: JSONObject | None = None
     allowed: set[str] = set()
-    details, allowed = await _load_discovery_details_and_allowed(
-        site_id=site_id,
-        record_type=record_type,
-        search_name=search_name,
-    )
+    details, allowed = await _load_discovery_details_and_allowed(ctx)
     filtered_context = _filter_context_values(raw_context, allowed)
 
     details_unwrapped = unwrap_search_data(details)
@@ -238,12 +222,10 @@ async def expand_search_details_with_params(
         try:
             normalized_context = normalizer.normalize(filtered_context)
         except CoreValidationError:
-            resolved_record_type = await find_record_type_for_search(
-                site_id, record_type, search_name
-            )
+            resolved_record_type = await find_record_type_for_search(ctx)
             details = await client.get_search_details_with_params(
                 resolved_record_type,
-                search_name,
+                ctx.search_name,
                 filtered_context,
                 expand_params=True,
             )
@@ -258,14 +240,12 @@ async def expand_search_details_with_params(
         normalized_context = {
             key: normalize_param_value(value) for key, value in filtered_context.items()
         }
-    resolved_record_type = await find_record_type_for_search(
-        site_id, record_type, search_name
-    )
+    resolved_record_type = await find_record_type_for_search(ctx)
     return await _get_search_details_with_portal_fallback(
-        site_id=site_id,
+        site_id=ctx.site_id,
         client=client,
         record_type=resolved_record_type,
-        search_name=search_name,
+        search_name=ctx.search_name,
         context_values=normalized_context,
     )
 
@@ -285,13 +265,13 @@ def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONOb
 
 
 async def _load_discovery_details_and_allowed(
-    *, site_id: str, record_type: str, search_name: str
+    ctx: SearchContext,
 ) -> tuple[JSONObject | None, set[str]]:
     """Load discovery search details + extract allowed param names (best-effort)."""
     try:
         discovery = get_discovery_service()
         details = await discovery.get_search_details(
-            site_id, record_type, search_name, expand_params=True
+            ctx, expand_params=True
         )
         return (
             details,
@@ -300,9 +280,9 @@ async def _load_discovery_details_and_allowed(
     except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         logger.warning(
             "Failed to load discovery details for param resolution",
-            site_id=site_id,
-            record_type=record_type,
-            search_name=search_name,
+            site_id=ctx.site_id,
+            record_type=ctx.record_type,
+            search_name=ctx.search_name,
             error=str(exc),
         )
         return None, set()
@@ -335,10 +315,8 @@ async def _get_search_details_with_portal_fallback(
 
 
 async def get_refreshed_dependent_params(
+    ctx: SearchContext,
     *,
-    site_id: str,
-    record_type: str,
-    search_name: str,
     parameter_name: str,
     context_values: JSONObject,
 ) -> JSONObject:
@@ -347,28 +325,21 @@ async def get_refreshed_dependent_params(
     Tries the site-specific WDK client first.  If that fails with a
     ``WDKError`` and the site is not already ``veupathdb``, retries against
     the portal client (``veupathdb``).
-
-    :param site_id: Site identifier.
-    :param record_type: WDK record type.
-    :param search_name: WDK search name.
-    :param parameter_name: The dependent parameter to refresh.
-    :param context_values: Current context parameter values.
-    :returns: Refreshed dependent param payload from WDK.
     """
-    client = get_wdk_client(site_id)
+    client = get_wdk_client(ctx.site_id)
     try:
         return await client.get_refreshed_dependent_params(
-            record_type,
-            search_name,
+            ctx.record_type,
+            ctx.search_name,
             parameter_name,
             context_values,
         )
     except WDKError:
-        if site_id != "veupathdb":
+        if ctx.site_id != "veupathdb":
             portal_client = get_wdk_client("veupathdb")
             return await portal_client.get_refreshed_dependent_params(
-                record_type,
-                search_name,
+                ctx.record_type,
+                ctx.search_name,
                 parameter_name,
                 context_values,
             )

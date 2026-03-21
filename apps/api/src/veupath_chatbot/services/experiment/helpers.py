@@ -10,7 +10,11 @@ from dataclasses import dataclass, field
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.types import ControlValueFormat, GeneInfo
+from veupath_chatbot.services.experiment.types import (
+    ControlValueFormat,
+    ExperimentConfig,
+    GeneInfo,
+)
 from veupath_chatbot.services.gene_lookup.wdk import resolve_gene_ids
 
 logger = get_logger(__name__)
@@ -34,6 +38,19 @@ class ControlsContext:
     controls_value_format: ControlValueFormat
     positive_controls: list[str] = field(default_factory=list)
     negative_controls: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_config(cls, config: ExperimentConfig) -> "ControlsContext":
+        """Build a ControlsContext from an ExperimentConfig."""
+        return cls(
+            site_id=config.site_id,
+            record_type=config.record_type,
+            controls_search_name=config.controls_search_name,
+            controls_param_name=config.controls_param_name,
+            controls_value_format=config.controls_value_format,
+            positive_controls=config.positive_controls or [],
+            negative_controls=config.negative_controls or [],
+        )
 
 
 def safe_int(val: object, default: int = 0) -> int:

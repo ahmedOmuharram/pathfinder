@@ -37,15 +37,7 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
     Updates the experiment in-place (metrics + gene lists) and persists it.
     Returns the full experiment JSON.
     """
-    ctx = ControlsContext(
-        site_id=exp.config.site_id,
-        record_type=exp.config.record_type,
-        controls_search_name=exp.config.controls_search_name,
-        controls_param_name=exp.config.controls_param_name,
-        controls_value_format=exp.config.controls_value_format,
-        positive_controls=exp.config.positive_controls or [],
-        negative_controls=exp.config.negative_controls or [],
-    )
+    ctx = ControlsContext.from_config(exp.config)
     if exp.config.is_tree_mode:
         step_tree = exp.config.step_tree
         if not isinstance(step_tree, dict):
@@ -55,15 +47,7 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
         result = await run_controls_against_tree(ctx, step_tree)
     else:
         result = await run_positive_negative_controls(
-            IntersectionConfig(
-                site_id=exp.config.site_id,
-                record_type=exp.config.record_type,
-                target_search_name=exp.config.search_name,
-                target_parameters=exp.config.parameters,
-                controls_search_name=exp.config.controls_search_name,
-                controls_param_name=exp.config.controls_param_name,
-                controls_value_format=exp.config.controls_value_format,
-            ),
+            IntersectionConfig.from_experiment_config(exp.config),
             positive_controls=ctx.positive_controls or None,
             negative_controls=ctx.negative_controls or None,
         )

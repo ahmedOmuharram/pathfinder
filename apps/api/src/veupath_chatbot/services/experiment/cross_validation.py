@@ -9,7 +9,7 @@ import math
 import operator
 import random
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from veupath_chatbot.platform.errors import AppError, ValidationError
@@ -282,12 +282,8 @@ async def run_cross_validation(
         async def _evaluate_tree(
             pos: list[str] | None, neg: list[str] | None
         ) -> JSONObject:
-            fold_ctx = ControlsContext(
-                site_id=ctx.site_id,
-                record_type=ctx.record_type,
-                controls_search_name=ctx.controls_search_name,
-                controls_param_name=ctx.controls_param_name,
-                controls_value_format=ctx.controls_value_format,
+            fold_ctx = replace(
+                ctx,
                 positive_controls=pos or [],
                 negative_controls=neg or [],
             )
@@ -302,14 +298,10 @@ async def run_cross_validation(
         _search_name = search_name
         _parameters = parameters
 
-        _intersection_cfg = IntersectionConfig(
-            site_id=ctx.site_id,
-            record_type=ctx.record_type,
+        _intersection_cfg = IntersectionConfig.from_controls_context(
+            ctx,
             target_search_name=_search_name,
             target_parameters=_parameters,
-            controls_search_name=ctx.controls_search_name,
-            controls_param_name=ctx.controls_param_name,
-            controls_value_format=ctx.controls_value_format,
         )
 
         async def _evaluate_single(

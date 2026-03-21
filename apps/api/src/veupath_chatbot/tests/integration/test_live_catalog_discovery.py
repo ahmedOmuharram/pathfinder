@@ -19,6 +19,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.types import JSONArray
 from veupath_chatbot.services.catalog.searches import (
@@ -351,14 +352,14 @@ class TestFindRecordTypeForSearch:
     @pytest.mark.asyncio
     async def test_plasmodb_genes_by_taxon(self) -> None:
         result = await find_record_type_for_search(
-            "plasmodb", "transcript", "GenesByTaxon"
+            SearchContext("plasmodb", "transcript", "GenesByTaxon")
         )
         assert result == "transcript"
 
     @pytest.mark.asyncio
     async def test_plasmodb_gene_by_locus_tag(self) -> None:
         result = await find_record_type_for_search(
-            "plasmodb", "transcript", "GeneByLocusTag"
+            SearchContext("plasmodb", "transcript", "GeneByLocusTag")
         )
         assert result == "transcript"
 
@@ -366,7 +367,7 @@ class TestFindRecordTypeForSearch:
     async def test_unknown_search_returns_fallback(self) -> None:
         """An unknown search name should return the provided fallback record type."""
         result = await find_record_type_for_search(
-            "plasmodb", "transcript", "NonexistentSearch123"
+            SearchContext("plasmodb", "transcript", "NonexistentSearch123")
         )
         assert result == "transcript", (
             "Unknown search should fall back to the provided record type"
@@ -375,14 +376,14 @@ class TestFindRecordTypeForSearch:
     @pytest.mark.asyncio
     async def test_toxodb_genes_by_taxon(self) -> None:
         result = await find_record_type_for_search(
-            "toxodb", "transcript", "GenesByTaxon"
+            SearchContext("toxodb", "transcript", "GenesByTaxon")
         )
         assert result == "transcript"
 
     @pytest.mark.asyncio
     async def test_fungidb_genes_by_taxon(self) -> None:
         result = await find_record_type_for_search(
-            "fungidb", "transcript", "GenesByTaxon"
+            SearchContext("fungidb", "transcript", "GenesByTaxon")
         )
         assert result == "transcript"
 

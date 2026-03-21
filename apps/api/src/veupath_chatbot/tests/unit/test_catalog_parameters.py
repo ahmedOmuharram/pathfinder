@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.services.catalog.param_resolution import (
     _extract_param_names,
     _filter_context_values,
@@ -181,7 +182,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -205,7 +206,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -228,7 +229,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -252,7 +253,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -276,7 +277,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -304,7 +305,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         params = result["parameters"]
         assert isinstance(params, list)
@@ -329,7 +330,7 @@ class TestGetSearchParametersUnknownTypes:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "S")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "S"))
 
         assert result["displayName"] == "Details Display"
         assert result["description"] == "From details"

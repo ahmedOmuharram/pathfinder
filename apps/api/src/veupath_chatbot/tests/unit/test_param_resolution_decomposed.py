@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
@@ -262,7 +263,7 @@ class TestFetchSearchDetails:
         discovery.get_searches = AsyncMock(return_value=[])
 
         details, resolved_rt = await fetch_search_details(
-            discovery, "plasmodb", "gene", "TestSearch"
+            discovery, SearchContext("plasmodb", "gene", "TestSearch")
         )
         assert details == expected
         assert resolved_rt == "gene"
@@ -271,7 +272,7 @@ class TestFetchSearchDetails:
         call_count = 0
 
         async def _side_effect(
-            _site_id: str, rt: str, search: str, expand_params: bool = True
+            ctx: SearchContext, expand_params: bool = True
         ) -> dict[str, Any]:
             nonlocal call_count
             call_count += 1
@@ -295,9 +296,7 @@ class TestFetchSearchDetails:
 
         details, resolved_rt = await fetch_search_details(
             discovery,
-            "plasmodb",
-            "gene",
-            "MySearch",
+            SearchContext("plasmodb", "gene", "MySearch"),
             record_types=record_types,
         )
         assert details is not None
@@ -317,9 +316,7 @@ class TestFetchSearchDetails:
         with pytest.raises(ValidationError) as exc_info:
             await fetch_search_details(
                 discovery,
-                "plasmodb",
-                "gene",
-                "NonexistentSearch",
+                SearchContext("plasmodb", "gene", "NonexistentSearch"),
                 record_types=record_types,
             )
         assert "NonexistentSearch" in (exc_info.value.detail or "")
@@ -344,9 +341,7 @@ class TestFetchSearchDetails:
         with pytest.raises(ValidationError):
             await fetch_search_details(
                 discovery,
-                "plasmodb",
-                "gene",
-                "MySearch",
+                SearchContext("plasmodb", "gene", "MySearch"),
                 record_types=record_types,
             )
 
@@ -364,9 +359,7 @@ class TestFetchSearchDetails:
         with pytest.raises(ValidationError):
             await fetch_search_details(
                 discovery,
-                "plasmodb",
-                "gene",
-                "Missing",
+                SearchContext("plasmodb", "gene", "Missing"),
                 record_types=record_types,
             )
         # Should not crash on non-dict entries
@@ -408,7 +401,7 @@ class TestGetSearchParametersAfterDecomposition:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "GenesByTaxon")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "GenesByTaxon"))
 
         assert result["searchName"] == "GenesByTaxon"
         assert result["displayName"] == "Genes by Taxon"
@@ -425,7 +418,7 @@ class TestGetSearchParametersAfterDecomposition:
         call_count = 0
 
         async def _get_details(
-            _sid: str, rt: str, search: str, expand_params: bool = True
+            ctx: SearchContext, expand_params: bool = True
         ) -> dict[str, Any]:
             nonlocal call_count
             call_count += 1
@@ -456,7 +449,7 @@ class TestGetSearchParametersAfterDecomposition:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters("plasmodb", "gene", "SharedSearch")
+            result = await get_search_parameters(SearchContext("plasmodb", "gene", "SharedSearch"))
 
         assert result["resolvedRecordType"] == "transcript"
         assert result["displayName"] == "Found"

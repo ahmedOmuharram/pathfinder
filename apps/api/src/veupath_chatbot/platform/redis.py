@@ -18,6 +18,8 @@ async def init_redis() -> Redis:
     redis = Redis.from_url(
         settings.redis_url,
         decode_responses=False,
+        socket_timeout=30.0,
+        socket_connect_timeout=10.0,
     )
     result = redis.ping()
     if isinstance(result, Awaitable):

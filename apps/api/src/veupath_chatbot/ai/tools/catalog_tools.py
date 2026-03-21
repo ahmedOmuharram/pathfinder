@@ -7,6 +7,7 @@ from typing import Annotated
 
 from kani import AIParam, ai_function
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services import catalog
 
@@ -120,7 +121,7 @@ class CatalogTools:
     ) -> JSONObject:
         """Get full details for a specific search: description, parameters, and valid values."""
         return await catalog.get_search_parameters_tool(
-            site_id, record_type, search_name
+            SearchContext(site_id, record_type, search_name)
         )
 
     @ai_function()

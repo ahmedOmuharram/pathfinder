@@ -14,6 +14,7 @@ from veupath_chatbot.domain.parameters.specs import (
     find_input_step_param,
     unwrap_search_data,
 )
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
@@ -305,9 +306,7 @@ async def _resolve_search_and_validate_params(
 
     try:
         await validate_parameters(
-            site_id=site_id,
-            record_type=rt,
-            search_name=search_name,
+            SearchContext(site_id, rt, search_name),
             parameters=parameters,
             callbacks=ValidationCallbacks(
                 resolve_record_type_for_search=callbacks.resolve_record_type_for_search,

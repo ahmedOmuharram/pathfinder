@@ -4,6 +4,7 @@ from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
@@ -191,9 +192,7 @@ class StrategyEditOps(StrategyToolsHelpers):
         record_type = graph.record_type or "transcript"
         try:
             await validate_parameters(
-                site_id=self.session.site_id,
-                record_type=record_type,
-                search_name=step.search_name,
+                SearchContext(self.session.site_id, record_type, step.search_name),
                 parameters=parameters,
                 callbacks=ValidationCallbacks(
                     resolve_record_type_for_search=self._find_record_type_for_search,

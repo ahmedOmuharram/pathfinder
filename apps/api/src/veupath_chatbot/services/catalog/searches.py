@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.compile import ResolveRecordType
 from veupath_chatbot.domain.strategy.tree import collect_plan_leaves
@@ -496,19 +497,17 @@ async def search_for_searches(
     return result
 
 
-async def find_record_type_for_search(
-    site_id: str, record_type: str, search_name: str
-) -> str:
+async def find_record_type_for_search(ctx: SearchContext) -> str:
     """Resolve which record type actually contains a search name.
 
     Uses the pre-cached SearchCatalog (mirrors WDK's global
     ``getQuestionByName()`` lookup) — no HTTP calls at resolve time.
-    Falls back to *record_type* when the search isn't found.
+    Falls back to ``ctx.record_type`` when the search isn't found.
     """
     discovery = get_discovery_service()
-    catalog = await discovery.get_catalog(site_id)
-    resolved = catalog.find_record_type_for_search(search_name)
-    return resolved or record_type
+    catalog = await discovery.get_catalog(ctx.site_id)
+    resolved = catalog.find_record_type_for_search(ctx.search_name)
+    return resolved or ctx.record_type
 
 
 async def make_record_type_resolver(site_id: str) -> ResolveRecordType:

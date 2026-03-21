@@ -12,6 +12,7 @@ import pytest
 
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.service import (
+    PhaseContext,
     _phase_persist_strategy,
     _phase_rank_metrics,
     _phase_robustness,
@@ -264,9 +265,12 @@ class TestRunExperimentLifecycle:
 class TestPhasePersistStrategy:
     async def test_silently_handles_strategy_creation_failure(self) -> None:
         """When WDK strategy creation fails, it should log but not raise."""
-        exp = Experiment(id="exp_001", config=_cfg())
+        config = _cfg()
+        exp = Experiment(id="exp_001", config=config)
         store = ExperimentStore()
         store.save(exp)
+        emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with (
             patch(
@@ -276,15 +280,18 @@ class TestPhasePersistStrategy:
             ),
             patch("veupath_chatbot.platform.store.spawn"),
         ):
-            await _phase_persist_strategy(_cfg(), exp, store, None)
+            await _phase_persist_strategy(pctx, None)
 
         # wdk_strategy_id should remain None
         assert exp.wdk_strategy_id is None
         assert exp.wdk_step_id is None
 
     async def test_sets_wdk_ids_on_success(self) -> None:
-        exp = Experiment(id="exp_001", config=_cfg())
+        config = _cfg()
+        exp = Experiment(id="exp_001", config=config)
         store = ExperimentStore()
+        emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with (
             patch(
@@ -294,15 +301,18 @@ class TestPhasePersistStrategy:
             ),
             patch("veupath_chatbot.platform.store.spawn"),
         ):
-            await _phase_persist_strategy(_cfg(), exp, store, None)
+            await _phase_persist_strategy(pctx, None)
 
         assert exp.wdk_strategy_id == 42
         assert exp.wdk_step_id == 99
 
     async def test_ignores_non_int_wdk_ids(self) -> None:
         """If WDK returns string IDs, they should be ignored."""
-        exp = Experiment(id="exp_001", config=_cfg())
+        config = _cfg()
+        exp = Experiment(id="exp_001", config=config)
         store = ExperimentStore()
+        emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with (
             patch(
@@ -312,7 +322,7 @@ class TestPhasePersistStrategy:
             ),
             patch("veupath_chatbot.platform.store.spawn"),
         ):
-            await _phase_persist_strategy(_cfg(), exp, store, None)
+            await _phase_persist_strategy(pctx, None)
 
         # String IDs should be rejected (isinstance check)
         assert exp.wdk_strategy_id is None
@@ -321,42 +331,44 @@ class TestPhasePersistStrategy:
 
 class TestPhaseRankMetrics:
     async def test_skips_when_no_sort_attribute(self) -> None:
-        exp = Experiment(id="exp_001", config=_cfg())
+        config = _cfg()
+        exp = Experiment(id="exp_001", config=config)
         exp.wdk_step_id = 42
         store = ExperimentStore()
         emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with patch("veupath_chatbot.platform.store.spawn"):
-            result = await _phase_rank_metrics(_cfg(), exp, emit, store)
+            result = await _phase_rank_metrics(pctx)
 
         assert result == []
         emit.assert_not_awaited()
 
     async def test_skips_when_no_wdk_step_id(self) -> None:
-        exp = Experiment(
-            id="exp_001", config=_cfg(extras=_CfgExtras(sort_attribute="mean"))
-        )
+        config = _cfg(extras=_CfgExtras(sort_attribute="mean"))
+        exp = Experiment(id="exp_001", config=config)
         exp.wdk_step_id = None
         store = ExperimentStore()
         emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with patch("veupath_chatbot.platform.store.spawn"):
-            result = await _phase_rank_metrics(
-                _cfg(extras=_CfgExtras(sort_attribute="mean")), exp, emit, store
-            )
+            result = await _phase_rank_metrics(pctx)
 
         assert result == []
 
 
 class TestPhaseRobustness:
     async def test_skips_when_no_wdk_step_id(self) -> None:
-        exp = Experiment(id="exp_001", config=_cfg())
+        config = _cfg()
+        exp = Experiment(id="exp_001", config=config)
         exp.wdk_step_id = None
         store = ExperimentStore()
         emit = AsyncMock()
+        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
         with patch("veupath_chatbot.platform.store.spawn"):
-            await _phase_robustness(_cfg(), exp, emit, store, [], is_ranked=False)
+            await _phase_robustness(pctx, [], is_ranked=False)
 
         # Should have returned early without emitting
         emit.assert_not_awaited()

@@ -13,6 +13,7 @@ from veupath_chatbot.ai.tools.query_validation import (
     search_query_error,
 )
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.rag_search import RagSearchService
 
@@ -124,7 +125,7 @@ class CatalogToolsMixin:
             record_type, search_name
         )
         wdk = await self.catalog_tools.get_search_parameters(
-            self.site_id, record_type, search_name
+            SearchContext(self.site_id, record_type, search_name)
         )
         # Strip bulky vocab/param data from RAG — the WDK response is
         # authoritative for params, and RAG vocabularies can be 10k+ lines.

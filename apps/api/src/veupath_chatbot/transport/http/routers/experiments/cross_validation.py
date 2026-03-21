@@ -29,15 +29,7 @@ async def run_cv(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Run cross-validation on an existing experiment."""
-    ctx = ControlsContext(
-        site_id=exp.config.site_id,
-        record_type=exp.config.record_type,
-        controls_search_name=exp.config.controls_search_name,
-        controls_param_name=exp.config.controls_param_name,
-        controls_value_format=exp.config.controls_value_format,
-        positive_controls=exp.config.positive_controls or [],
-        negative_controls=exp.config.negative_controls or [],
-    )
+    ctx = ControlsContext.from_config(exp.config)
     try:
         cv = await run_cross_validation(
             ctx,

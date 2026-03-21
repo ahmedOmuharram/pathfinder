@@ -243,7 +243,7 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS
@@ -268,7 +268,7 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 _common_config(), controls_ids=NEGATIVE_CONTROLS
@@ -290,7 +290,7 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS[:3]
@@ -317,7 +317,7 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS
@@ -346,7 +346,7 @@ class TestSingleIntersectionControl:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS[:3]
@@ -435,7 +435,7 @@ class TestPositiveNegativeControls:
             ]
         )
 
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with (
             patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
             patch(PATCH_FIND_RT, find_rt),
@@ -504,7 +504,7 @@ class TestPositiveNegativeControls:
         )
         respx.delete(url__regex=rf".*/users/{USER_ID}/strategies/\d+").respond(204)
 
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with (
             patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
             patch(PATCH_FIND_RT, find_rt),
@@ -541,7 +541,7 @@ class TestErrorHandling:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with (
             patch(PATCH_TARGET, return_value=api),
             patch(PATCH_FIND_RT, find_rt),
@@ -577,7 +577,7 @@ class TestErrorHandling:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with (
             patch(PATCH_TARGET, return_value=api),
             patch(PATCH_FIND_RT, find_rt),
@@ -632,7 +632,7 @@ class TestErrorHandling:
         respx.delete(f"{BASE}/users/{USER_ID}/strategies/{STRATEGY_ID}").respond(204)
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS
@@ -706,7 +706,7 @@ class TestEmptyResults:
             side_effect=[_resp(204), _resp(204)]
         )
 
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with (
             patch(PATCH_TARGET, side_effect=lambda sid: _make_api()),
             patch(PATCH_FIND_RT, find_rt),
@@ -745,7 +745,7 @@ class TestEmptyResults:
         )
 
         api = _make_api()
-        find_rt = AsyncMock(side_effect=lambda _sid, rt, _sn: rt)
+        find_rt = AsyncMock(side_effect=lambda ctx: ctx.record_type)
         with patch(PATCH_TARGET, return_value=api), patch(PATCH_FIND_RT, find_rt):
             result = await _run_intersection_control(
                 _common_config(), controls_ids=POSITIVE_CONTROLS

@@ -11,6 +11,7 @@ orchestrates phase sequencing, lifecycle management, and error handling.
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
@@ -85,6 +86,21 @@ logger = get_logger(__name__)
 # Type alias for the progress-emit callback threaded through phases.
 EmitFn = Callable[..., Awaitable[None]]
 
+
+@dataclass
+class PhaseContext:
+    """Shared context threaded through all experiment phases.
+
+    Bundles the four parameters that every phase function receives:
+    the experiment configuration, the mutable experiment object,
+    the SSE progress-emit callback, and the persistence store.
+    """
+
+    config: ExperimentConfig
+    experiment: Experiment
+    emit: EmitFn
+    store: ExperimentStore
+
 # Per-experiment lock to prevent concurrent mutations of the same experiment
 # (e.g., DELETE while a run_experiment() is in-flight).
 _experiment_locks: dict[str, asyncio.Lock] = {}
@@ -124,17 +140,10 @@ async def _run_single_step_controls(
     parameters: JSONObject,
 ) -> JSONObject:
     """Run single-step control tests with the given parameters."""
-    intersection_config = IntersectionConfig(
-        site_id=config.site_id,
-        record_type=config.record_type,
-        target_search_name=config.search_name,
-        target_parameters=parameters,
-        controls_search_name=config.controls_search_name,
-        controls_param_name=config.controls_param_name,
-        controls_value_format=config.controls_value_format,
-    )
     return await run_positive_negative_controls(
-        intersection_config,
+        IntersectionConfig.from_experiment_config(
+            config, target_parameters=parameters
+        ),
         positive_controls=config.positive_controls or None,
         negative_controls=config.negative_controls or None,
     )
@@ -167,16 +176,14 @@ async def _apply_control_result(
 
 
 async def _phase_evaluate(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
 ) -> tuple[JSONObject, ExperimentMetrics]:
     """Run control-test evaluation, compute metrics, and enrich gene lists.
 
     :returns: ``(control_result, metrics)`` for downstream phases.
     """
-    await emit("evaluating", message="Running control tests...")
+    config, experiment = pctx.config, pctx.experiment
+    await pctx.emit("evaluating", message="Running control tests...")
 
     if config.target_gene_ids:
         # Gene set mode: evaluate using gene IDs directly, no WDK calls.
@@ -192,15 +199,7 @@ async def _phase_evaluate(
         tree_dict: JSONObject = cast("JSONObject", config.step_tree)
 
         result = await run_controls_against_tree(
-            ControlsContext(
-                site_id=config.site_id,
-                record_type=config.record_type,
-                controls_search_name=config.controls_search_name,
-                controls_param_name=config.controls_param_name,
-                controls_value_format=config.controls_value_format,
-                positive_controls=config.positive_controls or [],
-                negative_controls=config.negative_controls or [],
-            ),
+            ControlsContext.from_config(config),
             tree_dict,
         )
     else:
@@ -208,42 +207,32 @@ async def _phase_evaluate(
 
     metrics = await _apply_control_result(config, experiment, result)
 
-    await emit(
+    await pctx.emit(
         "evaluating",
         message="Evaluation complete",
         metrics=metrics.model_dump(by_alias=True),
     )
-    store.save(experiment)
+    pctx.store.save(experiment)
 
     return result, metrics
 
 
 async def _phase_step_analysis(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     tree: JSONObject,
     baseline_result: JSONObject,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
+    config, experiment = pctx.config, pctx.experiment
 
-    await emit("step_analysis", message="Running step decomposition analysis...")
+    await pctx.emit("step_analysis", message="Running step decomposition analysis...")
 
     async def _progress(event: JSONObject) -> None:
         data = event.get("data", {})
         msg = data.get("message", "") if isinstance(data, dict) else ""
-        await emit("step_analysis", message=str(msg), stepAnalysisProgress=data)
+        await pctx.emit("step_analysis", message=str(msg), stepAnalysisProgress=data)
 
-    ctx = ControlsContext(
-        site_id=config.site_id,
-        record_type=config.record_type,
-        controls_search_name=config.controls_search_name,
-        controls_param_name=config.controls_param_name,
-        controls_value_format=config.controls_value_format,
-        positive_controls=config.positive_controls or [],
-        negative_controls=config.negative_controls or [],
-    )
+    ctx = ControlsContext.from_config(config)
     experiment.step_analysis = await run_step_analysis(
         ctx,
         tree,
@@ -251,21 +240,22 @@ async def _phase_step_analysis(
         phases=config.step_analysis_phases,
         progress_callback=_progress,
     )
-    store.save(experiment)
+    pctx.store.save(experiment)
 
     metrics_json = (
         experiment.metrics.model_dump(by_alias=True) if experiment.metrics else {}
     )
-    await emit("step_analysis", message="Step analysis complete", metrics=metrics_json)
+    await pctx.emit(
+        "step_analysis", message="Step analysis complete", metrics=metrics_json
+    )
 
 
 async def _phase_persist_strategy(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     final_tree: JSONObject | None,
 ) -> None:
     """Create a persisted WDK strategy for result exploration (best-effort)."""
+    config, experiment = pctx.config, pctx.experiment
     try:
         wdk_ids = await _persist_experiment_strategy(
             config,
@@ -276,7 +266,7 @@ async def _phase_persist_strategy(
         raw_step = wdk_ids.get("step_id")
         experiment.wdk_strategy_id = raw_sid if isinstance(raw_sid, int) else None
         experiment.wdk_step_id = raw_step if isinstance(raw_step, int) else None
-        store.save(experiment)
+        pctx.store.save(experiment)
     except (AppError, ValueError, TypeError, RuntimeError) as exc:
         logger.warning(
             "Failed to persist WDK strategy for experiment",
@@ -286,21 +276,19 @@ async def _phase_persist_strategy(
 
 
 async def _phase_rank_metrics(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
 ) -> list[str]:
     """Compute rank-based metrics when a sort attribute is configured.
 
     :returns: Ordered result IDs (for downstream robustness phase).
     """
+    config, experiment = pctx.config, pctx.experiment
     is_ranked = config.sort_attribute is not None
     if not is_ranked or experiment.wdk_step_id is None:
         return []
 
     try:
-        await emit("evaluating", message="Computing rank-based metrics...")
+        await pctx.emit("evaluating", message="Computing rank-based metrics...")
 
         ordered_ids = await fetch_ordered_result_ids(
             site_id=config.site_id,
@@ -316,7 +304,7 @@ async def _phase_rank_metrics(
                 positive_ids=pos_set,
                 negative_ids=neg_set,
             )
-            store.save(experiment)
+            pctx.store.save(experiment)
     except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
         logger.warning(
             "Rank metrics computation failed",
@@ -329,20 +317,18 @@ async def _phase_rank_metrics(
 
 
 async def _phase_robustness(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     ordered_ids: list[str],
     *,
     is_ranked: bool,
 ) -> None:
     """Compute bootstrap confidence intervals."""
+    config, experiment = pctx.config, pctx.experiment
     if experiment.wdk_step_id is None:
         return
 
     try:
-        await emit("evaluating", message="Computing robustness estimates...")
+        await pctx.emit("evaluating", message="Computing robustness estimates...")
 
         if not ordered_ids:
             ordered_ids = await fetch_ordered_result_ids(
@@ -359,7 +345,7 @@ async def _phase_robustness(
                     n_bootstrap=200, include_rank_metrics=is_ranked
                 ),
             )
-            store.save(experiment)
+            pctx.store.save(experiment)
     except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
         logger.warning(
             "Robustness computation failed",
@@ -369,18 +355,16 @@ async def _phase_robustness(
 
 
 async def _phase_optimize_parameters(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     metrics: ExperimentMetrics,
 ) -> tuple[JSONObject | None, ExperimentMetrics]:
     """Run parameter optimization and optionally re-evaluate with best params.
 
     :returns: ``(updated_result_or_None, updated_metrics)``.
     """
+    config, experiment = pctx.config, pctx.experiment
 
-    await emit("evaluating", message="Running parameter optimization...")
+    await pctx.emit("evaluating", message="Running parameter optimization...")
 
     def _spec_optimizable(s: OptimizationSpec) -> bool:
         if s.type == "categorical":
@@ -421,7 +405,7 @@ async def _phase_optimize_parameters(
         trial_num = (
             trial_data.get("currentTrial", "?") if isinstance(trial_data, dict) else "?"
         )
-        await emit(
+        await pctx.emit(
             "optimizing",
             message=f"Trial {trial_num} / {config.optimization_budget}",
             trialProgress=event.get("data"),
@@ -452,7 +436,7 @@ async def _phase_optimize_parameters(
     if opt_result.best_trial:
         optimized_params = dict(config.parameters)
         optimized_params.update(opt_result.best_trial.parameters)
-        await emit(
+        await pctx.emit(
             "evaluating",
             message="Optimization complete — re-evaluating with best parameters",
         )
@@ -465,25 +449,15 @@ async def _phase_optimize_parameters(
 
 
 async def _phase_optimize_tree_knobs(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     tree: JSONObject,
 ) -> None:
     """Optimize threshold parameters and boolean operators across a strategy tree."""
+    config, experiment = pctx.config, pctx.experiment
     try:
-        await emit("optimizing", message="Optimizing strategy tree knobs...")
+        await pctx.emit("optimizing", message="Optimizing strategy tree knobs...")
 
-        ctx = ControlsContext(
-            site_id=config.site_id,
-            record_type=config.record_type,
-            controls_search_name=config.controls_search_name,
-            controls_param_name=config.controls_param_name,
-            controls_value_format=config.controls_value_format,
-            positive_controls=config.positive_controls or [],
-            negative_controls=config.negative_controls or [],
-        )
+        ctx = ControlsContext.from_config(config)
         tree_opt_result = await optimize_tree_knobs(
             ctx,
             tree,
@@ -496,8 +470,8 @@ async def _phase_optimize_tree_knobs(
             ),
         )
         experiment.tree_optimization = tree_opt_result
-        store.save(experiment)
-        await emit(
+        pctx.store.save(experiment)
+        await pctx.emit(
             "optimizing",
             message=f"Tree optimization complete — best score: {tree_opt_result.best_trial.score:.4f}"
             if tree_opt_result.best_trial
@@ -512,35 +486,25 @@ async def _phase_optimize_tree_knobs(
 
 
 async def _phase_cross_validate(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
     final_tree: JSONObject | None,
 ) -> None:
     """Run k-fold cross-validation (tree or single-step)."""
-    await emit(
+    config, experiment = pctx.config, pctx.experiment
+    await pctx.emit(
         "cross_validating",
         message=f"Running {config.k_folds}-fold cross-validation...",
     )
 
     async def _cv_progress(fold_idx: int, total: int) -> None:
-        await emit(
+        await pctx.emit(
             "cross_validating",
             message=f"Fold {fold_idx + 1} of {total}",
             cvFoldIndex=fold_idx,
             cvTotalFolds=total,
         )
 
-    ctx = ControlsContext(
-        site_id=config.site_id,
-        record_type=config.record_type,
-        controls_search_name=config.controls_search_name,
-        controls_param_name=config.controls_param_name,
-        controls_value_format=config.controls_value_format,
-        positive_controls=config.positive_controls or [],
-        negative_controls=config.negative_controls or [],
-    )
+    ctx = ControlsContext.from_config(config)
     experiment.cross_validation = await run_cross_validation(
         ctx,
         final_tree,
@@ -552,18 +516,16 @@ async def _phase_cross_validate(
             progress_callback=_cv_progress,
         ),
     )
-    store.save(experiment)
+    pctx.store.save(experiment)
 
 
 async def _phase_enrich(
-    config: ExperimentConfig,
-    experiment: Experiment,
-    emit: EmitFn,
-    store: ExperimentStore,
+    pctx: PhaseContext,
 ) -> None:
     """Run enrichment analyses on experiment results."""
+    config, experiment = pctx.config, pctx.experiment
 
-    await emit("enriching", message="Running enrichment analyses...")
+    await pctx.emit("enriching", message="Running enrichment analyses...")
 
     step_id = experiment.wdk_step_id
     search_name = config.search_name
@@ -592,7 +554,7 @@ async def _phase_enrich(
     )
     for enrich_result in enrich_results:
         upsert_enrichment_result(experiment.enrichment_results, enrich_result)
-    store.save(experiment)
+    pctx.store.save(experiment)
 
 
 # ---------------------------------------------------------------------------
@@ -645,8 +607,15 @@ async def run_experiment(
     try:
         await _emit("started", message="Starting evaluation...")
 
+        pctx = PhaseContext(
+            config=config,
+            experiment=experiment,
+            emit=_emit,
+            store=store,
+        )
+
         # Phase 1: Control-test evaluation + metrics + gene enrichment
-        result, metrics = await _phase_evaluate(config, experiment, _emit, store)
+        result, metrics = await _phase_evaluate(pctx)
 
         tree_dict: JSONObject = (
             cast("JSONObject", config.step_tree) if config.is_tree_mode else {}
@@ -655,31 +624,17 @@ async def run_experiment(
 
         # Phase 2: Step analysis (multi-step only)
         if config.is_tree_mode and config.enable_step_analysis:
-            await _phase_step_analysis(
-                config,
-                experiment,
-                _emit,
-                store,
-                tree_dict,
-                result,
-            )
+            await _phase_step_analysis(pctx, tree_dict, result)
 
         # Phase 3: Persist WDK strategy for result exploration
-        await _phase_persist_strategy(config, experiment, store, final_tree)
+        await _phase_persist_strategy(pctx, final_tree)
 
         # Phase 4: Rank-based metrics
         is_ranked = config.sort_attribute is not None
-        ordered_ids = await _phase_rank_metrics(config, experiment, _emit, store)
+        ordered_ids = await _phase_rank_metrics(pctx)
 
         # Phase 5: Robustness / bootstrap CIs
-        await _phase_robustness(
-            config,
-            experiment,
-            _emit,
-            store,
-            ordered_ids,
-            is_ranked=is_ranked,
-        )
+        await _phase_robustness(pctx, ordered_ids, is_ranked=is_ranked)
 
         # Phase 6: Parameter optimization (single-step only)
         if (
@@ -687,20 +642,12 @@ async def run_experiment(
             and config.optimization_specs
             and len(config.optimization_specs) > 0
         ):
-            _, metrics = await _phase_optimize_parameters(
-                config,
-                experiment,
-                _emit,
-                store,
-                metrics,
-            )
+            _, metrics = await _phase_optimize_parameters(pctx, metrics)
 
         # Phase 7: Tree-knob optimization (multi-step only)
         has_tree_knobs = bool(config.threshold_knobs or config.operator_knobs)
         if config.is_tree_mode and has_tree_knobs and final_tree is not None:
-            await _phase_optimize_tree_knobs(
-                config, experiment, _emit, store, tree_dict
-            )
+            await _phase_optimize_tree_knobs(pctx, tree_dict)
 
         # Phase 8: Cross-validation
         if (
@@ -708,17 +655,11 @@ async def run_experiment(
             and config.positive_controls
             and config.negative_controls
         ):
-            await _phase_cross_validate(
-                config,
-                experiment,
-                _emit,
-                store,
-                final_tree,
-            )
+            await _phase_cross_validate(pctx, final_tree)
 
         # Phase 9: Enrichment analysis
         if config.enrichment_types:
-            await _phase_enrich(config, experiment, _emit, store)
+            await _phase_enrich(pctx)
 
         # Finalize
         experiment.status = "completed"

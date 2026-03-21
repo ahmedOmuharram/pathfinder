@@ -463,7 +463,7 @@ async def _chat_producer(
                 stream_repo=bg_stream_repo,
             )
             return
-        except (AppError, ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
+        except Exception as e:  # noqa: BLE001
             await _handle_error(
                 error=e,
                 redis=redis,

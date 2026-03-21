@@ -14,6 +14,7 @@ from veupath_chatbot.domain.parameters.specs import (
     find_missing_required_params,
     unwrap_search_data,
 )
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import (
     encode_context_param_values_for_wdk,
 )
@@ -63,10 +64,8 @@ _MAX_KNOWN_PARAM_NAMES = 50
 
 
 async def validate_search_params(
+    ctx: SearchContext,
     *,
-    site_id: str,
-    record_type: str,
-    search_name: str,
     context_values: JSONObject | None,
 ) -> JSONObject:
     """Validate and canonicalize search parameters for UI consumption.
@@ -83,12 +82,7 @@ async def validate_search_params(
     allowed: set[str] = set()
 
     try:
-        details = await expand_search_details_with_params(
-            site_id=site_id,
-            record_type=record_type,
-            search_name=search_name,
-            context_values=raw_context,
-        )
+        details = await expand_search_details_with_params(ctx, raw_context)
         allowed = _extract_param_names(details if isinstance(details, dict) else {})
     except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
         return {
@@ -170,26 +164,28 @@ async def validate_search_params(
 
 
 async def _resolve_search_details(
+    ctx: SearchContext,
     *,
-    site_id: str,
     resolved_record_type: str,
-    search_name: str,
-    record_type: str,
     parameters: JSONObject,
 ) -> JSONObject:
     """Fetch search details with contextual params, with fallback.
+
+    ``ctx`` carries the original (site_id, record_type, search_name) for
+    error-hint generation; ``resolved_record_type`` is the already-resolved
+    record type used for the actual WDK call.
 
     Raises ``ValidationError`` with available-search hints when the
     search cannot be found at all.
     """
     discovery = get_discovery_service()
     try:
-        wdk_client = get_wdk_client(site_id)
+        wdk_client = get_wdk_client(ctx.site_id)
         context = encode_context_param_values_for_wdk(parameters)
         try:
             return await wdk_client.get_search_details_with_params(
                 resolved_record_type,
-                search_name,
+                ctx.search_name,
                 context=context,
                 expand_params=True,
             )
@@ -197,21 +193,20 @@ async def _resolve_search_details(
             logger.warning(
                 "Contextual param fetch failed, falling back to non-contextual specs",
                 record_type=resolved_record_type,
-                search_name=search_name,
+                search_name=ctx.search_name,
                 error=str(exc),
             )
+            resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
             return await discovery.get_search_details(
-                site_id, resolved_record_type, search_name, expand_params=True
+                resolved_ctx, expand_params=True
             )
     except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
-        hint_record_type = await _find_search_record_type_hint(
-            discovery, site_id, record_type, search_name
-        )
+        hint_record_type = await _find_search_record_type_hint(discovery, ctx)
         available = await _collect_available_search_names(
-            discovery, site_id, resolved_record_type
+            discovery, ctx.site_id, resolved_record_type
         )
         raise ValidationError(
-            title=f"Unknown or invalid search: {search_name}",
+            title=f"Unknown or invalid search: {ctx.search_name}",
             detail=str(exc),
             errors=[
                 {
@@ -245,11 +240,11 @@ async def _collect_available_search_names(
 
 
 async def _find_search_record_type_hint(
-    discovery: object, site_id: str, record_type: str, search_name: str
+    discovery: object, ctx: SearchContext
 ) -> str | None:
     """Search other record types to find where *search_name* actually lives."""
     try:
-        record_types = await discovery.get_record_types(site_id)
+        record_types = await discovery.get_record_types(ctx.site_id)
         for rt in record_types:
             if not isinstance(rt, dict):
                 continue
@@ -258,9 +253,9 @@ async def _find_search_record_type_hint(
             url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
             name = name_raw if isinstance(name_raw, str) else None
             rt_name = url_seg or name or ""
-            if not rt_name or rt_name == record_type:
+            if not rt_name or rt_name == ctx.record_type:
                 continue
-            rt_searches = await discovery.get_searches(site_id, rt_name)
+            rt_searches = await discovery.get_searches(ctx.site_id, rt_name)
             for s in rt_searches:
                 if not isinstance(s, dict):
                     continue
@@ -268,12 +263,12 @@ async def _find_search_record_type_hint(
                 s_name_raw = s.get("name")
                 s_url_seg = s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
                 s_name = s_name_raw if isinstance(s_name_raw, str) else None
-                if search_name in (s_url_seg, s_name):
+                if ctx.search_name in (s_url_seg, s_name):
                     return rt_name
     except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as hint_exc:
         logger.warning(
             "Record type hint resolution failed",
-            search_name=search_name,
+            search_name=ctx.search_name,
             error=str(hint_exc),
         )
     return None
@@ -316,10 +311,8 @@ def _build_missing_param_options(
 
 
 async def validate_parameters(
+    ctx: SearchContext,
     *,
-    site_id: str,
-    record_type: str,
-    search_name: str,
     parameters: JSONObject,
     callbacks: ValidationCallbacks,
 ) -> None:
@@ -330,19 +323,19 @@ async def validate_parameters(
     required parameters are missing.
     """
     resolved_record_type = await callbacks.resolve_record_type_for_search(
-        record_type, search_name, require_match=True, allow_fallback=True
+        ctx.record_type, ctx.search_name, require_match=True, allow_fallback=True
     )
     if resolved_record_type is None:
         record_type_hint = await callbacks.find_record_type_hint(
-            search_name, record_type
+            ctx.search_name, ctx.record_type
         )
         raise ValidationError(
-            title=f"Unknown or invalid search: {search_name}",
+            title=f"Unknown or invalid search: {ctx.search_name}",
             detail="Search name not found in any record type.",
             errors=[
                 {
                     "context": {
-                        "recordType": record_type,
+                        "recordType": ctx.record_type,
                         "recordTypeHint": record_type_hint,
                     }
                 }
@@ -350,10 +343,8 @@ async def validate_parameters(
         )
 
     details = await _resolve_search_details(
-        site_id=site_id,
+        ctx,
         resolved_record_type=resolved_record_type,
-        search_name=search_name,
-        record_type=record_type,
         parameters=parameters,
     )
 
@@ -379,7 +370,7 @@ async def validate_parameters(
                 {
                     "context": {
                         "recordType": resolved_record_type,
-                        "searchName": search_name,
+                        "searchName": ctx.search_name,
                         "unknown": cast("JSONValue", extra_params),
                         "known": cast(
                             "JSONValue", sorted(param_names)[:_MAX_KNOWN_PARAM_NAMES]
@@ -402,7 +393,7 @@ async def validate_parameters(
                 {
                     "context": {
                         "recordType": resolved_record_type,
-                        "searchName": search_name,
+                        "searchName": ctx.search_name,
                         "missing": cast("JSONValue", missing),
                         "options": options,
                     }

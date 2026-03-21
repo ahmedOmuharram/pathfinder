@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.services.catalog.rag_search import (
     RagSearchService,
     _extract_payload,
@@ -529,8 +530,6 @@ class TestGetSearchDetails:
             result = await svc.get_search_details("gene", "GenesByGoTerm")
             assert result == expected
             mock_discovery.get_search_details.assert_called_once_with(
-                "plasmodb",
-                "gene",
-                "GenesByGoTerm",
+                SearchContext("plasmodb", "gene", "GenesByGoTerm"),
                 expand_params=True,
             )
