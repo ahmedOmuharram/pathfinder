@@ -79,7 +79,7 @@ async def compare_operators(
             try:
                 async with sem:
                     raw = await run_controls_against_tree(ctx, subtree)
-            except (AppError, ValueError, TypeError) as exc:
+            except AppError as exc:
                 logger.warning(
                     "Operator comparison failed", node=_cid, op=op, error=str(exc)
                 )

@@ -255,7 +255,7 @@ async def create_or_update_wdk_strategy(
                 "Updated existing WDK strategy",
                 wdk_strategy_id=existing_wdk_id,
             )
-        except (AppError, ValueError, TypeError) as update_err:
+        except AppError as update_err:
             logger.warning(
                 "Failed to update WDK strategy, will create new",
                 wdk_strategy_id=existing_wdk_id,
@@ -409,7 +409,7 @@ async def build_strategy(
                 step_counts, root_count = extract_step_counts(
                     strategy_info, compiled_map
                 )
-        except (AppError, ValueError, TypeError, KeyError) as e:
+        except AppError as e:
             logger.warning("Strategy count lookup failed", error=str(e))
 
     graph.step_counts = step_counts

@@ -609,7 +609,13 @@ class TestConvenienceMethodEdgeCases:
 
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_json.update(json.loads(request.content))
-                return httpx.Response(200, json={"searchData": {}})
+                return httpx.Response(200, json={
+                    "searchData": {
+                        "urlSegment": "GenesByTaxonGene",
+                        "paramNames": [],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                })
 
             router.post(
                 "https://example.com/service/record-types/gene/searches/GenesByTaxonGene"

@@ -10,7 +10,8 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, Stra
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.errors import StrategyCompilationError
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import resolve_record_type_from_steps
 from veupath_chatbot.services.strategies.build import (
@@ -136,10 +137,16 @@ class FakeBuildAPI:
 class FakeCompilerClient:
     """Fake compiler client for StrategyCompilerAPI.client."""
 
+    def _default_response(self) -> WDKSearchResponse:
+        return WDKSearchResponse.model_validate({
+            "searchData": {"urlSegment": "FakeSearch", "parameters": []},
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        })
+
     async def get_search_details(
         self, record_type: str, search_name: str, expand_params: bool = False
-    ) -> JSONObject:
-        return {"searchData": {"parameters": []}}
+    ) -> WDKSearchResponse:
+        return self._default_response()
 
     async def get_search_details_with_params(
         self,
@@ -147,8 +154,8 @@ class FakeCompilerClient:
         search_name: str,
         context: JSONObject,
         expand_params: bool = False,
-    ) -> JSONObject:
-        return {"searchData": {"parameters": []}}
+    ) -> WDKSearchResponse:
+        return self._default_response()
 
     async def get_record_types(self) -> list:
         return []
@@ -438,7 +445,7 @@ class TestCreateOrUpdateWdkStrategy:
 
     async def test_update_fails_falls_back_to_create(self):
         api = FakeBuildAPI(
-            update_strategy_error=ValueError("404 Not Found"),
+            update_strategy_error=WDKError(detail="404 Not Found"),
             create_strategy_response={"id": 888},
         )
         compilation = CompilationResult(
@@ -483,7 +490,7 @@ class TestGetResultCount:
     async def test_non_dict_strategy_raises(self):
         class BadAPI(FakeBuildAPI):
             async def get_strategy(self, strategy_id: int) -> JSONObject:
-                return []  # type: ignore[return-value]
+                return []
 
         api = BadAPI()
         with pytest.raises(StrategyCompilationError, match="Expected dict"):

@@ -11,15 +11,19 @@ from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.compile import ResolveRecordType
 from veupath_chatbot.domain.strategy.tree import collect_plan_leaves
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.discovery import (
+    DiscoveryService,
+    get_discovery_service,
+)
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_search import (
     query_site_search,
     strip_html_tags,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
 
@@ -104,34 +108,23 @@ def score_search(
     return score
 
 
-def is_chooser_search(search: JSONObject) -> bool:
+def is_chooser_search(search: WDKSearch) -> bool:
     """Return True if this is a routing/chooser search (no real params).
 
-    Chooser searches have ``websiteProperties: ["hideOperation"]`` and/or
-    empty ``paramNames``.  The search list endpoint returns ``paramNames``
-    (list of strings), not full ``parameters`` objects.
+    Chooser searches have ``websiteProperties: ["hideOperation"]``.
     """
-    props = search.get("properties", {})
-    if not isinstance(props, dict):
-        return False
-    ws_props = props.get("websiteProperties", [])
-    if isinstance(ws_props, list) and "hideOperation" in ws_props:
-        return True
-    # paramNames is the list of param name strings from the search list endpoint.
-    param_names = search.get("paramNames")
-    return isinstance(param_names, list) and len(param_names) == 0
+    ws_props = search.properties.get("websiteProperties", [])
+    return "hideOperation" in ws_props
 
 
-def annotate_search(search: JSONObject) -> dict[str, str]:
+def annotate_search(search: WDKSearch) -> dict[str, str]:
     """Add ``category`` and ``returns`` fields to a search result dict."""
     result: dict[str, str] = {}
-    props = search.get("properties", {})
-    if isinstance(props, dict):
-        dc = props.get("displayCategory", [])
-        if isinstance(dc, list) and dc:
-            result["category"] = str(dc[0])
-    rc = search.get("recordClassName") or search.get("outputRecordClassName", "")
-    if isinstance(rc, str):
+    dc = search.properties.get("displayCategory", [])
+    if dc:
+        result["category"] = str(dc[0])
+    rc = search.output_record_class_name
+    if rc:
         rc_lower = rc.lower()
         for key, label in _RECORD_CLASS_LABELS.items():
             if key in rc_lower:
@@ -152,7 +145,7 @@ async def get_raw_record_types(site_id: str) -> JSONArray:
     return await discovery.get_record_types(site_id)
 
 
-async def get_raw_searches(site_id: str, record_type: str) -> JSONArray:
+async def get_raw_searches(site_id: str, record_type: str) -> list[WDKSearch]:
     """Return raw WDK search objects for a record type.
 
     Thin service-level wrapper over the discovery integration so that AI tools
@@ -174,18 +167,12 @@ async def list_searches(site_id: str, record_type: str) -> list[dict[str, str]]:
     searches = await discovery.get_searches(site_id, record_type)
     result: list[dict[str, str]] = []
     for s in searches:
-        if not isinstance(s, dict):
+        if s.full_name.startswith("InternalQuestions."):
             continue
-        is_internal_raw = s.get("isInternal")
-        if isinstance(is_internal_raw, bool) and is_internal_raw:
-            continue
-        search_name = wdk_entity_name(s)
-        display_name_raw = s.get("displayName")
-        display_name = display_name_raw if isinstance(display_name_raw, str) else ""
         result.append(
             {
-                "name": search_name,
-                "displayName": display_name,
+                "name": s.url_segment,
+                "displayName": s.display_name,
             }
         )
     return result
@@ -202,24 +189,15 @@ async def list_transforms(site_id: str, record_type: str) -> list[dict[str, str]
     searches = await discovery.get_searches(site_id, record_type)
     result: list[dict[str, str]] = []
     for s in searches:
-        if not isinstance(s, dict):
+        if not s.allowed_primary_input_record_class_names:
             continue
-        allowed = s.get("allowedPrimaryInputRecordClassNames")
-        if not isinstance(allowed, list) or not allowed:
+        if s.full_name.startswith("InternalQuestions."):
             continue
-        is_internal_raw = s.get("isInternal")
-        if isinstance(is_internal_raw, bool) and is_internal_raw:
-            continue
-        search_name = wdk_entity_name(s)
-        display_name_raw = s.get("displayName")
-        display_name = display_name_raw if isinstance(display_name_raw, str) else ""
-        description_raw = s.get("description")
-        description = description_raw if isinstance(description_raw, str) else ""
         result.append(
             {
-                "name": search_name,
-                "displayName": display_name,
-                "description": description,
+                "name": s.url_segment,
+                "displayName": s.display_name,
+                "description": s.description,
             }
         )
     return result
@@ -230,11 +208,10 @@ def _parse_site_search_doc(doc: object) -> dict[str, str] | None:
     if not isinstance(doc, dict):
         return None
     primary_key = doc.get("primaryKey")
-    is_valid_pk = (
-        isinstance(primary_key, list) and len(primary_key) >= _MIN_PRIMARY_KEY_LENGTH
-    )
-    search_name = str(primary_key[0] or "").strip() if is_valid_pk else ""
-    record_type = str(primary_key[1] or "").strip() if is_valid_pk else ""
+    if not isinstance(primary_key, list) or len(primary_key) < _MIN_PRIMARY_KEY_LENGTH:
+        return None
+    search_name = str(primary_key[0] or "").strip()
+    record_type = str(primary_key[1] or "").strip()
     if not search_name or not record_type:
         return None
 
@@ -287,7 +264,7 @@ async def _search_for_searches_via_site_search(
             limit=limit,
             offset=0,
         )
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+    except (httpx.HTTPError, AppError) as exc:
         logger.warning(
             "Site-search lookup failed; falling back to discovery search",
             site_id=site_id,
@@ -335,19 +312,16 @@ def _record_type_priority(record_type: str) -> int:
 
 
 async def _collect_search_candidates(
-    discovery: object,
+    discovery: DiscoveryService,
     site_id: str,
     record_types: list[str],
-) -> list[tuple[JSONObject, str]]:
+) -> list[tuple[WDKSearch, str]]:
     """Collect all non-internal, non-chooser search candidates across record types."""
-    candidates: list[tuple[JSONObject, str]] = []
+    candidates: list[tuple[WDKSearch, str]] = []
     for rt_name in record_types:
         searches = await discovery.get_searches(site_id, rt_name)
         for s in searches:
-            if not isinstance(s, dict):
-                continue
-            is_internal = s.get("isInternal")
-            if isinstance(is_internal, bool) and is_internal:
+            if s.full_name.startswith("InternalQuestions."):
                 continue
             if is_chooser_search(s):
                 continue
@@ -356,17 +330,14 @@ async def _collect_search_candidates(
 
 
 def _score_candidates(
-    candidates: list[tuple[JSONObject, str]],
+    candidates: list[tuple[WDKSearch, str]],
     terms: list[str],
     kw_list: list[str],
 ) -> list[tuple[float, dict[str, str]]]:
     """Score each candidate search and return ``(score, entry)`` pairs."""
     corpus_counts: Counter[str] = Counter()
     for s, _ in candidates:
-        name = wdk_entity_name(s)
-        display = s.get("displayName", "")
-        desc = s.get("description", "")
-        haystack = f"{name} {display} {desc}".lower()
+        haystack = f"{s.url_segment} {s.display_name} {s.description}".lower()
         for term in terms:
             if len(term) >= _MIN_TERM_LEN and term in haystack:
                 corpus_counts[term] += 1
@@ -374,16 +345,13 @@ def _score_candidates(
     doc_count = len(candidates)
     scored: list[tuple[float, dict[str, str]]] = []
     for s, rt_name in candidates:
-        canonical_name = wdk_entity_name(s)
-        display_raw = s.get("displayName")
-        display = display_raw if isinstance(display_raw, str) else canonical_name
-        desc_raw = s.get("description")
-        desc = desc_raw if isinstance(desc_raw, str) else ""
+        display = s.display_name or s.url_segment
+        desc = s.description
 
         sc = score_search(
             query_terms=terms,
             keywords=kw_list,
-            search_name=canonical_name,
+            search_name=s.url_segment,
             display_name=display,
             description=desc,
             corpus=SearchCorpus(doc_count=doc_count, term_counts=dict(corpus_counts)),
@@ -393,7 +361,7 @@ def _score_candidates(
 
         annotations = annotate_search(s)
         entry: dict[str, str] = {
-            "name": canonical_name,
+            "name": s.url_segment,
             "displayName": display,
             "description": desc,
             "recordType": rt_name,
@@ -404,7 +372,7 @@ def _score_candidates(
 
 
 async def _resolve_record_types(
-    discovery: object, site_id: str, record_type: str | list[str] | None
+    discovery: DiscoveryService, site_id: str, record_type: str | list[str] | None
 ) -> list[str]:
     """Resolve the record_type argument to a deduplicated list of type strings."""
     record_types: list[str] = []
@@ -442,7 +410,7 @@ async def _apply_site_search_bonus(
             bonus = site_bonus.get(entry["name"], 0.0)
             if bonus > 0:
                 scored[i] = (sc + bonus, entry)
-    except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
+    except httpx.HTTPError, AppError:
         logger.debug("Site-search merge failed (non-fatal)")
 
 

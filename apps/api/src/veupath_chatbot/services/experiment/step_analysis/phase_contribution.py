@@ -87,7 +87,7 @@ async def analyze_contributions(
         try:
             async with sem:
                 raw = await run_controls_against_tree(ctx, ablated_tree)
-        except (AppError, ValueError, TypeError) as exc:
+        except AppError as exc:
             logger.warning("Ablation failed", step=lid, error=str(exc))
             return None
 

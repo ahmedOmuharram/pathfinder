@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
 from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
 from veupath_chatbot.services.search_rerank import QueryIntent
@@ -188,7 +189,7 @@ class TestLookupSiteSearchFailure:
         mock_enrich: AsyncMock,
     ) -> None:
         # Strategy A fails
-        mock_site_search.side_effect = ValueError("Site search down")
+        mock_site_search.side_effect = WDKError(detail="Site search down")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
         mock_enrich.side_effect = lambda _site, results, _lim: results
 

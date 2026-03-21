@@ -117,7 +117,7 @@ async def auto_import_gene_sets(
                 wdk_strategy_id=wdk_id,
                 gene_count=len(gs.gene_ids),
             )
-        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+        except (AppError, RuntimeError) as exc:
             logger.warning(
                 "Failed to auto-import gene set for strategy",
                 wdk_strategy_id=wdk_id,
@@ -150,7 +150,7 @@ async def background_auto_import_gene_sets(
                 user_id=user_id,
             )
             await session.commit()
-        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as e:
+        except (AppError, RuntimeError) as e:
             await session.rollback()
             logger.warning(
                 "Background gene set auto-import failed",

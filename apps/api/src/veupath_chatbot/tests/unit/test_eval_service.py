@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.services.eval import (
     build_gold_strategy,
     extract_gene_id,
@@ -69,13 +70,13 @@ class TestFetchAllGeneIds:
     async def test_fetches_single_page(self) -> None:
         mock_api = AsyncMock()
         mock_api.get_step_answer = AsyncMock(
-            return_value={
+            return_value=WDKAnswer.model_validate({
                 "records": [
                     {"id": [{"name": "source_id", "value": "GENE_A"}]},
                     {"id": [{"name": "source_id", "value": "GENE_B"}]},
                 ],
                 "meta": {"totalCount": 2},
-            }
+            })
         )
         result = await fetch_all_gene_ids(mock_api, 1)
         assert result == ["GENE_A", "GENE_B"]
@@ -84,7 +85,7 @@ class TestFetchAllGeneIds:
     async def test_handles_empty_result(self) -> None:
         mock_api = AsyncMock()
         mock_api.get_step_answer = AsyncMock(
-            return_value={"records": [], "meta": {"totalCount": 0}}
+            return_value=WDKAnswer.model_validate({"records": [], "meta": {"totalCount": 0}})
         )
         result = await fetch_all_gene_ids(mock_api, 1)
         assert result == []
@@ -104,12 +105,12 @@ class TestBuildGoldStrategy:
 
         mock_api.create_strategy = AsyncMock(return_value={"id": 123})
         mock_api.get_step_answer = AsyncMock(
-            return_value={
+            return_value=WDKAnswer.model_validate({
                 "records": [
                     {"id": [{"name": "source_id", "value": "GENE_A"}]},
                 ],
                 "meta": {"totalCount": 1},
-            }
+            })
         )
 
         with (
@@ -153,12 +154,12 @@ class TestFetchStrategyGeneIds:
         mock_api.client.get = AsyncMock(return_value={"rootStepId": 99})
         mock_api.user_id = "user_1"
         mock_api.get_step_answer = AsyncMock(
-            return_value={
+            return_value=WDKAnswer.model_validate({
                 "records": [
                     {"id": [{"name": "source_id", "value": "GENE_X"}]},
                 ],
                 "meta": {"totalCount": 1},
-            }
+            })
         )
 
         mock_projection = MagicMock()

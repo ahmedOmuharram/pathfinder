@@ -107,10 +107,7 @@ async def fetch_gene_ids_from_step(api: StrategyAPI, *, step_id: int) -> list[st
         attributes=["primary_key"],
         pagination={"offset": 0, "numRecords": -1},
     )
-    records = answer.get("records", [])
-    if not isinstance(records, list):
-        return []
-    return extract_record_ids(records)
+    return extract_record_ids(answer.records)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +198,7 @@ class GeneSetService:
             return step_id
         try:
             resolved = await resolve_root_step_id(api, strategy_id=strategy_id)
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to resolve root step from strategy",
                 strategy_id=strategy_id,
@@ -223,7 +220,7 @@ class GeneSetService:
             return []
         try:
             gene_ids = await fetch_gene_ids_from_step(api, step_id=step_id)
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to fetch gene IDs from WDK step",
                 step_id=step_id,
@@ -243,7 +240,7 @@ class GeneSetService:
             strategy = await api.get_strategy(strategy_id)
             step_tree = strategy.get("stepTree")
             return count_steps_in_tree(step_tree)
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to count strategy steps",
                 strategy_id=strategy_id,
@@ -286,7 +283,7 @@ class GeneSetService:
                 search_name=search_name,
                 has_params=parameters is not None,
             )
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to extract search context from step",
                 step_id=step_id,

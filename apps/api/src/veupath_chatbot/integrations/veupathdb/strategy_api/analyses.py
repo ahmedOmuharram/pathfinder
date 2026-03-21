@@ -59,11 +59,11 @@ class AnalysisMixin(StrategyAPIBase):
         warmup = await self._standard_report(
             step_id, {"pagination": {"offset": 0, "numRecords": 0}}
         )
-        warmup_count = None
-        meta = warmup.get("meta")
-        if isinstance(meta, dict):
-            warmup_count = meta.get("totalCount")
-        logger.info("Step answer warmed up", step_id=step_id, total_count=warmup_count)
+        logger.info(
+            "Step answer warmed up",
+            step_id=step_id,
+            total_count=warmup.meta.total_count,
+        )
 
     async def _create_analysis(
         self,

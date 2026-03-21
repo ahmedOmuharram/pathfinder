@@ -9,6 +9,7 @@ code that validates prefixes/formats does not trip.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -774,7 +775,7 @@ def step_get_response(
     Step details are fetched separately from the strategy.
     """
     suffix = "TranscriptRecordClasses_TranscriptRecordClass"
-    step: dict = {
+    step: dict[str, Any] = {
         "id": step_id,
         "customName": f"Step for {search_name}",
         "displayName": f"Step for {search_name}",
@@ -796,6 +797,392 @@ def step_get_response(
         },
     }
     return step
+
+
+# ---------------------------------------------------------------------------
+# Individual typed response factories
+# ---------------------------------------------------------------------------
+
+
+def wdk_step_json(
+    *,
+    step_id: int = 12345,
+    search_name: str = "GenesByTaxon",
+    record_class_name: str | None = "transcript",
+    estimated_size: int | None = 42,
+    strategy_id: int | None = 99999,
+    parameters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """GET /users/{id}/steps/{id} -- complete step detail.
+
+    All field names match the real WDK REST API response confirmed via
+    ``curl -s https://plasmodb.org/plasmo/service/users/current/steps/{id}``.
+    """
+    params = parameters or {"organism": '["Plasmodium falciparum 3D7"]'}
+    return {
+        "id": step_id,
+        "searchName": search_name,
+        "searchConfig": {
+            "parameters": params,
+            "wdkWeight": 0,
+        },
+        "recordClassName": record_class_name,
+        "validation": {
+            "level": "RUNNABLE",
+            "isValid": True,
+        },
+        "estimatedSize": estimated_size,
+        "strategyId": strategy_id,
+        "displayName": "Organism",
+        "shortDisplayName": "Organism",
+        "customName": None,
+        "baseCustomName": None,
+        "expanded": False,
+        "expandedName": None,
+        "isFiltered": False,
+        "description": "",
+        "ownerId": 67890,
+        "hasCompleteStepAnalyses": False,
+        "displayPreferences": {},
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastRunTime": "2026-03-01T00:00:00Z",
+    }
+
+
+def wdk_strategy_summary_json(
+    *,
+    strategy_id: int = 99999,
+    name: str = "Test Strategy",
+    root_step_id: int = 12345,
+    record_class_name: str | None = (
+        "TranscriptRecordClasses.TranscriptRecordClass"
+    ),
+    estimated_size: int | None = 150,
+    is_saved: bool = False,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies -- single strategy summary list item.
+
+    All field names match the real WDK REST API response confirmed via
+    ``curl -s https://plasmodb.org/plasmo/service/users/current/strategies``.
+    """
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "rootStepId": root_step_id,
+        "recordClassName": record_class_name,
+        "signature": "abc123",
+        "isSaved": is_saved,
+        "isValid": True,
+        "isPublic": False,
+        "isDeleted": False,
+        "isExample": False,
+        "estimatedSize": estimated_size,
+        "description": "",
+        "author": "guest",
+        "organization": "",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": 1,
+        "validation": {
+            "level": "RUNNABLE",
+            "isValid": True,
+        },
+    }
+
+
+def wdk_strategy_details_json(
+    *,
+    strategy_id: int = 99999,
+    name: str = "Test Strategy",
+    root_step_id: int = 12345,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies/{id} -- full strategy with steps.
+
+    Extends the summary shape with ``stepTree`` and ``steps`` dict (keys
+    are stringified step IDs, matching real WDK behaviour).
+    """
+    summary = wdk_strategy_summary_json(
+        strategy_id=strategy_id,
+        name=name,
+        root_step_id=root_step_id,
+    )
+    summary["stepTree"] = {
+        "stepId": root_step_id,
+        "primaryInput": None,
+        "secondaryInput": None,
+    }
+    summary["steps"] = {
+        str(root_step_id): wdk_step_json(step_id=root_step_id),
+    }
+    return summary
+
+
+def wdk_answer_json(
+    *,
+    total_count: int = 5432,
+    response_count: int = 20,
+    gene_ids: list[str] | None = None,
+    record_class_name: str = "transcript",
+) -> dict[str, Any]:
+    """POST /users/{id}/steps/{id}/reports/standard -- answer/report.
+
+    Gene IDs default to ``DEFAULT_GENE_IDS`` (sliced to *response_count*).
+    Each record contains ``gene_id``, ``organism``, and ``product`` attributes
+    matching the real WDK standard reporter output.
+    """
+    ids = gene_ids or DEFAULT_GENE_IDS[:response_count]
+    records: list[dict[str, Any]] = [
+        {
+            "displayName": gid,
+            "id": [
+                {"name": "gene_source_id", "value": gid},
+                {"name": "project_id", "value": "PlasmoDB"},
+            ],
+            "recordClassName": record_class_name,
+            "attributes": {
+                "gene_id": gid,
+                "organism": "Plasmodium falciparum 3D7",
+                "product": "hypothetical protein",
+            },
+            "tables": {},
+            "tableErrors": [],
+        }
+        for gid in ids
+    ]
+    return {
+        "meta": {
+            "totalCount": total_count,
+            "responseCount": len(records),
+            "displayTotalCount": total_count,
+            "viewTotalCount": total_count,
+            "displayViewTotalCount": total_count,
+            "recordClassName": record_class_name,
+            "attributes": ["gene_id", "organism"],
+            "tables": [],
+        },
+        "records": records,
+    }
+
+
+def wdk_validation_json(
+    *,
+    level: str = "RUNNABLE",
+    is_valid: bool = True,
+    errors: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validation sub-object used in steps, strategies, and search details."""
+    result: dict[str, Any] = {
+        "level": level,
+        "isValid": is_valid,
+    }
+    if not is_valid:
+        result["errors"] = errors or {
+            "general": ["Validation failed"],
+            "byKey": {},
+        }
+    return result
+
+
+def wdk_search_config_json(
+    *,
+    parameters: dict[str, str] | None = None,
+    wdk_weight: int = 0,
+) -> dict[str, Any]:
+    """SearchConfig sub-object used inside step payloads."""
+    return {
+        "parameters": parameters or {},
+        "wdkWeight": wdk_weight,
+    }
+
+
+def wdk_enum_param_json(
+    *,
+    name: str = "organism",
+    param_type: str = "multi-pick-vocabulary",
+    display_type: str = "treeBox",
+    vocabulary: Any = None,
+) -> dict[str, Any]:
+    """Full enum parameter matching WDK ``/searches/{name}?expandParams=true``.
+
+    When *vocabulary* is ``None`` the default depends on *display_type*:
+    - ``"treeBox"`` -- a small tree structure with ``data``/``children`` nodes.
+    - anything else -- a flat 3-element list ``[term, display, parent]``.
+    """
+    if vocabulary is not None:
+        vocab = vocabulary
+    elif display_type == "treeBox":
+        vocab = {
+            "data": {"display": "@@fake@@", "term": "@@fake@@"},
+            "children": [
+                {
+                    "data": {
+                        "display": "Plasmodium falciparum 3D7",
+                        "term": "Plasmodium falciparum 3D7",
+                    },
+                    "children": [],
+                },
+            ],
+        }
+    else:
+        vocab = [
+            ["Plasmodium falciparum 3D7", "Plasmodium falciparum 3D7", None],
+        ]
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": param_type,
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+        "properties": {},
+        "displayType": display_type,
+        "maxSelectedCount": -1,
+        "minSelectedCount": 1,
+        "vocabulary": vocab,
+        "countOnlyLeaves": True,
+        "depthExpanded": 0,
+    }
+
+
+def wdk_string_param_json(
+    *,
+    name: str = "text_expression",
+    is_number: bool = False,
+    length: int = 0,
+) -> dict[str, Any]:
+    """Full string parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "string",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": "",
+        "properties": {},
+        "length": length,
+        "isMultiLine": False,
+        "isNumber": is_number,
+    }
+
+
+def wdk_filter_param_json(
+    *,
+    name: str = "gene_boolean_filter_array",
+) -> dict[str, Any]:
+    """Full filter parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "filter",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": True,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": None,
+        "properties": {},
+        "minSelectedCount": 0,
+        "ontology": [
+            {
+                "term": "is_boolean",
+                "parent": None,
+                "display": "Boolean",
+                "description": None,
+                "type": "string",
+                "units": None,
+                "precision": None,
+                "isRange": False,
+            },
+        ],
+        "values": None,
+        "filterDataTypeDisplayName": None,
+        "hideEmptyOntologyNodes": False,
+        "sortLeavesBeforeBranches": False,
+        "countPredictsAnswerCount": False,
+    }
+
+
+def wdk_dataset_param_json(
+    *,
+    name: str = "ds_gene_ids",
+    record_class_name: str = "transcript",
+) -> dict[str, Any]:
+    """Full dataset parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "input-dataset",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": "",
+        "properties": {},
+        "defaultIdList": None,
+        "recordClassName": record_class_name,
+        "parsers": [
+            {
+                "name": "list",
+                "displayName": "List",
+                "description": "Parse a list of delimited gene IDs",
+            },
+        ],
+    }
+
+
+def wdk_record_type_json(
+    *,
+    url_segment: str = "transcript",
+    display_name: str = "Gene",
+    searches: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Record type object matching GET /record-types?format=expanded.
+
+    The ``searches`` field is only included when explicitly provided; the
+    real WDK endpoint does not return it unless requested via expansion.
+    """
+    result: dict[str, Any] = {
+        "urlSegment": url_segment,
+        "fullName": f"TranscriptRecordClasses.{url_segment.title()}RecordClass",
+        "displayName": display_name,
+        "displayNamePlural": f"{display_name}s",
+        "shortDisplayName": display_name,
+        "description": "",
+        "recordIdAttributeName": "primary_key",
+        "primaryKeyColumnRefs": [
+            "gene_source_id",
+            "source_id",
+            "project_id",
+        ],
+        "useBasket": True,
+        "hasAllRecordsQuery": True,
+        "properties": {},
+    }
+    if searches is not None:
+        result["searches"] = searches
+    return result
 
 
 # ---------------------------------------------------------------------------

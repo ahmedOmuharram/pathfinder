@@ -161,7 +161,7 @@ class EnrichmentService:
         ) -> EnrichmentResult:
             try:
                 return await _execute_analysis(api, step_id, analysis_type)
-            except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+            except (AppError, RuntimeError) as exc:
                 logger.warning(
                     "Enrichment failed",
                     analysis_type=analysis_type,

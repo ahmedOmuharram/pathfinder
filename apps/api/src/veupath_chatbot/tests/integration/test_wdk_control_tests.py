@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import _encode_id_list
@@ -120,9 +121,11 @@ def _make_mock_api(
     # get_step_count: first call = target count, second call = combined count
     api.get_step_count.side_effect = [target_count, combined_count]
 
-    # get_step_answer: returns the intersection records
+    # get_step_answer: returns the intersection records as WDKAnswer
     ids = answer_gene_ids if answer_gene_ids is not None else GENE_IDS[:combined_count]
-    api.get_step_answer.return_value = standard_report_response(ids, combined_count)
+    api.get_step_answer.return_value = WDKAnswer.model_validate(
+        standard_report_response(ids, combined_count)
+    )
 
     # delete_strategy is a no-op
     api.delete_strategy.return_value = None

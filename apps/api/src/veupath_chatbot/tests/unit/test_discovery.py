@@ -15,11 +15,34 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     SearchCatalog,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
 from veupath_chatbot.platform.errors import DataParsingError
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _to_wdk_searches(raw_list: list[Any]) -> list[WDKSearch]:
+    """Convert raw dicts to WDKSearch objects."""
+    return [WDKSearch.model_validate(item) for item in raw_list if isinstance(item, dict)]
+
+
+def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse:
+    """Convert a raw dict to WDKSearchResponse."""
+    if not details:
+        return WDKSearchResponse(
+            search_data=WDKSearch(url_segment="unknown"),
+            validation=WDKValidation(),
+        )
+    return WDKSearchResponse(
+        search_data=WDKSearch.model_validate(details),
+        validation=WDKValidation(),
+    )
 
 
 def _mock_client(
@@ -31,10 +54,15 @@ def _mock_client(
     client = MagicMock()
     client.get_record_types = AsyncMock(return_value=record_types or [])
     if searches:
-        client.get_searches = AsyncMock(side_effect=lambda rt: searches.get(rt, []))
+        parsed: dict[str, list[WDKSearch]] = {
+            rt: _to_wdk_searches(raw) for rt, raw in searches.items()
+        }
+        client.get_searches = AsyncMock(side_effect=lambda rt: parsed.get(rt, []))
     else:
         client.get_searches = AsyncMock(return_value=[])
-    client.get_search_details = AsyncMock(return_value=search_details or {})
+    client.get_search_details = AsyncMock(
+        return_value=_to_wdk_search_response(search_details),
+    )
     return client
 
 
@@ -72,9 +100,9 @@ class TestSearchCatalogLoadExpanded:
         assert len(catalog.get_record_types()) == 2
         gene_searches = catalog.get_searches("gene")
         assert len(gene_searches) == 2
-        assert catalog.get_searches("transcript") == [
-            {"urlSegment": "TranscriptsByTaxon"}
-        ]
+        transcript_searches = catalog.get_searches("transcript")
+        assert len(transcript_searches) == 1
+        assert transcript_searches[0].url_segment == "TranscriptsByTaxon"
 
     @pytest.mark.asyncio
     async def test_load_does_not_reload_when_already_loaded(self) -> None:
@@ -110,7 +138,9 @@ class TestSearchCatalogLoadNonExpanded:
         await catalog.load(client)
 
         assert len(catalog.get_record_types()) == 2
-        assert catalog.get_searches("gene") == [{"urlSegment": "GenesByTaxon"}]
+        gene_searches = catalog.get_searches("gene")
+        assert len(gene_searches) == 1
+        assert gene_searches[0].url_segment == "GenesByTaxon"
 
     @pytest.mark.asyncio
     async def test_load_dict_record_types_without_searches_fetches_them(self) -> None:
@@ -125,7 +155,9 @@ class TestSearchCatalogLoadNonExpanded:
         catalog = SearchCatalog("plasmodb")
         await catalog.load(client)
 
-        assert catalog.get_searches("gene") == [{"urlSegment": "GenesByTaxon"}]
+        gene_searches = catalog.get_searches("gene")
+        assert len(gene_searches) == 1
+        assert gene_searches[0].url_segment == "GenesByTaxon"
         client.get_searches.assert_called_once_with("gene")
 
 
@@ -192,7 +224,7 @@ class TestSearchCatalogLookup:
 
         result = catalog.find_search("gene", "GenesByOrthologs")
         assert result is not None
-        assert result["displayName"] == "By Orthologs"
+        assert result.display_name == "By Orthologs"
 
     @pytest.mark.asyncio
     async def test_find_search_returns_none_for_missing(self) -> None:
@@ -283,11 +315,11 @@ class TestSearchCatalogEdgeCases:
             {"urlSegment": "transcript", "name": "Transcripts"},
         ]
 
-        async def _get_searches(rt: str) -> list[Any]:
+        async def _get_searches(rt: str) -> list[WDKSearch]:
             if rt == "gene":
                 msg = "Network error"
                 raise RuntimeError(msg)
-            return [{"urlSegment": "TranscriptsByTaxon"}]
+            return [WDKSearch(url_segment="TranscriptsByTaxon")]
 
         client = _mock_client(record_types=raw)
         client.get_searches = AsyncMock(side_effect=_get_searches)
@@ -297,9 +329,9 @@ class TestSearchCatalogEdgeCases:
 
         # gene searches failed but transcript succeeded
         assert catalog.get_searches("gene") == []
-        assert catalog.get_searches("transcript") == [
-            {"urlSegment": "TranscriptsByTaxon"}
-        ]
+        transcript_searches = catalog.get_searches("transcript")
+        assert len(transcript_searches) == 1
+        assert transcript_searches[0].url_segment == "TranscriptsByTaxon"
 
     @pytest.mark.asyncio
     async def test_find_search_skips_non_dict_search_entries(self) -> None:
@@ -390,7 +422,10 @@ class TestDiscoveryService:
 
     @pytest.mark.asyncio
     async def test_get_search_details_delegates(self) -> None:
-        details = {"urlSegment": "GenesByTaxon", "parameters": [{"name": "organism"}]}
+        details = {
+            "urlSegment": "GenesByTaxon",
+            "parameters": [{"name": "organism", "type": "string"}],
+        }
         mock_client = _mock_client(
             record_types=[{"urlSegment": "gene", "name": "Genes", "searches": []}],
             search_details=details,
@@ -406,11 +441,10 @@ class TestDiscoveryService:
             result = await service.get_search_details(
                 SearchContext("plasmodb", "gene", "GenesByTaxon")
             )
-            params = result["parameters"]
-            assert isinstance(params, list)
-            first_param = params[0]
-            assert isinstance(first_param, dict)
-            assert first_param["name"] == "organism"
+            assert result.search_data.url_segment == "GenesByTaxon"
+            assert result.search_data.parameters is not None
+            assert len(result.search_data.parameters) == 1
+            assert result.search_data.parameters[0].name == "organism"
 
     @pytest.mark.asyncio
     async def test_preload_all_loads_every_site(self) -> None:

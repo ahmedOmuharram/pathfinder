@@ -15,6 +15,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.wdk_fetch import (
     fetch_record_types_and_searches,
     fetch_search_details,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -31,7 +32,10 @@ def _mock_client(
     client.get_record_types = AsyncMock(return_value=record_types or [])
     if searches_by_rt is not None:
         client.get_searches = AsyncMock(
-            side_effect=lambda rt: searches_by_rt.get(rt, [])
+            side_effect=lambda rt: [
+                WDKSearch.model_validate(s) if isinstance(s, dict) else s
+                for s in searches_by_rt.get(rt, [])
+            ]
         )
     else:
         client.get_searches = AsyncMock(return_value=[])

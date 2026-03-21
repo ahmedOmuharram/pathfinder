@@ -6,6 +6,7 @@ from kani import AIParam, ai_function
 
 from veupath_chatbot.ai.tools.wdk_error_handler import handle_wdk_step_error
 from veupath_chatbot.domain.strategy.session import StrategySession
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.errors import ErrorCode, WDKError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -104,19 +105,9 @@ class ResultTools:
             wdk_step_id,
             limit,
         )
-        if (
-            not isinstance(preview_or_error, dict)
-            or preview_or_error.get("ok") is False
-        ):
-            return (
-                preview_or_error
-                if isinstance(preview_or_error, dict)
-                else tool_error(
-                    ErrorCode.WDK_ERROR,
-                    "VEuPathDB returned unexpected response format.",
-                    wdk_step_id=wdk_step_id,
-                )
-            )
+        if isinstance(preview_or_error, dict):
+            # Error payload from exception handler
+            return preview_or_error
         return _extract_sample_response(preview_or_error)
 
 
@@ -181,8 +172,8 @@ async def _fetch_step_preview(
     strategy_api: StrategyAPI,
     wdk_step_id: int,
     limit: int,
-) -> dict[str, JSONValue] | JSONObject:
-    """Fetch step answer from VEuPathDB. Returns raw response dict or error payload."""
+) -> WDKAnswer | JSONObject:
+    """Fetch step answer from VEuPathDB. Returns typed answer or error payload dict."""
     try:
         return await strategy_api.get_step_answer(
             step_id=wdk_step_id,
@@ -243,20 +234,15 @@ def _validate_attributes(attributes: list[str]) -> JSONObject | None:
     return None
 
 
-def _extract_sample_response(preview_raw: dict[str, JSONValue]) -> JSONObject:
-    preview: dict[str, JSONValue] = {str(k): v for k, v in preview_raw.items()}
-    records_raw = preview.get("records", [])
-    records: list[JSONValue] = records_raw if isinstance(records_raw, list) else []
-    meta_raw = preview.get("meta", {})
-    meta: dict[str, JSONValue] = meta_raw if isinstance(meta_raw, dict) else {}
-    total_count_raw = meta.get("totalCount", 0)
-    total_count: int = total_count_raw if isinstance(total_count_raw, int) else 0
+def _extract_sample_response(answer: WDKAnswer) -> JSONObject:
+    records = answer.records
+    total_count = answer.meta.total_count
     attributes_list: list[str] = []
     if records and isinstance(records[0], dict):
         attributes_list = [str(k) for k in records[0]]
     attributes: JSONValue = cast("JSONValue", attributes_list)
     return {
-        "records": records,
+        "records": cast("JSONValue", records),
         "totalCount": total_count,
         "attributes": attributes,
     }

@@ -93,6 +93,56 @@ class StrategyValidator:
             else ValidationResult.failure(errors)
         )
 
+    def _validate_combine_node(
+        self,
+        node: PlanStepNode,
+        path: str,
+        errors: list[StepValidationIssue],
+    ) -> None:
+        """Validate combine-specific constraints on a node."""
+        if node.operator is None:
+            errors.append(
+                StepValidationIssue(
+                    path=f"{path}.operator",
+                    message="operator is required for combine nodes",
+                    code="MISSING_OPERATOR",
+                )
+            )
+        elif node.operator not in CombineOp:
+            errors.append(
+                StepValidationIssue(
+                    path=f"{path}.operator",
+                    message=f"Invalid operator: {node.operator}",
+                    code="INVALID_OPERATOR",
+                )
+            )
+        if node.primary_input is None or node.secondary_input is None:
+            errors.append(
+                StepValidationIssue(
+                    path=path,
+                    message="Combine nodes require two inputs",
+                    code="MISSING_INPUT",
+                )
+            )
+        if node.operator == CombineOp.COLOCATE:
+            if node.colocation_params is None:
+                errors.append(
+                    StepValidationIssue(
+                        path=f"{path}.colocationParams",
+                        message="colocationParams is required for COLOCATE",
+                        code="MISSING_COLOCATION_PARAMS",
+                    )
+                )
+            else:
+                errors.extend(
+                    StepValidationIssue(
+                        path=f"{path}.colocationParams",
+                        message=err,
+                        code="INVALID_COLOCATION_PARAMS",
+                    )
+                    for err in node.colocation_params.check_errors()
+                )
+
     def _validate_node(
         self,
         node: PlanStepNode,
@@ -108,8 +158,6 @@ class StrategyValidator:
         :param errors: Validation errors list.
 
         """
-        kind = node.infer_kind()
-
         if not node.search_name:
             errors.append(
                 StepValidationIssue(
@@ -130,49 +178,8 @@ class StrategyValidator:
                     )
                 )
 
-        if kind == "combine":
-            if node.operator is None:
-                errors.append(
-                    StepValidationIssue(
-                        path=f"{path}.operator",
-                        message="operator is required for combine nodes",
-                        code="MISSING_OPERATOR",
-                    )
-                )
-            elif node.operator not in CombineOp:
-                errors.append(
-                    StepValidationIssue(
-                        path=f"{path}.operator",
-                        message=f"Invalid operator: {node.operator}",
-                        code="INVALID_OPERATOR",
-                    )
-                )
-            if node.primary_input is None or node.secondary_input is None:
-                errors.append(
-                    StepValidationIssue(
-                        path=path,
-                        message="Combine nodes require two inputs",
-                        code="MISSING_INPUT",
-                    )
-                )
-            if node.operator == CombineOp.COLOCATE:
-                if node.colocation_params is None:
-                    errors.append(
-                        StepValidationIssue(
-                            path=f"{path}.colocationParams",
-                            message="colocationParams is required for COLOCATE",
-                            code="MISSING_COLOCATION_PARAMS",
-                        )
-                    )
-                else:
-                    errors.extend(
-                        StepValidationIssue(
-                            path=f"{path}.colocationParams",
-                            message=err,
-                            code="INVALID_COLOCATION_PARAMS",
-                        )
-                        for err in node.colocation_params.validate()
-                    )
+        if node.infer_kind() == "combine":
+            self._validate_combine_node(node, path, errors)
 
         if node.secondary_input is not None:
             self._validate_node(

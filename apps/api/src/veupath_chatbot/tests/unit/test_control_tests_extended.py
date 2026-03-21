@@ -17,6 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import _encode_id_list
 from veupath_chatbot.services.control_tests import (
@@ -38,6 +42,18 @@ class _MockApiIds:
     create_dataset_id: int = 999
 
 
+def _make_search_response(raw: JSONObject) -> WDKSearchResponse:
+    """Wrap a raw search details dict in a WDKSearchResponse."""
+    search_data = dict(raw.get("searchData", {}))
+    if "urlSegment" not in search_data:
+        search_data["urlSegment"] = "MockSearch"
+    wrapped: JSONObject = {
+        "searchData": search_data,
+        "validation": raw.get("validation", {"level": "DISPLAYABLE", "isValid": True}),
+    }
+    return WDKSearchResponse.model_validate(wrapped)
+
+
 def _make_mock_api(
     *,
     step_count: int = 42,
@@ -49,11 +65,13 @@ def _make_mock_api(
     mock_ids = ids or _MockApiIds()
     api = AsyncMock(spec=StrategyAPI)
     api.get_step_count = AsyncMock(return_value=step_count)
-    default_answer = step_answer or {
+    default_answer_raw = step_answer or {
         "meta": {"totalCount": step_count},
         "records": [],
     }
-    api.get_step_answer = AsyncMock(return_value=default_answer)
+    api.get_step_answer = AsyncMock(
+        return_value=WDKAnswer.model_validate(default_answer_raw)
+    )
     api.create_step = AsyncMock(return_value={"id": mock_ids.create_step_id})
     api.create_combined_step = AsyncMock(
         return_value={"id": mock_ids.create_combined_step_id}
@@ -63,15 +81,16 @@ def _make_mock_api(
     api.list_strategies = AsyncMock(return_value=[])
     api.create_dataset = AsyncMock(return_value=mock_ids.create_dataset_id)
     api.client = MagicMock()
+    raw_details = search_details or {
+        "searchData": {
+            "urlSegment": "GeneByLocusTag",
+            "parameters": [
+                {"name": "ds_gene_ids", "type": "input-dataset"},
+            ],
+        },
+    }
     api.client.get_search_details = AsyncMock(
-        return_value=search_details
-        or {
-            "searchData": {
-                "parameters": [
-                    {"name": "ds_gene_ids", "type": "input-dataset"},
-                ]
-            }
-        }
+        return_value=_make_search_response(raw_details),
     )
     return api
 

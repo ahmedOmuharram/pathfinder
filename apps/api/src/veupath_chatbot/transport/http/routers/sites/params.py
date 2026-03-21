@@ -5,7 +5,6 @@ from fastapi import APIRouter
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs,
     extract_param_specs,
-    unwrap_search_data,
 )
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.types import JSONObject
@@ -135,9 +134,9 @@ async def get_param_specs_with_context(
     payload: ParamSpecsRequest,
 ) -> list[ParamSpecResponse]:
     """Return normalized parameter specs, using contextual WDK vocab when provided."""
-    details_raw = await catalog.expand_search_details_with_params(
+    response = await catalog.expand_search_details_with_params(
         SearchContext(siteId, recordType, searchName),
         payload.context_values or {},
     )
-    details = unwrap_search_data(details_raw) or {}
-    return _build_param_specs(details)
+    search_dict = response.search_data.model_dump(by_alias=True)
+    return _build_param_specs(search_dict)

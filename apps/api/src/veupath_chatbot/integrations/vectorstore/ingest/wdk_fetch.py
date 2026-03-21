@@ -21,8 +21,8 @@ def _collect_dict_items(items: JSONArray) -> list[tuple[str, JSONObject]]:
 async def _fetch_searches_for_rt(client: VEuPathDBClient, rt_name: str) -> JSONArray:
     """Fetch searches for a record type, returning [] on error."""
     try:
-        searches_raw = await client.get_searches(rt_name)
-        return searches_raw if isinstance(searches_raw, list) else []
+        searches = await client.get_searches(rt_name)
+        return [s.model_dump(by_alias=True) for s in searches]
     except httpx.HTTPError, OSError, RuntimeError, ValueError:
         return []
 

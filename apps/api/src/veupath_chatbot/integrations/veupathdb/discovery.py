@@ -7,12 +7,13 @@ import httpx
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-from veupath_chatbot.integrations.veupathdb.param_utils import (
-    wdk_entity_name,
-    wdk_search_matches,
-)
+from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+)
+from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
@@ -41,7 +42,7 @@ def _unwrap_record_types(raw_record_types: JSONArray | JSONObject) -> JSONArray:
 
 async def _load_searches_for_rt(
     client: VEuPathDBClient, rt_name: str
-) -> JSONArray | None:
+) -> list[WDKSearch] | None:
     """Fetch searches for a record type, returning None on error."""
     try:
         return await client.get_searches(rt_name)
@@ -58,7 +59,7 @@ def _process_record_type_entry(
     rt: object,
     *,
     expanded_supported: bool,
-) -> tuple[str, JSONArray | None] | None:
+) -> tuple[str, list[WDKSearch] | None] | None:
     """Extract (rt_name, inline_searches) from a record type entry.
 
     Returns None if the entry should be skipped. Returns (name, None) when
@@ -72,7 +73,8 @@ def _process_record_type_entry(
             return None
         searches_raw = rt.get("searches") if expanded_supported else None
         if isinstance(searches_raw, list):
-            return rt_name, searches_raw
+            parsed = [WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)]
+            return rt_name, parsed
         return rt_name, None
     return None
 
@@ -83,8 +85,8 @@ class SearchCatalog:
     def __init__(self, site_id: str) -> None:
         self.site_id = site_id
         self._record_types: JSONArray = []
-        self._searches: dict[str, JSONArray] = {}
-        self._search_details: dict[str, JSONObject] = {}
+        self._searches: dict[str, list[WDKSearch]] = {}
+        self._search_details: dict[str, WDKSearchResponse] = {}
         self._loaded = False
         self._lock = asyncio.Lock()
 
@@ -114,13 +116,7 @@ class SearchCatalog:
                     record_types=len(self._record_types),
                     total_searches=sum(len(s) for s in self._searches.values()),
                 )
-            except (
-                httpx.HTTPError,
-                OSError,
-                RuntimeError,
-                TypeError,
-                DataParsingError,
-            ) as e:
+            except (AppError, OSError, RuntimeError) as e:
                 logger.exception(
                     "Failed to load catalog", site_id=self.site_id, error=str(e)
                 )
@@ -147,7 +143,7 @@ class SearchCatalog:
             elif isinstance(rt, dict):
                 self._record_types.append(rt)
 
-            if searches is not None and searches != []:
+            if searches is not None and len(searches) > 0:
                 self._searches[rt_name] = searches
             else:
                 fetched = await _load_searches_for_rt(client, rt_name)
@@ -158,7 +154,7 @@ class SearchCatalog:
         """Get all record types."""
         return self._record_types
 
-    def get_searches(self, record_type: str) -> JSONArray:
+    def get_searches(self, record_type: str) -> list[WDKSearch]:
         """Get searches for a record type.
 
         :param record_type: WDK record type.
@@ -166,18 +162,15 @@ class SearchCatalog:
         """
         return self._searches.get(record_type, [])
 
-    def find_search(self, record_type: str, search_name: str) -> JSONObject | None:
+    def find_search(self, record_type: str, search_name: str) -> WDKSearch | None:
         """Find a specific search.
 
         :param record_type: WDK record type.
         :param search_name: WDK search name.
 
         """
-        searches = self.get_searches(record_type)
-        for search in searches:
-            if not isinstance(search, dict):
-                continue
-            if wdk_entity_name(search) == search_name:
+        for search in self.get_searches(record_type):
+            if search.url_segment == search_name:
                 return search
         return None
 
@@ -187,11 +180,11 @@ class SearchCatalog:
         Mirrors WDK's ``WdkModel.getQuestionByName()`` — iterates all cached
         record types to find the one containing the given search.
 
-        :param search_name: WDK search name (urlSegment or name).
+        :param search_name: WDK search name (urlSegment).
         :returns: The record type name, or None if not found.
         """
         for rt_name, searches in self._searches.items():
-            if any(wdk_search_matches(s, search_name) for s in searches):
+            if any(s.url_segment == search_name for s in searches):
                 return rt_name
         return None
 
@@ -202,16 +195,14 @@ class SearchCatalog:
         search_name: str,
         *,
         expand_params: bool = True,
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         """Get detailed search config with caching."""
         cache_key = f"{record_type}/{search_name}?expand={int(expand_params)}"
-
         if cache_key not in self._search_details:
             details = await client.get_search_details(
                 record_type, search_name, expand_params=expand_params
             )
             self._search_details[cache_key] = details
-
         return self._search_details[cache_key]
 
 
@@ -240,7 +231,7 @@ class DiscoveryService:
         catalog = await self.get_catalog(site_id)
         return catalog.get_record_types()
 
-    async def get_searches(self, site_id: str, record_type: str) -> JSONArray:
+    async def get_searches(self, site_id: str, record_type: str) -> list[WDKSearch]:
         """Get searches for a record type."""
         catalog = await self.get_catalog(site_id)
         return catalog.get_searches(record_type)
@@ -250,7 +241,7 @@ class DiscoveryService:
         ctx: SearchContext,
         *,
         expand_params: bool = True,
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         """Get detailed search configuration."""
         catalog = await self.get_catalog(ctx.site_id)
         router = get_site_router()
@@ -270,13 +261,7 @@ class DiscoveryService:
         async def load_site(site_id: str) -> None:
             try:
                 await self.get_catalog(site_id)
-            except (
-                httpx.HTTPError,
-                OSError,
-                RuntimeError,
-                TypeError,
-                DataParsingError,
-            ) as e:
+            except (AppError, OSError, RuntimeError) as e:
                 logger.warning("Failed to preload site", site_id=site_id, error=str(e))
 
         await asyncio.gather(*[load_site(s.id) for s in sites])

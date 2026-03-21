@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.gene_lookup.enrich import enrich_sparse_gene_results
 
 
@@ -203,7 +204,7 @@ class TestEnrichSparseGeneResults:
     async def test_wdk_error_returns_original_results(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.side_effect = ValueError("WDK down")
+        mock_resolve.side_effect = WDKError(detail="WDK down")
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         # Should return original results unchanged

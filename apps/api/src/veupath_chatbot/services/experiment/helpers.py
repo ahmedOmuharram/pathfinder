@@ -237,7 +237,7 @@ async def extract_and_enrich_genes(
 
     try:
         lookup = await _resolve_gene_lookup(site_id, (tp, fn, fp, tn))
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning("Gene enrichment failed, returning bare IDs", error=str(exc))
         return tp, fn, fp, tn
 

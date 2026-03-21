@@ -215,7 +215,7 @@ async def _run_kfold(
                 holdout_neg or None,
             )
             fold_metrics = metrics_from_control_result(result)
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning("Fold %d failed: %s", fold_idx, exc)
             cm = compute_confusion_matrix(
                 positive_hits=0,

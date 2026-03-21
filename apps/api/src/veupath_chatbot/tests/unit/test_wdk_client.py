@@ -346,8 +346,7 @@ class TestVEuPathDBClientConvenienceMethods:
 
         assert len(result) == 2
         first = result[0]
-        assert isinstance(first, dict)
-        assert first["urlSegment"] == "GenesByTaxonGene"
+        assert first.url_segment == "GenesByTaxonGene"
         await client.close()
 
     async def test_get_search_details(self) -> None:
@@ -383,10 +382,8 @@ class TestVEuPathDBClientConvenienceMethods:
                     mock_ctx.get.return_value = None
                     result = await client.get_search_details("gene", "GenesByTaxonGene")
 
-        assert "searchData" in result
-        search_data = result["searchData"]
-        assert isinstance(search_data, dict)
-        assert search_data["urlSegment"] == "GenesByTaxonGene"
+        assert result.search_data.url_segment == "GenesByTaxonGene"
+        assert result.validation is not None
         await client.close()
 
 

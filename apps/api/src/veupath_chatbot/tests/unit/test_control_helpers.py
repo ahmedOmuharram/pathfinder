@@ -139,7 +139,7 @@ class TestGetTotalCountForStep:
 
     async def test_returns_none_on_error(self) -> None:
         api = AsyncMock()
-        api.get_step_count.side_effect = ValueError("fail")
+        api.get_step_count.side_effect = WDKError(detail="fail")
         result = await _get_total_count_for_step(api, 1)
         assert result is None
 

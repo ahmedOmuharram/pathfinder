@@ -13,6 +13,7 @@ overall lookup_genes_by_text behavior is preserved after decomposition.
 
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.gene_lookup.lookup import (
     _apply_organism_filter,
     _build_response,
@@ -110,7 +111,7 @@ class TestRunPrimarySearches:
         self,
         mock_site_search: AsyncMock,
     ) -> None:
-        mock_site_search.side_effect = ValueError("boom")
+        mock_site_search.side_effect = WDKError(detail="boom")
 
         results, orgs, total = await _run_primary_searches(
             "plasmodb",
@@ -132,8 +133,7 @@ class TestRunPrimarySearches:
             nonlocal call_count
             call_count += 1
             if query.startswith('"'):
-                msg = "phrase search broke"
-                raise ValueError(msg)
+                raise WDKError(detail="phrase search broke")
             return ([_gene("G1")], ["Org A"], 1)
 
         mock_site_search.side_effect = side_effect
@@ -253,7 +253,7 @@ class TestRunSupplementarySearches:
         mock_wdk_text: AsyncMock,
     ) -> None:
         intent = QueryIntent(raw="kinase")
-        mock_site_search.side_effect = ValueError("boom")
+        mock_site_search.side_effect = WDKError(detail="boom")
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
 
         org_results, _wdk_id, _wdk_broad = await _run_supplementary_searches(

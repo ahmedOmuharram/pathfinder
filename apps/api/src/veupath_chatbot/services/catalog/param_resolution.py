@@ -2,27 +2,24 @@
 
 from typing import cast
 
-import httpx
-
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
-    extract_param_specs,
+    adapt_param_specs_from_search,
     find_input_step_param,
-    unwrap_search_data,
 )
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
-from veupath_chatbot.services.catalog.param_formatting import format_param_info
+from veupath_chatbot.services.catalog.param_formatting import format_param_info_typed
 from veupath_chatbot.services.wdk.record_types import resolve_record_type
 
 from .searches import find_record_type_for_search
@@ -55,31 +52,19 @@ async def get_search_parameters(ctx: SearchContext) -> JSONObject:
             resolved_record_type = resolved
 
     resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
-    details, resolved_record_type = await fetch_search_details(
+    response, resolved_record_type = await fetch_search_details(
         discovery,
         resolved_ctx,
         record_types=record_types,
     )
 
-    details = unwrap_search_data(details) or details
-    param_specs = extract_param_specs(details if isinstance(details, dict) else {})
-    param_info = format_param_info(param_specs)
-
-    details_display_name = ctx.search_name
-    details_description = ""
-    if isinstance(details, dict):
-        display_name_raw = details.get("displayName")
-        if isinstance(display_name_raw, str):
-            details_display_name = display_name_raw
-        description_raw = details.get("description")
-        if isinstance(description_raw, str):
-            details_description = description_raw
+    param_info = format_param_info_typed(response.search_data.parameters or [])
 
     return {
         "searchName": ctx.search_name,
-        "displayName": details_display_name,
-        "description": details_description,
-        "parameters": param_info,
+        "displayName": response.search_data.display_name or ctx.search_name,
+        "description": response.search_data.description,
+        "parameters": cast("JSONValue", param_info),
         "resolvedRecordType": resolved_record_type,
     }
 
@@ -103,6 +88,67 @@ async def get_search_parameters_tool(ctx: SearchContext) -> JSONObject:
         )
 
 
+def _extract_phyletic_vocabs(
+    specs: JSONArray,
+) -> tuple[JSONArray, JSONArray]:
+    """Extract phyletic_term_map and phyletic_indent_map vocabularies from param specs."""
+    term_map_vocab: JSONArray = []
+    indent_map_vocab: JSONArray = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            continue
+        name = spec.get("name")
+        if name == "phyletic_term_map":
+            vocab = spec.get("vocabulary")
+            if isinstance(vocab, list):
+                term_map_vocab = vocab
+        elif name == "phyletic_indent_map":
+            vocab = spec.get("vocabulary")
+            if isinstance(vocab, list):
+                indent_map_vocab = vocab
+    return term_map_vocab, indent_map_vocab
+
+
+def _build_group_codes(indent_map_vocab: JSONArray) -> set[str]:
+    """Build set of group codes (non-leaf nodes) from indent map entries."""
+    group_codes: set[str] = set()
+    for i, entry in enumerate(indent_map_vocab):
+        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
+            continue
+        code = str(entry[0])
+        depth = int(str(entry[1])) if entry[1] is not None else 0
+        if i + 1 < len(indent_map_vocab):
+            nxt = indent_map_vocab[i + 1]
+            if isinstance(nxt, list) and len(nxt) >= _MIN_VOCAB_ENTRY_LENGTH:
+                next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
+                if next_depth > depth:
+                    group_codes.add(code)
+    return group_codes
+
+
+def _match_phyletic_entries(
+    term_map_vocab: JSONArray,
+    group_codes: set[str],
+    query: str,
+) -> list[JSONObject]:
+    """Match term map entries against a query string."""
+    q = query.lower().strip()
+    matches: list[JSONObject] = []
+    for entry in term_map_vocab:
+        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
+            continue
+        code = str(entry[0])
+        label = str(entry[1])
+        if code == "ALL":
+            continue
+        if q in label.lower() or q in code.lower():
+            is_leaf = code not in group_codes
+            matches.append({"code": code, "label": label, "leaf": is_leaf})
+            if len(matches) >= _MAX_TREE_MATCHES:
+                break
+    return matches
+
+
 async def lookup_phyletic_codes(
     site_id: str,
     record_type: str,
@@ -123,59 +169,15 @@ async def lookup_phyletic_codes(
         record_types = await discovery.get_record_types(site_id)
         resolved = resolve_record_type(record_types, record_type) or record_type
 
-        details, _ = await fetch_search_details(
+        response, _ = await fetch_search_details(
             discovery,
             SearchContext(site_id, resolved, "GenesByOrthologPattern"),
             record_types=record_types,
         )
-        details = unwrap_search_data(details) or details
-        specs = extract_param_specs(details if isinstance(details, dict) else {})
-
-        term_map_vocab: JSONArray = []
-        indent_map_vocab: JSONArray = []
-        for spec in specs:
-            if not isinstance(spec, dict):
-                continue
-            name = spec.get("name")
-            if name == "phyletic_term_map":
-                vocab = spec.get("vocabulary")
-                if isinstance(vocab, list):
-                    term_map_vocab = vocab
-            elif name == "phyletic_indent_map":
-                vocab = spec.get("vocabulary")
-                if isinstance(vocab, list):
-                    indent_map_vocab = vocab
-
-        # Build a set of group codes (codes that have children = non-leaf).
-        # indent_map entries are [code, depth, null].  A code is a group if
-        # the *next* entry has a strictly greater depth.
-        group_codes: set[str] = set()
-        for i, entry in enumerate(indent_map_vocab):
-            if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
-                continue
-            code = str(entry[0])
-            depth = int(str(entry[1])) if entry[1] is not None else 0
-            if i + 1 < len(indent_map_vocab):
-                nxt = indent_map_vocab[i + 1]
-                if isinstance(nxt, list) and len(nxt) >= _MIN_VOCAB_ENTRY_LENGTH:
-                    next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
-                    if next_depth > depth:
-                        group_codes.add(code)
-
-        q = query.lower().strip()
-        matches: list[JSONObject] = []
-        for entry in term_map_vocab:
-            if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
-                continue
-            code = str(entry[0])
-            label = str(entry[1])
-            if code == "ALL":
-                continue
-            if q in label.lower() or q in code.lower():
-                is_leaf = code not in group_codes
-                matches.append({"code": code, "label": label, "leaf": is_leaf})
-                if len(matches) >= _MAX_TREE_MATCHES:
-                    break
+        specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
+        term_map_vocab, indent_map_vocab = _extract_phyletic_vocabs(specs)
+        group_codes = _build_group_codes(indent_map_vocab)
+        matches = _match_phyletic_entries(term_map_vocab, group_codes, query)
 
         return {
             "query": query,
@@ -190,7 +192,7 @@ async def lookup_phyletic_codes(
                 "Leaf codes need no quantifier."
             ),
         }
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         return tool_error(
             ErrorCode.INTERNAL_ERROR,
             f"Failed to look up phyletic codes: {exc}",
@@ -200,7 +202,7 @@ async def lookup_phyletic_codes(
 async def expand_search_details_with_params(
     ctx: SearchContext,
     context_values: JSONObject | None,
-) -> JSONObject:
+) -> WDKSearchResponse:
     """Return WDK search details after applying (WDK-wire) context values.
 
     NOTE: despite the historical name, this is *not* a pure validation API; it returns
@@ -209,13 +211,10 @@ async def expand_search_details_with_params(
     client = get_wdk_client(ctx.site_id)
     raw_context = context_values or {}
     normalized_context: JSONObject = {}
-    details: JSONObject | None = None
-    allowed: set[str] = set()
-    details, allowed = await _load_discovery_details_and_allowed(ctx)
+    response, allowed = await _load_discovery_details_and_allowed(ctx)
     filtered_context = _filter_context_values(raw_context, allowed)
 
-    details_unwrapped = unwrap_search_data(details)
-    specs = adapt_param_specs(details_unwrapped) if details_unwrapped else {}
+    specs = adapt_param_specs_from_search(response.search_data) if response else {}
 
     if specs:
         normalizer = ParameterNormalizer(specs)
@@ -223,14 +222,13 @@ async def expand_search_details_with_params(
             normalized_context = normalizer.normalize(filtered_context)
         except CoreValidationError:
             resolved_record_type = await find_record_type_for_search(ctx)
-            details = await client.get_search_details_with_params(
+            fallback_response = await client.get_search_details_with_params(
                 resolved_record_type,
                 ctx.search_name,
                 filtered_context,
                 expand_params=True,
             )
-            details = unwrap_search_data(details) or details
-            specs = adapt_param_specs(details if isinstance(details, dict) else {})
+            specs = adapt_param_specs_from_search(fallback_response.search_data)
             normalizer = ParameterNormalizer(specs)
             normalized_context = normalizer.normalize(filtered_context)
         input_step_param = find_input_step_param(specs)
@@ -266,18 +264,15 @@ def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONOb
 
 async def _load_discovery_details_and_allowed(
     ctx: SearchContext,
-) -> tuple[JSONObject | None, set[str]]:
+) -> tuple[WDKSearchResponse | None, set[str]]:
     """Load discovery search details + extract allowed param names (best-effort)."""
     try:
         discovery = get_discovery_service()
-        details = await discovery.get_search_details(
+        response = await discovery.get_search_details(
             ctx, expand_params=True
         )
-        return (
-            details,
-            _extract_param_names(details if isinstance(details, dict) else {}),
-        )
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        return response, _extract_param_names_from_response(response)
+    except AppError as exc:
         logger.warning(
             "Failed to load discovery details for param resolution",
             site_id=ctx.site_id,
@@ -295,7 +290,7 @@ async def _get_search_details_with_portal_fallback(
     record_type: str,
     search_name: str,
     context_values: JSONObject,
-) -> JSONObject:
+) -> WDKSearchResponse:
     """Call WDK contextual search details, falling back to portal when appropriate."""
     try:
         return await client.get_search_details_with_params(
@@ -346,28 +341,17 @@ async def get_refreshed_dependent_params(
         raise
 
 
-def _names_from_param_list(params: list[JSONValue]) -> set[str]:
-    """Extract name strings from a list of param dicts."""
-    names: set[str] = set()
-    for p in params:
-        if isinstance(p, dict):
-            name = p.get("name")
-            if isinstance(name, str):
-                names.add(name)
-    return names
+def _extract_param_names_from_response(response: WDKSearchResponse) -> set[str]:
+    """Extract parameter names from a typed WDKSearchResponse.
 
-
-def _extract_param_names(details: JSONObject) -> set[str]:
-    """Extract parameter names from WDK search details.
-
-    Checks ``details.searchData.parameters`` first, then ``details.parameters``.
+    Uses ``param_names`` (always present) from the search data.
+    Falls back to ``parameters`` list if param_names is empty.
     """
-    if not isinstance(details, dict):
-        return set()
-    unwrapped = unwrap_search_data(details) or details
-    params = unwrapped.get("parameters") if isinstance(unwrapped, dict) else None
-    if isinstance(params, list):
-        return _names_from_param_list(params)
-    if isinstance(params, dict):
-        return {k for k in params if k}
+    search = response.search_data
+    if search.param_names:
+        return set(search.param_names)
+    if search.parameters:
+        return {p.name for p in search.parameters}
     return set()
+
+

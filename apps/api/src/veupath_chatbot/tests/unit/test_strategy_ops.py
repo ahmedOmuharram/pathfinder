@@ -84,31 +84,31 @@ class TestGetWdkOperator:
 
 
 class TestColocationParamsValidate:
-    """Tests for ColocationParams.validate()."""
+    """Tests for ColocationParams.check_errors()."""
 
     def test_valid_defaults(self) -> None:
         params = ColocationParams()
-        assert params.validate() == []
+        assert params.check_errors() == []
 
     def test_valid_custom(self) -> None:
         params = ColocationParams(upstream=1000, downstream=500, strand="same")
-        assert params.validate() == []
+        assert params.check_errors() == []
 
     def test_negative_upstream(self) -> None:
         params = ColocationParams(upstream=-1)
-        errors = params.validate()
+        errors = params.check_errors()
         assert len(errors) == 1
         assert "Upstream" in errors[0]
 
     def test_negative_downstream(self) -> None:
         params = ColocationParams(downstream=-5)
-        errors = params.validate()
+        errors = params.check_errors()
         assert len(errors) == 1
         assert "Downstream" in errors[0]
 
     def test_both_negative(self) -> None:
         params = ColocationParams(upstream=-1, downstream=-2)
-        errors = params.validate()
+        errors = params.check_errors()
         assert len(errors) == 2
 
     def test_invalid_strand(self) -> None:
@@ -117,11 +117,11 @@ class TestColocationParamsValidate:
 
     def test_opposite_strand_valid(self) -> None:
         params = ColocationParams(strand="opposite")
-        assert params.validate() == []
+        assert params.check_errors() == []
 
     def test_zero_distances_valid(self) -> None:
         params = ColocationParams(upstream=0, downstream=0)
-        assert params.validate() == []
+        assert params.check_errors() == []
 
 
 class TestModuleConstants:

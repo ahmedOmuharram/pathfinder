@@ -1,13 +1,14 @@
 """Discovery/search helper tools (AI-exposed)."""
 
 import re
-from typing import Annotated
+from typing import Annotated, cast
 
 import httpx
 from kani import AIParam, ai_function
 
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.ops import parse_op
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
@@ -60,22 +61,14 @@ async def _resolve_record_types(
     return record_types_list
 
 
-def _extract_search_info(search: JSONObject) -> tuple[str, str, str, str]:
-    """Extract name, display, short, and description from a search dict."""
-    url_segment_value = search.get("urlSegment")
-    name_value = search.get("name")
-    display_value = search.get("displayName")
-    short_value = search.get("shortDisplayName")
-    description_value = search.get("description")
-    name = (
-        str(url_segment_value)
-        if isinstance(url_segment_value, str)
-        else (str(name_value) if isinstance(name_value, str) else "")
+def _extract_search_info(search: WDKSearch) -> tuple[str, str, str, str]:
+    """Extract name, display, short, and description from a WDKSearch."""
+    return (
+        search.url_segment,
+        search.display_name,
+        search.short_display_name,
+        search.description,
     )
-    display = str(display_value) if isinstance(display_value, str) else ""
-    short = str(short_value) if isinstance(short_value, str) else ""
-    description = str(description_value) if isinstance(description_value, str) else ""
-    return name, display, short, description
 
 
 def _score_search(
@@ -135,7 +128,7 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
 
         matches = await self._collect_matches(record_types, terms)
         matches.sort(key=_sort_key)
-        return {"keywords": terms, "results": matches[: max(limit, 1)]}
+        return {"keywords": cast("JSONValue", terms), "results": matches[: max(limit, 1)]}
 
     async def _collect_matches(
         self,
@@ -159,16 +152,13 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
 
     def _match_searches(
         self,
-        searches: list[object],
+        searches: list[WDKSearch],
         rt_name: str,
         terms: list[str],
         matches: JSONArray,
     ) -> None:
         """Match individual searches and append to matches."""
-        for search_value in searches:
-            if not isinstance(search_value, dict):
-                continue
-            search = as_json_object(search_value)
+        for search in searches:
             name, display, short, description = _extract_search_info(search)
             score = _score_search(terms, name, display, short, description)
             if score == 0:

@@ -8,9 +8,8 @@ from pydantic import Field
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
-    adapt_param_specs,
+    adapt_param_specs_from_search,
     find_input_step_param,
-    unwrap_search_data,
 )
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -18,6 +17,7 @@ from veupath_chatbot.domain.strategy.ast import (
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import (
     InternalError,
     StrategyCompilationError,
@@ -43,7 +43,7 @@ class _CompilerClient(Protocol):
 
     async def get_search_details(
         self, record_type: str, search_name: str, *, expand_params: bool = False
-    ) -> JSONObject: ...
+    ) -> WDKSearchResponse: ...
 
     async def get_search_details_with_params(
         self,
@@ -52,7 +52,7 @@ class _CompilerClient(Protocol):
         context: JSONObject,
         *,
         expand_params: bool = False,
-    ) -> JSONObject: ...
+    ) -> WDKSearchResponse: ...
 
 
 @runtime_checkable
@@ -462,7 +462,7 @@ class StrategyCompiler:
                 detail=f"Unable to load parameter metadata for '{search_name}' ({record_type}).",
                 errors=[{"searchName": search_name, "recordType": record_type}],
             ) from exc
-        return adapt_param_specs(unwrap_search_data(details) or {})
+        return adapt_param_specs_from_search(details.search_data)
 
     async def _normalize_with_context_retry(
         self,
@@ -491,7 +491,7 @@ class StrategyCompiler:
                 )
             except Exception as exc:
                 raise validation_exc from exc
-            refreshed_specs = adapt_param_specs(unwrap_search_data(details) or {})
+            refreshed_specs = adapt_param_specs_from_search(details.search_data)
             # Update the caller's specs dict so downstream logic (input-step
             # param detection, dataset upload) uses the refreshed metadata.
             specs.clear()

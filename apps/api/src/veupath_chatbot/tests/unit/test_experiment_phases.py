@@ -343,7 +343,7 @@ class TestPhaseRankMetrics:
         with patch(
             "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
             new_callable=AsyncMock,
-            side_effect=ValueError("fetch failed"),
+            side_effect=WDKError(detail="fetch failed"),
         ):
             ordered = await _phase_rank_metrics(pctx)
 
@@ -418,7 +418,7 @@ class TestPhaseRobustness:
 
         with patch(
             "veupath_chatbot.services.experiment.service.compute_robustness",
-            side_effect=ValueError("boom"),
+            side_effect=ZeroDivisionError("boom"),
         ):
             await _phase_robustness(pctx, ["G1"], is_ranked=False)
 

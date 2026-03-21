@@ -6,6 +6,8 @@ that all mixin classes depend on.
 
 import json
 
+import pydantic
+
 from veupath_chatbot.domain.parameters.vocab_utils import (
     collect_leaf_terms,
     find_vocab_node,
@@ -16,6 +18,8 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     CURRENT_USER,
     resolve_wdk_user_id,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -282,20 +286,24 @@ class StrategyAPIBase:
         self,
         step_id: int,
         report_config: JSONObject,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Run a standard report on a step.
 
         Shared helper used by report, answer, count, and preview methods.
 
         :param step_id: WDK step ID (must be part of a strategy).
         :param report_config: Report configuration dict.
-        :returns: Standard report response.
+        :returns: Validated WDK answer.
         """
         result = await self.client.post(
             f"/users/{self.user_id}/steps/{step_id}/reports/standard",
             json={"reportConfig": report_config},
         )
-        return result if isinstance(result, dict) else {}
+        try:
+            return WDKAnswer.model_validate(result)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK answer response for step {step_id}: {e}"
+            raise DataParsingError(msg) from e
 
 
 def _build_phyletic_tree(

@@ -1,5 +1,6 @@
 {
   "searchData": {
+    "urlSegment": "GenesWithEpitopes",
     "parameters": [
       {
         "name": "organism",
@@ -36,5 +37,9 @@
         ]
       }
     ]
+  },
+  "validation": {
+    "level": "DISPLAYABLE",
+    "isValid": true
   }
 }

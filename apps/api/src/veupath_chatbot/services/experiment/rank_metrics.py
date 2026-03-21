@@ -127,7 +127,7 @@ async def fetch_ordered_result_ids(
         sorting = [{"attributeName": sort_attribute, "direction": sort_direction}]
 
     if sorting is not None:
-        answer: JSONObject = await api.get_step_records(
+        answer = await api.get_step_records(
             step_id=step_id,
             attributes=[],
             pagination={"offset": 0, "numRecords": max_results},
@@ -140,9 +140,7 @@ async def fetch_ordered_result_ids(
             pagination={"offset": 0, "numRecords": max_results},
         )
 
-    records = answer.get("records", [])
-    if not isinstance(records, list):
-        return []
+    records = answer.records
 
     ids: list[str] = []
     for rec in records:

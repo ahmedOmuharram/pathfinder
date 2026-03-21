@@ -7,11 +7,48 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.services.catalog.param_validation import validate_search_params
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _normalize_search_dict(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw search dict so it can be parsed by WDKSearch.model_validate()."""
+    d = dict(raw)
+    if "urlSegment" not in d:
+        d["urlSegment"] = "unknown"
+    params = d.get("parameters")
+    if isinstance(params, dict):
+        d["paramNames"] = [k for k in params if k]
+        d.pop("parameters")
+    elif isinstance(params, list):
+        normalized: list[dict[str, Any]] = []
+        for p in params:
+            if isinstance(p, dict):
+                entry = {**p, "type": "string"} if "type" not in p else p
+                normalized.append(entry)
+        d["parameters"] = normalized
+    return d
+
+
+def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse:
+    """Convert a raw dict to WDKSearchResponse."""
+    if not details:
+        return WDKSearchResponse(
+            search_data=WDKSearch(url_segment="unknown"),
+            validation=WDKValidation(),
+        )
+    normalized = _normalize_search_dict(details)
+    search = WDKSearch.model_validate(normalized)
+    return WDKSearchResponse(search_data=search, validation=WDKValidation())
 
 
 def _patch_expand(
@@ -20,6 +57,9 @@ def _patch_expand(
 ) -> Any:
     """Patch expand_search_details_with_params."""
     if side_effect:
+        # Convert ValueError to AppError for the service layer
+        if isinstance(side_effect, ValueError):
+            side_effect = AppError(ErrorCode.INTERNAL_ERROR, str(side_effect))
         return patch(
             "veupath_chatbot.services.catalog.param_validation.expand_search_details_with_params",
             new_callable=AsyncMock,
@@ -28,7 +68,7 @@ def _patch_expand(
     return patch(
         "veupath_chatbot.services.catalog.param_validation.expand_search_details_with_params",
         new_callable=AsyncMock,
-        return_value=return_value or {},
+        return_value=_to_wdk_search_response(return_value),
     )
 
 

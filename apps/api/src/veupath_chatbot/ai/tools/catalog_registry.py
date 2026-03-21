@@ -12,7 +12,6 @@ from veupath_chatbot.ai.tools.query_validation import (
     record_type_query_error,
     search_query_error,
 )
-from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.rag_search import RagSearchService
@@ -238,26 +237,19 @@ class CatalogToolsMixin:
             details = await rag_svc.get_search_details(
                 record_type, search_name, expand_params=True
             )
-            search_data = unwrap_search_data(details) or details
-            params = (
-                search_data.get("parameters") if isinstance(search_data, dict) else None
-            )
-            param_spec = None
-            if isinstance(params, list):
-                param_spec = next(
-                    (
-                        p
-                        for p in params
-                        if isinstance(p, dict) and p.get("name") == param_name
-                    ),
-                    None,
-                )
+            params = details.search_data.parameters
+            param_spec_dict = None
+            if params:
+                for p in params:
+                    if p.name == param_name:
+                        param_spec_dict = p.model_dump(by_alias=True)
+                        break
             return {
                 "source": "search_details",
                 "searchName": search_name,
                 "recordType": record_type,
                 "paramName": param_name,
-                "paramSpec": param_spec,
+                "paramSpec": param_spec_dict,
             }
 
         ctx = context_values or {}

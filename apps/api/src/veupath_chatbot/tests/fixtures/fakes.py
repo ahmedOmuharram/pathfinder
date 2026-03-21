@@ -4,6 +4,8 @@ Consolidates fake/stub classes that were duplicated across 3+ test files.
 Import from here instead of redefining in each test module.
 """
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+
 
 class FakeResultToolsSession:
     """Minimal fake session for ResultTools tests.
@@ -20,23 +22,28 @@ class FakeResultToolsSession:
 
 
 class FakeStrategyAPI:
-    """Fake strategy API that returns a canned response or raises an error.
+    """Fake strategy API that returns a canned WDKAnswer or raises an error.
 
     Used by ResultTools tests for get_step_answer.
     """
 
-    def __init__(self, response=None, error: Exception | None = None) -> None:
+    def __init__(self, response: object = None, error: Exception | None = None) -> None:
         self._response = response
         self._error = error
 
     async def get_step_answer(
         self, step_id: int, pagination: dict[str, int] | None = None
-    ):
+    ) -> WDKAnswer:
         del step_id
         del pagination
         if self._error is not None:
             raise self._error
-        return self._response
+        if isinstance(self._response, WDKAnswer):
+            return self._response
+        if isinstance(self._response, dict):
+            return WDKAnswer.model_validate(self._response)
+        msg = f"Cannot parse response as WDKAnswer: {type(self._response).__name__}"
+        raise ValueError(msg)
 
 
 class FakeResultsAPI:

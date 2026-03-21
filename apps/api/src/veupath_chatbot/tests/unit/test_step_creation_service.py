@@ -6,6 +6,7 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
 from veupath_chatbot.domain.strategy.session import StrategyGraph
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ErrorCode, ValidationError
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
@@ -482,14 +483,16 @@ class TestCreateStepIntegration:
         # Mock WDK client to return a search with an input-step param
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value={
+            return_value=WDKSearchResponse.model_validate({
                 "searchData": {
+                    "urlSegment": "GenesByUpstream",
                     "parameters": [
                         {"name": "input_step", "type": "input-step"},
                         {"name": "other_param", "type": "string"},
-                    ]
-                }
-            }
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }),
         )
         mock_get_wdk.return_value = mock_client
 
@@ -523,13 +526,15 @@ class TestCreateStepIntegration:
 
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value={
+            return_value=WDKSearchResponse.model_validate({
                 "searchData": {
+                    "urlSegment": "GenesByText",
                     "parameters": [
                         {"name": "text_expression", "type": "string"},
-                    ]
-                }
-            }
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }),
         )
         mock_get_wdk.return_value = mock_client
 

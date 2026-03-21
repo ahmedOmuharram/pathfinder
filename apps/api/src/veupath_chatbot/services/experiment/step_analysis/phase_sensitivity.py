@@ -98,11 +98,11 @@ async def _fetch_search_params(
     site_id: str,
     record_type: str,
     search_name: str,
-) -> list[object] | None:
+) -> list[JSONObject] | None:
     """Fetch WDK search parameter list, or None on failure."""
     api = get_strategy_api(site_id)
     try:
-        details = await api.client.get_search_details(record_type, search_name)
+        response = await api.client.get_search_details(record_type, search_name)
     except AppError as exc:
         logger.warning(
             "Failed to fetch search details for numeric param discovery",
@@ -111,11 +111,10 @@ async def _fetch_search_params(
             error=str(exc),
         )
         return None
-    search_data = details.get("searchData") if isinstance(details, dict) else None
-    if not isinstance(search_data, dict):
+    params = response.search_data.parameters
+    if params is None:
         return None
-    params = search_data.get("parameters")
-    return params if isinstance(params, list) else None
+    return [p.model_dump(by_alias=True) for p in params]
 
 
 async def _discover_numeric_params(
@@ -369,7 +368,7 @@ async def _eval_sweep_value(
     try:
         async with sem:
             raw = await run_controls_against_tree(ctx, modified)
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning(
             "Sensitivity sweep point failed",
             step=lid,

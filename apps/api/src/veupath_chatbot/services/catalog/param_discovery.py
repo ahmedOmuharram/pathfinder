@@ -7,13 +7,9 @@ fetch fails.
 
 from typing import Any, cast
 
-import httpx
-
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.param_utils import (
-    wdk_entity_name,
-    wdk_search_matches,
-)
+from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -24,20 +20,20 @@ async def fetch_search_details(
     ctx: SearchContext,
     *,
     record_types: list[Any] | None = None,
-) -> tuple[JSONObject, str]:
+) -> tuple[WDKSearchResponse, str]:
     """Fetch search details, falling back to scanning all record types.
 
     :param discovery: Discovery service instance.
     :param ctx: Search context (site_id + record_type + search_name).
     :param record_types: All available record types (for fallback scan).
-    :returns: Tuple of (details dict, resolved record type).
+    :returns: Tuple of (WDKSearchResponse, resolved record type).
     :raises CoreValidationError: When the search cannot be found.
     """
     try:
-        details = await discovery.get_search_details(
+        response = await discovery.get_search_details(
             ctx, expand_params=True
         )
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as e:
+    except AppError as e:
         return await _fallback_scan_record_types(
             discovery,
             ctx,
@@ -45,7 +41,7 @@ async def fetch_search_details(
             original_error=e,
         )
     else:
-        return details, ctx.record_type
+        return response, ctx.record_type
 
 
 async def _fallback_scan_record_types(
@@ -54,9 +50,9 @@ async def _fallback_scan_record_types(
     *,
     record_types: list[Any],
     original_error: Exception,
-) -> tuple[JSONObject, str]:
+) -> tuple[WDKSearchResponse, str]:
     """Scan all record types trying to find the search, raising if not found."""
-    details: JSONObject | None = None
+    response: WDKSearchResponse | None = None
     resolved_record_type = ctx.record_type
     for rt in record_types:
         if not isinstance(rt, dict):
@@ -65,24 +61,20 @@ async def _fallback_scan_record_types(
         if not rt_name:
             continue
         searches = await discovery.get_searches(ctx.site_id, rt_name)
-        if any(wdk_search_matches(s, ctx.search_name) for s in searches):
+        if any(s.url_segment == ctx.search_name for s in searches):
             resolved_record_type = rt_name
             try:
                 rt_ctx = SearchContext(ctx.site_id, rt_name, ctx.search_name)
-                details = await discovery.get_search_details(
+                response = await discovery.get_search_details(
                     rt_ctx, expand_params=True
                 )
-            except httpx.HTTPError, AppError, ValueError, TypeError, KeyError:
-                details = None
+            except AppError:
+                response = None
             break
 
-    if details is None:
+    if response is None:
         available = await discovery.get_searches(ctx.site_id, resolved_record_type)
-        available_searches: list[str] = [
-            name
-            for s in available
-            if isinstance(s, dict) and (name := wdk_entity_name(s))
-        ]
+        available_searches: list[str] = [s.url_segment for s in available]
         error_dict: JSONObject = {
             "path": "searchName",
             "message": f"Search not found: {ctx.search_name}",
@@ -98,4 +90,4 @@ async def _fallback_scan_record_types(
             errors=[error_dict],
         ) from original_error
 
-    return details, resolved_record_type
+    return response, resolved_record_type

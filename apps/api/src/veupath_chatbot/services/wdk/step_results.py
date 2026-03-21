@@ -73,9 +73,10 @@ class StepResultsService:
             pagination={"offset": offset, "numRecords": limit},
             sorting=sorting,
         )
-        records = answer.get("records", [])
-        meta = answer.get("meta", {})
-        return {"records": records, "meta": meta}
+        return {
+            "records": cast("JSONValue", answer.records),
+            "meta": cast("JSONValue", answer.meta.model_dump(by_alias=True)),
+        }
 
     async def get_distribution(self, attribute_name: str) -> JSONObject:
         """Get distribution data for an attribute."""
@@ -165,7 +166,7 @@ class StepResultsService:
 
             attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
             detail_attrs, display_names = extract_detail_attributes(attrs_raw)
-        except AppError, ValueError, TypeError, KeyError:
+        except AppError:
             logger.warning(
                 "Failed to fetch record type info; falling back to raw PK",
                 record_type=self._record_type,

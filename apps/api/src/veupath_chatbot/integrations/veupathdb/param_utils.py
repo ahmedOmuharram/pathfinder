@@ -54,17 +54,3 @@ def wdk_entity_name(obj: JSONObject | JSONValue) -> str:
     return url_seg or name or ""
 
 
-def wdk_search_matches(search: JSONValue, search_name: str) -> bool:
-    """Check whether a WDK search dict matches a given search name.
-
-    :param search: WDK search dict.
-    :param search_name: Search name to match against.
-    :returns: True if ``urlSegment`` or ``name`` equals *search_name*.
-    """
-    if not isinstance(search, dict):
-        return False
-    url_seg_raw = search.get("urlSegment")
-    name_raw = search.get("name")
-    url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
-    name = name_raw if isinstance(name_raw, str) else None
-    return search_name in (url_seg, name)

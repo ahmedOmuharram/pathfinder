@@ -3,6 +3,7 @@
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
@@ -107,13 +108,13 @@ class TemporaryResultsAPI(StrategyAPIBase):
         step_id: int,
         limit: int = 100,
         attributes: list[str] | None = None,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Get preview of step results.
 
         :param step_id: Step ID.
         :param limit: Max records to return.
         :param attributes: Attributes to include.
-        :returns: Preview data with records.
+        :returns: Validated WDK answer with records.
         """
         report_config: JSONObject = {
             "pagination": {

@@ -88,7 +88,7 @@ async def build_primary_key(
                 default_val = pk_defaults.get(col)
                 if default_val:
                     pk_parts.append({"name": col, "value": default_val})
-    except (AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.debug(
             "Failed to build full primary key, falling back to source_id only",
             gene_id=gene_id,
@@ -134,7 +134,7 @@ async def fetch_group_records(
                         "attributes": rec.get("attributes", {}),
                     }
                 )
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.debug(
                 "Failed to fetch record for gene", gene_id=gene_id, error=str(exc)
             )
@@ -159,8 +159,8 @@ async def collect_all_result_ids(api: StrategyAPI, step_id: int) -> set[str]:
             attributes=[],
             pagination={"offset": offset, "numRecords": page_size},
         )
-        records = answer.get("records", [])
-        if not isinstance(records, list) or not records:
+        records = answer.records
+        if not records:
             break
         for rec in records:
             if not isinstance(rec, dict):

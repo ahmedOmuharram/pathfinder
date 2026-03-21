@@ -75,25 +75,22 @@ class _AnalysisToolsMixin:
 
         tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
 
-        records = answer.get("records", [])
         classified: list[JSONObject] = []
-        if isinstance(records, list):
-            for rec in records:
-                if not isinstance(rec, dict):
-                    continue
-                gene_id = extract_pk(rec)
-                classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-                attrs = rec.get("attributes", {})
-                classified.append(
-                    {
-                        "geneId": gene_id,
-                        "classification": classification,
-                        "attributes": attrs,
-                    }
-                )
+        for rec in answer.records:
+            if not isinstance(rec, dict):
+                continue
+            gene_id = extract_pk(rec)
+            classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
+            attrs = rec.get("attributes", {})
+            classified.append(
+                {
+                    "geneId": gene_id,
+                    "classification": classification,
+                    "attributes": attrs,
+                }
+            )
 
-        meta = answer.get("meta", {})
-        total = meta.get("totalCount", 0) if isinstance(meta, dict) else 0
+        total = answer.meta.total_count
         return cast(
             "JSONObject",
             {
@@ -127,7 +124,7 @@ class _AnalysisToolsMixin:
             )
             tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
             classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             return {"error": str(exc), "geneId": gene_id}
         else:
             return {
@@ -217,8 +214,8 @@ class _AnalysisToolsMixin:
                 step_id=exp.wdk_step_id,
                 pagination={"offset": page_offset, "numRecords": 100},
             )
-            records = answer.get("records", [])
-            if not isinstance(records, list) or not records:
+            records = answer.records
+            if not records:
                 break
             total_scanned = page_offset + len(records)
 

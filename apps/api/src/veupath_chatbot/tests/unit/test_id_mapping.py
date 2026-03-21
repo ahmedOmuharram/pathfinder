@@ -9,6 +9,8 @@ import pytest
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.integrations.veupathdb.discovery import SearchCatalog
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
 _PATCH_TARGET = (
@@ -37,13 +39,17 @@ def _make_catalog(
     ``record_types`` is the raw list (strings or dicts) returned by
     ``catalog.get_record_types()``.
 
-    ``searches`` maps record-type name -> list of search dicts stored in
-    ``catalog._searches``.
+    ``searches`` maps record-type name -> list of search dicts.  Raw dicts
+    are validated into ``WDKSearch`` models so ``SearchCatalog.find_search``
+    and related methods work correctly.
     """
     catalog = SearchCatalog.__new__(SearchCatalog)
     catalog.site_id = "plasmodb"
     catalog._record_types = record_types
-    catalog._searches = searches or {}
+    catalog._searches = {
+        rt: [WDKSearch.model_validate(s) for s in sl]
+        for rt, sl in (searches or {}).items()
+    }
     catalog._search_details = {}
     catalog._loaded = True
     return catalog
@@ -359,7 +365,7 @@ class TestFindRecordTypeHint:
     @pytest.mark.asyncio
     async def test_handles_discovery_exception(self) -> None:
         mock_discovery = MagicMock()
-        mock_discovery.get_catalog = AsyncMock(side_effect=ValueError("fail"))
+        mock_discovery.get_catalog = AsyncMock(side_effect=WDKError(detail="fail"))
         with patch(_PATCH_TARGET, return_value=mock_discovery):
             mixin = _make_mixin()
             result = await mixin._find_record_type_hint("AnySearch")

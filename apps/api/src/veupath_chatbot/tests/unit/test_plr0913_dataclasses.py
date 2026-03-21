@@ -14,6 +14,7 @@ from veupath_chatbot.domain.research.citations import (
     LiteratureFilters,
     LiteratureOutputOptions,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
 from veupath_chatbot.services.chat.types import ChatTurnConfig
@@ -763,12 +764,13 @@ class TestGeneSetServiceHelpers:
     async def test_fetch_step_genes_returns_ids_from_step(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_step_answer.return_value = {
+        api.get_step_answer.return_value = WDKAnswer.model_validate({
             "records": [
                 {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
                 {"id": [{"name": "source_id", "value": "PF3D7_0200200"}]},
-            ]
-        }
+            ],
+            "meta": {"totalCount": 2},
+        })
         result = await svc._fetch_step_genes(api, step_id=55)
         assert "PF3D7_0100100" in result
         assert "PF3D7_0200200" in result

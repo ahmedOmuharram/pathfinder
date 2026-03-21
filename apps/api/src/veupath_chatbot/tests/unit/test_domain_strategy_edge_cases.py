@@ -386,18 +386,18 @@ class TestGetWdkOperatorEdgeCases:
 class TestColocationParamsEdgeCases:
     def test_very_large_distances(self) -> None:
         params = ColocationParams(upstream=10**9, downstream=10**9)
-        assert params.validate() == []
+        assert params.check_errors() == []
 
     def test_zero_distances(self) -> None:
         params = ColocationParams(upstream=0, downstream=0)
-        assert params.validate() == []
+        assert params.check_errors() == []
 
     def test_all_strands_valid(self) -> None:
         for strand in ("same", "opposite", "both"):
             params = ColocationParams(
                 strand=cast("Literal['same', 'opposite', 'both']", strand)
             )
-            assert params.validate() == []
+            assert params.check_errors() == []
 
 
 # ===========================================================================

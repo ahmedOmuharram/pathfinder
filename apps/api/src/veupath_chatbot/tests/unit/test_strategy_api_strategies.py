@@ -6,6 +6,8 @@ update_strategy, set_saved, delete_strategy.
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX,
@@ -13,6 +15,11 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
 from veupath_chatbot.integrations.veupathdb.strategy_api.strategies import (
     StrategiesMixin,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKStrategyDetails,
+    WDKStrategySummary,
+)
+from veupath_chatbot.platform.errors import DataParsingError
 
 
 def _make_mixin(user_id: str = "12345") -> tuple[StrategiesMixin, MagicMock]:
@@ -38,6 +45,33 @@ def _binary_step_tree() -> StepTreeNode:
     left = StepTreeNode(step_id=1)
     right = StepTreeNode(step_id=2)
     return StepTreeNode(step_id=3, primary_input=left, secondary_input=right)
+
+
+def _strategy_details_dict(
+    strategy_id: int = 500,
+    name: str = "My Strategy",
+    root_step_id: int = 1,
+) -> dict[str, object]:
+    """Minimal valid WDK strategy details dict for model_validate."""
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "rootStepId": root_step_id,
+        "stepTree": {"stepId": root_step_id},
+    }
+
+
+def _strategy_summary_dict(
+    strategy_id: int = 500,
+    name: str = "Strategy A",
+    root_step_id: int = 1,
+) -> dict[str, object]:
+    """Minimal valid WDK strategy summary dict for model_validate."""
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "rootStepId": root_step_id,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -165,15 +199,21 @@ class TestGetStrategy:
 
     async def test_get_by_id(self) -> None:
         mixin, client = _make_mixin()
-        client.get.return_value = {
-            "strategyId": 500,
-            "name": "My Strategy",
-            "rootStepId": 1,
-        }
+        client.get.return_value = _strategy_details_dict(500, "My Strategy")
 
         result = await mixin.get_strategy(500)
         client.get.assert_awaited_once_with("/users/12345/strategies/500")
-        assert result["strategyId"] == 500
+        assert isinstance(result, WDKStrategyDetails)
+        assert result.strategy_id == 500
+        assert result.name == "My Strategy"
+
+    async def test_get_raises_on_invalid_response(self) -> None:
+        """DataParsingError when WDK returns non-strategy data."""
+        mixin, client = _make_mixin()
+        client.get.return_value = {"unexpected": "data"}
+
+        with pytest.raises(DataParsingError):
+            await mixin.get_strategy(500)
 
 
 # ---------------------------------------------------------------------------
@@ -184,16 +224,41 @@ class TestGetStrategy:
 class TestListStrategies:
     """Strategy listing."""
 
-    async def test_list_returns_array(self) -> None:
+    async def test_list_returns_typed_summaries(self) -> None:
         mixin, client = _make_mixin()
         client.get.return_value = [
-            {"strategyId": 500, "name": "Strategy A"},
-            {"strategyId": 501, "name": "Strategy B"},
+            _strategy_summary_dict(500, "Strategy A"),
+            _strategy_summary_dict(501, "Strategy B"),
         ]
 
         result = await mixin.list_strategies()
         client.get.assert_awaited_once_with("/users/12345/strategies")
         assert len(result) == 2
+        assert all(isinstance(s, WDKStrategySummary) for s in result)
+        assert result[0].strategy_id == 500
+        assert result[1].strategy_id == 501
+
+    async def test_list_returns_empty_for_non_list(self) -> None:
+        """Non-list response returns empty list instead of crashing."""
+        mixin, client = _make_mixin()
+        client.get.return_value = {"error": "something"}
+
+        result = await mixin.list_strategies()
+        assert result == []
+
+    async def test_list_skips_invalid_items(self) -> None:
+        """Invalid items in the list are silently skipped."""
+        mixin, client = _make_mixin()
+        client.get.return_value = [
+            _strategy_summary_dict(500, "Good"),
+            {"broken": True},  # Missing required fields
+            _strategy_summary_dict(501, "Also Good"),
+        ]
+
+        result = await mixin.list_strategies()
+        assert len(result) == 2
+        assert result[0].strategy_id == 500
+        assert result[1].strategy_id == 501
 
 
 # ---------------------------------------------------------------------------
@@ -206,48 +271,52 @@ class TestUpdateStrategy:
 
     async def test_update_step_tree(self) -> None:
         mixin, client = _make_mixin()
-        client.get.return_value = {"strategyId": 500, "name": "Updated"}
+        client.get.return_value = _strategy_details_dict(500, "Updated")
 
         new_tree = _binary_step_tree()
-        await mixin.update_strategy(500, step_tree=new_tree)
+        result = await mixin.update_strategy(500, step_tree=new_tree)
 
         client.put.assert_awaited_once()
         put_path = client.put.call_args.args[0]
         assert "/strategies/500/step-tree" in put_path
         put_payload = client.put.call_args.kwargs["json"]
         assert put_payload["stepTree"]["stepId"] == 3
+        assert isinstance(result, WDKStrategyDetails)
 
     async def test_update_name(self) -> None:
         mixin, client = _make_mixin()
-        client.get.return_value = {"strategyId": 500, "name": "New Name"}
+        client.get.return_value = _strategy_details_dict(500, "New Name")
 
-        await mixin.update_strategy(500, name="New Name")
+        result = await mixin.update_strategy(500, name="New Name")
 
         client.patch.assert_awaited_once()
         patch_path = client.patch.call_args.args[0]
         assert "/strategies/500" in patch_path
         patch_payload = client.patch.call_args.kwargs["json"]
         assert patch_payload["name"] == "New Name"
+        assert isinstance(result, WDKStrategyDetails)
 
     async def test_update_both(self) -> None:
         mixin, client = _make_mixin()
-        client.get.return_value = {"strategyId": 500}
+        client.get.return_value = _strategy_details_dict(500)
 
-        await mixin.update_strategy(500, step_tree=_step_tree(), name="Both")
+        result = await mixin.update_strategy(500, step_tree=_step_tree(), name="Both")
 
         client.put.assert_awaited_once()
         client.patch.assert_awaited_once()
+        assert isinstance(result, WDKStrategyDetails)
 
     async def test_update_nothing_just_fetches(self) -> None:
         """If neither step_tree nor name is provided, just fetch the strategy."""
         mixin, client = _make_mixin()
-        client.get.return_value = {"strategyId": 500}
+        client.get.return_value = _strategy_details_dict(500)
 
-        await mixin.update_strategy(500)
+        result = await mixin.update_strategy(500)
 
         client.put.assert_not_awaited()
         client.patch.assert_not_awaited()
         client.get.assert_awaited_once()
+        assert isinstance(result, WDKStrategyDetails)
 
 
 # ---------------------------------------------------------------------------

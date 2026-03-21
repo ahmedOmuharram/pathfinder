@@ -74,7 +74,7 @@ async def _clear_stale_wdk_id(
             ),
         )
         await session.commit()
-    except AppError, ValueError, TypeError, RuntimeError:
+    except AppError, RuntimeError:
         await session.rollback()
         logger.exception(
             "Failed to clear stale wdk_strategy_id",
@@ -182,7 +182,7 @@ async def try_auto_push_to_wdk(
                     strategy_id=str(strategy_id),
                     error=str(e),
                 )
-        except (AppError, ValueError, TypeError, KeyError, RuntimeError) as e:
+        except (AppError, RuntimeError) as e:
             await session.rollback()
             logger.warning(
                 "Auto-push to WDK failed (best-effort)",

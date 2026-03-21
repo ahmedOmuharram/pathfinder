@@ -66,7 +66,7 @@ async def enrich_sparse_gene_results(
             ids_to_enrich[:50],
             record_type="transcript",
         )
-    except (AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.debug(
             "Gene enrichment via WDK skipped",
             site_id=site_id,

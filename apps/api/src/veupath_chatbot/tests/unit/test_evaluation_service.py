@@ -583,7 +583,7 @@ class TestNumericValueSorting:
         exp = _make_experiment()
         call_count = 0
 
-        async def _mock_controls(**_: object) -> dict:  # type: ignore[type-arg]
+        async def _mock_controls(*_args: object, **_: object) -> dict:  # type: ignore[type-arg]
             nonlocal call_count
             call_count += 1
             return {

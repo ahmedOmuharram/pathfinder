@@ -286,7 +286,7 @@ async def resolve_gene_ids(
         answer = await _fetch_gene_answer(
             client, gene_ids, record_type, search_name, param_name, attrs
         )
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning(
             "Gene ID resolution via standard reporter failed",
             site_id=site_id,

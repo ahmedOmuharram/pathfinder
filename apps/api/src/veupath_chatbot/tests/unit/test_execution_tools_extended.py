@@ -64,23 +64,23 @@ class TestSampleRecordsEdgeCases:
         result = await tools.get_sample_records(wdk_step_id=1, limit=5)
         assert result["totalCount"] == 0
 
-    async def test_meta_non_dict_handled(self):
-        """When meta is not a dict, should not crash."""
+    async def test_meta_non_dict_rejected(self):
+        """When meta is not a dict, pydantic rejects the response."""
         fake_api = FakeStrategyAPI(
             response={"records": [{"id": "x"}], "meta": "not-a-dict"}
         )
         tools = ResultTools(FakeResultToolsSession(), strategy_api=fake_api)
         result = await tools.get_sample_records(wdk_step_id=1, limit=5)
-        assert result["totalCount"] == 0
+        assert result["ok"] is False
 
-    async def test_records_non_list_handled(self):
-        """When records is not a list, should default to empty."""
+    async def test_records_non_list_rejected(self):
+        """When records is not a list, pydantic rejects the response."""
         fake_api = FakeStrategyAPI(
             response={"records": "not-a-list", "meta": {"totalCount": 0}}
         )
         tools = ResultTools(FakeResultToolsSession(), strategy_api=fake_api)
         result = await tools.get_sample_records(wdk_step_id=1, limit=5)
-        assert result["records"] == []
+        assert result["ok"] is False
 
 
 # ---------------------------------------------------------------------------

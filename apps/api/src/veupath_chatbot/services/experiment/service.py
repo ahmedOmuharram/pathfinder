@@ -267,7 +267,7 @@ async def _phase_persist_strategy(
         experiment.wdk_strategy_id = raw_sid if isinstance(raw_sid, int) else None
         experiment.wdk_step_id = raw_step if isinstance(raw_step, int) else None
         pctx.store.save(experiment)
-    except (AppError, ValueError, TypeError, RuntimeError) as exc:
+    except (AppError, RuntimeError) as exc:
         logger.warning(
             "Failed to persist WDK strategy for experiment",
             experiment_id=experiment.id,
@@ -305,7 +305,7 @@ async def _phase_rank_metrics(
                 negative_ids=neg_set,
             )
             pctx.store.save(experiment)
-    except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+    except (AppError, ZeroDivisionError) as exc:
         logger.warning(
             "Rank metrics computation failed",
             experiment_id=experiment.id,
@@ -346,7 +346,7 @@ async def _phase_robustness(
                 ),
             )
             pctx.store.save(experiment)
-    except (AppError, ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+    except (AppError, ZeroDivisionError) as exc:
         logger.warning(
             "Robustness computation failed",
             experiment_id=experiment.id,
@@ -477,7 +477,7 @@ async def _phase_optimize_tree_knobs(
             if tree_opt_result.best_trial
             else "Tree optimization complete — no improving trial found",
         )
-    except (AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.warning(
             "Tree knob optimization failed",
             experiment_id=experiment.id,

@@ -175,7 +175,8 @@ class TestGetStepAnswer:
             "meta": {"totalCount": 1},
         }
         result = await mixin.get_step_answer(step_id=42)
-        assert "records" in result
+        assert len(result.records) == 1
+        assert result.meta.total_count == 1
 
     async def test_answer_with_attributes(self) -> None:
         mixin, client = _make_reports_mixin()
@@ -332,21 +333,22 @@ class TestGetStepCount:
 
     async def test_raises_on_non_dict_response(self) -> None:
         mixin, client = _make_reports_mixin()
-        client.post.return_value = []  # wrong type -- normalized to {} by _standard_report
-        with pytest.raises(DataParsingError, match="missing 'meta'"):
+        client.post.return_value = []  # not a valid WDKAnswer
+        with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
             await mixin.get_step_count(step_id=1)
 
     async def test_raises_on_missing_meta(self) -> None:
         mixin, client = _make_reports_mixin()
         client.post.return_value = {"records": []}
-        with pytest.raises(DataParsingError, match="missing 'meta'"):
+        with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
             await mixin.get_step_count(step_id=1)
 
-    async def test_raises_on_non_int_total_count(self) -> None:
+    async def test_coerces_string_total_count(self) -> None:
+        """Pydantic coerces string totalCount to int in lax mode."""
         mixin, client = _make_reports_mixin()
         client.post.return_value = {"meta": {"totalCount": "42"}}
-        with pytest.raises(DataParsingError, match="not an int"):
-            await mixin.get_step_count(step_id=1)
+        count = await mixin.get_step_count(step_id=1)
+        assert count == 42
 
     async def test_step_count_request_uses_zero_records(self) -> None:
         """Step count should request 0 records to minimize transfer."""

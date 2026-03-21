@@ -16,7 +16,7 @@ import pytest
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.errors import StrategyCompilationError
+from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.build import (
     RootResolutionError,
@@ -448,7 +448,7 @@ class TestCreateOrUpdateEdgeCases:
     async def test_update_failure_triggers_create(self):
         """After update fails, create is called and its ID is returned."""
         api = _FakeBuildAPI(
-            update_strategy_error=ValueError("gone"),
+            update_strategy_error=WDKError(detail="gone"),
             create_strategy_response={"id": 777},
         )
         compilation = CompilationResult(

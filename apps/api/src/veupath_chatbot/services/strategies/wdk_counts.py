@@ -58,7 +58,7 @@ async def _count_via_anonymous_report(
             count = meta.get("totalCount")
             if isinstance(count, int):
                 return count
-    except (AppError, ValueError, TypeError) as e:
+    except AppError as e:
         logger.warning(
             "Anonymous report count failed",
             record_type=record_type,
@@ -149,7 +149,7 @@ async def _compute_counts_via_compilation(
             is_internal=True,
         )
         temp_strategy_id = extract_wdk_id(created)
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.exception(
             "Failed to create temporary WDK strategy for step counts",
             error=str(exc),
@@ -171,7 +171,7 @@ async def _compute_counts_via_compilation(
                             estimated = step_info.get("estimatedSize")
                             if isinstance(estimated, int):
                                 counts[step.local_id] = estimated
-        except (AppError, ValueError, TypeError, KeyError) as e:
+        except AppError as e:
             logger.warning("Failed to read counts from strategy payload", error=str(e))
 
     await delete_temp_strategy(api, temp_strategy_id)

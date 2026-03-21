@@ -7,6 +7,7 @@ and enrichment edge cases.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
@@ -103,10 +104,10 @@ class TestGetRecords:
 
     async def test_default_pagination(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = {
+        api.get_step_records.return_value = WDKAnswer.model_validate({
             "records": [],
             "meta": {"totalCount": 0},
-        }
+        })
         result = await svc.get_records()
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["pagination"] == {"offset": 0, "numRecords": 50}
@@ -114,20 +115,20 @@ class TestGetRecords:
 
     async def test_custom_pagination(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = {
+        api.get_step_records.return_value = WDKAnswer.model_validate({
             "records": [{"id": [{"name": "source_id", "value": "X"}]}],
             "meta": {"totalCount": 1},
-        }
+        })
         await svc.get_records(offset=10, limit=5)
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["pagination"] == {"offset": 10, "numRecords": 5}
 
     async def test_sorting_applied(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = {
+        api.get_step_records.return_value = WDKAnswer.model_validate({
             "records": [],
             "meta": {"totalCount": 0},
-        }
+        })
         await svc.get_records(sort="gene_name", direction="DESC")
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"] == [
@@ -136,37 +137,42 @@ class TestGetRecords:
 
     async def test_no_sorting_when_sort_is_none(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = {
+        api.get_step_records.return_value = WDKAnswer.model_validate({
             "records": [],
             "meta": {"totalCount": 0},
-        }
+        })
         await svc.get_records()
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"] is None
 
     async def test_direction_uppercased(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = {
+        api.get_step_records.return_value = WDKAnswer.model_validate({
             "records": [],
             "meta": {"totalCount": 0},
-        }
+        })
         await svc.get_records(sort="col", direction="asc")
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"][0]["direction"] == "ASC"
 
     async def test_missing_records_key_defaults_empty(self) -> None:
-        """If WDK response lacks 'records' key, default to empty list."""
+        """WDKAnswer defaults 'records' to empty list when omitted."""
         svc, api = _make_service()
-        api.get_step_records.return_value = {"meta": {"totalCount": 0}}
+        api.get_step_records.return_value = WDKAnswer.model_validate({
+            "meta": {"totalCount": 0},
+        })
         result = await svc.get_records()
         assert result["records"] == []
 
-    async def test_missing_meta_key_defaults_empty(self) -> None:
-        """If WDK response lacks 'meta' key, default to empty dict."""
+    async def test_empty_meta_defaults(self) -> None:
+        """WDKAnswerMeta defaults all fields when meta dict is empty."""
         svc, api = _make_service()
-        api.get_step_records.return_value = {"records": []}
+        api.get_step_records.return_value = WDKAnswer.model_validate({
+            "records": [],
+            "meta": {},
+        })
         result = await svc.get_records()
-        assert result["meta"] == {}
+        assert result["meta"]["totalCount"] == 0
 
 
 # ===========================================================================

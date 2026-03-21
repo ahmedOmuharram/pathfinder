@@ -127,14 +127,14 @@ async def fetch_all_gene_ids(
     offset = 0
 
     while True:
-        answer: JSONObject = await api.get_step_answer(
+        answer = await api.get_step_answer(
             step_id,
             attributes=["primary_key"],
             pagination={"offset": offset, "numRecords": batch_size},
         )
 
-        records = answer.get("records")
-        if not isinstance(records, list) or not records:
+        records = answer.records
+        if not records:
             break
 
         for record in records:
@@ -144,12 +144,8 @@ async def fetch_all_gene_ids(
             if gene_id:
                 all_ids.append(gene_id)
 
-        meta = answer.get("meta")
-        raw_total = meta.get("totalCount", 0) if isinstance(meta, dict) else 0
-        total_count = int(raw_total) if isinstance(raw_total, (int, float)) else 0
-
         offset += len(records)
-        if offset >= total_count:
+        if offset >= answer.meta.total_count:
             break
 
     return all_ids

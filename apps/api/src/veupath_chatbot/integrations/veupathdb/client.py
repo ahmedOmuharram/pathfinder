@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 import httpx
+import pydantic
 from tenacity import (
     RetryError,
     retry,
@@ -14,9 +15,13 @@ from tenacity import (
     wait_exponential,
 )
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
-from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
@@ -302,11 +307,23 @@ class VEuPathDBClient:
         params: JSONObject | None = {"format": "expanded"} if expanded else None
         return cast("JSONArray", await self.get("/record-types", params=params))
 
-    async def get_searches(self, record_type: str) -> JSONArray:
+    async def get_searches(self, record_type: str) -> list[WDKSearch]:
         """Get searches for a record type."""
-        return cast(
-            "JSONArray", await self.get(f"/record-types/{record_type}/searches")
-        )
+        raw = await self.get(f"/record-types/{record_type}/searches")
+        if not isinstance(raw, list):
+            return []
+        result: list[WDKSearch] = []
+        for item in raw:
+            if isinstance(item, dict):
+                try:
+                    result.append(WDKSearch.model_validate(item))
+                except pydantic.ValidationError:
+                    logger.warning(
+                        "Skipping unparseable search entry",
+                        record_type=record_type,
+                        error_keys=list(item.keys())[:5],
+                    )
+        return result
 
     async def get_search_details(
         self,
@@ -314,16 +331,18 @@ class VEuPathDBClient:
         search_name: str,
         *,
         expand_params: bool = True,
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         """Get detailed search configuration including parameters."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
-        return cast(
-            "JSONObject",
-            await self.get(
-                f"/record-types/{record_type}/searches/{search_name}",
-                params=params,
-            ),
+        raw = await self.get(
+            f"/record-types/{record_type}/searches/{search_name}",
+            params=params,
         )
+        try:
+            return WDKSearchResponse.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK search response for {record_type}/{search_name}: {e}"
+            raise DataParsingError(msg) from e
 
     async def get_search_details_with_params(
         self,
@@ -332,18 +351,20 @@ class VEuPathDBClient:
         context: JSONObject,
         *,
         expand_params: bool = True,
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         """Get detailed search configuration using provided parameters."""
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
         encoded_context = encode_context_param_values_for_wdk(context or {})
-        return cast(
-            "JSONObject",
-            await self.post(
-                f"/record-types/{record_type}/searches/{search_name}",
-                json={"contextParamValues": encoded_context},
-                params=params,
-            ),
+        raw = await self.post(
+            f"/record-types/{record_type}/searches/{search_name}",
+            json={"contextParamValues": encoded_context},
+            params=params,
         )
+        try:
+            return WDKSearchResponse.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK search response for {record_type}/{search_name}: {e}"
+            raise DataParsingError(msg) from e
 
     async def get_refreshed_dependent_params(
         self,

@@ -6,12 +6,8 @@ combined (boolean) steps, transform steps, and datasets.
 
 from typing import cast
 
-import httpx
-
-from veupath_chatbot.domain.parameters.specs import unwrap_search_data
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.platform.errors import DataParsingError, InternalError
+from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -28,10 +24,9 @@ class StepsMixin(StrategyAPIBase):
 
         searches = await self.client.get_searches(record_type)
         for search in searches:
-            name = wdk_entity_name(search)
-            if name.startswith("boolean_question"):
-                self._boolean_search_cache[record_type] = name
-                return name
+            if search.url_segment.startswith("boolean_question"):
+                self._boolean_search_cache[record_type] = search.url_segment
+                return search.url_segment
 
         msg = f"No boolean combine search found for record type '{record_type}'"
         raise DataParsingError(msg)
@@ -39,16 +34,8 @@ class StepsMixin(StrategyAPIBase):
     async def _get_boolean_param_names(self, record_type: str) -> tuple[str, str, str]:
         """Resolve parameter names for boolean combine search."""
         boolean_search = await self._get_boolean_search_name(record_type)
-        details = await self.client.get_search_details(record_type, boolean_search)
-        # WDK wraps search details under JsonKeys.SEARCH_DATA = "searchData".
-        search_data = unwrap_search_data(details) or details
-
-        # WDK emits JsonKeys.PARAM_NAMES = "paramNames" — a list of param name strings.
-        param_names_raw = search_data.get("paramNames")
-        if not isinstance(param_names_raw, list):
-            msg = f"Boolean search '{boolean_search}' has no 'paramNames' list"
-            raise DataParsingError(msg)
-        param_names = [str(p) for p in param_names_raw if p is not None]
+        response = await self.client.get_search_details(record_type, boolean_search)
+        param_names = response.search_data.param_names
 
         left = next((p for p in param_names if p.startswith("bq_left_op")), None)
         right = next((p for p in param_names if p.startswith("bq_right_op")), None)
@@ -81,19 +68,10 @@ class StepsMixin(StrategyAPIBase):
             return self._answer_param_cache[cache_key]
 
         try:
-            details = await self.client.get_search_details(record_type, search_name)
-            search_data = unwrap_search_data(details)
-            params = (
-                search_data.get("parameters", [])
-                if isinstance(search_data, dict)
-                else []
-            )
-            names = {
-                str(p["name"])
-                for p in (params if isinstance(params, list) else [])
-                if isinstance(p, dict) and p.get("type") == "input-step"
-            }
-        except httpx.HTTPError, KeyError, TypeError:
+            response = await self.client.get_search_details(record_type, search_name)
+            params = response.search_data.parameters or []
+            names = {p.name for p in params if p.type == "input-step"}
+        except AppError:
             logger.warning(
                 "Failed to fetch answer param names for %s/%s",
                 record_type,

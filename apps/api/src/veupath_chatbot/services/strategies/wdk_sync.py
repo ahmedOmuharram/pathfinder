@@ -84,7 +84,7 @@ async def fetch_and_convert(
 
     try:
         await normalize_synced_parameters(ast, steps_data, api)
-    except (ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",
             wdk_id=wdk_id,
@@ -302,7 +302,7 @@ async def lazy_fetch_wdk_detail(
         updated = await stream_repo.get_projection(projection.stream_id)
         if updated is not None:
             return updated
-    except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+    except (AppError, RuntimeError) as exc:
         logger.warning(
             "Lazy WDK detail fetch failed",
             stream_id=str(projection.stream_id),
@@ -333,7 +333,7 @@ async def sync_is_saved_to_wdk(
     try:
         api = get_strategy_api(site_id)
         await api.set_saved(wdk_id, is_saved=projection.is_saved)
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning(
             "Failed to sync isSaved to WDK",
             stream_id=str(projection.stream_id),

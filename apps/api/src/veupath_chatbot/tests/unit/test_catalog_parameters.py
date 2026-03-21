@@ -15,8 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
 from veupath_chatbot.services.catalog.param_resolution import (
-    _extract_param_names,
     _filter_context_values,
 )
 from veupath_chatbot.services.catalog.parameters import (
@@ -25,6 +29,36 @@ from veupath_chatbot.services.catalog.parameters import (
     get_search_parameters_tool,
     validate_search_params,
 )
+
+# ---------------------------------------------------------------------------
+# Test helpers
+# ---------------------------------------------------------------------------
+
+
+def _normalize_search_dict(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw search dict so it can be parsed by WDKSearch.model_validate()."""
+    d = dict(raw)
+    if "urlSegment" not in d:
+        d["urlSegment"] = "unknown"
+    params = d.get("parameters")
+    if isinstance(params, dict):
+        d["paramNames"] = [k for k in params if k]
+        d.pop("parameters")
+    elif isinstance(params, list):
+        normalized: list[dict[str, Any]] = []
+        for p in params:
+            if isinstance(p, dict):
+                entry = {**p, "type": "string"} if "type" not in p else p
+                normalized.append(entry)
+        d["parameters"] = normalized
+    return d
+
+
+def _to_wdk_search_response(details: dict[str, Any]) -> WDKSearchResponse:
+    """Convert a raw dict to WDKSearchResponse."""
+    normalized = _normalize_search_dict(details)
+    search = WDKSearch.model_validate(normalized)
+    return WDKSearchResponse(search_data=search, validation=WDKValidation())
 
 # ---------------------------------------------------------------------------
 # parameters.py re-exports
@@ -45,56 +79,6 @@ class TestParametersReExports:
 
     def test_validate_search_params_is_callable(self) -> None:
         assert callable(validate_search_params)
-
-
-# ---------------------------------------------------------------------------
-# _extract_param_names edge cases
-# ---------------------------------------------------------------------------
-
-
-class TestExtractParamNamesEdgeCases:
-    """Additional edge cases for _extract_param_names."""
-
-    def test_search_data_with_dict_parameters(self) -> None:
-        """searchData.parameters as dict should extract keys."""
-        details: dict[str, Any] = {
-            "searchData": {
-                "parameters": {
-                    "organism": {"type": "string"},
-                    "taxon": {"type": "string"},
-                }
-            }
-        }
-        # searchData.parameters is a list in the main path, but the function
-        # only handles list. If dict, it falls through. Let's verify.
-        result = _extract_param_names(details)
-        # searchData branch only handles list of dicts, not dict of dicts.
-        # A dict parameters inside searchData won't be extracted.
-        # This is actually a gap -- the function returns empty set here.
-        # But top-level parameters dict IS handled.
-        # Verify the actual behavior:
-        assert isinstance(result, set)
-
-    def test_deeply_nested_dict(self) -> None:
-        """Arbitrary nesting shouldn't cause infinite recursion."""
-        details: dict[str, Any] = {
-            "searchData": {"searchData": {"parameters": [{"name": "deep"}]}}
-        }
-        result = _extract_param_names(details)
-        # Only one level of searchData unwrapping
-        assert isinstance(result, set)
-
-    def test_parameters_as_non_dict_non_list(self) -> None:
-        """If parameters is a string or int, should return empty set."""
-        assert _extract_param_names({"parameters": "not-valid"}) == set()
-        assert _extract_param_names({"parameters": 42}) == set()
-        assert _extract_param_names({"parameters": None}) == set()
-
-    def test_empty_parameters_list(self) -> None:
-        assert _extract_param_names({"parameters": []}) == set()
-
-    def test_empty_parameters_dict(self) -> None:
-        assert _extract_param_names({"parameters": {}}) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -168,14 +152,14 @@ class TestGetSearchParametersUnknownTypes:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {
                         "name": "custom_param",
                         "displayName": "Custom",
                     },
                 ]
-            }
+            })
         )
 
         with patch(
@@ -195,11 +179,11 @@ class TestGetSearchParametersUnknownTypes:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {"name": "param1", "type": "string"},
                 ]
-            }
+            })
         )
 
         with patch(
@@ -215,14 +199,15 @@ class TestGetSearchParametersUnknownTypes:
         assert p["isVisible"] is True
 
     async def test_parameter_visibility_explicit_false(self) -> None:
+        """Hidden params (isVisible=False) are filtered out by the typed formatter."""
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {"name": "hidden", "type": "string", "isVisible": False},
                 ]
-            }
+            })
         )
 
         with patch(
@@ -233,20 +218,18 @@ class TestGetSearchParametersUnknownTypes:
 
         params = result["parameters"]
         assert isinstance(params, list)
-        p = params[0]
-        assert isinstance(p, dict)
-        assert p["isVisible"] is False
+        assert len(params) == 0
 
     async def test_no_default_value_when_both_absent(self) -> None:
         """When neither initialDisplayValue nor defaultValue are present."""
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {"name": "param1", "type": "string"},
                 ]
-            }
+            })
         )
 
         with patch(
@@ -266,11 +249,11 @@ class TestGetSearchParametersUnknownTypes:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {"name": "param1", "type": "string"},
                 ]
-            }
+            })
         )
 
         with patch(
@@ -290,7 +273,7 @@ class TestGetSearchParametersUnknownTypes:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "parameters": [
                     {
                         "name": "param1",
@@ -298,7 +281,7 @@ class TestGetSearchParametersUnknownTypes:
                         "vocabulary": [],
                     },
                 ]
-            }
+            })
         )
 
         with patch(
@@ -319,11 +302,11 @@ class TestGetSearchParametersUnknownTypes:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "displayName": "Details Display",
                 "description": "From details",
                 "parameters": [],
-            }
+            })
         )
 
         with patch(

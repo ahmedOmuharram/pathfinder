@@ -126,8 +126,7 @@ async def run_controls_against_tree(
                         ),
                     },
                 )
-                if isinstance(answer, dict):
-                    intersection_ids = extract_record_ids(answer.get("records"))
+                intersection_ids = extract_record_ids(answer.records)
 
             ids_list: JSONArray = list(intersection_ids)
             ids_sample: JSONArray = list(intersection_ids[:50])

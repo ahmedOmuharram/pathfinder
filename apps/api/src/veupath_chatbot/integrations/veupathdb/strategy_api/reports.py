@@ -7,7 +7,7 @@ answers and records, and get step counts.
 from typing import cast
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
@@ -31,7 +31,7 @@ class ReportsMixin(StrategyAPIBase):
         step_id: int,
         attributes: list[str] | None = None,
         pagination: dict[str, int] | None = None,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Get answer records for a step via the standard report endpoint.
 
         Convenience wrapper around :meth:`get_step_records`.
@@ -39,7 +39,7 @@ class ReportsMixin(StrategyAPIBase):
         :param step_id: Step ID.
         :param attributes: Attributes to include in response.
         :param pagination: Offset and numRecords.
-        :returns: Answer data with records.
+        :returns: Validated WDK answer with records.
         """
         return await self.get_step_records(
             step_id, attributes=attributes, pagination=pagination
@@ -52,7 +52,7 @@ class ReportsMixin(StrategyAPIBase):
         tables: list[str] | None = None,
         pagination: dict[str, int] | None = None,
         sorting: list[JSONObject] | None = None,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Get paginated records for a step with configurable attributes and sorting.
 
         :param step_id: WDK step ID (must be part of a strategy).
@@ -60,7 +60,7 @@ class ReportsMixin(StrategyAPIBase):
         :param tables: Table names to include.
         :param pagination: ``{offset, numRecords}`` for server-side paging.
         :param sorting: List of ``{attributeName, direction}`` dicts.
-        :returns: Standard report response with ``records`` and ``meta``.
+        :returns: Validated WDK answer with ``records`` and ``meta``.
         """
         report_config: JSONObject = {}
         if attributes:
@@ -76,24 +76,9 @@ class ReportsMixin(StrategyAPIBase):
         return await self._standard_report(step_id, report_config)
 
     async def get_step_count(self, step_id: int) -> int:
-        """Get result count for a step.
-
-        Uses the standard report endpoint and reads ``meta.totalCount``
-        (``JsonKeys.TOTAL_COUNT``).
-        """
+        """Get result count for a step."""
         await self._ensure_session()
         answer = await self._standard_report(
             step_id, {"pagination": {"offset": 0, "numRecords": 0}}
         )
-        meta_raw = answer.get("meta")
-        if not isinstance(meta_raw, dict):
-            msg = "Step count: response missing 'meta' dict"
-            raise DataParsingError(msg)
-        total_count_raw = meta_raw.get("totalCount")
-        if not isinstance(total_count_raw, int):
-            msg = (
-                f"Step count: 'meta.totalCount' is not an int "
-                f"(got {type(total_count_raw).__name__}: {total_count_raw!r})"
-            )
-            raise DataParsingError(msg)
-        return total_count_raw
+        return answer.meta.total_count

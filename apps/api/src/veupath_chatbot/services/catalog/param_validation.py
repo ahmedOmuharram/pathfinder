@@ -4,28 +4,28 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
-import httpx
-
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
-    extract_param_specs,
+    adapt_param_specs_from_search,
     find_missing_required_params,
-    unwrap_search_data,
 )
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import (
     encode_context_param_values_for_wdk,
 )
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.discovery import (
+    DiscoveryService,
+    get_discovery_service,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 from .param_resolution import (
-    _extract_param_names,
+    _extract_param_names_from_response,
     _filter_context_values,
     expand_search_details_with_params,
 )
@@ -78,13 +78,13 @@ async def validate_search_params(
     """
     raw_context = context_values or {}
     normalized_context: JSONObject = {}
-    details: JSONObject | None = None
+    response: WDKSearchResponse | None = None
     allowed: set[str] = set()
 
     try:
-        details = await expand_search_details_with_params(ctx, raw_context)
-        allowed = _extract_param_names(details if isinstance(details, dict) else {})
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        response = await expand_search_details_with_params(ctx, raw_context)
+        allowed = _extract_param_names_from_response(response)
+    except AppError as exc:
         return {
             "validation": {
                 "isValid": False,
@@ -97,9 +97,8 @@ async def validate_search_params(
         }
 
     filtered_context = _filter_context_values(raw_context, allowed)
-    spec_payload = unwrap_search_data(details) or {}
-    spec_map = adapt_param_specs(spec_payload)
-    raw_specs = extract_param_specs(spec_payload)
+    spec_map = adapt_param_specs_from_search(response.search_data)
+    raw_specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
 
     try:
         canonicalizer = ParameterCanonicalizer(spec_map)
@@ -168,7 +167,7 @@ async def _resolve_search_details(
     *,
     resolved_record_type: str,
     parameters: JSONObject,
-) -> JSONObject:
+) -> WDKSearchResponse:
     """Fetch search details with contextual params, with fallback.
 
     ``ctx`` carries the original (site_id, record_type, search_name) for
@@ -189,7 +188,7 @@ async def _resolve_search_details(
                 context=context,
                 expand_params=True,
             )
-        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Contextual param fetch failed, falling back to non-contextual specs",
                 record_type=resolved_record_type,
@@ -200,7 +199,7 @@ async def _resolve_search_details(
             return await discovery.get_search_details(
                 resolved_ctx, expand_params=True
             )
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         hint_record_type = await _find_search_record_type_hint(discovery, ctx)
         available = await _collect_available_search_names(
             discovery, ctx.site_id, resolved_record_type
@@ -221,31 +220,21 @@ async def _resolve_search_details(
 
 
 async def _collect_available_search_names(
-    discovery: object, site_id: str, resolved_record_type: str
+    discovery: DiscoveryService, site_id: str, resolved_record_type: str
 ) -> list[str]:
     """Collect available search names for a record type (for error context)."""
     searches = await discovery.get_searches(site_id, resolved_record_type)
-    available: list[str] = []
-    for s in searches:
-        if not isinstance(s, dict):
-            continue
-        name_raw = s.get("name")
-        url_seg_raw = s.get("urlSegment")
-        name = name_raw if isinstance(name_raw, str) else None
-        url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
-        available_val = name or url_seg
-        if isinstance(available_val, str):
-            available.append(available_val)
-    return available
+    return [s.url_segment for s in searches]
 
 
 async def _find_search_record_type_hint(
-    discovery: object, ctx: SearchContext
+    discovery: DiscoveryService, ctx: SearchContext
 ) -> str | None:
     """Search other record types to find where *search_name* actually lives."""
     try:
         record_types = await discovery.get_record_types(ctx.site_id)
         for rt in record_types:
+            # Record types are still JSONArray dicts (not typed yet).
             if not isinstance(rt, dict):
                 continue
             url_seg_raw = rt.get("urlSegment")
@@ -257,15 +246,9 @@ async def _find_search_record_type_hint(
                 continue
             rt_searches = await discovery.get_searches(ctx.site_id, rt_name)
             for s in rt_searches:
-                if not isinstance(s, dict):
-                    continue
-                s_url_seg_raw = s.get("urlSegment")
-                s_name_raw = s.get("name")
-                s_url_seg = s_url_seg_raw if isinstance(s_url_seg_raw, str) else None
-                s_name = s_name_raw if isinstance(s_name_raw, str) else None
-                if ctx.search_name in (s_url_seg, s_name):
+                if ctx.search_name == s.url_segment:
                     return rt_name
-    except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as hint_exc:
+    except AppError as hint_exc:
         logger.warning(
             "Record type hint resolution failed",
             search_name=ctx.search_name,
@@ -342,26 +325,19 @@ async def validate_parameters(
             ],
         )
 
-    details = await _resolve_search_details(
+    response = await _resolve_search_details(
         ctx,
         resolved_record_type=resolved_record_type,
         parameters=parameters,
     )
 
-    spec_payload = unwrap_search_data(details) or {}
-    param_specs = extract_param_specs(spec_payload)
-    param_spec_map = adapt_param_specs(spec_payload)
+    param_specs: JSONArray = [p.model_dump(by_alias=True) for p in (response.search_data.parameters or [])]
+    param_spec_map = adapt_param_specs_from_search(response.search_data)
     normalizer = ParameterNormalizer(param_spec_map)
     normalized = normalizer.normalize(parameters)
     parameters.clear()
     parameters.update(normalized)
-    param_names: set[str] = set()
-    for p in param_specs:
-        if not isinstance(p, dict):
-            continue
-        name_raw = p.get("name")
-        if isinstance(name_raw, str):
-            param_names.add(name_raw)
+    param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in parameters if key not in param_names]
     if extra_params:
         raise ValidationError(

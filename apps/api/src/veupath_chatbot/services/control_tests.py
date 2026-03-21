@@ -12,6 +12,7 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
@@ -140,12 +141,11 @@ class IntersectionConfig:
         )
 
 
-def _find_param_type(params: list[object], param_name: str) -> str | None:
+def _find_param_type(params: list[WDKParameter], param_name: str) -> str | None:
     """Find the type of a named parameter in a WDK parameters list."""
     for p in params:
-        if isinstance(p, dict) and p.get("name") == param_name:
-            ptype = p.get("type")
-            return str(ptype) if ptype else None
+        if p.name == param_name:
+            return p.type
     return None
 
 
@@ -164,14 +164,11 @@ async def resolve_controls_param_type(
     :returns: Parameter type string (e.g. ``"input-dataset"``) or None.
     """
     try:
-        details = await api.client.get_search_details(record_type, controls_search_name)
-        search_data = details.get("searchData") if isinstance(details, dict) else None
-        params = (
-            search_data.get("parameters") if isinstance(search_data, dict) else None
-        )
-        if isinstance(params, list):
+        response = await api.client.get_search_details(record_type, controls_search_name)
+        params = response.search_data.parameters
+        if params is not None:
             return _find_param_type(params, controls_param_name)
-    except (AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.warning(
             "Could not resolve param type for controls",
             search=controls_search_name,
@@ -276,7 +273,7 @@ async def _run_intersection_control(
                 },
             )
             ids_found = extract_record_ids(
-                (answer or {}).get("records"), preferred_key=config.id_field
+                answer.records, preferred_key=config.id_field
             )
 
         # Convert list[str] to JSONValue-compatible types
@@ -305,7 +302,7 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
     """
     try:
         strategies = await api.list_strategies()
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning(
             "Failed to list strategies for control-test cleanup", error=str(exc)
         )

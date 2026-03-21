@@ -69,7 +69,7 @@ async def _execute_analysis(
             analysis_type=wdk_analysis_type,
             param_names=list(analysis_params.keys()),
         )
-    except (AppError, ValueError, TypeError, KeyError) as exc:
+    except AppError as exc:
         logger.warning(
             "Could not fetch analysis form metadata, using empty params",
             analysis_type=wdk_analysis_type,

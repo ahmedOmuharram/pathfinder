@@ -10,9 +10,8 @@ from dataclasses import dataclass
 from typing import Protocol, cast
 
 from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
+    adapt_param_specs_from_search,
     find_input_step_param,
-    unwrap_search_data,
 )
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
@@ -389,8 +388,8 @@ async def _validate_transform_input_param(
     """Confirm the search accepts an input step (required for transforms)."""
     try:
         wdk = get_wdk_client(site_id)
-        details = await wdk.get_search_details(rt, search_name, expand_params=True)
-    except (AppError, ValueError, TypeError) as exc:
+        response = await wdk.get_search_details(rt, search_name, expand_params=True)
+    except AppError as exc:
         return tool_error(
             ErrorCode.VALIDATION_ERROR,
             "Failed to load search metadata for transform validation.",
@@ -398,7 +397,7 @@ async def _validate_transform_input_param(
             searchName=search_name,
             detail=str(exc),
         )
-    specs = adapt_param_specs(unwrap_search_data(details) or {})
+    specs = adapt_param_specs_from_search(response.search_data)
     input_param = find_input_step_param(specs)
     if not input_param:
         return tool_error(
@@ -525,7 +524,7 @@ async def _validate_step_by_kind(
     site_id: str,
     search_name: str,
     inputs: _StepInputs,
-    parsed_op: object,
+    parsed_op: CombineOp | None,
     callbacks: StepCreationCallbacks,
 ) -> JSONObject | None:
     """Validate a step based on its kind (leaf/transform vs binary)."""
@@ -553,7 +552,7 @@ async def _resolve_search_name_and_validate(
     spec_search_name: str | None,
     inputs: _StepInputs,
     callbacks: StepCreationCallbacks,
-) -> tuple[str, object, JSONObject | None]:
+) -> tuple[str, CombineOp | None, JSONObject | None]:
     """Resolve search_name, parse operator, and run step validation.
 
     :returns: (search_name, parsed_op, error_or_none).

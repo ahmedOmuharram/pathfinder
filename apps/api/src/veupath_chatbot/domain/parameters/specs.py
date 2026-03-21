@@ -1,7 +1,11 @@
 """Adapters for WDK parameter specifications."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKBaseParameter
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 
 
@@ -26,6 +30,44 @@ class ParamSpecNormalized:
     group: str = ""
     dependent_params: tuple[str, ...] = ()
     help: str | None = None
+    initial_display_value: str | None = None
+
+    @classmethod
+    def from_wdk(cls, param: WDKBaseParameter) -> ParamSpecNormalized:
+        """Convert a typed WDK parameter to the canonical spec."""
+        vocabulary = param.vocabulary if hasattr(param, "vocabulary") else None
+        min_sel = getattr(param, "min_selected_count", None)
+        max_sel = getattr(param, "max_selected_count", None)
+        if isinstance(max_sel, int) and max_sel < 0:
+            max_sel = None
+        is_number = getattr(param, "is_number", False)
+        min_val = getattr(param, "min", None)
+        max_val = getattr(param, "max", None)
+        increment = getattr(param, "increment", None)
+        length = getattr(param, "length", None)
+        max_length = length if isinstance(length, int) and length > 0 else None
+        count_only_leaves = getattr(param, "count_only_leaves", False)
+        display_type = getattr(param, "display_type", "")
+        return cls(
+            name=param.name,
+            param_type=param.type,
+            allow_empty_value=param.allow_empty_value,
+            min_selected_count=min_sel if isinstance(min_sel, int) else None,
+            max_selected_count=max_sel if isinstance(max_sel, int) else None,
+            vocabulary=vocabulary,
+            count_only_leaves=bool(count_only_leaves),
+            is_number=bool(is_number),
+            min_value=float(min_val) if isinstance(min_val, (int, float)) else None,
+            max_value=float(max_val) if isinstance(max_val, (int, float)) else None,
+            increment=float(increment) if isinstance(increment, (int, float)) else None,
+            max_length=max_length,
+            display_type=str(display_type),
+            is_visible=param.is_visible,
+            group=param.group,
+            dependent_params=tuple(param.dependent_params),
+            help=param.help,
+            initial_display_value=param.initial_display_value,
+        )
 
 
 def unwrap_search_data(details: JSONObject | None) -> JSONObject | None:
@@ -233,3 +275,14 @@ def find_missing_required_params(
             missing.append(name)
 
     return missing
+
+
+def adapt_param_specs_from_search(search: WDKSearch) -> dict[str, ParamSpecNormalized]:
+    """Build normalized param specs from a typed WDK search.
+
+    Typed equivalent of :func:`adapt_param_specs` -- uses ``from_wdk()``
+    instead of manual dict extraction.
+    """
+    if not search.parameters:
+        return {}
+    return {p.name: ParamSpecNormalized.from_wdk(p) for p in search.parameters}

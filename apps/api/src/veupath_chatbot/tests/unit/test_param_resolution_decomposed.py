@@ -9,12 +9,47 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
+from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
 from veupath_chatbot.services.catalog.param_formatting import format_param_info
 from veupath_chatbot.services.catalog.param_resolution import get_search_parameters
 from veupath_chatbot.services.catalog.vocab_rendering import allowed_values
+
+# ---------------------------------------------------------------------------
+# Test helpers
+# ---------------------------------------------------------------------------
+
+
+def _normalize_search_dict(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw search dict so it can be parsed by WDKSearch.model_validate()."""
+    d = dict(raw)
+    if "urlSegment" not in d:
+        d["urlSegment"] = "unknown"
+    params = d.get("parameters")
+    if isinstance(params, dict):
+        d["paramNames"] = [k for k in params if k]
+        d.pop("parameters")
+    elif isinstance(params, list):
+        normalized: list[dict[str, Any]] = []
+        for p in params:
+            if isinstance(p, dict):
+                entry = {**p, "type": "string"} if "type" not in p else p
+                normalized.append(entry)
+        d["parameters"] = normalized
+    return d
+
+
+def _to_wdk_search_response(details: dict[str, Any]) -> WDKSearchResponse:
+    """Convert a raw dict to WDKSearchResponse."""
+    normalized = _normalize_search_dict(details)
+    search = WDKSearch.model_validate(normalized)
+    return WDKSearchResponse(search_data=search, validation=WDKValidation())
 
 # ---------------------------------------------------------------------------
 # allowed_values
@@ -254,18 +289,19 @@ class TestFetchSearchDetails:
     """Tests for fetch_search_details() helper."""
 
     async def test_returns_details_on_success(self) -> None:
-        expected: dict[str, Any] = {
+        expected = _to_wdk_search_response({
             "displayName": "Test Search",
             "parameters": [],
-        }
+        })
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(return_value=expected)
         discovery.get_searches = AsyncMock(return_value=[])
 
-        details, resolved_rt = await fetch_search_details(
+        response, resolved_rt = await fetch_search_details(
             discovery, SearchContext("plasmodb", "gene", "TestSearch")
         )
-        assert details == expected
+        assert isinstance(response, WDKSearchResponse)
+        assert response.search_data.display_name == "Test Search"
         assert resolved_rt == "gene"
 
     async def test_fallback_scans_record_types_on_failure(self) -> None:
@@ -273,19 +309,19 @@ class TestFetchSearchDetails:
 
         async def _side_effect(
             ctx: SearchContext, expand_params: bool = True
-        ) -> dict[str, Any]:
+        ) -> WDKSearchResponse:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 msg = "not found on first try"
-                raise ValueError(msg)
-            return {"displayName": "Found", "parameters": []}
+                raise AppError(ErrorCode.SEARCH_NOT_FOUND, msg)
+            return _to_wdk_search_response({"displayName": "Found", "parameters": []})
 
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(side_effect=_side_effect)
         discovery.get_searches = AsyncMock(
             side_effect=lambda _sid, rt: (
-                [{"urlSegment": "MySearch"}] if rt == "transcript" else []
+                [WDKSearch(url_segment="MySearch")] if rt == "transcript" else []
             )
         )
 
@@ -294,19 +330,20 @@ class TestFetchSearchDetails:
             {"urlSegment": "transcript", "name": "Transcripts"},
         ]
 
-        details, resolved_rt = await fetch_search_details(
+        response, resolved_rt = await fetch_search_details(
             discovery,
             SearchContext("plasmodb", "gene", "MySearch"),
             record_types=record_types,
         )
-        assert details is not None
-        assert isinstance(details, dict)
-        assert details["displayName"] == "Found"
+        assert isinstance(response, WDKSearchResponse)
+        assert response.search_data.display_name == "Found"
         assert resolved_rt == "transcript"
 
     async def test_raises_validation_error_when_not_found_anywhere(self) -> None:
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(side_effect=ValueError("not found"))
+        discovery.get_search_details = AsyncMock(
+            side_effect=AppError(ErrorCode.SEARCH_NOT_FOUND, "not found"),
+        )
         discovery.get_searches = AsyncMock(return_value=[])
 
         record_types: list[Any] = [
@@ -325,10 +362,12 @@ class TestFetchSearchDetails:
         """When fallback scan finds the search but details fetch fails too,
         it should still raise ValidationError."""
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(side_effect=ValueError("always fails"))
+        discovery.get_search_details = AsyncMock(
+            side_effect=AppError(ErrorCode.SEARCH_NOT_FOUND, "always fails"),
+        )
         discovery.get_searches = AsyncMock(
             side_effect=lambda _sid, rt: (
-                [{"urlSegment": "MySearch"}] if rt == "gene" else []
+                [WDKSearch(url_segment="MySearch")] if rt == "gene" else []
             )
         )
 
@@ -347,7 +386,9 @@ class TestFetchSearchDetails:
 
     async def test_skips_non_dict_record_types(self) -> None:
         discovery = MagicMock()
-        discovery.get_search_details = AsyncMock(side_effect=ValueError("not found"))
+        discovery.get_search_details = AsyncMock(
+            side_effect=AppError(ErrorCode.SEARCH_NOT_FOUND, "not found"),
+        )
         discovery.get_searches = AsyncMock(return_value=[])
 
         record_types: list[Any] = [
@@ -380,7 +421,7 @@ class TestGetSearchParametersAfterDecomposition:
             return_value=[{"urlSegment": "gene", "name": "Genes"}]
         )
         discovery.get_search_details = AsyncMock(
-            return_value={
+            return_value=_to_wdk_search_response({
                 "displayName": "Genes by Taxon",
                 "description": "Find genes by taxonomy",
                 "parameters": [
@@ -393,7 +434,7 @@ class TestGetSearchParametersAfterDecomposition:
                         "help": "Choose an organism",
                     },
                 ],
-            }
+            })
         )
         discovery.get_searches = AsyncMock(return_value=[])
 
@@ -419,17 +460,17 @@ class TestGetSearchParametersAfterDecomposition:
 
         async def _get_details(
             ctx: SearchContext, expand_params: bool = True
-        ) -> dict[str, Any]:
+        ) -> WDKSearchResponse:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 msg = "not found"
-                raise ValueError(msg)
-            return {
+                raise AppError(ErrorCode.SEARCH_NOT_FOUND, msg)
+            return _to_wdk_search_response({
                 "displayName": "Found",
                 "description": "desc",
                 "parameters": [{"name": "p1", "type": "string"}],
-            }
+            })
 
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
@@ -441,7 +482,7 @@ class TestGetSearchParametersAfterDecomposition:
         discovery.get_search_details = AsyncMock(side_effect=_get_details)
         discovery.get_searches = AsyncMock(
             side_effect=lambda _sid, rt: (
-                [{"urlSegment": "SharedSearch"}] if rt == "transcript" else []
+                [WDKSearch(url_segment="SharedSearch")] if rt == "transcript" else []
             )
         )
 

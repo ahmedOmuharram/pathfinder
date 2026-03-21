@@ -5,7 +5,6 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     SearchCatalog,
     get_discovery_service,
 )
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_search_matches
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.wdk.record_types import resolve_record_type
@@ -62,10 +61,8 @@ class IdMappingMixin(StrategyToolsBase):
     ) -> str | None:
         catalog = await self._get_catalog()
         # Fast path: search exists in the resolved record type.
-        if resolved:
-            searches = catalog.get_searches(resolved)
-            if any(wdk_search_matches(s, search_name) for s in searches):
-                return resolved
+        if resolved and catalog.find_search(resolved, search_name):
+            return resolved
         if not allow_fallback:
             return None if require_match else resolved
         # Global lookup across all record types.
@@ -76,10 +73,8 @@ class IdMappingMixin(StrategyToolsBase):
         self, catalog: SearchCatalog, search_name: str, exclude: str
     ) -> str | None:
         """Scan all record types except *exclude* for a search match."""
-        for rt_name, searches in catalog._searches.items():
-            if rt_name != exclude and any(
-                wdk_search_matches(s, search_name) for s in searches
-            ):
+        for rt_name in catalog._searches:
+            if rt_name != exclude and catalog.find_search(rt_name, search_name):
                 return rt_name
         return None
 
@@ -88,7 +83,7 @@ class IdMappingMixin(StrategyToolsBase):
     ) -> str | None:
         try:
             catalog = await self._get_catalog()
-        except (AppError, ValueError, TypeError) as exc:
+        except AppError as exc:
             logger.warning(
                 "Failed to fetch search catalog for record type hint",
                 search_name=search_name,

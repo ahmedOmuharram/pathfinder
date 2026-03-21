@@ -4,15 +4,23 @@ Provides :class:`StrategiesMixin` with methods to create, read, update,
 and delete WDK strategies.
 """
 
+import contextlib
 from typing import cast
+
+import pydantic
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     tag_internal_wdk_strategy_name,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKStrategyDetails,
+    WDKStrategySummary,
+)
+from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -65,28 +73,35 @@ class StrategiesMixin(StrategyAPIBase):
             ),
         )
 
-    async def get_strategy(self, strategy_id: int) -> JSONObject:
+    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails:
         """Get a strategy by ID."""
         await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}"),
-        )
+        raw = await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}")
+        try:
+            return WDKStrategyDetails.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK strategy response for {strategy_id}: {e}"
+            raise DataParsingError(msg) from e
 
-    async def list_strategies(self) -> JSONArray:
+    async def list_strategies(self) -> list[WDKStrategySummary]:
         """List strategies for the current user."""
         await self._ensure_session()
-        return cast(
-            "JSONArray",
-            await self.client.get(f"/users/{self.user_id}/strategies"),
-        )
+        raw = await self.client.get(f"/users/{self.user_id}/strategies")
+        if not isinstance(raw, list):
+            return []
+        result: list[WDKStrategySummary] = []
+        for item in raw:
+            if isinstance(item, dict):
+                with contextlib.suppress(pydantic.ValidationError):
+                    result.append(WDKStrategySummary.model_validate(item))
+        return result
 
     async def update_strategy(
         self,
         strategy_id: int,
         step_tree: StepTreeNode | None = None,
         name: str | None = None,
-    ) -> JSONObject:
+    ) -> WDKStrategyDetails:
         """Update a strategy."""
         await self._ensure_session()
 

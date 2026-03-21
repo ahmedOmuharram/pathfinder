@@ -11,6 +11,7 @@ from veupath_chatbot.domain.parameters.specs import adapt_param_specs
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import StrategyCompiler
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "wdk"
@@ -33,8 +34,8 @@ class FakeStrategyAPI:
 
         async def get_search_details(
             record_type: str, search_name: str, expand_params: bool = False
-        ) -> JSONObject:
-            return fixtures[search_name]
+        ) -> WDKSearchResponse:
+            return WDKSearchResponse.model_validate(fixtures[search_name])
 
         self.client.get_search_details = AsyncMock(side_effect=get_search_details)
         self.client.get_searches = AsyncMock(return_value=[])

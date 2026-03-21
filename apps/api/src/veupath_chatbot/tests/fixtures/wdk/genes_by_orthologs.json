@@ -1,5 +1,6 @@
 {
   "searchData": {
+    "urlSegment": "GenesByOrthologs",
     "parameters": [
       {
         "name": "inputStepId",
@@ -26,5 +27,9 @@
         ]
       }
     ]
+  },
+  "validation": {
+    "level": "DISPLAYABLE",
+    "isValid": true
   }
 }

@@ -95,7 +95,7 @@ async def evaluate_steps(
                         positive_controls=ctx.positive_controls,
                         negative_controls=ctx.negative_controls,
                     )
-        except (AppError, ValueError, TypeError) as exc:
+        except AppError as exc:
             logger.warning("Step evaluation failed", step=lid, error=str(exc))
             return None
 

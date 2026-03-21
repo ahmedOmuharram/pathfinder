@@ -403,7 +403,7 @@ async def _evaluate_trial(
                     positive_controls=ctx.positive_controls,
                     negative_controls=ctx.negative_controls,
                 )
-            except (AppError, ValueError, TypeError, KeyError) as trial_exc:
+            except AppError as trial_exc:
                 wdk_error = str(trial_exc)
                 wdk_result = None
 
@@ -786,7 +786,7 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
                 break
             trial_idx += batch_size
 
-    except (AppError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+    except (AppError, RuntimeError) as exc:
         logger.error("Optimization failed", error=str(exc), exc_info=True)
         if ctx.progress_callback:
             await emit_error(

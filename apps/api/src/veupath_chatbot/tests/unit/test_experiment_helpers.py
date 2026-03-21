@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.helpers import (
     _enrich_list,
     _extract_gene_list,
@@ -143,7 +144,7 @@ class TestExtractAndEnrichGenes:
             "negative": {"intersectionIds": ["g2"]},
         }
 
-        mock_resolve = AsyncMock(side_effect=ValueError("WDK down"))
+        mock_resolve = AsyncMock(side_effect=WDKError(detail="WDK down"))
 
         with patch(
             "veupath_chatbot.services.experiment.helpers.resolve_gene_ids",

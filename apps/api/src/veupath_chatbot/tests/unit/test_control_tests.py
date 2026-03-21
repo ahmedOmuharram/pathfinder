@@ -20,7 +20,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKSearchResponse,
+)
+from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
@@ -45,6 +49,21 @@ class _MockApiIds:
     create_dataset_id: int = 999
 
 
+def _make_search_response(raw: JSONObject) -> WDKSearchResponse:
+    """Wrap a raw search details dict in a WDKSearchResponse.
+
+    Ensures ``searchData.urlSegment`` and ``validation`` are present.
+    """
+    search_data = dict(raw.get("searchData", {}))
+    if "urlSegment" not in search_data:
+        search_data["urlSegment"] = "MockSearch"
+    wrapped: JSONObject = {
+        "searchData": search_data,
+        "validation": raw.get("validation", {"level": "DISPLAYABLE", "isValid": True}),
+    }
+    return WDKSearchResponse.model_validate(wrapped)
+
+
 def _make_mock_api(
     *,
     step_count: int = 42,
@@ -66,8 +85,8 @@ def _make_mock_api(
     # get_step_count returns an int
     api.get_step_count = AsyncMock(return_value=step_count)
 
-    # get_step_answer returns dict with meta + records
-    default_answer = step_answer or {
+    # get_step_answer returns WDKAnswer with meta + records
+    default_answer_raw = step_answer or {
         "meta": {"totalCount": step_count},
         "records": [
             {
@@ -80,7 +99,9 @@ def _make_mock_api(
             },
         ],
     }
-    api.get_step_answer = AsyncMock(return_value=default_answer)
+    api.get_step_answer = AsyncMock(
+        return_value=WDKAnswer.model_validate(default_answer_raw)
+    )
 
     # create_step returns {"id": <step_id>}
     api.create_step = AsyncMock(return_value={"id": mock_ids.create_step_id})
@@ -100,18 +121,19 @@ def _make_mock_api(
     # create_dataset returns dataset ID
     api.create_dataset = AsyncMock(return_value=mock_ids.create_dataset_id)
 
-    # client.get_search_details returns search details
+    # client.get_search_details returns typed WDKSearchResponse
     api.client = MagicMock()
+    raw_details = search_details or {
+        "searchData": {
+            "urlSegment": "GeneByLocusTag",
+            "parameters": [
+                {"name": "ds_gene_ids", "type": "input-dataset"},
+                {"name": "other_param", "type": "string"},
+            ],
+        },
+    }
     api.client.get_search_details = AsyncMock(
-        return_value=search_details
-        or {
-            "searchData": {
-                "parameters": [
-                    {"name": "ds_gene_ids", "type": "input-dataset"},
-                    {"name": "other_param", "type": "string"},
-                ]
-            }
-        }
+        return_value=_make_search_response(raw_details),
     )
 
     return api
@@ -206,7 +228,7 @@ class TestGetTotalCountForStep:
     @pytest.mark.asyncio
     async def test_returns_none_on_exception(self) -> None:
         api = _make_mock_api()
-        api.get_step_count = AsyncMock(side_effect=ValueError("WDK error"))
+        api.get_step_count = AsyncMock(side_effect=WDKError(detail="WDK error"))
         result = await _get_total_count_for_step(api, 42)
         assert result is None
 
@@ -240,7 +262,7 @@ class TestResolveControlsParamType:
     async def test_returns_none_on_exception(self) -> None:
         api = _make_mock_api()
         api.client.get_search_details = AsyncMock(
-            side_effect=ValueError("network error")
+            side_effect=WDKError(detail="network error")
         )
         result = await resolve_controls_param_type(
             api, "transcript", "GeneByLocusTag", "ds_gene_ids"
@@ -514,7 +536,8 @@ class TestStrategyAPIGetStepAnswer:
             "/users/12345/steps/999/reports/standard",
             json={"reportConfig": {"pagination": {"offset": 0, "numRecords": 10}}},
         )
-        assert result == {"meta": {"totalCount": 5}, "records": []}
+        assert result.meta.total_count == 5
+        assert result.records == []
 
     @pytest.mark.asyncio
     async def test_with_attributes(self) -> None:
@@ -590,7 +613,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(DataParsingError, match="missing 'meta'"),
+            pytest.raises(DataParsingError, match="Unexpected WDK answer"),
         ):
             await api.get_step_count(step_id=999)
 
@@ -606,7 +629,7 @@ class TestStrategyAPIGetStepCount:
         api.user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(DataParsingError, match="not an int"),
+            pytest.raises(DataParsingError, match="Unexpected WDK answer"),
         ):
             await api.get_step_count(step_id=999)
 

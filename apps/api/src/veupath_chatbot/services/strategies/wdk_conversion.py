@@ -11,16 +11,14 @@ Public API:
 """
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
-from veupath_chatbot.domain.parameters.specs import (
-    adapt_param_specs,
-    unwrap_search_data,
-)
+from veupath_chatbot.domain.parameters.specs import adapt_param_specs_from_search
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
@@ -268,20 +266,20 @@ async def _load_search_spec(
     record_type: str,
     search_name: str,
     context: JSONObject,
-) -> JSONObject:
+) -> WDKSearch | None:
     """Load and unwrap search details for parameter normalization.
 
     Tries the context-aware endpoint first; falls back to the plain endpoint.
-    Returns an empty dict when both fail.
+    Returns ``None`` when both fail.
     """
     try:
-        details = await api.client.get_search_details_with_params(
+        response = await api.client.get_search_details_with_params(
             record_type,
             search_name,
             context=context,
             expand_params=True,
         )
-    except (AppError, ValueError, TypeError) as exc:
+    except AppError as exc:
         logger.warning(
             "Failed to load search details with params during WDK sync",
             record_type=record_type,
@@ -289,19 +287,18 @@ async def _load_search_spec(
             error=str(exc),
         )
         try:
-            details = await api.client.get_search_details(
+            response = await api.client.get_search_details(
                 record_type, search_name, expand_params=True
             )
-        except (AppError, ValueError, TypeError) as fallback_exc:
+        except AppError as fallback_exc:
             logger.warning(
                 "Failed to load search details during WDK sync",
                 record_type=record_type,
                 search_name=search_name,
                 error=str(fallback_exc),
             )
-            return {}
-    raw = unwrap_search_data(details) or {}
-    return raw if isinstance(raw, dict) else {}
+            return None
+    return response.search_data
 
 
 def _index_steps_by_id(steps_data: JSONArray) -> dict[str, JSONObject]:
@@ -327,7 +324,7 @@ async def normalize_synced_parameters(
     Mutates AST nodes in place with normalized parameter values.
     """
     steps_by_id = _index_steps_by_id(steps_data)
-    spec_cache: dict[tuple[str, str], JSONObject] = {}
+    spec_cache: dict[tuple[str, str], WDKSearch | None] = {}
 
     for step in ast.get_all_steps():
         if step.infer_kind() == "combine":
@@ -344,7 +341,8 @@ async def normalize_synced_parameters(
                 api, record_type, search_name, step.parameters or {}
             )
 
-        specs = adapt_param_specs(spec_cache.get(cache_key) or {})
+        cached_search = spec_cache.get(cache_key)
+        specs = adapt_param_specs_from_search(cached_search) if cached_search else {}
         if not specs:
             continue
         try:

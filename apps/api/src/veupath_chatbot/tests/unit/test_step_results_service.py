@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.services.wdk.helpers import DETAIL_ATTRIBUTE_LIMIT
 from veupath_chatbot.services.wdk.step_results import StepResultsService
 
@@ -28,7 +29,7 @@ def mock_api() -> MagicMock:
         }
     )
     api.get_step_records = AsyncMock(
-        return_value={
+        return_value=WDKAnswer.model_validate({
             "records": [
                 {
                     "id": [{"name": "source_id", "value": "GENE1"}],
@@ -36,7 +37,7 @@ def mock_api() -> MagicMock:
                 },
             ],
             "meta": {"totalCount": 1},
-        }
+        })
     )
     api.get_column_distribution = AsyncMock(return_value={"bins": []})
     api.list_analysis_types = AsyncMock(return_value=[{"name": "go-enrichment"}])

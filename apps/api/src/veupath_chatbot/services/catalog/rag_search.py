@@ -25,6 +25,7 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
 from veupath_chatbot.integrations.veupathdb.discovery import (
     get_discovery_service,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -267,7 +268,7 @@ class RagSearchService:
         search_name: str,
         *,
         expand_params: bool = True,
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         """Proxy to DiscoveryService.get_search_details for dependent-vocab fallbacks."""
         discovery = get_discovery_service()
         return await discovery.get_search_details(

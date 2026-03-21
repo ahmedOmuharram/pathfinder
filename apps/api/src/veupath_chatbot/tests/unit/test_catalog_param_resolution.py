@@ -1,6 +1,6 @@
 """Unit tests for services/catalog/param_resolution.py.
 
-Covers _extract_param_names(), _filter_context_values(), unwrap_search_data(),
+Covers _filter_context_values(),
 get_search_parameters(), get_search_parameters_tool(),
 expand_search_details_with_params(), and _get_search_details_with_portal_fallback().
 """
@@ -12,9 +12,18 @@ import pytest
 
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.platform.errors import ErrorCode, ValidationError, WDKError
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearch,
+    WDKSearchResponse,
+    WDKValidation,
+)
+from veupath_chatbot.platform.errors import (
+    AppError,
+    ErrorCode,
+    ValidationError,
+    WDKError,
+)
 from veupath_chatbot.services.catalog.param_resolution import (
-    _extract_param_names,
     _filter_context_values,
     _get_search_details_with_portal_fallback,
     expand_search_details_with_params,
@@ -27,6 +36,69 @@ from veupath_chatbot.services.catalog.param_resolution import (
 # ---------------------------------------------------------------------------
 
 
+def _to_wdk_searches(dicts: list[Any]) -> list[WDKSearch]:
+    """Convert raw dicts to WDKSearch objects, skipping non-dicts."""
+    result: list[WDKSearch] = []
+    for d in dicts:
+        if isinstance(d, dict):
+            normalized = _normalize_search_dict(d)
+            result.append(WDKSearch.model_validate(normalized))
+    return result
+
+
+def _normalize_search_dict(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw search dict so it can be parsed by WDKSearch.model_validate().
+
+    Handles test mock dicts that may have:
+    - ``parameters`` as a dict (e.g. ``{"organism": {}}``) instead of a list
+    - Parameter entries without a ``type`` field (defaults to ``"string"``)
+    - Parameter entries without a ``name`` field (filtered out)
+    - Missing ``urlSegment`` (falls back to ``name``)
+    """
+    d = dict(raw)
+    if "urlSegment" not in d:
+        d["urlSegment"] = d.get("name", "unknown")
+
+    params = d.get("parameters")
+    if isinstance(params, dict):
+        d["paramNames"] = [k for k in params if k]
+        d.pop("parameters")
+    elif isinstance(params, list):
+        normalized: list[dict[str, Any]] = []
+        for p in params:
+            if isinstance(p, dict):
+                name = p.get("name")
+                if not name or not isinstance(name, str):
+                    continue
+                entry = {**p, "type": "string"} if "type" not in p else p
+                normalized.append(entry)
+        d["parameters"] = normalized
+    return d
+
+
+def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse:
+    """Convert a raw dict to WDKSearchResponse.
+
+    Handles both envelope format (with searchData key) and flat format.
+    """
+    if not details:
+        return WDKSearchResponse(
+            search_data=WDKSearch(url_segment="unknown"),
+            validation=WDKValidation(),
+        )
+    search_data_raw = details.get("searchData")
+    if isinstance(search_data_raw, dict):
+        normalized = _normalize_search_dict(search_data_raw)
+        search = WDKSearch.model_validate(normalized)
+        validation_raw = details.get("validation", {})
+        validation = WDKValidation.model_validate(validation_raw) if isinstance(validation_raw, dict) else WDKValidation()
+        return WDKSearchResponse(search_data=search, validation=validation)
+    # Flat format: the dict IS the search data
+    normalized = _normalize_search_dict(details)
+    search = WDKSearch.model_validate(normalized)
+    return WDKSearchResponse(search_data=search, validation=WDKValidation())
+
+
 def _mock_discovery(
     record_types: list[Any] | None = None,
     searches_by_rt: dict[str, list[Any]] | None = None,
@@ -37,15 +109,20 @@ def _mock_discovery(
     discovery = MagicMock()
     discovery.get_record_types = AsyncMock(return_value=record_types or [])
     if searches_by_rt is not None:
+        parsed: dict[str, list[WDKSearch]] = {
+            rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
+        }
         discovery.get_searches = AsyncMock(
-            side_effect=lambda _site_id, rt: searches_by_rt.get(rt, [])
+            side_effect=lambda _site_id, rt: parsed.get(rt, [])
         )
     else:
         discovery.get_searches = AsyncMock(return_value=[])
     if search_details_raises:
         discovery.get_search_details = AsyncMock(side_effect=search_details_raises)
     else:
-        discovery.get_search_details = AsyncMock(return_value=search_details or {})
+        discovery.get_search_details = AsyncMock(
+            return_value=_to_wdk_search_response(search_details),
+        )
     return discovery
 
 
@@ -59,8 +136,11 @@ def _mock_wdk_client(
     client = MagicMock()
     client.get_record_types = AsyncMock(return_value=record_types or [])
     if searches_by_rt is not None:
+        parsed: dict[str, list[WDKSearch]] = {
+            rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
+        }
         client.get_searches = AsyncMock(
-            side_effect=lambda rt: searches_by_rt.get(rt, [])
+            side_effect=lambda rt: parsed.get(rt, [])
         )
     else:
         client.get_searches = AsyncMock(return_value=[])
@@ -70,7 +150,7 @@ def _mock_wdk_client(
         )
     else:
         client.get_search_details_with_params = AsyncMock(
-            return_value=search_details_with_params or {},
+            return_value=_to_wdk_search_response(search_details_with_params),
         )
     return client
 
@@ -85,87 +165,6 @@ def _get_param_by_name(result: dict[str, Any], name: str) -> dict[str, Any]:
             return p
     msg = f"Parameter '{name}' not found"
     raise AssertionError(msg)
-
-
-# ---------------------------------------------------------------------------
-# _extract_param_names
-# ---------------------------------------------------------------------------
-
-
-class TestExtractParamNames:
-    """Test the _extract_param_names() helper."""
-
-    def test_extracts_from_search_data_parameters_list(self) -> None:
-        details: dict[str, Any] = {
-            "searchData": {
-                "parameters": [
-                    {"name": "organism"},
-                    {"name": "taxon"},
-                ]
-            }
-        }
-        result = _extract_param_names(details)
-        assert result == {"organism", "taxon"}
-
-    def test_extracts_from_top_level_parameters_dict(self) -> None:
-        details: dict[str, Any] = {
-            "parameters": {
-                "organism": {"type": "string"},
-                "taxon": {"type": "string"},
-            }
-        }
-        result = _extract_param_names(details)
-        assert result == {"organism", "taxon"}
-
-    def test_extracts_from_top_level_parameters_list(self) -> None:
-        details: dict[str, Any] = {
-            "parameters": [
-                {"name": "organism"},
-                {"name": "taxon"},
-            ]
-        }
-        result = _extract_param_names(details)
-        assert result == {"organism", "taxon"}
-
-    def test_returns_empty_for_non_dict(self) -> None:
-        assert _extract_param_names("not_a_dict") == set()
-
-    def test_returns_empty_for_empty_dict(self) -> None:
-        assert _extract_param_names({}) == set()
-
-    def test_skips_non_dict_entries_in_list(self) -> None:
-        details: dict[str, Any] = {
-            "parameters": [
-                "not_a_dict",
-                {"name": "organism"},
-                42,
-            ]
-        }
-        result = _extract_param_names(details)
-        assert result == {"organism"}
-
-    def test_skips_non_string_names(self) -> None:
-        details: dict[str, Any] = {
-            "parameters": [
-                {"name": 123},
-                {"name": "valid"},
-            ]
-        }
-        result = _extract_param_names(details)
-        assert result == {"valid"}
-
-    def test_search_data_takes_priority(self) -> None:
-        details: dict[str, Any] = {
-            "searchData": {"parameters": [{"name": "from_search_data"}]},
-            "parameters": [{"name": "from_top_level"}],
-        }
-        result = _extract_param_names(details)
-        assert result == {"from_search_data"}
-
-    def test_filters_empty_keys_from_dict_parameters(self) -> None:
-        details: dict[str, Any] = {"parameters": {"organism": {}, "": {}, "taxon": {}}}
-        result = _extract_param_names(details)
-        assert result == {"organism", "taxon"}
 
 
 # ---------------------------------------------------------------------------
@@ -417,12 +416,13 @@ class TestGetSearchParameters:
         p = _get_param_by_name(result, "param1")
         assert p["defaultValue"] == "default_val"
 
-    async def test_parameter_defaults_from_default_value(self) -> None:
+    async def test_parameter_defaults_from_initial_display(self) -> None:
+        """initialDisplayValue from WDK becomes defaultValue in formatted output."""
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene"}],
             search_details={
                 "parameters": [
-                    {"name": "param1", "defaultValue": "fallback_val"},
+                    {"name": "param1", "initialDisplayValue": "fallback_val"},
                 ],
             },
         )
@@ -493,6 +493,7 @@ class TestGetSearchParameters:
                 "parameters": [
                     {
                         "name": "big_param",
+                        "type": "single-pick-vocabulary",
                         "vocabulary": vocab,
                     },
                 ],
@@ -536,7 +537,7 @@ class TestGetSearchParameters:
     async def test_raises_validation_error_when_search_not_found(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene", "name": "Genes"}],
-            search_details_raises=ValueError("not found"),
+            search_details_raises=AppError(ErrorCode.SEARCH_NOT_FOUND, "not found"),
             searches_by_rt={
                 "gene": [
                     {"urlSegment": "GenesByTaxon", "name": "Q1"},
@@ -560,17 +561,17 @@ class TestGetSearchParameters:
 
         async def _get_search_details(
             ctx: SearchContext, expand_params: bool = True
-        ) -> dict[str, Any]:
+        ) -> WDKSearchResponse:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 msg = "not found on first try"
-                raise ValueError(msg)
-            return {
+                raise AppError(ErrorCode.SEARCH_NOT_FOUND, msg)
+            return _to_wdk_search_response({
                 "displayName": "Found It",
                 "description": "desc",
                 "parameters": [{"name": "p1", "type": "string"}],
-            }
+            })
 
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
@@ -582,7 +583,7 @@ class TestGetSearchParameters:
         discovery.get_search_details = AsyncMock(side_effect=_get_search_details)
         discovery.get_searches = AsyncMock(
             side_effect=lambda _site_id, rt: (
-                [{"urlSegment": "SharedSearch"}] if rt == "transcript" else []
+                [WDKSearch(url_segment="SharedSearch")] if rt == "transcript" else []
             ),
         )
 
@@ -625,7 +626,7 @@ class TestGetSearchParametersTool:
     async def test_returns_tool_error_on_validation_error(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene"}],
-            search_details_raises=ValueError("fail"),
+            search_details_raises=AppError(ErrorCode.SEARCH_NOT_FOUND, "fail"),
             searches_by_rt={"gene": []},
         )
         with patch(
@@ -642,7 +643,7 @@ class TestGetSearchParametersTool:
     async def test_tool_error_extracts_error_code(self) -> None:
         discovery = _mock_discovery(
             record_types=[{"urlSegment": "gene"}],
-            search_details_raises=ValueError("fail"),
+            search_details_raises=AppError(ErrorCode.SEARCH_NOT_FOUND, "fail"),
             searches_by_rt={"gene": []},
         )
         with patch(
@@ -666,7 +667,10 @@ class TestGetSearchDetailsWithPortalFallback:
 
     async def test_returns_client_result_on_success(self) -> None:
         client = _mock_wdk_client(
-            search_details_with_params={"parameters": {"organism": {}}}
+            search_details_with_params={
+                "urlSegment": "GenesByTaxon",
+                "paramNames": ["organism"],
+            }
         )
         with patch(
             "veupath_chatbot.services.catalog.param_resolution.get_wdk_client",
@@ -680,14 +684,19 @@ class TestGetSearchDetailsWithPortalFallback:
                 context_values={"organism": "Pf3D7"},
             )
 
-        assert result == {"parameters": {"organism": {}}}
+        assert isinstance(result, WDKSearchResponse)
+        assert result.search_data.url_segment == "GenesByTaxon"
+        assert "organism" in result.search_data.param_names
 
     async def test_falls_back_to_portal_on_wdk_error(self) -> None:
         failing_client = _mock_wdk_client(
             search_details_with_params_raises=WDKError("fail"),
         )
         portal_client = _mock_wdk_client(
-            search_details_with_params={"parameters": {"from": "portal"}},
+            search_details_with_params={
+                "urlSegment": "GenesByTaxon",
+                "paramNames": ["from_portal"],
+            },
         )
         with patch(
             "veupath_chatbot.services.catalog.param_resolution.get_wdk_client",
@@ -701,7 +710,8 @@ class TestGetSearchDetailsWithPortalFallback:
                 context_values={},
             )
 
-        assert result == {"parameters": {"from": "portal"}}
+        assert isinstance(result, WDKSearchResponse)
+        assert "from_portal" in result.search_data.param_names
 
     async def test_no_fallback_when_already_portal(self) -> None:
         failing_client = _mock_wdk_client(
@@ -726,18 +736,19 @@ class TestExpandSearchDetailsWithParams:
     """Test expand_search_details_with_params()."""
 
     async def test_basic_expansion(self) -> None:
-        expected_details: dict[str, Any] = {
-            "parameters": [
-                {"name": "organism", "type": "string"},
-            ]
-        }
         discovery = _mock_discovery(
-            search_details={"parameters": [{"name": "organism"}]},
+            search_details={
+                "urlSegment": "GenesByTaxon",
+                "parameters": [{"name": "organism", "type": "string"}],
+            },
         )
         client = _mock_wdk_client(
             record_types=[{"urlSegment": "gene"}],
             searches_by_rt={"gene": [{"urlSegment": "GenesByTaxon"}]},
-            search_details_with_params=expected_details,
+            search_details_with_params={
+                "urlSegment": "GenesByTaxon",
+                "parameters": [{"name": "organism", "type": "string"}],
+            },
         )
         with (
             patch(
@@ -753,18 +764,22 @@ class TestExpandSearchDetailsWithParams:
                 SearchContext("plasmodb", "gene", "GenesByTaxon"), {"organism": "Pf3D7"}
             )
 
-        assert result == expected_details
+        assert isinstance(result, WDKSearchResponse)
+        assert result.search_data.url_segment == "GenesByTaxon"
 
     async def test_filters_context_to_allowed_params(self) -> None:
         discovery = _mock_discovery(
             search_details={
-                "parameters": [{"name": "organism"}],
+                "urlSegment": "GenesByTaxon",
+                "parameters": [{"name": "organism", "type": "string"}],
             },
         )
         client = _mock_wdk_client(
             record_types=[{"urlSegment": "gene"}],
             searches_by_rt={"gene": [{"urlSegment": "GenesByTaxon"}]},
-            search_details_with_params={},
+            search_details_with_params={
+                "urlSegment": "GenesByTaxon",
+            },
         )
         with (
             patch(
@@ -787,12 +802,17 @@ class TestExpandSearchDetailsWithParams:
 
     async def test_handles_none_context(self) -> None:
         discovery = _mock_discovery(
-            search_details={"parameters": []},
+            search_details={
+                "urlSegment": "GenesByTaxon",
+                "parameters": [],
+            },
         )
         client = _mock_wdk_client(
             record_types=[{"urlSegment": "gene"}],
             searches_by_rt={"gene": [{"urlSegment": "GenesByTaxon"}]},
-            search_details_with_params={},
+            search_details_with_params={
+                "urlSegment": "GenesByTaxon",
+            },
         )
         with (
             patch(
@@ -808,4 +828,4 @@ class TestExpandSearchDetailsWithParams:
                 SearchContext("plasmodb", "gene", "GenesByTaxon"), None
             )
 
-        assert isinstance(result, dict)
+        assert isinstance(result, WDKSearchResponse)

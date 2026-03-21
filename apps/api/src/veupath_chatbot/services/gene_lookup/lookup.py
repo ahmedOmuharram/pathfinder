@@ -66,7 +66,7 @@ async def _run_primary_searches(
                 query,
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        except (httpx.HTTPError, AppError) as exc:
             logger.warning(
                 "Gene text lookup via site-search failed; falling back to WDK strategies",
                 site_id=site_id,
@@ -84,7 +84,7 @@ async def _run_primary_searches(
                 f'"{query.strip()}"',
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        except (httpx.HTTPError, AppError) as exc:
             logger.warning(
                 "Phrase-quoted gene search failed", query=query, error=str(exc)
             )
@@ -128,7 +128,7 @@ async def _run_supplementary_searches(
                 organisms=[effective_organism],
                 limit=SITE_SEARCH_FETCH_LIMIT,
             )
-        except (httpx.HTTPError, AppError, ValueError, TypeError, KeyError) as exc:
+        except (httpx.HTTPError, AppError) as exc:
             logger.debug(
                 "Organism-restricted gene search failed (non-fatal)",
                 site_id=site_id,
@@ -150,7 +150,7 @@ async def _run_supplementary_searches(
                 text_fields=WDK_TEXT_FIELDS_ID,
                 limit=max(WDK_WILDCARD_LIMIT, needed),
             )
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.debug(
                 "WDK wildcard gene search failed (non-fatal)",
                 site_id=site_id,
@@ -170,7 +170,7 @@ async def _run_supplementary_searches(
                 text_fields=WDK_TEXT_FIELDS_BROAD,
                 limit=max(WDK_WILDCARD_LIMIT, needed),
             )
-        except (AppError, ValueError, TypeError, KeyError) as exc:
+        except AppError as exc:
             logger.debug(
                 "WDK broad text gene search failed (non-fatal)",
                 site_id=site_id,

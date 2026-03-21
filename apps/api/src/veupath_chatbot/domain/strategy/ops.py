@@ -82,8 +82,8 @@ class ColocationParams(CamelModel):
             strand=strand_value,
         )
 
-    def validate(self) -> list[str]:
-        """Validate parameters."""
+    def check_errors(self) -> list[str]:
+        """Check for validation errors and return a list of messages."""
         errors = []
         if self.upstream < 0:
             errors.append("Upstream distance must be non-negative")

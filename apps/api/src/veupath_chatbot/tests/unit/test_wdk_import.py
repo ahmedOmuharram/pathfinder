@@ -10,6 +10,8 @@ Covers:
 from unittest.mock import AsyncMock, MagicMock
 
 from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.wdk_conversion import (
     extract_wdk_is_saved,
@@ -53,11 +55,17 @@ def _make_wdk_strategy(
 
 def _mock_api(wdk_strategy: JSONObject) -> AsyncMock:
     """Create a mock StrategyAPI whose get_strategy returns the given payload."""
+    _empty_response = WDKSearchResponse.model_validate({
+        "searchData": {"urlSegment": "_stub"},
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    })
     api = AsyncMock()
     api.get_strategy = AsyncMock(return_value=wdk_strategy)
     api.client = MagicMock()
-    api.client.get_search_details_with_params = AsyncMock(return_value={})
-    api.client.get_search_details = AsyncMock(return_value={})
+    api.client.get_search_details_with_params = AsyncMock(
+        return_value=_empty_response,
+    )
+    api.client.get_search_details = AsyncMock(return_value=_empty_response)
     return api
 
 
@@ -490,9 +498,9 @@ class TestFetchAndConvertEdgeCases:
         api = _mock_api(wdk)
         # Make the normalization path raise
         api.client.get_search_details_with_params = AsyncMock(
-            side_effect=ValueError("boom")
+            side_effect=WDKError(detail="boom")
         )
-        api.client.get_search_details = AsyncMock(side_effect=ValueError("boom"))
+        api.client.get_search_details = AsyncMock(side_effect=WDKError(detail="boom"))
 
         # Should not raise -- normalization failures are logged and swallowed
         ast, _, _ = await fetch_and_convert(api, 1)

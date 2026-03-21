@@ -8,6 +8,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.domain.search import SearchContext
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.catalog.searches import (
     _search_for_searches_via_site_search,
     find_record_type_for_search,
@@ -20,6 +22,17 @@ from veupath_chatbot.services.catalog.searches import (
 # ---------------------------------------------------------------------------
 
 
+def _to_wdk_searches(dicts: list[Any]) -> list[WDKSearch]:
+    """Convert raw dicts to WDKSearch objects, skipping non-dicts."""
+    result: list[WDKSearch] = []
+    for d in dicts:
+        if isinstance(d, dict):
+            # WDKSearch requires urlSegment; fall back to "name" key.
+            entry = {**d, "urlSegment": d["name"]} if "urlSegment" not in d and "name" in d else d
+            result.append(WDKSearch.model_validate(entry))
+    return result
+
+
 def _mock_discovery(
     record_types: list[Any] | None = None,
     searches_by_rt: dict[str, list[Any]] | None = None,
@@ -28,8 +41,11 @@ def _mock_discovery(
     discovery = MagicMock()
     discovery.get_record_types = AsyncMock(return_value=record_types or [])
     if searches_by_rt is not None:
+        parsed: dict[str, list[WDKSearch]] = {
+            rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
+        }
         discovery.get_searches = AsyncMock(
-            side_effect=lambda _site_id, rt: searches_by_rt.get(rt, [])
+            side_effect=lambda _site_id, rt: parsed.get(rt, [])
         )
     else:
         discovery.get_searches = AsyncMock(return_value=[])
@@ -44,8 +60,11 @@ def _mock_client(
     client = MagicMock()
     client.get_record_types = AsyncMock(return_value=record_types or [])
     if searches_by_rt is not None:
+        parsed: dict[str, list[WDKSearch]] = {
+            rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
+        }
         client.get_searches = AsyncMock(
-            side_effect=lambda rt: searches_by_rt.get(rt, [])
+            side_effect=lambda rt: parsed.get(rt, [])
         )
     else:
         client.get_searches = AsyncMock(return_value=[])
@@ -120,12 +139,12 @@ class TestListSearches:
                     {
                         "urlSegment": "GenesByTaxon",
                         "displayName": "Genes by Taxon",
-                        "isInternal": False,
+                        "fullName": "GeneQuestions.GenesByTaxon",
                     },
                     {
                         "urlSegment": "InternalSearch",
                         "displayName": "Internal",
-                        "isInternal": True,
+                        "fullName": "InternalQuestions.InternalSearch",
                     },
                 ]
             }
@@ -221,7 +240,7 @@ class TestSearchForSearchesViaSiteSearch:
         with patch(
             "veupath_chatbot.services.catalog.searches.query_site_search",
             new_callable=AsyncMock,
-            side_effect=ValueError("Network error"),
+            side_effect=WDKError(detail="Network error"),
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
