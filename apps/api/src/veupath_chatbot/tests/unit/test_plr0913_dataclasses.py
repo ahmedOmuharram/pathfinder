@@ -17,6 +17,7 @@ from veupath_chatbot.domain.research.citations import (
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKSearchConfig,
+    WDKStep,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import InternalError
@@ -844,14 +845,14 @@ class TestGeneSetServiceHelpers:
     async def test_extract_step_search_context_returns_search_name(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api._ensure_session = AsyncMock()
-        api.client.get.return_value = {
-            "searchName": "GenesByExpressionTwoChannel",
-            "searchConfig": {
-                "parameters": {"fold_change": "2.0", "organism": "Pf3D7"}
-            },
-            "recordClassName": "GeneRecordClass",
-        }
+        api.find_step = AsyncMock(return_value=WDKStep(
+            id=99,
+            search_name="GenesByExpressionTwoChannel",
+            search_config=WDKSearchConfig(
+                parameters={"fold_change": "2.0", "organism": "Pf3D7"}
+            ),
+            record_class_name="GeneRecordClass",
+        ))
         search_name, _record_type, parameters = await svc._extract_step_search_context(
             api, step_id=99, record_type=None
         )
@@ -863,12 +864,12 @@ class TestGeneSetServiceHelpers:
     async def test_extract_step_search_context_ignores_boolean_questions(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api._ensure_session = AsyncMock()
-        api.client.get.return_value = {
-            "searchName": "boolean_question_combined",
-            "searchConfig": {"parameters": {}},
-            "recordClassName": "GeneRecordClass",
-        }
+        api.find_step = AsyncMock(return_value=WDKStep(
+            id=77,
+            search_name="boolean_question_combined",
+            search_config=WDKSearchConfig(parameters={}),
+            record_class_name="GeneRecordClass",
+        ))
         search_name, _record_type, _parameters = await svc._extract_step_search_context(
             api, step_id=77, record_type=None
         )
@@ -878,8 +879,7 @@ class TestGeneSetServiceHelpers:
     async def test_extract_step_search_context_returns_none_on_error(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api._ensure_session = AsyncMock()
-        api.client.get.side_effect = InternalError(detail="step missing")
+        api.find_step = AsyncMock(side_effect=InternalError(detail="step missing"))
         search_name, _record_type, parameters = await svc._extract_step_search_context(
             api, step_id=0, record_type=None
         )

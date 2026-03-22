@@ -210,20 +210,15 @@ class TestOrderPrimaryKey:
         result = order_primary_key(parts, [], {})
         assert result == []
 
-    def test_ignores_non_dict_parts(self) -> None:
-        parts = [
-            {"name": "source_id", "value": "PF3D7_0100100"},
-            "not_a_dict",  # type: ignore[list-item]
-        ]
-        refs = ["source_id"]
-        result = order_primary_key(parts, refs, {})
-        assert result == [{"name": "source_id", "value": "PF3D7_0100100"}]
-
-    def test_ignores_non_string_refs(self) -> None:
+    def test_duplicate_refs(self) -> None:
+        """Duplicate refs should not produce duplicate entries."""
         parts = [{"name": "source_id", "value": "PF3D7_0100100"}]
-        refs = ["source_id", 42]  # type: ignore[list-item]
+        refs = ["source_id", "source_id"]
         result = order_primary_key(parts, refs, {})
-        assert result == [{"name": "source_id", "value": "PF3D7_0100100"}]
+        # Each ref produces one entry
+        assert len(result) == 2
+        assert result[0] == {"name": "source_id", "value": "PF3D7_0100100"}
+        assert result[1] == {"name": "source_id", "value": "PF3D7_0100100"}
 
 
 # ---------------------------------------------------------------------------

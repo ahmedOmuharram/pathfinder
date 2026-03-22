@@ -15,6 +15,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
     _convert_params_for_httpx,
     encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType
 from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
@@ -293,7 +294,12 @@ class TestVEuPathDBClientConvenienceMethods:
                     mock_ctx.get.return_value = None
                     result = await client.get_record_types()
 
-        assert result == ["transcript", "gene", "organism"]
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert all(isinstance(rt, WDKRecordType) for rt in result)
+        assert result[0].url_segment == "transcript"
+        assert result[1].url_segment == "gene"
+        assert result[2].url_segment == "organism"
         await client.close()
 
     async def test_get_record_types_expanded(self) -> None:
@@ -315,8 +321,9 @@ class TestVEuPathDBClientConvenienceMethods:
 
         assert isinstance(result, list)
         first = result[0]
-        assert isinstance(first, dict)
-        assert first["urlSegment"] == "gene"
+        assert isinstance(first, WDKRecordType)
+        assert first.url_segment == "gene"
+        assert first.display_name == "Gene"
         await client.close()
 
     async def test_get_searches(self) -> None:

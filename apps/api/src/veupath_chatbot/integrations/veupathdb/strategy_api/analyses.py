@@ -8,9 +8,13 @@ import asyncio
 from dataclasses import dataclass
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKStepAnalysisConfig,
+    WDKStepAnalysisType,
+)
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -33,20 +37,26 @@ class AnalysisMixin(StrategyAPIBase):
 
     _RETRIABLE_STATUSES = frozenset({"ERROR", "OUT_OF_DATE", "STEP_REVISED"})
 
-    async def list_analysis_types(self, step_id: int) -> JSONArray:
+    async def list_analysis_types(
+        self, step_id: int, user_id: str | None = None
+    ) -> list[WDKStepAnalysisType]:
         """List available analysis types for a step."""
-        await self._ensure_session()
-        return await self.client.list_analysis_types(self._resolved_user_id, step_id)
+        uid = await self._get_user_id(user_id)
+        return await self.client.list_analysis_types(uid, step_id)
 
-    async def get_analysis_type(self, step_id: int, analysis_type: str) -> JSONObject:
+    async def get_analysis_type(
+        self, step_id: int, analysis_type: str, user_id: str | None = None
+    ) -> WDKStepAnalysisType:
         """Get analysis form metadata for a step."""
-        await self._ensure_session()
-        return await self.client.get_analysis_type(self._resolved_user_id, step_id, analysis_type)
+        uid = await self._get_user_id(user_id)
+        return await self.client.get_analysis_type(uid, step_id, analysis_type)
 
-    async def list_step_analyses(self, step_id: int) -> JSONArray:
+    async def list_step_analyses(
+        self, step_id: int, user_id: str | None = None
+    ) -> list[WDKStepAnalysisConfig]:
         """List analyses that have been run on a step."""
-        await self._ensure_session()
-        return await self.client.list_step_analyses(self._resolved_user_id, step_id)
+        uid = await self._get_user_id(user_id)
+        return await self.client.list_step_analyses(uid, step_id)
 
     async def _warmup_step(self, step_id: int) -> None:
         """Warm up the step answer before running an analysis.
@@ -67,19 +77,20 @@ class AnalysisMixin(StrategyAPIBase):
 
     async def _create_analysis(
         self,
+        uid: str,
         step_id: int,
         analysis_type: str,
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
-    ) -> int:
-        """Create a step analysis instance and return its ID.
+    ) -> WDKStepAnalysisConfig:
+        """Create a step analysis instance and return its config.
 
+        :param uid: Resolved user ID.
         :param step_id: WDK step ID.
         :param analysis_type: Analysis plugin name (e.g. ``go-enrichment``).
         :param parameters: Analysis parameters.
         :param custom_name: Optional display name.
-        :returns: The ``analysisId`` from WDK.
-        :raises InternalError: If the response lacks an ``analysisId``.
+        :returns: The ``WDKStepAnalysisConfig`` from WDK.
         """
         payload: JSONObject = {
             "analysisName": analysis_type,
@@ -88,26 +99,19 @@ class AnalysisMixin(StrategyAPIBase):
         if custom_name:
             payload["displayName"] = custom_name
 
-        instance = await self.client.create_step_analysis(
-            self._resolved_user_id, step_id, payload
-        )
-        analysis_id = instance.get("analysisId") if isinstance(instance, dict) else None
-        if not isinstance(analysis_id, int):
-            raise InternalError(
-                title="Step analysis creation failed",
-                detail=f"No analysisId in response: {instance!r}",
-            )
+        instance = await self.client.create_step_analysis(uid, step_id, payload)
 
         logger.info(
             "Created step analysis instance",
             step_id=step_id,
             analysis_type=analysis_type,
-            analysis_id=analysis_id,
+            analysis_id=instance.analysis_id,
         )
-        return analysis_id
+        return instance
 
     async def _poll_analysis(
         self,
+        uid: str,
         step_id: int,
         analysis_id: int,
         poll_interval: float,
@@ -116,6 +120,7 @@ class AnalysisMixin(StrategyAPIBase):
     ) -> None:
         """Poll an analysis instance until completion, retrying on transient errors.
 
+        :param uid: Resolved user ID.
         :param step_id: WDK step ID.
         :param analysis_id: Analysis instance ID.
         :param poll_interval: Seconds between status polls.
@@ -129,13 +134,8 @@ class AnalysisMixin(StrategyAPIBase):
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
 
-            status_resp = await self.client.get_analysis_status(
-                self._resolved_user_id, step_id, analysis_id
-            )
-            status = (
-                str(status_resp.get("status", ""))
-                if isinstance(status_resp, dict)
-                else ""
+            status = await self.client.get_analysis_status(
+                uid, step_id, analysis_id
             )
             logger.debug(
                 "Analysis status poll",
@@ -157,11 +157,10 @@ class AnalysisMixin(StrategyAPIBase):
                     "Analysis returned retriable status",
                     analysis_id=analysis_id,
                     status=status,
-                    status_response=status_resp,
                     retry=retries,
                 )
                 if retries > max_retries:
-                    self._log_analysis_failure(step_id, analysis_id)
+                    self._log_analysis_failure(uid, step_id, analysis_id)
                     raise InternalError(
                         title="Analysis unavailable",
                         detail=(
@@ -180,7 +179,7 @@ class AnalysisMixin(StrategyAPIBase):
                     retry=retries,
                 )
                 await self.client.run_analysis_instance(
-                    self._resolved_user_id, step_id, analysis_id
+                    uid, step_id, analysis_id
                 )
 
         raise InternalError(
@@ -188,7 +187,9 @@ class AnalysisMixin(StrategyAPIBase):
             detail=f"Analysis {analysis_id} did not complete within {max_wait}s",
         )
 
-    def _log_analysis_failure(self, step_id: int, analysis_id: int) -> None:
+    def _log_analysis_failure(
+        self, uid: str, step_id: int, analysis_id: int
+    ) -> None:
         """Best-effort logging of analysis failure details.
 
         Fires off async tasks to fetch the analyses list and error result
@@ -197,7 +198,7 @@ class AnalysisMixin(StrategyAPIBase):
 
         async def _fetch_debug_info() -> None:
             try:
-                analyses = await self.client.list_step_analyses(self._resolved_user_id, step_id)
+                analyses = await self.client.list_step_analyses(uid, step_id)
                 logger.error(
                     "Step analyses list on failure",
                     step_id=step_id,
@@ -211,7 +212,7 @@ class AnalysisMixin(StrategyAPIBase):
                 )
             try:
                 err_result = await self.client.get_analysis_result(
-                    self._resolved_user_id, step_id, analysis_id
+                    uid, step_id, analysis_id
                 )
                 logger.error(
                     "Analysis error result",
@@ -238,6 +239,7 @@ class AnalysisMixin(StrategyAPIBase):
         parameters: JSONObject | None = None,
         custom_name: str | None = None,
         poll_config: AnalysisPollConfig | None = None,
+        user_id: str | None = None,
     ) -> JSONObject:
         """Create, run, and wait for a WDK step analysis to complete.
 
@@ -259,30 +261,61 @@ class AnalysisMixin(StrategyAPIBase):
         :param parameters: Analysis parameters.
         :param custom_name: Optional display name.
         :param poll_config: Polling options (interval, max_wait, max_retries).
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Analysis result JSON.
         :raises InternalError: If the analysis fails or times out.
         """
-        await self._ensure_session()
+        uid = await self._get_user_id(user_id)
         cfg = poll_config or AnalysisPollConfig()
 
         # Phase 0: Warm up step answer
         await self._warmup_step(step_id)
 
         # Phase 1: Create analysis instance
-        analysis_id = await self._create_analysis(
-            step_id, analysis_type, parameters, custom_name
+        instance = await self._create_analysis(
+            uid, step_id, analysis_type, parameters, custom_name
         )
+        analysis_id = instance.analysis_id
 
         # Phase 2: Kick off execution
-        await self.client.run_analysis_instance(self._resolved_user_id, step_id, analysis_id)
+        await self.client.run_analysis_instance(uid, step_id, analysis_id)
 
         # Phase 3: Poll for completion (raises on failure/timeout)
         await self._poll_analysis(
-            step_id, analysis_id, cfg.poll_interval, cfg.max_wait, cfg.max_retries
+            uid, step_id, analysis_id, cfg.poll_interval, cfg.max_wait, cfg.max_retries
         )
 
         # Phase 4: Retrieve results
-        result = await self.client.get_analysis_result(
-            self._resolved_user_id, step_id, analysis_id
-        )
-        return result if isinstance(result, dict) else {}
+        return await self.client.get_analysis_result(uid, step_id, analysis_id)
+
+    async def get_analysis_status(
+        self,
+        step_id: int,
+        analysis_id: int,
+        user_id: str | None = None,
+    ) -> str:
+        """Get execution status of a step analysis instance.
+
+        :param step_id: WDK step ID.
+        :param analysis_id: Analysis instance ID.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        :returns: Status string (e.g. ``"COMPLETE"``, ``"RUNNING"``).
+        """
+        uid = await self._get_user_id(user_id)
+        return await self.client.get_analysis_status(uid, step_id, analysis_id)
+
+    async def get_analysis_result(
+        self,
+        step_id: int,
+        analysis_id: int,
+        user_id: str | None = None,
+    ) -> JSONObject:
+        """Get the result of a completed step analysis instance.
+
+        :param step_id: WDK step ID.
+        :param analysis_id: Analysis instance ID.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        :returns: Analysis result JSON dict.
+        """
+        uid = await self._get_user_id(user_id)
+        return await self.client.get_analysis_result(uid, step_id, analysis_id)

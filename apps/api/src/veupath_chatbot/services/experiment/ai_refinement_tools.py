@@ -16,6 +16,10 @@ from veupath_chatbot.domain.strategy.ops import (
 )
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+)
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import resolve_controls_param_type
@@ -115,7 +119,11 @@ class RefinementToolsMixin:
 
         params: JSONObject = {}
         if param_type == "input-dataset":
-            dataset_id = await api.create_dataset(gene_ids)
+            config = WDKDatasetConfigIdList(
+                source_type="idList",
+                source_content=WDKDatasetIdListContent(ids=gene_ids),
+            )
+            dataset_id = await api.create_dataset(config)
             params[controls_param] = str(dataset_id)
         else:
             params[controls_param] = "\n".join(gene_ids)

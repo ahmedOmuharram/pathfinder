@@ -6,14 +6,18 @@ set operations, enrichment, and step-results access.
 """
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal
 from uuid import UUID, uuid4
 
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_strategy_api,
-    get_wdk_client,
 )
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import (
     AppError,
     InternalError,
@@ -61,18 +65,12 @@ async def _build_enrichment_params_from_gene_ids(
     to ``EnrichmentService.run_batch()``.  Uses the ``GeneByLocusTag`` search
     (transcript record type) with a temporary WDK dataset.
     """
-    client = get_wdk_client(site_id)
-    dataset_resp = await client.post(
-        "/users/current/datasets",
-        json=cast(
-            "JSONObject", {"sourceType": "idList", "sourceContent": {"ids": gene_ids}}
-        ),
+    api = get_strategy_api(site_id)
+    config = WDKDatasetConfigIdList(
+        source_type="idList",
+        source_content=WDKDatasetIdListContent(ids=gene_ids),
     )
-    if not isinstance(dataset_resp, dict) or "id" not in dataset_resp:
-        msg = "Failed to create WDK dataset for gene ID enrichment"
-        raise ValidationError(detail=msg)
-
-    dataset_id = dataset_resp["id"]
+    dataset_id = await api.create_dataset(config)
     return (
         "GeneByLocusTag",
         {"ds_gene_ids": str(dataset_id)},
@@ -243,25 +241,19 @@ class GeneSetService:
         search_name: str | None = None
         parameters: dict[str, str] | None = None
         try:
-            await api._ensure_session()
-            step_data = await api.client.get(f"/users/{api._resolved_user_id}/steps/{step_id}")
-            if isinstance(step_data, dict):
-                sn = step_data.get("searchName")
-                if isinstance(sn, str) and not sn.startswith("boolean_question_"):
-                    search_name = sn
-                    sc = step_data.get("searchConfig")
-                    if isinstance(sc, dict):
-                        params = sc.get("parameters")
-                        if isinstance(params, dict):
-                            parameters = {str(k): str(v) for k, v in params.items()}
-                if not record_type:
-                    rcn = step_data.get("recordClassName")
-                    if isinstance(rcn, str):
-                        record_type = (
-                            rcn.split(".")[-1].replace("RecordClass", "").lower()
-                            if "." in rcn
-                            else "transcript"
-                        )
+            step = await api.find_step(step_id)
+            sn = step.search_name
+            if not sn.startswith("boolean_question_"):
+                search_name = sn
+                parameters = dict(step.search_config.parameters)
+            if not record_type:
+                rcn = step.record_class_name
+                if rcn:
+                    record_type = (
+                        rcn.split(".")[-1].replace("RecordClass", "").lower()
+                        if "." in rcn
+                        else "transcript"
+                    )
             logger.info(
                 "Extracted search context from WDK step",
                 step_id=step_id,
@@ -411,9 +403,11 @@ class GeneSetService:
         step_id = gs.wdk_step_id
         search_name = gs.search_name
         record_type = gs.record_type or "transcript"
-        enrichment_params: JSONObject | None = (
-            cast("JSONObject", gs.parameters) if gs.parameters else None
-        )
+        enrichment_params: JSONObject | None = None
+        if gs.parameters:
+            params: JSONObject = {}
+            params.update(gs.parameters)
+            enrichment_params = params
 
         # Paste gene sets have gene IDs but no WDK step or search.
         # Create a temporary WDK dataset so enrichment can run via GeneByLocusTag.
@@ -462,7 +456,7 @@ class GeneSetService:
 
     async def get_strategy_tree(
         self, user_id: UUID, gene_set_id: str
-    ) -> tuple[GeneSet, JSONObject]:
+    ) -> tuple[GeneSet, WDKStrategyDetails]:
         """Get the WDK strategy tree for a gene set.
 
         Returns the gene set and the strategy tree dict.

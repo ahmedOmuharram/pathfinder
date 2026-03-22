@@ -124,10 +124,10 @@ def extract_record_ids(
 
 
 def order_primary_key(
-    pk_parts: list[JSONObject],
+    pk_parts: list[dict[str, str]],
     pk_refs: list[str],
     pk_defaults: dict[str, str],
-) -> list[JSONObject]:
+) -> list[dict[str, str]]:
     """Reorder and fill primary key parts to match WDK record class definition.
 
     WDK requires PK columns in the exact order defined by
@@ -140,14 +140,11 @@ def order_primary_key(
     :returns: Ordered PK parts matching ``pk_refs``.
     """
     pk_by_name: dict[str, str] = {
-        str(p.get("name", "")): str(p.get("value", ""))
+        p.get("name", ""): p.get("value", "")
         for p in pk_parts
-        if isinstance(p, dict)
     }
-    ordered: list[JSONObject] = []
+    ordered: list[dict[str, str]] = []
     for col in pk_refs:
-        if not isinstance(col, str):
-            continue
         value = pk_by_name.get(col) or pk_defaults.get(col) or ""
         ordered.append({"name": col, "value": value})
     return ordered
@@ -158,7 +155,7 @@ def order_primary_key(
 # ---------------------------------------------------------------------------
 
 
-def build_attribute_list(attrs_raw: object) -> list[JSONObject]:
+def build_attribute_list(attrs_raw: object) -> list[JSONValue]:
     """Build a normalized attribute list from WDK record type info.
 
     Handles both dict (``attributesMap``) and list (expanded) formats.
@@ -171,7 +168,7 @@ def build_attribute_list(attrs_raw: object) -> list[JSONObject]:
     :param attrs_raw: Raw attributes value from the record type info.
     :returns: Normalized attribute list.
     """
-    attributes: list[JSONObject] = []
+    attributes: list[JSONValue] = []
 
     if isinstance(attrs_raw, dict):
         for name, meta in attrs_raw.items():

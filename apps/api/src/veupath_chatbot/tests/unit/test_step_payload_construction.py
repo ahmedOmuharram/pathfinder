@@ -1,10 +1,10 @@
-"""Integration tests for WDK step payload construction (strategy_api/steps.py).
+"""Integration tests for WDK step/dataset payload construction.
 
 Uses respx to mock WDK HTTP and verify the exact payloads sent for:
 - create_step: searchName + searchConfig with normalized params
 - create_combined_step: boolean_question search with bq_* params
 - create_transform_step: AnswerParams forced to ""
-- create_dataset: sourceType=idList payload
+- create_dataset: sourceType=idList payload (via DatasetsMixin)
 
 WDK contracts validated:
 - Step payload shape: {searchName, searchConfig: {parameters, wdkWeight?}, customName?}
@@ -21,16 +21,19 @@ import respx
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.integrations.veupathdb.strategy_api.datasets import DatasetsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
 )
 
 
-class _TestableSteps(StepsMixin, StrategyAPIBase):
-    """Combine StepsMixin with StrategyAPIBase for testing."""
+class _TestableSteps(StepsMixin, DatasetsMixin, StrategyAPIBase):
+    """Combine StepsMixin and DatasetsMixin with StrategyAPIBase for testing."""
 
 
 BASE = "https://plasmodb.org/plasmo/service"
@@ -205,21 +208,20 @@ class TestCreateDatasetPayload:
     @pytest.mark.asyncio
     async def test_dataset_payload_shape(self, api: _TestableSteps) -> None:
         """WDK expects {sourceType: "idList", sourceContent: {ids: [...]}}."""
+        gene_ids = ["PF3D7_0100100", "PF3D7_0831900", "PF3D7_1133400"]
+        config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=gene_ids),
+        )
         with respx.mock:
             # Mock user resolution
             respx.get(f"{BASE}/users/current").respond(200, json={"id": 12345})
             route = respx.post(f"{BASE}/users/12345/datasets").respond(
                 200, json={"id": 500}
             )
-            dataset_id = await api.create_dataset(
-                ["PF3D7_0100100", "PF3D7_0831900", "PF3D7_1133400"]
-            )
+            dataset_id = await api.create_dataset(config)
             assert dataset_id == 500
 
             body = json.loads(route.calls[0].request.content)
             assert body["sourceType"] == "idList"
-            assert body["sourceContent"]["ids"] == [
-                "PF3D7_0100100",
-                "PF3D7_0831900",
-                "PF3D7_1133400",
-            ]
+            assert body["sourceContent"]["ids"] == gene_ids

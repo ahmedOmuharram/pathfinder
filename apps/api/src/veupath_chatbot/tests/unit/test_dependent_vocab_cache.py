@@ -28,6 +28,7 @@ from veupath_chatbot.integrations.vectorstore.qdrant_store import (
 from veupath_chatbot.integrations.veupathdb.client import (
     encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKEnumParam
 from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
@@ -48,11 +49,23 @@ def _mock_store(*, cached_payload: dict[str, Any] | None = None) -> MagicMock:
     return store
 
 
-def _mock_wdk_client(response: dict[str, Any] | None = None) -> MagicMock:
+def _default_param_response() -> list[WDKEnumParam]:
+    """Default mock response: a single enum parameter with vocabulary."""
+    return [
+        WDKEnumParam(
+            name="organism",
+            display_name="Organism",
+            type="single-pick-vocabulary",
+            vocabulary=[["Plasmodium falciparum 3D7", "P. falciparum 3D7"]],
+        ),
+    ]
+
+
+def _mock_wdk_client(response: list[Any] | None = None) -> MagicMock:
     client = MagicMock()
     client.base_url = "https://plasmodb.org/plasmo/service"
     client.get_refreshed_dependent_params = AsyncMock(
-        return_value=response or {"vocab": []}
+        return_value=response if response is not None else _default_param_response()
     )
     return client
 
@@ -171,8 +184,7 @@ class TestCacheHit:
 
 class TestCacheMiss:
     async def test_calls_wdk_and_upserts_on_miss(self) -> None:
-        wdk_response = {"vocab": ["alpha", "beta"]}
-        wdk_client = _mock_wdk_client(response=wdk_response)
+        wdk_client = _mock_wdk_client()
         store = _mock_store(cached_payload=None)
 
         with _patches(store, wdk_client=wdk_client):
@@ -184,7 +196,11 @@ class TestCacheMiss:
             )
 
         assert result["cache"] == "miss"
-        assert result["wdkResponse"] == wdk_response
+        # wdkResponse is now a serialized list of parameter dicts
+        wdk_resp = result["wdkResponse"]
+        assert isinstance(wdk_resp, list)
+        assert len(wdk_resp) == 1
+        assert wdk_resp[0]["name"] == "organism"
         assert result["siteId"] == "plasmodb"
         assert result["recordType"] == "gene"
         assert result["searchName"] == "GenesByTaxon"
@@ -207,8 +223,7 @@ class TestPortalFallback:
             side_effect=WDKError("fail")
         )
 
-        portal_response = {"vocab": ["portal-a"]}
-        portal_client = _mock_wdk_client(response=portal_response)
+        portal_client = _mock_wdk_client()
 
         store = _mock_store(cached_payload=None)
 
@@ -221,7 +236,9 @@ class TestPortalFallback:
             )
 
         assert result["cache"] == "miss"
-        assert result["wdkResponse"] == portal_response
+        wdk_resp = result["wdkResponse"]
+        assert isinstance(wdk_resp, list)
+        assert len(wdk_resp) == 1
 
     async def test_no_fallback_when_already_veupathdb(self) -> None:
         """When site_id == 'veupathdb' and WDKError occurs, it should re-raise."""

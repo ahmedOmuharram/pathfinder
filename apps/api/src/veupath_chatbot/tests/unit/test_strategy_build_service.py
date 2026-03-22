@@ -11,6 +11,7 @@ from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfig,
     WDKIdentifier,
     WDKSearchResponse,
     WDKStrategyDetails,
@@ -89,7 +90,7 @@ class FakeBuildAPI:
     ) -> WDKIdentifier:
         return WDKIdentifier(id=300)
 
-    async def create_dataset(self, ids: list[str]) -> int:
+    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int:
         return 1
 
     async def set_step_filter(

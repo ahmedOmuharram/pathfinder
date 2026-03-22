@@ -643,7 +643,7 @@ class TestConvenienceMethodEdgeCases:
 
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_json.update(json.loads(request.content))
-                return httpx.Response(200, json={})
+                return httpx.Response(200, json=[])
 
             router.post(
                 "https://example.com/service/record-types/gene/searches/S1/refreshed-dependent-params"

@@ -7,7 +7,7 @@ import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
-from veupath_chatbot.platform.errors import AppError, DataParsingError
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import (
@@ -87,45 +87,6 @@ def safe_float(val: object, default: float = 0.0) -> float:
         return default
     return result
 
-
-def extract_wdk_id(payload: object, key: str = "id") -> int | None:
-    """Extract an integer ID from a WDK JSON response.
-
-    WDK formatters (``StepFormatter``, ``StrategyService``, etc.) emit
-    entity IDs as Java longs (always ``int`` in JSON) under a known key
-    (typically ``"id"`` or ``"strategyId"``).
-
-    :param payload: WDK response dict.
-    :param key: JSON key containing the integer ID.
-    :returns: The integer ID, or ``None`` if not found.
-    """
-    if isinstance(payload, dict):
-        raw = payload.get(key)
-        if isinstance(raw, int):
-            return raw
-    return None
-
-
-def coerce_step_id(payload: object) -> int:
-    """Extract step ID from a WDK step-creation response.
-
-    Accepts both typed ``WDKIdentifier`` (preferred) and legacy ``JSONObject``
-    dicts during the migration period.
-
-    :param payload: WDK step-creation response.
-    :returns: Step ID.
-    :raises DataParsingError: If step ID not found.
-    """
-    # Typed model path (WDKIdentifier or any object with .id: int)
-    raw_id = getattr(payload, "id", None)
-    if isinstance(raw_id, int):
-        return raw_id
-    # Legacy dict path
-    step_id = extract_wdk_id(payload)
-    if step_id is None:
-        msg = "Failed to extract step ID from WDK response"
-        raise DataParsingError(msg)
-    return step_id
 
 
 def _extract_gene_list(

@@ -16,6 +16,8 @@ import pytest
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
     WDKIdentifier,
     WDKSearchResponse,
     WDKStrategySummary,
@@ -576,7 +578,11 @@ class TestControlsWithDatasetParam:
         ):
             await _run_intersection_control(config, POSITIVE_IDS)
 
-        mock_api.create_dataset.assert_awaited_once_with(POSITIVE_IDS)
+        expected_config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=POSITIVE_IDS),
+        )
+        mock_api.create_dataset.assert_awaited_once_with(expected_config)
 
         # The controls step should have received the dataset ID as the param value
         controls_call = mock_api.create_step.call_args_list[1]

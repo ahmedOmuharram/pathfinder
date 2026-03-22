@@ -4,13 +4,12 @@ Used by both experiment and gene set endpoints to avoid duplicating
 attribute listing, record browsing, distribution, and analysis logic.
 """
 
-from typing import cast
-
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategyDetails
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.enrichment_parser import (
     is_enrichment_analysis,
     parse_enrichment_from_raw,
@@ -46,10 +45,9 @@ class StepResultsService:
     async def get_attributes(self) -> JSONObject:
         """Get available attributes for the record type."""
         info = await self._api.get_record_type_info(self._record_type)
-        attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
-        attr_list = cast("JSONValue", build_attribute_list(attrs_raw))
+        attrs_raw = info.attributes or info.attributes_map or {}
         return {
-            "attributes": attr_list,
+            "attributes": build_attribute_list(attrs_raw),
             "recordType": self._record_type,
         }
 
@@ -73,9 +71,10 @@ class StepResultsService:
             pagination={"offset": offset, "numRecords": limit},
             sorting=sorting,
         )
+        result = answer.model_dump(by_alias=True)
         return {
-            "records": cast("JSONValue", answer.records),
-            "meta": cast("JSONValue", answer.meta.model_dump(by_alias=True)),
+            "records": result["records"],
+            "meta": result["meta"],
         }
 
     async def get_distribution(self, attribute_name: str) -> JSONObject:
@@ -85,9 +84,9 @@ class StepResultsService:
     async def list_analysis_types(self) -> JSONObject:
         """List available WDK step analysis types."""
         types = await self._api.list_analysis_types(self._step_id)
-        return {"analysisTypes": types}
+        return {"analysisTypes": [t.model_dump(by_alias=True) for t in types]}
 
-    async def get_strategy(self, strategy_id: int) -> JSONObject:
+    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails:
         """Get the WDK strategy tree."""
         return await self._api.get_strategy(strategy_id)
 
@@ -102,7 +101,7 @@ class StepResultsService:
         enrichment parsing and persistence as needed.
         """
         form_meta = await self._api.get_analysis_type(self._step_id, analysis_name)
-        params = merge_analysis_params(form_meta, parameters)
+        params = merge_analysis_params(form_meta.model_dump(by_alias=True), parameters)
 
         logger.info(
             "Running WDK step analysis",
@@ -137,7 +136,7 @@ class StepResultsService:
 
     async def get_record_detail(
         self,
-        primary_key: list[JSONObject],
+        primary_key: list[dict[str, str]],
         site_id: str,
     ) -> JSONObject:
         """Get a single record's full details by primary key.
@@ -153,18 +152,16 @@ class StepResultsService:
         try:
             info = await self._api.get_record_type_info(self._record_type)
 
-            pk_refs = info.get("primaryKeyColumnRefs") or info.get("primaryKey") or []
-            if isinstance(pk_refs, list) and pk_refs:
-                ref_strings = [str(r) for r in pk_refs if isinstance(r, str)]
-                if ref_strings:
-                    site = get_site(site_id)
-                    pk_parts = order_primary_key(
-                        pk_parts,
-                        ref_strings,
-                        pk_defaults={"project_id": site.project_id},
-                    )
+            pk_refs = info.primary_key_column_refs
+            if pk_refs:
+                site = get_site(site_id)
+                pk_parts = order_primary_key(
+                    pk_parts,
+                    pk_refs,
+                    pk_defaults={"project_id": site.project_id},
+                )
 
-            attrs_raw = info.get("attributes") or info.get("attributesMap") or {}
+            attrs_raw = info.attributes or info.attributes_map or {}
             detail_attrs, display_names = extract_detail_attributes(attrs_raw)
         except AppError:
             logger.warning(
@@ -174,10 +171,11 @@ class StepResultsService:
                 exc_info=True,
             )
 
-        record = await self._api.get_single_record(
+        record_instance = await self._api.get_single_record(
             record_type=self._record_type,
             primary_key=pk_parts,
             attributes=detail_attrs or None,
         )
-        record["attributeNames"] = cast("JSONValue", display_names)
-        return record
+        result = record_instance.model_dump(by_alias=True)
+        result["attributeNames"] = display_names
+        return result

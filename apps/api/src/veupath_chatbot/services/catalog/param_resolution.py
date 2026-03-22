@@ -14,6 +14,7 @@ from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_servi
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.logging import get_logger
@@ -309,7 +310,7 @@ async def get_refreshed_dependent_params(
     *,
     parameter_name: str,
     context_values: JSONObject,
-) -> JSONObject:
+) -> list[WDKParameter]:
     """Get refreshed dependent parameter vocabulary, falling back to the portal.
 
     Tries the site-specific WDK client first.  If that fails with a

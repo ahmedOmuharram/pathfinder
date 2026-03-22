@@ -12,6 +12,10 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+)
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -205,7 +209,11 @@ async def _run_intersection_control(
 
     controls_params = dict(config.controls_extra_parameters or {})
     if param_type == "input-dataset":
-        dataset_id = await api.create_dataset(controls_ids)
+        config_ds = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=controls_ids),
+        )
+        dataset_id = await api.create_dataset(config_ds)
         controls_params[config.controls_param_name] = str(dataset_id)
     else:
         controls_params[config.controls_param_name] = _encode_id_list(

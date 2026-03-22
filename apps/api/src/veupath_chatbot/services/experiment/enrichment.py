@@ -56,10 +56,11 @@ async def _execute_analysis(
 
     # Fetch form metadata so we use correct parameter names and defaults.
     analysis_params: JSONObject = {}
-    form_meta: JSONValue = None
+    form_meta_raw: JSONValue = None
     try:
         form_meta = await api.get_analysis_type(step_id, wdk_analysis_type)
-        analysis_params = extract_default_params(form_meta)
+        form_meta_raw = form_meta.model_dump(by_alias=True)
+        analysis_params = extract_default_params(form_meta_raw)
         logger.debug(
             "Fetched analysis form defaults",
             analysis_type=wdk_analysis_type,
@@ -77,7 +78,7 @@ async def _execute_analysis(
     # requested ontology is actually available on this site.
     if analysis_type in GO_ONTOLOGY_MAP:
         requested_ontology = GO_ONTOLOGY_MAP[analysis_type]
-        available = extract_vocab_values(form_meta, "goAssociationsOntologies")
+        available = extract_vocab_values(form_meta_raw, "goAssociationsOntologies")
 
         if available and requested_ontology not in available:
             logger.info(

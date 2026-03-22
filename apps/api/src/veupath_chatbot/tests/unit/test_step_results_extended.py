@@ -7,7 +7,12 @@ and enrichment edge cases.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKRecordInstance,
+    WDKRecordType,
+    WDKStepAnalysisType,
+)
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
@@ -59,11 +64,12 @@ class TestGetAttributes:
     async def test_returns_attributes_from_attributes_key(self) -> None:
         """Standard WDK response has 'attributes' as a list."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = {
+        api.get_record_type_info.return_value = WDKRecordType.model_validate({
+            "urlSegment": "gene",
             "attributes": [
                 {"name": "gene_name", "displayName": "Gene Name", "type": "string"},
-            ]
-        }
+            ],
+        })
         result = await svc.get_attributes()
         assert result["recordType"] == "gene"
         assert len(result["attributes"]) == 1
@@ -72,24 +78,30 @@ class TestGetAttributes:
     async def test_falls_back_to_attributes_map(self) -> None:
         """Some WDK deployments use 'attributesMap' dict format."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = {
+        api.get_record_type_info.return_value = WDKRecordType.model_validate({
+            "urlSegment": "gene",
             "attributesMap": {
                 "gene_name": {"displayName": "Gene Name", "type": "string"},
-            }
-        }
+            },
+        })
         result = await svc.get_attributes()
         assert len(result["attributes"]) == 1
 
     async def test_empty_attributes(self) -> None:
         svc, api = _make_service()
-        api.get_record_type_info.return_value = {"attributes": []}
+        api.get_record_type_info.return_value = WDKRecordType.model_validate({
+            "urlSegment": "gene",
+            "attributes": [],
+        })
         result = await svc.get_attributes()
         assert result["attributes"] == []
 
     async def test_no_attributes_key(self) -> None:
         """If neither 'attributes' nor 'attributesMap' exists, return empty."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = {"urlSegment": "gene"}
+        api.get_record_type_info.return_value = WDKRecordType.model_validate({
+            "urlSegment": "gene",
+        })
         result = await svc.get_attributes()
         assert result["attributes"] == []
 
@@ -203,8 +215,8 @@ class TestListAnalysisTypes:
     async def test_wraps_result(self) -> None:
         svc, api = _make_service()
         api.list_analysis_types.return_value = [
-            {"name": "go-enrichment"},
-            {"name": "pathway-enrichment"},
+            WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment"),
+            WDKStepAnalysisType(name="pathway-enrichment", display_name="Pathway Enrichment"),
         ]
         result = await svc.list_analysis_types()
         assert len(result["analysisTypes"]) == 2
@@ -221,13 +233,14 @@ class TestGetRecordDetail:
     async def test_reorders_pk_parts(self) -> None:
         """PK parts should be reordered to match WDK record class definition."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = {
+        api.get_record_type_info.return_value = WDKRecordType.model_validate({
+            "urlSegment": "gene",
             "primaryKeyColumnRefs": ["source_id", "project_id"],
-        }
-        api.get_single_record.return_value = {
+        })
+        api.get_single_record.return_value = WDKRecordInstance.model_validate({
             "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
             "attributes": {},
-        }
+        })
         with patch(
             "veupath_chatbot.integrations.veupathdb.factory.get_site",
             return_value=MagicMock(project_id="PlasmoDB"),
@@ -249,7 +262,7 @@ class TestGetRecordDetail:
         """If record type info fails, use raw PK parts."""
         svc, api = _make_service()
         api.get_record_type_info.side_effect = WDKError(detail="WDK timeout")
-        api.get_single_record.return_value = {}
+        api.get_single_record.return_value = WDKRecordInstance.model_validate({})
 
         raw_pk = [{"name": "source_id", "value": "PF3D7_0100100"}]
         await svc.get_record_detail(primary_key=raw_pk, site_id="plasmodb")

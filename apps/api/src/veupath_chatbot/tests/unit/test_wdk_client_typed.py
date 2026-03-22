@@ -15,6 +15,7 @@ import respx
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.discovery import SearchCatalog
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
 )
@@ -276,10 +277,11 @@ class TestDiscoveryTypedResponses:
         """SearchCatalog.get_searches should return list[WDKSearch]."""
         catalog = SearchCatalog("plasmodb")
         list_json = searches_response()
+        typed_searches = [WDKSearch.model_validate(s) for s in list_json]
 
         mock_client = MagicMock(spec=VEuPathDBClient)
         mock_client.get_record_types = AsyncMock(
-            return_value=[{"urlSegment": "gene", "searches": list_json}]
+            return_value=[WDKRecordType(url_segment="gene", searches=typed_searches)]
         )
         mock_client.get_searches = AsyncMock(return_value=[])
 
@@ -298,10 +300,11 @@ class TestDiscoveryTypedResponses:
         catalog = SearchCatalog("plasmodb")
         list_json = searches_response()
         detail_json = search_details_response()
+        typed_searches = [WDKSearch.model_validate(s) for s in list_json]
 
         mock_client = MagicMock(spec=VEuPathDBClient)
         mock_client.get_record_types = AsyncMock(
-            return_value=[{"urlSegment": "transcript", "searches": list_json}]
+            return_value=[WDKRecordType(url_segment="transcript", searches=typed_searches)]
         )
         mock_client.get_searches = AsyncMock(return_value=[])
         mock_client.get_search_details = AsyncMock(

@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+    WDKIdentifier,
+)
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.ai_refinement_tools import RefinementToolsMixin
 from veupath_chatbot.services.experiment.store import ExperimentStore
@@ -225,7 +229,11 @@ class TestRefineWithGeneIds:
             )
 
         assert result["success"] is True
-        api.create_dataset.assert_awaited_once_with(["g1", "g2"])
+        expected_config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=["g1", "g2"]),
+        )
+        api.create_dataset.assert_awaited_once_with(expected_config)
 
     async def test_returns_error_when_no_experiment(self) -> None:
         agent = ConcreteRefinementAgent("plasmodb", None)

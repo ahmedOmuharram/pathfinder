@@ -16,6 +16,7 @@ from veupath_chatbot.integrations.vectorstore.ingest.wdk_fetch import (
     fetch_search_details,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -70,19 +71,23 @@ def _mock_client(
 
 
 class TestFetchRecordTypesAndSearches:
-    """Test the fetch_record_types_and_searches function."""
+    """Test the fetch_record_types_and_searches function.
+
+    Since VEuPathDBClient.get_record_types now returns list[WDKRecordType],
+    mock return values must be typed WDKRecordType instances.
+    """
 
     async def test_basic_expanded_record_types(self) -> None:
         """Standard WDK expanded response with inline searches."""
         client = _mock_client(
             record_types=[
-                {
-                    "urlSegment": "gene",
-                    "name": "GeneRecordClass",
-                    "searches": [
-                        {"urlSegment": "GenesByTaxon", "displayName": "Genes by Taxon"},
+                WDKRecordType(
+                    url_segment="gene",
+                    full_name="GeneRecordClass",
+                    searches=[
+                        WDKSearch(url_segment="GenesByTaxon", display_name="Genes by Taxon"),
                     ],
-                },
+                ),
             ]
         )
         record_types, searches = await fetch_record_types_and_searches(client)
@@ -93,42 +98,12 @@ class TestFetchRecordTypesAndSearches:
         assert rt_name == "gene"
         assert s["urlSegment"] == "GenesByTaxon"
 
-    async def test_dict_wrapped_response(self) -> None:
-        """WDK sometimes wraps record types in a dict with 'recordTypes' key."""
+    async def test_record_types_without_inline_searches(self) -> None:
+        """Record types with searches=None fetch searches separately."""
         client = _mock_client(
-            record_types={
-                "recordTypes": [
-                    {"urlSegment": "gene", "searches": []},
-                ]
-            }
-        )
-        record_types, _searches = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 1
-
-    async def test_dict_wrapped_with_records_key(self) -> None:
-        client = _mock_client(
-            record_types={"records": [{"urlSegment": "gene", "searches": []}]}
-        )
-        record_types, _ = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 1
-
-    async def test_dict_wrapped_with_result_key(self) -> None:
-        client = _mock_client(
-            record_types={"result": [{"urlSegment": "gene", "searches": []}]}
-        )
-        record_types, _ = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 1
-
-    async def test_string_record_types(self) -> None:
-        """Record types can be plain strings (just names)."""
-        client = _mock_client(record_types=["gene", "transcript"])
-        record_types, _ = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 2
-
-    async def test_fetches_searches_when_not_inline(self) -> None:
-        """When record type dict has no 'searches' key, fetches them separately."""
-        client = _mock_client(
-            record_types=[{"urlSegment": "gene"}],
+            record_types=[
+                WDKRecordType(url_segment="gene"),
+            ],
             searches_by_rt={
                 "gene": [{"urlSegment": "GenesByTaxon"}],
             },
@@ -136,57 +111,49 @@ class TestFetchRecordTypesAndSearches:
         _record_types, searches = await fetch_record_types_and_searches(client)
         assert len(searches) == 1
 
-    async def test_skips_non_dict_non_str_entries(self) -> None:
-        client = _mock_client(record_types=[42, None, True, {"urlSegment": "gene"}])
-        record_types, _ = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 1
-
-    async def test_skips_record_type_without_name(self) -> None:
-        client = _mock_client(record_types=[{"urlSegment": "", "name": ""}])
-        record_types, _ = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 0
-
-    async def test_skips_non_dict_search_entries(self) -> None:
+    async def test_record_types_with_empty_searches(self) -> None:
+        """Record types with searches=[] fetch searches separately."""
         client = _mock_client(
             record_types=[
-                {
-                    "urlSegment": "gene",
-                    "searches": ["not-a-dict", 42, {"urlSegment": "Valid"}],
-                }
+                WDKRecordType(url_segment="gene", searches=[]),
+            ],
+            searches_by_rt={"gene": []},
+        )
+        record_types, searches = await fetch_record_types_and_searches(client)
+        assert len(record_types) == 1
+        assert len(searches) == 0
+
+    async def test_multiple_record_types(self) -> None:
+        """Multiple record types processed correctly."""
+        client = _mock_client(
+            record_types=[
+                WDKRecordType(url_segment="gene", display_name="Gene"),
+                WDKRecordType(url_segment="transcript", display_name="Transcript"),
             ]
         )
-        _, searches = await fetch_record_types_and_searches(client)
-        assert len(searches) == 1
-        assert searches[0][1]["urlSegment"] == "Valid"
+        record_types, _ = await fetch_record_types_and_searches(client)
+        assert len(record_types) == 2
+
+    async def test_skips_record_type_without_name(self) -> None:
+        client = _mock_client(
+            record_types=[WDKRecordType(url_segment="")]
+        )
+        record_types, _ = await fetch_record_types_and_searches(client)
+        assert len(record_types) == 0
 
     async def test_get_searches_exception_handled(self) -> None:
         """If get_searches fails, should continue without crashing."""
         client = MagicMock()
-        client.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        client.get_record_types = AsyncMock(
+            return_value=[WDKRecordType(url_segment="gene")]
+        )
         client.get_searches = AsyncMock(side_effect=RuntimeError("network error"))
         record_types, searches = await fetch_record_types_and_searches(client)
         assert len(record_types) == 1
         assert len(searches) == 0
 
-    async def test_non_list_searches_value_treated_as_empty(self) -> None:
-        """If 'searches' key is not a list, should treat as empty."""
-        client = _mock_client(
-            record_types=[{"urlSegment": "gene", "searches": "not-a-list"}],
-            searches_by_rt={"gene": []},
-        )
-        _, searches = await fetch_record_types_and_searches(client)
-        assert len(searches) == 0
-
     async def test_empty_record_types(self) -> None:
         client = _mock_client(record_types=[])
-        record_types, searches = await fetch_record_types_and_searches(client)
-        assert len(record_types) == 0
-        assert len(searches) == 0
-
-    async def test_none_record_types(self) -> None:
-        """get_record_types returning None should be handled gracefully."""
-        client = MagicMock()
-        client.get_record_types = AsyncMock(return_value=None)
         record_types, searches = await fetch_record_types_and_searches(client)
         assert len(record_types) == 0
         assert len(searches) == 0

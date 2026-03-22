@@ -1,20 +1,20 @@
 """Step creation methods for the Strategy API.
 
 Provides :class:`StepsMixin` with methods to create search steps,
-combined (boolean) steps, transform steps, and datasets.
+combined (boolean) steps, and transform steps.
 """
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStep
-from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
+from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 
 class StepsMixin(StrategyAPIBase):
-    """Mixin providing step creation and dataset upload methods."""
+    """Mixin providing step creation methods."""
 
     async def _get_boolean_search_name(self, record_type: str) -> str:
         """Resolve the boolean combine search name for a record type."""
@@ -86,43 +86,6 @@ class StepsMixin(StrategyAPIBase):
         uid = await self._get_user_id(user_id)
         raw = await self.client.get(f"/users/{uid}/steps/{step_id}")
         return WDKStep.model_validate(raw)
-
-    async def create_dataset(self, ids: list[str]) -> int:
-        """Upload an ID list as a WDK dataset and return the dataset ID.
-
-        WDK DatasetParam parameters (type ``input-dataset``) expect an integer
-        dataset ID, not raw IDs.  This method creates a transient dataset via
-        ``POST /users/{userId}/datasets`` and returns the integer ID that can
-        be used as the parameter value.
-
-        :param ids: List of record IDs (e.g. gene locus tags).
-        :returns: Integer dataset ID.
-        :raises InternalError: If dataset creation fails or no ID is returned.
-        """
-        await self._ensure_session()
-        id_list: JSONArray = list(ids)
-        source_content: JSONObject = {"ids": id_list}
-        payload: JSONObject = {
-            "sourceType": "idList",
-            "sourceContent": source_content,
-        }
-        result = await self.client.post(
-            f"/users/{self._resolved_user_id}/datasets",
-            json=payload,
-        )
-        if isinstance(result, dict):
-            ds_id = result.get("id")
-            if isinstance(ds_id, int):
-                logger.info(
-                    "Created WDK dataset",
-                    dataset_id=ds_id,
-                    id_count=len(ids),
-                )
-                return ds_id
-        raise InternalError(
-            title="Dataset creation failed",
-            detail=f"WDK returned unexpected response: {result!r}",
-        )
 
     async def create_step(
         self,

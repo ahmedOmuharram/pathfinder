@@ -697,7 +697,7 @@ class TestWDKUserInfo:
 
     def test_defaults(self) -> None:
         user = WDKUserInfo.model_validate({"id": 99})
-        assert user.email == ""
+        assert user.email is None
         assert user.is_guest is True
         assert user.properties == {}
 
@@ -709,7 +709,7 @@ class TestWDKUserInfo:
             "properties": {},
         })
         assert user.is_guest is True
-        assert user.email == ""
+        assert user.email is None
 
 
 # ---------------------------------------------------------------------------

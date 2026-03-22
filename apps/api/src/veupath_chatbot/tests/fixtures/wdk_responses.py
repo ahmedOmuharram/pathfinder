@@ -1248,10 +1248,16 @@ def dataset_creation_response(dataset_id: int = 500) -> dict:
 # ---------------------------------------------------------------------------
 # POST /users/{userId}/steps/{stepId}/analyses  -- analysis creation
 # ---------------------------------------------------------------------------
-def analysis_create_response(analysis_id: int = 300) -> dict:
+def analysis_create_response(
+    analysis_id: int = 300,
+    step_id: int = 100,
+    analysis_name: str = "go-enrichment",
+) -> dict:
     """POST .../analyses -- returns new analysis instance."""
     return {
         "analysisId": analysis_id,
+        "stepId": step_id,
+        "analysisName": analysis_name,
         "displayName": "GO enrichment",
         "isNew": True,
         "status": "CREATED",

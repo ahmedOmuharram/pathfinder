@@ -5,6 +5,7 @@ that callers instantiate.
 """
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import AnalysisMixin
+from veupath_chatbot.integrations.veupathdb.strategy_api.datasets import DatasetsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.records import RecordsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.reports import ReportsMixin
@@ -17,6 +18,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.strategies import (
 class StrategyAPI(
     StepsMixin,
     StrategiesMixin,
+    DatasetsMixin,
     ReportsMixin,
     AnalysisMixin,
     FilterMixin,
@@ -25,11 +27,12 @@ class StrategyAPI(
     """API for creating and managing WDK strategies.
 
     Provides methods to create steps, compose step trees, build strategies,
-    run reports, manage filters, execute analyses, and fetch records.
-    Follows the WDK REST pattern: create unattached steps, then POST a
-    strategy with a stepTree linking them.
+    create datasets, run reports, manage filters, execute analyses, and
+    fetch records. Follows the WDK REST pattern: create unattached steps,
+    then POST a strategy with a stepTree linking them.
 
     Inherits from :class:`StepsMixin`, :class:`StrategiesMixin`,
-    :class:`ReportsMixin`, :class:`AnalysisMixin`, :class:`FilterMixin`,
-    :class:`RecordsMixin`, and :class:`StrategyAPIBase` (via MRO).
+    :class:`DatasetsMixin`, :class:`ReportsMixin`, :class:`AnalysisMixin`,
+    :class:`FilterMixin`, :class:`RecordsMixin`, and
+    :class:`StrategyAPIBase` (via MRO).
     """

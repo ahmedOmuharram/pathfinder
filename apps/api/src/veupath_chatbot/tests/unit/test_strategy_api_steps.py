@@ -1,8 +1,8 @@
 """Unit tests for veupath_chatbot.integrations.veupathdb.strategy_api.steps.
 
 Tests StepsMixin: create_step, create_combined_step, create_transform_step,
-create_dataset, and internal helpers (_get_boolean_search_name,
-_get_boolean_param_names, _get_answer_param_names).
+and internal helpers (_get_boolean_search_name, _get_boolean_param_names,
+_get_answer_param_names).
 
 Verified against live WDK data:
 - Gene boolean search is "boolean_question_GeneRecordClasses_GeneRecordClass"
@@ -20,7 +20,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKSearchResponse,
 )
-from veupath_chatbot.platform.errors import DataParsingError, InternalError, WDKError
+from veupath_chatbot.platform.errors import DataParsingError, WDKError
 
 
 def _make_mixin(user_id: str = "12345") -> tuple[StepsMixin, MagicMock]:
@@ -382,44 +382,3 @@ class TestCreateTransformStep:
 
         params = client.post.call_args.kwargs["json"]["searchConfig"]["parameters"]
         assert params["gene_result"] == ""
-
-
-# ---------------------------------------------------------------------------
-# create_dataset
-# ---------------------------------------------------------------------------
-
-
-class TestCreateDataset:
-    """Dataset upload for DatasetParam parameters."""
-
-    async def test_creates_dataset_and_returns_id(self) -> None:
-        mixin, client = _make_mixin()
-        client.post.return_value = {"id": 999}
-
-        ds_id = await mixin.create_dataset(["PF3D7_0100100", "PF3D7_0200200"])
-
-        assert ds_id == 999
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["sourceType"] == "idList"
-        assert payload["sourceContent"]["ids"] == ["PF3D7_0100100", "PF3D7_0200200"]
-
-    async def test_raises_on_missing_id_in_response(self) -> None:
-        mixin, client = _make_mixin()
-        client.post.return_value = {"status": "created"}
-
-        with pytest.raises(InternalError, match="Dataset creation failed"):
-            await mixin.create_dataset(["PF3D7_0100100"])
-
-    async def test_raises_on_non_int_id(self) -> None:
-        mixin, client = _make_mixin()
-        client.post.return_value = {"id": "not_an_int"}
-
-        with pytest.raises(InternalError, match="Dataset creation failed"):
-            await mixin.create_dataset(["PF3D7_0100100"])
-
-    async def test_raises_on_non_dict_response(self) -> None:
-        mixin, client = _make_mixin()
-        client.post.return_value = []
-
-        with pytest.raises(InternalError, match="Dataset creation failed"):
-            await mixin.create_dataset(["PF3D7_0100100"])

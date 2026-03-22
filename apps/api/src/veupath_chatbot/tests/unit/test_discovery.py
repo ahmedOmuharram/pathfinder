@@ -16,6 +16,7 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     SearchCatalog,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -45,14 +46,49 @@ def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse
     )
 
 
+def _to_wdk_record_types(raw: Any) -> list[WDKRecordType]:
+    """Convert raw record type data to list of WDKRecordType models.
+
+    Accepts dicts, strings, or already-typed WDKRecordType instances.
+    Mirrors the defensive parsing done by VEuPathDBClient.get_record_types().
+    """
+    if not isinstance(raw, list):
+        return []
+    result: list[WDKRecordType] = []
+    for item in raw:
+        if isinstance(item, WDKRecordType):
+            result.append(item)
+        elif isinstance(item, str):
+            result.append(WDKRecordType(url_segment=item, display_name=item))
+        elif isinstance(item, dict):
+            # Separate searches from the rest to parse them into WDKSearch models
+            searches_raw = item.get("searches")
+            rt_data = {k: v for k, v in item.items() if k != "searches"}
+            typed_searches: list[WDKSearch] | None = None
+            if isinstance(searches_raw, list):
+                typed_searches = [
+                    WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)
+                ]
+            if typed_searches is not None:
+                rt_data["searches"] = typed_searches
+            rt = WDKRecordType.model_validate(rt_data)
+            result.append(rt)
+    return result
+
+
 def _mock_client(
     record_types: Any = None,
     searches: dict[str, list[Any]] | None = None,
     search_details: dict[str, Any] | None = None,
 ) -> MagicMock:
-    """Build a mock VEuPathDBClient with configurable return values."""
+    """Build a mock VEuPathDBClient with configurable return values.
+
+    ``record_types`` is auto-converted to ``list[WDKRecordType]`` to
+    match the typed return of ``VEuPathDBClient.get_record_types()``.
+    """
     client = MagicMock()
-    client.get_record_types = AsyncMock(return_value=record_types or [])
+    typed_rts = _to_wdk_record_types(record_types or [])
+    client.get_record_types = AsyncMock(return_value=typed_rts)
     if searches:
         parsed: dict[str, list[WDKSearch]] = {
             rt: _to_wdk_searches(raw) for rt, raw in searches.items()
@@ -437,13 +473,13 @@ class TestDiscoveryService:
         """If one site fails to load, others should still succeed."""
         call_count = 0
 
-        async def _get_record_types(*, expanded: bool = False) -> list[Any]:
+        async def _get_record_types(*, expanded: bool = False) -> list[WDKRecordType]:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 msg = "Boom"
                 raise RuntimeError(msg)
-            return [{"urlSegment": "gene", "name": "Genes", "searches": []}]
+            return [WDKRecordType(url_segment="gene", display_name="Genes", searches=[])]
 
         mock_client = MagicMock()
         mock_client.get_record_types = AsyncMock(side_effect=_get_record_types)

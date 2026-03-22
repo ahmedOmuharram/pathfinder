@@ -21,6 +21,7 @@ from veupath_chatbot.domain.strategy.compile import (
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
     WDKIdentifier,
     WDKSearchResponse,
 )
@@ -551,11 +552,12 @@ class TestCoerceParameters:
         )
         assert result["ds_gene_ids"] == "42"
         api.create_dataset.assert_awaited_once()
-        # Verify the IDs were split properly
+        # Verify the IDs were split properly in the typed config
         call_args = api.create_dataset.call_args
-        uploaded_ids = call_args[0][0]
-        assert "PF3D7_0100100" in uploaded_ids
-        assert "PF3D7_0100200" in uploaded_ids
+        config_arg = call_args[0][0]
+        assert isinstance(config_arg, WDKDatasetConfigIdList)
+        assert "PF3D7_0100100" in config_arg.source_content.ids
+        assert "PF3D7_0100200" in config_arg.source_content.ids
 
     async def test_dataset_param_integer_no_upload(self) -> None:
         """When dataset param is already an integer ID, skip upload."""

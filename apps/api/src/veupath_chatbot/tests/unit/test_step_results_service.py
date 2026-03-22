@@ -4,7 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKRecordInstance,
+    WDKRecordType,
+    WDKStepAnalysisType,
+)
 from veupath_chatbot.services.wdk.helpers import DETAIL_ATTRIBUTE_LIMIT
 from veupath_chatbot.services.wdk.step_results import StepResultsService
 
@@ -13,7 +18,8 @@ from veupath_chatbot.services.wdk.step_results import StepResultsService
 def mock_api() -> MagicMock:
     api = MagicMock()
     api.get_record_type_info = AsyncMock(
-        return_value={
+        return_value=WDKRecordType.model_validate({
+            "urlSegment": "gene",
             "attributes": {
                 "gene_name": {
                     "displayName": "Gene Name",
@@ -25,8 +31,8 @@ def mock_api() -> MagicMock:
                     "type": "number",
                     "isDisplayable": True,
                 },
-            }
-        }
+            },
+        })
     )
     api.get_step_records = AsyncMock(
         return_value=WDKAnswer.model_validate({
@@ -40,9 +46,13 @@ def mock_api() -> MagicMock:
         })
     )
     api.get_column_distribution = AsyncMock(return_value={"bins": []})
-    api.list_analysis_types = AsyncMock(return_value=[{"name": "go-enrichment"}])
+    api.list_analysis_types = AsyncMock(return_value=[
+        WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment"),
+    ])
     api.get_strategy = AsyncMock(return_value={"stepTree": {}})
-    api.get_single_record = AsyncMock(return_value={"id": "GENE1"})
+    api.get_single_record = AsyncMock(
+        return_value=WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": "GENE1"}]})
+    )
     return api
 
 
@@ -65,14 +75,15 @@ class TestGetAttributes:
     @pytest.mark.asyncio
     async def test_handles_attributes_map_key(self, mock_api: MagicMock) -> None:
         mock_api.get_record_type_info = AsyncMock(
-            return_value={
+            return_value=WDKRecordType.model_validate({
+                "urlSegment": "gene",
                 "attributesMap": {
                     "gene_name": {
                         "displayName": "Gene Name",
                         "type": "string",
-                    }
-                }
-            }
+                    },
+                },
+            })
         )
         svc = StepResultsService(mock_api, step_id=42, record_type="gene")
         result = await svc.get_attributes()
@@ -127,7 +138,10 @@ class TestListAnalysisTypes:
         svc = StepResultsService(mock_api, step_id=42, record_type="gene")
         result = await svc.list_analysis_types()
         mock_api.list_analysis_types.assert_called_once_with(42)
-        assert result == {"analysisTypes": [{"name": "go-enrichment"}]}
+        types = result["analysisTypes"]
+        assert isinstance(types, list)
+        assert len(types) == 1
+        assert types[0]["name"] == "go-enrichment"
 
 
 class TestGetStrategy:
@@ -152,7 +166,8 @@ class TestGetRecordDetail:
         """Mock API with list-format record type info (like real WDK expanded)."""
         api = MagicMock()
         api.get_record_type_info = AsyncMock(
-            return_value={
+            return_value=WDKRecordType.model_validate({
+                "urlSegment": "transcript",
                 "attributes": [
                     {
                         "name": "primary_key",
@@ -180,10 +195,10 @@ class TestGetRecordDetail:
                     },
                 ],
                 "primaryKeyColumnRefs": ["gene_source_id", "source_id", "project_id"],
-            }
+            })
         )
         api.get_single_record = AsyncMock(
-            return_value={
+            return_value=WDKRecordInstance.model_validate({
                 "id": [
                     {"name": "gene_source_id", "value": "PF3D7_0102600"},
                     {"name": "source_id", "value": "PF3D7_0102600.1"},
@@ -195,7 +210,7 @@ class TestGetRecordDetail:
                     "organism": "Plasmodium falciparum 3D7",
                 },
                 "tables": {},
-            }
+            })
         )
         return api
 
@@ -272,10 +287,11 @@ class TestGetRecordDetail:
             for i in range(100)
         ]
         detail_api.get_record_type_info = AsyncMock(
-            return_value={
+            return_value=WDKRecordType.model_validate({
+                "urlSegment": "transcript",
                 "attributes": many_attrs,
                 "primaryKeyColumnRefs": ["source_id"],
-            }
+            })
         )
         svc = StepResultsService(detail_api, step_id=42, record_type="transcript")
         await svc.get_record_detail(

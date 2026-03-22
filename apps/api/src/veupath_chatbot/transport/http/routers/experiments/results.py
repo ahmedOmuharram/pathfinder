@@ -169,7 +169,7 @@ async def get_experiment_record_detail(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Get a single record's full details by primary key."""
-    pk_parts: list[JSONObject] = [
+    pk_parts: list[dict[str, str]] = [
         {"name": part.name, "value": part.value} for part in body.primary_key
     ]
 

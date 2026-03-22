@@ -272,7 +272,8 @@ class StrategyAPIBase:
     async def _standard_report(
         self,
         step_id: int,
-        report_config: JSONObject,
+        report_config: dict[str, object],
+        user_id: str | None = None,
     ) -> WDKAnswer:
         """Run a standard report on a step.
 
@@ -280,10 +281,12 @@ class StrategyAPIBase:
 
         :param step_id: WDK step ID (must be part of a strategy).
         :param report_config: Report configuration dict.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Validated WDK answer.
         """
+        uid = await self._get_user_id(user_id)
         result = await self.client.post(
-            f"/users/{self._resolved_user_id}/steps/{step_id}/reports/standard",
+            f"/users/{uid}/steps/{step_id}/reports/standard",
             json={"reportConfig": report_config},
         )
         try:

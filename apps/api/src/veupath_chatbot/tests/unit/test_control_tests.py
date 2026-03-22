@@ -17,11 +17,14 @@ from dataclasses import dataclass
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pydantic
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
     WDKIdentifier,
     WDKSearchResponse,
 )
@@ -329,10 +332,14 @@ class TestRunIntersectionControl:
             controls_ids=["PF3D7_001", "PF3D7_002", "PF3D7_003"],
         )
 
-        # Dataset was created
-        api.create_dataset.assert_awaited_once_with(
-            ["PF3D7_001", "PF3D7_002", "PF3D7_003"]
+        # Dataset was created with typed config
+        expected_config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(
+                ids=["PF3D7_001", "PF3D7_002", "PF3D7_003"]
+            ),
         )
+        api.create_dataset.assert_awaited_once_with(expected_config)
 
         # create_step called twice: target + controls
         assert api.create_step.await_count == 2
@@ -646,8 +653,12 @@ class TestStrategyAPICreateDataset:
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
         api._resolved_user_id = "12345"
-        with patch.object(api, "_ensure_session", AsyncMock()):
-            result = await api.create_dataset(["GENE_A", "GENE_B"])
+        api._session_initialized = True
+        config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=["GENE_A", "GENE_B"]),
+        )
+        result = await api.create_dataset(config)
         assert result == 12345
 
         mock_client.post.assert_awaited_once_with(
@@ -666,11 +677,13 @@ class TestStrategyAPICreateDataset:
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
         api._resolved_user_id = "12345"
-        with (
-            patch.object(api, "_ensure_session", AsyncMock()),
-            pytest.raises(Exception, match="Dataset creation failed"),
-        ):
-            await api.create_dataset(["A"])
+        api._session_initialized = True
+        config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=["A"]),
+        )
+        with pytest.raises(pydantic.ValidationError):
+            await api.create_dataset(config)
 
 
 class TestRunPositiveNegativeControls:

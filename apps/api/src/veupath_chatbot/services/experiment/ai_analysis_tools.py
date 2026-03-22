@@ -118,7 +118,7 @@ class _AnalysisToolsMixin:
             pk_parts = await build_primary_key(
                 api, self.site_id, exp.config.record_type, gene_id
             )
-            result = await api.get_single_record(
+            record = await api.get_single_record(
                 record_type=exp.config.record_type,
                 primary_key=pk_parts,
             )
@@ -130,7 +130,7 @@ class _AnalysisToolsMixin:
             return {
                 "geneId": gene_id,
                 "classification": classification,
-                "record": result,
+                "record": record.model_dump(by_alias=True),
             }
 
     @ai_function()

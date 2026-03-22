@@ -8,7 +8,12 @@ import pydantic
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+)
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -216,16 +221,20 @@ async def _fetch_gene_answer(
 
     Returns the raw answer dict, or None / error-dict if a step fails.
     Returns a JSONObject with 'error' key on dataset failure.
+
+    Uses a temporary :class:`StrategyAPI` wrapper around the short-lived
+    client to call the typed ``create_dataset`` method while preserving
+    session affinity between dataset creation and the subsequent search.
     """
-    dataset_resp = await client.post(
-        "/users/current/datasets",
-        json={"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
+    api = StrategyAPI(client)
+    config = WDKDatasetConfigIdList(
+        source_type="idList",
+        source_content=WDKDatasetIdListContent(ids=gene_ids),
     )
-    if not isinstance(dataset_resp, dict):
+    try:
+        dataset_id = await api.create_dataset(config)
+    except AppError:
         return {"records": [], "totalCount": 0, "error": "Failed to create dataset for ID lookup."}
-    dataset_id = dataset_resp.get("id")
-    if dataset_id is None:
-        return {"records": [], "totalCount": 0, "error": "Dataset creation returned no ID."}
 
     result = await client.post(
         f"/record-types/{record_type}/searches/{search_name}/reports/standard",

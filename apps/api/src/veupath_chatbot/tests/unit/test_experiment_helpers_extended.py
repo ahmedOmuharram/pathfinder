@@ -1,10 +1,8 @@
-"""Bug-hunting tests for helpers.py — safe_int, safe_float, extract_wdk_id, gene lists.
+"""Bug-hunting tests for helpers.py — safe_int, safe_float, gene lists.
 
 Covers:
 - safe_int with strings, NaN, Infinity, booleans, None
 - safe_float with NaN, Infinity, -Infinity, edge strings
-- extract_wdk_id with various payload shapes
-- coerce_step_id success/failure
 - _extract_gene_list with missing sections, None entries
 - _extract_id_set with various inputs
 - _enrich_list with partial metadata
@@ -12,13 +10,10 @@ Covers:
 
 import pytest
 
-from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.services.experiment.helpers import (
     _enrich_list,
     _extract_gene_list,
     _extract_id_set,
-    coerce_step_id,
-    extract_wdk_id,
     safe_float,
     safe_int,
 )
@@ -175,63 +170,6 @@ class TestSafeFloat:
     def test_custom_default_on_nan(self) -> None:
         assert safe_float(float("nan"), 999.0) == 999.0
 
-
-class TestExtractWdkId:
-    """extract_wdk_id extracts an integer ID from a WDK response."""
-
-    def test_standard_payload(self) -> None:
-        assert extract_wdk_id({"id": 42}) == 42
-
-    def test_custom_key(self) -> None:
-        assert extract_wdk_id({"strategyId": 99}, key="strategyId") == 99
-
-    def test_missing_key(self) -> None:
-        assert extract_wdk_id({"other": 42}) is None
-
-    def test_non_int_value(self) -> None:
-        """String ID is not extracted (WDK uses Java long)."""
-        assert extract_wdk_id({"id": "42"}) is None
-
-    def test_float_value(self) -> None:
-        """Float ID is not extracted."""
-        assert extract_wdk_id({"id": 42.0}) is None
-
-    def test_none_payload(self) -> None:
-        assert extract_wdk_id(None) is None
-
-    def test_non_dict_payload(self) -> None:
-        assert extract_wdk_id([42]) is None
-
-    def test_empty_dict(self) -> None:
-        assert extract_wdk_id({}) is None
-
-    def test_zero_id(self) -> None:
-        """Zero is a valid integer ID."""
-        assert extract_wdk_id({"id": 0}) == 0
-
-    def test_negative_id(self) -> None:
-        """Negative IDs are technically valid integers."""
-        assert extract_wdk_id({"id": -1}) == -1
-
-
-class TestCoerceStepId:
-    """coerce_step_id raises on missing ID."""
-
-    def test_valid_payload(self) -> None:
-        assert coerce_step_id({"id": 42}) == 42
-
-    def test_missing_id_raises(self) -> None:
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id({})
-
-    def test_none_payload_raises(self) -> None:
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id(None)
-
-    def test_string_id_raises(self) -> None:
-        """String IDs are not accepted."""
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id({"id": "not_an_int"})
 
 
 class TestExtractGeneList:

@@ -4,8 +4,6 @@ Utility functions for extracting WDK record data, classifying genes,
 searching records, and fetching result IDs.
 """
 
-from typing import cast
-
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.platform.errors import AppError
@@ -61,7 +59,7 @@ def record_matches(attrs: JSONObject, query_lower: str, attribute: str | None) -
 
 async def build_primary_key(
     api: StrategyAPI, site_id: str, record_type: str, gene_id: str
-) -> list[JSONObject]:
+) -> list[dict[str, str]]:
     """Build a complete WDK primary key for a gene ID.
 
     WDK requires all primary key columns (e.g. ``source_id`` + ``project_id``
@@ -74,16 +72,16 @@ async def build_primary_key(
     :param gene_id: Gene identifier (the ``source_id`` value).
     :returns: List of ``{name, value}`` dicts forming the complete PK.
     """
-    pk_parts: list[JSONObject] = [{"name": "source_id", "value": gene_id}]
+    pk_parts: list[dict[str, str]] = [{"name": "source_id", "value": gene_id}]
     try:
         info = await api.get_record_type_info(record_type)
-        pk_refs = info.get("primaryKeyColumnRefs") or info.get("primaryKey") or []
-        if isinstance(pk_refs, list) and len(pk_parts) < len(pk_refs):
+        pk_refs = info.primary_key_column_refs
+        if len(pk_parts) < len(pk_refs):
             names_sent = {"source_id"}
             site = get_site(site_id)
             pk_defaults: dict[str, str] = {"project_id": site.project_id}
             for col in pk_refs:
-                if not isinstance(col, str) or col in names_sent:
+                if col in names_sent:
                     continue
                 default_val = pk_defaults.get(col)
                 if default_val:
@@ -119,21 +117,17 @@ async def fetch_group_records(
             if site_id:
                 pk = await build_primary_key(api, site_id, record_type, gene_id)
             else:
-                pk = cast(
-                    "list[JSONObject]",
-                    [{"name": "source_id", "value": gene_id}],
-                )
+                pk = [{"name": "source_id", "value": gene_id}]
             rec = await api.get_single_record(
                 record_type=record_type,
                 primary_key=pk,
             )
-            if isinstance(rec, dict):
-                results.append(
-                    {
-                        "geneId": gene_id,
-                        "attributes": rec.get("attributes", {}),
-                    }
-                )
+            results.append(
+                {
+                    "geneId": gene_id,
+                    "attributes": rec.attributes,
+                }
+            )
         except AppError as exc:
             logger.debug(
                 "Failed to fetch record for gene", gene_id=gene_id, error=str(exc)

@@ -21,6 +21,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
     encode_context_param_values_for_wdk,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
 )
@@ -49,7 +50,7 @@ def client() -> VEuPathDBClient:
 
 @respx.mock
 async def test_get_record_types(client: VEuPathDBClient) -> None:
-    """GET /record-types returns a parsed JSON list of record type strings."""
+    """GET /record-types returns a list of WDKRecordType models."""
     expected = record_types_response()
     respx.get(f"{BASE}/record-types").mock(
         return_value=Response(200, json=expected),
@@ -57,10 +58,10 @@ async def test_get_record_types(client: VEuPathDBClient) -> None:
 
     result = await client.get_record_types()
 
-    assert result == expected
     assert isinstance(result, list)
     assert len(result) == 6
-    assert result[0] == "transcript"
+    assert all(isinstance(rt, WDKRecordType) for rt in result)
+    assert result[0].url_segment == "transcript"
 
 
 @respx.mock
@@ -99,14 +100,19 @@ async def test_get_search_details(client: VEuPathDBClient) -> None:
 
 @respx.mock
 async def test_get_refreshed_dependent_params(client: VEuPathDBClient) -> None:
-    """POST refreshed-dependent-params sends encoded context body."""
-    fake_response = {
-        "organism": {
+    """POST refreshed-dependent-params sends encoded context body.
+
+    WDK returns a JSON array of parameter objects.  The client now
+    parses each item via the WDKParameter discriminated union.
+    """
+    fake_response = [
+        {
             "name": "organism",
             "displayName": "Organism",
+            "type": "single-pick-vocabulary",
             "vocabulary": [["Plasmodium falciparum 3D7", "P. falciparum 3D7"]],
         },
-    }
+    ]
 
     context = {
         "organism": ["Plasmodium falciparum 3D7"],
@@ -122,7 +128,9 @@ async def test_get_refreshed_dependent_params(client: VEuPathDBClient) -> None:
     )
 
     assert route.called
-    assert result == fake_response
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0].name == "organism"
 
     # Verify the request body was properly encoded
     sent_body = json.loads(route.calls.last.request.content)

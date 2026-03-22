@@ -403,7 +403,7 @@ async def get_gene_set_record_detail(
     except ValueError as exc:
         raise _no_strategy(exc) from exc
 
-    pk_parts: list[JSONObject] = [
+    pk_parts: list[dict[str, str]] = [
         {"name": part.name, "value": part.value} for part in body.primary_key
     ]
     return await svc.get_record_detail(pk_parts, gs.site_id)

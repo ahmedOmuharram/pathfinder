@@ -24,6 +24,7 @@ from veupath_chatbot.domain.strategy.compile import (
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfig,
     WDKIdentifier,
     WDKSearch,
     WDKSearchResponse,
@@ -170,10 +171,10 @@ class FakeCompilerAPI:
         )
         return WDKIdentifier(id=step_id)
 
-    async def create_dataset(self, ids: list[str]) -> int:
+    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int:
         ds_id = self._alloc_id()
         self.calls.append(
-            StepCall(method="create_dataset", kwargs={"ids": ids, "returned_id": ds_id})
+            StepCall(method="create_dataset", kwargs={"config": config, "returned_id": ds_id})
         )
         return ds_id
 

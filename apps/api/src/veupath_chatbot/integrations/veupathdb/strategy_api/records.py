@@ -4,12 +4,16 @@ Provides :class:`RecordsMixin` with methods for record type metadata,
 individual record retrieval, and column value distributions.
 """
 
-from typing import cast
+import pydantic
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordInstance,
+    WDKRecordType,
+)
+from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -17,28 +21,31 @@ logger = get_logger(__name__)
 class RecordsMixin(StrategyAPIBase):
     """Mixin providing record type info, single record, and distribution methods."""
 
-    async def get_record_type_info(self, record_type: str) -> JSONObject:
+    async def get_record_type_info(self, record_type: str) -> WDKRecordType:
         """Get expanded record type info including attributes and tables.
 
         :param record_type: WDK record type (e.g. "gene").
-        :returns: Record type metadata with attribute fields.
+        :returns: Validated record type metadata with attribute fields.
         """
         await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.get(
-                f"/record-types/{record_type}",
-                params={"format": "expanded"},
-            ),
+        raw = await self.client.get(
+            f"/record-types/{record_type}",
+            params={"format": "expanded"},
         )
+        try:
+            return WDKRecordType.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK record type response for {record_type}: {e}"
+            raise DataParsingError(msg) from e
 
     async def get_single_record(
         self,
         record_type: str,
-        primary_key: list[JSONObject],
+        primary_key: list[dict[str, str]],
+        *,
         attributes: list[str] | None = None,
         tables: list[str] | None = None,
-    ) -> JSONObject:
+    ) -> WDKRecordInstance:
         """Fetch a single record by its primary key.
 
         WDK's ``POST /record-types/{type}/records`` requires ``primaryKey``,
@@ -50,22 +57,24 @@ class RecordsMixin(StrategyAPIBase):
         :param primary_key: List of ``{name, value}`` primary key parts.
         :param attributes: Attribute names to include (empty = default set).
         :param tables: Table names to include (empty = none).
-        :returns: Full record with requested attributes/tables.
+        :returns: Validated record instance with requested attributes/tables.
         """
-        payload: JSONObject = {
-            "primaryKey": cast("JSONValue", primary_key),
-            "attributes": cast("JSONValue", attributes or []),
-            "tables": cast("JSONValue", tables or []),
+        payload: dict[str, object] = {
+            "primaryKey": primary_key,
+            "attributes": attributes or [],
+            "tables": tables or [],
         }
 
         await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.post(
-                f"/record-types/{record_type}/records",
-                json=payload,
-            ),
+        raw = await self.client.post(
+            f"/record-types/{record_type}/records",
+            json=payload,
         )
+        try:
+            return WDKRecordInstance.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK record response for {record_type}: {e}"
+            raise DataParsingError(msg) from e
 
     async def get_column_distribution(
         self, step_id: int, column_name: str

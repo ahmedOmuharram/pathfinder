@@ -18,6 +18,10 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
     AnalysisPollConfig,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+)
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     analysis_create_response,
@@ -581,7 +585,11 @@ class TestCreateDataset:
         )
 
         gene_ids = ["PF3D7_0100100", "PF3D7_0831900", "PF3D7_1133400"]
-        ds_id = await api.create_dataset(ids=gene_ids)
+        config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=gene_ids),
+        )
+        ds_id = await api.create_dataset(config)
 
         assert ds_id == 500
         assert dataset_route.called

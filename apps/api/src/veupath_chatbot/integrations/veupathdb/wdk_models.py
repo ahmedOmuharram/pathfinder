@@ -208,7 +208,14 @@ class WDKSearchResponse(WDKModel):
 
 
 class WDKRecordType(WDKModel):
-    """WDK record type metadata."""
+    """WDK record type metadata.
+
+    The expanded single record type endpoint (``GET /record-types/{type}?format=expanded``)
+    includes ``attributes`` as a list of attribute field objects.  Some WDK
+    deployments return ``attributesMap`` (a dict keyed by attribute name) instead.
+    Both are modelled as optional ``JSONValue`` so callers can pass either format
+    through to ``build_attribute_list`` / ``extract_detail_attributes``.
+    """
 
     url_segment: str
     full_name: str = ""
@@ -223,6 +230,8 @@ class WDKRecordType(WDKModel):
     properties: dict[str, list[str]] = Field(default_factory=dict)
     searches: list[WDKSearch] | None = None
     icon_name: str | None = None
+    attributes: JSONValue = None
+    attributes_map: JSONValue = None
 
 
 class WDKAnswerMeta(WDKModel):
@@ -277,7 +286,7 @@ class WDKUserInfo(WDKModel):
     """WDK user profile (from ``GET /users/current``)."""
 
     id: int
-    email: str = ""
+    email: str | None = None
     is_guest: bool = True
     properties: dict[str, str] = Field(default_factory=dict)
 

@@ -16,6 +16,10 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
 from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.records import RecordsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.reports import ReportsMixin
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKStepAnalysisConfig,
+    WDKStepAnalysisType,
+)
 from veupath_chatbot.platform.errors import DataParsingError, InternalError, WDKError
 
 
@@ -30,12 +34,14 @@ def _make_client() -> MagicMock:
     client.get_step_view_filters = AsyncMock(return_value=[])
     client.update_step_view_filters = AsyncMock(return_value={})
     client.list_analysis_types = AsyncMock(return_value=[])
-    client.get_analysis_type = AsyncMock(return_value={})
+    client.get_analysis_type = AsyncMock(
+        return_value=WDKStepAnalysisType(name="", display_name="")
+    )
     client.list_step_analyses = AsyncMock(return_value=[])
     client.create_step_analysis = AsyncMock()
     client.run_analysis_instance = AsyncMock()
-    client.get_analysis_status = AsyncMock()
-    client.get_analysis_result = AsyncMock()
+    client.get_analysis_status = AsyncMock(return_value="")
+    client.get_analysis_result = AsyncMock(return_value={})
     client.run_step_report = AsyncMock()
     return client
 
@@ -122,17 +128,20 @@ class TestFilterOperations:
 
     async def test_list_analysis_types(self) -> None:
         mixin, client = _make_analysis_mixin()
-        client.list_analysis_types.return_value = [{"name": "go-enrichment"}]
+        go_type = WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment")
+        client.list_analysis_types.return_value = [go_type]
         result = await mixin.list_analysis_types(step_id=42)
-        assert result == [{"name": "go-enrichment"}]
+        assert len(result) == 1
+        assert result[0].name == "go-enrichment"
 
     async def test_get_analysis_type(self) -> None:
         mixin, client = _make_analysis_mixin()
-        client.get_analysis_type.return_value = {"searchData": {"parameters": []}}
+        go_type = WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment")
+        client.get_analysis_type.return_value = go_type
         result = await mixin.get_analysis_type(
             step_id=42, analysis_type="go-enrichment"
         )
-        assert "searchData" in result
+        assert result.name == "go-enrichment"
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +378,9 @@ class TestRunStepAnalysis:
 
     async def test_successful_analysis(self) -> None:
         mixin, client = _make_analysis_mixin()
+        analysis_config = WDKStepAnalysisConfig(
+            analysis_id=7, step_id=42, analysis_name="go-enrichment"
+        )
         # Phase 0: warmup
         client.post.side_effect = [
             # warmup report
@@ -376,9 +388,9 @@ class TestRunStepAnalysis:
             # Phase 1: create analysis
             None,  # will be overridden
         ]
-        client.create_step_analysis.return_value = {"analysisId": 7}
-        client.run_analysis_instance.return_value = {"status": "RUNNING"}
-        client.get_analysis_status.return_value = {"status": "COMPLETE"}
+        client.create_step_analysis.return_value = analysis_config
+        client.run_analysis_instance.return_value = analysis_config
+        client.get_analysis_status.return_value = "COMPLETE"
         client.get_analysis_result.return_value = {
             "rows": [{"term": "GO:0001", "pvalue": 0.01}]
         }
@@ -411,24 +423,15 @@ class TestRunStepAnalysis:
         client.create_step_analysis.assert_awaited_once()
         client.run_analysis_instance.assert_awaited_once_with("12345", 42, 7)
 
-    async def test_raises_on_missing_analysis_id(self) -> None:
-        mixin, client = _make_analysis_mixin()
-        client.post.return_value = {"meta": {"totalCount": 100}}
-        client.create_step_analysis.return_value = {"no_id": True}
-
-        with pytest.raises(InternalError, match="creation failed"):
-            await mixin.run_step_analysis(
-                step_id=42,
-                analysis_type="go-enrichment",
-                poll_config=AnalysisPollConfig(poll_interval=0.01),
-            )
-
     async def test_raises_on_expired_status(self) -> None:
         mixin, client = _make_analysis_mixin()
+        analysis_config = WDKStepAnalysisConfig(
+            analysis_id=7, step_id=42, analysis_name="go-enrichment"
+        )
         client.post.return_value = {"meta": {"totalCount": 100}}
-        client.create_step_analysis.return_value = {"analysisId": 7}
-        client.run_analysis_instance.return_value = {}
-        client.get_analysis_status.return_value = {"status": "EXPIRED"}
+        client.create_step_analysis.return_value = analysis_config
+        client.run_analysis_instance.return_value = analysis_config
+        client.get_analysis_status.return_value = "EXPIRED"
 
         with pytest.raises(InternalError, match="analysis failed"):
             await mixin.run_step_analysis(
@@ -440,14 +443,14 @@ class TestRunStepAnalysis:
     async def test_retries_on_error_status(self) -> None:
         """ERROR status triggers re-run of the same analysis instance."""
         mixin, client = _make_analysis_mixin()
+        analysis_config = WDKStepAnalysisConfig(
+            analysis_id=7, step_id=42, analysis_name="go-enrichment"
+        )
         client.post.return_value = {"meta": {"totalCount": 100}}
-        client.create_step_analysis.return_value = {"analysisId": 7}
-        client.run_analysis_instance.return_value = {}
+        client.create_step_analysis.return_value = analysis_config
+        client.run_analysis_instance.return_value = analysis_config
         # First poll: ERROR, second poll after re-run: COMPLETE
-        client.get_analysis_status.side_effect = [
-            {"status": "ERROR"},
-            {"status": "COMPLETE"},
-        ]
+        client.get_analysis_status.side_effect = ["ERROR", "COMPLETE"]
         client.get_analysis_result.return_value = {"rows": []}
 
         result = await mixin.run_step_analysis(

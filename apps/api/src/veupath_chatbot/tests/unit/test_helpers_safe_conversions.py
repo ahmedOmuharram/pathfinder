@@ -1,11 +1,6 @@
-"""Tests for safe_int, safe_float, extract_wdk_id, coerce_step_id in helpers.py."""
+"""Tests for safe_int and safe_float in helpers.py."""
 
-import pytest
-
-from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.services.experiment.helpers import (
-    coerce_step_id,
-    extract_wdk_id,
     safe_float,
     safe_int,
 )
@@ -109,44 +104,3 @@ class TestSafeFloat:
         assert safe_float("nan") == 0.0
 
 
-class TestExtractWdkId:
-    def test_extracts_int_id(self) -> None:
-        assert extract_wdk_id({"id": 42}) == 42
-
-    def test_custom_key(self) -> None:
-        assert extract_wdk_id({"strategyId": 99}, key="strategyId") == 99
-
-    def test_none_payload(self) -> None:
-        assert extract_wdk_id(None) is None
-
-    def test_missing_key(self) -> None:
-        assert extract_wdk_id({"other": 1}) is None
-
-    def test_string_id_returns_none(self) -> None:
-        assert extract_wdk_id({"id": "42"}) is None
-
-    def test_empty_dict(self) -> None:
-        assert extract_wdk_id({}) is None
-
-    def test_non_dict_payload(self) -> None:
-        assert extract_wdk_id("not a dict") is None
-
-    def test_zero_id(self) -> None:
-        assert extract_wdk_id({"id": 0}) == 0
-
-
-class TestCoerceStepId:
-    def test_extracts_valid_step_id(self) -> None:
-        assert coerce_step_id({"id": 123}) == 123
-
-    def test_raises_on_missing_id(self) -> None:
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id({})
-
-    def test_raises_on_none_payload(self) -> None:
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id(None)
-
-    def test_raises_on_string_id(self) -> None:
-        with pytest.raises(DataParsingError, match="Failed to extract step ID"):
-            coerce_step_id({"id": "abc"})

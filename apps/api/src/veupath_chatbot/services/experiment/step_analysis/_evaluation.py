@@ -4,6 +4,10 @@ from dataclasses import dataclass, field
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
@@ -75,7 +79,11 @@ async def run_controls_against_tree(
 
         controls_params: JSONObject = {}
         if param_type == "input-dataset":
-            dataset_id = await api.create_dataset(control_ids)
+            config_ds = WDKDatasetConfigIdList(
+                source_type="idList",
+                source_content=WDKDatasetIdListContent(ids=control_ids),
+            )
+            dataset_id = await api.create_dataset(config_ds)
             controls_params[ctx.controls_param_name] = str(dataset_id)
         else:
             controls_params[ctx.controls_param_name] = "\n".join(control_ids)
