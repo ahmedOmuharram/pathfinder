@@ -16,8 +16,6 @@ from dataclasses import dataclass
 
 from rapidfuzz import fuzz
 
-from veupath_chatbot.platform.types import JSONObject
-
 _MIN_ORGANISM_MATCH_SCORE = 0.60
 
 
@@ -80,20 +78,20 @@ def score_field_quality(matched_fields: Sequence[str]) -> float:
 
 
 @dataclass
-class ScoredResult:
+class ScoredResult[T]:
     """A search result with an attached relevance score."""
 
-    result: JSONObject
+    result: T
     score: float
     source: str = ""
 
 
-def dedup_and_sort(
-    results: Sequence[ScoredResult],
-    key_fn: Callable[[JSONObject], str],
-) -> list[ScoredResult]:
+def dedup_and_sort[T](
+    results: Sequence[ScoredResult[T]],
+    key_fn: Callable[[T], str],
+) -> list[ScoredResult[T]]:
     """Deduplicate results by key, keeping the highest-scoring entry."""
-    best: dict[str, ScoredResult] = {}
+    best: dict[str, ScoredResult[T]] = {}
     for sr in results:
         k = key_fn(sr.result)
         if not k:

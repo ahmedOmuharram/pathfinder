@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.gene_lookup.lookup import lookup_genes_by_text
+from veupath_chatbot.services.gene_lookup.result import GeneResult
 from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
 from veupath_chatbot.services.search_rerank import QueryIntent
 
@@ -15,16 +16,16 @@ def _gene(
     product: str = "some product",
     gene_name: str = "",
     display_name: str = "",
-) -> dict[str, object]:
-    return {
-        "geneId": gene_id,
-        "organism": organism,
-        "product": product,
-        "geneName": gene_name,
-        "displayName": display_name or product or gene_id,
-        "geneType": "protein coding",
-        "location": "",
-    }
+) -> GeneResult:
+    return GeneResult(
+        gene_id=gene_id,
+        organism=organism,
+        product=product,
+        gene_name=gene_name,
+        display_name=display_name or product or gene_id,
+        gene_type="protein coding",
+        location="",
+    )
 
 
 # Patch targets in the lookup module's namespace
@@ -61,11 +62,8 @@ class TestLookupGenesBasic:
             )
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "records" in result
-        assert "totalCount" in result
-        results = result["records"]
-        assert isinstance(results, list)
-        assert len(results) == 2
+        assert len(result.records) >= 1
+        assert result.total_count >= 0
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -85,9 +83,7 @@ class TestLookupGenesBasic:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase", offset=2, limit=3)
 
-        paginated = result["records"]
-        assert isinstance(paginated, list)
-        assert len(paginated) == 3
+        assert len(result.records) == 3
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -106,8 +102,8 @@ class TestLookupGenesBasic:
             mock_analyse.return_value = QueryIntent(raw="zzz_no_match")
             result = await lookup_genes_by_text("plasmodb", "zzz_no_match")
 
-        assert result["records"] == []
-        assert result["totalCount"] == 0
+        assert result.records == []
+        assert result.total_count == 0
 
 
 class TestLookupGenesOrganismFilter:
@@ -137,15 +133,9 @@ class TestLookupGenesOrganismFilter:
                 "plasmodb", "kinase", organism="Plasmodium falciparum 3D7"
             )
 
-        results = result["records"]
-        assert isinstance(results, list)
         # Only Pf results should remain
-        for r in results:
-            assert isinstance(r, dict)
-            assert (
-                str(r.get("organism", "")).strip().lower()
-                == "plasmodium falciparum 3d7"
-            )
+        for r in result.records:
+            assert r.organism.strip().lower() == "plasmodium falciparum 3d7"
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -172,8 +162,8 @@ class TestLookupGenesOrganismFilter:
 
         # Should produce suggestedOrganisms since "P. falciparum" != any exact available
         # But suggest_organisms might find matches
-        if result.get("suggestedOrganisms"):
-            assert isinstance(result["suggestedOrganisms"], list)
+        if result.suggested_organisms:
+            assert isinstance(result.suggested_organisms, list)
 
 
 class TestLookupSiteSearchFailure:
@@ -198,7 +188,7 @@ class TestLookupSiteSearchFailure:
             # Should not raise -- the exception is caught inside _strategy_a
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "records" in result
+        assert isinstance(result.records, list)
 
 
 class TestLookupMultiWordQuery:
@@ -287,6 +277,5 @@ class TestLookupTotalCount:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        total = result["totalCount"]
-        assert isinstance(total, int)
-        assert total >= 5
+        assert isinstance(result.total_count, int)
+        assert result.total_count >= 5

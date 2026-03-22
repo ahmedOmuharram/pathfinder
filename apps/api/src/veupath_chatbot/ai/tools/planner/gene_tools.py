@@ -8,8 +8,9 @@ from typing import Annotated
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.gene_lookup import (
+    GeneResolveResult,
+    GeneSearchResult,
     lookup_genes_by_text,
     resolve_gene_ids,
 )
@@ -45,7 +46,7 @@ class GeneToolsMixin:
             ),
         ] = None,
         limit: Annotated[int, AIParam(desc="Max results to return (default 10)")] = 10,
-    ) -> JSONObject:
+    ) -> GeneSearchResult:
         """Look up gene records by name, symbol, or description using VEuPathDB site-search.
 
         Use this to resolve human-readable gene names (from literature or user input)
@@ -82,7 +83,7 @@ class GeneToolsMixin:
             str,
             AIParam(desc="Parameter name for the ID list (default 'ds_gene_ids')"),
         ] = "ds_gene_ids",
-    ) -> JSONObject:
+    ) -> GeneResolveResult:
         """Resolve known gene IDs to full records (product name, organism, gene type).
 
         Use this to validate gene IDs or fetch metadata for IDs you already have
@@ -90,13 +91,15 @@ class GeneToolsMixin:
         """
         ids = [str(x).strip() for x in (gene_ids or []) if str(x).strip()]
         if not ids:
-            return {"records": [], "totalCount": 0, "error": "No gene IDs provided."}
+            return GeneResolveResult(
+                records=[], total_count=0, error="No gene IDs provided."
+            )
         if len(ids) > _MAX_GENE_IDS:
-            return {
-                "records": [],
-                "totalCount": 0,
-                "error": f"Too many IDs (max {_MAX_GENE_IDS}). Reduce the list.",
-            }
+            return GeneResolveResult(
+                records=[],
+                total_count=0,
+                error=f"Too many IDs (max {_MAX_GENE_IDS}). Reduce the list.",
+            )
         return await resolve_gene_ids(
             self.site_id,
             ids,

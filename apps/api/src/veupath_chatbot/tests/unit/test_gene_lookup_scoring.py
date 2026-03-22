@@ -2,6 +2,7 @@
 
 import pytest
 
+from veupath_chatbot.services.gene_lookup.result import GeneResult
 from veupath_chatbot.services.gene_lookup.scoring import (
     _EXACT_BONUS,
     _W_DISPLAY_NAME,
@@ -21,13 +22,7 @@ class TestScoreGeneRelevance:
         """When the query exactly matches geneId, the gene ID component should dominate."""
         score = score_gene_relevance(
             "PF3D7_0100100",
-            {
-                "geneId": "PF3D7_0100100",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "",
-            },
+            GeneResult(gene_id="PF3D7_0100100"),
         )
         # Gene ID exact match contributes _W_GENE_ID * 1.0 = 100
         assert score >= _W_GENE_ID * 0.9
@@ -36,13 +31,11 @@ class TestScoreGeneRelevance:
         """When product exactly matches query, the exact bonus should fire."""
         score = score_gene_relevance(
             "alpha tubulin 2",
-            {
-                "geneId": "PF3D7_0422300",
-                "geneName": "",
-                "displayName": "alpha tubulin 2",
-                "organism": "",
-                "product": "alpha tubulin 2",
-            },
+            GeneResult(
+                gene_id="PF3D7_0422300",
+                display_name="alpha tubulin 2",
+                product="alpha tubulin 2",
+            ),
         )
         # product and displayName exact match => _EXACT_BONUS
         assert score >= _EXACT_BONUS * 0.9
@@ -51,42 +44,39 @@ class TestScoreGeneRelevance:
         """A partial match shouldn't get the exact bonus."""
         score = score_gene_relevance(
             "alpha tubulin 2",
-            {
-                "geneId": "PF3D7_XXXX",
-                "geneName": "",
-                "displayName": "casein kinase 2, alpha subunit",
-                "organism": "",
-                "product": "casein kinase 2, alpha subunit",
-            },
+            GeneResult(
+                gene_id="PF3D7_XXXX",
+                display_name="casein kinase 2, alpha subunit",
+                product="casein kinase 2, alpha subunit",
+            ),
         )
         # The partial match score should be lower than a perfect match
         perfect_score = score_gene_relevance(
             "alpha tubulin 2",
-            {
-                "geneId": "PF3D7_0422300",
-                "geneName": "alpha tubulin 2",
-                "displayName": "alpha tubulin 2",
-                "organism": "",
-                "product": "alpha tubulin 2",
-            },
+            GeneResult(
+                gene_id="PF3D7_0422300",
+                gene_name="alpha tubulin 2",
+                display_name="alpha tubulin 2",
+                product="alpha tubulin 2",
+            ),
         )
         assert score < perfect_score
 
     def test_organism_match_adds_score(self) -> None:
         """When query matches one organism but not another, the matched one scores higher."""
-        base = {
-            "geneId": "PF3D7_0100100",
-            "geneName": "",
-            "displayName": "",
-            "product": "",
-        }
         score_with_org = score_gene_relevance(
             "Plasmodium falciparum 3D7",
-            {**base, "organism": "Plasmodium falciparum 3D7"},
+            GeneResult(
+                gene_id="PF3D7_0100100",
+                organism="Plasmodium falciparum 3D7",
+            ),
         )
         score_without_org = score_gene_relevance(
             "Plasmodium falciparum 3D7",
-            {**base, "organism": "Toxoplasma gondii ME49"},
+            GeneResult(
+                gene_id="PF3D7_0100100",
+                organism="Toxoplasma gondii ME49",
+            ),
         )
         assert score_with_org > score_without_org
 
@@ -94,57 +84,48 @@ class TestScoreGeneRelevance:
         """Primary field matches add positive quality weight."""
         score_primary = score_gene_relevance(
             "kinase",
-            {
-                "geneId": "X",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "kinase",
-                "matchedFields": ["gene_product"],
-            },
+            GeneResult(
+                gene_id="X",
+                product="kinase",
+                matched_fields=["gene_product"],
+            ),
         )
         score_secondary = score_gene_relevance(
             "kinase",
-            {
-                "geneId": "X",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "kinase",
-                "matchedFields": ["gene_PubMed"],
-            },
+            GeneResult(
+                gene_id="X",
+                product="kinase",
+                matched_fields=["gene_PubMed"],
+            ),
         )
         assert score_primary > score_secondary
 
     def test_empty_result_scores_zero(self) -> None:
-        score = score_gene_relevance("anything", {})
+        score = score_gene_relevance("anything", GeneResult(gene_id=""))
         assert score == pytest.approx(0.0)
 
     def test_empty_query_scores_zero(self) -> None:
         score = score_gene_relevance(
             "",
-            {
-                "geneId": "PF3D7_0100100",
-                "geneName": "CSP",
-                "displayName": "CSP",
-                "organism": "Plasmodium falciparum 3D7",
-                "product": "circumsporozoite protein",
-            },
+            GeneResult(
+                gene_id="PF3D7_0100100",
+                gene_name="CSP",
+                display_name="CSP",
+                organism="Plasmodium falciparum 3D7",
+                product="circumsporozoite protein",
+            ),
         )
         assert score == pytest.approx(0.0)
 
-    def test_matched_fields_non_list_ignored(self) -> None:
-        """If matchedFields is not a list, it should be treated as empty."""
+    def test_matched_fields_none_treated_as_empty(self) -> None:
+        """If matchedFields is None, it should be treated as empty."""
         score = score_gene_relevance(
             "kinase",
-            {
-                "geneId": "X",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "kinase",
-                "matchedFields": "not_a_list",
-            },
+            GeneResult(
+                gene_id="X",
+                product="kinase",
+                matched_fields=None,
+            ),
         )
         # Should not crash, just no field quality contribution
         assert score >= 0.0
@@ -153,13 +134,11 @@ class TestScoreGeneRelevance:
         """When geneName exactly matches, the best_desc check fires."""
         score = score_gene_relevance(
             "CSP",
-            {
-                "geneId": "PF3D7_0304600",
-                "geneName": "CSP",
-                "displayName": "CSP",
-                "organism": "",
-                "product": "",
-            },
+            GeneResult(
+                gene_id="PF3D7_0304600",
+                gene_name="CSP",
+                display_name="CSP",
+            ),
         )
         # name_score = 1.0 => best_desc >= 0.95 => bonus fires
         assert score >= _W_GENE_NAME + _EXACT_BONUS * 0.9

@@ -26,14 +26,17 @@ from veupath_chatbot.services.gene_lookup.organism import (
     suggest_organisms,
 )
 from veupath_chatbot.services.gene_lookup.result import (
-    GeneResultInput,
-    build_gene_result,
+    GeneResult,
 )
 from veupath_chatbot.services.gene_lookup.scoring import score_gene_relevance
 from veupath_chatbot.services.gene_lookup.site_search import (
     parse_site_search_docs,
 )
-from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult, _parse_wdk_record
+from veupath_chatbot.services.gene_lookup.wdk import (
+    GeneResolveResult,
+    WdkTextResult,
+    _parse_wdk_record,
+)
 from veupath_chatbot.services.search_rerank import (
     QueryIntent,
     ScoredResult,
@@ -85,16 +88,16 @@ class TestGeneIdSpecialChars:
     """Gene IDs with underscores, dots, hyphens, and other special chars."""
 
     def test_gene_id_with_dot(self) -> None:
-        result = build_gene_result(GeneResultInput(gene_id="TGME49_200.1"))
-        assert result["geneId"] == "TGME49_200.1"
+        result = GeneResult(gene_id="TGME49_200.1")
+        assert result.gene_id == "TGME49_200.1"
 
     def test_gene_id_with_hyphen(self) -> None:
-        result = build_gene_result(GeneResultInput(gene_id="PF3D7-0100100"))
-        assert result["geneId"] == "PF3D7-0100100"
+        result = GeneResult(gene_id="PF3D7-0100100")
+        assert result.gene_id == "PF3D7-0100100"
 
     def test_gene_id_with_colon(self) -> None:
-        result = build_gene_result(GeneResultInput(gene_id="GeneDB:PF3D7_0100100"))
-        assert result["geneId"] == "GeneDB:PF3D7_0100100"
+        result = GeneResult(gene_id="GeneDB:PF3D7_0100100")
+        assert result.gene_id == "GeneDB:PF3D7_0100100"
 
     def test_score_gene_id_with_dot(self) -> None:
         """score_text_match should handle gene IDs with dots."""
@@ -120,7 +123,7 @@ class TestGeneIdSpecialChars:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PF3D7.0100100-v2"
+        assert result.gene_id == "PF3D7.0100100-v2"
 
 
 # ---------------------------------------------------------------------------
@@ -134,32 +137,32 @@ class TestScoringTiedScores:
     def test_tied_scores_dedup_keeps_higher(self) -> None:
         """When two entries for the same key have equal scores, the first wins."""
         results = [
-            ScoredResult(result={"id": "a", "v": 1}, score=0.5),
-            ScoredResult(result={"id": "a", "v": 2}, score=0.5),
+            ScoredResult(result=GeneResult(gene_id="a"), score=0.5),
+            ScoredResult(result=GeneResult(gene_id="a"), score=0.5),
         ]
-        deduped = dedup_and_sort(results, key_fn=lambda r: str(r.get("id", "")))
+        deduped = dedup_and_sort(results, key_fn=lambda r: r.gene_id)
         # Only one entry kept since they have the same key
         assert len(deduped) == 1
 
     def test_tied_scores_different_keys_stable(self) -> None:
         """Different keys with the same score should all be present."""
         results = [
-            ScoredResult(result={"id": "a"}, score=0.5),
-            ScoredResult(result={"id": "b"}, score=0.5),
-            ScoredResult(result={"id": "c"}, score=0.5),
+            ScoredResult(result=GeneResult(gene_id="a"), score=0.5),
+            ScoredResult(result=GeneResult(gene_id="b"), score=0.5),
+            ScoredResult(result=GeneResult(gene_id="c"), score=0.5),
         ]
-        deduped = dedup_and_sort(results, key_fn=lambda r: str(r.get("id", "")))
+        deduped = dedup_and_sort(results, key_fn=lambda r: r.gene_id)
         assert len(deduped) == 3
 
     def test_gene_relevance_scores_are_deterministic(self) -> None:
         """Same inputs should always produce the same score."""
-        result = {
-            "geneId": "PF3D7_0100100",
-            "geneName": "CSP",
-            "displayName": "CSP",
-            "organism": "Plasmodium falciparum 3D7",
-            "product": "circumsporozoite protein",
-        }
+        result = GeneResult(
+            gene_id="PF3D7_0100100",
+            gene_name="CSP",
+            display_name="CSP",
+            organism="Plasmodium falciparum 3D7",
+            product="circumsporozoite protein",
+        )
         score1 = score_gene_relevance("CSP", result)
         score2 = score_gene_relevance("CSP", result)
         assert score1 == score2
@@ -186,7 +189,7 @@ class TestSiteSearchEdgeCases:
         ]
         results = parse_site_search_docs(docs)
         assert len(results) == 1
-        assert results[0]["geneId"] == "PF3D7_0100100"
+        assert results[0].gene_id == "PF3D7_0100100"
 
     def test_doc_with_only_whitespace_gene_id(self) -> None:
         """Whitespace-only gene ID should be skipped."""
@@ -208,8 +211,8 @@ class TestSiteSearchEdgeCases:
         ]
         results = parse_site_search_docs(docs)
         assert len(results) == 1
-        assert results[0]["geneId"] == "GENE_X"
-        assert results[0]["organism"] == ""
+        assert results[0].gene_id == "GENE_X"
+        assert results[0].organism == ""
 
     def test_doc_found_in_fields_empty(self) -> None:
         """Empty found_in_fields should result in empty matchedFields."""
@@ -219,7 +222,7 @@ class TestSiteSearchEdgeCases:
             )
         ]
         results = parse_site_search_docs(docs)
-        assert results[0]["matchedFields"] == []
+        assert results[0].matched_fields == []
 
     def test_doc_found_in_fields_skips_empty_lists(self) -> None:
         """Field entries with empty lists should not appear in matchedFields."""
@@ -233,7 +236,7 @@ class TestSiteSearchEdgeCases:
             )
         ]
         results = parse_site_search_docs(docs)
-        matched = results[0]["matchedFields"]
+        matched = results[0].matched_fields
         assert isinstance(matched, list)
         assert "gene_name" in matched
         assert "gene_product" not in matched
@@ -264,7 +267,7 @@ class TestWdkRecordEdgeCases:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "FALLBACK_ID"
+        assert result.gene_id == "FALLBACK_ID"
 
     def test_none_gene_name_raw(self) -> None:
         """When gene_name is None, it should be treated as empty."""
@@ -282,9 +285,9 @@ class TestWdkRecordEdgeCases:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneName"] == ""
-        assert result["product"] == ""
-        assert result["organism"] == ""
+        assert result.gene_name == ""
+        assert result.product == ""
+        assert result.organism == ""
 
     def test_pk_list_with_non_string_value(self) -> None:
         """PK elements with non-string values should be skipped."""
@@ -297,7 +300,7 @@ class TestWdkRecordEdgeCases:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "GOOD_ID"
+        assert result.gene_id == "GOOD_ID"
 
     def test_pk_not_a_list(self) -> None:
         """id field that is not a list should be handled gracefully."""
@@ -316,7 +319,7 @@ class TestWdkRecordEdgeCases:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PK_VAL"
+        assert result.gene_id == "PK_VAL"
 
 
 # ---------------------------------------------------------------------------
@@ -333,19 +336,20 @@ class TestEnrichEdgeCases:
     )
     async def test_all_genes_have_none_fields(self, mock_resolve: AsyncMock) -> None:
         """When all genes are missing both organism and product, all should be enriched."""
-        mock_resolve.return_value = {
-            "records": [
-                {"geneId": "G1", "organism": "Pf", "product": "prod1"},
-                {"geneId": "G2", "organism": "Tg", "product": "prod2"},
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(gene_id="G1", organism="Pf", product="prod1"),
+                GeneResult(gene_id="G2", organism="Tg", product="prod2"),
             ],
-        }
-        results: list[dict[str, object]] = [
-            {"geneId": "G1"},
-            {"geneId": "G2"},
+            total_count=2,
+        )
+        results: list[GeneResult] = [
+            GeneResult(gene_id="G1"),
+            GeneResult(gene_id="G2"),
         ]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["organism"] == "Pf"
-        assert enriched[1]["organism"] == "Tg"
+        assert enriched[0].organism == "Pf"
+        assert enriched[1].organism == "Tg"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -353,12 +357,13 @@ class TestEnrichEdgeCases:
     )
     async def test_enrichment_limit_zero(self, mock_resolve: AsyncMock) -> None:
         """limit=0 should return empty list after enrichment."""
-        mock_resolve.return_value = {
-            "records": [
-                {"geneId": "G1", "organism": "Pf", "product": "prod1"},
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(gene_id="G1", organism="Pf", product="prod1"),
             ],
-        }
-        results: list[dict[str, object]] = [{"geneId": "G1"}]
+            total_count=1,
+        )
+        results: list[GeneResult] = [GeneResult(gene_id="G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 0)
         assert enriched == []
 
@@ -396,15 +401,12 @@ class TestLookupEdgeCases:
     ) -> None:
         """limit=0 should return an empty paginated set."""
         genes = [
-            {
-                "geneId": "G1",
-                "organism": "Pf",
-                "product": "p",
-                "geneName": "",
-                "displayName": "p",
-                "geneType": "",
-                "location": "",
-            },
+            GeneResult(
+                gene_id="G1",
+                organism="Pf",
+                product="p",
+                display_name="p",
+            ),
         ]
         mock_site_search.return_value = (genes, [], 1)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -414,9 +416,7 @@ class TestLookupEdgeCases:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase", limit=0)
 
-        paginated = result["records"]
-        assert isinstance(paginated, list)
-        assert len(paginated) == 0
+        assert len(result.records) == 0
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -429,15 +429,12 @@ class TestLookupEdgeCases:
     ) -> None:
         """offset beyond total results should return empty."""
         genes = [
-            {
-                "geneId": "G1",
-                "organism": "Pf",
-                "product": "p",
-                "geneName": "",
-                "displayName": "p",
-                "geneType": "",
-                "location": "",
-            },
+            GeneResult(
+                gene_id="G1",
+                organism="Pf",
+                product="p",
+                display_name="p",
+            ),
         ]
         mock_site_search.return_value = (genes, [], 1)
         mock_wdk_text.return_value = WdkTextResult(records=[], total_count=0)
@@ -449,9 +446,7 @@ class TestLookupEdgeCases:
                 "plasmodb", "kinase", offset=100, limit=10
             )
 
-        paginated = result["records"]
-        assert isinstance(paginated, list)
-        assert len(paginated) == 0
+        assert len(result.records) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -533,27 +528,24 @@ class TestOrganismScoreEdgeCases:
 # ---------------------------------------------------------------------------
 
 
-class TestBuildGeneResultEdgeCases:
-    """Edge cases for build_gene_result."""
+class TestGeneResultEdgeCases:
+    """Edge cases for GeneResult dataclass."""
 
     def test_empty_gene_id(self) -> None:
         """Empty gene_id should still produce a result."""
-        result = build_gene_result(GeneResultInput(gene_id=""))
-        assert result["geneId"] == ""
-        assert result["displayName"] == ""
+        result = GeneResult(gene_id="")
+        assert result.gene_id == ""
+        assert result.display_name == ""
 
-    def test_display_name_empty_string_falls_back_to_product(self) -> None:
-        """Explicitly passing display_name='' should fall back to product."""
-        result = build_gene_result(
-            GeneResultInput(gene_id="X", display_name="", product="my product")
-        )
-        assert result["displayName"] == "my product"
+    def test_display_name_empty_string_not_defaulted(self) -> None:
+        """display_name='' stays empty; transport layer handles fallback."""
+        result = GeneResult(gene_id="X", display_name="", product="my product")
+        assert result.display_name == ""
 
-    def test_matched_fields_empty_list_included(self) -> None:
-        """Empty list should be included (unlike None)."""
-        result = build_gene_result(GeneResultInput(gene_id="X", matched_fields=[]))
-        assert "matchedFields" in result
-        assert result["matchedFields"] == []
+    def test_matched_fields_empty_list(self) -> None:
+        """Empty list is distinct from None."""
+        result = GeneResult(gene_id="X", matched_fields=[])
+        assert result.matched_fields == []
 
 
 # ---------------------------------------------------------------------------
@@ -593,31 +585,22 @@ class TestScoreGeneRelevanceEdgeCases:
     """Edge cases for score_gene_relevance."""
 
     def test_all_none_fields(self) -> None:
-        """Result with all None-like values should score 0."""
+        """Result with all empty values should score 0."""
         score = score_gene_relevance(
             "kinase",
-            {
-                "geneId": "",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "",
-            },
+            GeneResult(gene_id=""),
         )
         assert score == pytest.approx(0.0, abs=0.01)
 
-    def test_matched_fields_with_mixed_types(self) -> None:
-        """matchedFields list with non-string elements should be filtered."""
+    def test_matched_fields_with_primary_field(self) -> None:
+        """matchedFields list with primary field should get quality bonus."""
         score = score_gene_relevance(
             "kinase",
-            {
-                "geneId": "X",
-                "geneName": "",
-                "displayName": "",
-                "organism": "",
-                "product": "kinase",
-                "matchedFields": [42, None, "gene_product", True],
-            },
+            GeneResult(
+                gene_id="X",
+                product="kinase",
+                matched_fields=["gene_product"],
+            ),
         )
         # gene_product is a primary field, so quality bonus should apply
         assert score > 0

@@ -7,6 +7,7 @@ from veupath_chatbot.services.gene_lookup.wdk import (
     WDK_TEXT_FIELDS_BROAD,
     WDK_TEXT_FIELDS_ID,
     WDK_WILDCARD_LIMIT,
+    GeneResolveResult,
     WdkTextResult,
     _parse_wdk_record,
     fetch_wdk_text_genes,
@@ -45,18 +46,18 @@ def _make_record(
 
 
 class TestParseWdkRecord:
-    """Tests for parsing a single WDK record into a gene result dict."""
+    """Tests for parsing a single WDK record into a GeneResult."""
 
     def test_basic_parsing(self) -> None:
         rec = _make_record()
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PF3D7_0100100"
-        assert result["geneName"] == "EMP1"
-        assert result["product"] == "erythrocyte membrane protein"
-        assert result["organism"] == "Plasmodium falciparum 3D7"
-        assert result["geneType"] == "protein coding"
-        assert result["location"] == "Pf3D7_01_v3:100-200(+)"
+        assert result.gene_id == "PF3D7_0100100"
+        assert result.gene_name == "EMP1"
+        assert result.product == "erythrocyte membrane protein"
+        assert result.organism == "Plasmodium falciparum 3D7"
+        assert result.gene_type == "protein coding"
+        assert result.location == "Pf3D7_01_v3:100-200(+)"
 
     def test_gene_id_from_pk_list(self) -> None:
         rec = _make_record(
@@ -68,7 +69,7 @@ class TestParseWdkRecord:
         )
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PF3D7_FROM_PK"
+        assert result.gene_id == "PF3D7_FROM_PK"
 
     def test_gene_id_from_source_id_name(self) -> None:
         rec = _make_record(
@@ -80,7 +81,7 @@ class TestParseWdkRecord:
         )
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PF3D7_SOURCE"
+        assert result.gene_id == "PF3D7_SOURCE"
 
     def test_gene_id_from_gene_name_in_pk(self) -> None:
         rec = _make_record(
@@ -92,7 +93,7 @@ class TestParseWdkRecord:
         )
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PF3D7_GENE"
+        assert result.gene_id == "PF3D7_GENE"
 
     def test_gene_source_id_takes_priority(self) -> None:
         """gene_source_id attribute is used as geneId over primary_key."""
@@ -102,13 +103,13 @@ class TestParseWdkRecord:
         )
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "SRC_ID"
+        assert result.gene_id == "SRC_ID"
 
     def test_fallback_to_primary_key_attribute(self) -> None:
         rec = _make_record(gene_source_id="", primary_key="PK_FALLBACK")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "PK_FALLBACK"
+        assert result.gene_id == "PK_FALLBACK"
 
     def test_html_tags_stripped(self) -> None:
         rec = _make_record(
@@ -117,44 +118,44 @@ class TestParseWdkRecord:
         )
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneName"] == "EMP1"
-        assert result["product"] == "erythrocyte membrane protein"
+        assert result.gene_name == "EMP1"
+        assert result.product == "erythrocyte membrane protein"
 
     def test_empty_gene_name_treated_as_empty(self) -> None:
         rec = _make_record(gene_name="")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneName"] == ""
+        assert result.gene_name == ""
 
     def test_display_name_prefers_gene_name(self) -> None:
         rec = _make_record(gene_name="MyGene", gene_product="MyProduct")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["displayName"] == "MyGene"
+        assert result.display_name == "MyGene"
 
     def test_display_name_falls_back_to_product(self) -> None:
         rec = _make_record(gene_name="", gene_product="MyProduct")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["displayName"] == "MyProduct"
+        assert result.display_name == "MyProduct"
 
     def test_display_name_falls_back_to_gene_id(self) -> None:
         rec = _make_record(gene_name="", gene_product="")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["displayName"] == "PF3D7_0100100"
+        assert result.display_name == "PF3D7_0100100"
 
     def test_previous_ids_set(self) -> None:
         rec = _make_record(gene_previous_ids="OLD1, OLD2")
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["previousIds"] == "OLD1, OLD2"
+        assert result.previous_ids == "OLD1, OLD2"
 
     def test_missing_attributes_uses_empty_dict(self) -> None:
         rec: dict[str, object] = {"id": [{"name": "gene_source_id", "value": "GENE_X"}]}
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "GENE_X"
+        assert result.gene_id == "GENE_X"
 
     def test_non_dict_pk_elements_skipped(self) -> None:
         rec: dict[str, object] = {
@@ -163,7 +164,7 @@ class TestParseWdkRecord:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "GENE_X"
+        assert result.gene_id == "GENE_X"
 
     def test_pk_element_with_empty_value_skipped(self) -> None:
         rec: dict[str, object] = {
@@ -172,7 +173,7 @@ class TestParseWdkRecord:
         }
         result = _parse_wdk_record(rec)
         assert result is not None
-        assert result["geneId"] == "FALLBACK_PK"
+        assert result.gene_id == "FALLBACK_PK"
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +240,7 @@ class TestFetchWdkTextGenes:
             text_fields=WDK_TEXT_FIELDS_ID,
         )
         assert len(result.records) == 1
-        assert result.records[0]["geneId"] == "PF3D7_0100100"
+        assert result.records[0].gene_id == "PF3D7_0100100"
         assert result.total_count == 1
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
@@ -474,7 +475,7 @@ class TestResolveGeneIds:
 
     async def test_empty_ids_returns_empty(self) -> None:
         result = await resolve_gene_ids("plasmodb", [])
-        assert result == {"records": [], "totalCount": 0}
+        assert result == GeneResolveResult(records=[], total_count=0)
 
 
 # ---------------------------------------------------------------------------

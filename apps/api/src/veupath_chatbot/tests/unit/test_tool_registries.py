@@ -17,6 +17,8 @@ from veupath_chatbot.ai.tools.planner.gene_tools import GeneToolsMixin
 from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.services.gene_lookup.lookup import GeneSearchResult
+from veupath_chatbot.services.gene_lookup.wdk import GeneResolveResult
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
@@ -80,7 +82,7 @@ class TestGeneToolsEdgeCases:
         tools = _TestableGene()
         # gene_ids or [] -> []
         result = await tools.resolve_gene_ids_to_records(gene_ids=None)
-        assert result["error"] == "No gene IDs provided."
+        assert result.error == "No gene IDs provided."
 
     async def test_resolve_gene_ids_with_duplicates(self):
         """Duplicate IDs should still be passed through (WDK deduplicates)."""
@@ -89,7 +91,7 @@ class TestGeneToolsEdgeCases:
         with patch(
             "veupath_chatbot.ai.tools.planner.gene_tools.resolve_gene_ids",
             new_callable=AsyncMock,
-            return_value={"records": [], "totalCount": 0},
+            return_value=GeneResolveResult(records=[], total_count=0),
         ) as mock_resolve:
             await tools.resolve_gene_ids_to_records(
                 gene_ids=["PF3D7_0100100", "PF3D7_0100100"]
@@ -106,7 +108,7 @@ class TestGeneToolsEdgeCases:
         with patch(
             "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
             new_callable=AsyncMock,
-            return_value={"records": [], "totalCount": 0},
+            return_value=GeneSearchResult(records=[], total_count=0),
         ) as mock_lookup:
             await tools.lookup_gene_records(query="")
 

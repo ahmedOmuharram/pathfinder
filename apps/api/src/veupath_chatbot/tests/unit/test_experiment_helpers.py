@@ -12,6 +12,8 @@ from veupath_chatbot.services.experiment.helpers import (
     extract_and_enrich_genes,
 )
 from veupath_chatbot.services.experiment.types import GeneInfo
+from veupath_chatbot.services.gene_lookup.result import GeneResult
+from veupath_chatbot.services.gene_lookup.wdk import GeneResolveResult
 
 # ── _extract_gene_list ──
 
@@ -48,12 +50,12 @@ class TestEnrichList:
     def test_enriches_genes_from_lookup(self) -> None:
         genes = [GeneInfo(id="PF3D7_1234"), GeneInfo(id="PF3D7_5678")]
         lookup = {
-            "PF3D7_1234": {
-                "geneId": "PF3D7_1234",
-                "geneName": "Gene A",
-                "organism": "P. falciparum",
-                "product": "kinase",
-            },
+            "PF3D7_1234": GeneResult(
+                gene_id="PF3D7_1234",
+                gene_name="Gene A",
+                organism="P. falciparum",
+                product="kinase",
+            ),
         }
         enriched = _enrich_list(genes, lookup)
         assert enriched[0].name == "Gene A"
@@ -88,23 +90,23 @@ class TestExtractAndEnrichGenes:
         }
 
         mock_resolve = AsyncMock(
-            return_value={
-                "records": [
-                    {
-                        "geneId": "g1",
-                        "geneName": "Gene1",
-                        "organism": "Org1",
-                        "product": "Prod1",
-                    },
-                    {
-                        "geneId": "g3",
-                        "geneName": "Gene3",
-                        "organism": "Org3",
-                        "product": "Prod3",
-                    },
+            return_value=GeneResolveResult(
+                records=[
+                    GeneResult(
+                        gene_id="g1",
+                        gene_name="Gene1",
+                        organism="Org1",
+                        product="Prod1",
+                    ),
+                    GeneResult(
+                        gene_id="g3",
+                        gene_name="Gene3",
+                        organism="Org3",
+                        product="Prod3",
+                    ),
                 ],
-                "totalCount": 2,
-            }
+                total_count=2,
+            )
         )
 
         with patch(

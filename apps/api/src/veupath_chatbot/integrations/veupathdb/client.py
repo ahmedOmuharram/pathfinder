@@ -170,7 +170,7 @@ class VEuPathDBClient:
         method: str,
         path: str,
         params: JSONObject | None = None,
-        json: JSONObject | None = None,
+        json: object = None,
     ) -> JSONValue:
         """Single HTTP request attempt (tenacity handles retries).
 
@@ -253,7 +253,7 @@ class VEuPathDBClient:
         method: str,
         path: str,
         params: JSONObject | None = None,
-        json: JSONObject | None = None,
+        json: object = None,
     ) -> JSONValue:
         """Make HTTP request with retry logic.
 
@@ -285,17 +285,17 @@ class VEuPathDBClient:
     async def post(
         self,
         path: str,
-        json: JSONObject | None = None,
+        json: object = None,
         params: JSONObject | None = None,
     ) -> JSONValue:
         """POST request."""
         return await self._request("POST", path, params=params, json=json)
 
-    async def patch(self, path: str, json: JSONObject | None = None) -> JSONValue:
+    async def patch(self, path: str, json: object = None) -> JSONValue:
         """PATCH request."""
         return await self._request("PATCH", path, json=json)
 
-    async def put(self, path: str, json: JSONObject | None = None) -> JSONValue:
+    async def put(self, path: str, json: object = None) -> JSONValue:
         """PUT request."""
         return await self._request("PUT", path, json=json)
 

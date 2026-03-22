@@ -2,7 +2,6 @@
 
 import json
 from dataclasses import dataclass
-from typing import cast
 
 import pydantic
 
@@ -17,7 +16,7 @@ from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
-from .result import DEFAULT_GENE_ATTRIBUTES, GeneResultInput, build_gene_result
+from .result import DEFAULT_GENE_ATTRIBUTES, GeneResult
 
 logger = get_logger(__name__)
 
@@ -39,12 +38,21 @@ WDK_TEXT_FIELDS_BROAD: list[str] = [
 class WdkTextResult:
     """Results from a WDK ``GenesByText`` query."""
 
-    records: list[JSONObject]
+    records: list[GeneResult]
     total_count: int
 
 
-def _parse_wdk_record(rec: JSONObject) -> JSONObject | None:
-    """Parse a WDK record into a standard gene result dict."""
+@dataclass
+class GeneResolveResult:
+    """Typed result from gene ID resolution."""
+
+    records: list[GeneResult]
+    total_count: int
+    error: str | None = None
+
+
+def _parse_wdk_record(rec: JSONObject) -> GeneResult | None:
+    """Parse a WDK record into a typed GeneResult."""
     rec_attrs = rec.get("attributes")
     if not isinstance(rec_attrs, dict):
         rec_attrs = {}
@@ -78,23 +86,21 @@ def _parse_wdk_record(rec: JSONObject) -> JSONObject | None:
     gene_source_id = str(rec_attrs.get("gene_source_id", ""))
     previous_ids = str(rec_attrs.get("gene_previous_ids", ""))
 
-    return build_gene_result(
-        GeneResultInput(
-            gene_id=gene_source_id or gene_id,
-            display_name=gene_name or product or gene_id,
-            organism=org,
-            product=product,
-            gene_name=gene_name,
-            gene_type=gene_type,
-            location=location,
-            previous_ids=previous_ids or "",
-        )
+    return GeneResult(
+        gene_id=gene_source_id or gene_id,
+        display_name=gene_name or product or gene_id,
+        organism=org,
+        product=product,
+        gene_name=gene_name,
+        gene_type=gene_type,
+        location=location,
+        previous_ids=previous_ids or "",
     )
 
 
 def _accumulate_text_answer(
     answer: object,
-    all_results: list[JSONObject],
+    all_results: list[GeneResult],
     wdk_total: int,
 ) -> int:
     """Parse a WDK GenesByText answer and accumulate results. Returns updated wdk_total."""
@@ -129,29 +135,26 @@ async def fetch_wdk_text_genes(
     fields = text_fields or WDK_TEXT_FIELDS_ID
     client = get_wdk_client(site_id)
 
-    all_results: list[JSONObject] = []
+    all_results: list[GeneResult] = []
     wdk_total: int = 0
     for pattern in expressions:
         answer = await client.post(
             f"/record-types/{record_type}/searches/GenesByText/reports/standard",
-            json=cast(
-                "JSONObject",
-                {
-                    "searchConfig": {
-                        "parameters": {
-                            "text_expression": pattern,
-                            "text_fields": json.dumps(fields),
-                            "text_search_organism": json.dumps([organism]),
-                            "document_type": "gene",
-                        },
-                    },
-                    "reportConfig": {
-                        "attributes": DEFAULT_GENE_ATTRIBUTES,
-                        "tables": [],
-                        "pagination": {"offset": 0, "numRecords": limit},
+            json={
+                "searchConfig": {
+                    "parameters": {
+                        "text_expression": pattern,
+                        "text_fields": json.dumps(fields),
+                        "text_search_organism": json.dumps([organism]),
+                        "document_type": "gene",
                     },
                 },
-            ),
+                "reportConfig": {
+                    "attributes": DEFAULT_GENE_ATTRIBUTES,
+                    "tables": [],
+                    "pagination": {"offset": 0, "numRecords": limit},
+                },
+            },
         )
         wdk_total = _accumulate_text_answer(answer, all_results, wdk_total)
         if len(all_results) >= limit:
@@ -164,39 +167,41 @@ async def fetch_wdk_text_genes(
     )
 
 
-_EMPTY_GENE_RESULT: JSONObject = {"records": [], "totalCount": 0}
-
-
-def _build_gene_result_from_answer(answer: object) -> JSONObject:
+def _build_gene_result_from_answer(answer: object) -> GeneResolveResult:
     """Build the final gene result from a WDK answer (or error dict from _fetch_gene_answer)."""
     if not isinstance(answer, dict):
-        return _EMPTY_GENE_RESULT
+        return GeneResolveResult(records=[], total_count=0)
     # _fetch_gene_answer returns an error dict when dataset creation fails
     if "error" in answer and "records" in answer:
-        return answer
+        records_raw = answer.get("records")
+        records: list[GeneResult] = []
+        if isinstance(records_raw, list):
+            records = records_raw
+        error = str(answer.get("error", ""))
+        total_raw = answer.get("totalCount")
+        total_count = total_raw if isinstance(total_raw, int) else 0
+        return GeneResolveResult(records=records, total_count=total_count, error=error)
     try:
         parsed_answer = WDKAnswer.model_validate(answer)
     except pydantic.ValidationError:
-        return _EMPTY_GENE_RESULT
+        return GeneResolveResult(records=[], total_count=0)
     return _parse_records_to_result(parsed_answer)
 
 
-def _parse_records_to_result(answer: WDKAnswer) -> JSONObject:
-    """Parse WDK answer records into the final gene result dict."""
-    records: list[JSONObject] = []
+def _parse_records_to_result(answer: WDKAnswer) -> GeneResolveResult:
+    """Parse WDK answer records into the final gene result."""
+    records: list[GeneResult] = []
     for rec in answer.records:
         if isinstance(rec, dict):
             parsed = _parse_wdk_record(rec)
             if parsed:
                 records.append(parsed)
-    return cast("JSONObject", {"records": records, "totalCount": answer.meta.total_count})
+    return GeneResolveResult(records=records, total_count=answer.meta.total_count)
 
 
-def _empty_gene_result(error: str | None = None) -> JSONObject:
-    """Return an empty gene result dict, optionally with an error message."""
-    if error:
-        return {"records": [], "totalCount": 0, "error": error}
-    return _EMPTY_GENE_RESULT
+def _empty_gene_result(error: str | None = None) -> GeneResolveResult:
+    """Return an empty gene result, optionally with an error message."""
+    return GeneResolveResult(records=[], total_count=0, error=error)
 
 
 async def _fetch_gene_answer(
@@ -214,26 +219,20 @@ async def _fetch_gene_answer(
     """
     dataset_resp = await client.post(
         "/users/current/datasets",
-        json=cast(
-            "JSONObject",
-            {"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
-        ),
+        json={"sourceType": "idList", "sourceContent": {"ids": gene_ids}},
     )
     if not isinstance(dataset_resp, dict):
-        return _empty_gene_result("Failed to create dataset for ID lookup.")
+        return {"records": [], "totalCount": 0, "error": "Failed to create dataset for ID lookup."}
     dataset_id = dataset_resp.get("id")
     if dataset_id is None:
-        return _empty_gene_result("Dataset creation returned no ID.")
+        return {"records": [], "totalCount": 0, "error": "Dataset creation returned no ID."}
 
     result = await client.post(
         f"/record-types/{record_type}/searches/{search_name}/reports/standard",
-        json=cast(
-            "JSONObject",
-            {
-                "searchConfig": {"parameters": {param_name: str(dataset_id)}},
-                "reportConfig": {"attributes": attrs, "tables": []},
-            },
-        ),
+        json={
+            "searchConfig": {"parameters": {param_name: str(dataset_id)}},
+            "reportConfig": {"attributes": attrs, "tables": []},
+        },
     )
     if not isinstance(result, dict):
         return None
@@ -248,7 +247,7 @@ async def resolve_gene_ids(
     search_name: str = "GeneByLocusTag",
     param_name: str = "ds_gene_ids",
     attributes: list[str] | None = None,
-) -> JSONObject:
+) -> GeneResolveResult:
     """Resolve a list of gene IDs to full records via the WDK standard reporter.
 
     Uses a dedicated short-lived WDK client to guarantee session affinity

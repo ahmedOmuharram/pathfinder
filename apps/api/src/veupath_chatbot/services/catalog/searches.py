@@ -15,7 +15,10 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
 )
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
+from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    DocumentTypeFilter,
+    SiteSearchDocument,
+)
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -247,7 +250,7 @@ async def _search_for_searches_via_site_search(
     try:
         response = await get_site_router().get_site_search_client(site_id).search(
             query,
-            document_type="search",
+            document_type_filter=DocumentTypeFilter(document_type="search"),
             limit=limit,
             offset=0,
         )

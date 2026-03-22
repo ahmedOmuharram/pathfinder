@@ -1,12 +1,14 @@
 """Site-search gene fetching and document parsing."""
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
+from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    DocumentTypeFilter,
+    SiteSearchDocument,
+)
 from veupath_chatbot.platform.text import strip_html_tags
-from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
-from .result import GeneResultInput, build_gene_result
+from .result import GeneResult
 
 SITE_SEARCH_FETCH_LIMIT = 50
 
@@ -29,9 +31,9 @@ def _extract_matched_fields(doc: SiteSearchDocument) -> list[str]:
     return matched_fields
 
 
-def parse_site_search_docs(docs: list[SiteSearchDocument]) -> list[JSONObject]:
-    """Convert typed site-search documents into standardised gene dicts."""
-    results: list[JSONObject] = []
+def parse_site_search_docs(docs: list[SiteSearchDocument]) -> list[GeneResult]:
+    """Convert typed site-search documents into standardised gene results."""
+    results: list[GeneResult] = []
     for doc in docs:
         gene_id = _extract_gene_id(doc)
         if not gene_id:
@@ -51,16 +53,14 @@ def parse_site_search_docs(docs: list[SiteSearchDocument]) -> list[JSONObject]:
             doc_organism = normalize_organism(doc.organism[0])
 
         results.append(
-            build_gene_result(
-                GeneResultInput(
-                    gene_id=gene_id,
-                    display_name=display_name,
-                    organism=doc_organism,
-                    product=doc_product,
-                    gene_name=doc_gene_name,
-                    gene_type=doc_gene_type,
-                    matched_fields=_extract_matched_fields(doc),
-                )
+            GeneResult(
+                gene_id=gene_id,
+                display_name=display_name,
+                organism=doc_organism,
+                product=doc_product,
+                gene_name=doc_gene_name,
+                gene_type=doc_gene_type,
+                matched_fields=_extract_matched_fields(doc),
             )
         )
     return results
@@ -72,14 +72,14 @@ async def fetch_site_search_genes(
     *,
     organisms: list[str] | None = None,
     limit: int = SITE_SEARCH_FETCH_LIMIT,
-) -> tuple[list[JSONObject], list[str], int]:
+) -> tuple[list[GeneResult], list[str], int]:
     """Run a single site-search query and return parsed results.
 
     :returns: ``(gene_results, available_organisms, total_count)``
     """
     response = await get_site_router().get_site_search_client(site_id).search(
         search_text,
-        document_type="gene",
+        document_type_filter=DocumentTypeFilter(document_type="gene"),
         organisms=organisms,
         limit=limit,
         offset=0,

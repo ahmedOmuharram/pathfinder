@@ -20,6 +20,7 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.services.gene_lookup.wdk import (
     WDK_TEXT_FIELDS_BROAD,
+    GeneResolveResult,
     fetch_wdk_text_genes,
     resolve_gene_ids,
 )
@@ -259,78 +260,60 @@ class TestResolveGeneIdsMultiDb:
         """Resolve 10 P. falciparum genes from PlasmoDB."""
         result = await resolve_gene_ids("plasmodb", PLASMO_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
     @pytest.mark.asyncio
     async def test_toxodb_resolve_10_genes(self) -> None:
         """Resolve 10 T. gondii genes from ToxoDB."""
         result = await resolve_gene_ids("toxodb", TOXO_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
     @pytest.mark.asyncio
     async def test_cryptodb_resolve_10_genes(self) -> None:
         """Resolve 10 C. parvum genes from CryptoDB."""
         result = await resolve_gene_ids("cryptodb", CRYPTO_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
     @pytest.mark.asyncio
     async def test_fungidb_resolve_10_genes(self) -> None:
         """Resolve 10 A. fumigatus genes from FungiDB."""
         result = await resolve_gene_ids("fungidb", FUNGI_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
     @pytest.mark.asyncio
     async def test_tritrypdb_resolve_10_genes(self) -> None:
         """Resolve 10 T. brucei genes from TriTrypDB."""
         result = await resolve_gene_ids("tritrypdb", TRITRYP_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
     @pytest.mark.asyncio
     async def test_vectorbase_resolve_10_genes(self) -> None:
         """Resolve 10 A. gambiae genes from VectorBase."""
         result = await resolve_gene_ids("vectorbase", VECTOR_GENES)
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) > 0
-        assert isinstance(result["totalCount"], int)
-        assert result["totalCount"] > 0
-        for rec in records[:3]:
-            assert isinstance(rec, dict)
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) > 0
+        assert isinstance(result.total_count, int)
+        assert result.total_count > 0
 
 
 # ===================================================================
@@ -346,27 +329,19 @@ class TestResolveGeneIdsLargeSet:
         """Resolve 50 P. falciparum genes from PlasmoDB."""
         result = await resolve_gene_ids("plasmodb", PLASMO_50)
 
-        total = result.get("totalCount")
-        records = result.get("records")
-        assert isinstance(records, list)
-
+        assert isinstance(result, GeneResolveResult)
         # Some IDs may not map to transcripts, but most should resolve
-        assert isinstance(total, int)
-        assert total >= 40, f"Expected >= 40 resolved, got {total}"
-        assert len(records) >= 40
+        assert result.total_count >= 40, f"Expected >= 40 resolved, got {result.total_count}"
+        assert len(result.records) >= 40
 
     @pytest.mark.asyncio
     async def test_toxodb_50_genes(self) -> None:
         """Resolve 50 T. gondii genes from ToxoDB."""
         result = await resolve_gene_ids("toxodb", TOXO_50)
 
-        total = result.get("totalCount")
-        records = result.get("records")
-        assert isinstance(records, list)
-
-        assert isinstance(total, int)
-        assert total >= 40, f"Expected >= 40 resolved, got {total}"
-        assert len(records) >= 40
+        assert isinstance(result, GeneResolveResult)
+        assert result.total_count >= 40, f"Expected >= 40 resolved, got {result.total_count}"
+        assert len(result.records) >= 40
 
 
 # ===================================================================
@@ -389,8 +364,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
     @pytest.mark.asyncio
     async def test_toxodb_text_search(self) -> None:
@@ -404,8 +377,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
     @pytest.mark.asyncio
     async def test_cryptodb_text_search(self) -> None:
@@ -419,8 +390,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
     @pytest.mark.asyncio
     async def test_fungidb_text_search(self) -> None:
@@ -434,8 +403,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
     @pytest.mark.asyncio
     async def test_tritrypdb_text_search(self) -> None:
@@ -449,8 +416,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
     @pytest.mark.asyncio
     async def test_vectorbase_text_search(self) -> None:
@@ -464,8 +429,6 @@ class TestTextSearchMultiDb:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass
 
 
 # ===================================================================
@@ -481,29 +444,26 @@ class TestResolveEdgeCases:
         """An empty gene list returns immediately with zero records."""
         result = await resolve_gene_ids("plasmodb", [])
 
-        assert result == {"records": [], "totalCount": 0}
+        assert result == GeneResolveResult(records=[], total_count=0)
 
     @pytest.mark.asyncio
     async def test_single_gene_resolve(self) -> None:
         """Resolving exactly one gene returns exactly one record."""
         result = await resolve_gene_ids("plasmodb", ["PF3D7_1222600"])
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) == 1
-        assert result["totalCount"] == 1
-        rec = records[0]
-        assert isinstance(rec, dict)
-        assert rec.get("geneId") == "PF3D7_1222600"
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) == 1
+        assert result.total_count == 1
+        rec = result.records[0]
+        assert rec.gene_id == "PF3D7_1222600"
 
     @pytest.mark.asyncio
     async def test_nonexistent_gene_id(self) -> None:
         """A completely fake gene ID should resolve to zero records (not error)."""
         result = await resolve_gene_ids("plasmodb", ["FAKE_GENE_12345"])
 
-        records = result.get("records")
-        assert isinstance(records, list)
-        assert len(records) == 0
+        assert isinstance(result, GeneResolveResult)
+        assert len(result.records) == 0
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid(self) -> None:
@@ -511,11 +471,10 @@ class TestResolveEdgeCases:
         mixed = ["PF3D7_1222600", "FAKE_GENE_99999", "PF3D7_1031000", "BOGUS_XYZ"]
         result = await resolve_gene_ids("plasmodb", mixed)
 
-        records = result.get("records")
-        assert isinstance(records, list)
+        assert isinstance(result, GeneResolveResult)
         # Should have exactly the 2 real genes
-        assert len(records) == 2
-        returned_ids = {str(r.get("geneId")) for r in records if isinstance(r, dict)}
+        assert len(result.records) == 2
+        returned_ids = {r.gene_id for r in result.records}
         assert "PF3D7_1222600" in returned_ids
         assert "PF3D7_1031000" in returned_ids
 
@@ -564,5 +523,3 @@ class TestTextSearchEdgeCases:
 
         assert result.total_count > 0
         assert len(result.records) > 0
-        for _rec in result.records[:3]:
-            pass

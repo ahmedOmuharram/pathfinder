@@ -4,6 +4,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    DocumentTypeFilter,
+)
 from veupath_chatbot.services.gene_lookup import lookup_genes_by_text, resolve_gene_ids
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
@@ -66,7 +69,11 @@ async def list_organisms(siteId: str) -> OrganismsResponse:
     """Return all available organism names for a site via site-search."""
     site_router = get_site_router()
     client = site_router.get_site_search_client(siteId)
-    response = await client.search(search_text="*", document_type="gene", limit=1)
+    response = await client.search(
+        search_text="*",
+        document_type_filter=DocumentTypeFilter(document_type="gene"),
+        limit=1,
+    )
     orgs = sorted(response.organism_counts.keys())
     return OrganismsResponse(organisms=orgs)
 
@@ -80,43 +87,25 @@ async def search_genes(
     offset: int = 0,
 ) -> GeneSearchResponse:
     """Search genes by text using multi-strategy gene lookup."""
-    data = await lookup_genes_by_text(
+    result = await lookup_genes_by_text(
         siteId, q, organism=organism or None, limit=limit, offset=offset
     )
-    data_dict = data if isinstance(data, dict) else {}
-    raw_results = data_dict.get("records")
-    if not isinstance(raw_results, list):
-        raw_results = []
-    total = data_dict.get("totalCount", 0)
-    suggested_raw = data_dict.get("suggestedOrganisms")
-    suggested_list = suggested_raw if isinstance(suggested_raw, list) else []
-    suggested: list[str] = [str(s) for s in suggested_list]
-
-    results: list[GeneSearchResultResponse] = []
-    for r in raw_results:
-        if not isinstance(r, dict):
-            continue
-        raw_matched = r.get("matchedFields")
-        matched_list = raw_matched if isinstance(raw_matched, list) else []
-        matched_str_list: list[str] = [x for x in matched_list if isinstance(x, str)]
-
-        results.append(
-            GeneSearchResultResponse(
-                geneId=str(r.get("geneId", "")),
-                displayName=str(r.get("displayName", "")),
-                organism=str(r.get("organism", "")),
-                product=str(r.get("product", "")),
-                geneName=str(r.get("geneName", "")),
-                geneType=str(r.get("geneType", "")),
-                location=str(r.get("location", "")),
-                matchedFields=matched_str_list,
-            )
-        )
-
     return GeneSearchResponse(
-        results=results,
-        totalCount=total if isinstance(total, int) else len(results),
-        suggestedOrganisms=suggested,
+        results=[
+            GeneSearchResultResponse(
+                geneId=r.gene_id,
+                displayName=r.display_name or r.product or r.gene_id,
+                organism=r.organism,
+                product=r.product,
+                geneName=r.gene_name,
+                geneType=r.gene_type,
+                location=r.location,
+                matchedFields=r.matched_fields or [],
+            )
+            for r in result.records
+        ],
+        totalCount=result.total_count,
+        suggestedOrganisms=result.suggested_organisms or [],
     )
 
 
@@ -126,33 +115,23 @@ async def resolve_genes(
     payload: GeneResolveRequest,
 ) -> GeneResolveResponse:
     """Resolve gene IDs to full records via WDK standard reporter."""
-    data = await resolve_gene_ids(siteId, payload.geneIds)
-
-    raw_records = data.get("records") if isinstance(data, dict) else []
-    if not isinstance(raw_records, list):
-        raw_records = []
-
+    result = await resolve_gene_ids(siteId, payload.geneIds)
     resolved_ids: set[str] = set()
     resolved: list[ResolvedGeneResponse] = []
-    for rec in raw_records:
-        if not isinstance(rec, dict):
+    for rec in result.records:
+        if not rec.gene_id:
             continue
-        gene_id = str(rec.get("geneId", "")).strip()
-        if not gene_id:
-            continue
-        resolved_ids.add(gene_id)
+        resolved_ids.add(rec.gene_id)
         resolved.append(
             ResolvedGeneResponse(
-                geneId=gene_id,
-                displayName=str(rec.get("product", gene_id)),
-                organism=str(rec.get("organism", "")),
-                product=str(rec.get("product", "")),
-                geneName=str(rec.get("geneName", "")),
-                geneType=str(rec.get("geneType", "")),
-                location=str(rec.get("location", "")),
+                geneId=rec.gene_id,
+                displayName=rec.product or rec.gene_id,
+                organism=rec.organism,
+                product=rec.product,
+                geneName=rec.gene_name,
+                geneType=rec.gene_type,
+                location=rec.location,
             )
         )
-
     unresolved = [gid for gid in payload.geneIds if gid not in resolved_ids]
-
     return GeneResolveResponse(resolved=resolved, unresolved=unresolved)

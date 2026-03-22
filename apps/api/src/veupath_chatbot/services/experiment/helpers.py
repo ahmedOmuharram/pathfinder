@@ -15,6 +15,7 @@ from veupath_chatbot.services.experiment.types import (
     ExperimentConfig,
     GeneInfo,
 )
+from veupath_chatbot.services.gene_lookup.result import GeneResult
 from veupath_chatbot.services.gene_lookup.wdk import resolve_gene_ids
 
 logger = get_logger(__name__)
@@ -161,7 +162,7 @@ def _extract_id_set(
 
 def _enrich_list(
     genes: list[GeneInfo],
-    lookup: dict[str, JSONObject],
+    lookup: dict[str, GeneResult],
 ) -> list[GeneInfo]:
     """Replace bare GeneInfo objects with enriched versions from *lookup*."""
     enriched: list[GeneInfo] = []
@@ -171,9 +172,9 @@ def _enrich_list(
             enriched.append(
                 GeneInfo(
                     id=g.id,
-                    name=str(meta.get("geneName", "")) or g.name,
-                    organism=str(meta.get("organism", "")) or g.organism,
-                    product=str(meta.get("product", "")) or g.product,
+                    name=meta.gene_name or g.name,
+                    organism=meta.organism or g.organism,
+                    product=meta.product or g.product,
                 )
             )
         else:
@@ -184,7 +185,7 @@ def _enrich_list(
 async def _resolve_gene_lookup(
     site_id: str,
     gene_lists: tuple[list[GeneInfo], ...],
-) -> dict[str, JSONObject]:
+) -> dict[str, GeneResult]:
     """Resolve all unique gene IDs across multiple lists into a lookup dict."""
     all_ids: list[str] = []
     seen: set[str] = set()
@@ -198,16 +199,13 @@ async def _resolve_gene_lookup(
         return {}
 
     resolved = await resolve_gene_ids(site_id=site_id, gene_ids=all_ids)
-    records = resolved.get("records")
-    if not isinstance(records, list):
+    if not resolved.records:
         return {}
 
-    lookup: dict[str, JSONObject] = {}
-    for rec in records:
-        if isinstance(rec, dict):
-            gid = rec.get("geneId")
-            if isinstance(gid, str):
-                lookup[gid] = rec
+    lookup: dict[str, GeneResult] = {}
+    for rec in resolved.records:
+        if rec.gene_id:
+            lookup[rec.gene_id] = rec
     return lookup
 
 

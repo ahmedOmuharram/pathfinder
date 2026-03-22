@@ -14,10 +14,14 @@ Provides two complementary lookup strategies:
 Both approaches are read-only and do not create steps or strategies.
 """
 
-from .lookup import lookup_genes_by_text
-from .wdk import resolve_gene_ids
+from .lookup import GeneSearchResult, lookup_genes_by_text
+from .result import GeneResult
+from .wdk import GeneResolveResult, resolve_gene_ids
 
 __all__ = [
+    "GeneResolveResult",
+    "GeneResult",
+    "GeneSearchResult",
     "lookup_genes_by_text",
     "resolve_gene_ids",
 ]

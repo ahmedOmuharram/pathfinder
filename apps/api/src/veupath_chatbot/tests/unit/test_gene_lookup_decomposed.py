@@ -22,6 +22,7 @@ from veupath_chatbot.services.gene_lookup.lookup import (
     _run_supplementary_searches,
     lookup_genes_by_text,
 )
+from veupath_chatbot.services.gene_lookup.result import GeneResult
 from veupath_chatbot.services.gene_lookup.wdk import WdkTextResult
 from veupath_chatbot.services.search_rerank import QueryIntent
 
@@ -34,17 +35,17 @@ def _gene(
     gene_name: str = "",
     display_name: str = "",
     matched_fields: list[str] | None = None,
-) -> dict[str, object]:
-    return {
-        "geneId": gene_id,
-        "organism": organism,
-        "product": product,
-        "geneName": gene_name,
-        "displayName": display_name or product or gene_id,
-        "geneType": "protein coding",
-        "location": "",
-        "matchedFields": matched_fields or [],
-    }
+) -> GeneResult:
+    return GeneResult(
+        gene_id=gene_id,
+        organism=organism,
+        product=product,
+        gene_name=gene_name,
+        display_name=display_name or product or gene_id,
+        gene_type="protein coding",
+        location="",
+        matched_fields=matched_fields or [],
+    )
 
 
 # ── Patch targets ──────────────────────────────────────────────────────
@@ -101,8 +102,8 @@ class TestRunPrimarySearches:
         )
         # Phrase results should come first
         assert len(results) >= 2
-        assert results[0]["geneId"] == "PHRASE_HIT"
-        assert results[1]["geneId"] == "BROAD_HIT"
+        assert results[0].gene_id == "PHRASE_HIT"
+        assert results[1].gene_id == "BROAD_HIT"
         # Two calls: unrestricted + phrase-quoted
         assert len(call_queries) == 2
 
@@ -144,7 +145,7 @@ class TestRunPrimarySearches:
             is_multi_word=True,
         )
         assert len(results) == 1
-        assert results[0]["geneId"] == "G1"
+        assert results[0].gene_id == "G1"
 
 
 # ── _run_supplementary_searches ────────────────────────────────────────
@@ -195,7 +196,7 @@ class TestRunSupplementarySearches:
             needed=20,
         )
         assert len(org_results) == 1
-        assert org_results[0]["geneId"] == "ORG_HIT"
+        assert org_results[0].gene_id == "ORG_HIT"
 
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
     @patch(_PATCH_SITE_SEARCH, new_callable=AsyncMock)
@@ -282,7 +283,7 @@ class TestMergeAndRank:
 
         raw = [_gene("G1"), _gene("G1"), _gene("G2")]
         results = await _merge_and_rank("plasmodb", "kinase", raw)
-        gene_ids = [r["geneId"] for r in results]
+        gene_ids = [r.gene_id for r in results]
         assert len(gene_ids) == 2
         assert set(gene_ids) == {"G1", "G2"}
 
@@ -310,7 +311,7 @@ class TestMergeAndRank:
         ]
         results = await _merge_and_rank("plasmodb", "kinase", raw)
         # G2 should rank higher because product exactly matches query
-        assert results[0]["geneId"] == "G2"
+        assert results[0].gene_id == "G2"
 
 
 # ── _apply_organism_filter ─────────────────────────────────────────────
@@ -342,7 +343,7 @@ class TestApplyOrganismFilter:
             available_organisms=["Plasmodium falciparum 3D7", "Toxoplasma gondii ME49"],
         )
         assert len(filtered) == 1
-        assert filtered[0]["geneId"] == "G1"
+        assert filtered[0].gene_id == "G1"
         assert suggested is None
 
     def test_unrecognized_organism_suggests_alternatives(self) -> None:
@@ -388,10 +389,10 @@ class TestBuildResponse:
             wdk_totals=(5, 20),
             suggested_organisms=None,
         )
-        assert resp["records"] is paginated
+        assert resp.records is paginated
         # Authoritative total = max(10, 5, 20)
-        assert resp["totalCount"] == 20
-        assert "suggestedOrganisms" not in resp
+        assert resp.total_count == 20
+        assert resp.suggested_organisms is None
 
     def test_includes_suggested_organisms(self) -> None:
         resp = _build_response(
@@ -400,7 +401,7 @@ class TestBuildResponse:
             wdk_totals=(0, 0),
             suggested_organisms=["Org A", "Org B"],
         )
-        assert resp["suggestedOrganisms"] == ["Org A", "Org B"]
+        assert resp.suggested_organisms == ["Org A", "Org B"]
 
     def test_total_count_is_max_of_all_sources(self) -> None:
         resp = _build_response(
@@ -409,7 +410,7 @@ class TestBuildResponse:
             wdk_totals=(50, 100),
             suggested_organisms=None,
         )
-        assert resp["totalCount"] == 100
+        assert resp.total_count == 100
 
     def test_total_count_from_results_length(self) -> None:
         resp = _build_response(
@@ -419,7 +420,7 @@ class TestBuildResponse:
             suggested_organisms=None,
         )
         # max(200, 10, 15) = 200
-        assert resp["totalCount"] == 200
+        assert resp.total_count == 200
 
 
 # ── Integration: ensure lookup_genes_by_text still works end-to-end ───
@@ -446,9 +447,8 @@ class TestLookupGenesAfterDecomposition:
             mock_analyse.return_value = QueryIntent(raw="kinase")
             result = await lookup_genes_by_text("plasmodb", "kinase")
 
-        assert "records" in result
-        assert "totalCount" in result
-        assert isinstance(result["records"], list)
+        assert isinstance(result.records, list)
+        assert isinstance(result.total_count, int)
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -476,14 +476,8 @@ class TestLookupGenesAfterDecomposition:
                 organism="Plasmodium falciparum 3D7",
             )
 
-        results = result["records"]
-        assert isinstance(results, list)
-        for r in results:
-            assert isinstance(r, dict)
-            assert (
-                str(r.get("organism", "")).strip().lower()
-                == "plasmodium falciparum 3d7"
-            )
+        for r in result.records:
+            assert r.organism.strip().lower() == "plasmodium falciparum 3d7"
 
     @patch(_PATCH_ENRICH, new_callable=AsyncMock)
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
@@ -508,5 +502,4 @@ class TestLookupGenesAfterDecomposition:
                 limit=2,
             )
 
-        assert isinstance(result["records"], list)
-        assert len(result["records"]) == 2
+        assert len(result.records) == 2

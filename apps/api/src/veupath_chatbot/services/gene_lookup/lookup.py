@@ -10,11 +10,10 @@ D. WDK ``GenesByText`` broad -- fires when an explicit organism filter is given.
 """
 
 import asyncio
-from typing import cast
+from dataclasses import dataclass, field
 
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.search_rerank import (
     QueryIntent,
     ScoredResult,
@@ -24,6 +23,7 @@ from veupath_chatbot.services.search_rerank import (
 
 from .enrich import enrich_sparse_gene_results
 from .organism import score_organism_match, suggest_organisms
+from .result import GeneResult
 from .scoring import score_gene_relevance
 from .site_search import SITE_SEARCH_FETCH_LIMIT, fetch_site_search_genes
 from .wdk import (
@@ -41,6 +41,15 @@ _MIN_WORDS_FOR_MULTI_WORD = 2
 _EMPTY_WDK = WdkTextResult(records=[], total_count=0)
 
 
+@dataclass
+class GeneSearchResult:
+    """Typed result from gene text search."""
+
+    records: list[GeneResult]
+    total_count: int
+    suggested_organisms: list[str] | None = field(default=None)
+
+
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
@@ -51,13 +60,13 @@ async def _run_primary_searches(
     query: str,
     *,
     is_multi_word: bool,
-) -> tuple[list[JSONObject], list[str], int]:
+) -> tuple[list[GeneResult], list[str], int]:
     """Run strategy A (unrestricted) and A2 (phrase-quoted) concurrently.
 
     :returns: ``(merged_results, available_organisms, total_count)``
     """
 
-    async def _strategy_a() -> tuple[list[JSONObject], list[str], int]:
+    async def _strategy_a() -> tuple[list[GeneResult], list[str], int]:
         try:
             return await fetch_site_search_genes(
                 site_id,
@@ -73,7 +82,7 @@ async def _run_primary_searches(
             )
             return [], [], 0
 
-    async def _strategy_a_phrase() -> list[JSONObject]:
+    async def _strategy_a_phrase() -> list[GeneResult]:
         if not is_multi_word:
             return []
         try:
@@ -106,7 +115,7 @@ async def _strategy_b(
     site_id: str,
     query: str,
     effective_organism: str | None,
-) -> list[JSONObject]:
+) -> list[GeneResult]:
     """Strategy B: organism-restricted site-search."""
     if not effective_organism:
         return []
@@ -192,7 +201,7 @@ async def _run_supplementary_searches(
     effective_organism: str | None,
     explicit_organism: str | None,
     needed: int,
-) -> tuple[list[JSONObject], WdkTextResult, WdkTextResult]:
+) -> tuple[list[GeneResult], WdkTextResult, WdkTextResult]:
     """Run strategies B, C, D concurrently.
 
     :returns: ``(organism_results, wdk_id_result, wdk_broad_result)``
@@ -207,12 +216,12 @@ async def _run_supplementary_searches(
 async def _merge_and_rank(
     site_id: str,
     query: str,
-    all_raw: list[JSONObject],
-) -> list[JSONObject]:
+    all_raw: list[GeneResult],
+) -> list[GeneResult]:
     """Enrich sparse results, score, deduplicate, and sort by relevance."""
     enriched = await enrich_sparse_gene_results(site_id, all_raw, len(all_raw))
 
-    scored: list[ScoredResult] = [
+    scored: list[ScoredResult[GeneResult]] = [
         ScoredResult(
             result=r,
             score=score_gene_relevance(query, r),
@@ -222,18 +231,18 @@ async def _merge_and_rank(
     ]
     ranked = dedup_and_sort(
         scored,
-        key_fn=lambda r: str(r.get("geneId", "")).strip(),
+        key_fn=lambda r: r.gene_id.strip(),
     )
     return [sr.result for sr in ranked]
 
 
 def _apply_organism_filter(
-    results: list[JSONObject],
+    results: list[GeneResult],
     *,
     organism: str | None,
     explicit_organism: str | None,
     available_organisms: list[str],
-) -> tuple[list[JSONObject], list[str] | None]:
+) -> tuple[list[GeneResult], list[str] | None]:
     """Filter results by organism and generate suggestions when needed.
 
     :returns: ``(filtered_results, suggested_organisms)``
@@ -248,7 +257,7 @@ def _apply_organism_filter(
         filtered = [
             r
             for r in results
-            if isinstance(r, dict) and str(r.get("organism", "")).strip().lower() == ol
+            if r.organism.strip().lower() == ol
         ]
         return filtered, None
 
@@ -260,25 +269,22 @@ def _apply_organism_filter(
 
 def _build_response(
     *,
-    paginated: list[JSONObject],
+    paginated: list[GeneResult],
     total_count: int,
     wdk_totals: tuple[int, int],
     suggested_organisms: list[str] | None,
-) -> JSONObject:
-    """Build the final JSON response dict.
+) -> GeneSearchResult:
+    """Build the final typed response.
 
     :param wdk_totals: ``(wdk_id_total, wdk_broad_total)``
     """
     authoritative_total = max(total_count, *wdk_totals)
 
-    response: dict[str, object] = {
-        "records": paginated,
-        "totalCount": authoritative_total,
-    }
-    if suggested_organisms:
-        response["suggestedOrganisms"] = suggested_organisms
-
-    return cast("JSONObject", response)
+    return GeneSearchResult(
+        records=paginated,
+        total_count=authoritative_total,
+        suggested_organisms=suggested_organisms,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +299,7 @@ async def lookup_genes_by_text(
     organism: str | None = None,
     offset: int = 0,
     limit: int = 20,
-) -> JSONObject:
+) -> GeneSearchResult:
     """Search for gene records using multiple concurrent strategies.
 
     :param site_id: VEuPathDB site identifier (e.g. ``"plasmodb"``).
@@ -301,7 +307,7 @@ async def lookup_genes_by_text(
     :param organism: Optional organism filter.
     :param offset: Number of results to skip (for pagination).
     :param limit: Maximum number of results to return.
-    :returns: Dict with ``results``, ``totalCount``, and optional ``suggestedOrganisms``.
+    :returns: :class:`GeneSearchResult` with records, total count, and optional suggestions.
     """
     needed = offset + limit
     is_multi_word = len(query.strip().split()) >= _MIN_WORDS_FOR_MULTI_WORD

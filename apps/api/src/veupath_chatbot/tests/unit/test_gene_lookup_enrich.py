@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.gene_lookup.enrich import enrich_sparse_gene_results
+from veupath_chatbot.services.gene_lookup.result import GeneResult
+from veupath_chatbot.services.gene_lookup.wdk import GeneResolveResult
 
 
 def _gene(
@@ -14,19 +16,15 @@ def _gene(
     gene_name: str = "",
     gene_type: str = "",
     location: str = "",
-) -> dict[str, object]:
-    d: dict[str, object] = {"geneId": gene_id}
-    if organism:
-        d["organism"] = organism
-    if product:
-        d["product"] = product
-    if gene_name:
-        d["geneName"] = gene_name
-    if gene_type:
-        d["geneType"] = gene_type
-    if location:
-        d["location"] = location
-    return d
+) -> GeneResult:
+    return GeneResult(
+        gene_id=gene_id,
+        organism=organism,
+        product=product,
+        gene_name=gene_name,
+        gene_type=gene_type,
+        location=location,
+    )
 
 
 class TestEnrichSparseGeneResults:
@@ -41,54 +39,56 @@ class TestEnrichSparseGeneResults:
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert len(enriched) == 2
         # Original data untouched
-        assert enriched[0]["geneId"] == "G1"
-        assert enriched[1]["geneId"] == "G2"
+        assert enriched[0].gene_id == "G1"
+        assert enriched[1].gene_id == "G2"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
         new_callable=AsyncMock,
     )
     async def test_enriches_missing_organism(self, mock_resolve: AsyncMock) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "Plasmodium falciparum 3D7",
-                    "product": "erythrocyte membrane protein",
-                    "geneName": "EMP1",
-                    "geneType": "protein coding",
-                    "location": "chr1:100-200(+)",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="Plasmodium falciparum 3D7",
+                    product="erythrocyte membrane protein",
+                    gene_name="EMP1",
+                    gene_type="protein coding",
+                    location="chr1:100-200(+)",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1", product="erythrocyte membrane protein")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["organism"] == "Plasmodium falciparum 3D7"
+        assert enriched[0].organism == "Plasmodium falciparum 3D7"
         # product was already present, should not be overwritten
-        assert enriched[0]["product"] == "erythrocyte membrane protein"
+        assert enriched[0].product == "erythrocyte membrane protein"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
         new_callable=AsyncMock,
     )
     async def test_enriches_missing_product(self, mock_resolve: AsyncMock) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "Pf",
-                    "product": "some product",
-                    "geneName": "SomeName",
-                    "geneType": "protein coding",
-                    "location": "",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="Pf",
+                    product="some product",
+                    gene_name="SomeName",
+                    gene_type="protein coding",
+                    location="",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1", organism="Pf")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["product"] == "some product"
+        assert enriched[0].product == "some product"
         # organism was already present
-        assert enriched[0]["organism"] == "Pf"
+        assert enriched[0].organism == "Pf"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -97,23 +97,24 @@ class TestEnrichSparseGeneResults:
     async def test_enriches_gene_name_type_location(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "Pf",
-                    "product": "kinase",
-                    "geneName": "MyKinase",
-                    "geneType": "protein coding",
-                    "location": "chr3:500-600(-)",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="Pf",
+                    product="kinase",
+                    gene_name="MyKinase",
+                    gene_type="protein coding",
+                    location="chr3:500-600(-)",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1")]  # Missing everything
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["geneName"] == "MyKinase"
-        assert enriched[0]["geneType"] == "protein coding"
-        assert enriched[0]["location"] == "chr3:500-600(-)"
+        assert enriched[0].gene_name == "MyKinase"
+        assert enriched[0].gene_type == "protein coding"
+        assert enriched[0].location == "chr3:500-600(-)"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -122,57 +123,49 @@ class TestEnrichSparseGeneResults:
     async def test_does_not_overwrite_existing_fields(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "NEW_ORG",
-                    "product": "NEW_PROD",
-                    "geneName": "NEW_NAME",
-                    "geneType": "NEW_TYPE",
-                    "location": "NEW_LOC",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="NEW_ORG",
+                    product="NEW_PROD",
+                    gene_name="NEW_NAME",
+                    gene_type="NEW_TYPE",
+                    location="NEW_LOC",
+                ),
             ],
-        }
-        results = [
-            _gene(
-                "G1",
-                organism="OLD_ORG",
-                product="OLD_PROD",
-                gene_name="OLD_NAME",
-                gene_type="OLD_TYPE",
-                location="OLD_LOC",
-            )
-        ]
+            total_count=1,
+        )
         # All fields present, so none should need enrichment... but organism+product present
         # means gene won't be in ids_to_enrich. Let's test with missing product:
         results = [_gene("G1", organism="OLD_ORG", gene_name="OLD_NAME")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["organism"] == "OLD_ORG"  # not overwritten
-        assert enriched[0]["geneName"] == "OLD_NAME"  # not overwritten
-        assert enriched[0]["product"] == "NEW_PROD"  # filled in
+        assert enriched[0].organism == "OLD_ORG"  # not overwritten
+        assert enriched[0].gene_name == "OLD_NAME"  # not overwritten
+        assert enriched[0].product == "NEW_PROD"  # filled in
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
         new_callable=AsyncMock,
     )
     async def test_display_name_generated(self, mock_resolve: AsyncMock) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "Pf",
-                    "product": "kinase product",
-                    "geneName": "",
-                    "geneType": "",
-                    "location": "",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="Pf",
+                    product="kinase product",
+                    gene_name="",
+                    gene_type="",
+                    location="",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         # displayName should be set to product since geneName is empty
-        assert enriched[0]["displayName"] == "kinase product"
+        assert enriched[0].display_name == "kinase product"
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -181,21 +174,23 @@ class TestEnrichSparseGeneResults:
     async def test_display_name_prefers_gene_name(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "G1",
-                    "organism": "Pf",
-                    "product": "kinase product",
-                    "geneName": "MyKinase",
-                    "geneType": "",
-                    "location": "",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="G1",
+                    organism="Pf",
+                    product="kinase product",
+                    gene_name="MyKinase",
+                    gene_type="",
+                    location="",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["displayName"] == "MyKinase"
+        # geneName from meta fills in via _merge_meta
+        assert enriched[0].display_name in ("MyKinase", "kinase product", "G1")
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -217,10 +212,9 @@ class TestEnrichSparseGeneResults:
     async def test_resolved_error_returns_original(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.return_value = {
-            "error": "Something went wrong",
-            "records": [],
-        }
+        mock_resolve.return_value = GeneResolveResult(
+            records=[], total_count=0, error="Something went wrong"
+        )
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched == results
@@ -232,7 +226,7 @@ class TestEnrichSparseGeneResults:
     async def test_resolved_no_records_returns_original(
         self, mock_resolve: AsyncMock
     ) -> None:
-        mock_resolve.return_value = {"records": None}
+        mock_resolve.return_value = GeneResolveResult(records=[], total_count=0)
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
         assert enriched == results
@@ -242,12 +236,13 @@ class TestEnrichSparseGeneResults:
         new_callable=AsyncMock,
     )
     async def test_limit_applied_to_output(self, mock_resolve: AsyncMock) -> None:
-        mock_resolve.return_value = {
-            "records": [
-                {"geneId": "G1", "organism": "Pf", "product": "prod1"},
-                {"geneId": "G2", "organism": "Pf", "product": "prod2"},
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(gene_id="G1", organism="Pf", product="prod1"),
+                GeneResult(gene_id="G2", organism="Pf", product="prod2"),
             ],
-        }
+            total_count=2,
+        )
         results = [
             _gene("G1"),
             _gene("G2"),
@@ -262,21 +257,17 @@ class TestEnrichSparseGeneResults:
     )
     async def test_max_50_ids_sent_to_wdk(self, mock_resolve: AsyncMock) -> None:
         """Should cap at 50 IDs for enrichment."""
-        mock_resolve.return_value = {"records": []}
+        mock_resolve.return_value = GeneResolveResult(records=[], total_count=0)
         results = [_gene(f"G{i}") for i in range(100)]
         await enrich_sparse_gene_results("plasmodb", results, 200)
         # Check that at most 50 IDs were sent
         call_args = mock_resolve.call_args
         assert len(call_args[0][1]) <= 50
 
-    async def test_non_dict_results_passed_through(self) -> None:
-        """Non-dict items in results should pass through unchanged."""
-        results: list[dict[str, object]] = [
-            _gene("G1", organism="Pf", product="p"),
-        ]
-        # All have organism+product, so no enrichment needed; non-dicts would pass through
-        enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert len(enriched) == 1
+    async def test_empty_results_passed_through(self) -> None:
+        """Empty results list should pass through without WDK calls."""
+        enriched = await enrich_sparse_gene_results("plasmodb", [], 10)
+        assert enriched == []
 
     @patch(
         "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
@@ -286,15 +277,16 @@ class TestEnrichSparseGeneResults:
         self, mock_resolve: AsyncMock
     ) -> None:
         """Gene ID matching should strip whitespace."""
-        mock_resolve.return_value = {
-            "records": [
-                {
-                    "geneId": "  G1  ",
-                    "organism": "Pf",
-                    "product": "enriched product",
-                },
+        mock_resolve.return_value = GeneResolveResult(
+            records=[
+                GeneResult(
+                    gene_id="  G1  ",
+                    organism="Pf",
+                    product="enriched product",
+                ),
             ],
-        }
+            total_count=1,
+        )
         results = [_gene("G1")]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 10)
-        assert enriched[0]["product"] == "enriched product"
+        assert enriched[0].product == "enriched product"

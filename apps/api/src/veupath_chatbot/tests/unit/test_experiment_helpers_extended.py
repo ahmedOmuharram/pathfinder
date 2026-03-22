@@ -23,6 +23,7 @@ from veupath_chatbot.services.experiment.helpers import (
     safe_int,
 )
 from veupath_chatbot.services.experiment.types import GeneInfo
+from veupath_chatbot.services.gene_lookup.result import GeneResult
 
 
 class TestSafeInt:
@@ -346,7 +347,7 @@ class TestEnrichList:
     def test_basic_enrichment(self) -> None:
         genes = [GeneInfo(id="G1"), GeneInfo(id="G2")]
         lookup = {
-            "G1": {"geneName": "Gene1", "organism": "Pf3D7", "product": "kinase"},
+            "G1": GeneResult(gene_id="G1", gene_name="Gene1", organism="Pf3D7", product="kinase"),
         }
         enriched = _enrich_list(genes, lookup)
         assert enriched[0].name == "Gene1"
@@ -362,17 +363,16 @@ class TestEnrichList:
         assert enriched[0] is genes[0]
 
     def test_empty_genes(self) -> None:
-        enriched = _enrich_list([], {"G1": {"geneName": "Gene1"}})
+        enriched = _enrich_list([], {})
         assert enriched == []
 
     def test_partial_metadata(self) -> None:
         """Lookup entry missing some fields falls back to original GeneInfo.
 
-        Code: str(meta.get("organism", "")) or g.organism
-        When key is missing, str("") is falsy, so g.organism (None) is used.
+        GeneResult defaults empty fields to "", and "" or g.organism -> g.organism.
         """
         genes = [GeneInfo(id="G1")]
-        lookup = {"G1": {"geneName": "Gene1"}}
+        lookup = {"G1": GeneResult(gene_id="G1", gene_name="Gene1")}
         enriched = _enrich_list(genes, lookup)
         assert enriched[0].name == "Gene1"
         assert enriched[0].organism is None  # falls back to g.organism
@@ -381,10 +381,9 @@ class TestEnrichList:
     def test_preserves_existing_gene_info_on_empty_lookup_fields(self) -> None:
         """When lookup has empty strings, original GeneInfo fields are preserved.
 
-        Code: str(meta.get("geneName", "")) or g.name
-        If geneName is "", str("") is falsy, so g.name is used.
+        GeneResult with empty gene_name -> "" or g.name -> g.name.
         """
         genes = [GeneInfo(id="G1", name="original_name")]
-        lookup = {"G1": {"geneName": "", "organism": "", "product": ""}}
+        lookup = {"G1": GeneResult(gene_id="G1", gene_name="", organism="", product="")}
         enriched = _enrich_list(genes, lookup)
         assert enriched[0].name == "original_name"

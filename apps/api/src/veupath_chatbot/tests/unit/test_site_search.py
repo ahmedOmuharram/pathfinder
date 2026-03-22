@@ -13,8 +13,12 @@ import respx
 
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo, SiteRouter
 from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    DocumentTypeFilter,
+    SiteSearchCategory,
     SiteSearchClient,
     SiteSearchDocument,
+    SiteSearchDocumentType,
+    SiteSearchDocumentTypeField,
     SiteSearchResponse,
 )
 from veupath_chatbot.platform.errors import AppError
@@ -98,6 +102,234 @@ class TestSiteSearchModels:
         assert resp.search_results.total_count == 0
         assert resp.search_results.documents == []
         assert resp.organism_counts == {}
+
+    def test_response_new_fields_default_empty(self) -> None:
+        """New fields (documentTypes, categories, fieldCounts) default to empty."""
+        resp = SiteSearchResponse.model_validate({})
+        assert resp.document_types == []
+        assert resp.categories == []
+        assert resp.field_counts == {}
+
+
+class TestSiteSearchDocumentTypeField:
+    """SiteSearchDocumentTypeField — aligned with SiteSearch/Types.ts."""
+
+    def test_parses_from_live_shape(self) -> None:
+        raw = {
+            "name": "TEXT__gene_product",
+            "displayName": "Product description",
+            "term": "product",
+            "isSubtitle": True,
+        }
+        field = SiteSearchDocumentTypeField.model_validate(raw)
+        assert field.name == "TEXT__gene_product"
+        assert field.display_name == "Product description"
+        assert field.term == "product"
+        assert field.is_subtitle is True
+
+    def test_is_subtitle_defaults_false(self) -> None:
+        raw = {"name": "TEXT__gene_name", "displayName": "Gene name", "term": "name"}
+        field = SiteSearchDocumentTypeField.model_validate(raw)
+        assert field.is_subtitle is False
+
+
+class TestSiteSearchDocumentType:
+    """SiteSearchDocumentType — aligned with SiteSearch/Types.ts discriminated union."""
+
+    def test_parses_wdk_record_type_with_search_name(self) -> None:
+        """WDK record types include wdkSearchName."""
+        raw = {
+            "id": "gene",
+            "displayName": "Gene",
+            "displayNamePlural": "Genes",
+            "count": 721184,
+            "hasOrganismField": True,
+            "isWdkRecordType": True,
+            "wdkSearchName": "GenesByText",
+            "searchFields": [
+                {
+                    "name": "TEXT__gene_product",
+                    "displayName": "Product description",
+                    "term": "product",
+                    "isSubtitle": True,
+                },
+            ],
+            "summaryFields": [
+                {
+                    "name": "TEXT__gene_name",
+                    "displayName": "Gene name or symbol",
+                    "term": "name",
+                    "isSubtitle": False,
+                },
+            ],
+        }
+        dt = SiteSearchDocumentType.model_validate(raw)
+        assert dt.id == "gene"
+        assert dt.display_name == "Gene"
+        assert dt.display_name_plural == "Genes"
+        assert dt.count == 721184
+        assert dt.has_organism_field is True
+        assert dt.is_wdk_record_type is True
+        assert dt.wdk_search_name == "GenesByText"
+        assert len(dt.search_fields) == 1
+        assert dt.search_fields[0].term == "product"
+        assert dt.search_fields[0].is_subtitle is True
+        assert len(dt.summary_fields) == 1
+        assert dt.summary_fields[0].term == "name"
+
+    def test_parses_non_wdk_record_type(self) -> None:
+        """Non-WDK types (news, general) have isWdkRecordType=false and no wdkSearchName."""
+        raw = {
+            "id": "news",
+            "displayName": "News",
+            "displayNamePlural": "News",
+            "count": 0,
+            "hasOrganismField": False,
+            "isWdkRecordType": False,
+            "searchFields": [
+                {
+                    "name": "TEXT__news_content",
+                    "displayName": "Content",
+                    "term": "content",
+                    "isSubtitle": False,
+                },
+            ],
+            "summaryFields": [],
+        }
+        dt = SiteSearchDocumentType.model_validate(raw)
+        assert dt.id == "news"
+        assert dt.is_wdk_record_type is False
+        assert dt.wdk_search_name is None
+        assert dt.has_organism_field is False
+        assert len(dt.search_fields) == 1
+        assert dt.summary_fields == []
+
+    def test_defaults_for_minimal_input(self) -> None:
+        raw = {"id": "test", "displayName": "Test", "displayNamePlural": "Tests"}
+        dt = SiteSearchDocumentType.model_validate(raw)
+        assert dt.count == 0
+        assert dt.has_organism_field is False
+        assert dt.is_wdk_record_type is False
+        assert dt.wdk_search_name is None
+        assert dt.search_fields == []
+        assert dt.summary_fields == []
+
+
+class TestSiteSearchCategory:
+    """SiteSearchCategory — aligned with SiteSearch/Types.ts."""
+
+    def test_parses_from_live_shape(self) -> None:
+        raw = {"name": "Genome", "documentTypes": ["gene", "genomic-sequence"]}
+        cat = SiteSearchCategory.model_validate(raw)
+        assert cat.name == "Genome"
+        assert cat.document_types == ["gene", "genomic-sequence"]
+
+    def test_defaults_empty_document_types(self) -> None:
+        cat = SiteSearchCategory.model_validate({"name": "Empty"})
+        assert cat.document_types == []
+
+
+class TestSiteSearchResponseFullAlignment:
+    """SiteSearchResponse with all 5 top-level fields from WDK SiteSearchService."""
+
+    def test_parses_full_live_response(self) -> None:
+        """Parse a response shaped like the real PlasmoDB API."""
+        raw = {
+            "searchResults": {
+                "totalCount": 721184,
+                "documents": [
+                    {
+                        "documentType": "gene",
+                        "primaryKey": ["PF3D7_0523000"],
+                        "wdkPrimaryKeyString": "PF3D7_0523000",
+                        "hyperlinkName": "protein kinase",
+                        "organism": ["Plasmodium falciparum 3D7"],
+                        "score": 43.7,
+                        "summaryFieldData": {"TEXT__gene_product": "protein kinase"},
+                        "foundInFields": {"TEXT__gene_product": ["protein <em>kinase</em>"]},
+                    }
+                ],
+            },
+            "organismCounts": {"Plasmodium falciparum 3D7": 100},
+            "documentTypes": [
+                {
+                    "id": "gene",
+                    "displayName": "Gene",
+                    "displayNamePlural": "Genes",
+                    "count": 721184,
+                    "hasOrganismField": True,
+                    "isWdkRecordType": True,
+                    "wdkSearchName": "GenesByText",
+                    "searchFields": [
+                        {
+                            "name": "TEXT__gene_product",
+                            "displayName": "Product description",
+                            "term": "product",
+                            "isSubtitle": True,
+                        },
+                    ],
+                    "summaryFields": [],
+                },
+                {
+                    "id": "news",
+                    "displayName": "News",
+                    "displayNamePlural": "News",
+                    "count": 0,
+                    "hasOrganismField": False,
+                    "isWdkRecordType": False,
+                    "searchFields": [],
+                    "summaryFields": [],
+                },
+            ],
+            "categories": [
+                {"name": "Genome", "documentTypes": ["gene", "genomic-sequence"]},
+                {"name": "About", "documentTypes": ["news", "general"]},
+            ],
+            "fieldCounts": {
+                "TEXT__gene_product": 135548,
+                "MULTITEXT__gene_GOTerms": 202127,
+            },
+        }
+        resp = SiteSearchResponse.model_validate(raw)
+
+        # Existing fields still work.
+        assert resp.search_results.total_count == 721184
+        assert len(resp.search_results.documents) == 1
+        assert resp.organism_counts["Plasmodium falciparum 3D7"] == 100
+
+        # documentTypes
+        assert len(resp.document_types) == 2
+        gene_dt = resp.document_types[0]
+        assert gene_dt.id == "gene"
+        assert gene_dt.wdk_search_name == "GenesByText"
+        assert gene_dt.is_wdk_record_type is True
+        assert gene_dt.count == 721184
+        news_dt = resp.document_types[1]
+        assert news_dt.id == "news"
+        assert news_dt.wdk_search_name is None
+        assert news_dt.is_wdk_record_type is False
+
+        # categories
+        assert len(resp.categories) == 2
+        assert resp.categories[0].name == "Genome"
+        assert resp.categories[0].document_types == ["gene", "genomic-sequence"]
+
+        # fieldCounts
+        assert resp.field_counts["TEXT__gene_product"] == 135548
+        assert resp.field_counts["MULTITEXT__gene_GOTerms"] == 202127
+
+    def test_backward_compat_without_new_fields(self) -> None:
+        """Old-style responses (only searchResults + organismCounts) still parse."""
+        raw = {
+            "searchResults": {"totalCount": 5, "documents": []},
+            "organismCounts": {"Pf 3D7": 5},
+        }
+        resp = SiteSearchResponse.model_validate(raw)
+        assert resp.search_results.total_count == 5
+        assert resp.document_types == []
+        assert resp.categories == []
+        assert resp.field_counts == {}
+
 
 # ---------------------------------------------------------------------------
 # strip_html_tags
@@ -218,11 +450,62 @@ class TestSiteSearchClientPostBody:
             router.post("https://plasmodb.org/site-search").mock(side_effect=capture)
             client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
             try:
-                await client.search("kinase", document_type="gene")
+                await client.search(
+                    "kinase",
+                    document_type_filter=DocumentTypeFilter(document_type="gene"),
+                )
             finally:
                 await client.close()
 
         assert captured_body["documentTypeFilter"] == {"documentType": "gene"}
+
+    async def test_with_found_only_in_fields(self) -> None:
+        captured_body: dict[str, object] = {}
+
+        with respx.mock(assert_all_called=False) as router:
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured_body.update(json.loads(request.content))
+                return httpx.Response(200, json={})
+
+            router.post("https://plasmodb.org/site-search").mock(side_effect=capture)
+            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
+            try:
+                await client.search(
+                    "kinase",
+                    document_type_filter=DocumentTypeFilter(
+                        document_type="gene",
+                        found_only_in_fields=["TEXT__gene_product"],
+                    ),
+                )
+            finally:
+                await client.close()
+
+        assert captured_body["documentTypeFilter"] == {
+            "documentType": "gene",
+            "foundOnlyInFields": ["TEXT__gene_product"],
+        }
+
+    async def test_with_restrict_metadata_to_organisms(self) -> None:
+        captured_body: dict[str, object] = {}
+
+        with respx.mock(assert_all_called=False) as router:
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured_body.update(json.loads(request.content))
+                return httpx.Response(200, json={})
+
+            router.post("https://plasmodb.org/site-search").mock(side_effect=capture)
+            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
+            try:
+                await client.search(
+                    "kinase",
+                    restrict_metadata_to_organisms=["Plasmodium falciparum 3D7"],
+                )
+            finally:
+                await client.close()
+
+        assert captured_body["restrictMetadataToOrganisms"] == [
+            "Plasmodium falciparum 3D7"
+        ]
 
     async def test_with_organisms_filter(self) -> None:
         captured_body: dict[str, object] = {}

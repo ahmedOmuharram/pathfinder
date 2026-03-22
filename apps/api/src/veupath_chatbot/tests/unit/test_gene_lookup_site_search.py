@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.integrations.veupathdb.site_search_client import (
+    DocumentTypeFilter,
     SiteSearchDocument,
     SiteSearchResponse,
     SiteSearchResults,
@@ -43,18 +44,18 @@ def _make_doc(
 
 
 class TestParseSiteSearchDocs:
-    """Tests for converting typed site-search documents into gene dicts."""
+    """Tests for converting typed site-search documents into GeneResult objects."""
 
     def test_basic_parsing(self) -> None:
         docs = [_make_doc()]
         results = parse_site_search_docs(docs)
         assert len(results) == 1
         r = results[0]
-        assert r["geneId"] == "PF3D7_0100100"
-        assert r["organism"] == "Plasmodium falciparum 3D7"
-        assert r["product"] == "erythrocyte membrane protein"
-        assert r["geneName"] == "PfEMP1"
-        assert r["geneType"] == "protein coding"
+        assert r.gene_id == "PF3D7_0100100"
+        assert r.organism == "Plasmodium falciparum 3D7"
+        assert r.product == "erythrocyte membrane protein"
+        assert r.gene_name == "PfEMP1"
+        assert r.gene_type == "protein coding"
 
     def test_html_tags_stripped_from_fields(self) -> None:
         doc = _make_doc(
@@ -63,9 +64,9 @@ class TestParseSiteSearchDocs:
             gene_name="<b>PfEMP1</b>",
         )
         results = parse_site_search_docs([doc])
-        assert results[0]["geneId"] == "PF3D7_0100100"
-        assert results[0]["product"] == "erythrocyte membrane protein"
-        assert results[0]["geneName"] == "PfEMP1"
+        assert results[0].gene_id == "PF3D7_0100100"
+        assert results[0].product == "erythrocyte membrane protein"
+        assert results[0].gene_name == "PfEMP1"
 
     def test_fallback_to_primary_key_list(self) -> None:
         doc = SiteSearchDocument(
@@ -73,7 +74,7 @@ class TestParseSiteSearchDocs:
             primary_key=["PF3D7_0200200"],
         )
         results = parse_site_search_docs([doc])
-        assert results[0]["geneId"] == "PF3D7_0200200"
+        assert results[0].gene_id == "PF3D7_0200200"
 
     def test_skip_doc_without_gene_id(self) -> None:
         doc = SiteSearchDocument(
@@ -87,27 +88,27 @@ class TestParseSiteSearchDocs:
         doc = SiteSearchDocument(wdk_primary_key_string="PF3D7_0100100")
         results = parse_site_search_docs([doc])
         assert len(results) == 1
-        assert results[0]["geneId"] == "PF3D7_0100100"
-        assert results[0]["organism"] == ""
-        assert results[0]["product"] == ""
+        assert results[0].gene_id == "PF3D7_0100100"
+        assert results[0].organism == ""
+        assert results[0].product == ""
 
     def test_hyperlink_name_used_as_display_name(self) -> None:
         doc = _make_doc(
             extra_fields={"hyperlink_name": "My Gene Display Name"},
         )
         results = parse_site_search_docs([doc])
-        assert results[0]["displayName"] == "My Gene Display Name"
+        assert results[0].display_name == "My Gene Display Name"
 
     def test_display_name_fallback_chain(self) -> None:
         # No hyperlinkName, no gene_name => falls back to product
         doc = _make_doc(gene_name="")
         results = parse_site_search_docs([doc])
-        assert results[0]["displayName"] == "erythrocyte membrane protein"
+        assert results[0].display_name == "erythrocyte membrane protein"
 
     def test_display_name_fallback_to_gene_name(self) -> None:
         doc = _make_doc(gene_name="MyGene")
         results = parse_site_search_docs([doc])
-        assert results[0]["displayName"] == "MyGene"
+        assert results[0].display_name == "MyGene"
 
     def test_found_in_fields_parsed(self) -> None:
         doc = _make_doc(
@@ -119,7 +120,7 @@ class TestParseSiteSearchDocs:
             }
         )
         results = parse_site_search_docs([doc])
-        matched = results[0]["matchedFields"]
+        matched = results[0].matched_fields
         assert isinstance(matched, list)
         assert "gene_product" in matched
         assert "gene_Notes" in matched
@@ -134,7 +135,7 @@ class TestParseSiteSearchDocs:
             }
         )
         results = parse_site_search_docs([doc])
-        matched = results[0]["matchedFields"]
+        matched = results[0].matched_fields
         assert isinstance(matched, list)
         assert "gene_product" not in matched
         assert "gene_name" in matched
@@ -146,7 +147,7 @@ class TestParseSiteSearchDocs:
             organism=["Toxoplasma gondii ME49"],
         )
         results = parse_site_search_docs([doc])
-        assert results[0]["organism"] == "Toxoplasma gondii ME49"
+        assert results[0].organism == "Toxoplasma gondii ME49"
 
     def test_multiple_docs(self) -> None:
         docs = [
@@ -156,7 +157,7 @@ class TestParseSiteSearchDocs:
         ]
         results = parse_site_search_docs(docs)
         assert len(results) == 3
-        assert [r["geneId"] for r in results] == ["GENE_A", "GENE_B", "GENE_C"]
+        assert [r.gene_id for r in results] == ["GENE_A", "GENE_B", "GENE_C"]
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +212,7 @@ class TestFetchSiteSearchGenes:
 
         results, organisms, total = await fetch_site_search_genes("plasmodb", "kinase")
         assert len(results) == 1
-        assert results[0]["geneId"] == "PF3D7_0100100"
+        assert results[0].gene_id == "PF3D7_0100100"
         assert total == 1
         assert "Plasmodium falciparum 3D7" in organisms
         assert "Plasmodium vivax P01" in organisms
@@ -221,7 +222,7 @@ class TestFetchSiteSearchGenes:
         )
         mock_search.assert_called_once_with(
             "kinase",
-            document_type="gene",
+            document_type_filter=DocumentTypeFilter(document_type="gene"),
             organisms=None,
             limit=SITE_SEARCH_FETCH_LIMIT,
             offset=0,
@@ -245,7 +246,7 @@ class TestFetchSiteSearchGenes:
 
         mock_search.assert_called_once_with(
             "kinase",
-            document_type="gene",
+            document_type_filter=DocumentTypeFilter(document_type="gene"),
             organisms=["Plasmodium falciparum 3D7"],
             limit=10,
             offset=0,

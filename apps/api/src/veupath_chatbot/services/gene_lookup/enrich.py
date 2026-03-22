@@ -1,48 +1,42 @@
 """Enrich sparse gene results with WDK metadata."""
 
-from collections.abc import Callable
-
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.text import strip_html_tags
-from veupath_chatbot.platform.types import JSONObject
 
 from .organism import normalize_organism
+from .result import GeneResult
 from .wdk import resolve_gene_ids
 
 logger = get_logger(__name__)
 
-# Fields to fill from WDK metadata when absent in the original result.
-# Each entry is (field_name, transform_fn).
-_ENRICHMENT_FIELDS: list[tuple[str, Callable[[str], str]]] = [
-    ("organism", normalize_organism),
-    ("product", strip_html_tags),
-    ("geneName", strip_html_tags),
-    ("geneType", str),
-    ("location", str),
-]
 
-
-def _merge_meta(merged: JSONObject, meta: JSONObject) -> None:
+def _merge_meta(merged: GeneResult, meta: GeneResult) -> GeneResult:
     """Fill empty fields in *merged* from *meta*, applying transforms."""
-    for field, transform in _ENRICHMENT_FIELDS:
-        if not merged.get(field) and meta.get(field):
-            merged[field] = transform(str(meta[field]))
-    if not merged.get("displayName"):
-        merged["displayName"] = str(
-            merged.get("geneName")
-            or merged.get("product")
-            or meta.get("product")
-            or merged.get("geneId")
-            or ""
-        )
+    return GeneResult(
+        gene_id=merged.gene_id,
+        display_name=(
+            merged.display_name
+            or merged.gene_name
+            or merged.product
+            or meta.product
+            or merged.gene_id
+        ),
+        organism=merged.organism or normalize_organism(meta.organism),
+        product=merged.product or strip_html_tags(meta.product),
+        gene_name=merged.gene_name or strip_html_tags(meta.gene_name),
+        gene_type=merged.gene_type or meta.gene_type,
+        location=merged.location or meta.location,
+        previous_ids=merged.previous_ids,
+        matched_fields=merged.matched_fields,
+    )
 
 
 async def enrich_sparse_gene_results(
     site_id: str,
-    results: list[JSONObject],
+    results: list[GeneResult],
     limit: int,
-) -> list[JSONObject]:
+) -> list[GeneResult]:
     """Enrich results that lack organism/product via WDK standard reporter.
 
     Site-search only returns ``summaryFieldData`` for fields where the query
@@ -51,11 +45,9 @@ async def enrich_sparse_gene_results(
     the gaps.
     """
     ids_to_enrich: list[str] = [
-        str(r["geneId"])
+        r.gene_id
         for r in results
-        if isinstance(r, dict)
-        and r.get("geneId")
-        and (not r.get("organism") or not r.get("product"))
+        if r.gene_id and (not r.organism or not r.product)
     ]
     if not ids_to_enrich:
         return results
@@ -75,31 +67,23 @@ async def enrich_sparse_gene_results(
         )
         return results
 
-    if resolved.get("error"):
+    if resolved.error:
         return results
 
-    records = resolved.get("records")
-    if not isinstance(records, list) or not records:
+    if not resolved.records:
         return results
 
-    by_id: dict[str, JSONObject] = {}
-    for rec in records:
-        if isinstance(rec, dict) and rec.get("geneId"):
-            by_id[str(rec["geneId"]).strip()] = rec
+    by_id: dict[str, GeneResult] = {}
+    for rec in resolved.records:
+        if rec.gene_id:
+            by_id[rec.gene_id.strip()] = rec
 
-    enriched: list[JSONObject] = []
+    enriched: list[GeneResult] = []
     for r in results:
-        if not isinstance(r, dict):
-            enriched.append(r)
-            continue
-        gene_id = r.get("geneId")
-        meta = by_id.get(str(gene_id or "")) if gene_id else None
+        meta = by_id.get(r.gene_id) if r.gene_id else None
         if not meta:
             enriched.append(r)
             continue
-
-        merged = dict(r)
-        _merge_meta(merged, meta)
-        enriched.append(merged)
+        enriched.append(_merge_meta(r, meta))
 
     return enriched[:limit]

@@ -17,6 +17,7 @@ Reference:
 """
 
 import asyncio
+from dataclasses import dataclass
 
 import httpx
 from pydantic import Field, field_validator
@@ -33,6 +34,52 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
+
+
+class SiteSearchDocumentTypeField(CamelModel):
+    """A field descriptor within a document type (search or summary field).
+
+    Aligned with web-monorepo SiteSearchDocumentTypeField type:
+    packages/libs/web-common/src/SiteSearch/Types.ts
+    """
+
+    name: str
+    display_name: str
+    term: str
+    is_subtitle: bool = False
+
+
+class SiteSearchDocumentType(CamelModel):
+    """A document type returned in the site-search response.
+
+    Discriminated union in TypeScript: when ``is_wdk_record_type`` is True,
+    ``wdk_search_name`` contains the WDK search name (e.g. ``"GenesByText"``)
+    that bridges site-search results to WDK strategy creation.
+
+    Aligned with web-monorepo SiteSearchDocumentType type:
+    packages/libs/web-common/src/SiteSearch/Types.ts
+    """
+
+    id: str
+    display_name: str
+    display_name_plural: str
+    count: int = 0
+    has_organism_field: bool = False
+    search_fields: list[SiteSearchDocumentTypeField] = Field(default_factory=list)
+    summary_fields: list[SiteSearchDocumentTypeField] = Field(default_factory=list)
+    is_wdk_record_type: bool = False
+    wdk_search_name: str | None = None
+
+
+class SiteSearchCategory(CamelModel):
+    """A category grouping document types.
+
+    Aligned with web-monorepo SiteSearchCategory type:
+    packages/libs/web-common/src/SiteSearch/Types.ts
+    """
+
+    name: str
+    document_types: list[str] = Field(default_factory=list)
 
 
 class SiteSearchDocument(CamelModel):
@@ -72,12 +119,27 @@ class SiteSearchResults(CamelModel):
 class SiteSearchResponse(CamelModel):
     """Full response from the VEuPathDB site-search service.
 
-    Aligned with web-monorepo SiteSearchResponse type:
+    All five top-level fields aligned with web-monorepo SiteSearchResponse type:
     packages/libs/web-common/src/SiteSearch/Types.ts
     """
 
     search_results: SiteSearchResults = Field(default_factory=SiteSearchResults)
     organism_counts: dict[str, int] = Field(default_factory=dict)
+    document_types: list[SiteSearchDocumentType] = Field(default_factory=list)
+    categories: list[SiteSearchCategory] = Field(default_factory=list)
+    field_counts: dict[str, int] = Field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DocumentTypeFilter:
+    """Filter for restricting site-search to a specific document type.
+
+    Mirrors the ``documentTypeFilter`` object in the SiteSearchService
+    POST request body.
+    """
+
+    document_type: str
+    found_only_in_fields: list[str] | None = None
 
 
 class SiteSearchClient:
@@ -131,8 +193,9 @@ class SiteSearchClient:
         self,
         search_text: str,
         *,
-        document_type: str | None = None,
+        document_type_filter: DocumentTypeFilter | None = None,
         organisms: list[str] | None = None,
+        restrict_metadata_to_organisms: list[str] | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> SiteSearchResponse:
@@ -150,8 +213,9 @@ class SiteSearchClient:
         try:
             return await self._search_with_retry(
                 search_text,
-                document_type=document_type,
+                document_type_filter=document_type_filter,
                 organisms=organisms,
+                restrict_metadata_to_organisms=restrict_metadata_to_organisms,
                 limit=limit,
                 offset=offset,
             )
@@ -170,8 +234,9 @@ class SiteSearchClient:
         self,
         search_text: str,
         *,
-        document_type: str | None = None,
+        document_type_filter: DocumentTypeFilter | None = None,
         organisms: list[str] | None = None,
+        restrict_metadata_to_organisms: list[str] | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> SiteSearchResponse:
@@ -187,8 +252,17 @@ class SiteSearchClient:
         }
         if organisms:
             body["restrictSearchToOrganisms"] = organisms
-        if document_type:
-            body["documentTypeFilter"] = {"documentType": document_type}
+        if restrict_metadata_to_organisms:
+            body["restrictMetadataToOrganisms"] = restrict_metadata_to_organisms
+        if document_type_filter:
+            doc_filter: dict[str, object] = {
+                "documentType": document_type_filter.document_type,
+            }
+            if document_type_filter.found_only_in_fields:
+                doc_filter["foundOnlyInFields"] = (
+                    document_type_filter.found_only_in_fields
+                )
+            body["documentTypeFilter"] = doc_filter
 
         try:
             client = await self._get_client()
