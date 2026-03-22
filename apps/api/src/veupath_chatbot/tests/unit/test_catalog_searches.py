@@ -15,6 +15,7 @@ from veupath_chatbot.integrations.veupathdb.site_search_client import (
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.platform.errors import WDKError
+from veupath_chatbot.services.catalog.models import SearchMatch
 from veupath_chatbot.services.catalog.searches import (
     _search_for_searches_via_site_search,
     find_record_type_for_search,
@@ -267,10 +268,10 @@ class TestSearchForSearchesViaSiteSearch:
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
         assert len(result) == 1
-        assert result[0]["name"] == "GenesByTaxon"
-        assert result[0]["displayName"] == "Genes by Taxon"
-        assert result[0]["recordType"] == "gene"
-        assert result[0]["description"] == "Find genes by taxonomy"
+        assert result[0].name == "GenesByTaxon"
+        assert result[0].display_name == "Genes by Taxon"
+        assert result[0].record_type == "gene"
+        assert result[0].description == "Find genes by taxonomy"
 
     async def test_returns_empty_on_exception(self) -> None:
         router = _mock_site_router_raising(WDKError(detail="Network error"))
@@ -297,7 +298,7 @@ class TestSearchForSearchesViaSiteSearch:
             result = await _search_for_searches_via_site_search("plasmodb", "test")
 
         assert len(result) == 1
-        assert result[0]["name"] == "ValidSearch"
+        assert result[0].name == "ValidSearch"
 
     async def test_respects_limit(self) -> None:
         docs = [
@@ -334,7 +335,7 @@ class TestSearchForSearchesViaSiteSearch:
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
         # HTML tags should be stripped
-        assert result[0]["displayName"] == "Genes by Taxon"
+        assert result[0].display_name == "Genes by Taxon"
 
     async def test_display_name_falls_back_to_search_name(self) -> None:
         doc = SiteSearchDocument(
@@ -349,7 +350,7 @@ class TestSearchForSearchesViaSiteSearch:
         ):
             result = await _search_for_searches_via_site_search("plasmodb", "taxon")
 
-        assert result[0]["displayName"] == "GenesByTaxon"
+        assert result[0].display_name == "GenesByTaxon"
 
 
 # ---------------------------------------------------------------------------
@@ -381,12 +382,12 @@ class TestSearchForSearches:
                 "veupath_chatbot.services.catalog.searches._search_for_searches_via_site_search",
                 new_callable=AsyncMock,
                 return_value=[
-                    {
-                        "name": "GenesByTaxon",
-                        "displayName": "Genes by Taxon",
-                        "description": "",
-                        "recordType": "gene",
-                    }
+                    SearchMatch(
+                        name="GenesByTaxon",
+                        display_name="Genes by Taxon",
+                        description="",
+                        record_type="gene",
+                    )
                 ],
             ),
             patch(
@@ -397,7 +398,7 @@ class TestSearchForSearches:
             result = await search_for_searches("plasmodb", None, "taxon")
 
         assert len(result) == 1
-        assert result[0]["name"] == "GenesByTaxon"
+        assert result[0].name == "GenesByTaxon"
 
     async def test_falls_back_to_discovery_when_site_search_empty(self) -> None:
         discovery = _mock_discovery(
@@ -427,7 +428,7 @@ class TestSearchForSearches:
             result = await search_for_searches("plasmodb", None, "taxon")
 
         assert len(result) == 1
-        assert result[0]["name"] == "GenesByTaxon"
+        assert result[0].name == "GenesByTaxon"
 
     async def test_filters_by_single_record_type(self) -> None:
         discovery = _mock_discovery(
@@ -480,7 +481,7 @@ class TestSearchForSearches:
             )
 
         assert len(result) == 2
-        names = {r["name"] for r in result}
+        names = {r.name for r in result}
         assert names == {"GenesByTaxon", "TranscriptsByTaxon"}
 
     async def test_deduplicates_record_type_list(self) -> None:
@@ -530,7 +531,7 @@ class TestSearchForSearches:
         ):
             result = await search_for_searches("plasmodb", "gene", "taxon")
 
-        names = [r["name"] for r in result]
+        names = [r.name for r in result]
         assert "InternalSearch" not in names
 
     async def test_scores_and_sorts_by_relevance(self) -> None:
@@ -560,7 +561,7 @@ class TestSearchForSearches:
             result = await search_for_searches("plasmodb", "gene", "genes taxon")
 
         # GenesByTaxon should rank first (matches both terms)
-        assert result[0]["name"] == "GenesByTaxon"
+        assert result[0].name == "GenesByTaxon"
 
     async def test_no_suffix_stripping(self) -> None:
         """Scoring uses raw substring matching — no suffix stemming."""
@@ -669,7 +670,9 @@ class TestSearchForSearches:
             result = await search_for_searches("plasmodb", "gene", "taxon")
 
         for r in result:
-            assert "score" not in r
+            assert not hasattr(r, "score")
+            # Also verify to_dict() output has no score key
+            assert "score" not in r.to_dict()
 
 
 # ---------------------------------------------------------------------------

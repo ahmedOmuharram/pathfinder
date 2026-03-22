@@ -22,6 +22,7 @@ import pytest
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
+from veupath_chatbot.services.catalog.models import SearchMatch
 from veupath_chatbot.services.catalog.searches import (
     find_record_type_for_search,
     get_raw_record_types,
@@ -234,8 +235,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "PlasmoDB should find kinase-related searches"
         for r in result:
-            assert "name" in r, "Each result must have a 'name' key"
-            assert "displayName" in r, "Each result must have a 'displayName' key"
+            assert isinstance(r, SearchMatch)
+            assert r.name, "Each result must have a non-empty name"
+            assert r.display_name, "Each result must have a non-empty display_name"
 
     @pytest.mark.asyncio
     async def test_toxodb_search_go_term(self) -> None:
@@ -246,8 +248,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "ToxoDB should find GO-term-related searches"
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
     @pytest.mark.asyncio
     async def test_cryptodb_search_location(self) -> None:
@@ -258,8 +261,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "CryptoDB should find location-related searches"
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
     @pytest.mark.asyncio
     async def test_fungidb_search_ortholog(self) -> None:
@@ -270,8 +274,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "FungiDB should find ortholog-related searches"
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
     @pytest.mark.asyncio
     async def test_tritrypdb_search_domain(self) -> None:
@@ -282,8 +287,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "TriTrypDB should find domain-related searches"
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
     @pytest.mark.asyncio
     async def test_vectorbase_search_expression(self) -> None:
@@ -294,8 +300,9 @@ class TestSearchForSearchesMultiDb:
         assert isinstance(result, list)
         assert len(result) > 0, "VectorBase should find expression-related searches"
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
 
 # ===========================================================================
@@ -317,8 +324,9 @@ class TestSearchForSearchesNoRecordType:
             "PlasmoDB should find RNA-related searches across all record types"
         )
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
     @pytest.mark.asyncio
     async def test_toxodb_broad_search(self) -> None:
@@ -331,8 +339,9 @@ class TestSearchForSearchesNoRecordType:
             "ToxoDB should find phenotype-related searches across all record types"
         )
         for r in result:
-            assert "name" in r
-            assert "displayName" in r
+            assert isinstance(r, SearchMatch)
+            assert r.name
+            assert r.display_name
 
 
 # ===========================================================================

@@ -163,7 +163,7 @@ def _parse_json_object(
     except (json.JSONDecodeError, TypeError) as exc:
         return _err(f"{field_name} is not valid JSON: {exc}")
     return (
-        cast("JSONObject", parsed)
+        parsed
         if isinstance(parsed, dict)
         else _err(
             f"{field_name} must be a JSON object (dict), got {type(parsed).__name__}."

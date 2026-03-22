@@ -73,12 +73,13 @@ class CatalogTools:
         with heavy boosting — use these when you know part of the search
         identifier.
         """
-        return await catalog.search_for_searches(
+        matches = await catalog.search_for_searches(
             site_id,
             record_type=None,
             query=query,
             keywords=keywords or [],
         )
+        return [m.to_dict() for m in matches]
 
     @ai_function()
     async def list_transforms(

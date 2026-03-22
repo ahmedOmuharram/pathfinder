@@ -5,7 +5,7 @@ artifacts, setting conversation titles, and reporting reasoning.
 """
 
 from datetime import UTC, datetime
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import uuid4
 
 from kani import AIParam, ai_function
@@ -42,12 +42,13 @@ class ArtifactToolsMixin:
         ] = None,
     ) -> JSONObject:
         """Publish a reusable planning artifact (persisted to the conversation)."""
+        assumption_list: JSONArray = list(assumptions) if assumptions else []
         artifact: JSONObject = {
             "id": f"plan_{uuid4().hex[:12]}",
             "title": (title or "").strip() or "New Conversation",
             "summaryMarkdown": summary_markdown or "",
-            "assumptions": cast("JSONArray", assumptions or []),
-            "parameters": cast("JSONObject", parameters or {}),
+            "assumptions": assumption_list,
+            "parameters": parameters or {},
             "proposedStrategyPlan": proposed_strategy_plan,
             "createdAt": datetime.now(UTC).isoformat(),
         }

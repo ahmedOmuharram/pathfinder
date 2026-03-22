@@ -22,6 +22,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDK
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.text import strip_html_tags
+from veupath_chatbot.services.catalog.models import SearchMatch
 
 logger = get_logger(__name__)
 
@@ -115,22 +116,6 @@ def is_chooser_search(search: WDKSearch) -> bool:
     return "hideOperation" in ws_props
 
 
-def annotate_search(search: WDKSearch) -> dict[str, str]:
-    """Add ``category`` and ``returns`` fields to a search result dict."""
-    result: dict[str, str] = {}
-    dc = search.properties.get("displayCategory", [])
-    if dc:
-        result["category"] = str(dc[0])
-    rc = search.output_record_class_name
-    if rc:
-        rc_lower = rc.lower()
-        for key, label in _RECORD_CLASS_LABELS.items():
-            if key in rc_lower:
-                result["returns"] = label
-                break
-    return result
-
-
 async def get_raw_record_types(site_id: str) -> list[WDKRecordType]:
     """Return typed WDK record type objects for a site.
 
@@ -201,8 +186,8 @@ async def list_transforms(site_id: str, record_type: str) -> list[dict[str, str]
     return result
 
 
-def _parse_site_search_doc(doc: SiteSearchDocument) -> dict[str, str] | None:
-    """Parse a single site-search document into a search entry dict, or None to skip."""
+def _parse_site_search_doc(doc: SiteSearchDocument) -> SearchMatch | None:
+    """Parse a single site-search document into a SearchMatch, or None to skip."""
     if len(doc.primary_key) < _MIN_PRIMARY_KEY_LENGTH:
         return None
     search_name = doc.primary_key[0].strip()
@@ -226,12 +211,12 @@ def _parse_site_search_doc(doc: SiteSearchDocument) -> dict[str, str] | None:
     desc_val = str(descs[0]) if descs else ""
     description = strip_html_tags(desc_val)
 
-    return {
-        "name": search_name,
-        "displayName": display_name,
-        "description": description,
-        "recordType": record_type,
-    }
+    return SearchMatch(
+        name=search_name,
+        display_name=display_name,
+        description=description,
+        record_type=record_type,
+    )
 
 
 async def _search_for_searches_via_site_search(
@@ -239,7 +224,7 @@ async def _search_for_searches_via_site_search(
     query: str,
     *,
     limit: int = 20,
-) -> list[dict[str, str]]:
+) -> list[SearchMatch]:
     """Search WDK searches via the site's /site-search service.
 
     This mirrors the webapp search UI (`/app/search`) when filtering to
@@ -260,7 +245,7 @@ async def _search_for_searches_via_site_search(
         )
         return []
 
-    results: list[dict[str, str]] = []
+    results: list[SearchMatch] = []
     for doc in response.search_results.documents:
         entry = _parse_site_search_doc(doc)
         if entry is not None:
@@ -268,15 +253,15 @@ async def _search_for_searches_via_site_search(
 
     # Boost transcript/gene results to the top — the model almost always
     # builds gene strategies, so EST/Popset/compound matches are noise.
-    results.sort(key=lambda r: _record_type_priority(r.get("recordType", "")))
+    results.sort(key=lambda r: _record_type_priority(r.record_type))
 
     # Deduplicate: same search can appear for multiple record types;
     # keep only the highest-priority (lowest sort key) occurrence.
     seen: set[str] = set()
-    deduped: list[dict[str, str]] = []
+    deduped: list[SearchMatch] = []
     for r in results:
-        if r["name"] not in seen:
-            seen.add(r["name"])
+        if r.name not in seen:
+            seen.add(r.name)
             deduped.append(r)
     return deduped[:limit]
 
@@ -316,7 +301,7 @@ def _score_candidates(
     candidates: list[tuple[WDKSearch, str]],
     terms: list[str],
     kw_list: list[str],
-) -> list[tuple[float, dict[str, str]]]:
+) -> list[tuple[float, SearchMatch]]:
     """Score each candidate search and return ``(score, entry)`` pairs."""
     corpus_counts: Counter[str] = Counter()
     for s, _ in candidates:
@@ -326,7 +311,7 @@ def _score_candidates(
                 corpus_counts[term] += 1
 
     doc_count = len(candidates)
-    scored: list[tuple[float, dict[str, str]]] = []
+    scored: list[tuple[float, SearchMatch]] = []
     for s, rt_name in candidates:
         display = s.display_name or s.url_segment
         desc = s.description
@@ -342,14 +327,28 @@ def _score_candidates(
         if sc <= 0:
             continue
 
-        annotations = annotate_search(s)
-        entry: dict[str, str] = {
-            "name": s.url_segment,
-            "displayName": display,
-            "description": desc,
-            "recordType": rt_name,
-        }
-        entry.update(annotations)
+        # Inline annotation (category + returns)
+        category = ""
+        dc = s.properties.get("displayCategory", [])
+        if dc:
+            category = str(dc[0])
+        returns = ""
+        rc = s.output_record_class_name
+        if rc:
+            rc_lower = rc.lower()
+            for key, label in _RECORD_CLASS_LABELS.items():
+                if key in rc_lower:
+                    returns = label
+                    break
+
+        entry = SearchMatch(
+            name=s.url_segment,
+            display_name=display,
+            description=desc,
+            record_type=rt_name,
+            category=category,
+            returns=returns,
+        )
         scored.append((sc, entry))
     return scored
 
@@ -371,7 +370,7 @@ async def _resolve_record_types(
 
 
 async def _apply_site_search_bonus(
-    scored: list[tuple[float, dict[str, str]]],
+    scored: list[tuple[float, SearchMatch]],
     site_id: str,
     query: str,
     limit: int,
@@ -383,12 +382,11 @@ async def _apply_site_search_bonus(
         )
         site_bonus: dict[str, float] = {}
         for rank, sr in enumerate(site_results):
-            name = sr.get("name", "")
-            if name and name not in site_bonus:
-                site_bonus[name] = 5.0 / (1 + rank)
+            if sr.name and sr.name not in site_bonus:
+                site_bonus[sr.name] = 5.0 / (1 + rank)
 
         for i, (sc, entry) in enumerate(scored):
-            bonus = site_bonus.get(entry["name"], 0.0)
+            bonus = site_bonus.get(entry.name, 0.0)
             if bonus > 0:
                 scored[i] = (sc + bonus, entry)
     except AppError:
@@ -402,7 +400,7 @@ async def search_for_searches(
     *,
     keywords: list[str] | None = None,
     limit: int = 20,
-) -> list[dict[str, str]]:
+) -> list[SearchMatch]:
     """Find searches matching a query and/or keywords.
 
     Uses field-weighted scoring with IDF, keyword boosting against search
@@ -426,19 +424,18 @@ async def search_for_searches(
     scored.sort(
         key=lambda item: (
             -item[0],
-            _record_type_priority(item[1].get("recordType", "")),
-            item[1].get("displayName", ""),
+            _record_type_priority(item[1].record_type),
+            item[1].display_name,
         )
     )
 
     # --- Deduplicate and cap ---
     seen: set[str] = set()
-    result: list[dict[str, str]] = []
+    result: list[SearchMatch] = []
     for _, entry in scored:
-        name = entry.get("name", "")
-        if name in seen:
+        if entry.name in seen:
             continue
-        seen.add(name)
+        seen.add(entry.name)
         result.append(entry)
         if len(result) >= limit:
             break

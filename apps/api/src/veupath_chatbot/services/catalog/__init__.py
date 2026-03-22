@@ -5,7 +5,7 @@ Single source of truth for catalog/discovery logic used by both:
 - AI tools (`ai/tools/catalog_tools.py`, `ai/tools/catalog_rag_tools.py`, etc.)
 """
 
-from veupath_chatbot.services.catalog.models import RecordTypeInfo
+from veupath_chatbot.services.catalog.models import RecordTypeInfo, SearchMatch
 from veupath_chatbot.services.catalog.parameters import (
     expand_search_details_with_params,
     get_refreshed_dependent_params,
@@ -30,6 +30,7 @@ from veupath_chatbot.services.catalog.sites import (
 __all__ = [
     "RagSearchService",
     "RecordTypeInfo",
+    "SearchMatch",
     "expand_search_details_with_params",
     "get_raw_record_types",
     "get_raw_searches",
