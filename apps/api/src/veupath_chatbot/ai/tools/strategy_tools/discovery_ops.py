@@ -45,19 +45,8 @@ async def _resolve_record_types(
     """Resolve the list of record types to search."""
     if resolved_record_type:
         return [resolved_record_type]
-    record_types_list: list[str] = []
-    record_types_raw = await get_raw_record_types(session_site_id)
-    for rt_value in record_types_raw:
-        if not isinstance(rt_value, dict):
-            continue
-        rt = as_json_object(rt_value)
-        url_segment = rt.get("urlSegment")
-        name_value = rt.get("name")
-        if isinstance(url_segment, str):
-            record_types_list.append(url_segment)
-        elif isinstance(name_value, str):
-            record_types_list.append(name_value)
-    return record_types_list
+    typed_rts = await get_raw_record_types(session_site_id)
+    return [rt.url_segment for rt in typed_rts if rt.url_segment]
 
 
 def _extract_search_info(search: WDKSearch) -> tuple[str, str, str, str]:

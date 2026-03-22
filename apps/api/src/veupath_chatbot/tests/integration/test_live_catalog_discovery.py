@@ -21,8 +21,7 @@ import pytest
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
-from veupath_chatbot.platform.types import JSONArray
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.services.catalog.searches import (
     find_record_type_for_search,
     get_raw_record_types,
@@ -66,15 +65,9 @@ async def _close_wdk_clients() -> AsyncGenerator[None]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_url_segments(record_types: JSONArray) -> list[str]:
-    """Extract urlSegment values from raw record type dicts."""
-    segments: list[str] = []
-    for rt in record_types:
-        if isinstance(rt, dict):
-            seg = rt.get("urlSegment")
-            if isinstance(seg, str):
-                segments.append(seg)
-    return segments
+def _extract_url_segments(record_types: list[WDKRecordType]) -> list[str]:
+    """Extract url_segment values from typed record type models."""
+    return [rt.url_segment for rt in record_types if rt.url_segment]
 
 
 def _search_names(searches: list[dict[str, str]]) -> list[str]:

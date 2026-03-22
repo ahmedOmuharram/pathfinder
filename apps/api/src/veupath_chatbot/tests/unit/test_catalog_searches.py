@@ -13,7 +13,7 @@ from veupath_chatbot.integrations.veupathdb.site_search_client import (
     SiteSearchResponse,
     SiteSearchResults,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.catalog.searches import (
     _search_for_searches_via_site_search,
@@ -38,13 +38,25 @@ def _to_wdk_searches(dicts: list[Any]) -> list[WDKSearch]:
     return result
 
 
+def _to_wdk_record_types(raw: list[Any]) -> list[WDKRecordType]:
+    """Convert raw dicts to WDKRecordType objects."""
+    result: list[WDKRecordType] = []
+    for item in raw:
+        if isinstance(item, dict):
+            result.append(WDKRecordType.model_validate(item))
+        elif isinstance(item, str):
+            result.append(WDKRecordType(url_segment=item, display_name=item))
+    return result
+
+
 def _mock_discovery(
     record_types: list[Any] | None = None,
     searches_by_rt: dict[str, list[Any]] | None = None,
 ) -> MagicMock:
     """Build a mock discovery service."""
     discovery = MagicMock()
-    discovery.get_record_types = AsyncMock(return_value=record_types or [])
+    typed_rts = _to_wdk_record_types(record_types or [])
+    discovery.get_record_types = AsyncMock(return_value=typed_rts)
     if searches_by_rt is not None:
         parsed: dict[str, list[WDKSearch]] = {
             rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()

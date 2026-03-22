@@ -13,6 +13,7 @@ import pytest
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -99,6 +100,17 @@ def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse
     return WDKSearchResponse(search_data=search, validation=WDKValidation())
 
 
+def _to_wdk_record_types(raw: list[Any]) -> list[WDKRecordType]:
+    """Convert raw dicts/strings to WDKRecordType objects for mocks."""
+    result: list[WDKRecordType] = []
+    for item in raw:
+        if isinstance(item, dict):
+            result.append(WDKRecordType.model_validate(item))
+        elif isinstance(item, str):
+            result.append(WDKRecordType(url_segment=item, display_name=item))
+    return result
+
+
 def _mock_discovery(
     record_types: list[Any] | None = None,
     searches_by_rt: dict[str, list[Any]] | None = None,
@@ -107,7 +119,8 @@ def _mock_discovery(
 ) -> MagicMock:
     """Build a mock discovery service."""
     discovery = MagicMock()
-    discovery.get_record_types = AsyncMock(return_value=record_types or [])
+    typed_rts = _to_wdk_record_types(record_types or [])
+    discovery.get_record_types = AsyncMock(return_value=typed_rts)
     if searches_by_rt is not None:
         parsed: dict[str, list[WDKSearch]] = {
             rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
@@ -576,8 +589,8 @@ class TestGetSearchParameters:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
             return_value=[
-                {"urlSegment": "gene", "name": "Genes"},
-                {"urlSegment": "transcript", "name": "Transcripts"},
+                WDKRecordType(url_segment="gene", full_name="Genes"),
+                WDKRecordType(url_segment="transcript", full_name="Transcripts"),
             ]
         )
         discovery.get_search_details = AsyncMock(side_effect=_get_search_details)

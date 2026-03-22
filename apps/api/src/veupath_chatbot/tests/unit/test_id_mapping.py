@@ -4,12 +4,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pydantic
 import pytest
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.integrations.veupathdb.discovery import SearchCatalog
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 
@@ -30,14 +31,27 @@ def _make_mixin(session: StrategySession | None = None) -> StrategyToolsHelpers:
     return StrategyToolsHelpers(session)
 
 
+def _to_wdk_record_type(raw: object) -> WDKRecordType | None:
+    """Convert a raw string or dict to a WDKRecordType, or None to skip."""
+    if isinstance(raw, str):
+        return WDKRecordType(url_segment=raw, display_name=raw)
+    if isinstance(raw, dict):
+        try:
+            return WDKRecordType.model_validate(raw)
+        except pydantic.ValidationError:
+            return None
+    return None
+
+
 def _make_catalog(
-    record_types: list,
-    searches: dict[str, list] | None = None,
+    record_types: list[object],
+    searches: dict[str, list[dict[str, str]]] | None = None,
 ) -> SearchCatalog:
     """Build a SearchCatalog pre-populated with test data.
 
-    ``record_types`` is the raw list (strings or dicts) returned by
-    ``catalog.get_record_types()``.
+    ``record_types`` is a list of strings or dicts that will be converted
+    to ``WDKRecordType`` models (matching what ``catalog.get_record_types()``
+    returns after the typed-models refactor).
 
     ``searches`` maps record-type name -> list of search dicts.  Raw dicts
     are validated into ``WDKSearch`` models so ``SearchCatalog.find_search``
@@ -45,7 +59,9 @@ def _make_catalog(
     """
     catalog = SearchCatalog.__new__(SearchCatalog)
     catalog.site_id = "plasmodb"
-    catalog._record_types = record_types
+    catalog._record_types = [
+        rt for raw in record_types if (rt := _to_wdk_record_type(raw)) is not None
+    ]
     catalog._searches = {
         rt: [WDKSearch.model_validate(s) for s in sl]
         for rt, sl in (searches or {}).items()
@@ -128,7 +144,7 @@ class TestResolveRecordType:
     @pytest.mark.asyncio
     async def test_match_by_url_segment_in_dict(self) -> None:
         catalog = _make_catalog(
-            [{"urlSegment": "gene", "name": "Gene", "displayName": "Genes"}]
+            [{"urlSegment": "gene", "fullName": "Gene", "displayName": "Genes"}]
         )
         with _patch_catalog(catalog):
             mixin = _make_mixin()
@@ -136,24 +152,24 @@ class TestResolveRecordType:
             assert result == "gene"
 
     @pytest.mark.asyncio
-    async def test_match_by_name_in_dict(self) -> None:
+    async def test_match_by_full_name_in_dict(self) -> None:
         catalog = _make_catalog(
-            [{"urlSegment": "gene", "name": "Gene", "displayName": "Genes"}]
+            [{"urlSegment": "gene", "fullName": "GeneRecordClasses.GeneRecordClass", "displayName": "Genes"}]
         )
         with _patch_catalog(catalog):
             mixin = _make_mixin()
-            # Matching by the "name" field when urlSegment doesn't match
-            result = await mixin._resolve_record_type("Gene")
+            # Matching by the full_name field when urlSegment doesn't match
+            result = await mixin._resolve_record_type("GeneRecordClasses.GeneRecordClass")
             assert result == "gene"  # Should return urlSegment
 
     @pytest.mark.asyncio
     async def test_match_by_display_name_single(self) -> None:
         catalog = _make_catalog(
             [
-                {"urlSegment": "gene", "name": "Gene", "displayName": "Genes"},
+                {"urlSegment": "gene", "fullName": "Gene", "displayName": "Genes"},
                 {
                     "urlSegment": "transcript",
-                    "name": "Transcript",
+                    "fullName": "Transcript",
                     "displayName": "EST",
                 },
             ]
@@ -180,10 +196,12 @@ class TestResolveRecordType:
             assert result == "gene"
 
     @pytest.mark.asyncio
-    async def test_dict_without_url_segment_falls_back_to_name(self) -> None:
+    async def test_dict_without_url_segment_is_skipped(self) -> None:
+        """Dicts missing urlSegment fail WDKRecordType validation and are skipped."""
         catalog = _make_catalog([{"name": "Gene"}])
         with _patch_catalog(catalog):
             mixin = _make_mixin()
+            # No valid record types, so no match — returns original input
             result = await mixin._resolve_record_type("Gene")
             assert result == "Gene"
 
@@ -200,10 +218,10 @@ class TestResolveRecordType:
         """When multiple record types share the same displayName, return the input."""
         catalog = _make_catalog(
             [
-                {"urlSegment": "gene", "name": "Gene", "displayName": "Records"},
+                {"urlSegment": "gene", "fullName": "Gene", "displayName": "Records"},
                 {
                     "urlSegment": "transcript",
-                    "name": "Transcript",
+                    "fullName": "Transcript",
                     "displayName": "Records",
                 },
             ]

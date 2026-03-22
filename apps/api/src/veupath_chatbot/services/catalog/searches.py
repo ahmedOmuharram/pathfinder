@@ -13,17 +13,15 @@ from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     get_discovery_service,
 )
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.site_search_client import (
     DocumentTypeFilter,
     SiteSearchDocument,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.text import strip_html_tags
-from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
 
@@ -133,12 +131,12 @@ def annotate_search(search: WDKSearch) -> dict[str, str]:
     return result
 
 
-async def get_raw_record_types(site_id: str) -> JSONArray:
-    """Return raw WDK record type objects for a site.
+async def get_raw_record_types(site_id: str) -> list[WDKRecordType]:
+    """Return typed WDK record type objects for a site.
 
     Unlike :func:`services.catalog.sites.get_record_types`, this preserves the
-    full WDK payloads (``urlSegment``, ``name``, ``displayName``, etc.) so that
-    callers needing the original structure don't have to go through the
+    full WDK model (``url_segment``, ``display_name``, ``searches``, etc.) so
+    that callers needing the complete structure don't have to go through the
     integrations layer directly.
     """
     discovery = get_discovery_service()
@@ -367,10 +365,8 @@ async def _resolve_record_types(
         record_types = [record_type]
     record_types = list(dict.fromkeys(record_types))
     if not record_types:
-        record_types_raw = await discovery.get_record_types(site_id)
-        record_types = [
-            name for rt in record_types_raw if (name := wdk_entity_name(rt))
-        ]
+        typed_rts = await discovery.get_record_types(site_id)
+        record_types = [rt.url_segment for rt in typed_rts if rt.url_segment]
     return record_types
 
 

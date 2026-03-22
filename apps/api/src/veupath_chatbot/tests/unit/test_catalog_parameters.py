@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from veupath_chatbot.domain.parameters.specs import unwrap_search_data
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -150,7 +151,7 @@ class TestGetSearchParametersUnknownTypes:
 
     async def test_unknown_param_type_defaults_to_string(self) -> None:
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -177,7 +178,7 @@ class TestGetSearchParametersUnknownTypes:
 
     async def test_parameter_visibility_default_true(self) -> None:
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -201,7 +202,7 @@ class TestGetSearchParametersUnknownTypes:
     async def test_parameter_visibility_explicit_false(self) -> None:
         """Hidden params (isVisible=False) are included with their flag for the AI."""
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -224,7 +225,7 @@ class TestGetSearchParametersUnknownTypes:
     async def test_no_default_value_when_both_absent(self) -> None:
         """When neither initialDisplayValue nor defaultValue are present."""
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -248,7 +249,7 @@ class TestGetSearchParametersUnknownTypes:
     async def test_required_defaults_to_true_without_explicit_flags(self) -> None:
         """When allowEmptyValue is absent, required = not bool(None) = True."""
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -272,7 +273,7 @@ class TestGetSearchParametersUnknownTypes:
 
     async def test_empty_vocabulary_produces_no_allowed_values(self) -> None:
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "parameters": [
@@ -301,7 +302,7 @@ class TestGetSearchParametersUnknownTypes:
     async def test_display_name_from_details_not_summary(self) -> None:
         """displayName in the top-level result should come from details when available."""
         discovery = MagicMock()
-        discovery.get_record_types = AsyncMock(return_value=[{"urlSegment": "gene"}])
+        discovery.get_record_types = AsyncMock(return_value=[WDKRecordType(url_segment="gene")])
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
                 "displayName": "Details Display",

@@ -2,18 +2,20 @@
 
 import asyncio
 import threading
+from collections.abc import Sequence
+
+import pydantic
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
 
@@ -33,27 +35,50 @@ async def _load_searches_for_rt(
         return None
 
 
+def _parse_record_type(rt: object) -> WDKRecordType | None:
+    """Parse a raw WDK record type entry into a typed model.
+
+    Returns None if the entry cannot be parsed (e.g. non-dict, non-str,
+    or missing required fields).  Inline ``searches`` are stripped before
+    validation because they are processed separately by the caller and
+    may contain malformed entries that would fail ``WDKSearch`` parsing.
+    """
+    if isinstance(rt, str):
+        return WDKRecordType(url_segment=rt, display_name=rt)
+    if isinstance(rt, dict):
+        # Strip searches — they are handled separately by _process_record_type_entry
+        rt_data = {k: v for k, v in rt.items() if k != "searches"}
+        try:
+            return WDKRecordType.model_validate(rt_data)
+        except pydantic.ValidationError:
+            return None
+    return None
+
+
 def _process_record_type_entry(
     rt: object,
     *,
     expanded_supported: bool,
-) -> tuple[str, list[WDKSearch] | None] | None:
-    """Extract (rt_name, inline_searches) from a record type entry.
+) -> tuple[WDKRecordType, list[WDKSearch] | None] | None:
+    """Extract (typed_rt, inline_searches) from a record type entry.
 
-    Returns None if the entry should be skipped. Returns (name, None) when
+    Returns None if the entry should be skipped. Returns (model, None) when
     searches need to be fetched separately.
     """
+    parsed_rt = _parse_record_type(rt)
+    if parsed_rt is None:
+        return None
+    if not parsed_rt.url_segment:
+        return None
+
     if isinstance(rt, str):
-        return rt, []
+        return parsed_rt, []
     if isinstance(rt, dict):
-        rt_name = wdk_entity_name(rt)
-        if not rt_name:
-            return None
         searches_raw = rt.get("searches") if expanded_supported else None
         if isinstance(searches_raw, list):
-            parsed = [WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)]
-            return rt_name, parsed
-        return rt_name, None
+            searches = [WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)]
+            return parsed_rt, searches
+        return parsed_rt, None
     return None
 
 
@@ -62,7 +87,7 @@ class SearchCatalog:
 
     def __init__(self, site_id: str) -> None:
         self.site_id = site_id
-        self._record_types: JSONArray = []
+        self._record_types: list[WDKRecordType] = []
         self._searches: dict[str, list[WDKSearch]] = {}
         self._search_details: dict[str, WDKSearchResponse] = {}
         self._loaded = False
@@ -102,7 +127,7 @@ class SearchCatalog:
     async def _populate_from_record_types(
         self,
         client: VEuPathDBClient,
-        record_types: JSONArray,
+        record_types: Sequence[object],
         *,
         expanded_supported: bool,
     ) -> None:
@@ -114,11 +139,9 @@ class SearchCatalog:
             if result is None:
                 continue
 
-            rt_name, searches = result
-            if isinstance(rt, str):
-                self._record_types.append({"urlSegment": rt, "name": rt})
-            elif isinstance(rt, dict):
-                self._record_types.append(rt)
+            typed_rt, searches = result
+            rt_name = typed_rt.url_segment
+            self._record_types.append(typed_rt)
 
             if searches is not None and len(searches) > 0:
                 self._searches[rt_name] = searches
@@ -127,7 +150,7 @@ class SearchCatalog:
                 if fetched is not None:
                     self._searches[rt_name] = fetched
 
-    def get_record_types(self) -> JSONArray:
+    def get_record_types(self) -> list[WDKRecordType]:
         """Get all record types."""
         return self._record_types
 
@@ -203,7 +226,7 @@ class DiscoveryService:
 
         return catalog
 
-    async def get_record_types(self, site_id: str) -> JSONArray:
+    async def get_record_types(self, site_id: str) -> list[WDKRecordType]:
         """Get record types for a site."""
         catalog = await self.get_catalog(site_id)
         return catalog.get_record_types()

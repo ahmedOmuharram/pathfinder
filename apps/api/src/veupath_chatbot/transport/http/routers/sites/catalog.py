@@ -4,7 +4,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services import catalog
 from veupath_chatbot.services.wdk import get_discovery_service
 from veupath_chatbot.transport.http.schemas import (
@@ -20,7 +19,19 @@ router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 async def list_sites() -> list[SiteResponse]:
     """List all available VEuPathDB sites."""
     sites = await catalog.list_sites()
-    return [SiteResponse.model_validate(s) for s in sites if isinstance(s, dict)]
+    return [
+        SiteResponse.model_validate(
+            {
+                "id": s.id,
+                "name": s.name,
+                "displayName": s.display_name,
+                "baseUrl": s.base_url,
+                "projectId": s.project_id,
+                "isPortal": s.is_portal,
+            }
+        )
+        for s in sites
+    ]
 
 
 @router.get("/{siteId}/record-types", response_model=list[RecordTypeResponse])
@@ -28,9 +39,14 @@ async def get_record_types(siteId: str) -> list[RecordTypeResponse]:
     """Get record types available on a site."""
     record_types = await catalog.get_record_types(siteId)
     return [
-        RecordTypeResponse.model_validate(rt)
+        RecordTypeResponse.model_validate(
+            {
+                "name": rt.name,
+                "displayName": rt.display_name,
+                "description": rt.description,
+            }
+        )
         for rt in record_types
-        if isinstance(rt, dict)
     ]
 
 
@@ -43,9 +59,14 @@ async def get_searches(
     if record_type:
         searches = await catalog.list_searches(siteId, record_type)
         return [
-            SearchResponse.model_validate({**s, "recordType": record_type})
+            SearchResponse.model_validate(
+                {
+                    "name": s["name"],
+                    "displayName": s["displayName"],
+                    "recordType": record_type,
+                }
+            )
             for s in searches
-            if isinstance(s, dict)
         ]
 
     discovery = get_discovery_service()
@@ -53,19 +74,18 @@ async def get_searches(
     all_searches: list[SearchResponse] = []
 
     for rt in record_types:
-        if not isinstance(rt, dict):
-            continue
-        rt_url_seg_raw: JSONValue | None = rt.get("urlSegment")
-        rt_name_raw: JSONValue | None = rt.get("name")
-        url_seg = rt_url_seg_raw if isinstance(rt_url_seg_raw, str) else None
-        name = rt_name_raw if isinstance(rt_name_raw, str) else None
-        rt_name = url_seg or name or ""
+        rt_name = rt.url_segment
         if rt_name:
             searches = await catalog.list_searches(siteId, rt_name)
             all_searches.extend(
-                SearchResponse.model_validate({**s, "recordType": rt_name})
+                SearchResponse.model_validate(
+                    {
+                        "name": s["name"],
+                        "displayName": s["displayName"],
+                        "recordType": rt_name,
+                    }
+                )
                 for s in searches
-                if isinstance(s, dict)
             )
 
     return all_searches

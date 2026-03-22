@@ -10,6 +10,7 @@ import pytest
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -325,15 +326,13 @@ class TestFetchSearchDetails:
             )
         )
 
-        record_types: list[Any] = [
-            {"urlSegment": "gene", "name": "Genes"},
-            {"urlSegment": "transcript", "name": "Transcripts"},
-        ]
-
         response, resolved_rt = await fetch_search_details(
             discovery,
             SearchContext("plasmodb", "gene", "MySearch"),
-            record_types=record_types,
+            record_types=[
+                WDKRecordType(url_segment="gene", full_name="Genes"),
+                WDKRecordType(url_segment="transcript", full_name="Transcripts"),
+            ],
         )
         assert isinstance(response, WDKSearchResponse)
         assert response.search_data.display_name == "Found"
@@ -346,15 +345,11 @@ class TestFetchSearchDetails:
         )
         discovery.get_searches = AsyncMock(return_value=[])
 
-        record_types: list[Any] = [
-            {"urlSegment": "gene", "name": "Genes"},
-        ]
-
         with pytest.raises(ValidationError) as exc_info:
             await fetch_search_details(
                 discovery,
                 SearchContext("plasmodb", "gene", "NonexistentSearch"),
-                record_types=record_types,
+                record_types=[WDKRecordType(url_segment="gene", full_name="Genes")],
             )
         assert "NonexistentSearch" in (exc_info.value.detail or "")
 
@@ -371,39 +366,32 @@ class TestFetchSearchDetails:
             )
         )
 
-        record_types: list[Any] = [
-            {"urlSegment": "gene", "name": "Genes"},
-        ]
-
         # The search IS found in the scan, but details still fail.
         # Since details is None after the fallback, it should raise.
         with pytest.raises(ValidationError):
             await fetch_search_details(
                 discovery,
                 SearchContext("plasmodb", "gene", "MySearch"),
-                record_types=record_types,
+                record_types=[WDKRecordType(url_segment="gene", full_name="Genes")],
             )
 
-    async def test_skips_non_dict_record_types(self) -> None:
+    async def test_skips_record_types_with_empty_url_segment(self) -> None:
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(
             side_effect=AppError(ErrorCode.SEARCH_NOT_FOUND, "not found"),
         )
         discovery.get_searches = AsyncMock(return_value=[])
 
-        record_types: list[Any] = [
-            "not_a_dict",
-            42,
-            {"urlSegment": "gene", "name": "Genes"},
-        ]
-
         with pytest.raises(ValidationError):
             await fetch_search_details(
                 discovery,
                 SearchContext("plasmodb", "gene", "Missing"),
-                record_types=record_types,
+                record_types=[
+                    WDKRecordType(url_segment="", full_name="Empty"),
+                    WDKRecordType(url_segment="gene", full_name="Genes"),
+                ],
             )
-        # Should not crash on non-dict entries
+        # Should not crash on empty url_segment entries
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +406,7 @@ class TestGetSearchParametersAfterDecomposition:
     async def test_end_to_end_basic(self) -> None:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
-            return_value=[{"urlSegment": "gene", "name": "Genes"}]
+            return_value=[WDKRecordType(url_segment="gene", full_name="Genes")]
         )
         discovery.get_search_details = AsyncMock(
             return_value=_to_wdk_search_response({
@@ -475,8 +463,8 @@ class TestGetSearchParametersAfterDecomposition:
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
             return_value=[
-                {"urlSegment": "gene", "name": "Genes"},
-                {"urlSegment": "transcript", "name": "Transcripts"},
+                WDKRecordType(url_segment="gene", full_name="Genes"),
+                WDKRecordType(url_segment="transcript", full_name="Transcripts"),
             ]
         )
         discovery.get_search_details = AsyncMock(side_effect=_get_details)

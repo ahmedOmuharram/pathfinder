@@ -8,7 +8,7 @@ from typing import Annotated
 from kani import AIParam, ai_function
 
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services import catalog
 
 
@@ -16,8 +16,9 @@ class CatalogTools:
     """Tools for exploring VEuPathDB catalog."""
 
     @ai_function()
-    async def list_sites(self) -> JSONArray:
-        return await catalog.list_sites()
+    async def list_sites(self) -> list[dict[str, object]]:
+        sites = await catalog.list_sites()
+        return [s.to_dict() for s in sites]
 
     @ai_function()
     async def get_record_types(
@@ -26,8 +27,16 @@ class CatalogTools:
             str,
             AIParam(desc="Site ID (e.g., 'plasmodb', 'toxodb', 'veupathdb')"),
         ],
-    ) -> JSONArray:
-        return await catalog.get_record_types(site_id)
+    ) -> list[dict[str, str]]:
+        record_types = await catalog.get_record_types(site_id)
+        return [
+            {
+                "name": rt.name,
+                "displayName": rt.display_name,
+                "description": rt.description,
+            }
+            for rt in record_types
+        ]
 
     @ai_function()
     async def search_for_searches(

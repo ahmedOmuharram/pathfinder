@@ -2,32 +2,24 @@
 
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import list_sites as list_wdk_sites
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
-from veupath_chatbot.platform.types import JSONArray
+from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
+from veupath_chatbot.services.catalog.models import RecordTypeInfo
 
 
-async def list_sites() -> JSONArray:
+async def list_sites() -> list[SiteInfo]:
     """List all available VEuPathDB sites."""
-    return [site.to_dict() for site in list_wdk_sites()]
+    return list_wdk_sites()
 
 
-async def get_record_types(site_id: str) -> JSONArray:
+async def get_record_types(site_id: str) -> list[RecordTypeInfo]:
     """Get record types for a specific site."""
     discovery = get_discovery_service()
     record_types = await discovery.get_record_types(site_id)
-    result: JSONArray = []
-    for rt in record_types:
-        if not isinstance(rt, dict):
-            continue
-        display_name_raw = rt.get("displayName")
-        display_name = display_name_raw if isinstance(display_name_raw, str) else None
-        description_raw = rt.get("description")
-        description = description_raw if isinstance(description_raw, str) else ""
-        result.append(
-            {
-                "name": wdk_entity_name(rt),
-                "displayName": display_name,
-                "description": description,
-            }
+    return [
+        RecordTypeInfo(
+            name=rt.url_segment,
+            display_name=rt.display_name,
+            description=rt.description,
         )
-    return result
+        for rt in record_types
+    ]

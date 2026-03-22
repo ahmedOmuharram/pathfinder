@@ -8,9 +8,14 @@ fetch fails.
 from typing import Any, cast
 
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
-from veupath_chatbot.platform.errors import AppError, ErrorCode
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
+    WDKSearchResponse,
+)
+from veupath_chatbot.platform.errors import (
+    AppError,
+    ErrorCode,
+)
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -19,7 +24,7 @@ async def fetch_search_details(
     discovery: Any,
     ctx: SearchContext,
     *,
-    record_types: list[Any] | None = None,
+    record_types: list[WDKRecordType] | None = None,
 ) -> tuple[WDKSearchResponse, str]:
     """Fetch search details, falling back to scanning all record types.
 
@@ -48,16 +53,14 @@ async def _fallback_scan_record_types(
     discovery: Any,
     ctx: SearchContext,
     *,
-    record_types: list[Any],
+    record_types: list[WDKRecordType],
     original_error: Exception,
 ) -> tuple[WDKSearchResponse, str]:
     """Scan all record types trying to find the search, raising if not found."""
     response: WDKSearchResponse | None = None
     resolved_record_type = ctx.record_type
     for rt in record_types:
-        if not isinstance(rt, dict):
-            continue
-        rt_name = wdk_entity_name(rt)
+        rt_name = rt.url_segment
         if not rt_name:
             continue
         searches = await discovery.get_searches(ctx.site_id, rt_name)

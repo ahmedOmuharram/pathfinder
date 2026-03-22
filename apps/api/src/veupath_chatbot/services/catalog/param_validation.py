@@ -234,14 +234,7 @@ async def _find_search_record_type_hint(
     try:
         record_types = await discovery.get_record_types(ctx.site_id)
         for rt in record_types:
-            # Record types are still JSONArray dicts (not typed yet).
-            if not isinstance(rt, dict):
-                continue
-            url_seg_raw = rt.get("urlSegment")
-            name_raw = rt.get("name")
-            url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
-            name = name_raw if isinstance(name_raw, str) else None
-            rt_name = url_seg or name or ""
+            rt_name = rt.url_segment
             if not rt_name or rt_name == ctx.record_type:
                 continue
             rt_searches = await discovery.get_searches(ctx.site_id, rt_name)
