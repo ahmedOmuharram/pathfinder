@@ -11,7 +11,9 @@ from unittest.mock import AsyncMock
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
     WDKIdentifier,
+    WDKSearchConfig,
     WDKStep,
 )
 
@@ -67,9 +69,13 @@ class TestCreateStepReturnsWDKIdentifier:
         mixin.client.post = AsyncMock(return_value={"id": 100})
 
         result = await mixin.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(
+                    parameters={"organism": "Plasmodium falciparum"},
+                ),
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={"organism": "Plasmodium falciparum"},
         )
 
         assert isinstance(result, WDKIdentifier)
@@ -80,9 +86,11 @@ class TestCreateStepReturnsWDKIdentifier:
         mixin.client.post = AsyncMock(return_value={"id": 200})
 
         result = await mixin.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(parameters={}),
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={},
         )
 
         # Must be attribute access, not dict .get("id")
@@ -126,9 +134,13 @@ class TestCreateTransformStepReturnsWDKIdentifier:
         ))
 
         result = await mixin.create_transform_step(
+            NewStepSpec(
+                search_name="GenesByOrthology",
+                search_config=WDKSearchConfig(
+                    parameters={"taxon": "Plasmodium"},
+                ),
+            ),
             input_step_id=100,
-            transform_name="GenesByOrthology",
-            parameters={"taxon": "Plasmodium"},
             record_type="transcript",
         )
 

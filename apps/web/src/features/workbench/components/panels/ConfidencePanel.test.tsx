@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { Experiment } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +24,12 @@ vi.mock("../../store", () => ({
 vi.mock("../../store/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(storeState),
+}));
+
+// Mock the API call
+const mockRequestJson = vi.fn();
+vi.mock("@/lib/api/http", () => ({
+  requestJson: (...args: unknown[]) => mockRequestJson(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -95,7 +101,10 @@ function makeExperiment(overrides: Partial<Experiment> = {}): Experiment {
 // ---------------------------------------------------------------------------
 
 describe("ConfidencePanel", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    mockRequestJson.mockReset();
+  });
 
   beforeEach(() => {
     storeState["activeSetId"] = "set-1";
@@ -109,6 +118,7 @@ describe("ConfidencePanel", () => {
     expect(screen.getByText("Gene Confidence")).toBeTruthy();
     // No table content when disabled
     expect(screen.queryByRole("table")).toBeNull();
+    expect(mockRequestJson).not.toHaveBeenCalled();
   });
 
   it("shows disabled state when experiment has no classified genes", () => {
@@ -117,35 +127,172 @@ describe("ConfidencePanel", () => {
 
     render(<ConfidencePanel />);
     expect(screen.queryByRole("table")).toBeNull();
+    expect(mockRequestJson).not.toHaveBeenCalled();
   });
 
-  it("renders confidence table with gene IDs and scores", () => {
+  it("calls the backend API and renders scores", async () => {
+    mockRequestJson.mockResolvedValueOnce([
+      {
+        geneId: "G1",
+        compositeScore: 0.333,
+        classificationScore: 1.0,
+        ensembleScore: 0.0,
+        enrichmentScore: 0.0,
+      },
+      {
+        geneId: "G2",
+        compositeScore: -0.333,
+        classificationScore: -1.0,
+        ensembleScore: 0.0,
+        enrichmentScore: 0.0,
+      },
+    ]);
+
     storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1", name: "Gene1" }],
       falsePositiveGenes: [{ id: "G2", name: "Gene2" }],
-      falseNegativeGenes: [{ id: "G3", name: "Gene3" }],
-      trueNegativeGenes: [{ id: "G4", name: "Gene4" }],
     });
     storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
-    expect(screen.getByRole("table")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeTruthy();
+    });
+
     expect(screen.getByText("G1")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
-    expect(screen.getByText("G3")).toBeTruthy();
-    expect(screen.getByText("G4")).toBeTruthy();
   });
 
-  it("shows dimension breakdown columns", () => {
+  it("sends correct request body with gene IDs", async () => {
+    mockRequestJson.mockResolvedValueOnce([]);
+
+    storeState["lastExperiment"] = makeExperiment({
+      truePositiveGenes: [{ id: "G1" }],
+      falsePositiveGenes: [{ id: "G2" }],
+      falseNegativeGenes: [{ id: "G3" }],
+      trueNegativeGenes: [{ id: "G4" }],
+    });
+    storeState["lastExperimentSetId"] = "set-1";
+
+    render(<ConfidencePanel />);
+
+    await waitFor(() => {
+      expect(mockRequestJson).toHaveBeenCalled();
+    });
+
+    const [url, opts] = mockRequestJson.mock.calls[0] as [
+      string,
+      { method: string; body: Record<string, unknown> },
+    ];
+    expect(url).toBe("/api/v1/gene-sets/confidence");
+    expect(opts.method).toBe("POST");
+    expect(opts.body).toMatchObject({
+      tpIds: ["G1"],
+      fpIds: ["G2"],
+      fnIds: ["G3"],
+      tnIds: ["G4"],
+    });
+  });
+
+  it("sends enrichment gene counts derived from enrichment results", async () => {
+    mockRequestJson.mockResolvedValueOnce([]);
+
+    storeState["lastExperiment"] = makeExperiment({
+      truePositiveGenes: [{ id: "G1" }],
+      enrichmentResults: [
+        {
+          analysisType: "go_process",
+          totalGenesAnalyzed: 10,
+          backgroundSize: 100,
+          terms: [
+            {
+              termId: "GO:0001",
+              termName: "process1",
+              geneCount: 1,
+              backgroundCount: 10,
+              foldEnrichment: 10,
+              oddsRatio: 5,
+              pValue: 0.001,
+              fdr: 0.01,
+              bonferroni: 0.05,
+              genes: ["G1"],
+            },
+            {
+              termId: "GO:0002",
+              termName: "process2",
+              geneCount: 1,
+              backgroundCount: 10,
+              foldEnrichment: 10,
+              oddsRatio: 5,
+              pValue: 0.001,
+              fdr: 0.01,
+              bonferroni: 0.05,
+              genes: ["G1", "OTHER"],
+            },
+            {
+              termId: "GO:0003",
+              termName: "insignificant",
+              geneCount: 1,
+              backgroundCount: 10,
+              foldEnrichment: 1,
+              oddsRatio: 1,
+              pValue: 0.5,
+              fdr: 0.8,
+              bonferroni: 1.0,
+              genes: ["G1"],
+            },
+          ],
+        },
+      ],
+    });
+    storeState["lastExperimentSetId"] = "set-1";
+
+    render(<ConfidencePanel />);
+
+    await waitFor(() => {
+      expect(mockRequestJson).toHaveBeenCalled();
+    });
+
+    const body = (
+      mockRequestJson.mock.calls[0] as [
+        string,
+        { body: Record<string, unknown> },
+      ]
+    )[1].body;
+
+    // G1 appears in 2 significant terms (FDR ≤ 0.05), OTHER in 1
+    expect(body["enrichmentGeneCounts"]).toEqual({ G1: 2, OTHER: 1 });
+    // 2 significant terms total
+    expect(body["maxEnrichmentTerms"]).toBe(2);
+  });
+
+  it("renders all four score columns including Ensemble", async () => {
+    mockRequestJson.mockResolvedValueOnce([
+      {
+        geneId: "G1",
+        compositeScore: 0.5,
+        classificationScore: 1.0,
+        ensembleScore: 0.5,
+        enrichmentScore: 0.0,
+      },
+    ]);
+
     storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
     });
     storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toBeTruthy();
+    });
+
+    // All four column headers
     expect(screen.getByText("Composite")).toBeTruthy();
     expect(screen.getByText("Classification")).toBeTruthy();
-    expect(screen.queryByText("Ensemble")).toBeNull();
+    expect(screen.getByText("Ensemble")).toBeTruthy();
     expect(screen.getByText("Enrichment")).toBeTruthy();
   });
 
@@ -157,136 +304,37 @@ describe("ConfidencePanel", () => {
 
     render(<ConfidencePanel />);
     expect(screen.queryByRole("table")).toBeNull();
+    expect(mockRequestJson).not.toHaveBeenCalled();
   });
 
-  it("does NOT render an Ensemble column", () => {
+  it("shows loading state while API call is in progress", async () => {
+    // Never resolve the promise — keeps loading
+    mockRequestJson.mockReturnValueOnce(new Promise(() => {}));
+
     storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
     });
     storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
-    // The table header should NOT contain "Ensemble"
-    expect(screen.queryByText("Ensemble")).toBeNull();
-    // But should contain the 2-component columns
-    expect(screen.getByText("Classification")).toBeTruthy();
-    expect(screen.getByText("Enrichment")).toBeTruthy();
-    expect(screen.getByText("Composite")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(screen.getByText("Computing scores…")).toBeTruthy();
+    });
   });
 
-  it("computes 2-component composite: TP with enrichment 0.5 scores 0.75", () => {
-    // TP classification = 1.0, enrichment fraction = 0.5
-    // Composite = (1.0 + 0.5) / 2.0 = 0.75
-    // Set up: 2 significant terms, G1 appears in only 1 of them
+  it("shows error message when API call fails", async () => {
+    mockRequestJson.mockRejectedValueOnce(new Error("Network failure"));
+
     storeState["lastExperiment"] = makeExperiment({
       truePositiveGenes: [{ id: "G1" }],
-      enrichmentResults: [
-        {
-          analysisType: "go_process",
-          totalGenesAnalyzed: 10,
-          backgroundSize: 100,
-          terms: [
-            {
-              termId: "GO:0001",
-              termName: "process1",
-              geneCount: 1,
-              backgroundCount: 10,
-              foldEnrichment: 10,
-              oddsRatio: 5,
-              pValue: 0.001,
-              fdr: 0.01,
-              bonferroni: 0.05,
-              genes: ["G1"],
-            },
-            {
-              termId: "GO:0002",
-              termName: "process2",
-              geneCount: 1,
-              backgroundCount: 10,
-              foldEnrichment: 10,
-              oddsRatio: 5,
-              pValue: 0.001,
-              fdr: 0.01,
-              bonferroni: 0.05,
-              genes: ["OTHER"],
-            },
-          ],
-        },
-      ],
     });
     storeState["lastExperimentSetId"] = "set-1";
 
     render(<ConfidencePanel />);
 
-    // G1 in 1-of-2 significant terms => enrichment = 0.5
-    // Composite = (1.0 + 0.5) / 2.0 = 0.75
-    expect(screen.getByText("0.750")).toBeTruthy();
-    // Classification = 1.0 rendered as "1.0"
-    expect(screen.getByText("1.0")).toBeTruthy();
-    // Enrichment = 0.5 rendered as "0.50"
-    expect(screen.getByText("0.50")).toBeTruthy();
-  });
-
-  it("computes composite correctly: TP in all enrichment terms scores 1.0", () => {
-    // G1 in both significant terms => enrichment = 1.0
-    // Composite = (1.0 + 1.0) / 2.0 = 1.0
-    storeState["lastExperiment"] = makeExperiment({
-      truePositiveGenes: [{ id: "G1" }],
-      enrichmentResults: [
-        {
-          analysisType: "go_process",
-          totalGenesAnalyzed: 10,
-          backgroundSize: 100,
-          terms: [
-            {
-              termId: "GO:0001",
-              termName: "process1",
-              geneCount: 1,
-              backgroundCount: 10,
-              foldEnrichment: 10,
-              oddsRatio: 5,
-              pValue: 0.001,
-              fdr: 0.01,
-              bonferroni: 0.05,
-              genes: ["G1"],
-            },
-            {
-              termId: "GO:0002",
-              termName: "process2",
-              geneCount: 1,
-              backgroundCount: 10,
-              foldEnrichment: 10,
-              oddsRatio: 5,
-              pValue: 0.001,
-              fdr: 0.01,
-              bonferroni: 0.05,
-              genes: ["G1"],
-            },
-          ],
-        },
-      ],
+    await waitFor(() => {
+      expect(screen.getByText("Network failure")).toBeTruthy();
     });
-    storeState["lastExperimentSetId"] = "set-1";
-
-    render(<ConfidencePanel />);
-
-    // Composite = 1.0 rendered as "1.000"
-    expect(screen.getByText("1.000")).toBeTruthy();
-  });
-
-  it("FP gene with no enrichment scores -0.500 composite", () => {
-    // Classification for FP = -1.0
-    // Enrichment = 0 (no significant terms)
-    // Composite = (-1.0 + 0.0) / 2.0 = -0.5
-    storeState["lastExperiment"] = makeExperiment({
-      falsePositiveGenes: [{ id: "G2" }],
-    });
-    storeState["lastExperimentSetId"] = "set-1";
-
-    render(<ConfidencePanel />);
-
-    expect(screen.getByText("-0.500")).toBeTruthy();
-    expect(screen.getByText("-1.0")).toBeTruthy();
-    expect(screen.getByText("0.00")).toBeTruthy();
   });
 });

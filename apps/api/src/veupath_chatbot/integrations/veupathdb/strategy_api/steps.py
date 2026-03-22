@@ -5,7 +5,12 @@ combined (boolean) steps, and transform steps.
 """
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStep
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
+    WDKIdentifier,
+    WDKStep,
+)
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -89,28 +94,23 @@ class StepsMixin(StrategyAPIBase):
 
     async def create_step(
         self,
+        spec: NewStepSpec,
         record_type: str,
-        search_name: str,
-        parameters: JSONObject,
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
         user_id: str | None = None,
     ) -> WDKIdentifier:
         """Create an unattached step.
 
+        :param spec: Step specification (search name, config, optional display fields).
         :param record_type: Record type (e.g., "gene", "transcript").
-        :param search_name: Name of the search question.
-        :param parameters: Search parameters.
-        :param custom_name: Optional custom name for the step.
-        :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
         :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
-        normalized_params = self._normalize_parameters(parameters)
+        raw_params: JSONObject = dict(spec.search_config.parameters)
+        normalized_params = self._normalize_parameters(raw_params)
 
         # Expand group codes in profile_pattern for GenesByOrthologPattern.
         if (
-            search_name == "GenesByOrthologPattern"
+            spec.search_name == "GenesByOrthologPattern"
             and "profile_pattern" in normalized_params
         ):
             normalized_params[
@@ -126,25 +126,25 @@ class StepsMixin(StrategyAPIBase):
         # leaf descendants, and we must replicate that behaviour.
         normalized_params = await self._expand_tree_params_to_leaves(
             record_type,
-            search_name,
+            spec.search_name,
             normalized_params,
         )
 
         step_params: JSONObject = {**normalized_params}
         search_config: JSONObject = {"parameters": step_params}
-        if wdk_weight is not None:
-            search_config["wdkWeight"] = wdk_weight
+        if spec.search_config.wdk_weight != 0:
+            search_config["wdkWeight"] = spec.search_config.wdk_weight
         payload: JSONObject = {
-            "searchName": search_name,
+            "searchName": spec.search_name,
             "searchConfig": search_config,
         }
-        if custom_name:
-            payload["customName"] = custom_name
+        if spec.custom_name:
+            payload["customName"] = spec.custom_name
 
         logger.info(
             "Creating WDK step",
             record_type=record_type,
-            search_name=search_name,
+            search_name=spec.search_name,
         )
 
         uid = await self._get_user_id(user_id)
@@ -160,7 +160,8 @@ class StepsMixin(StrategyAPIBase):
         secondary_step_id: int,
         boolean_operator: str,
         record_type: str,
-        custom_name: str | None = None,
+        *,
+        spec_overrides: PatchStepSpec | None = None,
         wdk_weight: int | None = None,
         user_id: str | None = None,
     ) -> WDKIdentifier:
@@ -170,7 +171,7 @@ class StepsMixin(StrategyAPIBase):
         :param secondary_step_id: ID of the secondary (right) step.
         :param boolean_operator: One of INTERSECT, UNION, MINUS, RMINUS, LONLY, RONLY.
         :param record_type: WDK record type.
-        :param custom_name: Optional custom name.
+        :param spec_overrides: Optional display overrides (custom name, etc.).
         :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
         :returns: Created step identifier.
         """
@@ -194,8 +195,8 @@ class StepsMixin(StrategyAPIBase):
             "searchName": boolean_search,
             "searchConfig": search_config,
         }
-        if custom_name:
-            payload["customName"] = custom_name
+        if spec_overrides and spec_overrides.custom_name:
+            payload["customName"] = spec_overrides.custom_name
 
         logger.info(
             "Creating combined step",
@@ -210,14 +211,12 @@ class StepsMixin(StrategyAPIBase):
         )
         return WDKIdentifier.model_validate(raw)
 
-    async def create_transform_step(  # noqa: PLR0913
+    async def create_transform_step(
         self,
+        spec: NewStepSpec,
         input_step_id: int,
-        transform_name: str,
-        parameters: JSONObject,
         record_type: str = "transcript",
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        *,
         user_id: str | None = None,
     ) -> WDKIdentifier:
         """Create a transform step.
@@ -229,19 +228,17 @@ class StepsMixin(StrategyAPIBase):
         This method fetches the search metadata to discover AnswerParam names,
         strips any stale values, and forces them to ``""``.
 
+        :param spec: Step specification (search name, config, optional display fields).
         :param input_step_id: ID of the input step (for logging; wiring
             happens in the strategy ``stepTree``).
-        :param transform_name: Name of the transform question.
-        :param parameters: Transform parameters.
         :param record_type: WDK record type for the search details lookup.
-        :param custom_name: Optional custom name.
-        :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
         answer_param_names = await self._get_answer_param_names(
-            record_type, transform_name
+            record_type, spec.search_name
         )
-        clean_params = dict(parameters or {})
+        clean_params: JSONObject = dict(spec.search_config.parameters)
         for ap_name in answer_param_names:
             clean_params[ap_name] = ""
 
@@ -250,23 +247,23 @@ class StepsMixin(StrategyAPIBase):
         )
         transform_params: JSONObject = {**normalized_params}
         search_config: JSONObject = {"parameters": transform_params}
-        if wdk_weight is not None:
-            search_config["wdkWeight"] = wdk_weight
+        if spec.search_config.wdk_weight != 0:
+            search_config["wdkWeight"] = spec.search_config.wdk_weight
         payload: JSONObject = {
-            "searchName": transform_name,
+            "searchName": spec.search_name,
             "searchConfig": search_config,
         }
-        if custom_name:
-            payload["customName"] = custom_name
+        if spec.custom_name:
+            payload["customName"] = spec.custom_name
 
         logger.info(
             "Creating transform step",
             input=input_step_id,
-            transform=transform_name,
+            transform=spec.search_name,
         )
         logger.info(
             "Transform step payload",
-            transform=transform_name,
+            transform=spec.search_name,
             params=normalized_params,
         )
 

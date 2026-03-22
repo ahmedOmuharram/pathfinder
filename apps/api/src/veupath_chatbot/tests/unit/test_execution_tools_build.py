@@ -17,6 +17,8 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, Stra
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKDatasetConfig,
     WDKIdentifier,
     WDKStrategyDetails,
@@ -108,33 +110,32 @@ class _FakeBuildAPI:
 
     async def create_step(
         self,
+        spec: NewStepSpec,
         record_type: str,
-        search_name: str,
-        parameters: JSONObject,
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         return self._create_step_response
 
-    async def create_combined_step(
+    async def create_combined_step(  # noqa: PLR0913
         self,
         primary_step_id: int,
         secondary_step_id: int,
         boolean_operator: str,
         record_type: str,
-        custom_name: str | None = None,
+        *,
+        spec_overrides: PatchStepSpec | None = None,
         wdk_weight: int | None = None,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         return WDKIdentifier(id=200)
 
     async def create_transform_step(
         self,
+        spec: NewStepSpec,
         input_step_id: int,
-        transform_name: str,
-        parameters: JSONObject,
         record_type: str = "transcript",
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        *,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         return WDKIdentifier(id=300)
 

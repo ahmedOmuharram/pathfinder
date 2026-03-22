@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnalysisStatus,
     WDKStepAnalysisConfig,
     WDKStepAnalysisType,
 )
@@ -293,13 +294,13 @@ class AnalysisMixin(StrategyAPIBase):
         step_id: int,
         analysis_id: int,
         user_id: str | None = None,
-    ) -> str:
+    ) -> WDKAnalysisStatus:
         """Get execution status of a step analysis instance.
 
         :param step_id: WDK step ID.
         :param analysis_id: Analysis instance ID.
         :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Status string (e.g. ``"COMPLETE"``, ``"RUNNING"``).
+        :returns: Typed status literal (e.g. ``"COMPLETE"``, ``"RUNNING"``).
         """
         uid = await self._get_user_id(user_id)
         return await self.client.get_analysis_status(uid, step_id, analysis_id)

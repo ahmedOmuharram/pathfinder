@@ -19,8 +19,10 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
     AnalysisPollConfig,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
+    WDKSearchConfig,
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
@@ -79,8 +81,8 @@ class TestEnsureSession:
 class TestCreateStep:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_create_step_normalizes_params(self, api: StrategyAPI) -> None:
-        """Bool/list/None values are converted to WDK string representations."""
+    async def test_create_step_forwards_params(self, api: StrategyAPI) -> None:
+        """String parameters are forwarded to the WDK payload correctly."""
         _mock_ensure_session(respx)
 
         # _expand_tree_params_to_leaves fetches search details with expandParams
@@ -94,32 +96,32 @@ class TestCreateStep:
         )
 
         result = await api.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(
+                    parameters={
+                        "organism": json.dumps(["Plasmodium falciparum 3D7"]),
+                        "include_obsolete": "true",
+                        "exclude_pattern": "false",
+                        "plain_text": "hello",
+                    },
+                ),
+                custom_name="Test step",
+            ),
             record_type="gene",
-            search_name="GenesByTaxon",
-            parameters={
-                "organism": ["Plasmodium falciparum 3D7"],
-                "include_obsolete": True,
-                "exclude_pattern": False,
-                "optional_field": None,
-                "plain_text": "hello",
-            },
-            custom_name="Test step",
         )
 
-        assert result["id"] == 100
+        assert result.id == 100
         assert step_route.called
 
         sent_body = json.loads(step_route.calls.last.request.content)
         params = sent_body["searchConfig"]["parameters"]
 
-        # list -> JSON-encoded string
+        # JSON-encoded list string passes through
         assert params["organism"] == json.dumps(["Plasmodium falciparum 3D7"])
-        # bool True -> "true"
+        # String "true"/"false" pass through
         assert params["include_obsolete"] == "true"
-        # bool False -> "false"
         assert params["exclude_pattern"] == "false"
-        # None -> "" (omitted because _normalize_parameters strips empty values)
-        assert "optional_field" not in params
         # plain string kept as-is
         assert params["plain_text"] == "hello"
         # customName forwarded
@@ -162,7 +164,7 @@ class TestCreateCombinedStep:
             record_type="transcript",
         )
 
-        assert result["id"] == 110
+        assert result.id == 110
         assert step_route.called
 
         sent_body = json.loads(step_route.calls.last.request.content)
@@ -201,17 +203,21 @@ class TestCreateTransformStep:
         )
 
         result = await api.create_transform_step(
+            NewStepSpec(
+                search_name=transform_name,
+                search_config=WDKSearchConfig(
+                    parameters={
+                        "inputStepId": "stale_value_should_be_blanked",
+                        "organism": json.dumps(["Plasmodium vivax P01"]),
+                        "isSyntenic": "no",
+                    },
+                ),
+            ),
             input_step_id=100,
-            transform_name=transform_name,
-            parameters={
-                "inputStepId": "stale_value_should_be_blanked",
-                "organism": ["Plasmodium vivax P01"],
-                "isSyntenic": "no",
-            },
             record_type="transcript",
         )
 
-        assert result["id"] == 120
+        assert result.id == 120
         assert step_route.called
 
         sent_body = json.loads(step_route.calls.last.request.content)
@@ -620,11 +626,9 @@ class TestGetColumnDistribution:
         result = await api.get_column_distribution(step_id, column_name)
 
         assert col_route.called
-        assert "histogram" in result
-        assert "statistics" in result
-        assert len(result["histogram"]) == 3
-        assert result["histogram"][0]["value"] == 2890
-        assert result["statistics"]["subsetSize"] == 4429
+        assert len(result.histogram) == 3
+        assert result.histogram[0].value == 2890
+        assert result.statistics.subset_size == 4429
 
         sent_body = json.loads(col_route.calls.last.request.content)
         assert sent_body == {"reportConfig": {}}
@@ -646,9 +650,9 @@ class TestGetColumnDistribution:
         result = await api.get_column_distribution(step_id, column_name)
 
         assert col_route.called
-        assert len(result["histogram"]) == 4
-        assert result["histogram"][1]["binLabel"] == "[5.0, 10.0)"
-        assert result["statistics"]["subsetMin"] == 0.5
+        assert len(result.histogram) == 4
+        assert result.histogram[1].bin_label == "[5.0, 10.0)"
+        assert result.statistics.subset_min == 0.5
 
     @respx.mock
     @pytest.mark.asyncio
@@ -665,8 +669,8 @@ class TestGetColumnDistribution:
 
         result = await api.get_column_distribution(step_id, column_name)
 
-        assert result["histogram"] == []
-        assert result["statistics"] == {}
+        assert result.histogram == []
+        assert result.statistics.subset_size == 0
 
     @respx.mock
     @pytest.mark.asyncio
@@ -683,8 +687,8 @@ class TestGetColumnDistribution:
 
         result = await api.get_column_distribution(step_id, column_name)
 
-        assert result["histogram"] == []
-        assert result["statistics"] == {}
+        assert result.histogram == []
+        assert result.statistics.subset_size == 0
         # Tenacity retries transient transport errors 3 times before giving up.
         # The resulting RetryError is converted to WDKError, which
         # get_column_distribution catches and returns empty.

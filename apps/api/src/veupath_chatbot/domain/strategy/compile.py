@@ -18,7 +18,13 @@ from veupath_chatbot.domain.strategy.ast import (
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
+    WDKDatasetConfig,
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
     WDKIdentifier,
+    WDKSearchConfig,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import (
@@ -72,11 +78,9 @@ class StrategyCompilerAPI(Protocol):
 
     async def create_step(
         self,
+        spec: NewStepSpec,
         record_type: str,
-        search_name: str,
-        parameters: JSONObject,
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        user_id: str | None = None,
     ) -> WDKIdentifier: ...
 
     async def create_combined_step(  # noqa: PLR0913
@@ -85,23 +89,22 @@ class StrategyCompilerAPI(Protocol):
         secondary_step_id: int,
         boolean_operator: str,
         record_type: str,
-        custom_name: str | None = None,
+        *,
+        spec_overrides: PatchStepSpec | None = None,
         wdk_weight: int | None = None,
         user_id: str | None = None,
     ) -> WDKIdentifier: ...
 
-    async def create_transform_step(  # noqa: PLR0913
+    async def create_transform_step(
         self,
+        spec: NewStepSpec,
         input_step_id: int,
-        transform_name: str,
-        parameters: JSONObject,
         record_type: str = "transcript",
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        *,
         user_id: str | None = None,
     ) -> WDKIdentifier: ...
 
-    async def create_dataset(self, ids: list[str]) -> int: ...
+    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int: ...
 
 
 @runtime_checkable
@@ -258,12 +261,17 @@ class StrategyCompiler:
         parameters = await self._coerce_parameters(
             search_rt, step.search_name, step.parameters
         )
+        search_config = WDKSearchConfig(
+            parameters={k: str(v) for k, v in parameters.items() if v is not None},
+            wdk_weight=step.wdk_weight or 0,
+        )
         result = await self.api.create_step(
+            NewStepSpec(
+                search_name=step.search_name,
+                search_config=search_config,
+                custom_name=step.display_name,
+            ),
             record_type=search_rt,
-            search_name=step.search_name,
-            parameters=parameters,
-            custom_name=step.display_name,
-            wdk_weight=step.wdk_weight,
         )
         wdk_step_id = result.id
 
@@ -302,7 +310,7 @@ class StrategyCompiler:
                 secondary_step_id=right_tree.step_id,
                 boolean_operator=wdk_op,
                 record_type=record_type,
-                custom_name=step.display_name,
+                spec_overrides=PatchStepSpec(custom_name=step.display_name) if step.display_name else None,
                 wdk_weight=step.wdk_weight,
             )
 
@@ -369,12 +377,16 @@ class StrategyCompiler:
             "span_end_offset_b": "0",
         }
         return await self.api.create_transform_step(
+            NewStepSpec(
+                search_name="GenesBySpanLogic",
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in params.items() if v is not None},
+                    wdk_weight=step.wdk_weight or 0,
+                ),
+                custom_name=step.display_name or "Genomic colocation",
+            ),
             input_step_id=left_step_id,
-            transform_name="GenesBySpanLogic",
-            parameters=params,
             record_type=record_type,
-            custom_name=step.display_name or "Genomic colocation",
-            wdk_weight=step.wdk_weight,
         )
 
     async def _resolve_search_record_type(
@@ -412,13 +424,18 @@ class StrategyCompiler:
         parameters = await self._coerce_parameters(
             transform_rt, step.search_name, step.parameters
         )
+        transform_config = WDKSearchConfig(
+            parameters={k: str(v) for k, v in parameters.items() if v is not None},
+            wdk_weight=step.wdk_weight or 0,
+        )
         result = await self.api.create_transform_step(
+            NewStepSpec(
+                search_name=step.search_name,
+                search_config=transform_config,
+                custom_name=step.display_name,
+            ),
             input_step_id=input_tree.step_id,
-            transform_name=step.search_name,
-            parameters=parameters,
             record_type=transform_rt,
-            custom_name=step.display_name,
-            wdk_weight=step.wdk_weight,
         )
         wdk_step_id = result.id
 
@@ -525,7 +542,11 @@ class StrategyCompiler:
             ]
             if not ids:
                 continue
-            dataset_id = await self.api.create_dataset(ids)
+            config = WDKDatasetConfigIdList(
+                source_type="idList",
+                source_content=WDKDatasetIdListContent(ids=ids),
+            )
+            dataset_id = await self.api.create_dataset(config)
             normalized[param_name] = str(dataset_id)
             logger.info(
                 "Uploaded dataset for input-dataset param",

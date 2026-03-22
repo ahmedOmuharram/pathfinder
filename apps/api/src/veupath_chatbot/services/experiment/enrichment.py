@@ -11,6 +11,10 @@ import json
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    WDKSearchConfig,
+)
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -157,10 +161,14 @@ async def run_enrichment_analysis(
     api = get_strategy_api(site_id)
 
     step = await api.create_step(
+        NewStepSpec(
+            search_name=search_name,
+            search_config=WDKSearchConfig(
+                parameters={k: str(v) for k, v in (parameters or {}).items() if v is not None},
+            ),
+            custom_name="Enrichment target",
+        ),
         record_type=record_type,
-        search_name=search_name,
-        parameters=parameters or {},
-        custom_name="Enrichment target",
     )
     step_id = step.id
 

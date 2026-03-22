@@ -5,8 +5,11 @@ from dataclasses import dataclass, field
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
+    WDKSearchConfig,
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
@@ -89,10 +92,14 @@ async def run_controls_against_tree(
             controls_params[ctx.controls_param_name] = "\n".join(control_ids)
 
         controls_step = await api.create_step(
+            NewStepSpec(
+                search_name=ctx.controls_search_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in controls_params.items() if v is not None},
+                ),
+                custom_name=f"Controls ({label})",
+            ),
             record_type=ctx.record_type,
-            search_name=ctx.controls_search_name,
-            parameters=controls_params,
-            custom_name=f"Controls ({label})",
         )
         controls_step_id = controls_step.id
 
@@ -101,7 +108,7 @@ async def run_controls_against_tree(
             secondary_step_id=controls_step_id,
             boolean_operator="INTERSECT",
             record_type=ctx.record_type,
-            custom_name=f"Tree \u2229 {label}",
+            spec_overrides=PatchStepSpec(custom_name=f"Tree \u2229 {label}"),
         )
         combined_step_id = combined.id
 

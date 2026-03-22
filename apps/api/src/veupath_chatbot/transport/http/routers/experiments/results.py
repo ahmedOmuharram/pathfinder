@@ -6,8 +6,12 @@ from typing import Annotated, Literal, cast
 from fastapi import APIRouter, Depends, Query
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
+    WDKSearchConfig,
+)
 from veupath_chatbot.platform.errors import (
-    InternalError,
     NotFoundError,
     ValidationError,
 )
@@ -188,7 +192,8 @@ async def get_experiment_distribution(
 ) -> JSONObject:
     """Get distribution data for an attribute using the byValue column reporter."""
     svc = _require_step(exp)
-    return await svc.get_distribution(attribute_name)
+    dist = await svc.get_distribution(attribute_name)
+    return dist.model_dump(by_alias=True)
 
 
 @router.post("/{experiment_id}/refine")
@@ -207,25 +212,25 @@ async def refine_experiment(
 
     if request.action == "combine":
         new_step = await api.create_step(
+            NewStepSpec(
+                search_name=request.search_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in request.parameters.items() if v is not None},
+                ),
+                custom_name=f"Refinement: {request.search_name}",
+            ),
             record_type=record_type,
-            search_name=request.search_name,
-            parameters=request.parameters,
-            custom_name=f"Refinement: {request.search_name}",
         )
-        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
-        if not isinstance(new_step_id, int):
-            raise InternalError(title="Failed to create new step")
+        new_step_id = new_step.id
 
         combined = await api.create_combined_step(
             primary_step_id=exp.wdk_step_id,
             secondary_step_id=new_step_id,
             boolean_operator=request.operator,
             record_type=record_type,
-            custom_name=f"{request.operator} refinement",
+            spec_overrides=PatchStepSpec(custom_name=f"{request.operator} refinement"),
         )
-        combined_id = combined.get("id") if isinstance(combined, dict) else None
-        if not isinstance(combined_id, int):
-            raise InternalError(title="Failed to create combined step")
+        combined_id = combined.id
 
         new_tree = StepTreeNode(
             step_id=combined_id,
@@ -240,15 +245,17 @@ async def refine_experiment(
 
     if request.action == "transform":
         new_step = await api.create_transform_step(
+            NewStepSpec(
+                search_name=request.transform_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in request.parameters.items() if v is not None},
+                ),
+                custom_name=f"Transform: {request.transform_name}",
+            ),
             input_step_id=exp.wdk_step_id,
-            transform_name=request.transform_name,
-            parameters=request.parameters,
             record_type=record_type,
-            custom_name=f"Transform: {request.transform_name}",
         )
-        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
-        if not isinstance(new_step_id, int):
-            raise InternalError(title="Failed to create transform step")
+        new_step_id = new_step.id
 
         new_tree = StepTreeNode(
             step_id=new_step_id,

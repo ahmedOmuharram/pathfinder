@@ -267,6 +267,21 @@ class WDKStepAnalysisType(WDKModel):
     groups: list[WDKParameterGroup] = Field(default_factory=list)
 
 
+WDKAnalysisStatus = Literal[
+    "CREATED",
+    "STEP_REVISED",
+    "INVALID",
+    "PENDING",
+    "RUNNING",
+    "COMPLETE",
+    "INTERRUPTED",
+    "ERROR",
+    "EXPIRED",
+    "OUT_OF_DATE",
+    "UNKNOWN",
+]
+
+
 class WDKStepAnalysisConfig(WDKModel):
     """Step analysis instance configuration."""
 
@@ -277,9 +292,50 @@ class WDKStepAnalysisConfig(WDKModel):
     short_description: str | None = None
     description: str | None = None
     user_notes: str | None = None
-    status: str = ""
+    status: WDKAnalysisStatus = "CREATED"
     parameters: dict[str, str] = Field(default_factory=dict)
     validation: WDKValidation | None = None
+
+
+class WDKAnalysisStatusResponse(WDKModel):
+    """Response from GET .../analyses/{id}/result/status."""
+
+    status: WDKAnalysisStatus
+
+
+class WDKHistogramBin(WDKModel):
+    """Single bin in a column distribution histogram."""
+
+    value: int = 0
+    bin_start: str = ""
+    bin_end: str = ""
+    bin_label: str = ""
+
+
+class WDKHistogramStatistics(WDKModel):
+    """Statistics summary for a column distribution."""
+
+    subset_size: int = 0
+    subset_min: float | None = None
+    subset_max: float | None = None
+    subset_mean: float | None = None
+    num_var_values: int = 0
+    num_distinct_values: int = 0
+    num_distinct_entity_records: int = 0
+    num_missing_cases: int = 0
+
+
+class WDKColumnDistribution(WDKModel):
+    """Response from POST .../columns/{col}/reports/byValue."""
+
+    histogram: list[WDKHistogramBin] = Field(default_factory=list)
+    statistics: WDKHistogramStatistics = Field(default_factory=WDKHistogramStatistics)
+
+
+class WDKTemporaryResult(WDKModel):
+    """Response from POST /temporary-results."""
+
+    id: str
 
 
 class WDKUserInfo(WDKModel):
@@ -386,6 +442,37 @@ WDKDatasetConfig = Annotated[
     Discriminator("source_type"),
 ]
 """Discriminated union of WDK dataset config source types."""
+
+
+# ---------------------------------------------------------------------------
+# Request models (mutable — NOT frozen)
+# ---------------------------------------------------------------------------
+
+
+class PatchStepSpec(CamelModel):
+    """Fields for updating an existing step. Matches monorepo's PatchStepSpec."""
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="ignore",
+    )
+
+    custom_name: str | None = None
+    expanded: bool | None = None
+    expanded_name: str | None = None
+    display_preferences: WDKDisplayPreferences | None = None
+
+
+class NewStepSpec(PatchStepSpec):
+    """Full spec for creating a new step. Matches monorepo's NewStepSpec.
+
+    Combines PatchStepSpec (optional display fields) with AnswerSpec
+    (searchName + searchConfig).
+    """
+
+    search_name: str
+    search_config: WDKSearchConfig
 
 
 # Resolve forward reference: WDKSearch.parameters uses WDKParameter

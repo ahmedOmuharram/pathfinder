@@ -7,6 +7,7 @@ from typing import cast
 
 import httpx
 import pydantic
+from pydantic import TypeAdapter
 from tenacity import (
     RetryError,
     retry,
@@ -16,15 +17,23 @@ from tenacity import (
 )
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnalysisStatus,
+    WDKAnalysisStatusResponse,
     WDKAnswer,
+    WDKFilterValue,
+    WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
+    WDKStep,
+    WDKStepAnalysisConfig,
+    WDKStepAnalysisType,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
 
@@ -303,10 +312,31 @@ class VEuPathDBClient:
         """DELETE request."""
         return await self._request("DELETE", path)
 
-    async def get_record_types(self, *, expanded: bool = False) -> JSONArray:
-        """Get available record types."""
+    async def get_record_types(self, *, expanded: bool = False) -> list[WDKRecordType]:
+        """Get available record types.
+
+        Non-expanded responses return plain strings (``["gene", "transcript"]``),
+        which are parsed into ``WDKRecordType(url_segment=name)``.  Expanded
+        responses return full JSON objects that are validated against the model.
+        Items that fail validation are silently skipped.
+        """
         params: JSONObject | None = {"format": "expanded"} if expanded else None
-        return cast("JSONArray", await self.get("/record-types", params=params))
+        raw = await self.get("/record-types", params=params)
+        if not isinstance(raw, list):
+            return []
+        result: list[WDKRecordType] = []
+        for item in raw:
+            if isinstance(item, str):
+                result.append(WDKRecordType(url_segment=item, display_name=item))
+            elif isinstance(item, dict):
+                try:
+                    result.append(WDKRecordType.model_validate(item))
+                except pydantic.ValidationError:
+                    logger.warning(
+                        "Skipping unparseable record type entry",
+                        error_keys=list(item.keys())[:5],
+                    )
+        return result
 
     async def get_searches(self, record_type: str) -> list[WDKSearch]:
         """Get searches for a record type."""
@@ -373,22 +403,38 @@ class VEuPathDBClient:
         search_name: str,
         param_name: str,
         context: JSONObject,
-    ) -> JSONObject:
-        """Refresh dependent params using WDK's refreshed-dependent-params endpoint."""
+    ) -> list[WDKParameter]:
+        """Refresh dependent params using WDK's refreshed-dependent-params endpoint.
+
+        WDK's ``ParamContainerFormatter.getParamsJson()`` returns a JSON array
+        of parameter objects.  Each item is parsed via the ``WDKParameter``
+        discriminated union; items that fail validation are skipped.
+        """
         encoded_context = encode_context_param_values_for_wdk(context or {})
-        return cast(
-            "JSONObject",
-            await self.post(
-                f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
-                json={
-                    "changedParam": {
-                        "name": param_name,
-                        "value": encoded_context.get(param_name, ""),
-                    },
-                    "contextParamValues": encoded_context,
+        raw = await self.post(
+            f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
+            json={
+                "changedParam": {
+                    "name": param_name,
+                    "value": encoded_context.get(param_name, ""),
                 },
-            ),
+                "contextParamValues": encoded_context,
+            },
         )
+        if not isinstance(raw, list):
+            return []
+        adapter: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
+        result: list[WDKParameter] = []
+        for item in raw:
+            if isinstance(item, dict):
+                try:
+                    result.append(adapter.validate_python(item))
+                except pydantic.ValidationError:
+                    logger.warning(
+                        "Skipping unparseable parameter in refreshed-dependent-params",
+                        param_keys=list(item.keys())[:5],
+                    )
+        return result
 
     async def run_search_report(
         self,
@@ -425,23 +471,20 @@ class VEuPathDBClient:
             msg = f"Unexpected WDK answer for {record_type}/{search_name}: {e}"
             raise DataParsingError(msg) from e
 
-    async def get_step_view_filters(self, user_id: str, step_id: int) -> JSONArray:
-        """Get viewFilters from a step's answerSpec.
+    async def get_step_view_filters(
+        self, user_id: str, step_id: int
+    ) -> list[WDKFilterValue]:
+        """Get viewFilters from a step's searchConfig.
 
-        WDK stores filters as ``answerSpec.viewFilters`` on the step resource.
+        WDK stores filters as ``searchConfig.viewFilters`` on the step resource.
         There is no dedicated ``/filter`` endpoint.
         """
-        step = await self.get(f"/users/{user_id}/steps/{step_id}")
-        if not isinstance(step, dict):
-            return []
-        answer_spec = step.get("answerSpec")
-        view_filters = (
-            answer_spec.get("viewFilters") if isinstance(answer_spec, dict) else None
-        )
-        return view_filters if isinstance(view_filters, list) else []
+        raw = await self.get(f"/users/{user_id}/steps/{step_id}")
+        step = WDKStep.model_validate(raw)
+        return list(step.search_config.view_filters)
 
     async def update_step_view_filters(
-        self, user_id: str, step_id: int, filters: JSONArray
+        self, user_id: str, step_id: int, filters: list[WDKFilterValue]
     ) -> JSONValue:
         """Update a step's viewFilters via PATCH on the step resource.
 
@@ -450,41 +493,78 @@ class VEuPathDBClient:
         """
         return await self.patch(
             f"/users/{user_id}/steps/{step_id}",
-            json={"answerSpec": {"viewFilters": filters}},
+            json={
+                "answerSpec": {
+                    "viewFilters": [
+                        f.model_dump(by_alias=True) for f in filters
+                    ],
+                },
+            },
         )
 
-    async def list_analysis_types(self, user_id: str, step_id: int) -> JSONArray:
+    async def list_analysis_types(
+        self, user_id: str, step_id: int
+    ) -> list[WDKStepAnalysisType]:
         """List available analysis types for a step."""
-        return cast(
-            "JSONArray",
-            await self.get(f"/users/{user_id}/steps/{step_id}/analysis-types"),
-        )
+        raw = await self.get(f"/users/{user_id}/steps/{step_id}/analysis-types")
+        if not isinstance(raw, list):
+            return []
+        result: list[WDKStepAnalysisType] = []
+        for item in raw:
+            if isinstance(item, dict):
+                try:
+                    result.append(WDKStepAnalysisType.model_validate(item))
+                except pydantic.ValidationError:
+                    logger.warning(
+                        "Skipping unparseable analysis type",
+                        error_keys=list(item.keys())[:5],
+                    )
+        return result
 
     async def get_analysis_type(
         self, user_id: str, step_id: int, analysis_type: str
-    ) -> JSONObject:
+    ) -> WDKStepAnalysisType:
         """Get analysis form metadata for a specific analysis type."""
-        return cast(
-            "JSONObject",
-            await self.get(
-                f"/users/{user_id}/steps/{step_id}/analysis-types/{analysis_type}"
-            ),
+        raw = await self.get(
+            f"/users/{user_id}/steps/{step_id}/analysis-types/{analysis_type}"
         )
+        try:
+            return WDKStepAnalysisType.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK analysis type response for {analysis_type}: {e}"
+            raise DataParsingError(msg) from e
 
-    async def list_step_analyses(self, user_id: str, step_id: int) -> JSONArray:
+    async def list_step_analyses(
+        self, user_id: str, step_id: int
+    ) -> list[WDKStepAnalysisConfig]:
         """List analyses that have been run on a step."""
-        return cast(
-            "JSONArray", await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
-        )
+        raw = await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
+        if not isinstance(raw, list):
+            return []
+        result: list[WDKStepAnalysisConfig] = []
+        for item in raw:
+            if isinstance(item, dict):
+                try:
+                    result.append(WDKStepAnalysisConfig.model_validate(item))
+                except pydantic.ValidationError:
+                    logger.warning(
+                        "Skipping unparseable step analysis",
+                        error_keys=list(item.keys())[:5],
+                    )
+        return result
 
     async def create_step_analysis(
         self, user_id: str, step_id: int, payload: JSONObject
-    ) -> JSONObject:
+    ) -> WDKStepAnalysisConfig:
         """Create a new analysis instance for a step."""
-        return cast(
-            "JSONObject",
-            await self.post(f"/users/{user_id}/steps/{step_id}/analyses", json=payload),
+        raw = await self.post(
+            f"/users/{user_id}/steps/{step_id}/analyses", json=payload
         )
+        try:
+            return WDKStepAnalysisConfig.model_validate(raw)
+        except pydantic.ValidationError as e:
+            msg = f"Unexpected WDK create analysis response: {e}"
+            raise DataParsingError(msg) from e
 
     async def run_analysis_instance(
         self, user_id: str, step_id: int, analysis_id: int
@@ -493,29 +573,29 @@ class VEuPathDBClient:
 
         WDK step analyses are created first, then explicitly run.
         ``POST /users/{userId}/steps/{stepId}/analyses/{analysisId}/result``
-        returns ``{"status": "RUNNING"|...}``.
+        returns ``{"status": "RUNNING"|...}``.  The return value is
+        typically unused — callers poll status separately.
         """
-        return cast(
-            "JSONObject",
-            await self.post(
-                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
-            ),
+        raw = await self.post(
+            f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
         )
+        if isinstance(raw, dict):
+            return raw
+        return {}
 
     async def get_analysis_status(
         self, user_id: str, step_id: int, analysis_id: int
-    ) -> JSONObject:
+    ) -> WDKAnalysisStatus:
         """Poll execution status of a step analysis instance.
 
         ``GET .../analyses/{analysisId}/result/status`` returns
         ``{"status": "RUNNING"|"COMPLETE"|"ERROR"|...}``.
+        Extracts and returns the typed ``WDKAnalysisStatus`` directly.
         """
-        return cast(
-            "JSONObject",
-            await self.get(
-                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result/status"
-            ),
+        raw = await self.get(
+            f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result/status"
         )
+        return WDKAnalysisStatusResponse.model_validate(raw).status
 
     async def get_analysis_result(
         self, user_id: str, step_id: int, analysis_id: int
@@ -525,12 +605,12 @@ class VEuPathDBClient:
         ``GET .../analyses/{analysisId}/result`` returns the analysis result
         JSON.  Returns 204 No Content if not yet complete.
         """
-        return cast(
-            "JSONObject",
-            await self.get(
-                f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
-            ),
+        raw = await self.get(
+            f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
         )
+        if isinstance(raw, dict):
+            return raw
+        return {}
 
     async def run_step_report(
         self,

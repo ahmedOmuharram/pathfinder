@@ -6,6 +6,7 @@ import pytest
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKColumnDistribution,
     WDKRecordInstance,
     WDKRecordType,
     WDKStepAnalysisType,
@@ -45,7 +46,7 @@ def mock_api() -> MagicMock:
             "meta": {"totalCount": 1},
         })
     )
-    api.get_column_distribution = AsyncMock(return_value={"bins": []})
+    api.get_column_distribution = AsyncMock(return_value=WDKColumnDistribution())
     api.list_analysis_types = AsyncMock(return_value=[
         WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment"),
     ])
@@ -129,7 +130,8 @@ class TestGetDistribution:
         svc = StepResultsService(mock_api, step_id=42, record_type="gene")
         result = await svc.get_distribution("score")
         mock_api.get_column_distribution.assert_called_once_with(42, "score")
-        assert result == {"bins": []}
+        assert isinstance(result, WDKColumnDistribution)
+        assert result.histogram == []
 
 
 class TestListAnalysisTypes:

@@ -150,7 +150,8 @@ class _AnalysisToolsMixin:
 
         api = get_strategy_api(self.site_id)
         try:
-            return await api.get_column_distribution(exp.wdk_step_id, attribute_name)
+            dist = await api.get_column_distribution(exp.wdk_step_id, attribute_name)
+            return dist.model_dump(by_alias=True)
         except AppError as exc:
             return {"error": str(exc), "attribute": attribute_name}
 

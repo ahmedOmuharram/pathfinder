@@ -17,8 +17,11 @@ from veupath_chatbot.domain.strategy.ops import (
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
+    WDKSearchConfig,
 )
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.types import JSONObject
@@ -76,10 +79,12 @@ class RefinementToolsMixin:
         record_type = exp.config.record_type
 
         new_step = await api.create_step(
+            NewStepSpec(
+                search_name=search_name,
+                search_config=WDKSearchConfig(parameters=parameters),
+                custom_name=f"AI refinement: {search_name}",
+            ),
             record_type=record_type,
-            search_name=search_name,
-            parameters=parameters,
-            custom_name=f"AI refinement: {search_name}",
         )
 
         return await self._combine_and_update(exp, api, new_step.id, operator)
@@ -129,10 +134,14 @@ class RefinementToolsMixin:
             params[controls_param] = "\n".join(gene_ids)
 
         new_step = await api.create_step(
+            NewStepSpec(
+                search_name=controls_search,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in params.items() if v is not None},
+                ),
+                custom_name=f"AI gene list ({len(gene_ids)} genes)",
+            ),
             record_type=record_type,
-            search_name=controls_search,
-            parameters=params,
-            custom_name=f"AI gene list ({len(gene_ids)} genes)",
         )
 
         result = await self._combine_and_update(exp, api, new_step.id, operator)
@@ -218,7 +227,7 @@ class RefinementToolsMixin:
             secondary_step_id=new_step_id,
             boolean_operator=operator,
             record_type=exp.config.record_type,
-            custom_name=f"AI {operator} refinement",
+            spec_overrides=PatchStepSpec(custom_name=f"AI {operator} refinement"),
         )
         combined_id = combined.id
 

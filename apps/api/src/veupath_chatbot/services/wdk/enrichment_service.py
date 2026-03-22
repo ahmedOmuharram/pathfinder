@@ -16,6 +16,10 @@ import asyncio
 
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    WDKSearchConfig,
+)
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -111,10 +115,14 @@ class EnrichmentService:
         # Create ONE temp step/strategy, run all analyses, then clean up.
         api = get_strategy_api(site_id)
         step = await api.create_step(
+            NewStepSpec(
+                search_name=search_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in (parameters or {}).items() if v is not None},
+                ),
+                custom_name="Enrichment target",
+            ),
             record_type=record_type or "transcript",
-            search_name=search_name,
-            parameters=parameters or {},
-            custom_name="Enrichment target",
         )
         shared_step_id = step.id
         root = StepTreeNode(step_id=shared_step_id)

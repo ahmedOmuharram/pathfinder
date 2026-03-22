@@ -2,7 +2,7 @@ import httpx
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.param_utils import wdk_entity_name
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType, WDKSearch
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
@@ -29,49 +29,41 @@ async def _fetch_searches_for_rt(client: VEuPathDBClient, rt_name: str) -> JSONA
 
 
 def _process_record_type(
-    rt: object,
-) -> tuple[str, JSONArray] | None:
-    """Extract rt_name and inline searches from a record type entry.
+    rt: WDKRecordType,
+) -> tuple[str, list[JSONObject]] | None:
+    """Extract rt_name and inline searches from a typed record type entry.
 
     Returns None if the entry should be skipped.
     """
-    if isinstance(rt, str):
-        return rt, []
-    if isinstance(rt, dict):
-        rt_name = wdk_entity_name(rt)
-        if not rt_name:
-            return None
-        searches_raw = rt.get("searches")
-        searches: JSONArray = searches_raw if isinstance(searches_raw, list) else []
-        return rt_name, searches
-    return None
+    rt_name = rt.url_segment
+    if not rt_name:
+        return None
+    if rt.searches is not None:
+        search_dicts: list[JSONObject] = [
+            s.model_dump(by_alias=True) for s in rt.searches
+        ]
+        return rt_name, search_dicts
+    return rt_name, []
 
 
 async def fetch_record_types_and_searches(
     client: VEuPathDBClient,
 ) -> tuple[JSONArray, list[tuple[str, JSONObject]]]:
-    raw_record_types = await client.get_record_types(expanded=True)
-    if isinstance(raw_record_types, dict):
-        raw_record_types = (
-            raw_record_types.get("recordTypes")
-            or raw_record_types.get("records")
-            or raw_record_types.get("result")
-            or []
-        )
+    record_type_models = await client.get_record_types(expanded=True)
 
     record_types: JSONArray = []
     searches_to_fetch: list[tuple[str, JSONObject]] = []
 
-    for rt in raw_record_types or []:
+    for rt in record_type_models:
         result = _process_record_type(rt)
         if result is None:
             continue
         rt_name, searches = result
-        record_types.append(rt)
+        record_types.append(rt.model_dump(by_alias=True))
 
-        if isinstance(searches, list) and searches:
+        if searches:
             searches_to_fetch.extend(
-                (rt_name, s) for s in searches if isinstance(s, dict)
+                (rt_name, s) for s in searches
             )
         else:
             fetched = await _fetch_searches_for_rt(client, rt_name)

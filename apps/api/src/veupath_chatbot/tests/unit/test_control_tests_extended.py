@@ -604,9 +604,9 @@ class TestControlsExtraParams:
         )
 
         # Check the controls step got both the gene list AND the extra param
-        controls_call_kwargs = api.create_step.call_args_list[1][1]
-        assert controls_call_kwargs["parameters"]["gene_list"] == "A"
-        assert controls_call_kwargs["parameters"]["organism"] == "Pf"
+        controls_spec = api.create_step.call_args_list[1].args[0]
+        assert controls_spec.search_config.parameters["gene_list"] == "A"
+        assert controls_spec.search_config.parameters["organism"] == "Pf"
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -637,5 +637,5 @@ class TestControlsExtraParams:
             controls_ids=["A"],
         )
 
-        controls_call_kwargs = api.create_step.call_args_list[1][1]
-        assert "gene_list" in controls_call_kwargs["parameters"]
+        controls_spec = api.create_step.call_args_list[1].args[0]
+        assert "gene_list" in controls_spec.search_config.parameters

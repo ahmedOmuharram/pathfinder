@@ -114,6 +114,8 @@ export type StepAnalysis = components["schemas"]["StepAnalysisResponse"];
 export type StepReport = components["schemas"]["StepReportResponse"];
 export type Step = components["schemas"]["StepResponse"];
 export type GeneSet = components["schemas"]["GeneSetResponse"];
+export type GeneConfidenceScore =
+  components["schemas"]["GeneConfidenceScoreResponse"];
 export type ControlSet = components["schemas"]["ControlSetResponse"];
 /**
  * Strategy normalizes the generated StrategyResponse: `steps` and `isSaved`

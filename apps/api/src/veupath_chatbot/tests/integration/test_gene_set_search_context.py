@@ -17,6 +17,10 @@ import pytest
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    WDKSearchConfig,
+)
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import (
     IntersectionConfig,
@@ -32,7 +36,7 @@ pytestmark = pytest.mark.live_wdk
 
 SITE = "plasmodb"
 SEARCH = "GenesByTaxon"
-PARAMS: JSONObject = {"organism": "Plasmodium falciparum 3D7"}
+SEARCH_PARAMS: dict[str, str] = {"organism": "Plasmodium falciparum 3D7"}
 RECORD_TYPE = "transcript"
 POSITIVE = ["PF3D7_0709000", "PF3D7_1343700", "PF3D7_0523000"]
 
@@ -54,13 +58,19 @@ class TestSingleStepGeneSet:
     async def test_gene_set_has_search_name_and_params(self) -> None:
         api = get_strategy_api(SITE)
 
-        step = await api.create_step(RECORD_TYPE, SEARCH, PARAMS)
-        step_id = step["id"]
+        step = await api.create_step(
+            NewStepSpec(
+                search_name=SEARCH,
+                search_config=WDKSearchConfig(parameters=SEARCH_PARAMS),
+            ),
+            record_type=RECORD_TYPE,
+        )
+        step_id = step.id
         assert isinstance(step_id, int)
 
         tree = StepTreeNode(step_id=step_id)
         strategy = await api.create_strategy(tree, name="Test Single")
-        sid = strategy["id"]
+        sid = strategy.id
         assert isinstance(sid, int)
 
         try:
@@ -93,10 +103,16 @@ class TestSingleStepGeneSet:
         """Use the extracted params in run_positive_negative_controls — must NOT 422."""
         api = get_strategy_api(SITE)
 
-        step = await api.create_step(RECORD_TYPE, SEARCH, PARAMS)
-        tree = StepTreeNode(step_id=step["id"])
+        step = await api.create_step(
+            NewStepSpec(
+                search_name=SEARCH,
+                search_config=WDKSearchConfig(parameters=SEARCH_PARAMS),
+            ),
+            record_type=RECORD_TYPE,
+        )
+        tree = StepTreeNode(step_id=step.id)
         strategy = await api.create_strategy(tree, name="Eval Test")
-        sid = strategy["id"]
+        sid = strategy.id
 
         try:
             svc = GeneSetService(get_gene_set_store())
@@ -143,21 +159,33 @@ class TestMultiStepGeneSet:
     async def test_no_boolean_params_leak(self) -> None:
         api = get_strategy_api(SITE)
 
-        step1 = await api.create_step(RECORD_TYPE, SEARCH, PARAMS)
-        step2 = await api.create_step(RECORD_TYPE, SEARCH, PARAMS)
+        step1 = await api.create_step(
+            NewStepSpec(
+                search_name=SEARCH,
+                search_config=WDKSearchConfig(parameters=SEARCH_PARAMS),
+            ),
+            record_type=RECORD_TYPE,
+        )
+        step2 = await api.create_step(
+            NewStepSpec(
+                search_name=SEARCH,
+                search_config=WDKSearchConfig(parameters=SEARCH_PARAMS),
+            ),
+            record_type=RECORD_TYPE,
+        )
         combined = await api.create_combined_step(
-            step1["id"],
-            step2["id"],
+            step1.id,
+            step2.id,
             "INTERSECT",
             RECORD_TYPE,
         )
         tree = StepTreeNode(
-            step_id=combined["id"],
-            primary_input=StepTreeNode(step_id=step1["id"]),
-            secondary_input=StepTreeNode(step_id=step2["id"]),
+            step_id=combined.id,
+            primary_input=StepTreeNode(step_id=step1.id),
+            secondary_input=StepTreeNode(step_id=step2.id),
         )
         strategy = await api.create_strategy(tree, name="Test Multi")
-        sid = strategy["id"]
+        sid = strategy.id
 
         try:
             svc = GeneSetService(get_gene_set_store())

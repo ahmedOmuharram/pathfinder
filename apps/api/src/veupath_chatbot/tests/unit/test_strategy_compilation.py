@@ -24,6 +24,8 @@ from veupath_chatbot.domain.strategy.compile import (
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKDatasetConfig,
     WDKIdentifier,
     WDKSearch,
@@ -97,11 +99,9 @@ class FakeCompilerAPI:
 
     async def create_step(
         self,
+        spec: NewStepSpec,
         record_type: str,
-        search_name: str,
-        parameters: JSONObject,
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
@@ -109,24 +109,26 @@ class FakeCompilerAPI:
                 method="create_step",
                 kwargs={
                     "record_type": record_type,
-                    "search_name": search_name,
-                    "parameters": parameters,
-                    "custom_name": custom_name,
-                    "wdk_weight": wdk_weight,
+                    "search_name": spec.search_name,
+                    "parameters": dict(spec.search_config.parameters),
+                    "custom_name": spec.custom_name,
+                    "wdk_weight": spec.search_config.wdk_weight,
                     "returned_id": step_id,
                 },
             )
         )
         return WDKIdentifier(id=step_id)
 
-    async def create_combined_step(
+    async def create_combined_step(  # noqa: PLR0913
         self,
         primary_step_id: int,
         secondary_step_id: int,
         boolean_operator: str,
         record_type: str,
-        custom_name: str | None = None,
+        *,
+        spec_overrides: PatchStepSpec | None = None,
         wdk_weight: int | None = None,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
@@ -137,7 +139,7 @@ class FakeCompilerAPI:
                     "secondary_step_id": secondary_step_id,
                     "boolean_operator": boolean_operator,
                     "record_type": record_type,
-                    "custom_name": custom_name,
+                    "custom_name": spec_overrides.custom_name if spec_overrides else None,
                     "wdk_weight": wdk_weight,
                     "returned_id": step_id,
                 },
@@ -147,12 +149,11 @@ class FakeCompilerAPI:
 
     async def create_transform_step(
         self,
+        spec: NewStepSpec,
         input_step_id: int,
-        transform_name: str,
-        parameters: JSONObject,
         record_type: str = "transcript",
-        custom_name: str | None = None,
-        wdk_weight: int | None = None,
+        *,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
@@ -160,11 +161,11 @@ class FakeCompilerAPI:
                 method="create_transform_step",
                 kwargs={
                     "input_step_id": input_step_id,
-                    "transform_name": transform_name,
-                    "parameters": parameters,
+                    "transform_name": spec.search_name,
+                    "parameters": dict(spec.search_config.parameters),
                     "record_type": record_type,
-                    "custom_name": custom_name,
-                    "wdk_weight": wdk_weight,
+                    "custom_name": spec.custom_name,
+                    "wdk_weight": spec.search_config.wdk_weight,
                     "returned_id": step_id,
                 },
             )

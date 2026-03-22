@@ -1,102 +1,52 @@
 """Unit tests for WDK structural response models.
 
-Verifies parsing, field defaults, immutability, camelCase alias handling,
-and nested model composition for all models in ``wdk_models.py``.
+Verifies fixture shapes match real WDK API, application-specific logic
+(default choices, discriminated unions, spec models), and field naming
+that reflects our WDK alignment decisions.
 """
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
-    WDKAnswer,
+    NewStepSpec,
+    PatchStepSpec,
+    WDKAnalysisStatusResponse,
+    WDKColumnDistribution,
     WDKDatasetConfig,
     WDKDatasetConfigBasket,
     WDKDatasetConfigFile,
     WDKDatasetConfigIdList,
     WDKDatasetConfigStrategy,
     WDKDatasetConfigUrl,
-    WDKFilterValue,
     WDKIdentifier,
-    WDKRecordInstance,
     WDKRecordType,
     WDKSearch,
     WDKSearchConfig,
     WDKSearchResponse,
-    WDKSortSpec,
     WDKStep,
     WDKStepAnalysisConfig,
-    WDKStepAnalysisType,
     WDKStepTree,
     WDKStrategyDetails,
     WDKStrategySummary,
+    WDKTemporaryResult,
     WDKUserInfo,
     WDKValidation,
 )
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     search_details_response,
-    wdk_answer_json,
     wdk_record_type_json,
     wdk_step_json,
     wdk_strategy_details_json,
     wdk_strategy_summary_json,
-    wdk_validation_json,
 )
-
-
-# ---------------------------------------------------------------------------
-# TestWDKModel — base class behaviour
-# ---------------------------------------------------------------------------
-class TestWDKModel:
-    """Tests for the WDKModel base class configuration."""
-
-    def test_frozen_prevents_mutation(self) -> None:
-        v = WDKValidation.model_validate({"level": "RUNNABLE", "isValid": True})
-        with pytest.raises(ValidationError):
-            v.is_valid = False
-
-    def test_extra_fields_ignored(self) -> None:
-        v = WDKValidation.model_validate(
-            {"level": "RUNNABLE", "isValid": True, "unknownField": 42},
-        )
-        assert v.level == "RUNNABLE"
-        assert not hasattr(v, "unknownField")
-        assert not hasattr(v, "unknown_field")
-
-    def test_camel_case_aliases(self) -> None:
-        s = WDKSortSpec.model_validate(
-            {"attributeName": "gene_id", "direction": "ASC"},
-        )
-        assert s.attribute_name == "gene_id"
-
-    def test_populate_by_name(self) -> None:
-        s = WDKSortSpec(attribute_name="gene_id", direction="ASC")
-        assert s.attribute_name == "gene_id"
-        assert s.direction == "ASC"
 
 
 # ---------------------------------------------------------------------------
 # TestWDKSearchConfig
 # ---------------------------------------------------------------------------
 class TestWDKSearchConfig:
-    """Tests for WDKSearchConfig parsing and defaults."""
-
-    def test_parse_minimal(self) -> None:
-        cfg = WDKSearchConfig.model_validate(
-            {"parameters": {"organism": '["Pf3D7"]'}},
-        )
-        assert cfg.parameters == {"organism": '["Pf3D7"]'}
-        assert cfg.wdk_weight == 0
-
-    def test_parse_with_filters(self) -> None:
-        cfg = WDKSearchConfig.model_validate(
-            {
-                "parameters": {},
-                "filters": [{"name": "matched_result", "value": "Y"}],
-            },
-        )
-        assert len(cfg.filters) == 1
-        assert isinstance(cfg.filters[0], WDKFilterValue)
-        assert cfg.filters[0].name == "matched_result"
+    """Tests for WDKSearchConfig — kept: view_filters field (our addition)."""
 
     def test_parse_with_view_filters(self) -> None:
         cfg = WDKSearchConfig.model_validate(
@@ -107,49 +57,6 @@ class TestWDKSearchConfig:
         )
         assert len(cfg.view_filters) == 1
         assert cfg.view_filters[0].name == "gene_boolean_filter"
-
-    def test_parameters_are_string_values(self) -> None:
-        cfg = WDKSearchConfig.model_validate(
-            {"parameters": {"organism": '["Plasmodium falciparum 3D7"]'}},
-        )
-        assert isinstance(cfg.parameters, dict)
-        assert cfg.parameters["organism"] == '["Plasmodium falciparum 3D7"]'
-
-    def test_default_wdk_weight_zero(self) -> None:
-        cfg = WDKSearchConfig.model_validate({"parameters": {}})
-        assert cfg.wdk_weight == 0
-
-    def test_frozen_immutability(self) -> None:
-        cfg = WDKSearchConfig.model_validate({"parameters": {"a": "b"}})
-        with pytest.raises(ValidationError):
-            cfg.parameters = {}
-
-
-# ---------------------------------------------------------------------------
-# TestWDKValidation
-# ---------------------------------------------------------------------------
-class TestWDKValidation:
-    """Tests for WDKValidation parsing and defaults."""
-
-    def test_parse_valid(self) -> None:
-        v = WDKValidation.model_validate(wdk_validation_json())
-        assert v.level == "RUNNABLE"
-        assert v.is_valid is True
-
-    def test_parse_invalid_with_errors(self) -> None:
-        v = WDKValidation.model_validate(wdk_validation_json(is_valid=False))
-        assert v.is_valid is False
-        assert v.errors is not None
-        assert isinstance(v.errors.general, list)
-
-    def test_default_is_valid(self) -> None:
-        v = WDKValidation.model_validate({})
-        assert v.is_valid is True
-        assert v.level == "NONE"
-
-    def test_errors_absent_when_valid(self) -> None:
-        v = WDKValidation.model_validate(wdk_validation_json())
-        assert v.errors is None
 
 
 # ---------------------------------------------------------------------------
@@ -255,15 +162,6 @@ class TestWDKStep:
         assert step.id == 12345
         assert not hasattr(step, "totallyUnknownField")
 
-    def test_search_config_nested(self) -> None:
-        step = WDKStep.model_validate(wdk_step_json())
-        assert isinstance(step.search_config, WDKSearchConfig)
-        assert isinstance(step.search_config.parameters, dict)
-
-    def test_validation_nested(self) -> None:
-        step = WDKStep.model_validate(wdk_step_json())
-        assert isinstance(step.validation, WDKValidation)
-
 
 # ---------------------------------------------------------------------------
 # TestWDKStrategySummary
@@ -271,24 +169,11 @@ class TestWDKStep:
 class TestWDKStrategySummary:
     """Tests for WDKStrategySummary parsing."""
 
-    def test_parse_from_fixture(self) -> None:
-        summary = WDKStrategySummary.model_validate(
-            wdk_strategy_summary_json(),
-        )
-        assert summary.strategy_id == 99999
-        assert summary.name == "Test Strategy"
-
     def test_estimated_size_as_number(self) -> None:
         summary = WDKStrategySummary.model_validate(
             wdk_strategy_summary_json(),
         )
         assert summary.estimated_size == 150
-
-    def test_nullable_record_class_name(self) -> None:
-        summary = WDKStrategySummary.model_validate(
-            wdk_strategy_summary_json(record_class_name=None),
-        )
-        assert summary.record_class_name is None
 
     def test_last_viewed_field_name(self) -> None:
         """WDK uses 'lastViewed', not 'lastViewTime'."""
@@ -329,12 +214,6 @@ class TestWDKStrategyDetails:
         assert details.strategy_id == 99999
         assert details.name == "Test Strategy"
         assert details.root_step_id == 12345
-
-    def test_validation_on_details(self) -> None:
-        details = WDKStrategyDetails.model_validate(
-            wdk_strategy_details_json(),
-        )
-        assert details.validation is not None
 
 
 # ---------------------------------------------------------------------------
@@ -516,165 +395,93 @@ class TestWDKRecordType:
 
 
 # ---------------------------------------------------------------------------
-# TestWDKAnswer
-# ---------------------------------------------------------------------------
-class TestWDKAnswer:
-    """Tests for WDKAnswer parsing."""
-
-    def test_parse_answer_with_records(self) -> None:
-        answer = WDKAnswer.model_validate(wdk_answer_json())
-        assert isinstance(answer.records, list)
-        assert len(answer.records) > 0
-
-    def test_meta_total_count(self) -> None:
-        answer = WDKAnswer.model_validate(wdk_answer_json())
-        assert answer.meta.total_count == 5432
-
-    def test_records_are_json_objects(self) -> None:
-        answer = WDKAnswer.model_validate(wdk_answer_json())
-        for record in answer.records:
-            assert isinstance(record, dict)
-
-    def test_empty_records_default(self) -> None:
-        answer = WDKAnswer.model_validate(
-            {
-                "meta": {
-                    "totalCount": 0,
-                    "responseCount": 0,
-                    "displayTotalCount": 0,
-                    "viewTotalCount": 0,
-                    "displayViewTotalCount": 0,
-                    "recordClassName": "transcript",
-                    "attributes": [],
-                    "tables": [],
-                },
-            },
-        )
-        assert answer.records == []
-
-
-# ---------------------------------------------------------------------------
 # TestWDKIdentifier
 # ---------------------------------------------------------------------------
 class TestWDKIdentifier:
     """Tests for WDKIdentifier (replaces WDKStrategyCreateResponse)."""
-
-    def test_parse_from_camel_case(self) -> None:
-        ident = WDKIdentifier.model_validate({"id": 42})
-        assert ident.id == 42
 
     def test_same_shape_as_strategy_create_response(self) -> None:
         """WDKIdentifier has the same shape as the old WDKStrategyCreateResponse."""
         ident = WDKIdentifier.model_validate({"id": 99999})
         assert ident.id == 99999
 
-    def test_extra_fields_ignored(self) -> None:
-        ident = WDKIdentifier.model_validate({"id": 1, "unknownField": "x"})
-        assert ident.id == 1
-        assert not hasattr(ident, "unknownField")
 
-    def test_frozen(self) -> None:
-        ident = WDKIdentifier.model_validate({"id": 1})
-        with pytest.raises(ValidationError):
-            ident.id = 2
+# ---------------------------------------------------------------------------
+# TestWDKAnalysisStatusResponse
+# ---------------------------------------------------------------------------
+class TestWDKAnalysisStatusResponse:
+    """Tests for WDKAnalysisStatusResponse parsing."""
+
+    def test_parse_status(self) -> None:
+        raw = {"status": "RUNNING"}
+        resp = WDKAnalysisStatusResponse.model_validate(raw)
+        assert resp.status == "RUNNING"
+
+    def test_parse_complete(self) -> None:
+        raw = {"status": "COMPLETE"}
+        resp = WDKAnalysisStatusResponse.model_validate(raw)
+        assert resp.status == "COMPLETE"
 
 
 # ---------------------------------------------------------------------------
-# TestWDKStepAnalysisType
+# TestWDKStepAnalysisConfigStatus
 # ---------------------------------------------------------------------------
-class TestWDKStepAnalysisType:
-    """Tests for WDKStepAnalysisType parsing."""
+class TestWDKStepAnalysisConfigStatus:
+    """Tests for WDKStepAnalysisConfig.status typed as WDKAnalysisStatus."""
 
-    def test_parse_from_camel_case(self) -> None:
-        sat = WDKStepAnalysisType.model_validate({
-            "name": "word-enrichment",
-            "displayName": "Word Enrichment",
-            "shortDescription": "Find enriched words in gene descriptions",
-            "description": "Detailed description here",
-            "releaseVersion": "62",
-            "customThumbnail": "/img/thumb.png",
-            "paramNames": ["pValueCutoff", "organism"],
-            "groups": [
-                {
-                    "name": "main",
-                    "displayName": "Main",
-                    "description": "",
-                    "isVisible": True,
-                    "displayType": "",
-                    "parameters": ["pValueCutoff"],
-                },
-            ],
-        })
-        assert sat.name == "word-enrichment"
-        assert sat.display_name == "Word Enrichment"
-        assert sat.short_description == "Find enriched words in gene descriptions"
-        assert sat.description == "Detailed description here"
-        assert sat.release_version == "62"
-        assert sat.custom_thumbnail == "/img/thumb.png"
-        assert sat.param_names == ["pValueCutoff", "organism"]
-        assert len(sat.groups) == 1
-        assert sat.groups[0].name == "main"
+    def test_status_default_is_created(self) -> None:
+        cfg = WDKStepAnalysisConfig(
+            analysis_id=1, step_id=2, analysis_name="go-enrichment"
+        )
+        assert cfg.status == "CREATED"
 
-    def test_defaults(self) -> None:
-        sat = WDKStepAnalysisType.model_validate({
-            "name": "go-enrichment",
-            "displayName": "GO Enrichment",
-        })
-        assert sat.short_description == ""
-        assert sat.description == ""
-        assert sat.release_version == ""
-        assert sat.custom_thumbnail is None
-        assert sat.param_names == []
-        assert sat.groups == []
-
-
-# ---------------------------------------------------------------------------
-# TestWDKStepAnalysisConfig
-# ---------------------------------------------------------------------------
-class TestWDKStepAnalysisConfig:
-    """Tests for WDKStepAnalysisConfig parsing."""
-
-    def test_parse_from_camel_case(self) -> None:
-        sac = WDKStepAnalysisConfig.model_validate({
-            "analysisId": 100,
-            "stepId": 200,
-            "analysisName": "word-enrichment",
-            "displayName": "Word Enrichment",
-            "shortDescription": "Enriched words",
-            "description": "Full description",
-            "userNotes": "My analysis notes",
-            "status": "COMPLETE",
-            "parameters": {"pValueCutoff": "0.05"},
-            "validation": {
-                "level": "RUNNABLE",
-                "isValid": True,
-            },
-        })
-        assert sac.analysis_id == 100
-        assert sac.step_id == 200
-        assert sac.analysis_name == "word-enrichment"
-        assert sac.display_name == "Word Enrichment"
-        assert sac.short_description == "Enriched words"
-        assert sac.description == "Full description"
-        assert sac.user_notes == "My analysis notes"
-        assert sac.status == "COMPLETE"
-        assert sac.parameters == {"pValueCutoff": "0.05"}
-        assert sac.validation is not None
-        assert sac.validation.is_valid is True
-
-    def test_defaults(self) -> None:
-        sac = WDKStepAnalysisConfig.model_validate({
+    def test_status_from_wdk_response(self) -> None:
+        raw = {
             "analysisId": 1,
             "stepId": 2,
             "analysisName": "go-enrichment",
-        })
-        assert sac.display_name == ""
-        assert sac.short_description is None
-        assert sac.description is None
-        assert sac.user_notes is None
-        assert sac.status == ""
-        assert sac.parameters == {}
-        assert sac.validation is None
+            "status": "COMPLETE",
+        }
+        cfg = WDKStepAnalysisConfig.model_validate(raw)
+        assert cfg.status == "COMPLETE"
+
+
+# ---------------------------------------------------------------------------
+# TestWDKColumnDistribution
+# ---------------------------------------------------------------------------
+class TestWDKColumnDistribution:
+    """Tests for WDKColumnDistribution parsing."""
+
+    def test_parse_string_distribution(self) -> None:
+        raw = {
+            "histogram": [
+                {"value": 2890, "binStart": "Pf3D7", "binEnd": "Pf3D7", "binLabel": "Pf3D7"},
+            ],
+            "statistics": {"subsetSize": 4429, "numVarValues": 4429, "numDistinctValues": 1},
+        }
+        dist = WDKColumnDistribution.model_validate(raw)
+        assert len(dist.histogram) == 1
+        assert dist.histogram[0].value == 2890
+        assert dist.histogram[0].bin_start == "Pf3D7"
+        assert dist.statistics.subset_size == 4429
+        assert dist.statistics.num_distinct_values == 1
+
+    def test_empty_default(self) -> None:
+        dist = WDKColumnDistribution()
+        assert dist.histogram == []
+        assert dist.statistics.subset_size == 0
+
+
+# ---------------------------------------------------------------------------
+# TestWDKTemporaryResult
+# ---------------------------------------------------------------------------
+class TestWDKTemporaryResult:
+    """Tests for WDKTemporaryResult parsing."""
+
+    def test_parse_id(self) -> None:
+        raw = {"id": "abc-123-def"}
+        result = WDKTemporaryResult.model_validate(raw)
+        assert result.id == "abc-123-def"
 
 
 # ---------------------------------------------------------------------------
@@ -682,24 +489,6 @@ class TestWDKStepAnalysisConfig:
 # ---------------------------------------------------------------------------
 class TestWDKUserInfo:
     """Tests for WDKUserInfo parsing."""
-
-    def test_parse_from_camel_case(self) -> None:
-        user = WDKUserInfo.model_validate({
-            "id": 12345,
-            "email": "researcher@example.edu",
-            "isGuest": False,
-            "properties": {"firstName": "Alice", "lastName": "Smith"},
-        })
-        assert user.id == 12345
-        assert user.email == "researcher@example.edu"
-        assert user.is_guest is False
-        assert user.properties == {"firstName": "Alice", "lastName": "Smith"}
-
-    def test_defaults(self) -> None:
-        user = WDKUserInfo.model_validate({"id": 99})
-        assert user.email is None
-        assert user.is_guest is True
-        assert user.properties == {}
 
     def test_guest_user(self) -> None:
         """GET /users/current for a guest returns isGuest=true, no email."""
@@ -710,49 +499,6 @@ class TestWDKUserInfo:
         })
         assert user.is_guest is True
         assert user.email is None
-
-
-# ---------------------------------------------------------------------------
-# TestWDKRecordInstance
-# ---------------------------------------------------------------------------
-class TestWDKRecordInstance:
-    """Tests for WDKRecordInstance parsing."""
-
-    def test_parse_from_camel_case(self) -> None:
-        rec = WDKRecordInstance.model_validate({
-            "displayName": "PF3D7_0100100",
-            "id": [
-                {"name": "source_id", "value": "PF3D7_0100100"},
-                {"name": "project_id", "value": "PlasmoDB"},
-            ],
-            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
-            "attributes": {
-                "gene_name": "VAR",
-                "product": "erythrocyte membrane protein 1",
-            },
-            "tables": {
-                "GoTerms": [
-                    {"goId": "GO:0005886", "goTerm": "plasma membrane"},
-                ],
-            },
-            "tableErrors": ["some error"],
-        })
-        assert rec.display_name == "PF3D7_0100100"
-        assert len(rec.id) == 2
-        assert rec.id[0]["name"] == "source_id"
-        assert rec.record_class_name == "TranscriptRecordClasses.TranscriptRecordClass"
-        assert rec.attributes["gene_name"] == "VAR"
-        assert rec.tables["GoTerms"] is not None
-        assert rec.table_errors == ["some error"]
-
-    def test_defaults(self) -> None:
-        rec = WDKRecordInstance.model_validate({})
-        assert rec.display_name == ""
-        assert rec.id == []
-        assert rec.record_class_name == ""
-        assert rec.attributes == {}
-        assert rec.tables == {}
-        assert rec.table_errors == []
 
 
 # ---------------------------------------------------------------------------
@@ -827,3 +573,70 @@ class TestWDKDatasetConfig:
                 "sourceType": "invalid",
                 "sourceContent": {},
             })
+
+
+# ---------------------------------------------------------------------------
+# TestPatchStepSpec — mutable request model
+# ---------------------------------------------------------------------------
+class TestPatchStepSpec:
+    """Tests for PatchStepSpec (mutable request model for step updates)."""
+
+    def test_all_optional(self) -> None:
+        spec = PatchStepSpec()
+        assert spec.custom_name is None
+        assert spec.expanded is None
+
+    def test_custom_name(self) -> None:
+        spec = PatchStepSpec(custom_name="My Step")
+        assert spec.custom_name == "My Step"
+
+    def test_camel_case_alias(self) -> None:
+        spec = PatchStepSpec(custom_name="Test")
+        data = spec.model_dump(by_alias=True)
+        assert "customName" in data
+
+    def test_not_frozen(self) -> None:
+        spec = PatchStepSpec()
+        spec.custom_name = "Updated"
+        assert spec.custom_name == "Updated"
+
+
+# ---------------------------------------------------------------------------
+# TestNewStepSpec — mutable request model (extends PatchStepSpec)
+# ---------------------------------------------------------------------------
+class TestNewStepSpec:
+    """Tests for NewStepSpec (mutable request model for step creation)."""
+
+    def test_requires_search_name_and_config(self) -> None:
+        spec = NewStepSpec(
+            search_name="GenesByText",
+            search_config=WDKSearchConfig(parameters={"text_expression": "kinase"}),
+        )
+        assert spec.search_name == "GenesByText"
+        assert spec.search_config.parameters == {"text_expression": "kinase"}
+
+    def test_inherits_patch_fields(self) -> None:
+        spec = NewStepSpec(
+            search_name="GenesByText",
+            search_config=WDKSearchConfig(parameters={}),
+            custom_name="My Search",
+        )
+        assert spec.custom_name == "My Search"
+
+    def test_camel_case_serialization(self) -> None:
+        spec = NewStepSpec(
+            search_name="GenesByText",
+            search_config=WDKSearchConfig(parameters={"key": "val"}, wdk_weight=10),
+            custom_name="Test",
+        )
+        data = spec.model_dump(by_alias=True)
+        assert data["searchName"] == "GenesByText"
+        assert data["searchConfig"]["wdkWeight"] == 10
+        assert data["customName"] == "Test"
+
+    def test_wdk_weight_in_search_config(self) -> None:
+        spec = NewStepSpec(
+            search_name="GenesByText",
+            search_config=WDKSearchConfig(parameters={}, wdk_weight=5),
+        )
+        assert spec.search_config.wdk_weight == 5

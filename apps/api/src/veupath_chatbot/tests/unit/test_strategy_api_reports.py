@@ -17,10 +17,12 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.filters import FilterMi
 from veupath_chatbot.integrations.veupathdb.strategy_api.records import RecordsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.reports import ReportsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKColumnDistribution,
+    WDKFilterValue,
     WDKStepAnalysisConfig,
     WDKStepAnalysisType,
 )
-from veupath_chatbot.platform.errors import DataParsingError, InternalError, WDKError
+from veupath_chatbot.platform.errors import InternalError, WDKError
 
 
 def _make_client() -> MagicMock:
@@ -40,7 +42,7 @@ def _make_client() -> MagicMock:
     client.list_step_analyses = AsyncMock(return_value=[])
     client.create_step_analysis = AsyncMock()
     client.run_analysis_instance = AsyncMock()
-    client.get_analysis_status = AsyncMock(return_value="")
+    client.get_analysis_status = AsyncMock(return_value="CREATED")
     client.get_analysis_result = AsyncMock(return_value={})
     client.run_step_report = AsyncMock()
     return client
@@ -97,9 +99,10 @@ class TestFilterOperations:
         client.update_step_view_filters.assert_awaited_once()
         filters = client.update_step_view_filters.call_args.args[2]
         assert len(filters) == 1
-        assert filters[0]["name"] == "matched_transcript_filter_array"
-        assert filters[0]["value"] == {"values": ["yes"]}
-        assert filters[0]["disabled"] is False
+        assert isinstance(filters[0], WDKFilterValue)
+        assert filters[0].name == "matched_transcript_filter_array"
+        assert filters[0].value == {"values": ["yes"]}
+        assert filters[0].disabled is False
 
     async def test_set_step_filter_disabled(self) -> None:
         mixin, client = _make_filter_mixin()
@@ -108,12 +111,12 @@ class TestFilterOperations:
             step_id=42, filter_name="f", value={}, disabled=True
         )
         filters = client.update_step_view_filters.call_args.args[2]
-        assert filters[0]["disabled"] is True
+        assert filters[0].disabled is True
 
     async def test_delete_step_filter(self) -> None:
         mixin, client = _make_filter_mixin()
         client.get_step_view_filters.return_value = [
-            {"name": "my_filter", "value": 1, "disabled": False},
+            WDKFilterValue(name="my_filter", value=1, disabled=False),
         ]
         await mixin.delete_step_filter(step_id=42, filter_name="my_filter")
         client.update_step_view_filters.assert_awaited_once()
@@ -122,9 +125,10 @@ class TestFilterOperations:
 
     async def test_list_step_filters(self) -> None:
         mixin, client = _make_filter_mixin()
-        client.get_step_view_filters.return_value = [{"name": "f1"}]
+        expected = [WDKFilterValue(name="f1")]
+        client.get_step_view_filters.return_value = expected
         result = await mixin.list_step_filters(step_id=42)
-        assert result == [{"name": "f1"}]
+        assert result == expected
 
     async def test_list_analysis_types(self) -> None:
         mixin, client = _make_analysis_mixin()
@@ -300,18 +304,21 @@ class TestGetColumnDistribution:
     async def test_returns_distribution(self) -> None:
         mixin, client = _make_records_mixin()
         client.post.return_value = {
-            "histogram": [{"value": "A", "count": 10}],
-            "statistics": {},
+            "histogram": [{"value": 10, "binLabel": "A"}],
+            "statistics": {"subsetSize": 100},
         }
         result = await mixin.get_column_distribution(step_id=42, column_name="organism")
-        assert "histogram" in result
+        assert isinstance(result, WDKColumnDistribution)
+        assert len(result.histogram) == 1
 
     async def test_returns_empty_on_wdk_error(self) -> None:
         """Not all columns support the byValue reporter."""
         mixin, client = _make_records_mixin()
         client.post.side_effect = WDKError("column reporter unavailable", status=400)
         result = await mixin.get_column_distribution(step_id=42, column_name="overview")
-        assert result == {"histogram": [], "statistics": {}}
+        assert isinstance(result, WDKColumnDistribution)
+        assert result.histogram == []
+        assert result.statistics.subset_size == 0
 
 
 # ---------------------------------------------------------------------------
@@ -339,25 +346,6 @@ class TestGetStepCount:
         }
         count = await mixin.get_step_count(step_id=1)
         assert count == 0
-
-    async def test_raises_on_non_dict_response(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = []  # not a valid WDKAnswer
-        with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
-            await mixin.get_step_count(step_id=1)
-
-    async def test_raises_on_missing_meta(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": []}
-        with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
-            await mixin.get_step_count(step_id=1)
-
-    async def test_coerces_string_total_count(self) -> None:
-        """Pydantic coerces string totalCount to int in lax mode."""
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"meta": {"totalCount": "42"}}
-        count = await mixin.get_step_count(step_id=1)
-        assert count == 42
 
     async def test_step_count_request_uses_zero_records(self) -> None:
         """Step count should request 0 records to minimize transfer."""

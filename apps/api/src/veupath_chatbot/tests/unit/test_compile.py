@@ -198,7 +198,7 @@ class TestCompileCombineStep:
     async def test_compiles_combine(self) -> None:
         api = _mock_api()
         step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101), WDKIdentifier(id=200)])
-        api.create_step.side_effect = lambda **kw: next(step_ids)
+        api.create_step.side_effect = lambda *a, **kw: next(step_ids)
         api.create_combined_step.return_value = WDKIdentifier(id=200)
 
         left = _search_node(step_id="s1")
@@ -291,7 +291,7 @@ class TestCompileColocation:
     async def test_colocate_creates_transform_step(self) -> None:
         api = _mock_api()
         step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101)])
-        api.create_step.side_effect = lambda **kw: next(step_ids)
+        api.create_step.side_effect = lambda *a, **kw: next(step_ids)
         api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         left = _search_node(step_id="s1")
@@ -314,9 +314,10 @@ class TestCompileColocation:
         assert result.root_step_id == 300
         # Verify transform was called (colocation uses create_transform_step)
         api.create_transform_step.assert_awaited_once()
-        call_kwargs = api.create_transform_step.call_args.kwargs
-        assert call_kwargs["transform_name"] == "GenesBySpanLogic"
-        params = call_kwargs["parameters"]
+        call_args = api.create_transform_step.call_args
+        spec = call_args.args[0]
+        assert spec.search_name == "GenesBySpanLogic"
+        params = spec.search_config.parameters
         assert params["span_begin_offset_a"] == "500"
         assert params["span_end_offset_a"] == "200"
         assert params["span_sentence"] == "sentence"
@@ -325,7 +326,7 @@ class TestCompileColocation:
         """When colocation_params is None, no upstream/downstream/strand params added."""
         api = _mock_api()
         step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101)])
-        api.create_step.side_effect = lambda **kw: next(step_ids)
+        api.create_step.side_effect = lambda *a, **kw: next(step_ids)
         api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         left = _search_node(step_id="s1")
@@ -341,8 +342,8 @@ class TestCompileColocation:
         )
         compiler = StrategyCompiler(api, resolve_record_type=False)
         await compiler._compile_colocation(node, 100, 101, "gene")
-        call_kwargs = api.create_transform_step.call_args.kwargs
-        params = call_kwargs["parameters"]
+        spec = api.create_transform_step.call_args.args[0]
+        params = spec.search_config.parameters
         assert "upstream" not in params
         assert "downstream" not in params
 
@@ -756,7 +757,7 @@ class TestDeepTree:
         api = _mock_api()
         call_count = 0
 
-        async def next_step_id(**kw: object) -> WDKIdentifier:
+        async def next_step_id(*args: object, **kw: object) -> WDKIdentifier:
             nonlocal call_count
             call_count += 1
             return WDKIdentifier(id=call_count * 100)

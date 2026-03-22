@@ -79,7 +79,7 @@ async def get_dependent_vocab_authoritative_cached(
         "paramName": param_name,
         "contextParamValues": wdk_context,
         "contextHash": ch,
-        "wdkResponse": response,
+        "wdkResponse": [p.model_dump(by_alias=True) for p in response],
         "ingestedAt": int(time.time()),
         "sourceUrl": f"{client.base_url}/record-types/{ctx.record_type}/searches/{ctx.search_name}/refreshed-dependent-params",
     }

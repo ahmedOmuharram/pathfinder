@@ -13,8 +13,11 @@ from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
+    WDKSearchConfig,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError
@@ -194,10 +197,14 @@ async def _run_intersection_control(
     )
 
     target_step = await api.create_step(
+        NewStepSpec(
+            search_name=config.target_search_name,
+            search_config=WDKSearchConfig(
+                parameters={k: str(v) for k, v in (config.target_parameters or {}).items() if v is not None},
+            ),
+            custom_name="Target",
+        ),
         record_type=target_rt,
-        search_name=config.target_search_name,
-        parameters=config.target_parameters or {},
-        custom_name="Target",
     )
     target_step_id = target_step.id
 
@@ -221,10 +228,14 @@ async def _run_intersection_control(
         )
 
     controls_step = await api.create_step(
+        NewStepSpec(
+            search_name=config.controls_search_name,
+            search_config=WDKSearchConfig(
+                parameters={k: str(v) for k, v in controls_params.items() if v is not None},
+            ),
+            custom_name="Controls",
+        ),
         record_type=controls_rt,
-        search_name=config.controls_search_name,
-        parameters=controls_params,
-        custom_name="Controls",
     )
     controls_step_id = controls_step.id
 
@@ -233,7 +244,7 @@ async def _run_intersection_control(
         secondary_step_id=controls_step_id,
         boolean_operator=config.boolean_operator,
         record_type=target_rt,
-        custom_name=f"{config.boolean_operator} controls",
+        spec_overrides=PatchStepSpec(custom_name=f"{config.boolean_operator} controls"),
     )
     combined_step_id = combined_step.id
 

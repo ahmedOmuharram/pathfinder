@@ -1,4 +1,4 @@
-"""AST node types for strategy representation (WDK-aligned, untyped tree)."""
+"""AST node types for strategy representation (untyped tree)."""
 
 from typing import Any, Literal, cast
 from uuid import uuid4

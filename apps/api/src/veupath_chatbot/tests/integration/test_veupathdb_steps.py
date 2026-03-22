@@ -11,7 +11,9 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import (
     StrategyAPI,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
     WDKSearch,
+    WDKSearchConfig,
     WDKSearchResponse,
 )
 
@@ -42,15 +44,22 @@ class TestStrategyAPI:
     ) -> None:
         """Test creating a search step."""
         mock_client.post.return_value = {"id": 12345}
+        # _expand_tree_params_to_leaves fetches search details
+        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate({
+            "searchData": {"urlSegment": "GenesByGoTerm", "parameters": []},
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        })
 
         result = await strategy_api.create_step(
+            NewStepSpec(
+                search_name="GenesByGoTerm",
+                search_config=WDKSearchConfig(parameters={"GoTerm": "GO:0016301"}),
+                custom_name="Kinases",
+            ),
             record_type="gene",
-            search_name="GenesByGoTerm",
-            parameters={"GoTerm": "GO:0016301"},
-            custom_name="Kinases",
         )
 
-        assert result["id"] == 12345
+        assert result.id == 12345
         mock_client.post.assert_called_once()
         call_args = mock_client.post.call_args
         assert "/users/guest/steps" in call_args[0][0]
@@ -92,7 +101,7 @@ class TestStrategyAPI:
             record_type="gene",
         )
 
-        assert result["id"] == 12346
+        assert result.id == 12346
         call_args = mock_client.post.call_args
         payload = call_args[1]["json"]
         assert payload["searchName"] == "boolean_question"
@@ -102,7 +111,7 @@ class TestStrategyAPI:
         self, strategy_api: StrategyAPI, mock_client: AsyncMock
     ) -> None:
         """Test creating a strategy from step tree."""
-        mock_client.post.return_value = {"strategyId": 9999}
+        mock_client.post.return_value = {"id": 9999}
 
         tree = StepTreeNode(
             step_id=100,
@@ -116,7 +125,7 @@ class TestStrategyAPI:
             is_saved=True,
         )
 
-        assert result["strategyId"] == 9999
+        assert result.id == 9999
         call_args = mock_client.post.call_args
         assert "/users/guest/strategies" in call_args[0][0]
         payload = call_args[1]["json"]
@@ -128,7 +137,7 @@ class TestStrategyAPI:
         self, strategy_api: StrategyAPI, mock_client: AsyncMock
     ) -> None:
         """Test creating an internal (Pathfinder-tagged) strategy."""
-        mock_client.post.return_value = {"strategyId": 9999}
+        mock_client.post.return_value = {"id": 9999}
 
         tree = StepTreeNode(step_id=100)
         await strategy_api.create_strategy(

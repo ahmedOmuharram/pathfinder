@@ -6,10 +6,10 @@ and get_step_preview.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pydantic
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import DataParsingError
 
 
 def _make_api(
@@ -89,7 +89,7 @@ class TestCreateTemporaryResult:
                 "reportName": "standard",
             },
         )
-        assert result["id"] == "abc123"
+        assert result.id == "abc123"
 
     async def test_custom_reporter_and_format_config(self) -> None:
         api, client = _make_api("12345")
@@ -186,7 +186,7 @@ class TestGetDownloadUrl:
         api._session_initialized = True
         client.post.return_value = {}
 
-        with pytest.raises(DataParsingError, match=r"did not include.*id"):
+        with pytest.raises(pydantic.ValidationError):
             await api.get_download_url(step_id=42, output_format="csv")
 
 

@@ -9,6 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKColumnDistribution,
+    WDKHistogramBin,
+    WDKHistogramStatistics,
     WDKRecordInstance,
     WDKRecordType,
     WDKStepAnalysisType,
@@ -197,13 +200,14 @@ class TestGetDistribution:
 
     async def test_delegates_to_api(self) -> None:
         svc, api = _make_service()
-        api.get_column_distribution.return_value = {
-            "histogram": [{"value": "A", "count": 10}],
-            "statistics": {"min": 1, "max": 100},
-        }
+        api.get_column_distribution.return_value = WDKColumnDistribution(
+            histogram=[WDKHistogramBin(value=10, bin_label="A")],
+            statistics=WDKHistogramStatistics(subset_size=100),
+        )
         result = await svc.get_distribution("organism")
         api.get_column_distribution.assert_awaited_once_with(42, "organism")
-        assert "histogram" in result
+        assert isinstance(result, WDKColumnDistribution)
+        assert len(result.histogram) == 1
 
 
 # ===========================================================================

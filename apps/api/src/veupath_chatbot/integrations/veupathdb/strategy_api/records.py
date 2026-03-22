@@ -8,12 +8,12 @@ import pydantic
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKColumnDistribution,
     WDKRecordInstance,
     WDKRecordType,
 )
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -78,7 +78,7 @@ class RecordsMixin(StrategyAPIBase):
 
     async def get_column_distribution(
         self, step_id: int, column_name: str
-    ) -> JSONObject:
+    ) -> WDKColumnDistribution:
         """Get distribution data for a column using the byValue column reporter.
 
         Uses ``POST .../columns/{col}/reports/byValue`` which returns a
@@ -91,7 +91,7 @@ class RecordsMixin(StrategyAPIBase):
 
         :param step_id: WDK step ID (must be part of a strategy).
         :param column_name: Attribute/column name.
-        :returns: ``{histogram: [...], statistics: {...}}``
+        :returns: Validated column distribution with histogram and statistics.
         """
         await self._ensure_session()
         try:
@@ -100,11 +100,11 @@ class RecordsMixin(StrategyAPIBase):
                 f"/columns/{column_name}/reports/byValue",
                 json={"reportConfig": {}},
             )
-            return result if isinstance(result, dict) else {}
-        except WDKError:
+            return WDKColumnDistribution.model_validate(result)
+        except (WDKError, pydantic.ValidationError):
             logger.warning(
                 "Column reporter unavailable",
                 step_id=step_id,
                 column_name=column_name,
             )
-            return {"histogram": [], "statistics": {}}
+            return WDKColumnDistribution()

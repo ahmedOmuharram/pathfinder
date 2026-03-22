@@ -343,9 +343,9 @@ class TestRunIntersectionControl:
 
         # create_step called twice: target + controls
         assert api.create_step.await_count == 2
-        # Second call (controls) should have dataset ID
-        controls_call_kwargs = api.create_step.call_args_list[1][1]
-        assert controls_call_kwargs["parameters"]["ds_gene_ids"] == "12345"
+        # Second call (controls) should have dataset ID in the spec
+        controls_spec = api.create_step.call_args_list[1][0][0]
+        assert controls_spec.search_config.parameters["ds_gene_ids"] == "12345"
 
         # Combined step and strategy were created
         api.create_combined_step.assert_awaited_once()
@@ -406,9 +406,9 @@ class TestRunIntersectionControl:
         # No dataset created
         api.create_dataset.assert_not_awaited()
 
-        # Second create_step call (controls) has newline-encoded IDs
-        controls_call_kwargs = api.create_step.call_args_list[1][1]
-        assert controls_call_kwargs["parameters"]["gene_list"] == "A\nB\nC"
+        # Second create_step call (controls) has newline-encoded IDs in the spec
+        controls_spec = api.create_step.call_args_list[1][0][0]
+        assert controls_spec.search_config.parameters["gene_list"] == "A\nB\nC"
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -489,7 +489,7 @@ class TestRunIntersectionControl:
         """Verify each call creates its own target step (no sharing)."""
         call_count = 0
 
-        async def _create_step_side_effect(**kwargs: Any) -> WDKIdentifier:
+        async def _create_step_side_effect(*args: Any, **kwargs: Any) -> WDKIdentifier:
             nonlocal call_count
             call_count += 1
             return WDKIdentifier(id=call_count * 10)
@@ -700,7 +700,7 @@ class TestRunPositiveNegativeControls:
         """
         step_counter = 0
 
-        async def _create_step(**kwargs: Any) -> WDKIdentifier:
+        async def _create_step(*args: Any, **kwargs: Any) -> WDKIdentifier:
             nonlocal step_counter
             step_counter += 1
             return WDKIdentifier(id=step_counter * 10)

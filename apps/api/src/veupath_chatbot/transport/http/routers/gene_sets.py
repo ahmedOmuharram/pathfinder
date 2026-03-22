@@ -384,7 +384,8 @@ async def get_gene_set_distribution(
         raise _not_found(exc) from exc
     except ValueError as exc:
         raise _no_strategy(exc) from exc
-    return await svc.get_distribution(attribute_name)
+    dist = await svc.get_distribution(attribute_name)
+    return dist.model_dump(by_alias=True)
 
 
 @router.post("/{gene_set_id}/results/record")

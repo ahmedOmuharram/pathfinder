@@ -6,7 +6,10 @@ attribute listing, record browsing, distribution, and analysis logic.
 
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategyDetails
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKColumnDistribution,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -77,7 +80,7 @@ class StepResultsService:
             "meta": result["meta"],
         }
 
-    async def get_distribution(self, attribute_name: str) -> JSONObject:
+    async def get_distribution(self, attribute_name: str) -> WDKColumnDistribution:
         """Get distribution data for an attribute."""
         return await self._api.get_column_distribution(self._step_id, attribute_name)
 

@@ -8,7 +8,12 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
+    WDKSearchConfig,
+    WDKStepTree,
+)
 from veupath_chatbot.platform.errors import (
     AppError,
     ValidationError,
@@ -93,11 +98,15 @@ async def _materialize_step_tree(
                 "span_end_offset_b": "0",
             }
             step = await api.create_transform_step(
+                NewStepSpec(
+                    search_name="GenesBySpanLogic",
+                    search_config=WDKSearchConfig(
+                        parameters={k: str(v) for k, v in coloc_params.items() if v is not None},
+                    ),
+                    custom_name=display_name,
+                ),
                 input_step_id=primary_tree.step_id,
-                transform_name="GenesBySpanLogic",
-                parameters=coloc_params,
                 record_type=record_type,
-                custom_name=display_name,
             )
         else:
             step = await api.create_combined_step(
@@ -105,7 +114,7 @@ async def _materialize_step_tree(
                 secondary_step_id=secondary_tree.step_id,
                 boolean_operator=operator,
                 record_type=record_type,
-                custom_name=display_name,
+                spec_overrides=PatchStepSpec(custom_name=display_name),
             )
         step_id = step.id
         return StepTreeNode(
@@ -113,19 +122,27 @@ async def _materialize_step_tree(
         )
     if primary_tree is not None:
         step = await api.create_transform_step(
+            NewStepSpec(
+                search_name=search_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in parameters.items() if v is not None},
+                ),
+                custom_name=display_name,
+            ),
             input_step_id=primary_tree.step_id,
-            transform_name=search_name,
-            parameters=parameters,
             record_type=record_type,
-            custom_name=display_name,
         )
         step_id = step.id
         return StepTreeNode(step_id=step_id, primary_input=primary_tree)
     step = await api.create_step(
+        NewStepSpec(
+            search_name=search_name,
+            search_config=WDKSearchConfig(
+                parameters={k: str(v) for k, v in parameters.items() if v is not None},
+            ),
+            custom_name=display_name,
+        ),
         record_type=record_type,
-        search_name=search_name,
-        parameters=parameters,
-        custom_name=display_name,
     )
     step_id = step.id
     return StepTreeNode(step_id=step_id)
@@ -166,10 +183,14 @@ async def _persist_experiment_strategy(
         )
     else:
         step_payload = await api.create_step(
+            NewStepSpec(
+                search_name=config.search_name,
+                search_config=WDKSearchConfig(
+                    parameters={k: str(v) for k, v in (config.parameters or {}).items() if v is not None},
+                ),
+                custom_name=f"Experiment: {config.name}",
+            ),
             record_type=config.record_type,
-            search_name=config.search_name,
-            parameters=config.parameters or {},
-            custom_name=f"Experiment: {config.name}",
         )
         step_id = step_payload.id
         root_tree = StepTreeNode(step_id=step_id)

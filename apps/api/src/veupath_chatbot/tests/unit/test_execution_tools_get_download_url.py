@@ -1,8 +1,9 @@
+import pydantic
 import pytest
 
 from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import DataParsingError, WDKError
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.tests.fixtures.fakes import (
     FakeResultsAPI,
@@ -110,5 +111,5 @@ async def test_temporary_results_get_download_url_raises_when_no_id() -> None:
     client = _CaptureClient(post_response={})
     api = TemporaryResultsAPI(client)
 
-    with pytest.raises(DataParsingError, match=r"did not include.*id"):
+    with pytest.raises(pydantic.ValidationError):
         await api.get_download_url(step_id=123, output_format="csv", attributes=None)

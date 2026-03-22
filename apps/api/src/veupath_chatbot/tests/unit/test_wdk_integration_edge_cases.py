@@ -10,6 +10,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pydantic
 import pytest
 import respx
 
@@ -21,7 +22,7 @@ from veupath_chatbot.integrations.veupathdb.client import (
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import DataParsingError, WDKError
+from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
 # Helper: create a client that bypasses settings/auth_token_ctx
@@ -529,11 +530,11 @@ class TestTemporaryResultsEdgeCases:
     """Edge cases for temporary result download flow."""
 
     async def test_raises_when_no_id_in_response(self) -> None:
-        """If POST response has no 'id', should raise immediately."""
+        """If POST response has no 'id', Pydantic validation should fail."""
         api, client = _make_temp_api()
         client.post.return_value = {}
 
-        with pytest.raises(DataParsingError, match=r"did not include.*id"):
+        with pytest.raises(pydantic.ValidationError, match="id"):
             await api.get_download_url(step_id=42, output_format="csv")
 
     async def test_tab_format_uses_standard_reporter(self) -> None:
@@ -585,10 +586,12 @@ class TestConvenienceMethodEdgeCases:
             ).respond(
                 json={
                     "id": 42,
-                    "answerSpec": {
-                        "searchName": "GenesByTextSearch",
-                        "searchConfig": {"parameters": {}},
-                        "viewFilters": [{"name": "f1", "value": {}, "disabled": False}],
+                    "searchName": "GenesByTextSearch",
+                    "searchConfig": {
+                        "parameters": {},
+                        "viewFilters": [
+                            {"name": "f1", "value": {}, "disabled": False},
+                        ],
                     },
                 }
             )
@@ -597,7 +600,10 @@ class TestConvenienceMethodEdgeCases:
                 result = await client.get_step_view_filters("12345", 42)
 
         assert route.called
-        assert result == [{"name": "f1", "value": {}, "disabled": False}]
+        assert len(result) == 1
+        assert result[0].name == "f1"
+        assert result[0].value == {}
+        assert result[0].disabled is False
         await client.close()
 
     async def test_get_search_details_with_params_encodes_context(self) -> None:

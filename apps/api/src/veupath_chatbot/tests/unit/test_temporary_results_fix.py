@@ -6,10 +6,10 @@ is available at {base_url}/temporary-results/{id}/result.  No polling needed.
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pydantic
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from veupath_chatbot.platform.errors import DataParsingError
 
 
 def _make_api(
@@ -74,7 +74,7 @@ class TestGetDownloadUrlConstructsUrl:
         api, client = _make_api()
         client.post.return_value = {}
 
-        with pytest.raises(DataParsingError, match=r"did not include.*id"):
+        with pytest.raises(pydantic.ValidationError):
             await api.get_download_url(step_id=42, output_format="csv")
 
 
@@ -133,13 +133,3 @@ class TestGetDownloadUrlFormats:
         assert payload["reportConfig"]["attributes"] == ["gene_name", "product"]
 
 
-# ---------------------------------------------------------------------------
-# _extract_download_url is removed
-# ---------------------------------------------------------------------------
-
-
-class TestExtractDownloadUrlRemoved:
-    """_extract_download_url should no longer exist on the class."""
-
-    def test_no_extract_method(self) -> None:
-        assert not hasattr(TemporaryResultsAPI, "_extract_download_url")

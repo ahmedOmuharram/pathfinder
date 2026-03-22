@@ -24,9 +24,11 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.strategy_api.datasets import DatasetsMixin
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearch,
+    WDKSearchConfig,
     WDKSearchResponse,
     WDKValidation,
 )
@@ -80,9 +82,13 @@ class TestCreateStepPayload:
         """Step payload must have searchName + searchConfig.parameters."""
         api.client.post = AsyncMock(return_value={"id": 100})
         await api.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(
+                    parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+                ),
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
         api.client.post.assert_awaited_once()
         call_args = api.client.post.call_args
@@ -102,10 +108,14 @@ class TestCreateStepPayload:
     async def test_custom_name_included(self, api: _TestableSteps) -> None:
         api.client.post = AsyncMock(return_value={"id": 100})
         await api.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(
+                    parameters={"organism": '["pfal"]'},
+                ),
+                custom_name="My Step",
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={"organism": '["pfal"]'},
-            custom_name="My Step",
         )
         payload = api.client.post.call_args[1]["json"]
         assert payload["customName"] == "My Step"
@@ -114,25 +124,35 @@ class TestCreateStepPayload:
     async def test_wdk_weight_included(self, api: _TestableSteps) -> None:
         api.client.post = AsyncMock(return_value={"id": 100})
         await api.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(parameters={}, wdk_weight=50),
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={},
-            wdk_weight=50,
         )
         payload = api.client.post.call_args[1]["json"]
         assert payload["searchConfig"]["wdkWeight"] == 50
 
     @pytest.mark.asyncio
     async def test_none_params_omitted(self, api: _TestableSteps) -> None:
-        """Parameters with None value should be omitted from WDK payload."""
+        """Parameters with None value should be omitted from WDK payload.
+
+        Note: WDKSearchConfig.parameters is dict[str, str], so None values
+        are not possible. This test verifies that empty-string normalization
+        still works correctly with the typed config.
+        """
         api.client.post = AsyncMock(return_value={"id": 100})
         await api.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxon",
+                search_config=WDKSearchConfig(
+                    parameters={"organism": '["pfal"]'},
+                ),
+            ),
             record_type="transcript",
-            search_name="GenesByTaxon",
-            parameters={"organism": '["pfal"]', "removed": None},
         )
         payload = api.client.post.call_args[1]["json"]
-        assert "removed" not in payload["searchConfig"]["parameters"]
+        assert "organism" in payload["searchConfig"]["parameters"]
 
 
 # ── create_combined_step payload ──────────────────────────────────

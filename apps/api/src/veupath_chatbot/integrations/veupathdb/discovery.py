@@ -4,8 +4,6 @@ import asyncio
 import threading
 from collections.abc import Sequence
 
-import pydantic
-
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
@@ -35,28 +33,8 @@ async def _load_searches_for_rt(
         return None
 
 
-def _parse_record_type(rt: object) -> WDKRecordType | None:
-    """Parse a raw WDK record type entry into a typed model.
-
-    Returns None if the entry cannot be parsed (e.g. non-dict, non-str,
-    or missing required fields).  Inline ``searches`` are stripped before
-    validation because they are processed separately by the caller and
-    may contain malformed entries that would fail ``WDKSearch`` parsing.
-    """
-    if isinstance(rt, str):
-        return WDKRecordType(url_segment=rt, display_name=rt)
-    if isinstance(rt, dict):
-        # Strip searches — they are handled separately by _process_record_type_entry
-        rt_data = {k: v for k, v in rt.items() if k != "searches"}
-        try:
-            return WDKRecordType.model_validate(rt_data)
-        except pydantic.ValidationError:
-            return None
-    return None
-
-
 def _process_record_type_entry(
-    rt: object,
+    rt: WDKRecordType,
     *,
     expanded_supported: bool,
 ) -> tuple[WDKRecordType, list[WDKSearch] | None] | None:
@@ -65,21 +43,12 @@ def _process_record_type_entry(
     Returns None if the entry should be skipped. Returns (model, None) when
     searches need to be fetched separately.
     """
-    parsed_rt = _parse_record_type(rt)
-    if parsed_rt is None:
-        return None
-    if not parsed_rt.url_segment:
+    if not rt.url_segment:
         return None
 
-    if isinstance(rt, str):
-        return parsed_rt, []
-    if isinstance(rt, dict):
-        searches_raw = rt.get("searches") if expanded_supported else None
-        if isinstance(searches_raw, list):
-            searches = [WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)]
-            return parsed_rt, searches
-        return parsed_rt, None
-    return None
+    if expanded_supported and rt.searches is not None:
+        return rt, rt.searches
+    return rt, None
 
 
 class SearchCatalog:
@@ -104,7 +73,7 @@ class SearchCatalog:
             try:
                 record_types = await client.get_record_types(expanded=True)
                 expanded_supported = any(
-                    isinstance(rt, dict) and "searches" in rt for rt in record_types
+                    rt.searches is not None for rt in record_types
                 )
 
                 await self._populate_from_record_types(
@@ -127,7 +96,7 @@ class SearchCatalog:
     async def _populate_from_record_types(
         self,
         client: VEuPathDBClient,
-        record_types: Sequence[object],
+        record_types: Sequence[WDKRecordType],
         *,
         expanded_supported: bool,
     ) -> None:

@@ -17,7 +17,10 @@ import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    PatchStepSpec,
     WDKSearch,
+    WDKSearchConfig,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
@@ -202,9 +205,13 @@ class TestCreateStep:
         client.post.return_value = {"id": 100}
 
         result = await mixin.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxonGene",
+                search_config=WDKSearchConfig(
+                    parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+                ),
+            ),
             record_type="gene",
-            search_name="GenesByTaxonGene",
-            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
 
         assert result.id == 100
@@ -219,10 +226,12 @@ class TestCreateStep:
         client.post.return_value = {"id": 100}
 
         await mixin.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxonGene",
+                search_config=WDKSearchConfig(parameters={}),
+                custom_name="My Search",
+            ),
             record_type="gene",
-            search_name="GenesByTaxonGene",
-            parameters={},
-            custom_name="My Search",
         )
 
         payload = client.post.call_args.kwargs["json"]
@@ -234,9 +243,13 @@ class TestCreateStep:
         client.post.return_value = {"id": 100}
 
         await mixin.create_step(
+            NewStepSpec(
+                search_name="GenesByTaxonGene",
+                search_config=WDKSearchConfig(
+                    parameters={"text": "kinase", "empty_field": ""},
+                ),
+            ),
             record_type="gene",
-            search_name="GenesByTaxonGene",
-            parameters={"text": "kinase", "empty_field": ""},
         )
 
         params = client.post.call_args.kwargs["json"]["searchConfig"]["parameters"]
@@ -313,7 +326,7 @@ class TestCreateCombinedStep:
             secondary_step_id=200,
             boolean_operator="UNION",
             record_type="gene",
-            custom_name="Union Step",
+            spec_overrides=PatchStepSpec(custom_name="Union Step"),
         )
         payload = client.post.call_args.kwargs["json"]
         assert payload["customName"] == "Union Step"
@@ -343,12 +356,16 @@ class TestCreateTransformStep:
         client.post.return_value = {"id": 400}
 
         await mixin.create_transform_step(
+            NewStepSpec(
+                search_name="GenesByRNASeqEvidence",
+                search_config=WDKSearchConfig(
+                    parameters={
+                        "gene_result": "should_be_cleared",
+                        "threshold": "10",
+                    },
+                ),
+            ),
             input_step_id=100,
-            transform_name="GenesByRNASeqEvidence",
-            parameters={
-                "gene_result": "should_be_cleared",
-                "threshold": "10",
-            },
             record_type="transcript",
         )
 
@@ -374,9 +391,11 @@ class TestCreateTransformStep:
         client.post.return_value = {"id": 400}
 
         await mixin.create_transform_step(
+            NewStepSpec(
+                search_name="SomeTransform",
+                search_config=WDKSearchConfig(parameters={"threshold": "10"}),
+            ),
             input_step_id=100,
-            transform_name="SomeTransform",
-            parameters={"threshold": "10"},
             record_type="transcript",
         )
 

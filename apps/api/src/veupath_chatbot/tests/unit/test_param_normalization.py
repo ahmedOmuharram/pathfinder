@@ -86,8 +86,8 @@ async def test_compile_search_normalizes_multi_pick_params() -> None:
     await compiler.compile(strategy)
 
     api.create_step.assert_awaited_once()
-    _, kwargs = api.create_step.call_args
-    params = kwargs["parameters"]
+    spec = api.create_step.call_args.args[0]
+    params = spec.search_config.parameters
     assert params["organism"] == json.dumps(["Plasmodium"])
     assert params["epitope_confidence"] == json.dumps(["High", "Medium"])
 
@@ -109,8 +109,8 @@ async def test_compile_search_accepts_csv_multi_pick_params() -> None:
 
     await compiler.compile(strategy)
 
-    _, kwargs = api.create_step.call_args
-    params = kwargs["parameters"]
+    spec = api.create_step.call_args.args[0]
+    params = spec.search_config.parameters
     assert params["organism"] == json.dumps(["Plasmodium", "Plasmodium falciparum 3D7"])
     assert params["epitope_confidence"] == json.dumps(["High", "Medium"])
 
@@ -132,8 +132,8 @@ async def test_compile_search_accepts_bracketed_csv_values() -> None:
 
     await compiler.compile(strategy)
 
-    _, kwargs = api.create_step.call_args
-    params = kwargs["parameters"]
+    spec = api.create_step.call_args.args[0]
+    params = spec.search_config.parameters
     assert params["organism"] == json.dumps(["Plasmodium", "Plasmodium falciparum 3D7"])
     assert params["epitope_confidence"] == json.dumps(["High", "Medium"])
 
@@ -168,8 +168,8 @@ async def test_compile_transform_clears_input_step_param() -> None:
     await compiler.compile(strategy)
 
     api.create_transform_step.assert_awaited_once()
-    _, kwargs = api.create_transform_step.call_args
-    params = kwargs["parameters"]
+    spec = api.create_transform_step.call_args.args[0]
+    params = spec.search_config.parameters
     assert params["organism"] == json.dumps(["Plasmodium falciparum 3D7"])
     assert params["isSyntenic"] == "no"
     assert params["inputStepId"] == ""
