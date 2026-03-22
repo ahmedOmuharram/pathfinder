@@ -16,6 +16,10 @@ import pytest
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.session import StrategyGraph
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.build import (
@@ -56,22 +60,45 @@ def _step(
     )
 
 
+def _make_strategy_details(
+    root_step_id: int = 100,
+    steps: dict[str, dict[str, object]] | None = None,
+) -> WDKStrategyDetails:
+    """Build a WDKStrategyDetails from step data for tests."""
+    raw_steps = steps or {}
+    return WDKStrategyDetails.model_validate({
+        "strategyId": 1,
+        "name": "Test",
+        "rootStepId": root_step_id,
+        "stepTree": {"stepId": root_step_id},
+        "steps": {
+            k: {
+                "id": int(k) if k.isdigit() else 0,
+                "searchName": "TestSearch",
+                "searchConfig": {"parameters": {}},
+                **v,
+            }
+            for k, v in raw_steps.items()
+        },
+    })
+
+
 class _FakeBuildAPI:
     """Minimal fake satisfying StrategyBuildAPI."""
 
     def __init__(
         self,
         *,
-        create_step_response: JSONObject | None = None,
-        create_strategy_response: JSONObject | None = None,
+        create_step_response: WDKIdentifier | None = None,
+        create_strategy_response: WDKIdentifier | None = None,
         update_strategy_error: Exception | None = None,
-        get_strategy_response: JSONObject | None = None,
+        get_strategy_response: WDKStrategyDetails | None = None,
         step_count: int = 50,
     ) -> None:
-        self._create_step_response = create_step_response or {"id": 100}
-        self._create_strategy_response = create_strategy_response or {"id": 999}
+        self._create_step_response = create_step_response or WDKIdentifier(id=100)
+        self._create_strategy_response = create_strategy_response or WDKIdentifier(id=999)
         self._update_strategy_error = update_strategy_error
-        self._get_strategy_response = get_strategy_response or {}
+        self._get_strategy_response = get_strategy_response or _make_strategy_details()
         self._step_count = step_count
         self.client = _FakeClient()
         self.created_strategies: list[dict] = []
@@ -85,8 +112,8 @@ class _FakeBuildAPI:
         parameters: JSONObject,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return dict(self._create_step_response)
+    ) -> WDKIdentifier:
+        return self._create_step_response
 
     async def create_combined_step(
         self,
@@ -96,8 +123,8 @@ class _FakeBuildAPI:
         record_type: str,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return {"id": 200}
+    ) -> WDKIdentifier:
+        return WDKIdentifier(id=200)
 
     async def create_transform_step(
         self,
@@ -107,8 +134,8 @@ class _FakeBuildAPI:
         record_type: str = "transcript",
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return {"id": 300}
+    ) -> WDKIdentifier:
+        return WDKIdentifier(id=300)
 
     async def create_dataset(self, ids: list[str]) -> int:
         return 1
@@ -137,27 +164,27 @@ class _FakeBuildAPI:
         step_tree: object,
         name: str,
         description: str | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         self.created_strategies.append(
             {"name": name, "description": description, "step_tree": step_tree}
         )
-        return dict(self._create_strategy_response)
+        return self._create_strategy_response
 
     async def update_strategy(
         self,
         strategy_id: int,
         step_tree: object | None = None,
         name: str | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         if self._update_strategy_error:
             raise self._update_strategy_error
         self.updated_strategies.append(
             {"strategy_id": strategy_id, "name": name, "step_tree": step_tree}
         )
-        return {"id": strategy_id}
+        return WDKIdentifier(id=strategy_id)
 
-    async def get_strategy(self, strategy_id: int) -> JSONObject:
-        return dict(self._get_strategy_response)
+    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails:
+        return self._get_strategy_response
 
     async def get_step_count(self, step_id: int) -> int:
         self.step_count_calls.append(step_id)
@@ -293,47 +320,29 @@ class TestCreateStrategyASTEdgeCases:
 
 class TestExtractStepCountsEdgeCases:
     def test_empty_steps_dict_returns_empty(self):
-        info: JSONObject = {"rootStepId": 1, "steps": {}}
+        info = _make_strategy_details(root_step_id=1, steps={})
         counts, root = extract_step_counts(info, {"s1": 1})
         assert counts == {}
         assert root is None
 
-    def test_non_integer_estimated_size_string_becomes_none(self):
-        info: JSONObject = {
-            "rootStepId": 10,
-            "steps": {"10": {"estimatedSize": "lots"}},
-        }
-        counts, root = extract_step_counts(info, {"local1": 10})
-        assert counts == {"local1": None}
-        assert root is None
-
-    def test_non_integer_estimated_size_float_becomes_none(self):
-        info: JSONObject = {
-            "rootStepId": 10,
-            "steps": {"10": {"estimatedSize": 3.14}},
-        }
-        counts, root = extract_step_counts(info, {"local1": 10})
-        assert counts == {"local1": None}
-        assert root is None
-
-    def test_non_integer_estimated_size_none_becomes_none(self):
-        info: JSONObject = {
-            "rootStepId": 10,
-            "steps": {"10": {"estimatedSize": None}},
-        }
+    def test_none_estimated_size_becomes_none(self):
+        info = _make_strategy_details(
+            root_step_id=10,
+            steps={"10": {"estimatedSize": None}},
+        )
         counts, _root = extract_step_counts(info, {"local1": 10})
         assert counts == {"local1": None}
 
     def test_wdk_to_local_mapping_correct(self):
         """Multiple local steps mapped to different WDK IDs."""
-        info: JSONObject = {
-            "rootStepId": 500,
-            "steps": {
+        info = _make_strategy_details(
+            root_step_id=500,
+            steps={
                 "500": {"estimatedSize": 10},
                 "600": {"estimatedSize": 20},
                 "700": {"estimatedSize": 30},
             },
-        }
+        )
         compiled_map = {"alpha": 500, "beta": 600, "gamma": 700}
         counts, root = extract_step_counts(info, compiled_map)
         assert counts == {"alpha": 10, "beta": 20, "gamma": 30}
@@ -341,46 +350,26 @@ class TestExtractStepCountsEdgeCases:
 
     def test_unmapped_wdk_id_ignored(self):
         """WDK step IDs not in compiled_map are silently ignored."""
-        info: JSONObject = {
-            "rootStepId": 1,
-            "steps": {
+        info = _make_strategy_details(
+            root_step_id=1,
+            steps={
                 "1": {"estimatedSize": 5},
                 "999": {"estimatedSize": 99},
             },
-        }
+        )
         counts, root = extract_step_counts(info, {"local": 1})
         assert counts == {"local": 5}
         assert root == 5
 
-    def test_step_info_not_dict_skipped(self):
-        """Non-dict step_info entries are silently skipped."""
-        info: JSONObject = {
-            "rootStepId": 1,
-            "steps": {
-                "1": "not-a-dict",
-                "2": {"estimatedSize": 7},
-            },
-        }
-        counts, _ = extract_step_counts(info, {"a": 1, "b": 2})
-        assert "a" not in counts
-        assert counts == {"b": 7}
-
-    def test_steps_not_dict_returns_empty(self):
-        """steps value is a list instead of dict => empty result."""
-        info: JSONObject = {"rootStepId": 1, "steps": [1, 2, 3]}
-        counts, root = extract_step_counts(info, {"s": 1})
-        assert counts == {}
-        assert root is None
-
     def test_root_step_id_maps_to_local_for_root_count(self):
         """root_count is read from the local step mapped to rootStepId."""
-        info: JSONObject = {
-            "rootStepId": 200,
-            "steps": {
+        info = _make_strategy_details(
+            root_step_id=200,
+            steps={
                 "100": {"estimatedSize": 5},
                 "200": {"estimatedSize": 42},
             },
-        }
+        )
         compiled_map = {"leaf": 100, "root_local": 200}
         _counts, root = extract_step_counts(info, compiled_map)
         assert root == 42
@@ -449,7 +438,7 @@ class TestCreateOrUpdateEdgeCases:
         """After update fails, create is called and its ID is returned."""
         api = _FakeBuildAPI(
             update_strategy_error=WDKError(detail="gone"),
-            create_strategy_response={"id": 777},
+            create_strategy_response=WDKIdentifier(id=777),
         )
         compilation = CompilationResult(
             steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
@@ -459,16 +448,6 @@ class TestCreateOrUpdateEdgeCases:
         assert result == 777
         assert len(api.created_strategies) == 1
         assert api.created_strategies[0]["name"] == "Fallback"
-
-    async def test_create_returns_none_when_extract_fails(self):
-        """If create_strategy response has no 'id', result is None."""
-        api = _FakeBuildAPI(create_strategy_response={"no_id_key": True})
-        compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
-        )
-        strategy = StrategyAST(record_type="gene", root=_step(), name="X")
-        result = await create_or_update_wdk_strategy(api, compilation, strategy, None)
-        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -480,32 +459,23 @@ class TestGetResultCountEdgeCases:
     async def test_strategy_step_has_none_estimated_size_falls_back(self):
         """estimatedSize is present but None => falls back to get_step_count."""
         api = _FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"5": {"estimatedSize": None}},
-            },
+            get_strategy_response=_make_strategy_details(
+                steps={"5": {"estimatedSize": None}},
+            ),
             step_count=88,
         )
         result = await get_result_count(api, wdk_step_id=5, wdk_strategy_id=1)
         assert result == StepCountResult(step_id=5, count=88)
         assert 5 in api.step_count_calls
 
-    async def test_strategy_steps_is_not_dict_falls_back(self):
-        """'steps' is a list instead of dict => falls back."""
+    async def test_empty_steps_falls_back(self):
+        """No matching step in steps dict => falls back."""
         api = _FakeBuildAPI(
-            get_strategy_response={"steps": [1, 2, 3]},
+            get_strategy_response=_make_strategy_details(steps={}),
             step_count=12,
         )
         result = await get_result_count(api, wdk_step_id=7, wdk_strategy_id=1)
         assert result.count == 12
-
-    async def test_strategy_missing_steps_key_falls_back(self):
-        """Strategy response has no 'steps' key => falls back."""
-        api = _FakeBuildAPI(
-            get_strategy_response={"rootStepId": 1},
-            step_count=25,
-        )
-        result = await get_result_count(api, wdk_step_id=1, wdk_strategy_id=1)
-        assert result.count == 25
 
     async def test_no_strategy_id_calls_step_count_directly(self):
         """Without wdk_strategy_id, get_step_count is called directly."""
@@ -517,9 +487,9 @@ class TestGetResultCountEdgeCases:
     async def test_step_not_in_strategy_steps_falls_back(self):
         """Step ID is not in strategy.steps dict => falls back."""
         api = _FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"100": {"estimatedSize": 50}},
-            },
+            get_strategy_response=_make_strategy_details(
+                steps={"100": {"estimatedSize": 50}},
+            ),
             step_count=60,
         )
         # wdk_step_id=200 is not in the steps dict
@@ -527,37 +497,13 @@ class TestGetResultCountEdgeCases:
         assert result.count == 60
         assert 200 in api.step_count_calls
 
-    async def test_estimated_size_bool_falls_back(self):
-        """estimatedSize is a bool (True) which is technically int in Python,
-        but True is isinstance(True, int) so it's accepted as count=1."""
-        api = _FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"1": {"estimatedSize": True}},
-            },
-            step_count=0,
-        )
-        result = await get_result_count(api, wdk_step_id=1, wdk_strategy_id=1)
-        # bool is a subclass of int in Python, so True == 1 passes isinstance check
-        assert result == StepCountResult(step_id=1, count=True)
-
     async def test_estimated_size_zero_returned(self):
         """estimatedSize=0 is a valid int and should be returned."""
         api = _FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"3": {"estimatedSize": 0}},
-            },
+            get_strategy_response=_make_strategy_details(
+                steps={"3": {"estimatedSize": 0}},
+            ),
             step_count=999,
         )
         result = await get_result_count(api, wdk_step_id=3, wdk_strategy_id=1)
         assert result.count == 0
-
-    async def test_step_info_not_dict_falls_back(self):
-        """Step info is a string instead of dict => falls back."""
-        api = _FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"5": "bad"},
-            },
-            step_count=77,
-        )
-        result = await get_result_count(api, wdk_step_id=5, wdk_strategy_id=1)
-        assert result.count == 77

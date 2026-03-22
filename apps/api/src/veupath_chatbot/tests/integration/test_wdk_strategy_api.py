@@ -62,10 +62,10 @@ class TestEnsureSession:
         """GET /users/current returns a user object; user_id is resolved."""
         _mock_ensure_session(respx)
 
-        assert api.user_id == "current"
+        assert api._resolved_user_id == "current"
         await api._ensure_session()
 
-        assert api.user_id == str(USER_ID)
+        assert api._resolved_user_id == str(USER_ID)
         assert api._session_initialized is True
 
 
@@ -245,7 +245,7 @@ class TestCreateStrategy:
             is_saved=True,
         )
 
-        assert result["id"] == 200
+        assert result.id == 200
         assert strategy_route.called
 
         sent_body = json.loads(strategy_route.calls.last.request.content)

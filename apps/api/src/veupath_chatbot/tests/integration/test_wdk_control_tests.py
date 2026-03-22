@@ -16,6 +16,7 @@ import pytest
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKIdentifier,
     WDKSearchResponse,
     WDKStrategySummary,
 )
@@ -31,8 +32,6 @@ from veupath_chatbot.services.control_tests import (
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     standard_report_response,
-    step_creation_response,
-    strategy_creation_response,
 )
 
 # ---------------------------------------------------------------------------
@@ -94,8 +93,8 @@ def _make_mock_api(
     # create_step returns different IDs on successive calls.
     # First call = target step, second call = controls step.
     api.create_step.side_effect = [
-        step_creation_response(TARGET_STEP_ID),
-        step_creation_response(CONTROLS_STEP_ID),
+        WDKIdentifier(id=TARGET_STEP_ID),
+        WDKIdentifier(id=CONTROLS_STEP_ID),
     ]
 
     # Param type resolution (via api.client.get_search_details)
@@ -130,10 +129,10 @@ def _make_mock_api(
     api.create_dataset.return_value = DATASET_ID
 
     # create_combined_step
-    api.create_combined_step.return_value = step_creation_response(COMBINED_STEP_ID)
+    api.create_combined_step.return_value = WDKIdentifier(id=COMBINED_STEP_ID)
 
     # create_strategy
-    api.create_strategy.return_value = strategy_creation_response(STRATEGY_ID)
+    api.create_strategy.return_value = WDKIdentifier(id=STRATEGY_ID)
 
     # get_step_count: first call = target count, second call = combined count
     api.get_step_count.side_effect = [target_count, combined_count]
@@ -722,34 +721,28 @@ class TestCleanupOnFailure:
             await _run_intersection_control(config, POSITIVE_IDS)
 
     @pytest.mark.asyncio
-    async def test_no_cleanup_when_strategy_creation_fails(self) -> None:
-        """If create_strategy fails (returns no id), delete is not attempted."""
+    async def test_cleanup_when_strategy_creation_succeeds(self) -> None:
+        """Strategy creation always returns WDKIdentifier with .id, cleanup runs."""
         mock_api = _make_mock_api(combined_count=2, answer_gene_ids=POSITIVE_IDS[:2])
-        # Return a response without an id -> temp_strategy_id stays None
-        mock_api.create_strategy.return_value = {}
 
         config = _make_intersection_config()
         with (
             patch(PATCH_TARGET, return_value=mock_api),
             patch(PATCH_RECORD_TYPE, return_value=RECORD_TYPE),
         ):
-            # get_step_count will raise because steps are not in a strategy,
-            # but _get_total_count_for_step catches it. get_step_answer will
-            # return a result (mock doesn't enforce strategy existence).
             await _run_intersection_control(config, POSITIVE_IDS)
 
-        # delete_strategy should NOT have been called (no strategy ID to delete,
-        # beyond any stale cleanup)
-        mock_api.delete_strategy.assert_not_awaited()
+        # delete_strategy called with the strategy ID from create_strategy
+        mock_api.delete_strategy.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_target_step_creation_failure_raises(self) -> None:
-        """If the target step creation returns no id, InternalError is raised."""
+        """If the target step creation fails, the error propagates."""
         mock_api = _make_mock_api()
-        mock_api.create_step.side_effect = [
-            {},  # target step with no id
-            step_creation_response(CONTROLS_STEP_ID),
-        ]
+        mock_api.create_step.side_effect = InternalError(
+            title="Step creation failed",
+            detail="WDK returned no id for target step",
+        )
         config = _make_intersection_config()
         with (
             patch(PATCH_TARGET, return_value=mock_api),
@@ -761,11 +754,14 @@ class TestCleanupOnFailure:
 
     @pytest.mark.asyncio
     async def test_controls_step_creation_failure_raises(self) -> None:
-        """If the controls step creation returns no id, InternalError is raised."""
+        """If the controls step creation fails, the error propagates."""
         mock_api = _make_mock_api()
         mock_api.create_step.side_effect = [
-            step_creation_response(TARGET_STEP_ID),
-            {},  # controls step with no id
+            WDKIdentifier(id=TARGET_STEP_ID),
+            InternalError(
+                title="Step creation failed",
+                detail="WDK returned no id for controls step",
+            ),
         ]
         config = _make_intersection_config()
         with (
@@ -778,9 +774,12 @@ class TestCleanupOnFailure:
 
     @pytest.mark.asyncio
     async def test_combined_step_creation_failure_raises(self) -> None:
-        """If the combined step creation returns no id, InternalError is raised."""
+        """If the combined step creation fails, the error propagates."""
         mock_api = _make_mock_api()
-        mock_api.create_combined_step.return_value = {}  # no id
+        mock_api.create_combined_step.side_effect = InternalError(
+            title="Step creation failed",
+            detail="WDK returned no id for combined step",
+        )
 
         config = _make_intersection_config()
         with (

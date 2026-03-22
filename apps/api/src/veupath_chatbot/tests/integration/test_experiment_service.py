@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.service import run_experiment
 from veupath_chatbot.services.experiment.store import get_experiment_store
@@ -132,8 +133,8 @@ def _make_control_result(
 def _make_mock_strategy_api() -> AsyncMock:
     """Create an AsyncMock that satisfies the StrategyAPI interface."""
     api = AsyncMock()
-    api.create_step.return_value = {"id": 100}
-    api.create_strategy.return_value = {"id": 200}
+    api.create_step.return_value = WDKIdentifier(id=100)
+    api.create_strategy.return_value = WDKIdentifier(id=200)
     api.delete_strategy.return_value = None
     return api
 

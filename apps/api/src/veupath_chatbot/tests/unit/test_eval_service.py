@@ -8,11 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKIdentifier,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.services.eval import (
     build_gold_strategy,
     extract_gene_id,
-    extract_root_step_id,
     fetch_all_gene_ids,
     fetch_strategy_gene_ids,
 )
@@ -42,22 +45,6 @@ class TestExtractGeneId:
     def test_returns_none_for_no_id(self) -> None:
         record = {}
         assert extract_gene_id(record) is None
-
-
-# ---------------------------------------------------------------------------
-# extract_root_step_id
-# ---------------------------------------------------------------------------
-
-
-class TestExtractRootStepId:
-    def test_from_root_step_id_field(self) -> None:
-        assert extract_root_step_id({"rootStepId": 42}) == 42
-
-    def test_from_step_tree(self) -> None:
-        assert extract_root_step_id({"stepTree": {"stepId": 99}}) == 99
-
-    def test_returns_none_when_missing(self) -> None:
-        assert extract_root_step_id({}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +90,7 @@ class TestBuildGoldStrategy:
         mock_tree = MagicMock()
         mock_tree.step_id = 42
 
-        mock_api.create_strategy = AsyncMock(return_value={"id": 123})
+        mock_api.create_strategy = AsyncMock(return_value=WDKIdentifier(id=123))
         mock_api.get_step_answer = AsyncMock(
             return_value=WDKAnswer.model_validate({
                 "records": [
@@ -122,10 +109,6 @@ class TestBuildGoldStrategy:
                 "veupath_chatbot.services.eval._materialize_step_tree",
                 new_callable=AsyncMock,
                 return_value=mock_tree,
-            ),
-            patch(
-                "veupath_chatbot.services.eval.extract_wdk_id",
-                return_value=123,
             ),
         ):
             result = await build_gold_strategy(
@@ -148,11 +131,15 @@ class TestBuildGoldStrategy:
 class TestFetchStrategyGeneIds:
     @pytest.mark.asyncio
     async def test_returns_gene_ids(self) -> None:
+        mock_strategy = WDKStrategyDetails.model_validate({
+            "strategyId": 42,
+            "name": "Test",
+            "rootStepId": 99,
+            "stepTree": {"stepId": 99},
+        })
+
         mock_api = AsyncMock()
-        mock_api._ensure_session = AsyncMock()
-        mock_api.client = AsyncMock()
-        mock_api.client.get = AsyncMock(return_value={"rootStepId": 99})
-        mock_api.user_id = "user_1"
+        mock_api.get_strategy = AsyncMock(return_value=mock_strategy)
         mock_api.get_step_answer = AsyncMock(
             return_value=WDKAnswer.model_validate({
                 "records": [
@@ -165,13 +152,10 @@ class TestFetchStrategyGeneIds:
         mock_projection = MagicMock()
         mock_projection.wdk_strategy_id = 42
 
-        with patch(
-            "veupath_chatbot.services.eval.get_strategy_api",
-            return_value=mock_api,
-        ):
-            result = await fetch_strategy_gene_ids(
-                api=mock_api,
-                projection=mock_projection,
-            )
+        result = await fetch_strategy_gene_ids(
+            api=mock_api,
+            projection=mock_projection,
+        )
 
         assert result == ["GENE_X"]
+        mock_api.get_strategy.assert_awaited_once_with(42)

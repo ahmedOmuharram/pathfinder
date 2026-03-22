@@ -244,7 +244,7 @@ class GeneSetService:
         parameters: dict[str, str] | None = None
         try:
             await api._ensure_session()
-            step_data = await api.client.get(f"/users/{api.user_id}/steps/{step_id}")
+            step_data = await api.client.get(f"/users/{api._resolved_user_id}/steps/{step_id}")
             if isinstance(step_data, dict):
                 sn = step_data.get("searchName")
                 if isinstance(sn, str) and not sn.startswith("boolean_question_"):

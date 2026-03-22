@@ -27,12 +27,14 @@ class TestInit:
     def test_default_user_id_is_current(self) -> None:
         client = MagicMock()
         base = StrategyAPIBase(client)
-        assert base.user_id == "current"
+        assert base._resolved_user_id == "current"
+        assert base._initial_user_id == "current"
 
     def test_custom_user_id(self) -> None:
         client = MagicMock()
         base = StrategyAPIBase(client, user_id="12345")
-        assert base.user_id == "12345"
+        assert base._resolved_user_id == "12345"
+        assert base._initial_user_id == "12345"
 
     def test_session_not_initialized(self) -> None:
         client = MagicMock()
@@ -161,7 +163,7 @@ class TestEnsureSession:
             return_value="98765",
         ):
             await base._ensure_session()
-        assert base.user_id == "98765"
+        assert base._resolved_user_id == "98765"
         assert base._session_initialized is True
 
     async def test_does_not_resolve_when_already_initialized(self) -> None:
@@ -184,7 +186,7 @@ class TestEnsureSession:
         ) as mock_resolve:
             await base._ensure_session()
         mock_resolve.assert_not_awaited()
-        assert base.user_id == "12345"
+        assert base._resolved_user_id == "12345"
 
     async def test_keeps_current_when_resolve_returns_none(self) -> None:
         base, _ = _make_base()
@@ -194,5 +196,5 @@ class TestEnsureSession:
             return_value=None,
         ):
             await base._ensure_session()
-        assert base.user_id == "current"
+        assert base._resolved_user_id == "current"
         assert base._session_initialized is True

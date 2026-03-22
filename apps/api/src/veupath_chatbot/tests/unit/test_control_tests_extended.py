@@ -19,6 +19,7 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKIdentifier,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.types import JSONObject
@@ -72,11 +73,13 @@ def _make_mock_api(
     api.get_step_answer = AsyncMock(
         return_value=WDKAnswer.model_validate(default_answer_raw)
     )
-    api.create_step = AsyncMock(return_value={"id": mock_ids.create_step_id})
+    api.create_step = AsyncMock(return_value=WDKIdentifier(id=mock_ids.create_step_id))
     api.create_combined_step = AsyncMock(
-        return_value={"id": mock_ids.create_combined_step_id}
+        return_value=WDKIdentifier(id=mock_ids.create_combined_step_id)
     )
-    api.create_strategy = AsyncMock(return_value={"id": mock_ids.create_strategy_id})
+    api.create_strategy = AsyncMock(
+        return_value=WDKIdentifier(id=mock_ids.create_strategy_id)
+    )
     api.delete_strategy = AsyncMock(return_value=None)
     api.list_strategies = AsyncMock(return_value=[])
     api.create_dataset = AsyncMock(return_value=mock_ids.create_dataset_id)
@@ -284,7 +287,7 @@ class TestControlsOverlapWithTarget:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         # First call: target count (100), second call: intersection count (3)
         api.get_step_count = AsyncMock(side_effect=[100, 3])
         mock_get_api.return_value = api
@@ -416,7 +419,7 @@ class TestDuplicateControls:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         # target count = 50, intersection count = 1
         api.get_step_count = AsyncMock(side_effect=[50, 1])
         mock_get_api.return_value = api
@@ -454,7 +457,7 @@ class TestDuplicateControls:
                 "records": [],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         # target count = 50, intersection count = 0
         api.get_step_count = AsyncMock(side_effect=[50, 0])
         mock_get_api.return_value = api
@@ -501,7 +504,7 @@ class TestRecallAndFPR:
                 "records": [],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         # target count = 50, intersection count = 0
         api.get_step_count = AsyncMock(side_effect=[50, 0])
         mock_get_api.return_value = api
@@ -541,7 +544,7 @@ class TestRecallAndFPR:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         # target count = 100, intersection count = 2
         api.get_step_count = AsyncMock(side_effect=[100, 2])
         mock_get_api.return_value = api
@@ -583,7 +586,7 @@ class TestControlsExtraParams:
                 }
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         mock_get_api.return_value = api
 
         await _run_intersection_control(
@@ -618,7 +621,7 @@ class TestControlsExtraParams:
                 }
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         mock_get_api.return_value = api
 
         await _run_intersection_control(

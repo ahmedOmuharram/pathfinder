@@ -23,7 +23,7 @@ class ReportsMixin(StrategyAPIBase):
         report_config: JSONValue = config or {}
         payload: JSONObject = {"reportConfig": report_config}
         return await self.client.run_step_report(
-            self.user_id, step_id, report_name, payload
+            self._resolved_user_id, step_id, report_name, payload
         )
 
     async def get_step_answer(

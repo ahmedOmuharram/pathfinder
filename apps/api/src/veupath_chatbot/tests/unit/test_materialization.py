@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStepTree
 from veupath_chatbot.platform.errors import (
     StrategyCompilationError,
     ValidationError,
@@ -44,7 +45,7 @@ def _cfg(
 class TestMaterializeStepTree:
     async def test_leaf_node(self) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         node = {
             "searchName": "GenesByText",
@@ -61,9 +62,9 @@ class TestMaterializeStepTree:
     async def test_transform_node(self) -> None:
         api = AsyncMock()
         # First call: leaf step creation
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
         # Second call: transform step creation
-        api.create_transform_step.return_value = {"id": 200}
+        api.create_transform_step.return_value = WDKIdentifier(id=200)
 
         node = {
             "searchName": "GenesByTFBS",
@@ -82,8 +83,8 @@ class TestMaterializeStepTree:
 
     async def test_combine_node(self) -> None:
         api = AsyncMock()
-        api.create_step.side_effect = [{"id": 100}, {"id": 200}]
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_step.side_effect = [WDKIdentifier(id=100), WDKIdentifier(id=200)]
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
 
         node = {
             "searchName": "combined",
@@ -109,8 +110,8 @@ class TestPersistExperimentStrategy:
     @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
     async def test_single_mode(self, mock_get_api: MagicMock) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 100}
-        api.create_strategy.return_value = {"id": 500}
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_strategy.return_value = WDKIdentifier(id=500)
         mock_get_api.return_value = api
 
         result = await _persist_experiment_strategy(_cfg("single"), "exp-001")
@@ -123,8 +124,8 @@ class TestPersistExperimentStrategy:
     @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
     async def test_multi_step_mode(self, mock_get_api: MagicMock) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 100}
-        api.create_strategy.return_value = {"id": 500}
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_strategy.return_value = WDKIdentifier(id=500)
         mock_get_api.return_value = api
 
         cfg = _cfg("multi-step")
@@ -142,36 +143,32 @@ class TestPersistExperimentStrategy:
         self, mock_get_api: MagicMock
     ) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 100}
-        api.create_strategy.return_value = {}  # no "id" key
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_strategy.side_effect = WDKError(
+            detail="WDK strategy creation failed"
+        )
         mock_get_api.return_value = api
 
-        with pytest.raises(
-            StrategyCompilationError, match="Failed to create WDK strategy"
-        ):
+        with pytest.raises(WDKError, match="WDK strategy creation failed"):
             await _persist_experiment_strategy(_cfg("single"), "exp-001")
 
 
 class TestPersistImportStrategy:
     async def test_successful_import(self) -> None:
         api = AsyncMock()
-        api.user_id = "test-user"
-        api.client = AsyncMock()
-        api.client.post.return_value = {
-            "stepTree": {
-                "stepId": 100,
-                "primaryInput": {
-                    "stepId": 50,
-                },
-            }
-        }
-        api.create_strategy.return_value = {"id": 500}
+        dup_tree = WDKStepTree.model_validate({
+            "stepId": 100,
+            "primaryInput": {"stepId": 50},
+        })
+        api.get_duplicated_step_tree.return_value = dup_tree
+        api.create_strategy.return_value = WDKIdentifier(id=500)
 
         cfg = _cfg("import", source_strategy_id="999")
         result = await _persist_import_strategy(api, cfg, "exp-001")
 
         assert result["strategy_id"] == 500
         assert result["step_id"] == 100
+        api.get_duplicated_step_tree.assert_awaited_once_with(999)
 
     async def test_raises_without_source_strategy(self) -> None:
         api = AsyncMock()
@@ -181,9 +178,9 @@ class TestPersistImportStrategy:
 
     async def test_raises_on_bad_dup_response(self) -> None:
         api = AsyncMock()
-        api.user_id = "test-user"
-        api.client = AsyncMock()
-        api.client.post.return_value = {"error": "not found"}
+        api.get_duplicated_step_tree.side_effect = StrategyCompilationError(
+            "Failed to duplicate step tree"
+        )
 
         cfg = _cfg("import", source_strategy_id="999")
         with pytest.raises(

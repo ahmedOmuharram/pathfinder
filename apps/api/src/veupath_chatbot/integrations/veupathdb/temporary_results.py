@@ -14,8 +14,8 @@ logger = get_logger(__name__)
 class TemporaryResultsAPI(StrategyAPIBase):
     """API for creating and managing temporary result downloads.
 
-    Inherits session management (``client``, ``user_id``, ``_ensure_session``)
-    from :class:`StrategyAPIBase`.
+    Inherits session management (``client``, ``_resolved_user_id``,
+    ``_ensure_session``) from :class:`StrategyAPIBase`.
     """
 
     async def create_temporary_result(

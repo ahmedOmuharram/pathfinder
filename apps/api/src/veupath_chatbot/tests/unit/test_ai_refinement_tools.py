@@ -6,6 +6,9 @@ refine_with_gene_ids, re_evaluate_controls, and _combine_and_update.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.ai_refinement_tools import RefinementToolsMixin
 from veupath_chatbot.services.experiment.store import ExperimentStore
@@ -67,8 +70,8 @@ class TestRefineWithSearch:
         self, mock_spawn: MagicMock, mock_get_api: MagicMock
     ) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 200}
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_step.return_value = WDKIdentifier(id=200)
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
         api.get_step_count.return_value = 150
         mock_get_api.return_value = api
@@ -124,20 +127,19 @@ class TestRefineWithSearch:
         assert "error" in result
 
     @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
-    async def test_returns_error_when_step_creation_fails(
+    async def test_raises_when_step_creation_fails(
         self, mock_get_api: MagicMock
     ) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"error": "bad params"}  # No "id" key
+        api.create_step.side_effect = WDKError(detail="bad params")
         mock_get_api.return_value = api
 
         agent = ConcreteRefinementAgent("plasmodb", _exp())
-        result = await agent.refine_with_search(
-            search_name="GenesByText",
-            parameters={"text": "kinase"},
-        )
-        assert "error" in result
-        assert "Failed" in result["error"]
+        with pytest.raises(WDKError, match="bad params"):
+            await agent.refine_with_search(
+                search_name="GenesByText",
+                parameters={"text": "kinase"},
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -160,8 +162,8 @@ class TestRefineWithGeneIds:
         mock_get_api: MagicMock,
     ) -> None:
         api = AsyncMock()
-        api.create_step.return_value = {"id": 200}
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_step.return_value = WDKIdentifier(id=200)
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
         api.get_step_count.return_value = 50
         mock_get_api.return_value = api
@@ -201,8 +203,8 @@ class TestRefineWithGeneIds:
         """When param type is input-dataset, should create a dataset first."""
         api = AsyncMock()
         api.create_dataset.return_value = 12345
-        api.create_step.return_value = {"id": 200}
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_step.return_value = WDKIdentifier(id=200)
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
         api.get_step_count.return_value = 50
         mock_get_api.return_value = api
@@ -394,7 +396,7 @@ class TestCombineAndUpdate:
         self, mock_spawn: MagicMock, mock_get_api: MagicMock
     ) -> None:
         api = AsyncMock()
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
         api.get_step_count.return_value = 75
         mock_get_api.return_value = api
@@ -418,19 +420,19 @@ class TestCombineAndUpdate:
 
     @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
     @patch("veupath_chatbot.platform.store.spawn")
-    async def test_combine_returns_error_on_combined_step_failure(
+    async def test_combine_raises_on_combined_step_failure(
         self, mock_spawn: MagicMock, mock_get_api: MagicMock
     ) -> None:
         api = AsyncMock()
-        api.create_combined_step.return_value = {"error": "invalid operator"}
+        api.create_combined_step.side_effect = WDKError(detail="invalid operator")
         mock_get_api.return_value = api
 
         exp = _exp()
         agent = ConcreteRefinementAgent("plasmodb", exp)
 
-        result = await agent._combine_and_update(exp, api, 200, "INVALID")
+        with pytest.raises(WDKError, match="invalid operator"):
+            await agent._combine_and_update(exp, api, 200, "INVALID")
 
-        assert "error" in result
         # Step ID should NOT have been updated
         assert exp.wdk_step_id == 99  # Original value
 
@@ -441,7 +443,7 @@ class TestCombineAndUpdate:
     ) -> None:
         """If get_step_count fails, resultCount should be None."""
         api = AsyncMock()
-        api.create_combined_step.return_value = {"id": 300}
+        api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
         api.get_step_count.side_effect = WDKError(detail="WDK error")
         mock_get_api.return_value = api

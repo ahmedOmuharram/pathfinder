@@ -5,7 +5,6 @@ and delete WDK strategies.
 """
 
 import contextlib
-from typing import cast
 
 import pydantic
 
@@ -15,6 +14,8 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     tag_internal_wdk_strategy_name,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKStepTree,
     WDKStrategyDetails,
     WDKStrategySummary,
 )
@@ -28,7 +29,7 @@ logger = get_logger(__name__)
 class StrategiesMixin(StrategyAPIBase):
     """Mixin providing strategy CRUD methods."""
 
-    async def create_strategy(
+    async def create_strategy(  # noqa: PLR0913
         self,
         step_tree: StepTreeNode,
         name: str,
@@ -37,7 +38,8 @@ class StrategiesMixin(StrategyAPIBase):
         is_public: bool = False,
         is_saved: bool = False,
         is_internal: bool = False,
-    ) -> JSONObject:
+        user_id: str | None = None,
+    ) -> WDKIdentifier:
         """Create a strategy from a step tree.
 
         :param step_tree: Root of the step tree.
@@ -46,7 +48,8 @@ class StrategiesMixin(StrategyAPIBase):
         :param is_public: Whether the strategy is public.
         :param is_saved: Whether the strategy is saved.
         :param is_internal: Whether to tag as internal (Pathfinder helper).
-        :returns: Created strategy data.
+        :param user_id: Optional explicit user ID override.
+        :returns: WDK identifier with the created strategy ID.
         """
         if is_internal:
             name = tag_internal_wdk_strategy_name(name)
@@ -64,29 +67,31 @@ class StrategiesMixin(StrategyAPIBase):
 
         logger.info("Creating WDK strategy", name=name)
 
-        await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.post(
-                f"/users/{self.user_id}/strategies",
-                json=payload,
-            ),
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.post(
+            f"/users/{uid}/strategies",
+            json=payload,
         )
+        return WDKIdentifier.model_validate(raw)
 
-    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails:
+    async def get_strategy(
+        self, strategy_id: int, user_id: str | None = None
+    ) -> WDKStrategyDetails:
         """Get a strategy by ID."""
-        await self._ensure_session()
-        raw = await self.client.get(f"/users/{self.user_id}/strategies/{strategy_id}")
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.get(f"/users/{uid}/strategies/{strategy_id}")
         try:
             return WDKStrategyDetails.model_validate(raw)
         except pydantic.ValidationError as e:
             msg = f"Unexpected WDK strategy response for {strategy_id}: {e}"
             raise DataParsingError(msg) from e
 
-    async def list_strategies(self) -> list[WDKStrategySummary]:
+    async def list_strategies(
+        self, user_id: str | None = None
+    ) -> list[WDKStrategySummary]:
         """List strategies for the current user."""
-        await self._ensure_session()
-        raw = await self.client.get(f"/users/{self.user_id}/strategies")
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.get(f"/users/{uid}/strategies")
         if not isinstance(raw, list):
             return []
         result: list[WDKStrategySummary] = []
@@ -101,34 +106,60 @@ class StrategiesMixin(StrategyAPIBase):
         strategy_id: int,
         step_tree: StepTreeNode | None = None,
         name: str | None = None,
+        user_id: str | None = None,
     ) -> WDKStrategyDetails:
         """Update a strategy."""
-        await self._ensure_session()
+        uid = await self._get_user_id(user_id)
 
         if step_tree is not None:
             await self.client.put(
-                f"/users/{self.user_id}/strategies/{strategy_id}/step-tree",
+                f"/users/{uid}/strategies/{strategy_id}/step-tree",
                 json={"stepTree": step_tree.to_dict()},
             )
 
         if name:
             await self.client.patch(
-                f"/users/{self.user_id}/strategies/{strategy_id}",
+                f"/users/{uid}/strategies/{strategy_id}",
                 json={"name": name},
             )
 
         # Return the updated strategy payload (best-effort).
-        return await self.get_strategy(strategy_id)
+        return await self.get_strategy(strategy_id, user_id=user_id)
 
-    async def set_saved(self, strategy_id: int, *, is_saved: bool) -> None:
+    async def set_saved(
+        self, strategy_id: int, *, is_saved: bool, user_id: str | None = None
+    ) -> None:
         """Set the isSaved flag on a WDK strategy (draft vs saved)."""
-        await self._ensure_session()
+        uid = await self._get_user_id(user_id)
         await self.client.patch(
-            f"/users/{self.user_id}/strategies/{strategy_id}",
+            f"/users/{uid}/strategies/{strategy_id}",
             json={"isSaved": is_saved},
         )
 
-    async def delete_strategy(self, strategy_id: int) -> None:
+    async def delete_strategy(
+        self, strategy_id: int, user_id: str | None = None
+    ) -> None:
         """Delete a strategy."""
-        await self._ensure_session()
-        await self.client.delete(f"/users/{self.user_id}/strategies/{strategy_id}")
+        uid = await self._get_user_id(user_id)
+        await self.client.delete(f"/users/{uid}/strategies/{strategy_id}")
+
+    async def get_duplicated_step_tree(
+        self, strategy_id: int, user_id: str | None = None
+    ) -> WDKStepTree:
+        """Get a duplicated step tree for a strategy.
+
+        Matches monorepo's ``getDuplicatedStrategyStepTree`` which unwraps
+        the ``stepTree`` wrapper from the response.
+
+        :param strategy_id: WDK strategy ID to duplicate.
+        :param user_id: Optional explicit user ID override.
+        :returns: Duplicated step tree.
+        """
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.post(
+            f"/users/{uid}/strategies/{strategy_id}/duplicated-step-tree",
+            json={},
+        )
+        if isinstance(raw, dict) and "stepTree" in raw:
+            return WDKStepTree.model_validate(raw["stepTree"])
+        return WDKStepTree.model_validate(raw)

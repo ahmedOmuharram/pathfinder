@@ -22,7 +22,7 @@ def _make_api(
     client.get = AsyncMock()
     client.post = AsyncMock()
     api = TemporaryResultsAPI(client)
-    api.user_id = user_id
+    api._resolved_user_id = user_id
     api._session_initialized = True
     return api, client
 

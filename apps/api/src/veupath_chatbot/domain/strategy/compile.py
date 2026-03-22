@@ -17,7 +17,10 @@ from veupath_chatbot.domain.strategy.ast import (
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.errors import (
     InternalError,
     StrategyCompilationError,
@@ -74,9 +77,9 @@ class StrategyCompilerAPI(Protocol):
         parameters: JSONObject,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject: ...
+    ) -> WDKIdentifier: ...
 
-    async def create_combined_step(
+    async def create_combined_step(  # noqa: PLR0913
         self,
         primary_step_id: int,
         secondary_step_id: int,
@@ -84,9 +87,10 @@ class StrategyCompilerAPI(Protocol):
         record_type: str,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject: ...
+        user_id: str | None = None,
+    ) -> WDKIdentifier: ...
 
-    async def create_transform_step(
+    async def create_transform_step(  # noqa: PLR0913
         self,
         input_step_id: int,
         transform_name: str,
@@ -94,7 +98,8 @@ class StrategyCompilerAPI(Protocol):
         record_type: str = "transcript",
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject: ...
+        user_id: str | None = None,
+    ) -> WDKIdentifier: ...
 
     async def create_dataset(self, ids: list[str]) -> int: ...
 
@@ -144,14 +149,6 @@ class CompilationResult(CamelModel):
     step_tree: StepTreeNode
     root_step_id: int
 
-
-def _extract_wdk_step_id(result: JSONObject) -> int:
-    """Extract and validate a numeric WDK step ID from an API response."""
-    wdk_step_id_value = result.get("id")
-    if not isinstance(wdk_step_id_value, (int, float)):
-        msg = f"Expected numeric step ID, got {wdk_step_id_value}"
-        raise StrategyCompilationError(msg)
-    return int(wdk_step_id_value)
 
 
 class StrategyCompiler:
@@ -268,7 +265,7 @@ class StrategyCompiler:
             custom_name=step.display_name,
             wdk_weight=step.wdk_weight,
         )
-        wdk_step_id = _extract_wdk_step_id(result)
+        wdk_step_id = result.id
 
         self._compiled_steps[step.id] = CompiledStep(
             local_id=step.id,
@@ -309,7 +306,7 @@ class StrategyCompiler:
                 wdk_weight=step.wdk_weight,
             )
 
-        wdk_step_id = _extract_wdk_step_id(result)
+        wdk_step_id = result.id
         self._compiled_steps[step.id] = CompiledStep(
             local_id=step.id,
             wdk_step_id=wdk_step_id,
@@ -326,7 +323,7 @@ class StrategyCompiler:
         left_step_id: int,
         right_step_id: int,
         record_type: str,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         """Compile a colocation operation using WDK's GenesBySpanLogic search.
 
         GenesBySpanLogic ("Genes by Relative Location") has two ``input-step``
@@ -423,7 +420,7 @@ class StrategyCompiler:
             custom_name=step.display_name,
             wdk_weight=step.wdk_weight,
         )
-        wdk_step_id = _extract_wdk_step_id(result)
+        wdk_step_id = result.id
 
         self._compiled_steps[step.id] = CompiledStep(
             local_id=step.id,

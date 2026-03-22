@@ -13,8 +13,6 @@ from veupath_chatbot.services.control_tests import (
 )
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
-    coerce_step_id,
-    extract_wdk_id,
     safe_int,
 )
 from veupath_chatbot.services.experiment.materialization import (
@@ -88,7 +86,7 @@ async def run_controls_against_tree(
             parameters=controls_params,
             custom_name=f"Controls ({label})",
         )
-        controls_step_id = coerce_step_id(controls_step)
+        controls_step_id = controls_step.id
 
         combined = await api.create_combined_step(
             primary_step_id=root_tree.step_id,
@@ -97,7 +95,7 @@ async def run_controls_against_tree(
             record_type=ctx.record_type,
             custom_name=f"Tree \u2229 {label}",
         )
-        combined_step_id = coerce_step_id(combined)
+        combined_step_id = combined.id
 
         full_tree = StepTreeNode(
             step_id=combined_step_id,
@@ -109,7 +107,7 @@ async def run_controls_against_tree(
             name="Pathfinder tree eval",
             is_internal=True,
         )
-        strategy_id = extract_wdk_id(created)
+        strategy_id = created.id
 
         try:
             target_total = await api.get_step_count(root_tree.step_id)

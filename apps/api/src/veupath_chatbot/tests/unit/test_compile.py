@@ -16,12 +16,14 @@ from veupath_chatbot.domain.strategy.compile import (
     CompilationResult,
     CompiledStep,
     StrategyCompiler,
-    _extract_wdk_step_id,
     apply_step_decorations,
     compile_strategy,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.errors import (
     InternalError,
     StrategyCompilationError,
@@ -58,10 +60,10 @@ def _mock_api() -> AsyncMock:
     )
     api.client.get_record_types = AsyncMock(return_value=[])
     api.client.get_searches = AsyncMock(return_value=[])
-    # Default: create_step returns dict with id
-    api.create_step = AsyncMock(return_value={"id": 100})
-    api.create_combined_step = AsyncMock(return_value={"id": 200})
-    api.create_transform_step = AsyncMock(return_value={"id": 300})
+    # Default: create_step returns WDKIdentifier
+    api.create_step = AsyncMock(return_value=WDKIdentifier(id=100))
+    api.create_combined_step = AsyncMock(return_value=WDKIdentifier(id=200))
+    api.create_transform_step = AsyncMock(return_value=WDKIdentifier(id=300))
     api.create_dataset = AsyncMock(return_value=999)
     # Decoration methods
     api.set_step_filter = AsyncMock(return_value={})
@@ -108,31 +110,6 @@ def _transform_node(
         parameters={"taxon": "Plasmodium"},
         id=step_id,
     )
-
-
-# ---------------------------------------------------------------------------
-# _extract_wdk_step_id
-# ---------------------------------------------------------------------------
-
-
-class TestExtractWdkStepId:
-    def test_extracts_int(self) -> None:
-        assert _extract_wdk_step_id({"id": 42}) == 42
-
-    def test_extracts_float_coerced(self) -> None:
-        assert _extract_wdk_step_id({"id": 42.0}) == 42
-
-    def test_missing_id_raises(self) -> None:
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({})
-
-    def test_string_id_raises(self) -> None:
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({"id": "not_a_number"})
-
-    def test_none_id_raises(self) -> None:
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({"id": None})
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +163,7 @@ class TestCompiledStepToDict:
 class TestCompileSearchStep:
     async def test_compiles_single_search(self) -> None:
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         step = _search_node()
         strategy = StrategyAST(record_type="gene", root=step)
@@ -202,7 +179,7 @@ class TestCompileSearchStep:
 
     async def test_search_with_display_name(self) -> None:
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
         step = _search_node()
         step.display_name = "My Search"
         strategy = StrategyAST(record_type="gene", root=step)
@@ -219,9 +196,9 @@ class TestCompileSearchStep:
 class TestCompileCombineStep:
     async def test_compiles_combine(self) -> None:
         api = _mock_api()
-        step_ids = iter([{"id": 100}, {"id": 101}, {"id": 200}])
+        step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101), WDKIdentifier(id=200)])
         api.create_step.side_effect = lambda **kw: next(step_ids)
-        api.create_combined_step.return_value = {"id": 200}
+        api.create_combined_step.return_value = WDKIdentifier(id=200)
 
         left = _search_node(step_id="s1")
         right = _search_node(step_id="s2", search_name="GenesByGoTerm")
@@ -278,8 +255,8 @@ class TestCompileCombineStep:
 class TestCompileTransformStep:
     async def test_compiles_transform(self) -> None:
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
-        api.create_transform_step.return_value = {"id": 300}
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         child = _search_node()
         root = _transform_node(child)
@@ -312,9 +289,9 @@ class TestCompileTransformStep:
 class TestCompileColocation:
     async def test_colocate_creates_transform_step(self) -> None:
         api = _mock_api()
-        step_ids = iter([{"id": 100}, {"id": 101}])
+        step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101)])
         api.create_step.side_effect = lambda **kw: next(step_ids)
-        api.create_transform_step.return_value = {"id": 300}
+        api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         left = _search_node(step_id="s1")
         right = _search_node(step_id="s2")
@@ -346,9 +323,9 @@ class TestCompileColocation:
     async def test_colocate_without_params_still_works(self) -> None:
         """When colocation_params is None, no upstream/downstream/strand params added."""
         api = _mock_api()
-        step_ids = iter([{"id": 100}, {"id": 101}])
+        step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101)])
         api.create_step.side_effect = lambda **kw: next(step_ids)
-        api.create_transform_step.return_value = {"id": 300}
+        api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         left = _search_node(step_id="s1")
         right = _search_node(step_id="s2")
@@ -378,7 +355,7 @@ class TestResolveRecordType:
     async def test_resolves_when_single_match(self) -> None:
         """Callback resolves search to a different record type."""
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         async def resolver(search_name: str) -> str | None:
             return "gene" if search_name == "GenesByTextSearch" else None
@@ -394,7 +371,7 @@ class TestResolveRecordType:
 
     async def test_skips_resolution_when_disabled(self) -> None:
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         step = _search_node()
         strategy = StrategyAST(record_type="transcript", root=step)
@@ -407,8 +384,8 @@ class TestResolveRecordType:
     async def test_resolves_to_common_record_type(self) -> None:
         """When all leaf searches resolve to the same type, use it."""
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
-        api.create_combined_step.return_value = {"id": 200}
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_combined_step.return_value = WDKIdentifier(id=200)
 
         async def resolver(search_name: str) -> str | None:
             # Both searches are on transcript
@@ -428,7 +405,7 @@ class TestResolveRecordType:
     async def test_no_callback_keeps_original(self) -> None:
         """Without a callback, strategy keeps its original record type."""
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         step = _search_node()
         strategy = StrategyAST(record_type="gene", root=step)
@@ -440,7 +417,7 @@ class TestResolveRecordType:
     async def test_callback_returns_none_keeps_original(self) -> None:
         """When callback can't resolve, strategy keeps original record type."""
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         async def resolver(search_name: str) -> str | None:
             return None
@@ -457,8 +434,8 @@ class TestResolveRecordType:
     async def test_per_step_resolution_for_transforms(self) -> None:
         """Transforms can resolve to a different record type than the strategy."""
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
-        api.create_transform_step.return_value = {"id": 300}
+        api.create_step.return_value = WDKIdentifier(id=100)
+        api.create_transform_step.return_value = WDKIdentifier(id=300)
 
         async def resolver(search_name: str) -> str | None:
             if search_name == "GenesByTextSearch":
@@ -629,7 +606,7 @@ class TestCompileRootFailure:
         """If root step compilation doesn't register, should raise InternalError."""
         api = _mock_api()
         # Create a step that returns an ID but manipulate _compiled_steps to be empty
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         step = _search_node()
         strategy = StrategyAST(record_type="gene", root=step)
@@ -756,7 +733,7 @@ class TestApplyStepDecorations:
 class TestCompileStrategyWrapper:
     async def test_delegates_to_compiler(self) -> None:
         api = _mock_api()
-        api.create_step.return_value = {"id": 100}
+        api.create_step.return_value = WDKIdentifier(id=100)
 
         step = _search_node()
         strategy = StrategyAST(record_type="gene", root=step)
@@ -777,10 +754,10 @@ class TestDeepTree:
         api = _mock_api()
         call_count = 0
 
-        async def next_step_id(**kw: object) -> dict:
+        async def next_step_id(**kw: object) -> WDKIdentifier:
             nonlocal call_count
             call_count += 1
-            return {"id": call_count * 100}
+            return WDKIdentifier(id=call_count * 100)
 
         api.create_step.side_effect = next_step_id
         api.create_transform_step.side_effect = next_step_id

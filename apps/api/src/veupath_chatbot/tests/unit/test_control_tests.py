@@ -22,6 +22,7 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKIdentifier,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
@@ -103,16 +104,18 @@ def _make_mock_api(
         return_value=WDKAnswer.model_validate(default_answer_raw)
     )
 
-    # create_step returns {"id": <step_id>}
-    api.create_step = AsyncMock(return_value={"id": mock_ids.create_step_id})
+    # create_step returns WDKIdentifier
+    api.create_step = AsyncMock(return_value=WDKIdentifier(id=mock_ids.create_step_id))
 
-    # create_combined_step returns {"id": <combined_step_id>}
+    # create_combined_step returns WDKIdentifier
     api.create_combined_step = AsyncMock(
-        return_value={"id": mock_ids.create_combined_step_id}
+        return_value=WDKIdentifier(id=mock_ids.create_combined_step_id)
     )
 
-    # create_strategy returns {"id": <strategy_id>}
-    api.create_strategy = AsyncMock(return_value={"id": mock_ids.create_strategy_id})
+    # create_strategy returns WDKIdentifier
+    api.create_strategy = AsyncMock(
+        return_value=WDKIdentifier(id=mock_ids.create_strategy_id)
+    )
 
     # delete_strategy succeeds
     api.delete_strategy = AsyncMock(return_value=None)
@@ -293,8 +296,8 @@ class TestRunIntersectionControl:
         """When controls param is input-dataset, upload dataset and use its ID."""
         # create_step is called TWICE: once for target, once for controls.
         # Return different IDs for each call.
-        target_step_resp = {"id": 50}
-        controls_step_resp = {"id": 51}
+        target_step_resp = WDKIdentifier(id=50)
+        controls_step_resp = WDKIdentifier(id=51)
         api = _make_mock_api(
             step_count=3,
             ids=_MockApiIds(
@@ -378,7 +381,7 @@ class TestRunIntersectionControl:
             },
         )
         # Two create_step calls: target + controls
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         mock_get_api.return_value = api
 
         await _run_intersection_control(
@@ -405,7 +408,7 @@ class TestRunIntersectionControl:
     async def test_cleanup_on_answer_failure(self, mock_get_api: MagicMock) -> None:
         """Strategy is cleaned up even if get_step_answer fails."""
         api = _make_mock_api()
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         api.get_step_answer = AsyncMock(side_effect=Exception("WDK boom"))
         mock_get_api.return_value = api
 
@@ -439,7 +442,7 @@ class TestRunIntersectionControl:
                 }
             }
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 10}, {"id": 11}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
         api.list_strategies = AsyncMock(
             return_value=[
                 {
@@ -479,10 +482,10 @@ class TestRunIntersectionControl:
         """Verify each call creates its own target step (no sharing)."""
         call_count = 0
 
-        async def _create_step_side_effect(**kwargs: Any) -> JSONObject:
+        async def _create_step_side_effect(**kwargs: Any) -> WDKIdentifier:
             nonlocal call_count
             call_count += 1
-            return {"id": call_count * 10}
+            return WDKIdentifier(id=call_count * 10)
 
         api = _make_mock_api()
         api.create_step = AsyncMock(side_effect=_create_step_side_effect)
@@ -523,7 +526,7 @@ class TestStrategyAPIGetStepAnswer:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         api._session_initialized = True  # bypass _ensure_session
 
         result = await api.get_step_answer(
@@ -547,7 +550,7 @@ class TestStrategyAPIGetStepAnswer:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with patch.object(api, "_ensure_session", AsyncMock()):
             await api.get_step_answer(
                 step_id=999,
@@ -573,7 +576,7 @@ class TestStrategyAPIGetStepAnswer:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with patch.object(api, "_ensure_session", AsyncMock()):
             await api.get_step_answer(step_id=999)
 
@@ -593,7 +596,7 @@ class TestStrategyAPIGetStepCount:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with patch.object(api, "_ensure_session", AsyncMock()):
             result = await api.get_step_count(step_id=999)
         assert result == 42
@@ -610,7 +613,7 @@ class TestStrategyAPIGetStepCount:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
             pytest.raises(DataParsingError, match="Unexpected WDK answer"),
@@ -626,7 +629,7 @@ class TestStrategyAPIGetStepCount:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
             pytest.raises(DataParsingError, match="Unexpected WDK answer"),
@@ -642,7 +645,7 @@ class TestStrategyAPICreateDataset:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with patch.object(api, "_ensure_session", AsyncMock()):
             result = await api.create_dataset(["GENE_A", "GENE_B"])
         assert result == 12345
@@ -662,7 +665,7 @@ class TestStrategyAPICreateDataset:
 
         api = StrategyAPI.__new__(StrategyAPI)
         api.client = mock_client
-        api.user_id = "12345"
+        api._resolved_user_id = "12345"
         with (
             patch.object(api, "_ensure_session", AsyncMock()),
             pytest.raises(Exception, match="Dataset creation failed"),
@@ -684,10 +687,10 @@ class TestRunPositiveNegativeControls:
         """
         step_counter = 0
 
-        async def _create_step(**kwargs: Any) -> JSONObject:
+        async def _create_step(**kwargs: Any) -> WDKIdentifier:
             nonlocal step_counter
             step_counter += 1
-            return {"id": step_counter * 10}
+            return WDKIdentifier(id=step_counter * 10)
 
         api = _make_mock_api(
             step_count=5,
@@ -796,7 +799,7 @@ class TestRunPositiveNegativeControls:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[{"id": 77}, {"id": 78}])
+        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=77), WDKIdentifier(id=78)])
         mock_get_api.return_value = api
 
         _cfg = IntersectionConfig(

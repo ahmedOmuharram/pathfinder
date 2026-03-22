@@ -26,10 +26,6 @@ from veupath_chatbot.services.experiment.enrichment_parser import (
     extract_result_totals,
     parse_enrichment_terms,
 )
-from veupath_chatbot.services.experiment.helpers import (
-    coerce_step_id,
-    extract_wdk_id,
-)
 from veupath_chatbot.services.experiment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,
@@ -165,7 +161,7 @@ async def run_enrichment_analysis(
         parameters=parameters or {},
         custom_name="Enrichment target",
     )
-    step_id = coerce_step_id(step)
+    step_id = step.id
 
     root = StepTreeNode(step_id=step_id)
     strategy_id: int | None = None
@@ -177,7 +173,7 @@ async def run_enrichment_analysis(
             description=None,
             is_internal=True,
         )
-        strategy_id = extract_wdk_id(created)
+        strategy_id = created.id
 
         return await _execute_analysis(api, step_id, analysis_type)
 

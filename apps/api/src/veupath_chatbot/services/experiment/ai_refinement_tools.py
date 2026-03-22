@@ -74,14 +74,11 @@ class RefinementToolsMixin:
         new_step = await api.create_step(
             record_type=record_type,
             search_name=search_name,
-            parameters=cast("JSONObject", parameters),
+            parameters=parameters,
             custom_name=f"AI refinement: {search_name}",
         )
-        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
-        if not isinstance(new_step_id, int):
-            return {"error": "Failed to create new search step"}
 
-        return await self._combine_and_update(exp, api, new_step_id, operator)
+        return await self._combine_and_update(exp, api, new_step.id, operator)
 
     @ai_function()
     async def refine_with_gene_ids(
@@ -129,11 +126,8 @@ class RefinementToolsMixin:
             parameters=params,
             custom_name=f"AI gene list ({len(gene_ids)} genes)",
         )
-        new_step_id = new_step.get("id") if isinstance(new_step, dict) else None
-        if not isinstance(new_step_id, int):
-            return {"error": "Failed to create gene list step"}
 
-        result = await self._combine_and_update(exp, api, new_step_id, operator)
+        result = await self._combine_and_update(exp, api, new_step.id, operator)
         result["geneCount"] = len(gene_ids)
         return result
 
@@ -218,9 +212,7 @@ class RefinementToolsMixin:
             record_type=exp.config.record_type,
             custom_name=f"AI {operator} refinement",
         )
-        combined_id = combined.get("id") if isinstance(combined, dict) else None
-        if not isinstance(combined_id, int):
-            return {"error": "Failed to create combined step"}
+        combined_id = combined.id
 
         new_tree = StepTreeNode(
             step_id=combined_id,

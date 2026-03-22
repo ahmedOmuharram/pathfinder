@@ -1,7 +1,7 @@
 """Unit tests for veupath_chatbot.integrations.veupathdb.strategy_api.strategies.
 
 Tests StrategiesMixin: create_strategy, get_strategy, list_strategies,
-update_strategy, set_saved, delete_strategy.
+update_strategy, set_saved, delete_strategy, get_duplicated_step_tree.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -16,6 +16,8 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.strategies import (
     StrategiesMixin,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKStepTree,
     WDKStrategyDetails,
     WDKStrategySummary,
 )
@@ -91,7 +93,8 @@ class TestCreateStrategy:
             name="My Strategy",
         )
 
-        assert result["id"] == 500
+        assert isinstance(result, WDKIdentifier)
+        assert result.id == 500
         call_args = client.post.call_args
         assert "/users/12345/strategies" in call_args.args[0]
         payload = call_args.kwargs["json"]
@@ -188,6 +191,20 @@ class TestCreateStrategy:
         payload = client.post.call_args.kwargs["json"]
         assert "description" not in payload
 
+    async def test_explicit_user_id(self) -> None:
+        """Explicit user_id is used in the URL instead of resolved one."""
+        mixin, client = _make_mixin()
+        client.post.return_value = {"id": 500}
+
+        await mixin.create_strategy(
+            step_tree=_step_tree(),
+            name="Test",
+            user_id="99999",
+        )
+
+        call_args = client.post.call_args
+        assert "/users/99999/strategies" in call_args.args[0]
+
 
 # ---------------------------------------------------------------------------
 # get_strategy
@@ -214,6 +231,14 @@ class TestGetStrategy:
 
         with pytest.raises(DataParsingError):
             await mixin.get_strategy(500)
+
+    async def test_get_with_explicit_user_id(self) -> None:
+        """Explicit user_id is used in the URL."""
+        mixin, client = _make_mixin()
+        client.get.return_value = _strategy_details_dict(500, "My Strategy")
+
+        await mixin.get_strategy(500, user_id="77777")
+        client.get.assert_awaited_once_with("/users/77777/strategies/500")
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +284,14 @@ class TestListStrategies:
         assert len(result) == 2
         assert result[0].strategy_id == 500
         assert result[1].strategy_id == 501
+
+    async def test_list_with_explicit_user_id(self) -> None:
+        """Explicit user_id is used in the URL."""
+        mixin, client = _make_mixin()
+        client.get.return_value = []
+
+        await mixin.list_strategies(user_id="88888")
+        client.get.assert_awaited_once_with("/users/88888/strategies")
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +351,18 @@ class TestUpdateStrategy:
         client.get.assert_awaited_once()
         assert isinstance(result, WDKStrategyDetails)
 
+    async def test_update_with_explicit_user_id(self) -> None:
+        """Explicit user_id is used in all URLs."""
+        mixin, client = _make_mixin()
+        client.get.return_value = _strategy_details_dict(500)
+
+        await mixin.update_strategy(500, name="Test", user_id="66666")
+
+        patch_path = client.patch.call_args.args[0]
+        assert "/users/66666/" in patch_path
+        get_path = client.get.call_args.args[0]
+        assert "/users/66666/" in get_path
+
 
 # ---------------------------------------------------------------------------
 # set_saved
@@ -341,6 +386,12 @@ class TestSetSaved:
         payload = client.patch.call_args.kwargs["json"]
         assert payload["isSaved"] is False
 
+    async def test_set_saved_with_explicit_user_id(self) -> None:
+        mixin, client = _make_mixin()
+        await mixin.set_saved(500, is_saved=True, user_id="55555")
+        path = client.patch.call_args.args[0]
+        assert "/users/55555/strategies/500" in path
+
 
 # ---------------------------------------------------------------------------
 # delete_strategy
@@ -354,3 +405,74 @@ class TestDeleteStrategy:
         mixin, client = _make_mixin()
         await mixin.delete_strategy(500)
         client.delete.assert_awaited_once_with("/users/12345/strategies/500")
+
+    async def test_delete_with_explicit_user_id(self) -> None:
+        mixin, client = _make_mixin()
+        await mixin.delete_strategy(500, user_id="44444")
+        client.delete.assert_awaited_once_with("/users/44444/strategies/500")
+
+
+# ---------------------------------------------------------------------------
+# get_duplicated_step_tree
+# ---------------------------------------------------------------------------
+
+
+class TestGetDuplicatedStepTree:
+    """Duplicated step tree retrieval."""
+
+    async def test_unwraps_step_tree_wrapper(self) -> None:
+        """WDK returns {'stepTree': {...}}, method unwraps it."""
+        mixin, client = _make_mixin()
+        client.post.return_value = {
+            "stepTree": {"stepId": 100, "primaryInput": {"stepId": 50}},
+        }
+
+        result = await mixin.get_duplicated_step_tree(200)
+
+        assert isinstance(result, WDKStepTree)
+        assert result.step_id == 100
+        assert result.primary_input is not None
+        assert result.primary_input.step_id == 50
+        client.post.assert_awaited_once_with(
+            "/users/12345/strategies/200/duplicated-step-tree",
+            json={},
+        )
+
+    async def test_handles_raw_tree_response(self) -> None:
+        """Some WDK versions may return the tree directly without wrapper."""
+        mixin, client = _make_mixin()
+        client.post.return_value = {"stepId": 100}
+
+        result = await mixin.get_duplicated_step_tree(200)
+
+        assert isinstance(result, WDKStepTree)
+        assert result.step_id == 100
+
+    async def test_with_explicit_user_id(self) -> None:
+        """Explicit user_id is used in the URL."""
+        mixin, client = _make_mixin()
+        client.post.return_value = {"stepTree": {"stepId": 100}}
+
+        await mixin.get_duplicated_step_tree(200, user_id="33333")
+
+        path = client.post.call_args.args[0]
+        assert "/users/33333/" in path
+
+    async def test_binary_tree_structure(self) -> None:
+        """Full binary tree with primary + secondary inputs."""
+        mixin, client = _make_mixin()
+        client.post.return_value = {
+            "stepTree": {
+                "stepId": 300,
+                "primaryInput": {"stepId": 100},
+                "secondaryInput": {"stepId": 200},
+            },
+        }
+
+        result = await mixin.get_duplicated_step_tree(999)
+
+        assert result.step_id == 300
+        assert result.primary_input is not None
+        assert result.primary_input.step_id == 100
+        assert result.secondary_input is not None
+        assert result.secondary_input.step_id == 200

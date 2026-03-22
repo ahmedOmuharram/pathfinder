@@ -21,7 +21,7 @@ class FilterMixin(StrategyAPIBase):
         Reads the step resource and extracts ``answerSpec.viewFilters``.
         """
         await self._ensure_session()
-        return await self.client.get_step_view_filters(self.user_id, step_id)
+        return await self.client.get_step_view_filters(self._resolved_user_id, step_id)
 
     async def set_step_filter(
         self,
@@ -37,7 +37,7 @@ class FilterMixin(StrategyAPIBase):
         then PATCHes the step with the updated array.
         """
         await self._ensure_session()
-        current = await self.client.get_step_view_filters(self.user_id, step_id)
+        current = await self.client.get_step_view_filters(self._resolved_user_id, step_id)
         updated: JSONArray = [
             f for f in current if isinstance(f, dict) and f.get("name") != filter_name
         ]
@@ -48,7 +48,7 @@ class FilterMixin(StrategyAPIBase):
         }
         updated.append(new_filter)
         return await self.client.update_step_view_filters(
-            self.user_id, step_id, updated
+            self._resolved_user_id, step_id, updated
         )
 
     async def delete_step_filter(self, step_id: int, filter_name: str) -> JSONValue:
@@ -58,10 +58,10 @@ class FilterMixin(StrategyAPIBase):
         the step with the updated array.
         """
         await self._ensure_session()
-        current = await self.client.get_step_view_filters(self.user_id, step_id)
+        current = await self.client.get_step_view_filters(self._resolved_user_id, step_id)
         updated: JSONArray = [
             f for f in current if isinstance(f, dict) and f.get("name") != filter_name
         ]
         return await self.client.update_step_view_filters(
-            self.user_id, step_id, updated
+            self._resolved_user_id, step_id, updated
         )

@@ -36,17 +36,17 @@ class AnalysisMixin(StrategyAPIBase):
     async def list_analysis_types(self, step_id: int) -> JSONArray:
         """List available analysis types for a step."""
         await self._ensure_session()
-        return await self.client.list_analysis_types(self.user_id, step_id)
+        return await self.client.list_analysis_types(self._resolved_user_id, step_id)
 
     async def get_analysis_type(self, step_id: int, analysis_type: str) -> JSONObject:
         """Get analysis form metadata for a step."""
         await self._ensure_session()
-        return await self.client.get_analysis_type(self.user_id, step_id, analysis_type)
+        return await self.client.get_analysis_type(self._resolved_user_id, step_id, analysis_type)
 
     async def list_step_analyses(self, step_id: int) -> JSONArray:
         """List analyses that have been run on a step."""
         await self._ensure_session()
-        return await self.client.list_step_analyses(self.user_id, step_id)
+        return await self.client.list_step_analyses(self._resolved_user_id, step_id)
 
     async def _warmup_step(self, step_id: int) -> None:
         """Warm up the step answer before running an analysis.
@@ -89,7 +89,7 @@ class AnalysisMixin(StrategyAPIBase):
             payload["displayName"] = custom_name
 
         instance = await self.client.create_step_analysis(
-            self.user_id, step_id, payload
+            self._resolved_user_id, step_id, payload
         )
         analysis_id = instance.get("analysisId") if isinstance(instance, dict) else None
         if not isinstance(analysis_id, int):
@@ -130,7 +130,7 @@ class AnalysisMixin(StrategyAPIBase):
             elapsed += poll_interval
 
             status_resp = await self.client.get_analysis_status(
-                self.user_id, step_id, analysis_id
+                self._resolved_user_id, step_id, analysis_id
             )
             status = (
                 str(status_resp.get("status", ""))
@@ -180,7 +180,7 @@ class AnalysisMixin(StrategyAPIBase):
                     retry=retries,
                 )
                 await self.client.run_analysis_instance(
-                    self.user_id, step_id, analysis_id
+                    self._resolved_user_id, step_id, analysis_id
                 )
 
         raise InternalError(
@@ -197,7 +197,7 @@ class AnalysisMixin(StrategyAPIBase):
 
         async def _fetch_debug_info() -> None:
             try:
-                analyses = await self.client.list_step_analyses(self.user_id, step_id)
+                analyses = await self.client.list_step_analyses(self._resolved_user_id, step_id)
                 logger.error(
                     "Step analyses list on failure",
                     step_id=step_id,
@@ -211,7 +211,7 @@ class AnalysisMixin(StrategyAPIBase):
                 )
             try:
                 err_result = await self.client.get_analysis_result(
-                    self.user_id, step_id, analysis_id
+                    self._resolved_user_id, step_id, analysis_id
                 )
                 logger.error(
                     "Analysis error result",
@@ -274,7 +274,7 @@ class AnalysisMixin(StrategyAPIBase):
         )
 
         # Phase 2: Kick off execution
-        await self.client.run_analysis_instance(self.user_id, step_id, analysis_id)
+        await self.client.run_analysis_instance(self._resolved_user_id, step_id, analysis_id)
 
         # Phase 3: Poll for completion (raises on failure/timeout)
         await self._poll_analysis(
@@ -283,6 +283,6 @@ class AnalysisMixin(StrategyAPIBase):
 
         # Phase 4: Retrieve results
         result = await self.client.get_analysis_result(
-            self.user_id, step_id, analysis_id
+            self._resolved_user_id, step_id, analysis_id
         )
         return result if isinstance(result, dict) else {}

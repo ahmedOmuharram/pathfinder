@@ -8,15 +8,13 @@ from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.platform.errors import (
     AppError,
-    DataParsingError,
-    StrategyCompilationError,
     ValidationError,
 )
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, as_json_object
-from veupath_chatbot.services.experiment.helpers import coerce_step_id, extract_wdk_id
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import (
     Experiment,
     ExperimentConfig,
@@ -109,7 +107,7 @@ async def _materialize_step_tree(
                 record_type=record_type,
                 custom_name=display_name,
             )
-        step_id = coerce_step_id(step)
+        step_id = step.id
         return StepTreeNode(
             step_id=step_id, primary_input=primary_tree, secondary_input=secondary_tree
         )
@@ -121,7 +119,7 @@ async def _materialize_step_tree(
             record_type=record_type,
             custom_name=display_name,
         )
-        step_id = coerce_step_id(step)
+        step_id = step.id
         return StepTreeNode(step_id=step_id, primary_input=primary_tree)
     step = await api.create_step(
         record_type=record_type,
@@ -129,7 +127,7 @@ async def _materialize_step_tree(
         parameters=parameters,
         custom_name=display_name,
     )
-    step_id = coerce_step_id(step)
+    step_id = step.id
     return StepTreeNode(step_id=step_id)
 
 
@@ -173,7 +171,7 @@ async def _persist_experiment_strategy(
             parameters=config.parameters or {},
             custom_name=f"Experiment: {config.name}",
         )
-        step_id = coerce_step_id(step_payload)
+        step_id = step_payload.id
         root_tree = StepTreeNode(step_id=step_id)
 
     created = await api.create_strategy(
@@ -182,10 +180,7 @@ async def _persist_experiment_strategy(
         description=f"Persisted strategy for experiment {config.name}",
         is_internal=True,
     )
-    strategy_id = extract_wdk_id(created)
-    if strategy_id is None:
-        msg = "Failed to create WDK strategy for experiment"
-        raise StrategyCompilationError(msg)
+    strategy_id = created.id
 
     logger.info(
         "Persisted WDK strategy for experiment",
@@ -216,38 +211,23 @@ async def _persist_import_strategy(
         raise ValidationError(detail=msg)
     source_id = int(config.source_strategy_id)
 
-    # WDK POST .../duplicated-step-tree returns {"stepTree": {...}}
-    dup_resp = await api.client.post(
-        f"/users/{api.user_id}/strategies/{source_id}/duplicated-step-tree"
-    )
-    if not isinstance(dup_resp, dict) or "stepTree" not in dup_resp:
-        msg = f"Failed to duplicate step tree from strategy {source_id}"
-        raise StrategyCompilationError(msg)
-
-    raw_tree = as_json_object(dup_resp["stepTree"])
+    dup_tree = await api.get_duplicated_step_tree(source_id)
 
     # The duplicated tree already has real WDK step IDs, so we can
     # directly wrap it in a StepTreeNode.
-    def _tree_to_node(t: JSONObject) -> StepTreeNode:
-        raw_sid = t["stepId"]
-        if isinstance(raw_sid, int):
-            sid = raw_sid
-        elif isinstance(raw_sid, (str, float)):
-            sid = int(raw_sid)
-        else:
-            msg = f"Invalid stepId type: {type(raw_sid)}"
-            raise DataParsingError(msg)
-        primary = t.get("primaryInput")
-        secondary = t.get("secondaryInput")
+    def _wdk_tree_to_node(tree: WDKStepTree) -> StepTreeNode:
+        sid = tree.step_id
+        primary = tree.primary_input
+        secondary = tree.secondary_input
         return StepTreeNode(
             step_id=sid,
-            primary_input=_tree_to_node(primary) if isinstance(primary, dict) else None,
-            secondary_input=_tree_to_node(secondary)
-            if isinstance(secondary, dict)
+            primary_input=_wdk_tree_to_node(primary) if primary is not None else None,
+            secondary_input=_wdk_tree_to_node(secondary)
+            if secondary is not None
             else None,
         )
 
-    root = _tree_to_node(raw_tree)
+    root = _wdk_tree_to_node(dup_tree)
 
     created = await api.create_strategy(
         step_tree=root,
@@ -255,10 +235,7 @@ async def _persist_import_strategy(
         description=f"Imported strategy for experiment {config.name}",
         is_internal=True,
     )
-    strategy_id = extract_wdk_id(created)
-    if strategy_id is None:
-        msg = "Failed to create WDK strategy from imported tree"
-        raise StrategyCompilationError(msg)
+    strategy_id = created.id
 
     logger.info(
         "Persisted imported WDK strategy for experiment",

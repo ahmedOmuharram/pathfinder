@@ -207,7 +207,7 @@ class TestCreateStep:
             parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
 
-        assert result["id"] == 100
+        assert result.id == 100
         call_args = client.post.call_args
         assert "/users/12345/steps" in call_args.args[0]
         payload = call_args.kwargs["json"]
@@ -278,7 +278,7 @@ class TestCreateCombinedStep:
             record_type="gene",
         )
 
-        assert result["id"] == 300
+        assert result.id == 300
         payload = client.post.call_args.kwargs["json"]
         assert (
             payload["searchName"]

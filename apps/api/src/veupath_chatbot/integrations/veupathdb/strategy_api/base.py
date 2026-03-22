@@ -57,7 +57,8 @@ class StrategyAPIBase:
         :param user_id: WDK user ID; defaults to ``"current"`` (resolved at first use).
         """
         self.client = client
-        self.user_id = user_id
+        self._initial_user_id = user_id
+        self._resolved_user_id = user_id
         self._session_initialized = False
         self._boolean_search_cache: dict[str, str] = {}
         self._answer_param_cache: dict[str, set[str]] = {}
@@ -106,12 +107,23 @@ class StrategyAPIBase:
         """
         if self._session_initialized:
             return
-        if self.user_id == CURRENT_USER:
+        if self._initial_user_id == CURRENT_USER:
             resolved = await resolve_wdk_user_id(self.client)
             if resolved:
                 logger.info("Resolved WDK user id", resolved_user_id=resolved)
-                self.user_id = resolved
+                self._resolved_user_id = resolved
         self._session_initialized = True
+
+    async def _get_user_id(self, user_id: str | None) -> str:
+        """Resolve effective user ID for a request.
+
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        :returns: The effective user ID string.
+        """
+        if user_id is not None:
+            return user_id
+        await self._ensure_session()
+        return self._resolved_user_id
 
     async def _expand_tree_params_to_leaves(
         self,
@@ -271,7 +283,7 @@ class StrategyAPIBase:
         :returns: Validated WDK answer.
         """
         result = await self.client.post(
-            f"/users/{self.user_id}/steps/{step_id}/reports/standard",
+            f"/users/{self._resolved_user_id}/steps/{step_id}/reports/standard",
             json={"reportConfig": report_config},
         )
         try:

@@ -19,14 +19,16 @@ from veupath_chatbot.domain.strategy.compile import (
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_site, get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import AppError, StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import (
     make_record_type_resolver,
     resolve_record_type_from_steps,
 )
-from veupath_chatbot.services.experiment.helpers import extract_wdk_id
 
 logger = get_logger(__name__)
 
@@ -47,16 +49,16 @@ class StrategyBuildAPI(StrategyCompilerAPI, StepDecoratorAPI, Protocol):
         step_tree: StepTreeNode,
         name: str,
         description: str | None = None,
-    ) -> JSONObject: ...
+    ) -> WDKIdentifier: ...
 
     async def update_strategy(
         self,
         strategy_id: int,
         step_tree: StepTreeNode | None = None,
         name: str | None = None,
-    ) -> JSONObject: ...
+    ) -> WDKStrategyDetails: ...
 
-    async def get_strategy(self, strategy_id: int) -> JSONObject: ...
+    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails: ...
 
     async def get_step_count(self, step_id: int) -> int: ...
 
@@ -269,7 +271,7 @@ async def create_or_update_wdk_strategy(
             name=strategy.name or "Untitled Strategy",
             description=strategy.description,
         )
-        wdk_strategy_id = extract_wdk_id(wdk_result)
+        wdk_strategy_id = wdk_result.id
 
     return wdk_strategy_id
 
@@ -280,42 +282,32 @@ async def create_or_update_wdk_strategy(
 
 
 def extract_step_counts(
-    strategy_info: JSONObject,
+    strategy_info: WDKStrategyDetails,
     compiled_map: dict[str, int],
 ) -> tuple[dict[str, int | None], int | None]:
     """Extract per-step result counts from a WDK strategy payload.
 
-    :param strategy_info: Raw WDK strategy dict (from ``api.get_strategy``).
+    :param strategy_info: Typed WDK strategy details (from ``api.get_strategy``).
     :param compiled_map: Mapping of local_step_id -> wdk_step_id.
     :returns: Tuple of (step_counts dict, root_count).
     """
     step_counts: dict[str, int | None] = {}
     root_count: int | None = None
 
-    root_step_id_raw = strategy_info.get("rootStepId")
-    steps_raw = strategy_info.get("steps")
-    if not isinstance(steps_raw, dict):
-        return step_counts, root_count
-
     wdk_to_local = {v: k for k, v in compiled_map.items()}
 
-    for wdk_id_str, step_info in steps_raw.items():
-        if not isinstance(step_info, dict):
-            continue
-        estimated = step_info.get("estimatedSize")
-        count_val = estimated if isinstance(estimated, int) else None
+    for wdk_id_str, step in strategy_info.steps.items():
         try:
             wdk_id_int = int(wdk_id_str)
         except ValueError, TypeError:
             continue
         local_id = wdk_to_local.get(wdk_id_int)
         if local_id:
-            step_counts[local_id] = count_val
+            step_counts[local_id] = step.estimated_size
 
-    if isinstance(root_step_id_raw, int):
-        root_local = wdk_to_local.get(root_step_id_raw)
-        if root_local:
-            root_count = step_counts.get(root_local)
+    root_local = wdk_to_local.get(strategy_info.root_step_id)
+    if root_local:
+        root_count = step_counts.get(root_local)
 
     return step_counts, root_count
 
@@ -405,10 +397,9 @@ async def build_strategy(
     if wdk_strategy_id is not None:
         try:
             strategy_info = await api.get_strategy(wdk_strategy_id)
-            if isinstance(strategy_info, dict):
-                step_counts, root_count = extract_step_counts(
-                    strategy_info, compiled_map
-                )
+            step_counts, root_count = extract_step_counts(
+                strategy_info, compiled_map
+            )
         except AppError as e:
             logger.warning("Strategy count lookup failed", error=str(e))
 
@@ -447,17 +438,10 @@ async def get_result_count(
     :raises Exception: On WDK API errors (propagated to caller).
     """
     if wdk_strategy_id is not None:
-        strategy_raw = await api.get_strategy(wdk_strategy_id)
-        if not isinstance(strategy_raw, dict):
-            msg = "Expected dict from get_strategy"
-            raise StrategyCompilationError(msg)
-        steps_raw = strategy_raw.get("steps")
-        if isinstance(steps_raw, dict):
-            step_info = steps_raw.get(str(wdk_step_id))
-            if isinstance(step_info, dict):
-                estimated_size = step_info.get("estimatedSize")
-                if isinstance(estimated_size, int):
-                    return StepCountResult(step_id=wdk_step_id, count=estimated_size)
+        strategy = await api.get_strategy(wdk_strategy_id)
+        step = strategy.steps.get(str(wdk_step_id))
+        if step is not None and step.estimated_size is not None:
+            return StepCountResult(step_id=wdk_step_id, count=step.estimated_size)
 
     count = await api.get_step_count(wdk_step_id)
     return StepCountResult(step_id=wdk_step_id, count=count)

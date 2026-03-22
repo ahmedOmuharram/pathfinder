@@ -9,10 +9,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import extract_wdk_id
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
 )
@@ -57,10 +55,7 @@ async def build_gold_strategy(
         description=f"Gold strategy: {gold_id}",
         is_saved=False,
     )
-    wdk_strategy_id = extract_wdk_id(created)
-    if wdk_strategy_id is None:
-        msg = f"WDK did not return a strategy ID for '{gold_id}'"
-        raise StrategyCompilationError(msg)
+    wdk_strategy_id = created.id
 
     logger.info(
         "Built gold strategy on WDK",
@@ -90,31 +85,8 @@ async def fetch_strategy_gene_ids(
     :param projection: StreamProjection with ``wdk_strategy_id``.
     :returns: List of gene ID strings.
     """
-    await api._ensure_session()
-
-    wdk_strat: JSONObject = await api.client.get(
-        f"/users/{api.user_id}/strategies/{projection.wdk_strategy_id}"
-    )
-    if not isinstance(wdk_strat, dict):
-        return []
-
-    root_step_id = extract_root_step_id(wdk_strat)
-    if not root_step_id:
-        return []
-
-    step_id_int = (
-        int(root_step_id) if isinstance(root_step_id, (int, float, str)) else 0
-    )
-    return await fetch_all_gene_ids(api, step_id_int)
-
-
-def extract_root_step_id(wdk_strat: JSONObject) -> object:
-    """Extract root step ID from a WDK strategy response."""
-    root_step_id = wdk_strat.get("rootStepId")
-    if root_step_id:
-        return root_step_id
-    step_tree = wdk_strat.get("stepTree", {})
-    return step_tree.get("stepId") if isinstance(step_tree, dict) else None
+    strategy = await api.get_strategy(projection.wdk_strategy_id)
+    return await fetch_all_gene_ids(api, strategy.root_step_id)
 
 
 async def fetch_all_gene_ids(

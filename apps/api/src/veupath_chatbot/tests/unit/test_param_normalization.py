@@ -11,7 +11,10 @@ from veupath_chatbot.domain.parameters.specs import adapt_param_specs
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import StrategyCompiler
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKSearchResponse,
+)
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "wdk"
@@ -43,10 +46,10 @@ class FakeStrategyAPI:
         self.client.get_search_details_with_params = AsyncMock(
             side_effect=get_search_details
         )
-        self.create_step = AsyncMock(return_value={"id": 101})
-        self.create_transform_step = AsyncMock(return_value={"id": 202})
-        self.create_combined_step = AsyncMock(return_value={"id": 303})
-        self.user_id = "test_user"
+        self.create_step = AsyncMock(return_value=WDKIdentifier(id=101))
+        self.create_transform_step = AsyncMock(return_value=WDKIdentifier(id=202))
+        self.create_combined_step = AsyncMock(return_value=WDKIdentifier(id=303))
+        self._resolved_user_id = "test_user"
 
 
 def test_param_specs_treat_negative_max_as_unlimited() -> None:

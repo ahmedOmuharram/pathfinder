@@ -13,7 +13,7 @@ from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
-from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
+from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
 from veupath_chatbot.services.catalog.searches import find_record_type_for_search
@@ -25,26 +25,12 @@ from veupath_chatbot.services.control_helpers import (
 )
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
-    coerce_step_id,
-    extract_wdk_id,
 )
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
     ExperimentConfig,
 )
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
-
-
-def _require_step_id(raw: JSONObject | None, label: str) -> int:
-    """Coerce a WDK step response to an int ID, raising InternalError on failure."""
-    try:
-        return coerce_step_id(raw)
-    except DataParsingError as exc:
-        raise InternalError(
-            title="Step creation failed",
-            detail=f"WDK returned no id for {label}: {exc}",
-        ) from exc
-
 
 __all__ = [
     "IntersectionConfig",
@@ -209,7 +195,7 @@ async def _run_intersection_control(
         parameters=config.target_parameters or {},
         custom_name="Target",
     )
-    target_step_id = _require_step_id(target_step, "target step")
+    target_step_id = target_step.id
 
     # Determine whether the controls parameter is an input-dataset type.
     # If so, upload the IDs as a WDK dataset and pass the dataset ID.
@@ -232,7 +218,7 @@ async def _run_intersection_control(
         parameters=controls_params,
         custom_name="Controls",
     )
-    controls_step_id = _require_step_id(controls_step, "controls step")
+    controls_step_id = controls_step.id
 
     combined_step = await api.create_combined_step(
         primary_step_id=target_step_id,
@@ -241,7 +227,7 @@ async def _run_intersection_control(
         record_type=target_rt,
         custom_name=f"{config.boolean_operator} controls",
     )
-    combined_step_id = _require_step_id(combined_step, "combined step")
+    combined_step_id = combined_step.id
 
     # WDK requires steps to be part of a strategy before they can be
     # queried for results (StepService enforces this).
@@ -258,7 +244,7 @@ async def _run_intersection_control(
             description=None,
             is_internal=True,
         )
-        temp_strategy_id = extract_wdk_id(created)
+        temp_strategy_id = created.id
 
         # Now the steps ARE part of a strategy → we can query them.
         target_total = await _get_total_count_for_step(api, target_step_id)

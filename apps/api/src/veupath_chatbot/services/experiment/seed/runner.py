@@ -11,15 +11,13 @@ import asyncio
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import Any
 from uuid import UUID
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.persistence.repositories.control_set import ControlSetCreate
-from veupath_chatbot.platform.errors import StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import extract_wdk_id
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
 )
@@ -49,11 +47,6 @@ class _SeedRunContext:
     control_set_repo: Any
     user_id: UUID
 
-
-def _raise_missing_strategy_id(seed_name: str) -> NoReturn:
-    """Raise StrategyCompilationError when WDK does not return a strategy ID."""
-    msg = f"WDK did not return a strategy ID for '{seed_name}'"
-    raise StrategyCompilationError(msg)
 
 
 async def _process_single_seed(
@@ -91,10 +84,7 @@ async def _process_single_seed(
                 description=seed.description,
                 is_saved=True,
             )
-            wdk_strategy_id = extract_wdk_id(created)
-
-            if wdk_strategy_id is None:
-                _raise_missing_strategy_id(seed.name)
+            wdk_strategy_id = created.id
 
             await sync_to_projection(
                 wdk_id=wdk_strategy_id,

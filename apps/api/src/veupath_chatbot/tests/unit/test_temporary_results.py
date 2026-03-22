@@ -22,7 +22,7 @@ def _make_api(
     client.get = AsyncMock()
     client.post = AsyncMock()
     api = TemporaryResultsAPI(client)
-    api.user_id = user_id
+    api._resolved_user_id = user_id
     return api, client
 
 
@@ -42,7 +42,7 @@ class TestEnsureSession:
             return_value="12345",
         ):
             await api._ensure_session()
-        assert api.user_id == "12345"
+        assert api._resolved_user_id == "12345"
         assert api._session_initialized is True
 
     async def test_does_not_resolve_twice(self) -> None:
@@ -64,7 +64,7 @@ class TestEnsureSession:
             return_value=None,
         ):
             await api._ensure_session()
-        assert api.user_id == "current"
+        assert api._resolved_user_id == "current"
 
 
 # ---------------------------------------------------------------------------

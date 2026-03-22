@@ -11,7 +11,9 @@ them to the camelCase keys in WDK JSON.
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from typing import Annotated, Literal
+
+from pydantic import ConfigDict, Discriminator, Field
 from pydantic.alias_generators import to_camel
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
@@ -138,8 +140,11 @@ class WDKStrategyDetails(WDKStrategySummary):
     validation: WDKValidation | None = Field(default_factory=WDKValidation)
 
 
-class WDKStrategyCreateResponse(WDKModel):
-    """Response from POST /users/{id}/strategies."""
+class WDKIdentifier(WDKModel):
+    """Generic WDK ``{"id": <int>}`` response.
+
+    Returned by POST endpoints that create a resource (strategy, step, etc.).
+    """
 
     id: int
 
@@ -238,6 +243,140 @@ class WDKAnswer(WDKModel):
 
     meta: WDKAnswerMeta
     records: list[JSONObject] = Field(default_factory=list)
+
+
+class WDKStepAnalysisType(WDKModel):
+    """Step analysis type definition (from ``GET .../step-analyses/types``)."""
+
+    name: str
+    display_name: str
+    short_description: str = ""
+    description: str = ""
+    release_version: str = ""
+    custom_thumbnail: str | None = None
+    param_names: list[str] = Field(default_factory=list)
+    groups: list[WDKParameterGroup] = Field(default_factory=list)
+
+
+class WDKStepAnalysisConfig(WDKModel):
+    """Step analysis instance configuration."""
+
+    analysis_id: int
+    step_id: int
+    analysis_name: str
+    display_name: str = ""
+    short_description: str | None = None
+    description: str | None = None
+    user_notes: str | None = None
+    status: str = ""
+    parameters: dict[str, str] = Field(default_factory=dict)
+    validation: WDKValidation | None = None
+
+
+class WDKUserInfo(WDKModel):
+    """WDK user profile (from ``GET /users/current``)."""
+
+    id: int
+    email: str = ""
+    is_guest: bool = True
+    properties: dict[str, str] = Field(default_factory=dict)
+
+
+class WDKRecordInstance(WDKModel):
+    """A single record from a WDK answer/report."""
+
+    display_name: str = ""
+    id: list[dict[str, str]] = Field(default_factory=list)
+    record_class_name: str = ""
+    attributes: dict[str, JSONValue] = Field(default_factory=dict)
+    tables: dict[str, JSONValue] = Field(default_factory=dict)
+    table_errors: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# WDKDatasetConfig — discriminated union (5 source types)
+# ---------------------------------------------------------------------------
+
+class WDKDatasetIdListContent(WDKModel):
+    """Content for ``sourceType: "idList"``."""
+
+    ids: list[str]
+
+
+class WDKDatasetBasketContent(WDKModel):
+    """Content for ``sourceType: "basket"``."""
+
+    basket_name: str
+
+
+class WDKDatasetFileContent(WDKModel):
+    """Content for ``sourceType: "file"``."""
+
+    temporary_file_id: str
+    parser: str
+    search_name: str
+    parameter_name: str
+
+
+class WDKDatasetStrategyContent(WDKModel):
+    """Content for ``sourceType: "strategy"``."""
+
+    strategy_id: int
+
+
+class WDKDatasetUrlContent(WDKModel):
+    """Content for ``sourceType: "url"``."""
+
+    url: str
+    parser: str
+    search_name: str
+    parameter_name: str
+
+
+class WDKDatasetConfigIdList(WDKModel):
+    """Dataset config with id-list source."""
+
+    source_type: Literal["idList"]
+    source_content: WDKDatasetIdListContent
+
+
+class WDKDatasetConfigBasket(WDKModel):
+    """Dataset config with basket source."""
+
+    source_type: Literal["basket"]
+    source_content: WDKDatasetBasketContent
+
+
+class WDKDatasetConfigFile(WDKModel):
+    """Dataset config with file source."""
+
+    source_type: Literal["file"]
+    source_content: WDKDatasetFileContent
+
+
+class WDKDatasetConfigStrategy(WDKModel):
+    """Dataset config with strategy source."""
+
+    source_type: Literal["strategy"]
+    source_content: WDKDatasetStrategyContent
+
+
+class WDKDatasetConfigUrl(WDKModel):
+    """Dataset config with URL source."""
+
+    source_type: Literal["url"]
+    source_content: WDKDatasetUrlContent
+
+
+WDKDatasetConfig = Annotated[
+    WDKDatasetConfigIdList
+    | WDKDatasetConfigBasket
+    | WDKDatasetConfigFile
+    | WDKDatasetConfigStrategy
+    | WDKDatasetConfigUrl,
+    Discriminator("source_type"),
+]
+"""Discriminated union of WDK dataset config source types."""
 
 
 # Resolve forward reference: WDKSearch.parameters uses WDKParameter

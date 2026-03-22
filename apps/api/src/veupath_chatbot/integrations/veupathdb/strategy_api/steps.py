@@ -4,12 +4,11 @@ Provides :class:`StepsMixin` with methods to create search steps,
 combined (boolean) steps, transform steps, and datasets.
 """
 
-from typing import cast
-
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStep
 from veupath_chatbot.platform.errors import AppError, DataParsingError, InternalError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
@@ -82,6 +81,12 @@ class StepsMixin(StrategyAPIBase):
         self._answer_param_cache[cache_key] = names
         return names
 
+    async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:
+        """Fetch a single step by ID. Matches monorepo's findStep."""
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.get(f"/users/{uid}/steps/{step_id}")
+        return WDKStep.model_validate(raw)
+
     async def create_dataset(self, ids: list[str]) -> int:
         """Upload an ID list as a WDK dataset and return the dataset ID.
 
@@ -95,12 +100,14 @@ class StepsMixin(StrategyAPIBase):
         :raises InternalError: If dataset creation fails or no ID is returned.
         """
         await self._ensure_session()
-        payload: JSONObject = cast(
-            "JSONObject",
-            {"sourceType": "idList", "sourceContent": {"ids": ids}},
-        )
+        id_list: JSONArray = list(ids)
+        source_content: JSONObject = {"ids": id_list}
+        payload: JSONObject = {
+            "sourceType": "idList",
+            "sourceContent": source_content,
+        }
         result = await self.client.post(
-            f"/users/{self.user_id}/datasets",
+            f"/users/{self._resolved_user_id}/datasets",
             json=payload,
         )
         if isinstance(result, dict):
@@ -124,7 +131,8 @@ class StepsMixin(StrategyAPIBase):
         parameters: JSONObject,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+        user_id: str | None = None,
+    ) -> WDKIdentifier:
         """Create an unattached step.
 
         :param record_type: Record type (e.g., "gene", "transcript").
@@ -132,7 +140,8 @@ class StepsMixin(StrategyAPIBase):
         :param parameters: Search parameters.
         :param custom_name: Optional custom name for the step.
         :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
-        :returns: Created step data with stepId.
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        :returns: Created step identifier.
         """
         normalized_params = self._normalize_parameters(parameters)
 
@@ -158,9 +167,8 @@ class StepsMixin(StrategyAPIBase):
             normalized_params,
         )
 
-        search_config: JSONObject = {
-            "parameters": cast("JSONObject", normalized_params),
-        }
+        step_params: JSONObject = {**normalized_params}
+        search_config: JSONObject = {"parameters": step_params}
         if wdk_weight is not None:
             search_config["wdkWeight"] = wdk_weight
         payload: JSONObject = {
@@ -176,16 +184,14 @@ class StepsMixin(StrategyAPIBase):
             search_name=search_name,
         )
 
-        await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.post(
-                f"/users/{self.user_id}/steps",
-                json=payload,
-            ),
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.post(
+            f"/users/{uid}/steps",
+            json=payload,
         )
+        return WDKIdentifier.model_validate(raw)
 
-    async def create_combined_step(
+    async def create_combined_step(  # noqa: PLR0913
         self,
         primary_step_id: int,
         secondary_step_id: int,
@@ -193,7 +199,8 @@ class StepsMixin(StrategyAPIBase):
         record_type: str,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+        user_id: str | None = None,
+    ) -> WDKIdentifier:
         """Create a combined step (boolean operation).
 
         :param primary_step_id: ID of the primary (left) step.
@@ -202,9 +209,9 @@ class StepsMixin(StrategyAPIBase):
         :param record_type: WDK record type.
         :param custom_name: Optional custom name.
         :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
-        :returns: Created step data.
+        :returns: Created step identifier.
         """
-        await self._ensure_session()
+        uid = await self._get_user_id(user_id)
         boolean_search = await self._get_boolean_search_name(record_type)
         left_param, right_param, op_param = await self._get_boolean_param_names(
             record_type
@@ -234,15 +241,13 @@ class StepsMixin(StrategyAPIBase):
             operator=boolean_operator,
         )
 
-        return cast(
-            "JSONObject",
-            await self.client.post(
-                f"/users/{self.user_id}/steps",
-                json=payload,
-            ),
+        raw = await self.client.post(
+            f"/users/{uid}/steps",
+            json=payload,
         )
+        return WDKIdentifier.model_validate(raw)
 
-    async def create_transform_step(
+    async def create_transform_step(  # noqa: PLR0913
         self,
         input_step_id: int,
         transform_name: str,
@@ -250,7 +255,8 @@ class StepsMixin(StrategyAPIBase):
         record_type: str = "transcript",
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+        user_id: str | None = None,
+    ) -> WDKIdentifier:
         """Create a transform step.
 
         WDK requires that ``input-step`` (AnswerParam) parameters are set to
@@ -267,7 +273,7 @@ class StepsMixin(StrategyAPIBase):
         :param record_type: WDK record type for the search details lookup.
         :param custom_name: Optional custom name.
         :param wdk_weight: Optional WDK weight for result ranking in combined strategies.
-        :returns: Created step data.
+        :returns: Created step identifier.
         """
         answer_param_names = await self._get_answer_param_names(
             record_type, transform_name
@@ -279,9 +285,8 @@ class StepsMixin(StrategyAPIBase):
         normalized_params = self._normalize_parameters(
             clean_params, keep_empty=answer_param_names
         )
-        search_config: JSONObject = {
-            "parameters": cast("JSONObject", normalized_params),
-        }
+        transform_params: JSONObject = {**normalized_params}
+        search_config: JSONObject = {"parameters": transform_params}
         if wdk_weight is not None:
             search_config["wdkWeight"] = wdk_weight
         payload: JSONObject = {
@@ -302,11 +307,9 @@ class StepsMixin(StrategyAPIBase):
             params=normalized_params,
         )
 
-        await self._ensure_session()
-        return cast(
-            "JSONObject",
-            await self.client.post(
-                f"/users/{self.user_id}/steps",
-                json=payload,
-            ),
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.post(
+            f"/users/{uid}/steps",
+            json=payload,
         )
+        return WDKIdentifier.model_validate(raw)

@@ -5,8 +5,11 @@ re-export of :class:`StepTreeNode` (canonical definition lives in
 ``domain.strategy.ast``).
 """
 
+import pydantic
+
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKUserInfo
 
 # Internal (Pathfinder-created) WDK strategies.
 #
@@ -60,11 +63,11 @@ async def resolve_wdk_user_id(client: VEuPathDBClient) -> str | None:
     :returns: Resolved user ID string, or ``None`` if resolution failed.
     """
     me = await client.get("/users/current")
-    if isinstance(me, dict):
-        candidate = me.get("id")
-        if candidate is not None:
-            return str(candidate)
-    return None
+    try:
+        user = WDKUserInfo.model_validate(me)
+        return str(user.id)
+    except pydantic.ValidationError:
+        return None
 
 
 __all__ = [

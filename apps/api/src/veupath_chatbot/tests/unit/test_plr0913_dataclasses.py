@@ -724,7 +724,7 @@ def _make_service() -> GeneSetService:
 
 def _make_api() -> AsyncMock:
     api = AsyncMock()
-    api.user_id = 12345
+    api._resolved_user_id = 12345
     return api
 
 

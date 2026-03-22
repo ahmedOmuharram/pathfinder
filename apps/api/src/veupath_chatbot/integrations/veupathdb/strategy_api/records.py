@@ -87,7 +87,7 @@ class RecordsMixin(StrategyAPIBase):
         await self._ensure_session()
         try:
             result = await self.client.post(
-                f"/users/{self.user_id}/steps/{step_id}"
+                f"/users/{self._resolved_user_id}/steps/{step_id}"
                 f"/columns/{column_name}/reports/byValue",
                 json={"reportConfig": {}},
             )

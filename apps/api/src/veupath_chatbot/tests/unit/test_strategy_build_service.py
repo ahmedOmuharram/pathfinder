@@ -10,7 +10,11 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, Stra
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
+    WDKSearchResponse,
+    WDKStrategyDetails,
+)
 from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.searches import resolve_record_type_from_steps
@@ -38,16 +42,16 @@ class FakeBuildAPI:
     def __init__(
         self,
         *,
-        create_step_response: JSONObject | None = None,
-        create_strategy_response: JSONObject | None = None,
+        create_step_response: WDKIdentifier | None = None,
+        create_strategy_response: WDKIdentifier | None = None,
         update_strategy_error: Exception | None = None,
-        get_strategy_response: JSONObject | None = None,
+        get_strategy_response: WDKStrategyDetails | None = None,
         step_count: int = 42,
     ) -> None:
-        self._create_step_response = create_step_response or {"id": 100}
-        self._create_strategy_response = create_strategy_response or {"id": 999}
+        self._create_step_response = create_step_response or WDKIdentifier(id=100)
+        self._create_strategy_response = create_strategy_response or WDKIdentifier(id=999)
         self._update_strategy_error = update_strategy_error
-        self._get_strategy_response = get_strategy_response or {}
+        self._get_strategy_response = get_strategy_response or _make_strategy_details()
         self._step_count = step_count
         self.client = FakeCompilerClient()
         self.created_strategies: list[dict] = []
@@ -60,8 +64,8 @@ class FakeBuildAPI:
         parameters: JSONObject,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return dict(self._create_step_response)
+    ) -> WDKIdentifier:
+        return self._create_step_response
 
     async def create_combined_step(
         self,
@@ -71,8 +75,8 @@ class FakeBuildAPI:
         record_type: str,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return {"id": 200}
+    ) -> WDKIdentifier:
+        return WDKIdentifier(id=200)
 
     async def create_transform_step(
         self,
@@ -82,8 +86,8 @@ class FakeBuildAPI:
         record_type: str = "transcript",
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
-        return {"id": 300}
+    ) -> WDKIdentifier:
+        return WDKIdentifier(id=300)
 
     async def create_dataset(self, ids: list[str]) -> int:
         return 1
@@ -112,23 +116,23 @@ class FakeBuildAPI:
         step_tree: object,
         name: str,
         description: str | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         self.created_strategies.append({"name": name, "description": description})
-        return dict(self._create_strategy_response)
+        return self._create_strategy_response
 
     async def update_strategy(
         self,
         strategy_id: int,
         step_tree: object | None = None,
         name: str | None = None,
-    ) -> JSONObject:
+    ) -> WDKStrategyDetails:
         if self._update_strategy_error:
             raise self._update_strategy_error
         self.updated_strategies.append({"strategy_id": strategy_id, "name": name})
-        return {"id": strategy_id}
+        return self._get_strategy_response
 
-    async def get_strategy(self, strategy_id: int) -> JSONObject:
-        return dict(self._get_strategy_response)
+    async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails:
+        return self._get_strategy_response
 
     async def get_step_count(self, step_id: int) -> int:
         return self._step_count
@@ -340,72 +344,82 @@ class TestResolveRecordTypeFromSteps:
 # ---------------------------------------------------------------------------
 
 
+def _make_strategy_details(
+    root_step_id: int = 100,
+    steps: dict[str, dict[str, object]] | None = None,
+    strategy_id: int = 1,
+) -> WDKStrategyDetails:
+    """Build a WDKStrategyDetails from step data for tests."""
+    raw_steps = steps or {}
+    return WDKStrategyDetails.model_validate({
+        "strategyId": strategy_id,
+        "name": "Test",
+        "rootStepId": root_step_id,
+        "stepTree": {"stepId": root_step_id},
+        "steps": {
+            k: {
+                "id": int(k) if k.isdigit() else 0,
+                "searchName": "TestSearch",
+                "searchConfig": {"parameters": {}},
+                **v,
+            }
+            for k, v in raw_steps.items()
+        },
+    })
+
+
 class TestExtractStepCounts:
     def test_basic_extraction(self):
-        strategy_info: JSONObject = {
-            "rootStepId": 100,
-            "steps": {
+        strategy_info = _make_strategy_details(
+            root_step_id=100,
+            steps={
                 "100": {"estimatedSize": 42},
                 "200": {"estimatedSize": 0},
             },
-        }
+        )
         compiled_map = {"s1": 100, "s2": 200}
         counts, root_count = extract_step_counts(strategy_info, compiled_map)
         assert counts == {"s1": 42, "s2": 0}
         assert root_count == 42
 
     def test_missing_estimated_size(self):
-        strategy_info: JSONObject = {
-            "rootStepId": 100,
-            "steps": {
-                "100": {},
-            },
-        }
+        strategy_info = _make_strategy_details(
+            root_step_id=100,
+            steps={"100": {}},
+        )
         compiled_map = {"s1": 100}
         counts, root_count = extract_step_counts(strategy_info, compiled_map)
         assert counts == {"s1": None}
         assert root_count is None
 
-    def test_no_steps_dict(self):
-        strategy_info: JSONObject = {"rootStepId": 100}
+    def test_no_steps(self):
+        strategy_info = _make_strategy_details(root_step_id=100, steps={})
         compiled_map = {"s1": 100}
         counts, root_count = extract_step_counts(strategy_info, compiled_map)
         assert counts == {}
         assert root_count is None
 
     def test_non_int_wdk_id_skipped(self):
-        strategy_info: JSONObject = {
-            "rootStepId": 100,
-            "steps": {
+        strategy_info = _make_strategy_details(
+            root_step_id=100,
+            steps={
                 "abc": {"estimatedSize": 10},
                 "100": {"estimatedSize": 5},
             },
-        }
+        )
         compiled_map = {"s1": 100}
         counts, _root_count = extract_step_counts(strategy_info, compiled_map)
         assert counts == {"s1": 5}
 
-    def test_root_step_id_not_int(self):
-        strategy_info: JSONObject = {
-            "rootStepId": "not-int",
-            "steps": {
-                "100": {"estimatedSize": 5},
-            },
-        }
-        compiled_map = {"s1": 100}
-        counts, root_count = extract_step_counts(strategy_info, compiled_map)
-        assert counts == {"s1": 5}
-        assert root_count is None
-
     def test_zero_counts_detected(self):
-        strategy_info: JSONObject = {
-            "rootStepId": 100,
-            "steps": {
+        strategy_info = _make_strategy_details(
+            root_step_id=100,
+            steps={
                 "100": {"estimatedSize": 10},
                 "200": {"estimatedSize": 0},
                 "300": {"estimatedSize": 0},
             },
-        }
+        )
         compiled_map = {"s1": 100, "s2": 200, "s3": 300}
         counts, _ = extract_step_counts(strategy_info, compiled_map)
         zeros = sorted([sid for sid, c in counts.items() if c == 0])
@@ -419,7 +433,7 @@ class TestExtractStepCounts:
 
 class TestCreateOrUpdateWdkStrategy:
     async def test_create_new(self):
-        api = FakeBuildAPI(create_strategy_response={"id": 555})
+        api = FakeBuildAPI(create_strategy_response=WDKIdentifier(id=555))
         compilation = CompilationResult(
             steps=[],
             step_tree=StepTreeNode(step_id=1),
@@ -446,7 +460,7 @@ class TestCreateOrUpdateWdkStrategy:
     async def test_update_fails_falls_back_to_create(self):
         api = FakeBuildAPI(
             update_strategy_error=WDKError(detail="404 Not Found"),
-            create_strategy_response={"id": 888},
+            create_strategy_response=WDKIdentifier(id=888),
         )
         compilation = CompilationResult(
             steps=[],
@@ -467,16 +481,16 @@ class TestCreateOrUpdateWdkStrategy:
 class TestGetResultCount:
     async def test_from_strategy_payload(self):
         api = FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"42": {"estimatedSize": 100}},
-            }
+            get_strategy_response=_make_strategy_details(
+                steps={"42": {"estimatedSize": 100}},
+            ),
         )
         result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
         assert result == StepCountResult(step_id=42, count=100)
 
     async def test_fallback_to_step_count(self):
         api = FakeBuildAPI(
-            get_strategy_response={"steps": {}},
+            get_strategy_response=_make_strategy_details(steps={}),
             step_count=77,
         )
         result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
@@ -487,20 +501,11 @@ class TestGetResultCount:
         result = await get_result_count(api, wdk_step_id=10)
         assert result == StepCountResult(step_id=10, count=55)
 
-    async def test_non_dict_strategy_raises(self):
-        class BadAPI(FakeBuildAPI):
-            async def get_strategy(self, strategy_id: int) -> JSONObject:
-                return []
-
-        api = BadAPI()
-        with pytest.raises(StrategyCompilationError, match="Expected dict"):
-            await get_result_count(api, wdk_step_id=1, wdk_strategy_id=1)
-
-    async def test_estimated_size_not_int_falls_back(self):
+    async def test_estimated_size_none_falls_back(self):
         api = FakeBuildAPI(
-            get_strategy_response={
-                "steps": {"42": {"estimatedSize": "not-an-int"}},
-            },
+            get_strategy_response=_make_strategy_details(
+                steps={"42": {"estimatedSize": None}},
+            ),
             step_count=33,
         )
         result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
@@ -519,11 +524,11 @@ class TestBuildStrategy:
         graph.add_step(step)
 
         api = FakeBuildAPI(
-            create_strategy_response={"id": 999},
-            get_strategy_response={
-                "rootStepId": 100,
-                "steps": {"100": {"estimatedSize": 42}},
-            },
+            create_strategy_response=WDKIdentifier(id=999),
+            get_strategy_response=_make_strategy_details(
+                root_step_id=100,
+                steps={"100": {"estimatedSize": 42}},
+            ),
         )
         site = FakeSite()
 
@@ -553,10 +558,10 @@ class TestBuildStrategy:
         graph.current_strategy = ast
 
         api = FakeBuildAPI(
-            get_strategy_response={
-                "rootStepId": 100,
-                "steps": {"100": {"estimatedSize": 10}},
-            },
+            get_strategy_response=_make_strategy_details(
+                root_step_id=100,
+                steps={"100": {"estimatedSize": 10}},
+            ),
         )
         site = FakeSite()
 
@@ -605,8 +610,8 @@ class TestBuildStrategy:
         graph.add_step(step)
 
         api = FakeBuildAPI(
-            create_strategy_response={"id": 111},
-            get_strategy_response={"steps": {}},
+            create_strategy_response=WDKIdentifier(id=111),
+            get_strategy_response=_make_strategy_details(steps={}),
         )
         site = FakeSite()
 
@@ -626,11 +631,11 @@ class TestBuildStrategy:
         graph.add_step(step)
 
         api = FakeBuildAPI(
-            create_strategy_response={"id": 111},
-            get_strategy_response={
-                "rootStepId": 100,
-                "steps": {"100": {"estimatedSize": 0}},
-            },
+            create_strategy_response=WDKIdentifier(id=111),
+            get_strategy_response=_make_strategy_details(
+                root_step_id=100,
+                steps={"100": {"estimatedSize": 0}},
+            ),
         )
         site = FakeSite()
 

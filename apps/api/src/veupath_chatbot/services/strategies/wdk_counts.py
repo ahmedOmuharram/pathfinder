@@ -21,7 +21,6 @@ from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
-from veupath_chatbot.services.experiment.helpers import extract_wdk_id
 
 logger = get_logger(__name__)
 
@@ -145,7 +144,7 @@ async def _compute_counts_via_compilation(
             description=None,
             is_internal=True,
         )
-        temp_strategy_id = extract_wdk_id(created)
+        temp_strategy_id = created.id
     except AppError as exc:
         logger.exception(
             "Failed to create temporary WDK strategy for step counts",

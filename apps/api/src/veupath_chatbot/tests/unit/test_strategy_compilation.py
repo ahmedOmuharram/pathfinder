@@ -20,11 +20,11 @@ import pytest
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import (
     CompilationResult,
-    _extract_wdk_step_id,
     compile_strategy,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKIdentifier,
     WDKSearch,
     WDKSearchResponse,
     WDKValidation,
@@ -101,7 +101,7 @@ class FakeCompilerAPI:
         parameters: JSONObject,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
             StepCall(
@@ -116,7 +116,7 @@ class FakeCompilerAPI:
                 },
             )
         )
-        return {"id": step_id}
+        return WDKIdentifier(id=step_id)
 
     async def create_combined_step(
         self,
@@ -126,7 +126,7 @@ class FakeCompilerAPI:
         record_type: str,
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
             StepCall(
@@ -142,7 +142,7 @@ class FakeCompilerAPI:
                 },
             )
         )
-        return {"id": step_id}
+        return WDKIdentifier(id=step_id)
 
     async def create_transform_step(
         self,
@@ -152,7 +152,7 @@ class FakeCompilerAPI:
         record_type: str = "transcript",
         custom_name: str | None = None,
         wdk_weight: int | None = None,
-    ) -> JSONObject:
+    ) -> WDKIdentifier:
         step_id = self._alloc_id()
         self.calls.append(
             StepCall(
@@ -168,7 +168,7 @@ class FakeCompilerAPI:
                 },
             )
         )
-        return {"id": step_id}
+        return WDKIdentifier(id=step_id)
 
     async def create_dataset(self, ids: list[str]) -> int:
         ds_id = self._alloc_id()
@@ -176,33 +176,6 @@ class FakeCompilerAPI:
             StepCall(method="create_dataset", kwargs={"ids": ids, "returned_id": ds_id})
         )
         return ds_id
-
-
-# ── _extract_wdk_step_id ──────────────────────────────────────────
-
-
-class TestExtractWdkStepId:
-    """Validates WDK step response contract: {id: <numeric>}."""
-
-    def test_int_id(self) -> None:
-        assert _extract_wdk_step_id({"id": 42}) == 42
-
-    def test_float_id_truncated(self) -> None:
-        """WDK Java returns long → JSON int, but float should be accepted."""
-        assert _extract_wdk_step_id({"id": 42.0}) == 42
-
-    def test_missing_id_raises(self) -> None:
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({})
-
-    def test_string_id_raises(self) -> None:
-        """WDK never returns string step IDs; reject to catch contract drift."""
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({"id": "42"})
-
-    def test_none_id_raises(self) -> None:
-        with pytest.raises(StrategyCompilationError, match="numeric step ID"):
-            _extract_wdk_step_id({"id": None})
 
 
 # ── Single search step compilation ────────────────────────────────

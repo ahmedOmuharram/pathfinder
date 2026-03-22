@@ -106,13 +106,21 @@ def extract_wdk_id(payload: object, key: str = "id") -> int | None:
     return None
 
 
-def coerce_step_id(payload: JSONObject | None) -> int:
+def coerce_step_id(payload: object) -> int:
     """Extract step ID from a WDK step-creation response.
+
+    Accepts both typed ``WDKIdentifier`` (preferred) and legacy ``JSONObject``
+    dicts during the migration period.
 
     :param payload: WDK step-creation response.
     :returns: Step ID.
     :raises DataParsingError: If step ID not found.
     """
+    # Typed model path (WDKIdentifier or any object with .id: int)
+    raw_id = getattr(payload, "id", None)
+    if isinstance(raw_id, int):
+        return raw_id
+    # Legacy dict path
     step_id = extract_wdk_id(payload)
     if step_id is None:
         msg = "Failed to extract step ID from WDK response"
