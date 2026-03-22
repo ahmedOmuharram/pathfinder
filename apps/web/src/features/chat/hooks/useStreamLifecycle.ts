@@ -13,8 +13,21 @@ import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 
 type Thinking = ReturnType<typeof useThinkingState>;
 
-export function useStreamLifecycle(thinking: Thinking) {
-  const [isStreaming, setIsStreaming] = useState(false);
+export function useStreamLifecycle(
+  thinking: Thinking,
+  onStreamingChange?: (streaming: boolean) => void,
+) {
+  const [isStreaming, setIsStreamingRaw] = useState(false);
+
+  /** Updates local streaming state and notifies the caller (e.g. global store). */
+  const setIsStreaming = useCallback(
+    (value: boolean) => {
+      setIsStreamingRaw(value);
+      onStreamingChange?.(value);
+    },
+    [onStreamingChange],
+  );
+
   const [apiError, setApiError] = useState<string | null>(null);
   const [optimizationProgress, setOptimizationProgress] =
     useState<OptimizationProgressData | null>(null);
@@ -23,14 +36,14 @@ export function useStreamLifecycle(thinking: Thinking) {
 
   /** Cancel the in-flight operation and reset streaming state. */
   const stopStreaming = useCallback(() => {
-    if (operationId) {
+    if (operationId != null && operationId !== "") {
       void cancelOperation(operationId);
     }
     subscription?.unsubscribe();
     setSubscription(null);
     setOperationId(null);
     setIsStreaming(false);
-  }, [subscription, operationId]);
+  }, [subscription, operationId, setIsStreaming]);
 
   /** Prepare for a new stream -- reset transient state. */
   const beginStream = useCallback(() => {
@@ -38,7 +51,7 @@ export function useStreamLifecycle(thinking: Thinking) {
     setApiError(null);
     thinking.reset();
     setOptimizationProgress(null);
-  }, [thinking]);
+  }, [thinking, setIsStreaming]);
 
   /** Called when a stream finishes (success or abort). */
   const finalizeStream = useCallback(
@@ -48,7 +61,7 @@ export function useStreamLifecycle(thinking: Thinking) {
       setOperationId(null);
       thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
     },
-    [thinking],
+    [thinking, setIsStreaming],
   );
 
   /** Called when a stream errors out. Returns true if the error was an abort (suppressed). */
@@ -64,15 +77,16 @@ export function useStreamLifecycle(thinking: Thinking) {
       thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
 
       const isAbort =
-        error.name === "AbortError" || (error.message && /abort/i.test(error.message));
+        error.name === "AbortError" ||
+        (error.message !== "" && /abort/i.test(error.message));
       if (isAbort) return true;
 
       console.error("Chat error:", error);
-      setApiError(error.message || "Unable to reach the API.");
+      setApiError(error.message !== "" ? error.message : "Unable to reach the API.");
       onStreamError?.(error);
       return false;
     },
-    [thinking],
+    [thinking, setIsStreaming],
   );
 
   /** Record subscription + operationId after streamChat resolves. */

@@ -3,6 +3,11 @@
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKAnswerMeta,
+    WDKRecordInstance,
+)
 from veupath_chatbot.services.gene_lookup.wdk import (
     WDK_TEXT_FIELDS_BROAD,
     WDK_TEXT_FIELDS_ID,
@@ -27,9 +32,10 @@ def _make_record(
     gene_product: str = "erythrocyte membrane protein",
     gene_previous_ids: str = "",
     pk_list: list[dict[str, str]] | None = None,
-) -> dict[str, object]:
-    rec: dict[str, object] = {
-        "attributes": {
+) -> WDKRecordInstance:
+    return WDKRecordInstance(
+        id=pk_list or [],
+        attributes={
             "primary_key": primary_key,
             "gene_source_id": gene_source_id,
             "gene_name": gene_name,
@@ -39,10 +45,7 @@ def _make_record(
             "gene_location_text": "Pf3D7_01_v3:100-200(+)",
             "gene_previous_ids": gene_previous_ids,
         },
-    }
-    if pk_list is not None:
-        rec["id"] = pk_list
-    return rec
+    )
 
 
 class TestParseWdkRecord:
@@ -152,25 +155,18 @@ class TestParseWdkRecord:
         assert result.previous_ids == "OLD1, OLD2"
 
     def test_missing_attributes_uses_empty_dict(self) -> None:
-        rec: dict[str, object] = {"id": [{"name": "gene_source_id", "value": "GENE_X"}]}
-        result = _parse_wdk_record(rec)
-        assert result is not None
-        assert result.gene_id == "GENE_X"
-
-    def test_non_dict_pk_elements_skipped(self) -> None:
-        rec: dict[str, object] = {
-            "id": ["not a dict", {"name": "gene_source_id", "value": "GENE_X"}],
-            "attributes": {"gene_source_id": ""},
-        }
+        rec = WDKRecordInstance(
+            id=[{"name": "gene_source_id", "value": "GENE_X"}],
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_id == "GENE_X"
 
     def test_pk_element_with_empty_value_skipped(self) -> None:
-        rec: dict[str, object] = {
-            "id": [{"name": "gene_source_id", "value": "  "}],
-            "attributes": {"primary_key": "FALLBACK_PK"},
-        }
+        rec = WDKRecordInstance(
+            id=[{"name": "gene_source_id", "value": "  "}],
+            attributes={"primary_key": "FALLBACK_PK"},
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_id == "FALLBACK_PK"
@@ -184,10 +180,20 @@ class TestParseWdkRecord:
 class TestFetchWdkTextGenes:
     """Tests for the WDK GenesByText search."""
 
-    def _mock_client(self, responses: list[dict[str, object]]) -> AsyncMock:
+    def _mock_client(self, responses: list[WDKAnswer]) -> AsyncMock:
         client = AsyncMock()
-        client.post = AsyncMock(side_effect=responses)
+        client.run_search_report = AsyncMock(side_effect=responses)
         return client
+
+    def _make_answer(
+        self,
+        total_count: int,
+        records: list[WDKRecordInstance],
+    ) -> WDKAnswer:
+        return WDKAnswer(
+            meta=WDKAnswerMeta(total_count=total_count),
+            records=records,
+        )
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_empty_expressions_returns_empty(
@@ -207,30 +213,25 @@ class TestFetchWdkTextGenes:
     async def test_single_expression_returns_records(
         self, mock_get_client: MagicMock
     ) -> None:
-        mock_client = self._mock_client(
-            [
-                {
-                    "meta": {"totalCount": 1},
-                    "records": [
-                        {
-                            "id": [
-                                {"name": "gene_source_id", "value": "PF3D7_0100100"}
-                            ],
-                            "attributes": {
-                                "gene_source_id": "PF3D7_0100100",
-                                "primary_key": "PF3D7_0100100",
-                                "gene_name": "EMP1",
-                                "gene_product": "erythrocyte membrane protein",
-                                "organism": "Plasmodium falciparum 3D7",
-                                "gene_type": "protein coding",
-                                "gene_location_text": "chr1:100-200(+)",
-                                "gene_previous_ids": "",
-                            },
-                        }
-                    ],
-                }
-            ]
+        answer = self._make_answer(
+            total_count=1,
+            records=[
+                WDKRecordInstance(
+                    id=[{"name": "gene_source_id", "value": "PF3D7_0100100"}],
+                    attributes={
+                        "gene_source_id": "PF3D7_0100100",
+                        "primary_key": "PF3D7_0100100",
+                        "gene_name": "EMP1",
+                        "gene_product": "erythrocyte membrane protein",
+                        "organism": "Plasmodium falciparum 3D7",
+                        "gene_type": "protein coding",
+                        "gene_location_text": "chr1:100-200(+)",
+                        "gene_previous_ids": "",
+                    },
+                ),
+            ],
         )
+        mock_client = self._mock_client([answer])
         mock_get_client.return_value = mock_client
 
         result = await fetch_wdk_text_genes(
@@ -247,44 +248,41 @@ class TestFetchWdkTextGenes:
     async def test_multiple_expressions_iterated(
         self, mock_get_client: MagicMock
     ) -> None:
-        mock_client = self._mock_client(
-            [
-                {
-                    "meta": {"totalCount": 1},
-                    "records": [
-                        {
-                            "attributes": {
-                                "gene_source_id": "GENE_A",
-                                "primary_key": "GENE_A",
-                                "gene_name": "",
-                                "gene_product": "prod A",
-                                "organism": "Pf",
-                                "gene_type": "",
-                                "gene_location_text": "",
-                                "gene_previous_ids": "",
-                            },
-                        }
-                    ],
-                },
-                {
-                    "meta": {"totalCount": 2},
-                    "records": [
-                        {
-                            "attributes": {
-                                "gene_source_id": "GENE_B",
-                                "primary_key": "GENE_B",
-                                "gene_name": "",
-                                "gene_product": "prod B",
-                                "organism": "Pf",
-                                "gene_type": "",
-                                "gene_location_text": "",
-                                "gene_previous_ids": "",
-                            },
-                        }
-                    ],
-                },
-            ]
+        answer_a = self._make_answer(
+            total_count=1,
+            records=[
+                WDKRecordInstance(
+                    attributes={
+                        "gene_source_id": "GENE_A",
+                        "primary_key": "GENE_A",
+                        "gene_name": "",
+                        "gene_product": "prod A",
+                        "organism": "Pf",
+                        "gene_type": "",
+                        "gene_location_text": "",
+                        "gene_previous_ids": "",
+                    },
+                ),
+            ],
         )
+        answer_b = self._make_answer(
+            total_count=2,
+            records=[
+                WDKRecordInstance(
+                    attributes={
+                        "gene_source_id": "GENE_B",
+                        "primary_key": "GENE_B",
+                        "gene_name": "",
+                        "gene_product": "prod B",
+                        "organism": "Pf",
+                        "gene_type": "",
+                        "gene_location_text": "",
+                        "gene_previous_ids": "",
+                    },
+                ),
+            ],
+        )
+        mock_client = self._mock_client([answer_a, answer_b])
         mock_get_client.return_value = mock_client
 
         result = await fetch_wdk_text_genes(
@@ -295,14 +293,14 @@ class TestFetchWdkTextGenes:
         )
         assert len(result.records) == 2
         assert result.total_count == 2  # max of wdk_total (2) vs len(records) (2)
-        assert mock_client.post.call_count == 2
+        assert mock_client.run_search_report.call_count == 2
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_limit_stops_iteration(self, mock_get_client: MagicMock) -> None:
         """When we reach the limit, stop iterating expressions."""
         records = [
-            {
-                "attributes": {
+            WDKRecordInstance(
+                attributes={
                     "gene_source_id": f"GENE_{i}",
                     "primary_key": f"GENE_{i}",
                     "gene_name": "",
@@ -312,16 +310,13 @@ class TestFetchWdkTextGenes:
                     "gene_location_text": "",
                     "gene_previous_ids": "",
                 },
-            }
+            )
             for i in range(5)
         ]
         mock_client = self._mock_client(
             [
-                {"meta": {"totalCount": 100}, "records": records},
-                {
-                    "meta": {"totalCount": 50},
-                    "records": records,
-                },  # Should not be called
+                self._make_answer(total_count=100, records=records),
+                self._make_answer(total_count=50, records=records),  # Should not be called
             ]
         )
         mock_get_client.return_value = mock_client
@@ -334,30 +329,17 @@ class TestFetchWdkTextGenes:
         )
         assert len(result.records) == 3
         assert (
-            mock_client.post.call_count == 1
+            mock_client.run_search_report.call_count == 1
         )  # Stopped after first expression hit limit
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_non_dict_answer_skipped(self, mock_get_client: MagicMock) -> None:
+    async def test_app_error_skipped(self, mock_get_client: MagicMock) -> None:
+        """When run_search_report raises AppError, the expression is skipped."""
+        from veupath_chatbot.platform.errors import AppError, ErrorCode
+
         mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value="not a dict")
-        mock_get_client.return_value = mock_client
-
-        result = await fetch_wdk_text_genes(
-            "plasmodb",
-            ["kinase*"],
-            organism="Pf",
-        )
-        assert result.records == []
-        assert result.total_count == 0
-
-    @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_non_list_records_skipped(self, mock_get_client: MagicMock) -> None:
-        """When records is not a list, WDKAnswer validation fails and the answer is skipped."""
-        mock_client = self._mock_client(
-            [
-                {"meta": {"totalCount": 5}, "records": "not a list"},
-            ]
+        mock_client.run_search_report = AsyncMock(
+            side_effect=AppError(ErrorCode.WDK_ERROR, "search failed")
         )
         mock_get_client.return_value = mock_client
 
@@ -366,55 +348,14 @@ class TestFetchWdkTextGenes:
             ["kinase*"],
             organism="Pf",
         )
-        assert result.records == []
-        assert result.total_count == 0
-
-    @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_non_dict_record_entries_skipped(
-        self, mock_get_client: MagicMock
-    ) -> None:
-        """When a record entry is not a dict, WDKAnswer validation rejects the answer."""
-        mock_client = self._mock_client(
-            [
-                {
-                    "meta": {"totalCount": 2},
-                    "records": [
-                        "not a dict",
-                        {
-                            "attributes": {
-                                "gene_source_id": "GENE_OK",
-                                "primary_key": "GENE_OK",
-                                "gene_name": "",
-                                "gene_product": "",
-                                "organism": "",
-                                "gene_type": "",
-                                "gene_location_text": "",
-                                "gene_previous_ids": "",
-                            },
-                        },
-                    ],
-                },
-            ]
-        )
-        mock_get_client.return_value = mock_client
-
-        result = await fetch_wdk_text_genes(
-            "plasmodb",
-            ["kinase*"],
-            organism="Pf",
-        )
-        # Pydantic rejects the entire answer because "not a dict" is not a valid JSONObject
         assert result.records == []
         assert result.total_count == 0
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_default_text_fields_used(self, mock_get_client: MagicMock) -> None:
         """When text_fields is None, defaults to WDK_TEXT_FIELDS_ID."""
-        mock_client = self._mock_client(
-            [
-                {"meta": {"totalCount": 0}, "records": []},
-            ]
-        )
+        answer = self._make_answer(total_count=0, records=[])
+        mock_client = self._mock_client([answer])
         mock_get_client.return_value = mock_client
 
         await fetch_wdk_text_genes(
@@ -424,45 +365,11 @@ class TestFetchWdkTextGenes:
             text_fields=None,
         )
 
-        call_json = mock_client.post.call_args[1]["json"]
-        sent_fields = json.loads(call_json["searchConfig"]["parameters"]["text_fields"])
+        call_kwargs = mock_client.run_search_report.call_args[1]
+        sent_fields = json.loads(
+            call_kwargs["search_config"]["parameters"]["text_fields"]
+        )
         assert sent_fields == WDK_TEXT_FIELDS_ID
-
-    @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_meta_totalcount_non_int_ignored(
-        self, mock_get_client: MagicMock
-    ) -> None:
-        mock_client = self._mock_client(
-            [
-                {"meta": {"totalCount": "not_int"}, "records": []},
-            ]
-        )
-        mock_get_client.return_value = mock_client
-
-        result = await fetch_wdk_text_genes(
-            "plasmodb",
-            ["kinase*"],
-            organism="Pf",
-        )
-        assert result.total_count == 0
-
-    @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_meta_missing_treated_gracefully(
-        self, mock_get_client: MagicMock
-    ) -> None:
-        mock_client = self._mock_client(
-            [
-                {"records": []},
-            ]
-        )
-        mock_get_client.return_value = mock_client
-
-        result = await fetch_wdk_text_genes(
-            "plasmodb",
-            ["kinase*"],
-            organism="Pf",
-        )
-        assert result.total_count == 0
 
 
 # ---------------------------------------------------------------------------

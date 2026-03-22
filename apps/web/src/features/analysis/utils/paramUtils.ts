@@ -35,8 +35,8 @@ export function isMultiPickParam(spec: ParamSpec): boolean {
   return spec.type === "multi-pick-vocabulary" || spec.multiPick === true;
 }
 
-export function isParamEmpty(spec: ParamSpec, value: string): boolean {
-  if (value === "") return true;
+export function isParamEmpty(spec: ParamSpec, value: string | null | undefined): boolean {
+  if (value == null || value === "") return true;
   if (isMultiPickParam(spec) && value === "[]") return true;
   return false;
 }

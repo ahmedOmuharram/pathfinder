@@ -156,6 +156,36 @@ class WDKSortSpec(WDKModel):
     direction: str = "ASC"
 
 
+class WDKReporter(WDKModel):
+    """WDK report format definition (matches wdk-client Reporter)."""
+
+    name: str
+    type: str = ""
+    display_name: str = ""
+    description: str = ""
+    is_in_report: bool = False
+    scopes: list[str] = Field(default_factory=list)
+
+
+class WDKAttributeField(WDKModel):
+    """WDK attribute field metadata (matches wdk-client AttributeField).
+
+    Used in record type expanded responses (``GET /record-types/{type}?format=expanded``).
+    """
+
+    name: str
+    display_name: str = ""
+    help: str | None = None
+    type: str | None = None
+    is_sortable: bool = False
+    is_removable: bool = False
+    is_displayable: bool = True
+    is_in_report: bool = False
+    truncate_to: int = 0
+    formats: list[WDKReporter] = Field(default_factory=list)
+    properties: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class WDKParameterGroup(WDKModel):
     """Parameter group metadata."""
 
@@ -211,10 +241,9 @@ class WDKRecordType(WDKModel):
     """WDK record type metadata.
 
     The expanded single record type endpoint (``GET /record-types/{type}?format=expanded``)
-    includes ``attributes`` as a list of attribute field objects.  Some WDK
+    includes ``attributes`` as a list of ``WDKAttributeField`` objects.  Some WDK
     deployments return ``attributesMap`` (a dict keyed by attribute name) instead.
-    Both are modelled as optional ``JSONValue`` so callers can pass either format
-    through to ``build_attribute_list`` / ``extract_detail_attributes``.
+    Both are typed so callers receive validated attribute metadata.
     """
 
     url_segment: str
@@ -230,8 +259,8 @@ class WDKRecordType(WDKModel):
     properties: dict[str, list[str]] = Field(default_factory=dict)
     searches: list[WDKSearch] | None = None
     icon_name: str | None = None
-    attributes: JSONValue = None
-    attributes_map: JSONValue = None
+    attributes: list[WDKAttributeField] | None = None
+    attributes_map: dict[str, WDKAttributeField] | None = None
 
 
 class WDKAnswerMeta(WDKModel):
@@ -247,11 +276,22 @@ class WDKAnswerMeta(WDKModel):
     tables: list[str] = Field(default_factory=list)
 
 
+class WDKRecordInstance(WDKModel):
+    """A single record from a WDK answer/report."""
+
+    display_name: str = ""
+    id: list[dict[str, str]] = Field(default_factory=list)
+    record_class_name: str = ""
+    attributes: dict[str, JSONValue] = Field(default_factory=dict)
+    tables: dict[str, JSONValue] = Field(default_factory=dict)
+    table_errors: list[str] = Field(default_factory=list)
+
+
 class WDKAnswer(WDKModel):
     """WDK answer/report response."""
 
     meta: WDKAnswerMeta
-    records: list[JSONObject] = Field(default_factory=list)
+    records: list[WDKRecordInstance] = Field(default_factory=list)
 
 
 class WDKStepAnalysisType(WDKModel):
@@ -345,17 +385,6 @@ class WDKUserInfo(WDKModel):
     email: str | None = None
     is_guest: bool = True
     properties: dict[str, str] = Field(default_factory=dict)
-
-
-class WDKRecordInstance(WDKModel):
-    """A single record from a WDK answer/report."""
-
-    display_name: str = ""
-    id: list[dict[str, str]] = Field(default_factory=list)
-    record_class_name: str = ""
-    attributes: dict[str, JSONValue] = Field(default_factory=dict)
-    tables: dict[str, JSONValue] = Field(default_factory=dict)
-    table_errors: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

@@ -32,6 +32,7 @@ from veupath_chatbot.services.gene_lookup.scoring import score_gene_relevance
 from veupath_chatbot.services.gene_lookup.site_search import (
     parse_site_search_docs,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.gene_lookup.wdk import (
     GeneResolveResult,
     WdkTextResult,
@@ -109,8 +110,8 @@ class TestGeneIdSpecialChars:
         assert score == 0.95  # prefix match
 
     def test_wdk_parse_gene_id_with_special_chars(self) -> None:
-        rec: dict[str, object] = {
-            "attributes": {
+        rec = WDKRecordInstance(
+            attributes={
                 "gene_source_id": "PF3D7.0100100-v2",
                 "primary_key": "",
                 "gene_name": "",
@@ -120,7 +121,7 @@ class TestGeneIdSpecialChars:
                 "gene_location_text": "",
                 "gene_previous_ids": "",
             },
-        }
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_id == "PF3D7.0100100-v2"
@@ -252,8 +253,9 @@ class TestWdkRecordEdgeCases:
 
     def test_all_empty_attributes(self) -> None:
         """Record with all empty/None attributes should still produce a result."""
-        rec: dict[str, object] = {
-            "attributes": {
+        rec = WDKRecordInstance(
+            id=[{"name": "gene_source_id", "value": "FALLBACK_ID"}],
+            attributes={
                 "primary_key": "",
                 "gene_source_id": "",
                 "gene_name": "",
@@ -263,16 +265,15 @@ class TestWdkRecordEdgeCases:
                 "gene_location_text": "",
                 "gene_previous_ids": "",
             },
-            "id": [{"name": "gene_source_id", "value": "FALLBACK_ID"}],
-        }
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_id == "FALLBACK_ID"
 
     def test_none_gene_name_raw(self) -> None:
         """When gene_name is None, it should be treated as empty."""
-        rec: dict[str, object] = {
-            "attributes": {
+        rec = WDKRecordInstance(
+            attributes={
                 "primary_key": "PK",
                 "gene_source_id": "SRC",
                 "gene_name": None,
@@ -282,31 +283,17 @@ class TestWdkRecordEdgeCases:
                 "gene_location_text": "",
                 "gene_previous_ids": "",
             },
-        }
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_name == ""
         assert result.product == ""
         assert result.organism == ""
 
-    def test_pk_list_with_non_string_value(self) -> None:
-        """PK elements with non-string values should be skipped."""
-        rec: dict[str, object] = {
-            "id": [
-                {"name": "gene_source_id", "value": 12345},
-                {"name": "source_id", "value": "GOOD_ID"},
-            ],
-            "attributes": {"gene_source_id": ""},
-        }
-        result = _parse_wdk_record(rec)
-        assert result is not None
-        assert result.gene_id == "GOOD_ID"
-
-    def test_pk_not_a_list(self) -> None:
-        """id field that is not a list should be handled gracefully."""
-        rec: dict[str, object] = {
-            "id": "not_a_list",
-            "attributes": {
+    def test_empty_id_list_falls_back_to_primary_key(self) -> None:
+        """When id list is empty, gene_id falls back to primary_key attribute."""
+        rec = WDKRecordInstance(
+            attributes={
                 "primary_key": "PK_VAL",
                 "gene_source_id": "",
                 "gene_name": "",
@@ -316,7 +303,7 @@ class TestWdkRecordEdgeCases:
                 "gene_location_text": "",
                 "gene_previous_ids": "",
             },
-        }
+        )
         result = _parse_wdk_record(rec)
         assert result is not None
         assert result.gene_id == "PK_VAL"

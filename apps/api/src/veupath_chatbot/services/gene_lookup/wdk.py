@@ -3,8 +3,6 @@
 import json
 from dataclasses import dataclass
 
-import pydantic
-
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
@@ -13,6 +11,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
+    WDKRecordInstance,
 )
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
@@ -56,27 +55,17 @@ class GeneResolveResult:
     error: str | None = None
 
 
-def _parse_wdk_record(rec: JSONObject) -> GeneResult | None:
-    """Parse a WDK record into a typed GeneResult."""
-    rec_attrs = rec.get("attributes")
-    if not isinstance(rec_attrs, dict):
-        rec_attrs = {}
-
-    pk = rec.get("id")
+def _parse_wdk_record(rec: WDKRecordInstance) -> GeneResult | None:
+    """Parse a WDK record instance into a typed GeneResult."""
+    rec_attrs = rec.attributes
     gene_id = ""
-    if isinstance(pk, list):
-        for elem in pk:
-            if not isinstance(elem, dict):
-                continue
-            name = elem.get("name")
-            val = elem.get("value")
-            if (
-                name in ("gene_source_id", "source_id", "gene")
-                and isinstance(val, str)
-                and val.strip()
-            ):
-                gene_id = val.strip()
-                break
+    for elem in rec.id:
+        name = elem.get("name", "")
+        val = elem.get("value", "")
+        if name in ("gene_source_id", "source_id", "gene") and val.strip():
+            gene_id = val.strip()
+            break
+
     if not gene_id:
         gene_id = str(rec_attrs.get("primary_key", "")).strip()
 
@@ -103,27 +92,6 @@ def _parse_wdk_record(rec: JSONObject) -> GeneResult | None:
     )
 
 
-def _accumulate_text_answer(
-    answer: object,
-    all_results: list[GeneResult],
-    wdk_total: int,
-) -> int:
-    """Parse a WDK GenesByText answer and accumulate results. Returns updated wdk_total."""
-    if not isinstance(answer, dict):
-        return wdk_total
-    try:
-        parsed_answer = WDKAnswer.model_validate(answer)
-    except pydantic.ValidationError:
-        return wdk_total
-    wdk_total = max(wdk_total, parsed_answer.meta.total_count)
-    for rec in parsed_answer.records:
-        if isinstance(rec, dict):
-            parsed = _parse_wdk_record(rec)
-            if parsed:
-                all_results.append(parsed)
-    return wdk_total
-
-
 async def fetch_wdk_text_genes(
     site_id: str,
     expressions: list[str],
@@ -143,10 +111,16 @@ async def fetch_wdk_text_genes(
     all_results: list[GeneResult] = []
     wdk_total: int = 0
     for pattern in expressions:
-        answer = await client.post(
-            f"/record-types/{record_type}/searches/GenesByText/reports/standard",
-            json={
-                "searchConfig": {
+        report_config: JSONObject = {
+            "attributes": list(DEFAULT_GENE_ATTRIBUTES),
+            "tables": [],
+            "pagination": {"offset": 0, "numRecords": limit},
+        }
+        try:
+            answer = await client.run_search_report(
+                record_type=record_type,
+                search_name="GenesByText",
+                search_config={
                     "parameters": {
                         "text_expression": pattern,
                         "text_fields": json.dumps(fields),
@@ -154,14 +128,15 @@ async def fetch_wdk_text_genes(
                         "document_type": "gene",
                     },
                 },
-                "reportConfig": {
-                    "attributes": DEFAULT_GENE_ATTRIBUTES,
-                    "tables": [],
-                    "pagination": {"offset": 0, "numRecords": limit},
-                },
-            },
-        )
-        wdk_total = _accumulate_text_answer(answer, all_results, wdk_total)
+                report_config=report_config,
+            )
+        except AppError:
+            continue
+        wdk_total = max(wdk_total, answer.meta.total_count)
+        for rec in answer.records:
+            parsed = _parse_wdk_record(rec)
+            if parsed:
+                all_results.append(parsed)
         if len(all_results) >= limit:
             break
 
@@ -172,35 +147,20 @@ async def fetch_wdk_text_genes(
     )
 
 
-def _build_gene_result_from_answer(answer: object) -> GeneResolveResult:
-    """Build the final gene result from a WDK answer (or error dict from _fetch_gene_answer)."""
-    if not isinstance(answer, dict):
+def _build_gene_result_from_answer(answer: WDKAnswer | None) -> GeneResolveResult:
+    """Build the final gene result from a WDK answer."""
+    if answer is None:
         return GeneResolveResult(records=[], total_count=0)
-    # _fetch_gene_answer returns an error dict when dataset creation fails
-    if "error" in answer and "records" in answer:
-        records_raw = answer.get("records")
-        records: list[GeneResult] = []
-        if isinstance(records_raw, list):
-            records = records_raw
-        error = str(answer.get("error", ""))
-        total_raw = answer.get("totalCount")
-        total_count = total_raw if isinstance(total_raw, int) else 0
-        return GeneResolveResult(records=records, total_count=total_count, error=error)
-    try:
-        parsed_answer = WDKAnswer.model_validate(answer)
-    except pydantic.ValidationError:
-        return GeneResolveResult(records=[], total_count=0)
-    return _parse_records_to_result(parsed_answer)
+    return _parse_records_to_result(answer)
 
 
 def _parse_records_to_result(answer: WDKAnswer) -> GeneResolveResult:
     """Parse WDK answer records into the final gene result."""
     records: list[GeneResult] = []
     for rec in answer.records:
-        if isinstance(rec, dict):
-            parsed = _parse_wdk_record(rec)
-            if parsed:
-                records.append(parsed)
+        parsed = _parse_wdk_record(rec)
+        if parsed:
+            records.append(parsed)
     return GeneResolveResult(records=records, total_count=answer.meta.total_count)
 
 
@@ -216,15 +176,10 @@ async def _fetch_gene_answer(
     search_name: str,
     param_name: str,
     attrs: list[str],
-) -> JSONObject | None:
+) -> WDKAnswer | None:
     """Create a WDK dataset for gene_ids and run a standard reporter query.
 
-    Returns the raw answer dict, or None / error-dict if a step fails.
-    Returns a JSONObject with 'error' key on dataset failure.
-
-    Uses a temporary :class:`StrategyAPI` wrapper around the short-lived
-    client to call the typed ``create_dataset`` method while preserving
-    session affinity between dataset creation and the subsequent search.
+    Returns the typed WDKAnswer, or None if dataset creation or search fails.
     """
     api = StrategyAPI(client)
     config = WDKDatasetConfigIdList(
@@ -234,18 +189,18 @@ async def _fetch_gene_answer(
     try:
         dataset_id = await api.create_dataset(config)
     except AppError:
-        return {"records": [], "totalCount": 0, "error": "Failed to create dataset for ID lookup."}
-
-    result = await client.post(
-        f"/record-types/{record_type}/searches/{search_name}/reports/standard",
-        json={
-            "searchConfig": {"parameters": {param_name: str(dataset_id)}},
-            "reportConfig": {"attributes": attrs, "tables": []},
-        },
-    )
-    if not isinstance(result, dict):
         return None
-    return result
+
+    report_config: JSONObject = {"attributes": list(attrs), "tables": []}
+    try:
+        return await client.run_search_report(
+            record_type=record_type,
+            search_name=search_name,
+            search_config={"parameters": {param_name: str(dataset_id)}},
+            report_config=report_config,
+        )
+    except AppError:
+        return None
 
 
 async def resolve_gene_ids(

@@ -21,18 +21,20 @@ def mock_api() -> MagicMock:
     api.get_record_type_info = AsyncMock(
         return_value=WDKRecordType.model_validate({
             "urlSegment": "gene",
-            "attributes": {
-                "gene_name": {
+            "attributes": [
+                {
+                    "name": "gene_name",
                     "displayName": "Gene Name",
                     "type": "string",
                     "isDisplayable": True,
                 },
-                "score": {
+                {
+                    "name": "score",
                     "displayName": "Score",
                     "type": "number",
                     "isDisplayable": True,
                 },
-            },
+            ],
         })
     )
     api.get_step_records = AsyncMock(
@@ -80,6 +82,7 @@ class TestGetAttributes:
                 "urlSegment": "gene",
                 "attributesMap": {
                     "gene_name": {
+                        "name": "gene_name",
                         "displayName": "Gene Name",
                         "type": "string",
                     },
@@ -97,8 +100,8 @@ class TestGetRecords:
         svc = StepResultsService(mock_api, step_id=42, record_type="gene")
         result = await svc.get_records(offset=0, limit=50)
         mock_api.get_step_records.assert_called_once()
-        assert "records" in result
-        assert "meta" in result
+        assert len(result.records) == 1
+        assert result.meta.total_count == 1
 
     @pytest.mark.asyncio
     async def test_passes_sorting(self, mock_api: MagicMock) -> None:
@@ -181,7 +184,7 @@ class TestGetRecordDetail:
                         "name": "overview",
                         "displayName": "Overview",
                         "isInReport": False,
-                        "isDisplayable": True,
+                        "isDisplayable": False,
                     },
                     {
                         "name": "gene_product",

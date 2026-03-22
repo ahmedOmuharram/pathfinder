@@ -77,16 +77,13 @@ class _AnalysisToolsMixin:
 
         classified: list[JSONObject] = []
         for rec in answer.records:
-            if not isinstance(rec, dict):
-                continue
             gene_id = extract_pk(rec)
             classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-            attrs = rec.get("attributes", {})
             classified.append(
                 {
                     "geneId": gene_id,
                     "classification": classification,
-                    "attributes": attrs,
+                    "attributes": rec.attributes,
                 }
             )
 
@@ -221,15 +218,9 @@ class _AnalysisToolsMixin:
             total_scanned = page_offset + len(records)
 
             for rec in records:
-                if not isinstance(rec, dict):
-                    continue
-                attrs = rec.get("attributes", {})
-                if not isinstance(attrs, dict):
-                    continue
-
-                if record_matches(attrs, query_lower, attribute):
+                if record_matches(rec.attributes, query_lower, attribute):
                     gene_id = extract_pk(rec)
-                    matches.append({"geneId": gene_id, "attributes": attrs})
+                    matches.append({"geneId": gene_id, "attributes": rec.attributes})
                     if len(matches) >= _MAX_SEARCH_MATCHES:
                         return cast(
                             "JSONObject",

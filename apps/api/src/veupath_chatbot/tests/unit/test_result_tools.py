@@ -125,8 +125,14 @@ async def test_sample_records_extracts_attributes_from_first_record():
     fake_api = FakeStrategyAPI(
         response={
             "records": [
-                {"gene_id": "PF3D7_001", "organism": "P. falciparum"},
-                {"gene_id": "PF3D7_002", "organism": "P. vivax"},
+                {
+                    "id": [{"name": "source_id", "value": "PF3D7_001"}],
+                    "attributes": {"gene_id": "PF3D7_001", "organism": "P. falciparum"},
+                },
+                {
+                    "id": [{"name": "source_id", "value": "PF3D7_002"}],
+                    "attributes": {"gene_id": "PF3D7_002", "organism": "P. vivax"},
+                },
             ],
             "meta": {"totalCount": 42},
         }

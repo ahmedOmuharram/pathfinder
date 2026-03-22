@@ -1,5 +1,6 @@
 """Tests for experiment analysis AI helper functions."""
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.experiment.ai_analysis_helpers import (
     classify_gene,
     record_matches,
@@ -9,39 +10,29 @@ from veupath_chatbot.services.wdk.helpers import extract_pk
 
 class TestExtractPk:
     def test_standard_wdk_record(self) -> None:
-        record = {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "PF3D7_0100100"}])
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_strips_whitespace(self) -> None:
-        record = {"id": [{"name": "source_id", "value": "  PF3D7_0100100  "}]}
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "  PF3D7_0100100  "}])
         assert extract_pk(record) == "PF3D7_0100100"
 
-    def test_no_id_field(self) -> None:
-        assert extract_pk({}) is None
-
     def test_empty_id_list(self) -> None:
-        assert extract_pk({"id": []}) is None
-
-    def test_non_list_id(self) -> None:
-        assert extract_pk({"id": "PF3D7_0100100"}) is None
-
-    def test_non_dict_first_element(self) -> None:
-        assert extract_pk({"id": ["PF3D7_0100100"]}) is None
+        record = WDKRecordInstance(id=[])
+        assert extract_pk(record) is None
 
     def test_missing_value_key(self) -> None:
-        assert extract_pk({"id": [{"name": "source_id"}]}) is None
-
-    def test_non_string_value(self) -> None:
-        assert extract_pk({"id": [{"name": "source_id", "value": 12345}]}) is None
+        record = WDKRecordInstance(id=[{"name": "source_id"}])
+        assert extract_pk(record) is None
 
     def test_multiple_pk_columns(self) -> None:
         """Should return the first entry's value."""
-        record = {
-            "id": [
+        record = WDKRecordInstance(
+            id=[
                 {"name": "source_id", "value": "PF3D7_0100100"},
                 {"name": "project_id", "value": "PlasmoDB"},
             ]
-        }
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
 

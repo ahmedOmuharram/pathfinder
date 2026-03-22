@@ -20,6 +20,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKIdentifier,
+    WDKRecordInstance,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.types import JSONObject
@@ -146,10 +147,10 @@ class TestExtractRecordIdsEdgeCases:
     def test_preferred_key_with_empty_value(self) -> None:
         """Preferred key with empty string falls back to PK."""
         records = [
-            {
-                "id": [{"name": "x", "value": "PK_VAL"}],
-                "attributes": {"custom": ""},
-            }
+            WDKRecordInstance(
+                id=[{"name": "x", "value": "PK_VAL"}],
+                attributes={"custom": ""},
+            ),
         ]
         result = extract_record_ids(records, preferred_key="custom")
         assert result == ["PK_VAL"]
@@ -157,39 +158,31 @@ class TestExtractRecordIdsEdgeCases:
     def test_preferred_key_with_whitespace_value(self) -> None:
         """Preferred key with whitespace-only value falls back to PK."""
         records = [
-            {
-                "id": [{"name": "x", "value": "PK_VAL"}],
-                "attributes": {"custom": "   "},
-            }
+            WDKRecordInstance(
+                id=[{"name": "x", "value": "PK_VAL"}],
+                attributes={"custom": "   "},
+            ),
         ]
         result = extract_record_ids(records, preferred_key="custom")
         assert result == ["PK_VAL"]
 
     def test_no_attributes_key(self) -> None:
-        """Record without attributes key still extracts from PK."""
+        """Record without attributes still extracts from PK."""
         records = [
-            {"id": [{"name": "x", "value": "PK_VAL"}]},
+            WDKRecordInstance(id=[{"name": "x", "value": "PK_VAL"}]),
         ]
         result = extract_record_ids(records, preferred_key="custom")
         assert result == ["PK_VAL"]
 
-    def test_pk_element_with_non_dict_first(self) -> None:
-        """Non-dict first PK element should be handled."""
-        records = [
-            {"id": ["not_a_dict"]},
-        ]
-        result = extract_record_ids(records)
-        assert result == []
-
     def test_multiple_pk_elements_takes_first_valid(self) -> None:
         """When there are multiple PK elements, takes the first valid one."""
         records = [
-            {
-                "id": [
+            WDKRecordInstance(
+                id=[
                     {"name": "x", "value": "FIRST"},
                     {"name": "y", "value": "SECOND"},
                 ],
-            },
+            ),
         ]
         result = extract_record_ids(records)
         assert result == ["FIRST"]
@@ -197,8 +190,8 @@ class TestExtractRecordIdsEdgeCases:
     def test_duplicate_ids_from_records(self) -> None:
         """Duplicate IDs from different records are all returned."""
         records = [
-            {"id": [{"name": "x", "value": "SAME"}]},
-            {"id": [{"name": "x", "value": "SAME"}]},
+            WDKRecordInstance(id=[{"name": "x", "value": "SAME"}]),
+            WDKRecordInstance(id=[{"name": "x", "value": "SAME"}]),
         ]
         result = extract_record_ids(records)
         assert result == ["SAME", "SAME"]

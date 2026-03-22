@@ -158,11 +158,6 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     [nodes, combineMismatchGroups],
   );
 
-  const renderNodes = useMemo(
-    () => (warningGroupNodes.length > 0 ? [...warningGroupNodes, ...nodes] : nodes),
-    [warningGroupNodes, nodes],
-  );
-
   // Model-driven graph updates arrive during chat streaming. Those updates are
   // persisted by the API when emitted, so we should not show them as "unsaved".
   useEffect(() => {
@@ -211,11 +206,21 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     return dirty;
   }, [strategy?.steps, lastSavedStepsVersion, lastSavedSteps, buildStepSignature]);
 
-  const dirtyStepIdsKey = useMemo(
-    () => Array.from(dirtyStepIds).sort().join("|"),
-    [dirtyStepIds],
-  );
   const isUnsaved = dirtyStepIds.size > 0;
+
+  // Derive isUnsaved per node at render time (no effect needed)
+  const renderNodes = useMemo(() => {
+    const withUnsaved = nodes.map((node) => ({
+      ...node,
+      data: {
+        ...(node.data as NodeData),
+        isUnsaved: dirtyStepIds.has(node.id),
+      },
+    }));
+    return warningGroupNodes.length > 0
+      ? [...warningGroupNodes, ...withUnsaved]
+      : withUnsaved;
+  }, [warningGroupNodes, nodes, dirtyStepIds]);
 
   // Sync node positions ref
   useEffect(() => {
@@ -223,19 +228,6 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]),
     );
   }, [nodes]);
-
-  // Mark nodes with unsaved indicator
-  useEffect(() => {
-    setNodes((prev) =>
-      prev.map((node) => ({
-        ...node,
-        data: {
-          ...(node.data as NodeData),
-          isUnsaved: dirtyStepIds.has(node.id),
-        },
-      })),
-    );
-  }, [dirtyStepIdsKey, dirtyStepIds, setNodes]);
 
   // Validate search steps
   const validateSearchSteps = useCallback(async () => {

@@ -1,13 +1,20 @@
 """Tests for shared WDK helpers module.
 
 Covers: is_sortable, is_suggested_score, extract_pk,
-order_primary_key, extract_record_ids, build_attribute_list, merge_analysis_params.
+order_primary_key, extract_record_ids, build_attribute_list,
+extract_detail_attributes, merge_analysis_params.
 """
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAttributeField,
+    WDKRecordInstance,
+)
 from veupath_chatbot.services.wdk.helpers import (
+    DETAIL_ATTRIBUTE_LIMIT,
     build_attribute_list,
+    extract_detail_attributes,
     extract_pk,
     extract_record_ids,
     is_sortable,
@@ -116,44 +123,40 @@ class TestExtractPk:
     """Extracts primary key string from WDK record."""
 
     def test_normal_record(self) -> None:
-        record = {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+        record = WDKRecordInstance(
+            id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_value_with_whitespace(self) -> None:
-        record = {"id": [{"name": "source_id", "value": "  PF3D7_0100100  "}]}
+        record = WDKRecordInstance(
+            id=[{"name": "source_id", "value": "  PF3D7_0100100  "}],
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_multi_part_pk_returns_first(self) -> None:
-        record = {
-            "id": [
+        record = WDKRecordInstance(
+            id=[
                 {"name": "source_id", "value": "PF3D7_0100100"},
                 {"name": "project_id", "value": "PlasmoDB"},
-            ]
-        }
+            ],
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_empty_id_list(self) -> None:
-        record: dict[str, object] = {"id": []}
-        assert extract_pk(record) is None
-
-    def test_missing_id_key(self) -> None:
-        record: dict[str, object] = {"attributes": {"gene_name": "foo"}}
-        assert extract_pk(record) is None
-
-    def test_id_is_not_list(self) -> None:
-        record: dict[str, object] = {"id": "not_a_list"}
-        assert extract_pk(record) is None
-
-    def test_first_element_not_dict(self) -> None:
-        record: dict[str, object] = {"id": ["string_element"]}
+        record = WDKRecordInstance(id=[])
         assert extract_pk(record) is None
 
     def test_missing_value_key(self) -> None:
-        record = {"id": [{"name": "source_id"}]}
+        record = WDKRecordInstance(id=[{"name": "source_id"}])
         assert extract_pk(record) is None
 
-    def test_value_not_string(self) -> None:
-        record = {"id": [{"name": "source_id", "value": 12345}]}
+    def test_empty_value(self) -> None:
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": ""}])
+        assert extract_pk(record) is None
+
+    def test_blank_value(self) -> None:
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "   "}])
         assert extract_pk(record) is None
 
 
@@ -231,8 +234,12 @@ class TestExtractRecordIds:
 
     def test_normal_records(self) -> None:
         records = [
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
-            {"id": [{"name": "source_id", "value": "PF3D7_0200200"}]},
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+            ),
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0200200"}],
+            ),
         ]
         assert extract_record_ids(records) == [
             "PF3D7_0100100",
@@ -241,22 +248,20 @@ class TestExtractRecordIds:
 
     def test_strips_whitespace(self) -> None:
         records = [
-            {"id": [{"name": "source_id", "value": "  PF3D7_0100100  "}]},
-        ]
-        assert extract_record_ids(records) == ["PF3D7_0100100"]
-
-    def test_skips_non_dict_records(self) -> None:
-        records: list[object] = [
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
-            "not_a_dict",
-            42,
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "  PF3D7_0100100  "}],
+            ),
         ]
         assert extract_record_ids(records) == ["PF3D7_0100100"]
 
     def test_skips_records_with_no_id(self) -> None:
-        records: list[object] = [
-            {"attributes": {"gene_name": "foo"}},
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
+        records = [
+            WDKRecordInstance(
+                attributes={"gene_name": "foo"},
+            ),
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+            ),
         ]
         assert extract_record_ids(records) == ["PF3D7_0100100"]
 
@@ -264,22 +269,39 @@ class TestExtractRecordIds:
         assert extract_record_ids([]) == []
 
     def test_records_with_empty_id_list(self) -> None:
-        records: list[object] = [{"id": []}]
+        records = [WDKRecordInstance(id=[])]
         assert extract_record_ids(records) == []
 
-    def test_skips_non_string_values(self) -> None:
-        records: list[object] = [
-            {"id": [{"name": "source_id", "value": 12345}]},
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
+    def test_skips_blank_values(self) -> None:
+        records = [
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "   "}],
+            ),
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+            ),
         ]
         assert extract_record_ids(records) == ["PF3D7_0100100"]
 
-    def test_skips_blank_values(self) -> None:
-        records: list[object] = [
-            {"id": [{"name": "source_id", "value": "   "}]},
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
+    def test_preferred_key_from_attributes(self) -> None:
+        records = [
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+                attributes={"gene_source_id": "PF3D7_0100100"},
+            ),
         ]
-        assert extract_record_ids(records) == ["PF3D7_0100100"]
+        result = extract_record_ids(records, preferred_key="gene_source_id")
+        assert result == ["PF3D7_0100100"]
+
+    def test_preferred_key_falls_back_to_pk(self) -> None:
+        records = [
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PF3D7_0100100"}],
+                attributes={"other": "value"},
+            ),
+        ]
+        result = extract_record_ids(records, preferred_key="gene_source_id")
+        assert result == ["PF3D7_0100100"]
 
 
 # ---------------------------------------------------------------------------
@@ -288,24 +310,26 @@ class TestExtractRecordIds:
 
 
 class TestBuildAttributeList:
-    """Builds normalized attribute list from WDK record type info."""
+    """Builds normalized attribute list from WDK attribute fields."""
 
-    def test_dict_format(self) -> None:
-        attrs_raw = {
-            "gene_name": {
-                "displayName": "Gene Name",
-                "help": "The gene symbol",
-                "type": "string",
-                "isDisplayable": True,
-            },
-            "blast_score": {
-                "displayName": "BLAST Score",
-                "help": "Best BLAST score",
-                "type": "number",
-                "isDisplayable": True,
-            },
-        }
-        result = build_attribute_list(attrs_raw)
+    def test_basic_attributes(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="gene_name",
+                display_name="Gene Name",
+                help="The gene symbol",
+                type="string",
+                is_displayable=True,
+            ),
+            WDKAttributeField(
+                name="blast_score",
+                display_name="BLAST Score",
+                help="Best BLAST score",
+                type="number",
+                is_displayable=True,
+            ),
+        ]
+        result = build_attribute_list(attrs)
         assert len(result) == 2
         by_name = {a["name"]: a for a in result}
 
@@ -323,94 +347,153 @@ class TestBuildAttributeList:
         assert blast["isSortable"] is True
         assert blast["isSuggested"] is True  # "score" keyword match
 
-    def test_list_format(self) -> None:
-        attrs_raw = [
-            {
-                "name": "e_value",
-                "displayName": "E-Value",
-                "type": "double",
-                "isDisplayable": True,
-            },
+    def test_sortable_e_value(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="e_value",
+                display_name="E-Value",
+                type="double",
+                is_displayable=True,
+            ),
         ]
-        result = build_attribute_list(attrs_raw)
+        result = build_attribute_list(attrs)
         assert len(result) == 1
         assert result[0]["name"] == "e_value"
         assert result[0]["isSortable"] is True
         assert result[0]["isSuggested"] is True
 
-    def test_dict_format_filters_non_dict_meta(self) -> None:
-        attrs_raw = {
-            "gene_name": {"type": "string"},
-            "bad": "not_a_dict",
-        }
-        result = build_attribute_list(attrs_raw)
-        assert len(result) == 1
-        assert result[0]["name"] == "gene_name"
-
-    def test_list_format_filters_non_dict_entries(self) -> None:
-        attrs_raw = [
-            {"name": "gene_name", "type": "string"},
-            "not_a_dict",
-            42,
-        ]
-        result = build_attribute_list(attrs_raw)
-        assert len(result) == 1
-        assert result[0]["name"] == "gene_name"
-
     def test_none_type_defaults(self) -> None:
-        attrs_raw = {"gene_name": {"displayName": "Gene Name"}}
-        result = build_attribute_list(attrs_raw)
+        attrs = [
+            WDKAttributeField(name="gene_name", display_name="Gene Name"),
+        ]
+        result = build_attribute_list(attrs)
         assert result[0]["type"] is None
         assert result[0]["isSortable"] is False
         assert result[0]["isSuggested"] is False
 
     def test_display_name_defaults_to_name(self) -> None:
-        attrs_raw = {"gene_name": {}}
-        result = build_attribute_list(attrs_raw)
+        attrs = [WDKAttributeField(name="gene_name")]
+        result = build_attribute_list(attrs)
         assert result[0]["displayName"] == "gene_name"
 
-    def test_is_displayable_defaults_to_true(self) -> None:
-        attrs_raw = {"gene_name": {"type": "string"}}
-        result = build_attribute_list(attrs_raw)
-        assert result[0]["isDisplayable"] is True
+    def test_empty_display_name_defaults_to_name(self) -> None:
+        attrs = [WDKAttributeField(name="gene_name", display_name="")]
+        result = build_attribute_list(attrs)
+        assert result[0]["displayName"] == "gene_name"
 
     def test_is_displayable_false_still_included(self) -> None:
         """build_attribute_list includes ALL attributes, even non-displayable ones."""
-        attrs_raw = {"internal": {"type": "string", "isDisplayable": False}}
-        result = build_attribute_list(attrs_raw)
+        attrs = [
+            WDKAttributeField(
+                name="internal",
+                type="string",
+                is_displayable=False,
+            ),
+        ]
+        result = build_attribute_list(attrs)
         assert len(result) == 1
         assert result[0]["isDisplayable"] is False
-
-    def test_empty_dict(self) -> None:
-        assert build_attribute_list({}) == []
 
     def test_empty_list(self) -> None:
         assert build_attribute_list([]) == []
 
-    def test_none_input(self) -> None:
-        assert build_attribute_list(None) == []
-
     def test_suggested_requires_sortable(self) -> None:
         """isSuggested is only True when isSortable AND name matches keyword."""
-        attrs_raw = {
+        attrs = [
             # "score" keyword but string type (not sortable)
-            "score_text": {"type": "string"},
+            WDKAttributeField(name="score_text", type="string"),
             # numeric but no keyword
-            "count": {"type": "number"},
+            WDKAttributeField(name="count", type="number"),
             # numeric AND keyword
-            "blast_score": {"type": "number"},
-        }
-        result = build_attribute_list(attrs_raw)
+            WDKAttributeField(name="blast_score", type="number"),
+        ]
+        result = build_attribute_list(attrs)
         by_name = {a["name"]: a for a in result}
         assert by_name["score_text"]["isSuggested"] is False
         assert by_name["count"]["isSuggested"] is False
         assert by_name["blast_score"]["isSuggested"] is True
 
-    def test_list_format_name_defaults_to_empty(self) -> None:
-        attrs_raw = [{"type": "string"}]
-        result = build_attribute_list(attrs_raw)
-        assert len(result) == 1
-        assert result[0]["name"] == ""
+
+# ---------------------------------------------------------------------------
+# extract_detail_attributes
+# ---------------------------------------------------------------------------
+
+
+class TestExtractDetailAttributes:
+    """Extracts attribute names and display names for record detail view."""
+
+    def test_filters_by_is_in_report(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="gene_name",
+                display_name="Gene Name",
+                is_in_report=True,
+            ),
+            WDKAttributeField(
+                name="internal",
+                display_name="Internal",
+                is_in_report=False,
+                is_displayable=False,
+            ),
+        ]
+        names, display_names = extract_detail_attributes(attrs)
+        assert names == ["gene_name"]
+        assert display_names == {"gene_name": "Gene Name"}
+
+    def test_falls_back_to_is_displayable(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="gene_name",
+                display_name="Gene Name",
+                is_in_report=False,
+                is_displayable=True,
+            ),
+        ]
+        names, display_names = extract_detail_attributes(attrs)
+        assert names == ["gene_name"]
+        assert display_names == {"gene_name": "Gene Name"}
+
+    def test_excludes_non_reportable_non_displayable(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="hidden",
+                display_name="Hidden",
+                is_in_report=False,
+                is_displayable=False,
+            ),
+        ]
+        names, display_names = extract_detail_attributes(attrs)
+        assert names == []
+        assert display_names == {}
+
+    def test_caps_at_detail_attribute_limit(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name=f"attr_{i}",
+                display_name=f"Attr {i}",
+                is_in_report=True,
+            )
+            for i in range(DETAIL_ATTRIBUTE_LIMIT + 10)
+        ]
+        names, display_names = extract_detail_attributes(attrs)
+        assert len(names) == DETAIL_ATTRIBUTE_LIMIT
+        assert len(display_names) == DETAIL_ATTRIBUTE_LIMIT
+
+    def test_empty_display_name_defaults_to_name(self) -> None:
+        attrs = [
+            WDKAttributeField(
+                name="gene_name",
+                display_name="",
+                is_in_report=True,
+            ),
+        ]
+        names, display_names = extract_detail_attributes(attrs)
+        assert display_names["gene_name"] == "gene_name"
+
+    def test_empty_list(self) -> None:
+        names, display_names = extract_detail_attributes([])
+        assert names == []
+        assert display_names == {}
 
 
 # ---------------------------------------------------------------------------

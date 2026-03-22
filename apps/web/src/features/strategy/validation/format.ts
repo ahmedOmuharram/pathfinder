@@ -17,7 +17,7 @@ export function formatSearchValidationResponse(
 
   const keys = new Set<string>();
   for (const [key, messages] of Object.entries(byKey)) {
-    if (messages.length === 0) continue;
+    if (!Array.isArray(messages) || messages.length === 0) continue;
     keys.add(key);
     parts.push(`${key}: ${messages.join(", ")}`);
   }

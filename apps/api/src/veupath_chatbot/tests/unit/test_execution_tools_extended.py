@@ -29,7 +29,12 @@ class TestSampleRecordsEdgeCases:
     async def test_limit_exactly_1_accepted(self):
         """limit=1 should work."""
         fake_api = FakeStrategyAPI(
-            response={"records": [{"id": "g1"}], "meta": {"totalCount": 1}}
+            response={
+                "records": [
+                    {"id": [{"name": "source_id", "value": "g1"}], "attributes": {"gene_id": "g1"}}
+                ],
+                "meta": {"totalCount": 1},
+            }
         )
         tools = ResultTools(FakeResultToolsSession(), strategy_api=fake_api)
         result = await tools.get_sample_records(wdk_step_id=1, limit=1)
@@ -59,7 +64,14 @@ class TestSampleRecordsEdgeCases:
 
     async def test_meta_missing_total_count_defaults_to_zero(self):
         """When meta doesn't have totalCount, should default to 0."""
-        fake_api = FakeStrategyAPI(response={"records": [{"id": "x"}], "meta": {}})
+        fake_api = FakeStrategyAPI(
+            response={
+                "records": [
+                    {"id": [{"name": "source_id", "value": "x"}], "attributes": {}}
+                ],
+                "meta": {},
+            }
+        )
         tools = ResultTools(FakeResultToolsSession(), strategy_api=fake_api)
         result = await tools.get_sample_records(wdk_step_id=1, limit=5)
         assert result["totalCount"] == 0

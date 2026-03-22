@@ -1,5 +1,6 @@
 """Tests for experiment result helpers."""
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.wdk.helpers import (
     extract_pk,
     order_primary_key,
@@ -8,18 +9,20 @@ from veupath_chatbot.services.wdk.helpers import (
 
 class TestExtractPk:
     def test_extracts_first_value(self):
-        record = {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "PF3D7_0100100"}])
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_strips_whitespace(self):
-        record = {"id": [{"name": "source_id", "value": "  PF3D7_0100100  "}]}
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "  PF3D7_0100100  "}])
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_returns_none_for_empty_list(self):
-        assert extract_pk({"id": []}) is None
+        record = WDKRecordInstance(id=[])
+        assert extract_pk(record) is None
 
-    def test_returns_none_for_missing_id(self):
-        assert extract_pk({}) is None
+    def test_returns_none_for_no_id(self):
+        record = WDKRecordInstance()
+        assert extract_pk(record) is None
 
 
 class TestOrderPrimaryKey:

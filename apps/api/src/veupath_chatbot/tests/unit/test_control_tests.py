@@ -14,7 +14,7 @@ All WDK calls are mocked. These tests validate:
 
 import json
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pydantic
@@ -26,10 +26,11 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKIdentifier,
+    WDKRecordInstance,
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
     _get_total_count_for_step,
@@ -170,55 +171,49 @@ class TestEncodeIdList:
 class TestExtractRecordIds:
     def test_extracts_from_wdk_id_key(self) -> None:
         """WDK StandardReporter uses ``"id"`` for the primary key array."""
-        records: JSONArray = [
-            {"id": [{"name": "source_id", "value": "GENE1"}]},
-            {"id": [{"name": "source_id", "value": "GENE2"}]},
+        records = [
+            WDKRecordInstance(id=[{"name": "source_id", "value": "GENE1"}]),
+            WDKRecordInstance(id=[{"name": "source_id", "value": "GENE2"}]),
         ]
         assert extract_record_ids(records) == ["GENE1", "GENE2"]
 
     def test_extracts_from_preferred_key(self) -> None:
-        records: JSONArray = [
-            cast(
-                "JSONObject",
-                {
-                    "id": [{"name": "source_id", "value": "PK1"}],
-                    "attributes": {"gene_id": "ATTR1"},
-                },
+        records = [
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PK1"}],
+                attributes={"gene_id": "ATTR1"},
             ),
         ]
         assert extract_record_ids(records, preferred_key="gene_id") == ["ATTR1"]
 
     def test_falls_back_to_id_when_preferred_missing(self) -> None:
-        records: JSONArray = [
-            {
-                "id": [{"name": "source_id", "value": "PK1"}],
-                "attributes": {"other": "X"},
-            },
+        records = [
+            WDKRecordInstance(
+                id=[{"name": "source_id", "value": "PK1"}],
+                attributes={"other": "X"},
+            ),
         ]
         assert extract_record_ids(records, preferred_key="gene_id") == ["PK1"]
 
-    def test_returns_empty_for_non_list(self) -> None:
-        assert extract_record_ids(None) == []
-        assert extract_record_ids("not a list") == []
+    def test_empty_list_returns_empty(self) -> None:
+        assert extract_record_ids([]) == []
 
-    def test_skips_malformed_records(self) -> None:
-        records: JSONArray = [
-            None,
-            "bad",
-            {"id": []},
-            {"id": [{"name": "source_id", "value": "GOOD"}]},
+    def test_empty_pk_array_skipped(self) -> None:
+        records = [
+            WDKRecordInstance(id=[]),
+            WDKRecordInstance(id=[{"name": "source_id", "value": "GOOD"}]),
         ]
         assert extract_record_ids(records) == ["GOOD"]
 
     def test_composite_primary_key_extracts_first(self) -> None:
         """For composite keys (e.g., transcript), first PK value is extracted."""
-        records: JSONArray = [
-            {
-                "id": [
+        records = [
+            WDKRecordInstance(
+                id=[
                     {"name": "source_id", "value": "PF3D7_0209000"},
                     {"name": "project_id", "value": "PlasmoDB"},
                 ],
-            },
+            ),
         ]
         assert extract_record_ids(records) == ["PF3D7_0209000"]
 

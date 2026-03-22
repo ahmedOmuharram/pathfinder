@@ -104,33 +104,24 @@ async def get_experiment_records(
             direction=params.sort_dir,
             attributes=attr_list,
         )
-        raw_records = answer.get("records", [])
-        record_list: list[JSONObject] = (
-            [r for r in raw_records if isinstance(r, dict)]
-            if isinstance(raw_records, list)
-            else []
-        )
+        filtered_records = [
+            rec
+            for rec in answer.records
+            if rec.attributes.get(params.filter_attribute) == params.filter_value
+        ]
         classified = classify_records(
-            record_list,
+            filtered_records,
             tp_ids={g.id for g in exp.true_positive_genes},
             fp_ids={g.id for g in exp.false_positive_genes},
             fn_ids={g.id for g in exp.false_negative_genes},
             tn_ids={g.id for g in exp.true_negative_genes},
         )
-        filtered: list[JSONValue] = []
-        for r in classified:
-            attrs = r.get("attributes")
-            if (
-                isinstance(attrs, dict)
-                and attrs.get(params.filter_attribute) == params.filter_value
-            ):
-                filtered.append(r)
-        page = filtered[params.offset : params.offset + params.limit]
+        page = classified[params.offset : params.offset + params.limit]
         return {
             "records": cast("JSONValue", page),
             "meta": {
-                "totalCount": len(filtered),
-                "displayTotalCount": len(filtered),
+                "totalCount": len(classified),
+                "displayTotalCount": len(classified),
                 "responseCount": len(page),
                 "pagination": {"offset": params.offset, "numRecords": params.limit},
                 "attributes": cast("JSONValue", attr_list or []),
@@ -145,15 +136,8 @@ async def get_experiment_records(
         direction=params.sort_dir,
         attributes=attr_list,
     )
-
-    raw_records = answer.get("records", [])
-    record_list = (
-        [r for r in raw_records if isinstance(r, dict)]
-        if isinstance(raw_records, list)
-        else []
-    )
     classified = classify_records(
-        record_list,
+        answer.records,
         tp_ids={g.id for g in exp.true_positive_genes},
         fp_ids={g.id for g in exp.false_positive_genes},
         fn_ids={g.id for g in exp.false_negative_genes},
@@ -162,7 +146,7 @@ async def get_experiment_records(
 
     return {
         "records": cast("JSONValue", classified),
-        "meta": answer.get("meta", {}),
+        "meta": answer.meta.model_dump(by_alias=True),
     }
 
 

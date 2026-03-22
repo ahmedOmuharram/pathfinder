@@ -12,10 +12,6 @@ from veupath_chatbot.domain.strategy.ast import (
     StepReport,
     StrategyAST,
     from_dict,
-    parse_analyses,
-    parse_colocation_params,
-    parse_filters,
-    parse_reports,
 )
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
@@ -241,98 +237,98 @@ class TestPlanStepNodeToDict:
 
 class TestParseFiltersEdgeCases:
     def test_non_list_input(self) -> None:
-        assert parse_filters("not a list") == []
-        assert parse_filters(42) == []
-        assert parse_filters(None) == []
+        assert StepFilter.from_list("not a list") == []
+        assert StepFilter.from_list(42) == []
+        assert StepFilter.from_list(None) == []
 
     def test_skips_items_without_name(self) -> None:
         raw = [{"value": 5}, {"name": "f1", "value": 10}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert len(filters) == 1
         assert filters[0].name == "f1"
 
     def test_empty_string_name_skipped(self) -> None:
         raw = [{"name": "", "value": 5}]
-        assert parse_filters(raw) == []
+        assert StepFilter.from_list(raw) == []
 
     def test_disabled_field_parsed(self) -> None:
         raw = [{"name": "f1", "value": 1, "disabled": True}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert filters[0].disabled is True
 
     def test_disabled_defaults_false(self) -> None:
         raw = [{"name": "f1", "value": 1}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert filters[0].disabled is False
 
 
 class TestParseAnalysesEdgeCases:
     def test_non_list_input(self) -> None:
-        assert parse_analyses("not a list") == []
-        assert parse_analyses(None) == []
+        assert StepAnalysis.from_list("not a list") == []
+        assert StepAnalysis.from_list(None) == []
 
     def test_skips_items_without_analysis_type(self) -> None:
         raw = [{"parameters": {}}, {"analysisType": "enrichment"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert len(analyses) == 1
 
     def test_snake_case_analysis_type(self) -> None:
         raw = [{"analysis_type": "go_enrichment", "parameters": {}}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert analyses[0].analysis_type == "go_enrichment"
 
     def test_custom_name_camel_and_snake(self) -> None:
         raw1 = [{"analysisType": "e", "customName": "Custom"}]
         raw2 = [{"analysisType": "e", "custom_name": "Custom"}]
-        assert parse_analyses(raw1)[0].custom_name == "Custom"
-        assert parse_analyses(raw2)[0].custom_name == "Custom"
+        assert StepAnalysis.from_list(raw1)[0].custom_name == "Custom"
+        assert StepAnalysis.from_list(raw2)[0].custom_name == "Custom"
 
     def test_non_dict_parameters_defaults_empty(self) -> None:
         raw = [{"analysisType": "e", "parameters": "not_a_dict"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert analyses[0].parameters == {}
 
 
 class TestParseReportsEdgeCases:
     def test_non_list_input(self) -> None:
-        assert parse_reports(42) == []
-        assert parse_reports(None) == []
+        assert StepReport.from_list(42) == []
+        assert StepReport.from_list(None) == []
 
     def test_missing_report_name_defaults(self) -> None:
         raw = [{"config": {"format": "csv"}}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert reports[0].report_name == "standard"
 
     def test_non_dict_config_defaults_empty(self) -> None:
         raw = [{"reportName": "tabular", "config": "not_a_dict"}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert reports[0].config == {}
 
 
 class TestParseColocationParamsEdgeCases:
     def test_non_dict_input(self) -> None:
-        assert parse_colocation_params("not_a_dict") is None
-        assert parse_colocation_params(42) is None
-        assert parse_colocation_params(None) is None
+        assert ColocationParams.from_json("not_a_dict") is None
+        assert ColocationParams.from_json(42) is None
+        assert ColocationParams.from_json(None) is None
 
     def test_float_values_truncated(self) -> None:
-        result = parse_colocation_params({"upstream": 100.9, "downstream": 50.1})
+        result = ColocationParams.from_json({"upstream": 100.9, "downstream": 50.1})
         assert result is not None
         assert result.upstream == 100  # int() truncates
         assert result.downstream == 50
 
     def test_non_numeric_defaults_zero(self) -> None:
-        result = parse_colocation_params({"upstream": "not_a_number"})
+        result = ColocationParams.from_json({"upstream": "not_a_number"})
         assert result is not None
         assert result.upstream == 0
 
     def test_invalid_strand_defaults_both(self) -> None:
-        result = parse_colocation_params({"strand": "invalid"})
+        result = ColocationParams.from_json({"strand": "invalid"})
         assert result is not None
         assert result.strand == "both"
 
     def test_missing_fields_use_defaults(self) -> None:
-        result = parse_colocation_params({})
+        result = ColocationParams.from_json({})
         assert result is not None
         assert result.upstream == 0
         assert result.downstream == 0

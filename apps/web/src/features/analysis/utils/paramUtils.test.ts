@@ -202,7 +202,7 @@ describe("isParamEmpty", () => {
   it("returns true when value is null-ish (cast to string check)", () => {
     // The function checks value == null first
     expect(
-      isParamEmpty(makeSpec({ name: "a", type: "string" }), null as unknown as string),
+      isParamEmpty(makeSpec({ name: "a", type: "string" }), null),
     ).toBe(true);
   });
 });

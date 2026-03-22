@@ -163,7 +163,7 @@ export const SubKaniToolCallEndDataSchema = z
   .object({
     task: z.string().nullish(),
     id: z.string(),
-    result: z.string().nullish(),
+    result: z.string().nullable(),
   })
   .passthrough();
 

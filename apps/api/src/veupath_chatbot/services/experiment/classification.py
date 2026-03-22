@@ -5,12 +5,13 @@ whether their gene ID appears in the experiment's curated gene sets.
 Handles WDK transcript ID version suffixes (e.g. "GENE.1" -> "GENE").
 """
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk.helpers import extract_pk
 
 
 def classify_records(
-    records: list[JSONObject],
+    records: list[WDKRecordInstance],
     tp_ids: set[str],
     fp_ids: set[str],
     fn_ids: set[str],
@@ -23,7 +24,7 @@ def classify_records(
     version suffix (e.g. ``"PF3D7_0100100.1"``); the function also
     checks the base ID with the suffix stripped.
 
-    :param records: WDK answer records (list of dicts).
+    :param records: WDK answer records.
     :param tp_ids: True-positive gene IDs.
     :param fp_ids: False-positive gene IDs.
     :param fn_ids: False-negative gene IDs.
@@ -32,11 +33,12 @@ def classify_records(
     """
     classified: list[JSONObject] = []
     for rec in records:
-        if not isinstance(rec, dict):
-            continue
         gene_id = extract_pk(rec)
         classification = _classify_gene_id(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-        classified.append({**rec, "_classification": classification})
+        classified.append({
+            **rec.model_dump(by_alias=True),
+            "_classification": classification,
+        })
     return classified
 
 

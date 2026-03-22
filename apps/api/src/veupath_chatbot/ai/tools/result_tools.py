@@ -238,11 +238,11 @@ def _extract_sample_response(answer: WDKAnswer) -> JSONObject:
     records = answer.records
     total_count = answer.meta.total_count
     attributes_list: list[str] = []
-    if records and isinstance(records[0], dict):
-        attributes_list = [str(k) for k in records[0]]
+    if records:
+        attributes_list = list(records[0].attributes.keys())
     attributes: JSONValue = cast("JSONValue", attributes_list)
     return {
-        "records": cast("JSONValue", records),
+        "records": cast("JSONValue", [r.model_dump(by_alias=True) for r in records]),
         "totalCount": total_count,
         "attributes": attributes,
     }

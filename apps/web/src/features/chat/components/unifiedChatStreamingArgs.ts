@@ -117,9 +117,9 @@ export function useUnifiedChatStreamingArgs({
     ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
     ...(currentModelSelection != null ? { modelSelection: currentModelSelection } : {}),
     ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
-    onStreamComplete: () => setChatIsStreaming(false),
+    setChatIsStreaming,
+    onStreamComplete: () => {},
     onStreamError: (error: Error) => {
-      setChatIsStreaming(false);
       handleError(error, "Unable to reach the API.");
     },
   };

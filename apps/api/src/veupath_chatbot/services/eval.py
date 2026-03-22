@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
 )
@@ -110,8 +110,6 @@ async def fetch_all_gene_ids(
             break
 
         for record in records:
-            if not isinstance(record, dict):
-                continue
             gene_id = extract_gene_id(record)
             if gene_id:
                 all_ids.append(gene_id)
@@ -123,16 +121,13 @@ async def fetch_all_gene_ids(
     return all_ids
 
 
-def extract_gene_id(record: JSONObject) -> str | None:
+def extract_gene_id(record: WDKRecordInstance) -> str | None:
     """Extract gene ID from a WDK record's primary key."""
-    pk = record.get("id")
-    if isinstance(pk, list):
-        for part in pk:
-            if isinstance(part, dict):
-                name = part.get("name", "")
-                value = part.get("value", "")
-                if name in ("source_id", "gene_source_id") and value:
-                    return str(value)
-        if pk and isinstance(pk[0], dict):
-            return str(pk[0].get("value", ""))
+    for part in record.id:
+        name = part.get("name", "")
+        value = part.get("value", "")
+        if name in ("source_id", "gene_source_id") and value:
+            return str(value)
+    if record.id:
+        return str(record.id[0].get("value", "")) or None
     return None

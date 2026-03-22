@@ -157,8 +157,6 @@ async def collect_all_result_ids(api: StrategyAPI, step_id: int) -> set[str]:
         if not records:
             break
         for rec in records:
-            if not isinstance(rec, dict):
-                continue
             gene_id = extract_pk(rec)
             if gene_id:
                 result_ids.add(gene_id)

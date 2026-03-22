@@ -85,13 +85,11 @@ class TestReportFixtureRoundTrip:
         raw = standard_report_response()
         answer = WDKAnswer.model_validate(raw)
         for record in answer.records:
-            assert isinstance(record, dict)
-            # WDK record.id is an array of {name, value} PK pairs
-            pk_list = record.get("id")
-            assert isinstance(pk_list, list)
+            # record is WDKRecordInstance; .id is list[dict[str, str]]
+            assert len(record.id) > 0
             gene_source = None
-            for pk in pk_list:
-                if isinstance(pk, dict) and pk.get("name") == "gene_source_id":
+            for pk in record.id:
+                if pk.get("name") == "gene_source_id":
                     gene_source = pk.get("value")
             if gene_source:
                 assert isinstance(gene_source, str)
@@ -105,12 +103,9 @@ class TestReportFixtureRoundTrip:
         answer = WDKAnswer.model_validate(raw)
         found_ids: set[str] = set()
         for record in answer.records:
-            assert isinstance(record, dict)
-            pk_list = record.get("id")
-            if not isinstance(pk_list, list):
-                continue
-            for pk in pk_list:
-                if isinstance(pk, dict) and pk.get("name") == "gene_source_id":
+            # record is WDKRecordInstance; .id is list[dict[str, str]]
+            for pk in record.id:
+                if pk.get("name") == "gene_source_id":
                     val = pk.get("value")
                     if isinstance(val, str):
                         found_ids.add(val)

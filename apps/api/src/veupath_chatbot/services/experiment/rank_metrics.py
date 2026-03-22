@@ -144,16 +144,8 @@ async def fetch_ordered_result_ids(
 
     ids: list[str] = []
     for rec in records:
-        if not isinstance(rec, dict):
-            continue
-        pk = rec.get("id")
-        if isinstance(pk, list):
-            for entry in pk:
-                if isinstance(entry, dict):
-                    val = entry.get("value")
-                    if isinstance(val, str):
-                        ids.append(val)
-                        break
-        elif isinstance(pk, str):
-            ids.append(pk)
+        if rec.id:
+            val = rec.id[0].get("value", "")
+            if val:
+                ids.append(val)
     return ids

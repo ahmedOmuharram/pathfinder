@@ -19,6 +19,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKIdentifier,
+    WDKRecordInstance,
     WDKSearchResponse,
     WDKStrategySummary,
 )
@@ -194,20 +195,21 @@ class TestEncodeIdList:
 
 class TestExtractRecordIds:
     def test_extracts_from_primary_key(self) -> None:
-        records = standard_report_response(GENE_IDS[:2])["records"]
+        raw = standard_report_response(GENE_IDS[:2])["records"]
+        records = [WDKRecordInstance.model_validate(r) for r in raw]
         assert extract_record_ids(records) == GENE_IDS[:2]
 
     def test_preferred_key_from_attributes(self) -> None:
-        records = standard_report_response(GENE_IDS[:2])["records"]
+        raw = standard_report_response(GENE_IDS[:2])["records"]
+        records = [WDKRecordInstance.model_validate(r) for r in raw]
         result = extract_record_ids(records, preferred_key="gene_source_id")
         assert result == GENE_IDS[:2]
 
-    def test_returns_empty_for_non_list(self) -> None:
-        assert extract_record_ids(None) == []
-        assert extract_record_ids("not a list") == []
+    def test_empty_list_returns_empty(self) -> None:
+        assert extract_record_ids([]) == []
 
-    def test_skips_malformed_records(self) -> None:
-        records = [{"no_id_field": True}, "not a dict", None]
+    def test_empty_pk_array_skipped(self) -> None:
+        records = [WDKRecordInstance(id=[])]
         assert extract_record_ids(records) == []
 
 
@@ -327,10 +329,11 @@ class TestPositiveControlsIntersection:
 
         # Two create_step calls: target then controls
         assert mock_api.create_step.call_count == 2
-        first_call = mock_api.create_step.call_args_list[0]
-        assert first_call.kwargs["custom_name"] == "Target"
-        second_call = mock_api.create_step.call_args_list[1]
-        assert second_call.kwargs["custom_name"] == "Controls"
+        # NewStepSpec is passed as the first positional argument
+        first_spec = mock_api.create_step.call_args_list[0].args[0]
+        assert first_spec.custom_name == "Target"
+        second_spec = mock_api.create_step.call_args_list[1].args[0]
+        assert second_spec.custom_name == "Controls"
 
     @pytest.mark.asyncio
     async def test_creates_strategy_and_queries_answer(self) -> None:
@@ -584,10 +587,10 @@ class TestControlsWithDatasetParam:
         )
         mock_api.create_dataset.assert_awaited_once_with(expected_config)
 
-        # The controls step should have received the dataset ID as the param value
-        controls_call = mock_api.create_step.call_args_list[1]
-        params = controls_call.kwargs.get("parameters", {})
-        assert params[CONTROLS_PARAM_NAME] == str(DATASET_ID)
+        # The controls step should have received the dataset ID as the param value.
+        # NewStepSpec is passed as the first positional argument.
+        controls_spec = mock_api.create_step.call_args_list[1].args[0]
+        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == str(DATASET_ID)
 
     @pytest.mark.asyncio
     async def test_no_dataset_for_string_type(self) -> None:
@@ -606,10 +609,10 @@ class TestControlsWithDatasetParam:
 
         mock_api.create_dataset.assert_not_awaited()
 
-        # The controls step should have received the raw newline-encoded IDs
-        controls_call = mock_api.create_step.call_args_list[1]
-        params = controls_call.kwargs.get("parameters", {})
-        assert params[CONTROLS_PARAM_NAME] == "\n".join(POSITIVE_IDS)
+        # The controls step should have received the raw newline-encoded IDs.
+        # NewStepSpec is passed as the first positional argument.
+        controls_spec = mock_api.create_step.call_args_list[1].args[0]
+        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == "\n".join(POSITIVE_IDS)
 
 
 # ===================================================================

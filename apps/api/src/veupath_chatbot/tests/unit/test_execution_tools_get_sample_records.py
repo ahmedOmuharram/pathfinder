@@ -50,7 +50,13 @@ async def test_get_sample_records_maps_wdk_404_to_actionable_error() -> None:
 async def test_get_sample_records_returns_records_total_and_attributes() -> None:
     fake_api = FakeStrategyAPI(
         response={
-            "records": [{"record_primary_key": "A", "display_name": "alpha"}],
+            "records": [
+                {
+                    "id": [{"name": "source_id", "value": "A"}],
+                    "displayName": "alpha",
+                    "attributes": {"record_primary_key": "A", "display_name": "alpha"},
+                }
+            ],
             "meta": {"totalCount": 17},
         }
     )
@@ -58,6 +64,7 @@ async def test_get_sample_records_returns_records_total_and_attributes() -> None
 
     result = await tools.get_sample_records(wdk_step_id=123, limit=5)
 
-    assert result["records"] == [{"record_primary_key": "A", "display_name": "alpha"}]
     assert result["totalCount"] == 17
     assert result["attributes"] == ["record_primary_key", "display_name"]
+    assert len(result["records"]) == 1
+    assert result["records"][0]["attributes"] == {"record_primary_key": "A", "display_name": "alpha"}

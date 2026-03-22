@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
+    WDKAttributeField,
     WDKColumnDistribution,
     WDKHistogramBin,
     WDKHistogramStatistics,
@@ -84,7 +85,7 @@ class TestGetAttributes:
         api.get_record_type_info.return_value = WDKRecordType.model_validate({
             "urlSegment": "gene",
             "attributesMap": {
-                "gene_name": {"displayName": "Gene Name", "type": "string"},
+                "gene_name": {"name": "gene_name", "displayName": "Gene Name", "type": "string"},
             },
         })
         result = await svc.get_attributes()
@@ -126,7 +127,7 @@ class TestGetRecords:
         result = await svc.get_records()
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["pagination"] == {"offset": 0, "numRecords": 50}
-        assert result["records"] == []
+        assert result.records == []
 
     async def test_custom_pagination(self) -> None:
         svc, api = _make_service()
@@ -177,7 +178,7 @@ class TestGetRecords:
             "meta": {"totalCount": 0},
         })
         result = await svc.get_records()
-        assert result["records"] == []
+        assert result.records == []
 
     async def test_empty_meta_defaults(self) -> None:
         """WDKAnswerMeta defaults all fields when meta dict is empty."""
@@ -187,7 +188,7 @@ class TestGetRecords:
             "meta": {},
         })
         result = await svc.get_records()
-        assert result["meta"]["totalCount"] == 0
+        assert result.meta.total_count == 0
 
 
 # ===========================================================================
@@ -286,19 +287,20 @@ class TestExtractPkEdgeCases:
 
     def test_composite_pk_returns_first_value(self) -> None:
         """Only the first PK part's value is returned."""
-        record = {
+        record = WDKRecordInstance.model_validate({
             "id": [
                 {"name": "source_id", "value": "PF3D7_0100100"},
                 {"name": "project_id", "value": "PlasmoDB"},
             ]
-        }
+        })
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_empty_value_string(self) -> None:
-        """Empty string value should still be returned (it IS a string)."""
-        record = {"id": [{"name": "source_id", "value": ""}]}
-        # empty string is falsy, but it's still a string
-        assert extract_pk(record) == ""
+        """Empty/whitespace PK values return None — an empty PK is meaningless."""
+        record = WDKRecordInstance.model_validate({
+            "id": [{"name": "source_id", "value": ""}],
+        })
+        assert extract_pk(record) is None
 
 
 # ===========================================================================
@@ -312,8 +314,8 @@ class TestExtractRecordIdsEdgeCases:
     def test_duplicate_ids_preserved(self) -> None:
         """Duplicate IDs from WDK are not deduplicated at this level."""
         records = [
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
-            {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
+            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}),
+            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}),
         ]
         assert extract_record_ids(records) == [
             "PF3D7_0100100",
@@ -323,7 +325,7 @@ class TestExtractRecordIdsEdgeCases:
     def test_large_batch(self) -> None:
         """Should handle hundreds of records."""
         records = [
-            {"id": [{"name": "source_id", "value": f"GENE_{i:05d}"}]}
+            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": f"GENE_{i:05d}"}]})
             for i in range(500)
         ]
         ids = extract_record_ids(records)
@@ -369,17 +371,17 @@ class TestBuildAttributeListEdgeCases:
 
     def test_large_attribute_set(self) -> None:
         """WDK gene record type can have 100+ attributes."""
-        attrs = {
-            f"attr_{i}": {"type": "string", "displayName": f"Attribute {i}"}
+        attrs = [
+            WDKAttributeField(name=f"attr_{i}", display_name=f"Attribute {i}", type="string")
             for i in range(100)
-        }
+        ]
         result = build_attribute_list(attrs)
         assert len(result) == 100
 
     def test_numeric_types_are_sortable(self) -> None:
         attrs = [
-            {"name": "score", "type": "number"},
-            {"name": "gene_name", "type": "string"},
+            WDKAttributeField(name="score", type="number"),
+            WDKAttributeField(name="gene_name", type="string"),
         ]
         result = build_attribute_list(attrs)
         by_name = {a["name"]: a for a in result}

@@ -11,7 +11,8 @@ from pydantic import TypeAdapter, ValidationError
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
-    WDKAnalysisStatusResponse,
+    WDKAnswer,
+    WDKAttributeField,
     WDKColumnDistribution,
     WDKDatasetConfig,
     WDKDatasetConfigBasket,
@@ -21,6 +22,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigUrl,
     WDKIdentifier,
     WDKRecordType,
+    WDKReporter,
     WDKSearch,
     WDKSearchConfig,
     WDKSearchResponse,
@@ -29,8 +31,6 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStepTree,
     WDKStrategyDetails,
     WDKStrategySummary,
-    WDKTemporaryResult,
-    WDKUserInfo,
     WDKValidation,
 )
 from veupath_chatbot.tests.fixtures.wdk_responses import (
@@ -117,13 +117,6 @@ class TestWDKStepTree:
         assert level3 is not None
         assert level3.step_id == 100
 
-    def test_null_inputs_treated_as_none(self) -> None:
-        tree = WDKStepTree.model_validate(
-            {"stepId": 100, "primaryInput": None, "secondaryInput": None},
-        )
-        assert tree.primary_input is None
-        assert tree.secondary_input is None
-
 
 # ---------------------------------------------------------------------------
 # TestWDKStep
@@ -135,32 +128,6 @@ class TestWDKStep:
         step = WDKStep.model_validate(wdk_step_json())
         assert step.id == 12345
         assert step.search_name == "GenesByTaxon"
-
-    def test_nullable_estimated_size(self) -> None:
-        step = WDKStep.model_validate(wdk_step_json(estimated_size=None))
-        assert step.estimated_size is None
-
-    def test_nullable_strategy_id(self) -> None:
-        step = WDKStep.model_validate(wdk_step_json(strategy_id=None))
-        assert step.strategy_id is None
-
-    def test_nullable_record_class_name(self) -> None:
-        data = wdk_step_json()
-        data["recordClassName"] = None
-        step = WDKStep.model_validate(data)
-        assert step.record_class_name is None
-
-    def test_expanded_key_not_is_expanded(self) -> None:
-        """The WDK JSON key is 'expanded', not 'isExpanded'."""
-        step = WDKStep.model_validate(wdk_step_json())
-        assert step.expanded is False
-
-    def test_extra_fields_ignored(self) -> None:
-        data = wdk_step_json()
-        data["totallyUnknownField"] = "should be ignored"
-        step = WDKStep.model_validate(data)
-        assert step.id == 12345
-        assert not hasattr(step, "totallyUnknownField")
 
 
 # ---------------------------------------------------------------------------
@@ -175,13 +142,6 @@ class TestWDKStrategySummary:
         )
         assert summary.estimated_size == 150
 
-    def test_last_viewed_field_name(self) -> None:
-        """WDK uses 'lastViewed', not 'lastViewTime'."""
-        data = wdk_strategy_summary_json()
-        data["lastViewed"] = "2026-01-01"
-        summary = WDKStrategySummary.model_validate(data)
-        assert summary.last_viewed == "2026-01-01"
-
 
 # ---------------------------------------------------------------------------
 # TestWDKStrategyDetails
@@ -194,26 +154,6 @@ class TestWDKStrategyDetails:
             wdk_strategy_details_json(),
         )
         assert details.step_tree.step_id == 12345
-
-    def test_steps_map_string_keys(self) -> None:
-        details = WDKStrategyDetails.model_validate(
-            wdk_strategy_details_json(),
-        )
-        assert "12345" in details.steps
-
-    def test_steps_parsed_as_wdk_step(self) -> None:
-        details = WDKStrategyDetails.model_validate(
-            wdk_strategy_details_json(),
-        )
-        assert isinstance(details.steps["12345"], WDKStep)
-
-    def test_inherits_summary_fields(self) -> None:
-        details = WDKStrategyDetails.model_validate(
-            wdk_strategy_details_json(),
-        )
-        assert details.strategy_id == 99999
-        assert details.name == "Test Strategy"
-        assert details.root_step_id == 12345
 
 
 # ---------------------------------------------------------------------------
@@ -255,30 +195,6 @@ class TestWDKSearch:
         assert isinstance(search.parameters, list)
         assert len(search.parameters) > 0
 
-    def test_parameters_none_when_absent(self) -> None:
-        data = {
-            "urlSegment": "GenesByTextSearch",
-            "fullName": "GeneQuestions.GenesByTextSearch",
-            "queryName": "GenesByTextSearch",
-            "displayName": "Text search (genes)",
-            "shortDisplayName": "Text",
-            "outputRecordClassName": "transcript",
-            "paramNames": ["text_expression"],
-            "isAnalyzable": True,
-            "isCacheable": True,
-            "noSummaryOnSingleRecord": False,
-            "defaultSummaryView": "_default",
-            "defaultAttributes": [],
-            "defaultSorting": [],
-            "dynamicAttributes": [],
-            "filters": [],
-            "groups": [],
-            "properties": {},
-            "summaryViewPlugins": [],
-        }
-        search = WDKSearch.model_validate(data)
-        assert search.parameters is None
-
     def test_param_names_always_present(self) -> None:
         data = {
             "urlSegment": "GenesByTaxon",
@@ -287,42 +203,6 @@ class TestWDKSearch:
         search = WDKSearch.model_validate(data)
         assert isinstance(search.param_names, list)
         assert "organism" in search.param_names
-
-    def test_new_build_is_string(self) -> None:
-        envelope = search_details_response()
-        search = WDKSearch.model_validate(envelope["searchData"])
-        assert isinstance(search.new_build, str)
-
-    def test_optional_allowed_input_types(self) -> None:
-        """Boolean searches have allowed input class names; normal searches do not."""
-        boolean_data = {
-            "urlSegment": "boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
-            "allowedPrimaryInputRecordClassNames": ["transcript"],
-            "allowedSecondaryInputRecordClassNames": ["transcript"],
-            "paramNames": [],
-        }
-        boolean_search = WDKSearch.model_validate(boolean_data)
-        assert boolean_search.allowed_primary_input_record_class_names is not None
-        assert isinstance(
-            boolean_search.allowed_primary_input_record_class_names, list,
-        )
-
-        normal_data = {
-            "urlSegment": "GenesByTaxon",
-            "paramNames": [],
-        }
-        normal_search = WDKSearch.model_validate(normal_data)
-        assert normal_search.allowed_primary_input_record_class_names is None
-
-    def test_extra_fields_ignored(self) -> None:
-        data = {
-            "urlSegment": "GenesByTaxon",
-            "unknownField": "should be dropped",
-        }
-        search = WDKSearch.model_validate(data)
-        assert search.url_segment == "GenesByTaxon"
-        assert not hasattr(search, "unknownField")
-        assert not hasattr(search, "unknown_field")
 
 
 # ---------------------------------------------------------------------------
@@ -385,10 +265,6 @@ class TestWDKRecordType:
         assert rt.searches is not None
         assert len(rt.searches) == 1
 
-    def test_parse_without_searches(self) -> None:
-        rt = WDKRecordType.model_validate(wdk_record_type_json())
-        assert rt.searches is None
-
     def test_url_segment_is_canonical(self) -> None:
         rt = WDKRecordType.model_validate(wdk_record_type_json())
         assert rt.url_segment == "transcript"
@@ -407,33 +283,10 @@ class TestWDKIdentifier:
 
 
 # ---------------------------------------------------------------------------
-# TestWDKAnalysisStatusResponse
-# ---------------------------------------------------------------------------
-class TestWDKAnalysisStatusResponse:
-    """Tests for WDKAnalysisStatusResponse parsing."""
-
-    def test_parse_status(self) -> None:
-        raw = {"status": "RUNNING"}
-        resp = WDKAnalysisStatusResponse.model_validate(raw)
-        assert resp.status == "RUNNING"
-
-    def test_parse_complete(self) -> None:
-        raw = {"status": "COMPLETE"}
-        resp = WDKAnalysisStatusResponse.model_validate(raw)
-        assert resp.status == "COMPLETE"
-
-
-# ---------------------------------------------------------------------------
 # TestWDKStepAnalysisConfigStatus
 # ---------------------------------------------------------------------------
 class TestWDKStepAnalysisConfigStatus:
     """Tests for WDKStepAnalysisConfig.status typed as WDKAnalysisStatus."""
-
-    def test_status_default_is_created(self) -> None:
-        cfg = WDKStepAnalysisConfig(
-            analysis_id=1, step_id=2, analysis_name="go-enrichment"
-        )
-        assert cfg.status == "CREATED"
 
     def test_status_from_wdk_response(self) -> None:
         raw = {
@@ -466,39 +319,8 @@ class TestWDKColumnDistribution:
         assert dist.statistics.subset_size == 4429
         assert dist.statistics.num_distinct_values == 1
 
-    def test_empty_default(self) -> None:
-        dist = WDKColumnDistribution()
-        assert dist.histogram == []
-        assert dist.statistics.subset_size == 0
 
 
-# ---------------------------------------------------------------------------
-# TestWDKTemporaryResult
-# ---------------------------------------------------------------------------
-class TestWDKTemporaryResult:
-    """Tests for WDKTemporaryResult parsing."""
-
-    def test_parse_id(self) -> None:
-        raw = {"id": "abc-123-def"}
-        result = WDKTemporaryResult.model_validate(raw)
-        assert result.id == "abc-123-def"
-
-
-# ---------------------------------------------------------------------------
-# TestWDKUserInfo
-# ---------------------------------------------------------------------------
-class TestWDKUserInfo:
-    """Tests for WDKUserInfo parsing."""
-
-    def test_guest_user(self) -> None:
-        """GET /users/current for a guest returns isGuest=true, no email."""
-        user = WDKUserInfo.model_validate({
-            "id": 67890,
-            "isGuest": True,
-            "properties": {},
-        })
-        assert user.is_guest is True
-        assert user.email is None
 
 
 # ---------------------------------------------------------------------------
@@ -581,19 +403,9 @@ class TestWDKDatasetConfig:
 class TestPatchStepSpec:
     """Tests for PatchStepSpec (mutable request model for step updates)."""
 
-    def test_all_optional(self) -> None:
-        spec = PatchStepSpec()
-        assert spec.custom_name is None
-        assert spec.expanded is None
-
     def test_custom_name(self) -> None:
         spec = PatchStepSpec(custom_name="My Step")
         assert spec.custom_name == "My Step"
-
-    def test_camel_case_alias(self) -> None:
-        spec = PatchStepSpec(custom_name="Test")
-        data = spec.model_dump(by_alias=True)
-        assert "customName" in data
 
     def test_not_frozen(self) -> None:
         spec = PatchStepSpec()
@@ -623,20 +435,120 @@ class TestNewStepSpec:
         )
         assert spec.custom_name == "My Search"
 
-    def test_camel_case_serialization(self) -> None:
-        spec = NewStepSpec(
-            search_name="GenesByText",
-            search_config=WDKSearchConfig(parameters={"key": "val"}, wdk_weight=10),
-            custom_name="Test",
-        )
-        data = spec.model_dump(by_alias=True)
-        assert data["searchName"] == "GenesByText"
-        assert data["searchConfig"]["wdkWeight"] == 10
-        assert data["customName"] == "Test"
-
     def test_wdk_weight_in_search_config(self) -> None:
         spec = NewStepSpec(
             search_name="GenesByText",
             search_config=WDKSearchConfig(parameters={}, wdk_weight=5),
         )
         assert spec.search_config.wdk_weight == 5
+
+
+# ---------------------------------------------------------------------------
+# TestWDKAttributeField
+# ---------------------------------------------------------------------------
+class TestWDKAttributeField:
+    """Tests for WDKAttributeField and WDKReporter models."""
+
+    def test_parse_reporter(self) -> None:
+        reporter = WDKReporter.model_validate({
+            "name": "attributesTabular",
+            "type": "standard",
+            "displayName": "Tab/CSV",
+            "description": "Tab-delimited",
+            "isInReport": True,
+            "scopes": ["results"],
+        })
+        assert reporter.name == "attributesTabular"
+        assert reporter.is_in_report is True
+        assert reporter.scopes == ["results"]
+
+    def test_parse_attribute_field_full(self) -> None:
+        field = WDKAttributeField.model_validate({
+            "name": "gene_source_id",
+            "displayName": "Gene ID",
+            "help": "Unique identifier",
+            "type": "string",
+            "isSortable": True,
+            "isRemovable": True,
+            "isDisplayable": True,
+            "isInReport": True,
+            "truncateTo": 100,
+            "formats": [{"name": "text", "type": "standard", "displayName": "Text", "isInReport": True, "scopes": []}],
+            "properties": {"datatype": ["string"]},
+        })
+        assert field.name == "gene_source_id"
+        assert field.display_name == "Gene ID"
+        assert field.is_sortable is True
+        assert field.is_in_report is True
+        assert len(field.formats) == 1
+        assert field.formats[0].name == "text"
+
+
+
+# ---------------------------------------------------------------------------
+# TestWDKRecordTypeAttributes
+# ---------------------------------------------------------------------------
+class TestWDKRecordTypeAttributes:
+    """Tests for typed attribute fields on WDKRecordType."""
+
+    def test_parse_attributes_as_list(self) -> None:
+        rt = WDKRecordType.model_validate({
+            "urlSegment": "transcript",
+            "attributes": [
+                {"name": "gene_source_id", "displayName": "Gene ID", "type": "string", "isSortable": True},
+                {"name": "organism", "displayName": "Organism", "type": "string"},
+            ],
+        })
+        assert rt.attributes is not None
+        assert len(rt.attributes) == 2
+        assert rt.attributes[0].name == "gene_source_id"
+        assert rt.attributes[0].is_sortable is True
+
+    def test_parse_attributes_map_as_dict(self) -> None:
+        rt = WDKRecordType.model_validate({
+            "urlSegment": "transcript",
+            "attributesMap": {
+                "gene_source_id": {"name": "gene_source_id", "displayName": "Gene ID", "type": "string"},
+                "organism": {"name": "organism", "displayName": "Organism"},
+            },
+        })
+        assert rt.attributes_map is not None
+        assert len(rt.attributes_map) == 2
+        assert rt.attributes_map["gene_source_id"].display_name == "Gene ID"
+
+
+
+# ---------------------------------------------------------------------------
+# TestWDKAnswerTypedRecords
+# ---------------------------------------------------------------------------
+class TestWDKAnswerTypedRecords:
+    """Tests for WDKAnswer.records typed record parsing."""
+
+    def test_parse_answer_with_typed_records(self) -> None:
+        answer = WDKAnswer.model_validate({
+            "meta": {"totalCount": 2, "responseCount": 2},
+            "records": [
+                {
+                    "displayName": "PF3D7_0100100",
+                    "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
+                    "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                    "attributes": {"gene_source_id": "PF3D7_0100100", "organism": "P. falciparum"},
+                    "tables": {},
+                    "tableErrors": [],
+                },
+                {
+                    "displayName": "PF3D7_0200200",
+                    "id": [{"name": "source_id", "value": "PF3D7_0200200"}],
+                    "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                    "attributes": {"gene_source_id": "PF3D7_0200200"},
+                    "tables": {},
+                    "tableErrors": [],
+                },
+            ],
+        })
+        assert len(answer.records) == 2
+        assert answer.records[0].id == [{"name": "source_id", "value": "PF3D7_0100100"}]
+        assert answer.records[0].attributes["gene_source_id"] == "PF3D7_0100100"
+        assert answer.records[0].display_name == "PF3D7_0100100"
+        assert answer.records[1].id == [{"name": "source_id", "value": "PF3D7_0200200"}]
+

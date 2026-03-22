@@ -60,6 +60,8 @@ interface UseChatStreamingArgs {
   onStreamComplete?: () => void;
   /** Called after streaming errors out (in addition to the default error handling). */
   onStreamError?: (error: Error) => void;
+  /** Called whenever streaming state changes (e.g. to sync global store). */
+  setChatIsStreaming?: (streaming: boolean) => void;
 }
 
 export function useChatStreaming({
@@ -93,9 +95,10 @@ export function useChatStreaming({
   onWorkbenchGeneSet,
   onStreamComplete,
   onStreamError,
+  setChatIsStreaming,
 }: UseChatStreamingArgs) {
   // --- Sub-hooks ---
-  const lifecycle = useStreamLifecycle(thinking);
+  const lifecycle = useStreamLifecycle(thinking, setChatIsStreaming);
   const { buildStreamCallbacks } = useStreamEvents({
     siteId,
     thinking,

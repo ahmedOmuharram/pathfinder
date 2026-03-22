@@ -7,6 +7,7 @@ attribute listing, record browsing, distribution, and analysis logic.
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
     WDKColumnDistribution,
     WDKStrategyDetails,
 )
@@ -48,9 +49,9 @@ class StepResultsService:
     async def get_attributes(self) -> JSONObject:
         """Get available attributes for the record type."""
         info = await self._api.get_record_type_info(self._record_type)
-        attrs_raw = info.attributes or info.attributes_map or {}
+        attrs = info.attributes or list((info.attributes_map or {}).values())
         return {
-            "attributes": build_attribute_list(attrs_raw),
+            "attributes": build_attribute_list(attrs),
             "recordType": self._record_type,
         }
 
@@ -62,23 +63,18 @@ class StepResultsService:
         sort: str | None = None,
         direction: str = "ASC",
         attributes: list[str] | None = None,
-    ) -> JSONObject:
+    ) -> WDKAnswer:
         """Get paginated result records."""
         sorting: list[JSONObject] | None = None
         if sort:
             sorting = [{"attributeName": sort, "direction": direction.upper()}]
 
-        answer = await self._api.get_step_records(
+        return await self._api.get_step_records(
             step_id=self._step_id,
             attributes=attributes,
             pagination={"offset": offset, "numRecords": limit},
             sorting=sorting,
         )
-        result = answer.model_dump(by_alias=True)
-        return {
-            "records": result["records"],
-            "meta": result["meta"],
-        }
 
     async def get_distribution(self, attribute_name: str) -> WDKColumnDistribution:
         """Get distribution data for an attribute."""
@@ -164,8 +160,8 @@ class StepResultsService:
                     pk_defaults={"project_id": site.project_id},
                 )
 
-            attrs_raw = info.attributes or info.attributes_map or {}
-            detail_attrs, display_names = extract_detail_attributes(attrs_raw)
+            attrs = info.attributes or list((info.attributes_map or {}).values())
+            detail_attrs, display_names = extract_detail_attributes(attrs)
         except AppError:
             logger.warning(
                 "Failed to fetch record type info; falling back to raw PK",

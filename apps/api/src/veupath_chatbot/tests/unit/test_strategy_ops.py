@@ -1,7 +1,6 @@
 """Unit tests for strategy combine operations."""
 
 import pytest
-from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ops import (
     BOOLEAN_OPERATOR_OPTIONS_DESC,
@@ -111,9 +110,10 @@ class TestColocationParamsValidate:
         errors = params.check_errors()
         assert len(errors) == 2
 
-    def test_invalid_strand(self) -> None:
-        with pytest.raises(ValidationError, match="strand"):
-            ColocationParams(strand="invalid")
+    def test_invalid_strand_coerces_to_both(self) -> None:
+        """Invalid strand values are coerced to 'both' by the model validator."""
+        params = ColocationParams(strand="invalid")
+        assert params.strand == "both"
 
     def test_opposite_strand_valid(self) -> None:
         params = ColocationParams(strand="opposite")

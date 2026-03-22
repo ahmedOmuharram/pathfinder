@@ -336,19 +336,11 @@ async def get_gene_set_records(
             direction=params.sort_dir,
             attributes=attr_list,
         )
-        records = answer.get("records", [])
-        if not isinstance(records, list):
-            records = []
         filtered: list[JSONValue] = []
-        for r in records:
-            if not isinstance(r, dict):
-                continue
-            attrs = r.get("attributes")
-            if (
-                isinstance(attrs, dict)
-                and attrs.get(params.filter_attribute) == params.filter_value
-            ):
-                filtered.append(r)
+        for rec in answer.records:
+            val = rec.attributes.get(params.filter_attribute)
+            if val == params.filter_value:
+                filtered.append(rec.model_dump(by_alias=True))
         page = filtered[params.offset : params.offset + params.limit]
         return {
             "records": cast("JSONValue", page),
@@ -362,13 +354,17 @@ async def get_gene_set_records(
             },
         }
 
-    return await svc.get_records(
+    answer = await svc.get_records(
         offset=params.offset,
         limit=params.limit,
         sort=params.sort,
         direction=params.sort_dir,
         attributes=attr_list,
     )
+    return {
+        "records": [r.model_dump(by_alias=True) for r in answer.records],
+        "meta": answer.meta.model_dump(by_alias=True),
+    }
 
 
 @router.get("/{gene_set_id}/results/distributions/{attribute_name}")

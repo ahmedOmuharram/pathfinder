@@ -1,9 +1,8 @@
 """AST node types for strategy representation (untyped tree)."""
 
-from typing import Any, Literal, cast
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, ValidationError, model_validator
 
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.platform.pydantic_base import CamelModel
@@ -32,123 +31,128 @@ def generate_step_id() -> str:
     return f"step_{uuid4().hex[:8]}"
 
 
-# ---------------------------------------------------------------------------
-# Shared parsers for filters, analyses, reports, and colocation params.
-# Used by both from_dict() and session.hydrate_graph_from_steps_data().
-# ---------------------------------------------------------------------------
-
-
-def parse_filters(raw: JSONValue) -> list[StepFilter]:
-    """Parse a list of step filters from raw JSON data."""
-    items = raw if isinstance(raw, list) else []
-    filters: list[StepFilter] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        name = item.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        filters.append(
-            StepFilter(
-                name=name,
-                value=item.get("value"),
-                disabled=bool(item.get("disabled", False)),
-            )
-        )
-    return filters
-
-
-def parse_analyses(raw: JSONValue) -> list[StepAnalysis]:
-    """Parse a list of step analyses from raw JSON data."""
-    items = raw if isinstance(raw, list) else []
-    analyses: list[StepAnalysis] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        analysis_type = item.get("analysisType") or item.get("analysis_type")
-        if not isinstance(analysis_type, str) or not analysis_type:
-            continue
-        params_raw = item.get("parameters")
-        params: JSONObject = params_raw if isinstance(params_raw, dict) else {}
-        custom_name_raw = item.get("customName") or item.get("custom_name")
-        custom_name = custom_name_raw if isinstance(custom_name_raw, str) else None
-        analyses.append(
-            StepAnalysis(
-                analysis_type=analysis_type,
-                parameters=params,
-                custom_name=custom_name,
-            )
-        )
-    return analyses
-
-
-def parse_reports(raw: JSONValue) -> list[StepReport]:
-    """Parse a list of step reports from raw JSON data."""
-    items = raw if isinstance(raw, list) else []
-    reports: list[StepReport] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        report_name_raw = item.get("reportName") or item.get("report_name")
-        report_name = (
-            report_name_raw if isinstance(report_name_raw, str) else "standard"
-        )
-        config_raw = item.get("config")
-        config: JSONObject = config_raw if isinstance(config_raw, dict) else {}
-        reports.append(
-            StepReport(
-                report_name=report_name,
-                config=config,
-            )
-        )
-    return reports
-
-
-def parse_colocation_params(raw: JSONValue) -> ColocationParams | None:
-    """Parse colocation parameters from raw JSON data."""
-    if not isinstance(raw, dict):
-        return None
-    upstream_raw = raw.get("upstream", 0)
-    downstream_raw = raw.get("downstream", 0)
-    strand_raw = raw.get("strand", "both")
-    upstream = int(upstream_raw) if isinstance(upstream_raw, (int, float)) else 0
-    downstream = int(downstream_raw) if isinstance(downstream_raw, (int, float)) else 0
-    strand: Literal["same", "opposite", "both"]
-    if isinstance(strand_raw, str) and strand_raw in ("same", "opposite", "both"):
-        strand = cast("Literal['same', 'opposite', 'both']", strand_raw)
-    else:
-        strand = "both"
-    return ColocationParams(upstream=upstream, downstream=downstream, strand=strand)
-
-
 class StepFilter(CamelModel):
-    """Filter applied to a step's result."""
+    """Filter applied to a step's result.
+
+    WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.
+    """
 
     name: str
-    value: JSONValue
+    value: JSONValue = None
     disabled: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepFilter requires a dict"
+            raise TypeError(msg)
+        name = data.get("name")
+        if not isinstance(name, str) or not name:
+            msg = "StepFilter requires a non-empty 'name'"
+            raise ValueError(msg)
+        return dict(data)
+
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepFilter]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepFilter] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except (ValueError, TypeError, ValidationError):
+                continue
+        return result
 
 
 class StepAnalysis(CamelModel):
-    """Analysis configuration for a step."""
+    """Analysis configuration for a step.
+
+    WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).
+    """
 
     analysis_type: str
     parameters: JSONObject = Field(default_factory=dict)
     custom_name: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepAnalysis requires a dict"
+            raise TypeError(msg)
+        result: dict[str, JSONValue] = dict(data)
+        # Accept both camelCase alias and snake_case field name
+        at = result.get("analysisType") or result.get("analysis_type")
+        if not isinstance(at, str) or not at:
+            msg = "StepAnalysis requires 'analysisType'"
+            raise ValueError(msg)
+        # Coerce non-dict parameters to empty dict
+        if not isinstance(result.get("parameters"), dict):
+            result["parameters"] = {}
+        # Coerce non-string customName to None
+        cn = result.get("customName") or result.get("custom_name")
+        if cn is not None and not isinstance(cn, str):
+            result.pop("customName", None)
+            result.pop("custom_name", None)
+        return result
+
+    def to_dict(self) -> dict[str, JSONValue]:
         """Serialize; omits customName when empty."""
-        d = super().to_dict()
+        d: dict[str, JSONValue] = super().to_dict()
         if not self.custom_name:
             d.pop("customName", None)
         return d
 
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepAnalysis]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepAnalysis] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except (ValueError, TypeError, ValidationError):
+                continue
+        return result
+
 
 class StepReport(CamelModel):
-    """Report request attached to a step."""
+    """Report request attached to a step.
+
+    WDK fields: reportName (str, default "standard"), config (JSONObject).
+    """
 
     report_name: str = "standard"
     config: JSONObject = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepReport requires a dict"
+            raise TypeError(msg)
+        result: dict[str, JSONValue] = dict(data)
+        # Coerce non-dict config to empty dict
+        if not isinstance(result.get("config"), dict):
+            result["config"] = {}
+        return result
+
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepReport]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepReport] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except (ValueError, TypeError, ValidationError):
+                continue
+        return result
 
 
 class PlanStepNode(CamelModel):
@@ -286,7 +290,7 @@ def from_dict(data: JSONObject) -> StrategyAST:
         op_raw = node_data.get("operator")
         operator = CombineOp(op_raw) if isinstance(op_raw, str) and op_raw else None
 
-        colocation = parse_colocation_params(node_data.get("colocationParams"))
+        colocation = ColocationParams.from_json(node_data.get("colocationParams"))
 
         # basic structural constraints
         if secondary is not None and primary is None:
@@ -318,9 +322,9 @@ def from_dict(data: JSONObject) -> StrategyAST:
             operator=operator,
             colocation_params=colocation,
             display_name=display_name,
-            filters=parse_filters(node_data.get("filters")),
-            analyses=parse_analyses(node_data.get("analyses")),
-            reports=parse_reports(node_data.get("reports")),
+            filters=StepFilter.from_list(node_data.get("filters")),
+            analyses=StepAnalysis.from_list(node_data.get("analyses")),
+            reports=StepReport.from_list(node_data.get("reports")),
             wdk_weight=wdk_weight,
             id=step_id,
         )

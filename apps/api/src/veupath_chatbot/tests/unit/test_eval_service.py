@@ -11,6 +11,7 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKIdentifier,
+    WDKRecordInstance,
     WDKStrategyDetails,
 )
 from veupath_chatbot.services.eval import (
@@ -27,23 +28,23 @@ from veupath_chatbot.services.eval import (
 
 class TestExtractGeneId:
     def test_extracts_source_id(self) -> None:
-        record = {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+        record = WDKRecordInstance(id=[{"name": "source_id", "value": "PF3D7_0100100"}])
         assert extract_gene_id(record) == "PF3D7_0100100"
 
     def test_extracts_gene_source_id(self) -> None:
-        record = {"id": [{"name": "gene_source_id", "value": "PF3D7_0200300"}]}
+        record = WDKRecordInstance(id=[{"name": "gene_source_id", "value": "PF3D7_0200300"}])
         assert extract_gene_id(record) == "PF3D7_0200300"
 
     def test_fallback_to_first_value(self) -> None:
-        record = {"id": [{"name": "other_field", "value": "GENE_XYZ"}]}
+        record = WDKRecordInstance(id=[{"name": "other_field", "value": "GENE_XYZ"}])
         assert extract_gene_id(record) == "GENE_XYZ"
 
-    def test_returns_none_for_missing_id(self) -> None:
-        record = {"id": "not_a_list"}
+    def test_returns_none_for_empty_id(self) -> None:
+        record = WDKRecordInstance(id=[])
         assert extract_gene_id(record) is None
 
-    def test_returns_none_for_no_id(self) -> None:
-        record = {}
+    def test_returns_none_for_default_id(self) -> None:
+        record = WDKRecordInstance()
         assert extract_gene_id(record) is None
 
 

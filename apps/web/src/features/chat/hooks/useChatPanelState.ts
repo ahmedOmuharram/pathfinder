@@ -163,18 +163,12 @@ export function useChatPanelState({
     setOptimizationProgress,
   } = useChatStreaming(streamingArgs);
 
-  // Sync streaming state globally
-  useEffect(() => {
-    setChatIsStreaming(isStreaming);
-  }, [isStreaming, setChatIsStreaming]);
-
   const onSend = useCallback(
     async (content: string, mentions?: ChatMention[]) => {
-      setChatIsStreaming(true);
       setApiError(null);
       await handleSendRaw(content, mentions);
     },
-    [handleSendRaw, setChatIsStreaming, setApiError],
+    [handleSendRaw, setApiError],
   );
 
   // --- Data loading ---

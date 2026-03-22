@@ -8,7 +8,10 @@ RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
 from enum import StrEnum
 from typing import Literal, cast
 
+from pydantic import model_validator
+
 from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.types import JSONValue
 
 # Order matches WDK; use this tuple for iteration / descriptions
 COMBINE_OP_ORDER = (
@@ -54,11 +57,38 @@ OP_LABELS: dict[CombineOp, str] = {
 
 
 class ColocationParams(CamelModel):
-    """Parameters for colocation operator."""
+    """Parameters for colocation operator.
+
+    WDK fields: upstream (int), downstream (int), strand (same|opposite|both).
+    """
 
     upstream: int = 0
     downstream: int = 0
     strand: Literal["same", "opposite", "both"] = "both"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "ColocationParams requires a dict"
+            raise TypeError(msg)
+        result: dict[str, JSONValue] = dict(data)
+        for key in ("upstream", "downstream"):
+            val = result.get(key)
+            if isinstance(val, (int, float)):
+                result[key] = int(val)
+            elif val is not None:
+                result[key] = 0
+        if result.get("strand") not in ("same", "opposite", "both"):
+            result["strand"] = "both"
+        return result
+
+    @classmethod
+    def from_json(cls, raw: object) -> "ColocationParams | None":
+        """Parse from raw JSON, returning None for non-dict input."""
+        if not isinstance(raw, dict):
+            return None
+        return cls.model_validate(raw)
 
     @classmethod
     def from_raw(

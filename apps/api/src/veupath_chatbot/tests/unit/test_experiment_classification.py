@@ -1,11 +1,15 @@
 """Tests for veupath_chatbot.services.experiment.classification."""
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.experiment.classification import classify_records
 
 
-def _make_record(gene_id: str) -> dict[str, object]:
-    """Build a minimal WDK-style record with a primary key."""
-    return {"id": [{"name": "gene_source_id", "value": gene_id}], "attributes": {}}
+def _make_record(gene_id: str, **attrs: object) -> WDKRecordInstance:
+    """Build a minimal WDK record instance with a primary key."""
+    return WDKRecordInstance(
+        id=[{"name": "gene_source_id", "value": gene_id}],
+        attributes=attrs,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,30 +129,9 @@ class TestClassifyRecords:
         assert result[2]["_classification"] == "FN"
         assert result[3]["_classification"] is None
 
-    def test_non_dict_records_are_skipped(self) -> None:
-        """Non-dict entries in the records list should be silently skipped."""
-        # Build a list with a non-dict element to test runtime robustness.
-        records = [_make_record("A"), _make_record("B")]
-        records.insert(1, "not a dict")  # intentionally wrong type at runtime
-        result = classify_records(
-            records,
-            tp_ids={"A"},
-            fp_ids={"B"},
-            fn_ids=set(),
-            tn_ids=set(),
-        )
-        assert len(result) == 2
-        assert result[0]["_classification"] == "TP"
-        assert result[1]["_classification"] == "FP"
-
     def test_preserves_original_record_fields(self) -> None:
         """Classification should not lose existing record fields."""
-        records = [
-            {
-                "id": [{"name": "gene_source_id", "value": "G1"}],
-                "attributes": {"score": 42},
-            }
-        ]
+        records = [_make_record("G1", score=42)]
         result = classify_records(
             records, tp_ids={"G1"}, fp_ids=set(), fn_ids=set(), tn_ids=set()
         )

@@ -10,14 +10,13 @@ from veupath_chatbot.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
     UNKNOWN_SEARCH_NAME,
     PlanStepNode,
+    StepAnalysis,
+    StepFilter,
+    StepReport,
     StrategyAST,
     from_dict,
-    parse_analyses,
-    parse_colocation_params,
-    parse_filters,
-    parse_reports,
 )
-from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -256,9 +255,9 @@ def _build_node_from_step(
         id=step_id,
     )
 
-    node.filters = parse_filters(step.get("filters"))
-    node.analyses = parse_analyses(step.get("analyses"))
-    node.reports = parse_reports(step.get("reports"))
+    node.filters = StepFilter.from_list(step.get("filters"))
+    node.analyses = StepAnalysis.from_list(step.get("analyses"))
+    node.reports = StepReport.from_list(step.get("reports"))
 
     op_raw = step.get("operator")
     if isinstance(op_raw, str) and op_raw:
@@ -267,7 +266,7 @@ def _build_node_from_step(
         except ValueError:
             node.operator = None
 
-    node.colocation_params = parse_colocation_params(step.get("colocationParams"))
+    node.colocation_params = ColocationParams.from_json(step.get("colocationParams"))
 
     # Collect input references for the linking pass.
     primary_raw = step.get("primaryInputStepId")

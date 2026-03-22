@@ -1,23 +1,20 @@
 """Tests for AST parsing functions (domain/strategy/ast.py).
 
-Verifies parse_filters(), parse_analyses(), parse_reports(),
-parse_colocation_params(), PlanStepNode.infer_kind(), StrategyAST round-trip.
+Verifies StepFilter.from_list(), StepAnalysis.from_list(), StepReport.from_list(),
+ColocationParams.from_json(), PlanStepNode.infer_kind(), StrategyAST round-trip.
 """
 
 import pytest
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
+    StepAnalysis,
+    StepFilter,
+    StepReport,
     StrategyAST,
     from_dict,
-    parse_analyses,
-    parse_colocation_params,
-    parse_filters,
-    parse_reports,
 )
-from veupath_chatbot.domain.strategy.ops import CombineOp
-
-# ── parse_filters ─────────────────────────────────────────────────
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 
 
 class TestParseFilters:
@@ -26,7 +23,7 @@ class TestParseFilters:
             {"name": "gene_type", "value": "protein_coding"},
             {"name": "organism", "value": "pfal", "disabled": True},
         ]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert len(filters) == 2
         assert filters[0].name == "gene_type"
         assert filters[0].value == "protein_coding"
@@ -35,37 +32,35 @@ class TestParseFilters:
 
     def test_skips_non_dict_entries(self) -> None:
         raw = ["bad", 42, None, {"name": "good", "value": "x"}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert len(filters) == 1
         assert filters[0].name == "good"
 
     def test_skips_entries_without_name(self) -> None:
         raw = [{"value": "x"}, {"name": "", "value": "y"}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert len(filters) == 0
 
     def test_non_list_input(self) -> None:
-        assert parse_filters(None) == []
-        assert parse_filters("bad") == []
-        assert parse_filters(42) == []
+        assert StepFilter.from_list(None) == []
+        assert StepFilter.from_list("bad") == []
+        assert StepFilter.from_list(42) == []
 
     def test_empty_list(self) -> None:
-        assert parse_filters([]) == []
+        assert StepFilter.from_list([]) == []
 
     def test_value_can_be_any_type(self) -> None:
         """Filter value is JSONValue — any type is valid."""
         raw = [{"name": "f", "value": [1, 2, 3]}]
-        filters = parse_filters(raw)
+        filters = StepFilter.from_list(raw)
         assert filters[0].value == [1, 2, 3]
 
-
-# ── parse_analyses ────────────────────────────────────────────────
 
 
 class TestParseAnalyses:
     def test_camel_case_key(self) -> None:
         raw = [{"analysisType": "go_enrichment", "parameters": {"ontology": "BP"}}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert len(analyses) == 1
         assert analyses[0].analysis_type == "go_enrichment"
         assert analyses[0].parameters == {"ontology": "BP"}
@@ -73,107 +68,103 @@ class TestParseAnalyses:
     def test_snake_case_key(self) -> None:
         """analysis_type is also accepted."""
         raw = [{"analysis_type": "pathway_enrichment"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert len(analyses) == 1
         assert analyses[0].analysis_type == "pathway_enrichment"
 
     def test_custom_name_camel(self) -> None:
         raw = [{"analysisType": "go", "customName": "My Analysis"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert analyses[0].custom_name == "My Analysis"
 
     def test_custom_name_snake(self) -> None:
         raw = [{"analysisType": "go", "custom_name": "My Analysis"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert analyses[0].custom_name == "My Analysis"
 
     def test_skips_without_analysis_type(self) -> None:
         raw = [{"parameters": {}}]
-        assert parse_analyses(raw) == []
+        assert StepAnalysis.from_list(raw) == []
 
     def test_skips_empty_analysis_type(self) -> None:
         raw = [{"analysisType": ""}]
-        assert parse_analyses(raw) == []
+        assert StepAnalysis.from_list(raw) == []
 
     def test_non_dict_params_default_empty(self) -> None:
         raw = [{"analysisType": "go", "parameters": "bad"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert analyses[0].parameters == {}
 
     def test_non_list_input(self) -> None:
-        assert parse_analyses(None) == []
-        assert parse_analyses("bad") == []
+        assert StepAnalysis.from_list(None) == []
+        assert StepAnalysis.from_list("bad") == []
 
     def test_skips_non_dict_entries(self) -> None:
         raw = ["bad", {"analysisType": "go"}]
-        analyses = parse_analyses(raw)
+        analyses = StepAnalysis.from_list(raw)
         assert len(analyses) == 1
 
-
-# ── parse_reports ─────────────────────────────────────────────────
 
 
 class TestParseReports:
     def test_valid_report(self) -> None:
         raw = [{"reportName": "standard", "config": {"attributes": ["gene_id"]}}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert len(reports) == 1
         assert reports[0].report_name == "standard"
         assert reports[0].config == {"attributes": ["gene_id"]}
 
     def test_snake_case_key(self) -> None:
         raw = [{"report_name": "tabular"}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert reports[0].report_name == "tabular"
 
     def test_missing_report_name_defaults_standard(self) -> None:
         raw = [{"config": {}}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert reports[0].report_name == "standard"
 
     def test_non_dict_config_defaults_empty(self) -> None:
         raw = [{"reportName": "standard", "config": "bad"}]
-        reports = parse_reports(raw)
+        reports = StepReport.from_list(raw)
         assert reports[0].config == {}
 
     def test_non_list_input(self) -> None:
-        assert parse_reports(None) == []
+        assert StepReport.from_list(None) == []
 
     def test_empty_list(self) -> None:
-        assert parse_reports([]) == []
+        assert StepReport.from_list([]) == []
 
-
-# ── parse_colocation_params ───────────────────────────────────────
 
 
 class TestParseColocationParams:
     def test_valid_params(self) -> None:
         raw = {"upstream": 1000, "downstream": 500, "strand": "same"}
-        result = parse_colocation_params(raw)
+        result = ColocationParams.from_json(raw)
         assert result is not None
         assert result.upstream == 1000
         assert result.downstream == 500
         assert result.strand == "same"
 
     def test_defaults(self) -> None:
-        result = parse_colocation_params({})
+        result = ColocationParams.from_json({})
         assert result is not None
         assert result.upstream == 0
         assert result.downstream == 0
         assert result.strand == "both"
 
     def test_non_dict_returns_none(self) -> None:
-        assert parse_colocation_params(None) is None
-        assert parse_colocation_params("bad") is None
-        assert parse_colocation_params(42) is None
+        assert ColocationParams.from_json(None) is None
+        assert ColocationParams.from_json("bad") is None
+        assert ColocationParams.from_json(42) is None
 
     def test_invalid_strand_defaults_both(self) -> None:
-        result = parse_colocation_params({"strand": "invalid"})
+        result = ColocationParams.from_json({"strand": "invalid"})
         assert result is not None
         assert result.strand == "both"
 
     def test_float_distances_truncated(self) -> None:
-        result = parse_colocation_params({"upstream": 1000.9, "downstream": 500.1})
+        result = ColocationParams.from_json({"upstream": 1000.9, "downstream": 500.1})
         assert result is not None
         assert result.upstream == 1000
         assert result.downstream == 500

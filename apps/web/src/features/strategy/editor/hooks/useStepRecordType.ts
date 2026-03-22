@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RecordType } from "@pathfinder/shared";
 import { getRecordTypes } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
@@ -24,7 +24,17 @@ export function useStepRecordType({
   const [recordTypeOptions, setRecordTypeOptions] = useState<RecordType[]>([]);
   const [recordTypeFilter, setRecordTypeFilter] = useState("");
 
-  const normalizedRecordTypeValue = normalizeRecordType(recordTypeValue);
+  // Derive the effective record type: clear invalid values at render time
+  // instead of syncing via useEffect (avoids extra render + dual state).
+  const validatedRecordTypeValue = useMemo(() => {
+    if (recordTypeOptions.length === 0) return recordTypeValue;
+    if (recordTypeValue == null || recordTypeValue === "") return recordTypeValue;
+    const normalized = normalizeRecordType(recordTypeValue);
+    const exists = recordTypeOptions.some((option) => option.name === normalized);
+    return exists ? recordTypeValue : "";
+  }, [recordTypeOptions, recordTypeValue]);
+
+  const normalizedRecordTypeValue = normalizeRecordType(validatedRecordTypeValue);
   const apiRecordTypeValue = normalizedRecordTypeValue;
 
   // -------------------------------------------------------------------------
@@ -50,19 +60,6 @@ export function useStepRecordType({
     };
   }, [siteId]);
 
-  // Validate record type against available options
-  useEffect(() => {
-    if (recordTypeOptions.length === 0) return;
-    if (recordTypeValue == null || recordTypeValue === "") return;
-    const normalized = normalizeRecordType(recordTypeValue);
-    const exists = recordTypeOptions.some((option) => option.name === normalized);
-    if (!exists) {
-      startTransition(() => {
-        setRecordTypeValue("");
-      });
-    }
-  }, [recordTypeOptions, recordTypeValue]);
-
   const resolveRecordTypeForSearch = useCallback(
     (searchRecordType?: string | null) => {
       const normalized = normalizeRecordType(searchRecordType ?? "");
@@ -70,9 +67,9 @@ export function useStepRecordType({
         const exists = recordTypeOptions.some((option) => option.name === normalized);
         if (exists) return normalized;
       }
-      return normalizeRecordType(recordTypeValue ?? recordType) ?? "";
+      return normalizeRecordType(validatedRecordTypeValue ?? recordType) ?? "";
     },
-    [recordType, recordTypeOptions, recordTypeValue],
+    [recordType, recordTypeOptions, validatedRecordTypeValue],
   );
 
   const filteredRecordTypes = useMemo(() => {
@@ -85,7 +82,7 @@ export function useStepRecordType({
   }, [recordTypeFilter, recordTypeOptions]);
 
   return {
-    recordTypeValue,
+    recordTypeValue: validatedRecordTypeValue,
     setRecordTypeValue,
     normalizedRecordTypeValue,
     apiRecordTypeValue,

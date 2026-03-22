@@ -5,6 +5,10 @@ endpoints to work with WDK record types, primary keys, and analysis
 parameters. Previously duplicated across multiple router modules.
 """
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKAttributeField,
+    WDKRecordInstance,
+)
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 # ---------------------------------------------------------------------------
@@ -62,24 +66,21 @@ def is_suggested_score(name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def extract_pk(record: JSONObject) -> str | None:
+def extract_pk(record: WDKRecordInstance) -> str | None:
     """Extract primary key string from a WDK record.
 
-    WDK records use ``"id": [{name, value}, ...]`` for the composite
+    WDK records use ``id: [{name, value}, ...]`` for the composite
     primary key.  Returns the first part's value, stripped.
     """
-    pk = record.get("id")
-    if isinstance(pk, list) and pk:
-        first = pk[0]
-        if isinstance(first, dict):
-            val = first.get("value")
-            if isinstance(val, str):
-                return val.strip()
-    return None
+    if not record.id:
+        return None
+    first = record.id[0]
+    val = first.get("value", "")
+    return val.strip() or None
 
 
 def extract_record_ids(
-    records: object,
+    records: list[WDKRecordInstance],
     *,
     preferred_key: str | None = None,
 ) -> list[str]:
@@ -87,32 +88,16 @@ def extract_record_ids(
 
     If *preferred_key* is given, looks it up in each record's
     ``attributes`` dict first; falls back to the primary-key array.
-
-    Accepts ``object`` so callers do not need to narrow the type before
-    calling (e.g. ``answer.get("records")`` may return ``None``).
-
-    :param records: WDK answer records (expected ``list[dict]``).
-    :param preferred_key: Attribute name to prefer over primary key.
-    :returns: List of non-empty record IDs.
     """
-    if not isinstance(records, list):
-        return []
     ids: list[str] = []
     for rec in records:
-        if not isinstance(rec, dict):
-            continue
         extracted: str | None = None
-
         if preferred_key:
-            attrs = rec.get("attributes")
-            if isinstance(attrs, dict):
-                val = attrs.get(preferred_key)
-                if isinstance(val, str) and val.strip():
-                    extracted = val.strip()
-
+            val = rec.attributes.get(preferred_key)
+            if isinstance(val, str) and val.strip():
+                extracted = val.strip()
         if extracted is None:
             extracted = extract_pk(rec)
-
         if extracted:
             ids.append(extracted)
     return ids
@@ -155,55 +140,25 @@ def order_primary_key(
 # ---------------------------------------------------------------------------
 
 
-def build_attribute_list(attrs_raw: object) -> list[JSONValue]:
-    """Build a normalized attribute list from WDK record type info.
+def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JSONValue]:
+    """Build a normalized attribute list from WDK attribute fields.
 
-    Handles both dict (``attributesMap``) and list (expanded) formats.
     Each entry includes: ``name``, ``displayName``, ``help``, ``type``,
     ``isDisplayable``, ``isSortable``, ``isSuggested``.
-
-    This consolidates the 40+ line if/elif blocks previously copy-pasted
-    in both ``get_experiment_attributes`` and ``get_gene_set_attributes``.
-
-    :param attrs_raw: Raw attributes value from the record type info.
-    :returns: Normalized attribute list.
     """
     attributes: list[JSONValue] = []
-
-    if isinstance(attrs_raw, dict):
-        for name, meta in attrs_raw.items():
-            if isinstance(meta, dict):
-                attr = _build_single_attribute(str(name), meta, name_fallback=str(name))
-                attributes.append(attr)
-    elif isinstance(attrs_raw, list):
-        for meta in attrs_raw:
-            if isinstance(meta, dict):
-                attr_name = str(meta.get("name", ""))
-                attr = _build_single_attribute(attr_name, meta, name_fallback=attr_name)
-                attributes.append(attr)
-
+    for field in attrs:
+        sortable = is_sortable(field.type)
+        attributes.append({
+            "name": field.name,
+            "displayName": field.display_name or field.name,
+            "help": field.help,
+            "type": field.type,
+            "isDisplayable": field.is_displayable,
+            "isSortable": sortable,
+            "isSuggested": sortable and is_suggested_score(field.name),
+        })
     return attributes
-
-
-def _build_single_attribute(
-    name: str,
-    meta: JSONObject,
-    *,
-    name_fallback: str,
-) -> JSONObject:
-    """Build a single normalized attribute dict from WDK metadata."""
-    raw_type = meta.get("type")
-    attr_type = str(raw_type) if isinstance(raw_type, str) else None
-    sortable = is_sortable(attr_type)
-    return {
-        "name": name,
-        "displayName": meta.get("displayName", name_fallback),
-        "help": meta.get("help"),
-        "type": attr_type,
-        "isDisplayable": meta.get("isDisplayable", True),
-        "isSortable": sortable,
-        "isSuggested": sortable and is_suggested_score(name),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -212,43 +167,23 @@ def _build_single_attribute(
 
 
 def extract_detail_attributes(
-    attrs_raw: object,
+    attrs: list[WDKAttributeField],
 ) -> tuple[list[str], dict[str, str]]:
     """Extract attribute names and display names for the record detail view.
 
-    Filters to attributes with ``isInReport=True`` (skipping composite
-    overview fields) and caps at :data:`DETAIL_ATTRIBUTE_LIMIT` so that
-    record types with thousands of attributes don't timeout WDK.
-
-    Handles both dict (``attributesMap``) and list (expanded) formats.
-
-    :returns: ``(attribute_names, display_name_map)``
+    Uses ``is_in_report`` as primary signal; falls back to ``is_displayable``
+    only when ``is_in_report`` is False (preserving original WDK semantics).
+    Caps at :data:`DETAIL_ATTRIBUTE_LIMIT`.
     """
-    items: list[tuple[str, JSONObject]] = []
-    if isinstance(attrs_raw, dict):
-        items = [
-            (str(name), meta)
-            for name, meta in attrs_raw.items()
-            if isinstance(meta, dict)
-        ]
-    elif isinstance(attrs_raw, list):
-        items = [
-            (str(meta.get("name", "")), meta)
-            for meta in attrs_raw
-            if isinstance(meta, dict)
-        ]
-
     names: list[str] = []
     display_names: dict[str, str] = {}
-    for name, meta in items:
-        if not meta.get("isInReport", meta.get("isDisplayable", False)):
+    for field in attrs:
+        if not field.is_in_report and not field.is_displayable:
             continue
-        names.append(name)
-        dn = meta.get("displayName")
-        display_names[name] = str(dn) if isinstance(dn, str) else name
+        names.append(field.name)
+        display_names[field.name] = field.display_name or field.name
         if len(names) >= DETAIL_ATTRIBUTE_LIMIT:
             break
-
     return names, display_names
 
 
