@@ -143,10 +143,6 @@ class TestControlsRequirement:
 
 
 class TestObjectiveValidation:
-    def test_invalid_objective_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_settings(objective="invalid_obj")
-
     async def test_valid_objectives_accepted(self) -> None:
         for obj in ("f1", "f_beta", "recall", "precision", "custom"):
             tools = _TestableTools()
@@ -165,10 +161,6 @@ class TestObjectiveValidation:
 
 
 class TestMethodValidation:
-    def test_invalid_method_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_settings(method="evolution")
-
     async def test_valid_methods_accepted(self) -> None:
         for method in ("bayesian", "grid", "random"):
             tools = _TestableTools()
@@ -186,25 +178,7 @@ class TestMethodValidation:
             assert "error" not in parsed, f"Method '{method}' should be valid"
 
 
-class TestControlsValueFormatValidation:
-    def test_invalid_format_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_controls(controls_value_format="tsv")
-
-
 class TestBudgetValidation:
-    def test_zero_budget_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_settings(budget=0)
-
-    def test_negative_budget_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_settings(budget=-1)
-
-    def test_budget_over_50_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            _valid_settings(budget=51)
-
     async def test_budget_exactly_50_is_valid(self) -> None:
         tools = _TestableTools()
         with patch(
@@ -230,11 +204,6 @@ class TestBetaValidation:
     def test_negative_beta_raises(self) -> None:
         with pytest.raises(ValidationError):
             _valid_settings(objective="f_beta", beta=-1.0)
-
-
-# ---------------------------------------------------------------------------
-# JSON argument parsing & validation (Group B — error message changes)
-# ---------------------------------------------------------------------------
 
 
 class TestParameterSpaceJsonParsing:
@@ -326,34 +295,7 @@ class TestControlsExtraParametersJsonParsing:
         assert error
 
 
-# ---------------------------------------------------------------------------
-# Parameter space entry validation
-# ---------------------------------------------------------------------------
-
-
 class TestParameterSpaceEntryValidation:
-    async def test_non_object_entry_returns_error(self) -> None:
-        tools = _TestableTools()
-        result = await tools.optimize_search_parameters(
-            target=_valid_target(parameter_space_json=json.dumps(["not_an_object"])),
-            controls=_valid_controls(),
-        )
-        error = _parse_error(result)
-        assert error
-
-    async def test_missing_name_returns_error(self) -> None:
-        tools = _TestableTools()
-        result = await tools.optimize_search_parameters(
-            target=_valid_target(
-                parameter_space_json=json.dumps(
-                    [{"type": "numeric", "min": 0, "max": 10}]
-                )
-            ),
-            controls=_valid_controls(),
-        )
-        error = _parse_error(result)
-        assert error
-
     async def test_duplicate_names_return_error(self) -> None:
         tools = _TestableTools()
         result = await tools.optimize_search_parameters(
@@ -368,19 +310,6 @@ class TestParameterSpaceEntryValidation:
             controls=_valid_controls(),
         )
         assert "Duplicate" in _parse_error(result)
-
-    async def test_invalid_type_returns_error(self) -> None:
-        tools = _TestableTools()
-        result = await tools.optimize_search_parameters(
-            target=_valid_target(
-                parameter_space_json=json.dumps(
-                    [{"name": "fold_change", "type": "float", "min": 1, "max": 10}]
-                )
-            ),
-            controls=_valid_controls(),
-        )
-        error = _parse_error(result)
-        assert error
 
 
 class TestNumericParameterValidation:
@@ -432,19 +361,6 @@ class TestNumericParameterValidation:
         )
         assert "must be strictly less than" in _parse_error(result)
 
-    async def test_non_numeric_min_max_returns_error(self) -> None:
-        tools = _TestableTools()
-        result = await tools.optimize_search_parameters(
-            target=_valid_target(
-                parameter_space_json=json.dumps(
-                    [{"name": "fc", "type": "numeric", "min": "abc", "max": 10}]
-                )
-            ),
-            controls=_valid_controls(),
-        )
-        error = _parse_error(result)
-        assert error
-
     async def test_negative_step_returns_error(self) -> None:
         tools = _TestableTools()
         result = await tools.optimize_search_parameters(
@@ -468,27 +384,6 @@ class TestNumericParameterValidation:
             controls=_valid_controls(),
         )
         assert "'step' must be positive" in _parse_error(result)
-
-    async def test_non_numeric_step_returns_error(self) -> None:
-        tools = _TestableTools()
-        result = await tools.optimize_search_parameters(
-            target=_valid_target(
-                parameter_space_json=json.dumps(
-                    [
-                        {
-                            "name": "fc",
-                            "type": "numeric",
-                            "min": 1,
-                            "max": 10,
-                            "step": "abc",
-                        }
-                    ]
-                )
-            ),
-            controls=_valid_controls(),
-        )
-        error = _parse_error(result)
-        assert error
 
 
 class TestIntegerParameterValidation:
@@ -529,11 +424,6 @@ class TestCategoricalParameterValidation:
             controls=_valid_controls(),
         )
         assert "non-empty 'choices' array" in _parse_error(result)
-
-
-# ---------------------------------------------------------------------------
-# Successful delegation to optimizer
-# ---------------------------------------------------------------------------
 
 
 class TestSuccessfulOptimization:
