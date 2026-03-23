@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
@@ -32,11 +32,12 @@ from veupath_chatbot.services.strategies.wdk_conversion import (
 from veupath_chatbot.services.strategies.wdk_counts import (
     _STEP_COUNTS_CACHE,
     compute_step_counts_for_plan,
-    is_leaf_only_strategy,
+    is_leaf_only_plan,
 )
 from veupath_chatbot.transport.http.routers.strategies._shared import (
     derive_steps_from_plan,
 )
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 # WDK-verified search names (PlasmoDB transcript record type)
 _SEARCH_TAXON = "GenesByTaxon"
@@ -281,7 +282,7 @@ class TestComputeStepCountsAnonymousReports:
                 "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
             },
         }
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="transcript",
             root=PlanStepNode(
                 search_name=_SEARCH_TAXON,
@@ -317,7 +318,7 @@ class TestComputeStepCountsAnonymousReports:
 
     def test_is_leaf_only_detects_combine(self) -> None:
         """is_leaf_only_strategy returns False for strategies with combine steps."""
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="transcript",
             root=PlanStepNode(
                 search_name=_SEARCH_BOOLEAN,
@@ -338,11 +339,11 @@ class TestComputeStepCountsAnonymousReports:
                 ),
             ),
         )
-        assert is_leaf_only_strategy(ast) is False
+        assert is_leaf_only_plan(ast.root) is False
 
     def test_is_leaf_only_detects_single_search(self) -> None:
         """is_leaf_only_strategy returns True for single search step."""
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="transcript",
             root=PlanStepNode(
                 search_name=_SEARCH_TAXON,
@@ -351,4 +352,4 @@ class TestComputeStepCountsAnonymousReports:
                 id="step_1",
             ),
         )
-        assert is_leaf_only_strategy(ast) is True
+        assert is_leaf_only_plan(ast.root) is True

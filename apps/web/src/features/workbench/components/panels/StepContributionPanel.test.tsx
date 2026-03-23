@@ -67,7 +67,7 @@ function makeEvaluation(overrides: Partial<StepEvaluation> = {}): StepEvaluation
     stepId: "step-1",
     searchName: "GenesByTaxon",
     displayName: "Genes by Taxon",
-    resultCount: 150,
+    estimatedSize: 150,
     positiveHits: 40,
     positiveTotal: 50,
     negativeHits: 10,

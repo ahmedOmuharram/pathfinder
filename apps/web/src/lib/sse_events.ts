@@ -57,7 +57,7 @@ export type MessageStartData = {
 };
 export type CitationsData = { citations?: Citation[] };
 export type PlanningArtifactData = { planningArtifact?: PlanningArtifact };
-export type ToolCallStartData = { id: string; name: string; arguments?: string | null };
+export type ToolCallStartData = { id: string; name: string; arguments: Record<string, unknown> };
 export type ToolCallEndData = { id: string; result: string };
 
 export type StrategyUpdateStepData = {
@@ -116,7 +116,7 @@ const OptimizationTrialSchema = z
     score: z.number(),
     recall: z.number().nullable().optional(),
     falsePositiveRate: z.number().nullable().optional(),
-    resultCount: z.number().nullable().optional(),
+    estimatedSize: z.number().nullable().optional(),
     positiveHits: z.number().nullable().optional(),
     negativeHits: z.number().nullable().optional(),
     totalPositives: z.number().nullable().optional(),
@@ -139,7 +139,7 @@ export const ToolCallStartDataSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    arguments: z.string().nullish(),
+    arguments: z.record(z.string(), z.unknown()).default({}),
   })
   .passthrough();
 
@@ -155,7 +155,7 @@ export const SubKaniToolCallStartDataSchema = z
     task: z.string().nullish(),
     id: z.string(),
     name: z.string(),
-    arguments: z.string().nullish(),
+    arguments: z.record(z.string(), z.unknown()).default({}),
   })
   .passthrough();
 

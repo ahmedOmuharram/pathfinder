@@ -1,7 +1,7 @@
-"""Step creation methods for the Strategy API.
+"""Step creation and update methods for the Strategy API.
 
 Provides :class:`StepsMixin` with methods to create search steps,
-combined (boolean) steps, and transform steps.
+combined (boolean) steps, transform steps, and update existing steps.
 """
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
@@ -9,6 +9,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
     WDKIdentifier,
+    WDKSearchConfig,
     WDKStep,
 )
 from veupath_chatbot.platform.errors import AppError, DataParsingError
@@ -19,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class StepsMixin(StrategyAPIBase):
-    """Mixin providing step creation methods."""
+    """Mixin providing step creation and update methods."""
 
     async def _get_boolean_search_name(self, record_type: str) -> str:
         """Resolve the boolean combine search name for a record type."""
@@ -92,6 +93,50 @@ class StepsMixin(StrategyAPIBase):
         raw = await self.client.get(f"/users/{uid}/steps/{step_id}")
         return WDKStep.model_validate(raw)
 
+    async def _prepare_search_config(
+        self,
+        raw_params: JSONObject,
+        record_type: str,
+        search_name: str,
+        *,
+        wdk_weight: int = 0,
+        keep_empty: set[str] | None = None,
+    ) -> tuple[dict[str, str], JSONObject]:
+        """Normalize and expand parameters, return (normalized_params, search_config_payload).
+
+        Shared by create_step, create_transform_step, and update_step_search_config.
+        Returns the normalized params dict AND the ready-to-send search_config JSON object.
+
+        :param raw_params: Raw parameter dict (values may be non-string).
+        :param record_type: WDK record type (e.g., "gene", "transcript").
+        :param search_name: Search/question URL segment.
+        :param wdk_weight: WDK weight for result ranking (0 = omit from payload).
+        :param keep_empty: Param names to preserve even when empty (e.g. AnswerParams).
+        :returns: Tuple of (normalized_params, search_config_payload).
+        """
+        normalized = self._normalize_parameters(raw_params, keep_empty=keep_empty)
+
+        # Expand group codes in profile_pattern for GenesByOrthologPattern.
+        if search_name == "GenesByOrthologPattern" and "profile_pattern" in normalized:
+            normalized["profile_pattern"] = await self._expand_profile_pattern_groups(
+                record_type,
+                normalized["profile_pattern"],
+            )
+
+        # Expand parent tree nodes to leaves for multi-pick-vocabulary params
+        # with countOnlyLeaves=true (e.g., organism).  WDK silently returns 0
+        # genes for parent nodes — the frontend's CheckboxTree auto-selects
+        # leaf descendants, and we must replicate that behaviour.
+        normalized = await self._expand_tree_params_to_leaves(
+            record_type, search_name, normalized
+        )
+
+        search_config: JSONObject = {"parameters": {**normalized}}
+        if wdk_weight != 0:
+            search_config["wdkWeight"] = wdk_weight
+
+        return normalized, search_config
+
     async def create_step(
         self,
         spec: NewStepSpec,
@@ -105,35 +150,13 @@ class StepsMixin(StrategyAPIBase):
         :param user_id: Explicit user ID override, or ``None`` to use resolved.
         :returns: Created step identifier.
         """
-        raw_params: JSONObject = dict(spec.search_config.parameters)
-        normalized_params = self._normalize_parameters(raw_params)
-
-        # Expand group codes in profile_pattern for GenesByOrthologPattern.
-        if (
-            spec.search_name == "GenesByOrthologPattern"
-            and "profile_pattern" in normalized_params
-        ):
-            normalized_params[
-                "profile_pattern"
-            ] = await self._expand_profile_pattern_groups(
-                record_type,
-                normalized_params["profile_pattern"],
-            )
-
-        # Expand parent tree nodes to leaves for multi-pick-vocabulary params
-        # with countOnlyLeaves=true (e.g., organism).  WDK silently returns 0
-        # genes for parent nodes — the frontend's CheckboxTree auto-selects
-        # leaf descendants, and we must replicate that behaviour.
-        normalized_params = await self._expand_tree_params_to_leaves(
-            record_type,
-            spec.search_name,
-            normalized_params,
+        _, search_config = await self._prepare_search_config(
+            raw_params=dict(spec.search_config.parameters),
+            record_type=record_type,
+            search_name=spec.search_name,
+            wdk_weight=spec.search_config.wdk_weight,
         )
 
-        step_params: JSONObject = {**normalized_params}
-        search_config: JSONObject = {"parameters": step_params}
-        if spec.search_config.wdk_weight != 0:
-            search_config["wdkWeight"] = spec.search_config.wdk_weight
         payload: JSONObject = {
             "searchName": spec.search_name,
             "searchConfig": search_config,
@@ -242,13 +265,14 @@ class StepsMixin(StrategyAPIBase):
         for ap_name in answer_param_names:
             clean_params[ap_name] = ""
 
-        normalized_params = self._normalize_parameters(
-            clean_params, keep_empty=answer_param_names
+        normalized, search_config = await self._prepare_search_config(
+            raw_params=clean_params,
+            record_type=record_type,
+            search_name=spec.search_name,
+            wdk_weight=spec.search_config.wdk_weight,
+            keep_empty=answer_param_names,
         )
-        transform_params: JSONObject = {**normalized_params}
-        search_config: JSONObject = {"parameters": transform_params}
-        if spec.search_config.wdk_weight != 0:
-            search_config["wdkWeight"] = spec.search_config.wdk_weight
+
         payload: JSONObject = {
             "searchName": spec.search_name,
             "searchConfig": search_config,
@@ -264,7 +288,7 @@ class StepsMixin(StrategyAPIBase):
         logger.info(
             "Transform step payload",
             transform=spec.search_name,
-            params=normalized_params,
+            params=normalized,
         )
 
         uid = await self._get_user_id(user_id)
@@ -273,3 +297,75 @@ class StepsMixin(StrategyAPIBase):
             json=payload,
         )
         return WDKIdentifier.model_validate(raw)
+
+    async def update_step_search_config(
+        self,
+        step_id: int,
+        search_config: WDKSearchConfig,
+        record_type: str,
+        search_name: str,
+        *,
+        user_id: str | None = None,
+    ) -> None:
+        """Update a step's search configuration (parameters + weight).
+
+        Matches monorepo's ``StepsService.updateStepSearchConfig``.
+        Endpoint: ``PUT /users/{uid}/steps/{step_id}/search-config``
+
+        Parameters are normalized and expanded (profile pattern groups,
+        tree param leaves) identically to step creation.
+
+        :param step_id: WDK step ID to update.
+        :param search_config: New search configuration.
+        :param record_type: WDK record type (needed for param expansion).
+        :param search_name: Search URL segment (needed for param expansion).
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        """
+        _, config_payload = await self._prepare_search_config(
+            raw_params=dict(search_config.parameters),
+            record_type=record_type,
+            search_name=search_name,
+            wdk_weight=search_config.wdk_weight,
+        )
+
+        logger.info(
+            "Updating step search config",
+            step_id=step_id,
+            search_name=search_name,
+        )
+
+        uid = await self._get_user_id(user_id)
+        await self.client.put(
+            f"/users/{uid}/steps/{step_id}/search-config",
+            json=config_payload,
+        )
+
+    async def update_step_properties(
+        self,
+        step_id: int,
+        spec: PatchStepSpec,
+        *,
+        user_id: str | None = None,
+    ) -> None:
+        """Update a step's display properties (name, expanded state, preferences).
+
+        Matches monorepo's ``StepsService.updateStepProperties``.
+        Endpoint: ``PATCH /users/{uid}/steps/{step_id}``
+
+        :param step_id: WDK step ID to update.
+        :param spec: Patch specification with fields to update (None fields excluded).
+        :param user_id: Explicit user ID override, or ``None`` to use resolved.
+        """
+        payload = spec.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+        logger.info(
+            "Updating step properties",
+            step_id=step_id,
+            fields=list(payload.keys()),
+        )
+
+        uid = await self._get_user_id(user_id)
+        await self.client.patch(
+            f"/users/{uid}/steps/{step_id}",
+            json=payload,
+        )

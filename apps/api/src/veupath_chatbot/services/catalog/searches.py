@@ -3,11 +3,11 @@
 import math
 import re
 from collections import Counter
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.compile import ResolveRecordType
 from veupath_chatbot.domain.strategy.tree import collect_plan_leaves
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
@@ -25,6 +25,11 @@ from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.services.catalog.models import SearchMatch
 
 logger = get_logger(__name__)
+
+# Callback type: given a search name, returns the owning record type (or None).
+# Mirrors WDK's WdkModel.getQuestionByName() -- a global lookup across all
+# record types.
+ResolveRecordType = Callable[[str], Awaitable[str | None]]
 
 # ---------------------------------------------------------------------------
 # Scoring constants

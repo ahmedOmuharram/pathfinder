@@ -2,6 +2,7 @@
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
     WDKStep,
@@ -86,7 +87,7 @@ class TestBuildSnapshotFromWdk:
         assert ast.name == "My Strategy"
         assert ast.description == "Test description"
         assert ast.root.search_name == "GenesByTextSearch"
-        assert len(ast.get_all_steps()) == 1
+        assert len(walk_step_tree(ast.root)) == 1
 
     def test_combine_strategy(self) -> None:
         wdk = _strategy(
@@ -104,7 +105,7 @@ class TestBuildSnapshotFromWdk:
         )
         ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "combine"
-        assert len(ast.get_all_steps()) == 3
+        assert len(walk_step_tree(ast.root)) == 3
 
     def test_missing_record_class_name_raises(self) -> None:
         wdk = _strategy(

@@ -8,14 +8,11 @@ from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
-    StrategyAST,
+    walk_step_tree,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree, WDKValidation
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import (
-    JSONObject,
-    as_json_object,
-)
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -32,7 +29,7 @@ class StrategyGraph:
         # Best-effort record type context for the working graph (e.g. "gene").
         # Set when the first step is created or when importing a WDK strategy.
         self.record_type: str | None = None
-        self.current_strategy: StrategyAST | None = None
+        self.description: str | None = None
         self.steps: dict[str, PlanStepNode] = {}
         # Current subtree root IDs.  Every step creation updates this set:
         # the new step is added as a root and any inputs it consumes are
@@ -48,19 +45,29 @@ class StrategyGraph:
         self.step_validations: dict[str, WDKValidation] = {}
         # WDK strategy ID, set after build_strategy creates the strategy on WDK.
         self.wdk_strategy_id: int | None = None
+        # WDK step tree, set after push to WDK.
+        self.wdk_step_tree: WDKStepTree | None = None
 
-    def invalidate_build(self) -> None:
-        """Clear WDK build state so stale counts are not shown.
-
-        Call after any mutation that changes step semantics (parameters,
-        search_name, operator, delete).  The next ``build_strategy`` call
-        will re-populate ``step_counts`` and ``wdk_step_ids``.
-        """
-        self.step_counts.clear()
-        self.wdk_step_ids.clear()
-        self.step_validations.clear()
-        self.wdk_strategy_id = None
-        self.current_strategy = None
+    def to_plan(self, root_step_id: str | None = None) -> JSONObject:
+        """Produce the plan dict for API responses and DB persistence."""
+        root_id = root_step_id or (
+            next(iter(self.roots)) if len(self.roots) == 1 else None
+        )
+        root = self.steps.get(root_id) if root_id else None
+        if root is None:
+            return {}
+        plan: JSONObject = {
+            "recordType": self.record_type or "",
+            "root": root.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            "name": self.name,
+        }
+        if self.description:
+            plan["description"] = self.description
+        if self.step_counts:
+            plan["stepCounts"] = {k: v for k, v in self.step_counts.items() if v is not None}
+        if self.wdk_step_ids:
+            plan["wdkStepIds"] = dict(self.wdk_step_ids)
+        return plan
 
     def add_step(self, step: PlanStepNode) -> str:
         """Add a step and maintain the subtree-root set.
@@ -121,40 +128,34 @@ class StrategyGraph:
         self.roots = {sid for sid in self.steps if sid not in referenced}
 
     def save_history(self, description: str) -> None:
-        """Save current state to history.
-
-        :param description: Description of the state.
-        """
-        if self.current_strategy:
-            self.history.append(
-                {
-                    "description": description,
-                    "strategy": self.current_strategy.model_dump(
-                        by_alias=True, exclude_none=True, mode="json"
-                    ),
-                }
-            )
+        """Save current state to history."""
+        plan = self.to_plan()
+        if plan:
+            self.history.append({"description": description, "plan": plan})
 
     def undo(self) -> bool:
         """Undo to previous state.
 
-        Restores ``current_strategy`` **and** the derived graph state
-        (``steps``, ``roots``, ``last_step_id``) so that tools that inspect
-        the step graph see a consistent picture after undo.
+        Restores steps, roots, and last_step_id from the history snapshot.
+        Handles both new plan-format and old AST-format entries for migration.
         """
         if len(self.history) < _MIN_UNDO_HISTORY:
             return False
         self.history.pop()  # remove current
         previous = self.history[-1]
-        strategy_value = previous.get("strategy")
-        if isinstance(strategy_value, dict):
-            self.current_strategy = StrategyAST.model_validate(
-                as_json_object(strategy_value)
-            )
-            self.steps = {s.id: s for s in self.current_strategy.get_all_steps()}
+
+        # New format: {"plan": {...}}
+        plan_value = previous.get("plan")
+        if isinstance(plan_value, dict) and "root" in plan_value:
+            root = PlanStepNode.model_validate(plan_value["root"])
+            all_steps = walk_step_tree(root)
+            self.steps = {s.id: s for s in all_steps}
             self.recompute_roots()
-            self.last_step_id = self.current_strategy.root.id
-        return True
+            self.last_step_id = root.id
+            return True
+
+        # Old format entries are no longer supported (StrategyAST removed).
+        return False
 
 
 class StrategySession:

@@ -17,6 +17,10 @@ COPY apps/api/config.toml apps/api/
 COPY packages/shared-py/pyproject.toml packages/shared-py/
 COPY packages/shared-py/src packages/shared-py/src
 
+# Copy Alembic config and migrations
+COPY apps/api/alembic.ini apps/api/
+COPY apps/api/alembic apps/api/alembic
+
 # Copy application code (needed because `uv sync` installs the project)
 COPY apps/api/src apps/api/src
 

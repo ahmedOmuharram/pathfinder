@@ -1,7 +1,7 @@
 """Tests for ai.tools.strategy_tools.edit_ops -- delete, undo, rename, update logic."""
 
 from veupath_chatbot.ai.tools.strategy_tools.edit_ops import StrategyEditOps
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 
@@ -97,22 +97,22 @@ async def test_delete_step_refuses_to_delete_all():
     assert "clear_strategy" in str(result["message"])
 
 
-async def test_delete_step_invalidates_old_strategy():
+async def test_delete_step_removes_from_graph():
+    """After deleting a step, it should no longer appear in graph.steps."""
     ops, graph = _make_edit_ops()
     step_ids = list(graph.steps.keys())
-    # Set a current strategy rooted at step_ids[0]
-    root = graph.steps[step_ids[0]]
-    graph.current_strategy = StrategyAST(record_type="gene", root=root, name="Test")
+    target_id = step_ids[0]
+    remaining_id = step_ids[1]
 
-    await ops.delete_step(step_id=step_ids[0], graph_id="g1")
+    await ops.delete_step(step_id=target_id, graph_id="g1")
 
-    # After deletion, _with_full_graph rebuilds context plan from remaining steps.
-    # The old strategy (rooted at deleted step) should not survive.
-    if graph.current_strategy is not None:
-        # If rebuilt, it should be rooted at the remaining step, not the deleted one.
-        remaining_ids = set(graph.steps.keys())
-        all_step_ids = {s.id for s in graph.current_strategy.get_all_steps()}
-        assert all_step_ids.issubset(remaining_ids)
+    # The deleted step is gone from graph.steps
+    assert target_id not in graph.steps
+    # The remaining step is still present
+    assert remaining_id in graph.steps
+    # Roots are updated: only the remaining step is a root
+    assert remaining_id in graph.roots
+    assert target_id not in graph.roots
 
 
 # -- undo_last_change --
@@ -128,18 +128,15 @@ async def test_undo_with_no_history():
 
 
 async def test_undo_with_history():
-    ops, graph = _make_edit_ops()
-    step_ids = list(graph.steps.keys())
+    # Use a single-step graph (1 root) so save_history/to_plan works.
+    ops, graph = _make_edit_ops(with_steps=False)
+    step = PlanStepNode(search_name="SearchA", parameters={"x": "1"})
+    graph.add_step(step)
 
-    # Build a strategy and save two history entries
-    root = graph.steps[step_ids[0]]
-    strategy = StrategyAST(record_type="gene", root=root, name="V1")
-    graph.current_strategy = strategy
     graph.save_history("Initial")
 
-    # Simulate a change
-    strategy2 = StrategyAST(record_type="gene", root=root, name="V2")
-    graph.current_strategy = strategy2
+    # Simulate a change: update step params.
+    step.parameters = {"x": "2"}
     graph.save_history("Changed")
 
     result = await ops.undo_last_change(graph_id="g1")

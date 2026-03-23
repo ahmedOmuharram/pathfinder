@@ -706,10 +706,9 @@ async def _build_delegation_response(
         and (r.get("ok") is False or r.get("error"))
     ]
 
-    if isinstance(run_data.graph, StrategyGraph) and run_data.graph.current_strategy:
-        run_data.graph.current_strategy.name = run_data.graph_name
-        run_data.graph.current_strategy.description = run_data.graph_description
+    if isinstance(run_data.graph, StrategyGraph):
         run_data.graph.name = run_data.graph_name
+        run_data.graph.description = run_data.graph_description
         run_data.graph.save_history("Updated strategy metadata from delegation")
         await emit_event(
             {

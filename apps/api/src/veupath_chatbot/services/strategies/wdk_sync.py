@@ -13,7 +13,7 @@ Handles:
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategySummary
 from veupath_chatbot.persistence.models import StreamProjection
@@ -25,6 +25,7 @@ from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk import get_strategy_api
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 from .wdk_conversion import (
     build_snapshot_from_wdk,
@@ -68,20 +69,20 @@ def plan_needs_detail_fetch(projection: StreamProjection) -> bool:
 async def fetch_and_convert(
     api: StrategyAPI,
     wdk_id: int,
-) -> tuple[StrategyAST, bool]:
-    """Fetch a WDK strategy and convert to internal AST.
+) -> tuple[StrategyPlanPayload, bool]:
+    """Fetch a WDK strategy and convert to internal plan payload.
 
     Normalizes parameters best-effort (failures are logged and swallowed).
-    Step counts and WDK step ID mappings are stored on the AST directly.
+    Step counts and WDK step ID mappings are stored on the payload directly.
 
-    :returns: Tuple of (StrategyAST, is_saved).
+    :returns: Tuple of (StrategyPlanPayload, is_saved).
     """
     wdk_strategy = await api.get_strategy(wdk_id)
 
-    ast = build_snapshot_from_wdk(wdk_strategy)
+    payload = build_snapshot_from_wdk(wdk_strategy)
 
     try:
-        await normalize_synced_parameters(ast, api)
+        await normalize_synced_parameters(payload, api)
     except AppError as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",
@@ -89,7 +90,7 @@ async def fetch_and_convert(
             error=str(exc),
         )
 
-    return ast, wdk_strategy.is_saved
+    return payload, wdk_strategy.is_saved
 
 
 async def sync_to_projection(
@@ -104,9 +105,9 @@ async def sync_to_projection(
 
     Shared by ``open_strategy`` and ``sync_all_wdk_strategies``.
     """
-    ast, is_saved = await fetch_and_convert(api, wdk_id)
-    plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-    name = ast.name or f"WDK Strategy {wdk_id}"
+    payload, is_saved = await fetch_and_convert(api, wdk_id)
+    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+    name = payload.name or f"WDK Strategy {wdk_id}"
 
     return await upsert_projection(
         stream_repo=stream_repo,
@@ -116,9 +117,9 @@ async def sync_to_projection(
             wdk_id=wdk_id,
             name=name,
             plan=plan,
-            record_type=ast.record_type,
+            record_type=payload.record_type,
             is_saved=is_saved,
-            step_count=len(ast.get_all_steps()),
+            step_count=len(walk_step_tree(payload.root)),
         ),
     )
 
@@ -263,14 +264,14 @@ async def lazy_fetch_wdk_detail(
 
     try:
         api = get_strategy_api(site_id)
-        ast, is_saved = await fetch_and_convert(api, wdk_id)
-        plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
+        payload, is_saved = await fetch_and_convert(api, wdk_id)
+        plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
         await stream_repo.update_projection(
             projection.stream_id,
             ProjectionUpdate(
                 plan=plan,
-                record_type=ast.record_type,
-                step_count=len(ast.get_all_steps()),
+                record_type=payload.record_type,
+                step_count=len(walk_step_tree(payload.root)),
                 is_saved=is_saved,
                 is_saved_set=True,
             ),

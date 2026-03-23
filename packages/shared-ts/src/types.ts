@@ -109,9 +109,6 @@ export type ToolCall = components["schemas"]["ToolCallResponse"];
 export type SubKaniTokenUsage = components["schemas"]["SubKaniTokenUsageResponse"];
 export type SubKaniActivity = components["schemas"]["SubKaniActivityResponse"];
 export type Thinking = components["schemas"]["ThinkingResponse"];
-export type StepFilter = components["schemas"]["StepFilterResponse"];
-export type StepAnalysis = components["schemas"]["StepAnalysisResponse"];
-export type StepReport = components["schemas"]["StepReportResponse"];
 export type Step = components["schemas"]["StepResponse"];
 export type GeneSet = components["schemas"]["GeneSetResponse"];
 export type GeneConfidenceScore =
@@ -216,6 +213,23 @@ export function wdkOperatorToCombine(wdkOperator: string | null | undefined): Co
 }
 
 // Strategy Plan DSL (AST)
+
+export interface StepFilter {
+  name: string;
+  value?: unknown;
+  disabled?: boolean;
+}
+
+export interface StepAnalysis {
+  analysisType: string;
+  parameters?: Record<string, unknown>;
+  customName?: string | null;
+}
+
+export interface StepReport {
+  reportName?: string;
+  config?: Record<string, unknown>;
+}
 
 export interface BasePlanNode {
   id?: string;
@@ -439,7 +453,7 @@ export interface OptimizationTrial {
   score: number;
   recall?: number | null;
   falsePositiveRate?: number | null;
-  resultCount?: number | null;
+  estimatedSize?: number | null;
   positiveHits?: number | null;
   negativeHits?: number | null;
   totalPositives?: number | null;

@@ -40,10 +40,10 @@ export function buildNodeSelectionPayload(
       const node: NodeSelectionNode = {
         id: step.id,
         kind: inferStepKind(step),
-        displayName: step.displayName,
+        displayName: step.displayName ?? "",
         selected: selectedSet.has(step.id),
       };
-      if (step.searchName != null) node.searchName = step.searchName;
+      if (step.searchName) node.searchName = step.searchName;
       if (step.operator != null) node.operator = step.operator;
       if (step.parameters != null) node.parameters = step.parameters;
       if (step.recordType != null) node.recordType = step.recordType;

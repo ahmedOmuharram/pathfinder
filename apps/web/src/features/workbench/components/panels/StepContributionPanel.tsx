@@ -136,7 +136,7 @@ function StepEvaluationTable({ evaluations }: { evaluations: StepEvaluation[] })
             {evaluations.map((e) => (
               <tr key={e.stepId} className="border-b border-border/50">
                 <td className="py-1.5 pr-3">{e.displayName}</td>
-                <td className="py-1.5 pr-3">{e.resultCount}</td>
+                <td className="py-1.5 pr-3">{e.estimatedSize}</td>
                 <td className="py-1.5 pr-3">{e.recall.toFixed(2)}</td>
                 <td className="py-1.5">{e.falsePositiveRate.toFixed(2)}</td>
               </tr>

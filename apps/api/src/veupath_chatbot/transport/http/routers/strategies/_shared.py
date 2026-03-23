@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
@@ -10,6 +10,7 @@ from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.transport.http.schemas import (
     MessageResponse,
     StepResponse,
+    StrategyPlanPayload,
     StrategyResponse,
     ThinkingResponse,
 )
@@ -37,11 +38,13 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
         return None
 
 
-def step_response_from_ast(ast: StrategyAST, step: PlanStepNode) -> StepResponse:
-    """Build a StepResponse from a PlanStepNode using AST metadata."""
-    counts = ast.step_counts or {}
-    ids = ast.wdk_step_ids or {}
-    validations = ast.step_validations or {}
+def step_response_from_plan(
+    payload: StrategyPlanPayload, step: PlanStepNode
+) -> StepResponse:
+    """Build a StepResponse from a PlanStepNode using plan payload metadata."""
+    counts = payload.step_counts or {}
+    ids = payload.wdk_step_ids or {}
+    validations = payload.step_validations or {}
 
     wdk_step_id = ids.get(step.id)
     if wdk_step_id is None and step.id.isdigit():
@@ -52,7 +55,7 @@ def step_response_from_ast(ast: StrategyAST, step: PlanStepNode) -> StepResponse
         kind=step.infer_kind(),
         display_name=step.display_name or step.search_name,
         search_name=step.search_name,
-        record_type=ast.record_type,
+        record_type=payload.record_type,
         parameters=step.parameters,
         operator=step.operator.value if step.operator else None,
         colocation_params=step.colocation_params,
@@ -74,15 +77,18 @@ def step_response_from_ast(ast: StrategyAST, step: PlanStepNode) -> StepResponse
 def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
     """Derive step responses from a plan dict. Returns [] if plan is empty/invalid.
 
-    If the AST contains ``step_counts`` (stored during WDK detail fetch),
+    If the plan contains ``step_counts`` (stored during WDK detail fetch),
     each step's ``estimated_size`` is populated from it, enabling zero-cost count
     display for WDK-linked strategies.
     """
     if not plan or not isinstance(plan, dict) or "root" not in plan:
         return []
     try:
-        ast = StrategyAST.model_validate(plan)
-        return [step_response_from_ast(ast, step) for step in ast.get_all_steps()]
+        payload = StrategyPlanPayload.model_validate(plan)
+        return [
+            step_response_from_plan(payload, step)
+            for step in walk_step_tree(payload.root)
+        ]
     except (ValueError, KeyError, TypeError) as exc:
         logger.exception("derive_steps_from_plan failed", error=str(exc))
         return []

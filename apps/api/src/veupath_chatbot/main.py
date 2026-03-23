@@ -12,6 +12,8 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from veupath_chatbot import __version__
+from qdrant_client.http.exceptions import ApiException
+
 from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
 from veupath_chatbot.integrations.vectorstore.qdrant_store import (
     close_all_qdrant_stores,
@@ -91,12 +93,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     try:
         await ensure_rag_collections()
-    except (OSError, RuntimeError) as exc:  # pragma: no cover
+    except (OSError, RuntimeError, ApiException) as exc:
         # Do not fail API startup if Qdrant is unavailable or misconfigured.
         logger.warning("Failed to ensure RAG collections", error=str(exc))
     try:
         await start_rag_startup_ingestion_background()
-    except (OSError, RuntimeError) as exc:  # pragma: no cover
+    except (OSError, RuntimeError, ApiException) as exc:
         logger.warning("Failed to start RAG startup ingestion", error=str(exc))
 
     yield

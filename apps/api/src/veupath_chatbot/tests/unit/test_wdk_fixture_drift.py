@@ -17,6 +17,7 @@ WDK contracts validated:
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKSearchResponse,
@@ -51,7 +52,7 @@ class TestStrategyFixtureRoundTrip:
         assert ast.root.search_name is not None
 
         # Steps extracted from AST
-        assert len(ast.get_all_steps()) >= 1
+        assert len(walk_step_tree(ast.root)) >= 1
 
         # Step counts from estimatedSize (on AST)
         step_counts = ast.step_counts or {}
@@ -66,7 +67,7 @@ class TestStrategyFixtureRoundTrip:
         ast = build_snapshot_from_wdk(wdk)
 
         assert ast.root.search_name is not None
-        assert len(ast.get_all_steps()) == 1
+        assert len(walk_step_tree(ast.root)) == 1
 
 
 # ── standard_report_response → WDKAnswer ──────────────────────────

@@ -1,6 +1,7 @@
 """Tests for wdk_weight field on PlanStepNode."""
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 class TestWdkWeightRoundTrip:
@@ -12,7 +13,7 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.model_dump(by_alias=True, exclude_none=True, mode="json"),
         }
-        ast = StrategyAST.model_validate(serialized)
+        ast = StrategyPlanPayload.model_validate(serialized)
         assert ast.root.wdk_weight == 10
 
     def test_round_trip_without_weight(self) -> None:
@@ -21,7 +22,7 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.model_dump(by_alias=True, exclude_none=True, mode="json"),
         }
-        ast = StrategyAST.model_validate(serialized)
+        ast = StrategyPlanPayload.model_validate(serialized)
         assert ast.root.wdk_weight is None
 
     def test_round_trip_preserves_zero_weight(self) -> None:
@@ -30,5 +31,5 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.model_dump(by_alias=True, exclude_none=True, mode="json"),
         }
-        ast = StrategyAST.model_validate(serialized)
+        ast = StrategyPlanPayload.model_validate(serialized)
         assert ast.root.wdk_weight == 0

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.transport.http import schemas
 from veupath_chatbot.transport.http.schemas.chat import ChatMention
@@ -14,6 +14,7 @@ from veupath_chatbot.transport.http.schemas.experiments import (
     OverlapRequest,
     ThresholdSweepRequest,
 )
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 def test_http_schemas_import_and_basic_model_parsing() -> None:
@@ -121,7 +122,7 @@ def test_open_strategy_request_requires_at_least_one_id() -> None:
 
 
 def test_create_strategy_request_validates_name_length() -> None:
-    plan = StrategyAST(
+    plan = StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(search_name="GenesByOrganism"),
     )
@@ -134,7 +135,7 @@ def test_create_strategy_request_validates_name_length() -> None:
 
 
 def test_create_strategy_rejects_empty_name() -> None:
-    plan = StrategyAST(
+    plan = StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(search_name="GenesByOrganism"),
     )
@@ -232,7 +233,7 @@ def test_custom_enrich_request_validation() -> None:
 
 
 def test_strategy_ast_nested_structure() -> None:
-    plan = StrategyAST(
+    plan = StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(
             search_name="GenesByOrganism",

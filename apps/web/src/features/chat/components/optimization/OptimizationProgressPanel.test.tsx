@@ -40,7 +40,7 @@ function trial(trialNumber: number, score: number): OptimizationTrial {
     score,
     recall: 0.5,
     falsePositiveRate: 0.1,
-    resultCount: 10,
+    estimatedSize: 10,
     positiveHits: 5,
     negativeHits: 1,
     totalPositives: 10,

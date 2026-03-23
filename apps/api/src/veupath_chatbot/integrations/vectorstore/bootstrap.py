@@ -2,6 +2,8 @@
 
 import asyncio
 
+from qdrant_client.http.exceptions import ApiException
+
 from veupath_chatbot.integrations.embeddings.openai_embeddings import embed_one
 from veupath_chatbot.integrations.vectorstore.collections import (
     EXAMPLE_PLANS_V1,
@@ -81,7 +83,7 @@ async def ensure_rag_collections() -> None:
     #
     # In Docker Compose, Qdrant may be "started" but not yet ready to accept
     # requests. Retry briefly to avoid flakey startup behavior.
-    last_exc: OSError | RuntimeError | None = None
+    last_exc: OSError | RuntimeError | ApiException | None = None
     for attempt in range(8):
         try:
             await store.ensure_collection(name=WDK_RECORD_TYPES_V1, vector_size=dim)
@@ -92,7 +94,8 @@ async def ensure_rag_collections() -> None:
             RuntimeError,
             ConnectionError,
             TimeoutError,
-        ) as exc:  # pragma: no cover
+            ApiException,
+        ) as exc:
             last_exc = exc
             await asyncio.sleep(0.25 * (attempt + 1))
         else:

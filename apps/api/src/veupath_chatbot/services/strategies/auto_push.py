@@ -13,8 +13,8 @@ when a fire-and-forget task shares a request-scoped connection.
 import asyncio
 from uuid import UUID
 
-from veupath_chatbot.domain.strategy.compile import compile_strategy
-from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
+from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.persistence.repositories.stream import (
     ProjectionUpdate,
     StreamRepository,
@@ -22,8 +22,9 @@ from veupath_chatbot.persistence.repositories.stream import (
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, WDKError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.services.catalog.searches import make_record_type_resolver
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
+from veupath_chatbot.services.strategies.sync import sync_strategy_for_site
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 logger = get_logger(__name__)
 
@@ -82,11 +83,43 @@ async def _clear_stale_wdk_id(
         )
 
 
+def _build_graph_from_plan(
+    payload: StrategyPlanPayload,
+    site_id: str,
+    wdk_strategy_id: int | None,
+) -> StrategyGraph:
+    """Build a temporary StrategyGraph from a validated plan payload.
+
+    Populates steps, roots, record_type, and wdk_step_ids so
+    ``sync_strategy_for_site`` can build the WDK step tree.
+    """
+    graph = StrategyGraph("auto-push", payload.name or "auto-push", site_id)
+    graph.record_type = payload.record_type
+    graph.wdk_strategy_id = wdk_strategy_id
+
+    all_steps = walk_step_tree(payload.root)
+    graph.steps = {step.id: step for step in all_steps}
+    graph.recompute_roots()
+    graph.last_step_id = payload.root.id
+
+    # Hydrate wdk_step_ids from the plan payload (WDK-imported strategies
+    # store mappings, and strategies with numeric IDs self-map).
+    if payload.wdk_step_ids:
+        graph.wdk_step_ids = dict(payload.wdk_step_ids)
+    else:
+        # For WDK-imported strategies, step IDs ARE WDK step IDs.
+        for step in all_steps:
+            if step.id.isdigit():
+                graph.wdk_step_ids[step.id] = int(step.id)
+
+    return graph
+
+
 async def _do_push(
     session: object,
     strategy_id: UUID,
 ) -> None:
-    """Run the actual compile-and-push flow inside an existing DB session."""
+    """Run the actual sync-and-push flow inside an existing DB session."""
     repo = StreamRepository(session)
     projection = await repo.get_projection(strategy_id)
     if not projection or not projection.wdk_strategy_id:
@@ -100,43 +133,23 @@ async def _do_push(
     if not plan:
         return
 
-    strategy_ast = validate_plan_or_raise(plan)
-    api = get_strategy_api(site_id)
-    resolver = await make_record_type_resolver(site_id)
+    payload = validate_plan_or_raise(plan)
+    graph = _build_graph_from_plan(payload, site_id, projection.wdk_strategy_id)
 
-    result = await compile_strategy(
-        strategy_ast, api, site_id=site_id, resolve_search_record_type=resolver
+    sync_result = await sync_strategy_for_site(
+        graph=graph,
+        site_id=site_id,
+        strategy_name=projection.name,
     )
 
-    await api.update_strategy(
-        strategy_id=projection.wdk_strategy_id,
-        step_tree=result.step_tree,
-        name=projection.name,
-    )
-
-    compiled_map = {s.local_id: s.wdk_step_id for s in result.steps}
-    all_steps = strategy_ast.get_all_steps()
-    unmapped = [s.id for s in all_steps if s.id not in compiled_map]
-    if unmapped:
-        logger.warning(
-            "Auto-push: some steps missing from compiled map, "
-            "skipping ID rewrite to avoid mixed-ID corruption",
-            strategy_id=str(strategy_id),
-            unmapped_step_ids=unmapped,
-        )
-    else:
-        for step in all_steps:
-            step.id = str(compiled_map[step.id])
-
-    updated_plan = strategy_ast.model_dump(
-        by_alias=True, exclude_none=True, mode="json"
-    )
+    # Serialize updated plan from graph state (now has WDK step IDs and counts).
+    updated_plan = graph.to_plan()
     await repo.update_projection(
         strategy_id,
         ProjectionUpdate(
             plan=updated_plan,
-            record_type=strategy_ast.record_type,
-            step_count=len(strategy_ast.get_all_steps()),
+            record_type=graph.record_type,
+            step_count=sync_result.step_count,
         ),
     )
     await session.commit()
@@ -144,7 +157,7 @@ async def _do_push(
     logger.info(
         "Auto-pushed strategy to WDK",
         strategy_id=str(strategy_id),
-        wdk_strategy_id=projection.wdk_strategy_id,
+        wdk_strategy_id=sync_result.wdk_strategy_id,
     )
 
 

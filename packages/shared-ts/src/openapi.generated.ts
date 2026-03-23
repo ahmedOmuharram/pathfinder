@@ -1424,7 +1424,7 @@ export type paths = {
         put?: never;
         post?: never;
         /**
-         * Purge User Data
+         * Purge User Data Endpoint
          * @description Purge user data from all local stores.
          *
          *     When ``deleteWdk=false`` (default): non-WDK streams are hard-deleted,
@@ -1438,7 +1438,47 @@ export type paths = {
          *
          *     Pass ``?siteId=X`` to limit to one site, or omit for everything.
          */
-        delete: operations["purge_user_data_api_v1_user_data_delete"];
+        delete: operations["purge_user_data_endpoint_api_v1_user_data_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/build-gold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build Gold Strategy Endpoint
+         * @description Materialize a gold strategy AST on WDK and fetch all result gene IDs.
+         */
+        post: operations["build_gold_strategy_endpoint_api_v1_eval_build_gold_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/strategy-gene-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Strategy Gene Ids
+         * @description Fetch all gene IDs from a PathFinder strategy's WDK root step.
+         */
+        post: operations["get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1548,6 +1588,38 @@ export type components = {
             negativeSetSensitivity?: components["schemas"]["NegativeSetVariantResponse"][];
         };
         /**
+         * BuildGoldRequest
+         * @description Request to materialize a gold strategy AST on WDK and return gene IDs.
+         */
+        BuildGoldRequest: {
+            /** Goldid */
+            goldId: string;
+            /** Siteid */
+            siteId: string;
+            /**
+             * Recordtype
+             * @default gene
+             */
+            recordType: string;
+            /** Steptree */
+            stepTree: {
+                [key: string]: unknown;
+            };
+        };
+        /** BuildGoldResponse */
+        BuildGoldResponse: {
+            /** Goldid */
+            goldId: string;
+            /** Wdkstrategyid */
+            wdkStrategyId: number;
+            /** Rootstepid */
+            rootStepId: number;
+            /** Estimatedsize */
+            estimatedSize: number;
+            /** Geneids */
+            geneIds: string[];
+        };
+        /**
          * ChatMention
          * @description A reference to a strategy or experiment included via @-mention.
          */
@@ -1635,11 +1707,22 @@ export type components = {
             /** Citations */
             citations?: components["schemas"]["CitationResponse"][] | null;
         };
-        /** ColocationParams */
+        /**
+         * ColocationParams
+         * @description Parameters for colocation operator.
+         *
+         *     WDK fields: upstream (int), downstream (int), strand (same|opposite|both).
+         */
         ColocationParams: {
-            /** Upstream */
+            /**
+             * Upstream
+             * @default 0
+             */
             upstream: number;
-            /** Downstream */
+            /**
+             * Downstream
+             * @default 0
+             */
             downstream: number;
             /**
              * Strand
@@ -1648,6 +1731,12 @@ export type components = {
              */
             strand: "same" | "opposite" | "both";
         };
+        /**
+         * CombineOp
+         * @description Set operations for combining two step results.
+         * @enum {string}
+         */
+        CombineOp: "INTERSECT" | "MINUS" | "RMINUS" | "LONLY" | "RONLY" | "COLOCATE" | "UNION";
         /**
          * ConfidenceIntervalResponse
          * @description Bootstrap confidence interval for a single metric.
@@ -1936,7 +2025,7 @@ export type components = {
             name: string;
             /** Siteid */
             siteId: string;
-            plan: components["schemas"]["StrategyPlan-Input"];
+            plan: components["schemas"]["StrategyPlanPayload-Input"];
         };
         /**
          * CrossValidationResultResponse
@@ -2465,6 +2554,16 @@ export type components = {
             isPrimaryBenchmark: boolean;
         };
         /**
+         * FetchGeneIdsRequest
+         * @description Fetch gene IDs from an existing PathFinder strategy.
+         */
+        FetchGeneIdsRequest: {
+            /** Strategyid */
+            strategyId: string;
+            /** Siteid */
+            siteId: string;
+        };
+        /**
          * FoldMetricsResponse
          * @description Metrics for a single cross-validation fold.
          */
@@ -2716,11 +2815,34 @@ export type components = {
             description?: string | null;
         };
         /**
+         * GraphSnapshotContent
+         * @description Content of a graph_snapshot event payload.
+         */
+        GraphSnapshotContent: {
+            /** Graphid */
+            graphId?: string | null;
+            /** Graphname */
+            graphName?: string | null;
+            /** Recordtype */
+            recordType?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Rootstepid */
+            rootStepId?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["JSONObject"][];
+            /** Edges */
+            edges?: components["schemas"]["JSONObject"][];
+            plan?: components["schemas"]["JSONObject"] | null;
+        };
+        /**
          * GraphSnapshotEventData
          * @description Payload for ``graph_snapshot`` SSE events.
          */
         GraphSnapshotEventData: {
-            graphSnapshot?: components["schemas"]["JSONObject"] | null;
+            graphSnapshot?: components["schemas"]["GraphSnapshotContent"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3157,8 +3279,8 @@ export type components = {
             recall?: number | null;
             /** Falsepositiverate */
             falsePositiveRate?: number | null;
-            /** Resultcount */
-            resultCount?: number | null;
+            /** Estimatedsize */
+            estimatedSize?: number | null;
             /** Positivehits */
             positiveHits?: number | null;
             /** Negativehits */
@@ -3367,89 +3489,76 @@ export type components = {
             /** Sharedgenes */
             sharedGenes: number;
         };
-        /** PlanMetadata */
-        PlanMetadata: {
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Siteid */
-            siteId?: string | null;
-            /** Createdat */
-            createdAt?: string | null;
-        };
-        /**
-         * PlanNode
-         * @description Untyped recursive plan node (WDK-aligned).
-         *
-         *     Kind is inferred from structure:
-         *     - combine: primaryInput + secondaryInput
-         *     - transform: primaryInput only
-         *     - search: no inputs
-         */
-        "PlanNode-Input": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec-Input"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec-Input"][] | null;
-            /** Searchname */
-            searchName: string;
-            parameters?: components["schemas"]["JSONObject"];
-            primaryInput?: components["schemas"]["PlanNode-Input"] | null;
-            secondaryInput?: components["schemas"]["PlanNode-Input"] | null;
-            /** Operator */
-            operator?: string | null;
-            colocationParams?: components["schemas"]["ColocationParams"] | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * PlanNode
-         * @description Untyped recursive plan node (WDK-aligned).
-         *
-         *     Kind is inferred from structure:
-         *     - combine: primaryInput + secondaryInput
-         *     - transform: primaryInput only
-         *     - search: no inputs
-         */
-        "PlanNode-Output": {
-            /** Id */
-            id?: string | null;
-            /** Displayname */
-            displayName?: string | null;
-            /** Filters */
-            filters?: components["schemas"]["StepFilterSpec"][] | null;
-            /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisSpec-Output"][] | null;
-            /** Reports */
-            reports?: components["schemas"]["StepReportSpec-Output"][] | null;
-            /** Searchname */
-            searchName: string;
-            parameters?: components["schemas"]["JSONObject"];
-            primaryInput?: components["schemas"]["PlanNode-Output"] | null;
-            secondaryInput?: components["schemas"]["PlanNode-Output"] | null;
-            /** Operator */
-            operator?: string | null;
-            colocationParams?: components["schemas"]["ColocationParams"] | null;
-        } & {
-            [key: string]: unknown;
-        };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
             /** Siteid */
             siteId: string;
-            plan: components["schemas"]["StrategyPlan-Input"];
+            plan: components["schemas"]["StrategyPlanPayload-Input"];
         };
         /** PlanNormalizeResponse */
         PlanNormalizeResponse: {
-            plan: components["schemas"]["StrategyPlan-Output"];
+            plan: components["schemas"]["StrategyPlanPayload-Output"];
             warnings?: components["schemas"]["JSONArray"] | null;
+        };
+        /**
+         * PlanStepNode
+         * @description Untyped recursive strategy node.
+         *
+         *     Kind is inferred from structure:
+         *     - combine: primary_input and secondary_input
+         *     - transform: primary_input only
+         *     - search: no inputs
+         */
+        "PlanStepNode-Input": {
+            /** Searchname */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            primaryInput?: components["schemas"]["PlanStepNode-Input"] | null;
+            secondaryInput?: components["schemas"]["PlanStepNode-Input"] | null;
+            operator?: components["schemas"]["CombineOp"] | null;
+            colocationParams?: components["schemas"]["ColocationParams"] | null;
+            /** Displayname */
+            displayName?: string | null;
+            /** Filters */
+            filters?: components["schemas"]["StepFilter"][];
+            /** Analyses */
+            analyses?: components["schemas"]["StepAnalysis-Input"][];
+            /** Reports */
+            reports?: components["schemas"]["StepReport-Input"][];
+            /** Wdkweight */
+            wdkWeight?: number | null;
+            /** Id */
+            id?: string;
+        };
+        /**
+         * PlanStepNode
+         * @description Untyped recursive strategy node.
+         *
+         *     Kind is inferred from structure:
+         *     - combine: primary_input and secondary_input
+         *     - transform: primary_input only
+         *     - search: no inputs
+         */
+        "PlanStepNode-Output": {
+            /** Searchname */
+            searchName: string;
+            parameters?: components["schemas"]["JSONObject"];
+            primaryInput?: components["schemas"]["PlanStepNode-Output"] | null;
+            secondaryInput?: components["schemas"]["PlanStepNode-Output"] | null;
+            operator?: components["schemas"]["CombineOp"] | null;
+            colocationParams?: components["schemas"]["ColocationParams"] | null;
+            /** Displayname */
+            displayName?: string | null;
+            /** Filters */
+            filters?: components["schemas"]["StepFilter"][];
+            /** Analyses */
+            analyses?: components["schemas"]["StepAnalysis-Output"][];
+            /** Reports */
+            reports?: components["schemas"]["StepReport-Output"][];
+            /** Wdkweight */
+            wdkWeight?: number | null;
+            /** Id */
+            id?: string;
         };
         /**
          * PlanningArtifactEventData
@@ -3658,8 +3767,8 @@ export type components = {
             precision: number;
             /** F1 */
             f1: number;
-            /** Resultcount */
-            resultCount: number;
+            /** Estimatedsize */
+            estimatedSize: number;
             /** Overlapcount */
             overlapCount: number;
         };
@@ -3797,6 +3906,32 @@ export type components = {
             isPortal: boolean;
         };
         /**
+         * StepAnalysis
+         * @description Analysis configuration for a step.
+         *
+         *     WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).
+         */
+        "StepAnalysis-Input": {
+            /** Analysistype */
+            analysisType: string;
+            parameters?: components["schemas"]["JSONObject"];
+            /** Customname */
+            customName?: string | null;
+        };
+        /**
+         * StepAnalysis
+         * @description Analysis configuration for a step.
+         *
+         *     WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).
+         */
+        "StepAnalysis-Output": {
+            /** Analysistype */
+            analysisType: string;
+            parameters?: components["schemas"]["JSONObject"];
+            /** Customname */
+            customName?: string | null;
+        };
+        /**
          * StepAnalysisProgressDataResponse
          * @description Progress data for step analysis.
          */
@@ -3815,17 +3950,6 @@ export type components = {
             message?: string | null;
         };
         /**
-         * StepAnalysisResponse
-         * @description Analysis configuration attached to a step.
-         */
-        StepAnalysisResponse: {
-            /** Analysistype */
-            analysisType: string;
-            parameters?: components["schemas"]["JSONObject"];
-            /** Customname */
-            customName?: string | null;
-        };
-        /**
          * StepAnalysisResultResponse
          * @description Container for all deterministic step analysis results.
          */
@@ -3838,22 +3962,6 @@ export type components = {
             stepContributions?: components["schemas"]["StepContributionResponse"][];
             /** Parametersensitivities */
             parameterSensitivities?: components["schemas"]["ParameterSensitivityResponse"][];
-        };
-        /** StepAnalysisSpec */
-        "StepAnalysisSpec-Input": {
-            /** Analysistype */
-            analysisType: string;
-            parameters?: components["schemas"]["JSONObject"];
-            /** Customname */
-            customName?: string | null;
-        };
-        /** StepAnalysisSpec */
-        "StepAnalysisSpec-Output": {
-            /** Analysistype */
-            analysisType: string;
-            parameters?: components["schemas"]["JSONObject"];
-            /** Customname */
-            customName?: string | null;
         };
         /**
          * StepContributionResponse
@@ -3899,7 +4007,7 @@ export type components = {
         StepCountsRequest: {
             /** Siteid */
             siteId: string;
-            plan: components["schemas"]["StrategyPlan-Input"];
+            plan: components["schemas"]["StrategyPlanPayload-Input"];
         };
         /**
          * StepCountsResponse
@@ -3922,8 +4030,8 @@ export type components = {
             searchName: string;
             /** Displayname */
             displayName: string;
-            /** Resultcount */
-            resultCount: number;
+            /** Estimatedsize */
+            estimatedSize: number;
             /** Positivehits */
             positiveHits: number;
             /** Positivetotal */
@@ -3957,24 +4065,15 @@ export type components = {
             fnMovement: number;
         };
         /**
-         * StepFilterResponse
-         * @description Filter attached to a step.
+         * StepFilter
+         * @description Filter applied to a step's result.
+         *
+         *     WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.
          */
-        StepFilterResponse: {
+        StepFilter: {
             /** Name */
             name: string;
-            value: components["schemas"]["JSONValue"];
-            /**
-             * Disabled
-             * @default false
-             */
-            disabled: boolean;
-        };
-        /** StepFilterSpec */
-        StepFilterSpec: {
-            /** Name */
-            name: string;
-            value: components["schemas"]["JSONValue"];
+            value?: components["schemas"]["JSONValue"];
             /**
              * Disabled
              * @default false
@@ -3982,28 +4081,12 @@ export type components = {
             disabled: boolean;
         };
         /**
-         * StepReportResponse
-         * @description Report configuration attached to a step.
+         * StepReport
+         * @description Report request attached to a step.
+         *
+         *     WDK fields: reportName (str, default "standard"), config (JSONObject).
          */
-        StepReportResponse: {
-            /**
-             * Reportname
-             * @default standard
-             */
-            reportName: string;
-            config?: components["schemas"]["JSONObject"];
-        };
-        /** StepReportSpec */
-        "StepReportSpec-Input": {
-            /**
-             * Reportname
-             * @default standard
-             */
-            reportName: string;
-            config?: components["schemas"]["JSONObject"];
-        };
-        /** StepReportSpec */
-        "StepReportSpec-Output": {
+        "StepReport-Input": {
             /**
              * Reportname
              * @default standard
@@ -4012,37 +4095,22 @@ export type components = {
             config?: components["schemas"]["JSONObject"];
         };
         /**
-         * WDKValidationErrors
-         * @description Validation error details.
+         * StepReport
+         * @description Report request attached to a step.
+         *
+         *     WDK fields: reportName (str, default "standard"), config (JSONObject).
          */
-        WDKValidationErrors: {
-            /** General */
-            general?: string[];
-            /** Bykey */
-            byKey?: {
-                [key: string]: string[];
-            };
-        };
-        /**
-         * WDKValidation
-         * @description Step/search/strategy validation state.
-         */
-        WDKValidation: {
+        "StepReport-Output": {
             /**
-             * Level
-             * @default NONE
+             * Reportname
+             * @default standard
              */
-            level: string;
-            /**
-             * Isvalid
-             * @default true
-             */
-            isValid: boolean;
-            errors?: components["schemas"]["WDKValidationErrors"] | null;
+            reportName: string;
+            config?: components["schemas"]["JSONObject"];
         };
         /**
          * StepResponse
-         * @description Strategy step.
+         * @description Strategy step — WDK-aligned fields.
          */
         StepResponse: {
             /** Id */
@@ -4050,7 +4118,7 @@ export type components = {
             /** Kind */
             kind?: string | null;
             /** Displayname */
-            displayName: string;
+            displayName?: string | null;
             /** Searchname */
             searchName?: string | null;
             /** Recordtype */
@@ -4079,11 +4147,11 @@ export type components = {
             isFiltered: boolean;
             validation?: components["schemas"]["WDKValidation"] | null;
             /** Filters */
-            filters?: components["schemas"]["StepFilterResponse"][] | null;
+            filters?: components["schemas"]["StepFilter"][] | null;
             /** Analyses */
-            analyses?: components["schemas"]["StepAnalysisResponse"][] | null;
+            analyses?: components["schemas"]["StepAnalysis-Output"][] | null;
             /** Reports */
-            reports?: components["schemas"]["StepReportResponse"][] | null;
+            reports?: components["schemas"]["StepReport-Output"][] | null;
         };
         /**
          * StrategyLinkEventData
@@ -4119,23 +4187,61 @@ export type components = {
             /** Recordtype */
             recordType?: string | null;
         };
-        /** StrategyPlan */
-        "StrategyPlan-Input": {
+        /**
+         * StrategyPlanPayload
+         * @description Wire format for strategy plans (API request/response).
+         *
+         *     Wire format for strategy plans shared between API request/response and persistence.
+         */
+        "StrategyPlanPayload-Input": {
             /** Recordtype */
             recordType: string;
-            root: components["schemas"]["PlanNode-Input"];
-            metadata?: components["schemas"]["PlanMetadata"] | null;
-        } & {
-            [key: string]: unknown;
+            root: components["schemas"]["PlanStepNode-Input"];
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            metadata?: components["schemas"]["JSONObject"] | null;
+            /** Stepcounts */
+            stepCounts?: {
+                [key: string]: number;
+            } | null;
+            /** Wdkstepids */
+            wdkStepIds?: {
+                [key: string]: number;
+            } | null;
+            /** Stepvalidations */
+            stepValidations?: {
+                [key: string]: components["schemas"]["WDKValidation"];
+            } | null;
         };
-        /** StrategyPlan */
-        "StrategyPlan-Output": {
+        /**
+         * StrategyPlanPayload
+         * @description Wire format for strategy plans (API request/response).
+         *
+         *     Wire format for strategy plans shared between API request/response and persistence.
+         */
+        "StrategyPlanPayload-Output": {
             /** Recordtype */
             recordType: string;
-            root: components["schemas"]["PlanNode-Output"];
-            metadata?: components["schemas"]["PlanMetadata"] | null;
-        } & {
-            [key: string]: unknown;
+            root: components["schemas"]["PlanStepNode-Output"];
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            metadata?: components["schemas"]["JSONObject"] | null;
+            /** Stepcounts */
+            stepCounts?: {
+                [key: string]: number;
+            } | null;
+            /** Wdkstepids */
+            wdkStepIds?: {
+                [key: string]: number;
+            } | null;
+            /** Stepvalidations */
+            stepValidations?: {
+                [key: string]: components["schemas"]["WDKValidation"];
+            } | null;
         };
         /**
          * StrategyResponse
@@ -4205,6 +4311,8 @@ export type components = {
             /** Graphid */
             graphId?: string | null;
             step?: components["schemas"]["JSONObject"] | null;
+            /** Allsteps */
+            allSteps?: components["schemas"]["StepResponse"][];
         };
         /**
          * SubKaniActivityResponse
@@ -4283,26 +4391,25 @@ export type components = {
          * @description Payload for ``subkani_tool_call_end`` SSE events.
          */
         SubKaniToolCallEndEventData: {
-            /** Task */
-            task?: string | null;
             /** Id */
             id: string;
             /** Result */
             result?: string | null;
+            /** Task */
+            task?: string | null;
         };
         /**
          * SubKaniToolCallStartEventData
          * @description Payload for ``subkani_tool_call_start`` SSE events.
          */
         SubKaniToolCallStartEventData: {
-            /** Task */
-            task?: string | null;
             /** Id */
             id: string;
             /** Name */
             name: string;
-            /** Arguments */
-            arguments?: string | null;
+            arguments?: components["schemas"]["JSONObject"];
+            /** Task */
+            task?: string | null;
         };
         /**
          * SystemConfigResponse
@@ -4493,8 +4600,7 @@ export type components = {
             id: string;
             /** Name */
             name: string;
-            /** Arguments */
-            arguments?: string | null;
+            arguments?: components["schemas"]["JSONObject"];
         };
         /** ToolListResponse */
         ToolListResponse: {
@@ -4560,8 +4666,8 @@ export type components = {
             recall?: number | null;
             /** Falsepositiverate */
             falsePositiveRate?: number | null;
-            /** Resultcount */
-            resultCount?: number | null;
+            /** Estimatedsize */
+            estimatedSize?: number | null;
             /** Parameters */
             parameters?: {
                 [key: string]: components["schemas"]["JSONValue"];
@@ -4574,7 +4680,7 @@ export type components = {
         UpdateStrategyRequest: {
             /** Name */
             name?: string | null;
-            plan?: components["schemas"]["StrategyPlan-Input"] | null;
+            plan?: components["schemas"]["StrategyPlanPayload-Input"] | null;
             /** Wdkstrategyid */
             wdkStrategyId?: number | null;
             /** Issaved */
@@ -4602,6 +4708,35 @@ export type components = {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WDKValidation
+         * @description Step/search/strategy validation state.
+         */
+        WDKValidation: {
+            /**
+             * Level
+             * @default NONE
+             */
+            level: string;
+            /**
+             * Isvalid
+             * @default true
+             */
+            isValid: boolean;
+            errors?: components["schemas"]["WDKValidationErrors"] | null;
+        };
+        /**
+         * WDKValidationErrors
+         * @description Validation error details.
+         */
+        WDKValidationErrors: {
+            /** General */
+            general?: string[];
+            /** Bykey */
+            byKey?: {
+                [key: string]: string[];
+            };
         };
         /** WorkbenchChatRequest */
         WorkbenchChatRequest: {
@@ -5994,6 +6129,8 @@ export interface operations {
                 sort?: string | null;
                 dir?: "ASC" | "DESC";
                 attributes?: string | null;
+                filterAttribute?: string | null;
+                filterValue?: string | null;
             };
             header?: never;
             path: {
@@ -6320,6 +6457,7 @@ export interface operations {
         parameters: {
             query?: {
                 redirectTo?: string | null;
+                siteId?: string;
             };
             header?: never;
             path?: never;
@@ -6353,7 +6491,9 @@ export interface operations {
     };
     logout_api_v1_veupathdb_auth_logout_post: {
         parameters: {
-            query?: never;
+            query?: {
+                siteId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6367,13 +6507,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthSuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
     refresh_internal_auth_api_v1_veupathdb_auth_refresh_post: {
         parameters: {
-            query?: never;
+            query?: {
+                siteId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6389,11 +6540,22 @@ export interface operations {
                     "application/json": components["schemas"]["AuthSuccessResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     auth_status_api_v1_veupathdb_auth_status_get: {
         parameters: {
-            query?: never;
+            query?: {
+                siteId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6407,6 +6569,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7013,7 +7184,7 @@ export interface operations {
             };
         };
     };
-    purge_user_data_api_v1_user_data_delete: {
+    purge_user_data_endpoint_api_v1_user_data_delete: {
         parameters: {
             query?: {
                 siteId?: string | null;
@@ -7032,6 +7203,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JSONObject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_gold_strategy_endpoint_api_v1_eval_build_gold_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildGoldRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildGoldResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchGeneIdsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

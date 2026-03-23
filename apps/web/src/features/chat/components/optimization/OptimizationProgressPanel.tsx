@@ -222,10 +222,10 @@ export function OptimizationProgressPanel({
                       </span>
                     </span>
                   )}
-                  {data.bestTrial.resultCount != null && (
+                  {data.bestTrial.estimatedSize != null && (
                     <span>
                       <span className="text-muted-foreground">Results:</span>{" "}
-                      <span className="tabular-nums">{data.bestTrial.resultCount}</span>
+                      <span className="tabular-nums">{data.bestTrial.estimatedSize}</span>
                     </span>
                   )}
                 </div>

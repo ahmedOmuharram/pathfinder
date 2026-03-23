@@ -636,7 +636,7 @@ describe("SSE event data Zod schemas", () => {
           score: 0.9,
           recall: 0.85,
           falsePositiveRate: 0.1,
-          resultCount: 100,
+          estimatedSize: 100,
           positiveHits: 85,
           negativeHits: 10,
           totalPositives: 100,

@@ -40,9 +40,7 @@ def _make_strategy_session(
     graph.site_id = site_id
     graph.roots = set()
     graph.steps = {}
-    graph.current_strategy = MagicMock()
-    graph.current_strategy.name = _FAKE_GRAPH_NAME
-    graph.current_strategy.description = "Test"
+    graph.description = "Test"
 
     session = MagicMock()
     session.site_id = site_id

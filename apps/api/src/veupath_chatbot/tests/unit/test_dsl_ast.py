@@ -8,10 +8,11 @@ from veupath_chatbot.domain.strategy.ast import (
     StepAnalysis,
     StepFilter,
     StepReport,
-    StrategyAST,
     generate_step_id,
+    walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 class TestInferKind:
@@ -36,11 +37,10 @@ class TestInferKind:
         assert node.infer_kind() == "combine"
 
 
-class TestGetAllSteps:
+class TestWalkStepTree:
     def test_single_step(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
-        ast = StrategyAST(record_type="gene", root=root)
-        steps = ast.get_all_steps()
+        steps = walk_step_tree(root)
         assert len(steps) == 1
         assert steps[0].id == "s1"
 
@@ -54,43 +54,44 @@ class TestGetAllSteps:
             operator=CombineOp.UNION,
             id="root",
         )
-        ast = StrategyAST(record_type="gene", root=root)
-        ids = [s.id for s in ast.get_all_steps()]
+        ids = [s.id for s in walk_step_tree(root)]
         # depth-first: left, right, then root
         assert ids == ["left", "right", "root"]
 
 
-class TestGetStepById:
+class TestFindStepById:
     def test_finds_existing(self) -> None:
         child = PlanStepNode(search_name="S1", id="child")
         root = PlanStepNode(search_name="T1", primary_input=child, id="root")
-        ast = StrategyAST(record_type="gene", root=root)
-        assert ast.get_step_by_id("child") is child
+        steps = walk_step_tree(root)
+        found = next((s for s in steps if s.id == "child"), None)
+        assert found is child
 
     def test_returns_none_for_missing(self) -> None:
         root = PlanStepNode(search_name="S1", id="root")
-        ast = StrategyAST(record_type="gene", root=root)
-        assert ast.get_step_by_id("nonexistent") is None
+        steps = walk_step_tree(root)
+        found = next((s for s in steps if s.id == "nonexistent"), None)
+        assert found is None
 
 
 class TestModelValidateErrors:
     def test_missing_record_type(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate({"root": {"searchName": "S1"}})
+            StrategyPlanPayload.model_validate({"root": {"searchName": "S1"}})
 
     def test_missing_root(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate({"recordType": "gene"})
+            StrategyPlanPayload.model_validate({"recordType": "gene"})
 
     def test_missing_search_name(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {"recordType": "gene", "root": {"parameters": {}}}
             )
 
     def test_invalid_parameters_type(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {"searchName": "S1", "parameters": "bad"},
@@ -99,7 +100,7 @@ class TestModelValidateErrors:
 
     def test_secondary_without_primary(self) -> None:
         with pytest.raises(PydanticValidationError, match="primaryInput"):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -111,7 +112,7 @@ class TestModelValidateErrors:
 
     def test_secondary_without_operator(self) -> None:
         with pytest.raises(PydanticValidationError, match="operator"):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -124,7 +125,7 @@ class TestModelValidateErrors:
 
     def test_colocate_without_params(self) -> None:
         with pytest.raises(PydanticValidationError, match="colocationParams"):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -138,7 +139,7 @@ class TestModelValidateErrors:
 
     def test_colocation_params_on_non_colocate(self) -> None:
         with pytest.raises(PydanticValidationError, match="colocationParams"):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -168,7 +169,7 @@ class TestModelValidateColocation:
                 },
             },
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         cp = ast.root.colocation_params
         assert cp is not None
         assert cp.upstream == 1000
@@ -186,7 +187,7 @@ class TestModelValidateColocation:
                 "colocationParams": {"upstream": 0, "downstream": 0},
             },
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.colocation_params is not None
         assert ast.root.colocation_params.strand == "both"
 
@@ -201,7 +202,7 @@ class TestModelValidateColocation:
                 "colocationParams": {"upstream": 0, "downstream": 0, "strand": "bogus"},
             },
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.colocation_params is not None
         assert ast.root.colocation_params.strand == "both"
 
@@ -214,13 +215,13 @@ class TestModelValidateMetadata:
             "name": "My Strategy",
             "description": "Find kinases",
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.name == "My Strategy"
         assert ast.description == "Find kinases"
 
     def test_missing_name_gives_none(self) -> None:
         data = {"recordType": "gene", "root": {"searchName": "S1"}}
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.name is None
         assert ast.description is None
 
@@ -256,10 +257,10 @@ class TestToDictRoundTrip:
             secondary_input=transform,
             reports=[StepReport(report_name="fullRecord", config={"format": "json"})],
         )
-        strategy = StrategyAST(record_type="gene", root=combine, name="Test")
+        strategy = StrategyPlanPayload(record_type="gene", root=combine, name="Test")
 
         payload = strategy.model_dump(by_alias=True, exclude_none=True, mode="json")
-        parsed = StrategyAST.model_validate(payload)
+        parsed = StrategyPlanPayload.model_validate(payload)
 
         root = parsed.root
         assert root.infer_kind() == "combine"
@@ -285,9 +286,9 @@ class TestToDictRoundTrip:
                 upstream=100, downstream=200, strand="opposite"
             ),
         )
-        ast = StrategyAST(record_type="gene", root=root)
+        ast = StrategyPlanPayload(record_type="gene", root=root)
         payload = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-        parsed = StrategyAST.model_validate(payload)
+        parsed = StrategyPlanPayload.model_validate(payload)
         cp = parsed.root.colocation_params
         assert cp is not None
         assert cp.upstream == 100
@@ -318,10 +319,10 @@ class TestPlanStepNodeDisplayName:
         assert node.display_name == "Organism"
 
 
-class TestStrategyASTToDict:
+class TestStrategyPlanPayloadToDict:
     def test_name_and_description_at_top_level(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="gene",
             root=root,
             name="Test",
@@ -334,7 +335,7 @@ class TestStrategyASTToDict:
 
     def test_metadata_preserves_extra_fields(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="gene",
             root=root,
             name="Test",
@@ -353,12 +354,12 @@ class TestModelValidateStepId:
             "recordType": "gene",
             "root": {"searchName": "S1", "id": "explicit_id"},
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.id == "explicit_id"
 
     def test_generates_id_when_missing(self) -> None:
         data = {"recordType": "gene", "root": {"searchName": "S1"}}
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.id.startswith("step_")
 
     def test_name_and_description_from_top_level(self) -> None:
@@ -368,7 +369,7 @@ class TestModelValidateStepId:
             "name": "My Strategy",
             "description": "Find kinases",
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.name == "My Strategy"
         assert ast.description == "Find kinases"
 
@@ -377,11 +378,11 @@ class TestModelValidateStepId:
             "recordType": "gene",
             "root": {"searchName": "S1", "displayName": "My Search"},
         }
-        ast = StrategyAST.model_validate(data)
+        ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.display_name == "My Search"
 
 
-class TestGetAllStepsDeep:
+class TestWalkStepTreeDeep:
     def test_three_level_tree(self) -> None:
         s1 = PlanStepNode(search_name="S1", id="s1")
         s2 = PlanStepNode(search_name="S2", id="s2")
@@ -393,12 +394,11 @@ class TestGetAllStepsDeep:
             operator=CombineOp.UNION,
             id="root",
         )
-        ast = StrategyAST(record_type="gene", root=root)
-        ids = [s.id for s in ast.get_all_steps()]
+        ids = [s.id for s in walk_step_tree(root)]
         # depth-first: s1, s2, t1, root
         assert ids == ["s1", "s2", "t1", "root"]
 
-    def test_get_step_by_id_deep(self) -> None:
+    def test_find_step_by_id_deep(self) -> None:
         s1 = PlanStepNode(search_name="S1", id="s1")
         s2 = PlanStepNode(search_name="S2", id="s2")
         root = PlanStepNode(
@@ -408,6 +408,6 @@ class TestGetAllStepsDeep:
             operator=CombineOp.INTERSECT,
             id="root",
         )
-        ast = StrategyAST(record_type="gene", root=root)
-        assert ast.get_step_by_id("s2") is s2
-        assert ast.get_step_by_id("root") is root
+        steps = walk_step_tree(root)
+        assert next(s for s in steps if s.id == "s2") is s2
+        assert next(s for s in steps if s.id == "root") is root

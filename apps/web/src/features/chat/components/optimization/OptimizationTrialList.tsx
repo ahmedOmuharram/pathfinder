@@ -79,7 +79,7 @@ function TrialTable({
                       : "--"}
                   </td>
                 )}
-                <td className="px-1.5 py-1 tabular-nums">{t.resultCount ?? "--"}</td>
+                <td className="px-1.5 py-1 tabular-nums">{t.estimatedSize ?? "--"}</td>
               </tr>
             );
           })}

@@ -1,15 +1,15 @@
 """Strategy plan validation helpers."""
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
-def validate_plan_or_raise(plan: JSONObject) -> StrategyAST:
+def validate_plan_or_raise(plan: JSONObject) -> StrategyPlanPayload:
     """Parse and validate a strategy plan, raising typed ValidationError."""
     try:
-        strategy_ast = StrategyAST.model_validate(plan)
+        payload = StrategyPlanPayload.model_validate(plan)
     except Exception as exc:
         raise ValidationError(
             title="Invalid plan",
@@ -18,7 +18,7 @@ def validate_plan_or_raise(plan: JSONObject) -> StrategyAST:
             ],
         ) from exc
 
-    validation = validate_strategy(strategy_ast)
+    validation = validate_strategy(payload.root, payload.record_type)
     if not validation.valid:
         raise ValidationError(
             title="Invalid plan",
@@ -28,4 +28,4 @@ def validate_plan_or_raise(plan: JSONObject) -> StrategyAST:
             ],
         )
 
-    return strategy_ast
+    return payload

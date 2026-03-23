@@ -9,7 +9,7 @@ import json
 from typing import Literal
 from uuid import UUID
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -88,14 +88,15 @@ async def _build_strategy_context(
     ]
 
     plan: JSONObject = projection.plan if isinstance(projection.plan, dict) else {}
-    ast = _parse_plan_ast(plan)
+    root = _parse_plan_root(plan)
+    step_counts = _extract_step_counts(plan)
 
-    if ast:
-        all_steps = ast.get_all_steps()
+    if root:
+        all_steps = walk_step_tree(root)
         lines.append(f"- **Steps** ({len(all_steps)}):")
         lines.append("")
         for i, step in enumerate(all_steps):
-            _format_step_context(lines, i, step, ast)
+            _format_step_context(lines, i, step, step_counts)
     elif plan:
         lines.append("")
         lines.append("### Strategy plan (AST):")
@@ -106,21 +107,32 @@ async def _build_strategy_context(
     return "\n".join(lines)
 
 
-def _parse_plan_ast(plan: JSONObject) -> StrategyAST | None:
-    """Parse a plan dict into a StrategyAST, returning None on failure."""
+def _parse_plan_root(plan: JSONObject) -> PlanStepNode | None:
+    """Parse the root node from a plan dict, returning None on failure."""
     if not plan or "root" not in plan:
         return None
+    root_raw = plan.get("root")
+    if not isinstance(root_raw, dict):
+        return None
     try:
-        return StrategyAST.model_validate(plan)
+        return PlanStepNode.model_validate(root_raw)
     except ValueError, KeyError, TypeError:
         return None
+
+
+def _extract_step_counts(plan: JSONObject) -> dict[str, int]:
+    """Extract step_counts from a plan dict. Returns empty dict if missing."""
+    raw = plan.get("stepCounts")
+    if isinstance(raw, dict):
+        return {str(k): v for k, v in raw.items() if isinstance(v, int)}
+    return {}
 
 
 def _format_step_context(
     lines: list[str],
     index: int,
     step: PlanStepNode,
-    ast: StrategyAST,
+    step_counts: dict[str, int],
 ) -> None:
     """Append formatted lines for a single step to the output."""
     display_name = step.display_name or step.search_name or f"Step {index + 1}"
@@ -140,7 +152,7 @@ def _format_step_context(
             ]
             lines.append(f"- Parameters: {', '.join(param_strs)}")
 
-    estimated_size = ast.step_counts.get(step.id) if ast.step_counts else None
+    estimated_size = step_counts.get(step.id)
     if estimated_size is not None:
         lines.append(f"- Result count: {estimated_size}")
 

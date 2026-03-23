@@ -9,6 +9,7 @@ Covers:
 
 from unittest.mock import AsyncMock, MagicMock
 
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
@@ -108,7 +109,7 @@ class TestFetchAndConvertSingleStep:
         assert ast.root.secondary_input is None
         assert ast.root.infer_kind() == "search"
         assert is_saved is True
-        assert len(ast.get_all_steps()) == 1
+        assert len(walk_step_tree(ast.root)) == 1
 
     async def test_single_step_unsaved(self) -> None:
         wdk = _make_wdk_strategy(
@@ -167,7 +168,7 @@ class TestFetchAndConvertCombine:
         assert ast.root.secondary_input is not None
         assert ast.root.primary_input.search_name == "GenesByTextSearch"
         assert ast.root.secondary_input.search_name == "GenesByGoTerm"
-        assert len(ast.get_all_steps()) == 3
+        assert len(walk_step_tree(ast.root)) == 3
 
     async def test_combine_with_union(self) -> None:
         wdk = _make_wdk_strategy(
@@ -312,7 +313,7 @@ class TestGraphReconstructionLinearChain:
         assert leaf.primary_input is None
 
         # Total steps
-        assert len(ast.get_all_steps()) == 3
+        assert len(walk_step_tree(ast.root)) == 3
 
 
 # -- Graph reconstruction: nested tree -----------------------------------------
@@ -369,7 +370,7 @@ class TestGraphReconstructionNestedTree:
         assert right.infer_kind() == "search"
         assert right.search_name == "GenesByLocation"
 
-        assert len(ast.get_all_steps()) == 5
+        assert len(walk_step_tree(ast.root)) == 5
 
     async def test_transform_on_combine(self) -> None:
         """Tree: transform(combine(S1, S2)).
@@ -406,7 +407,7 @@ class TestGraphReconstructionNestedTree:
         assert inner.infer_kind() == "combine"
         assert inner.operator == CombineOp.INTERSECT
 
-        assert len(ast.get_all_steps()) == 4
+        assert len(walk_step_tree(ast.root)) == 4
 
 
 # -- fetch_and_convert: metadata & edge cases ----------------------------------

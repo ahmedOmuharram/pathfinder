@@ -20,10 +20,8 @@ from kani.models import FunctionCall
 from veupath_chatbot.ai.agents.executor import AgentContext, PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.compile import CompilationResult
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.services.gene_sets.types import GeneSet
-from veupath_chatbot.services.strategies.build import BuildResult
+from veupath_chatbot.services.strategies.sync import SyncResult
 
 _USER_ID = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 _SITE_ID = "plasmodb"
@@ -72,8 +70,8 @@ def _tool_result_json(step_id: str = "s1") -> str:
     )
 
 
-def _build_result(wdk_strategy_id: int = 999) -> object:
-    return BuildResult(
+def _sync_result(wdk_strategy_id: int = 999) -> SyncResult:
+    return SyncResult(
         wdk_strategy_id=wdk_strategy_id,
         wdk_url=f"https://plasmodb.org/plasmo/app/workspace/strategies/{wdk_strategy_id}",
         root_step_id=100,
@@ -81,9 +79,6 @@ def _build_result(wdk_strategy_id: int = 999) -> object:
         step_count=1,
         counts={"s1": 42},
         zero_step_ids=[],
-        compilation=CompilationResult(
-            steps=[], step_tree=WDKStepTree(step_id=100), root_step_id=100
-        ),
     )
 
 
@@ -158,8 +153,8 @@ class TestFirstBuildCreatesGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -194,8 +189,8 @@ class TestFirstBuildCreatesGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -242,8 +237,8 @@ class TestRebuildReusesExistingGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(wdk_strategy_id=999),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(wdk_strategy_id=999),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -283,8 +278,8 @@ class TestRebuildReusesExistingGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(wdk_strategy_id=999),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(wdk_strategy_id=999),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -337,8 +332,8 @@ class TestRebuildAfterDeletion:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(wdk_strategy_id=999),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(wdk_strategy_id=999),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -401,8 +396,8 @@ class TestAutoBuildWithAutoImportedGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(wdk_strategy_id=999),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(wdk_strategy_id=999),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -456,10 +451,10 @@ class TestWdkStrategyIdChanges:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
                 side_effect=[
-                    _build_result(wdk_strategy_id=100),
-                    _build_result(wdk_strategy_id=200),
+                    _sync_result(wdk_strategy_id=100),
+                    _sync_result(wdk_strategy_id=200),
                 ],
             ),
             patch(
@@ -499,8 +494,8 @@ class TestNoUserIdSkipsGeneSet:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
         ):
             result = await agent.do_function_call(call, "tc1")

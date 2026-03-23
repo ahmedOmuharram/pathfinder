@@ -7,7 +7,11 @@ from kani import AIParam, ai_function
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import parse_op
-from veupath_chatbot.platform.errors import ErrorCode, ValidationError
+from veupath_chatbot.domain.strategy.session import StrategyGraph
+from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
+from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.catalog.param_validation import (
@@ -15,6 +19,8 @@ from veupath_chatbot.services.catalog.param_validation import (
     validate_parameters,
 )
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
+
+logger = get_logger(__name__)
 
 
 class StrategyEditOps(StrategyToolsHelpers):
@@ -45,7 +51,6 @@ class StrategyEditOps(StrategyToolsHelpers):
         for sid in to_remove:
             graph.steps.pop(sid, None)
 
-        graph.invalidate_build()
         graph.last_step_id = next(iter(remaining), None)
         graph.recompute_roots()
         response: JSONObject = {
@@ -95,7 +100,7 @@ class StrategyEditOps(StrategyToolsHelpers):
 
     async def _apply_step_updates(
         self,
-        graph: object,
+        graph: StrategyGraph,
         step: PlanStepNode,
         search_name: str | None,
         parameters: JSONObject | None,
@@ -125,13 +130,34 @@ class StrategyEditOps(StrategyToolsHelpers):
             step.display_name = display_name
 
         if substantive_change:
-            graph.invalidate_build()
+            wdk_step_id = graph.wdk_step_ids.get(step.id)
+            if wdk_step_id is not None and parameters is not None:
+                try:
+                    api = get_strategy_api(graph.site_id)
+                    await api.update_step_search_config(
+                        wdk_step_id,
+                        WDKSearchConfig(
+                            parameters={
+                                k: str(v)
+                                for k, v in step.parameters.items()
+                                if v is not None
+                            },
+                        ),
+                        record_type=graph.record_type or "transcript",
+                        search_name=step.search_name,
+                    )
+                except (AppError, OSError) as exc:
+                    logger.warning(
+                        "PUT search-config failed",
+                        step_id=step.id,
+                        error=str(exc),
+                    )
 
         return None
 
     async def _get_plan_step(
         self, graph_id: str | None, step_id: str
-    ) -> tuple[object, PlanStepNode] | JSONObject:
+    ) -> tuple[StrategyGraph, PlanStepNode] | JSONObject:
         """Resolve graph + step and assert step is a PlanStepNode."""
         result = self._get_graph_and_step(graph_id, step_id)
         if isinstance(result, dict):
@@ -181,7 +207,7 @@ class StrategyEditOps(StrategyToolsHelpers):
 
     async def _validate_and_set_params(
         self,
-        graph: object,
+        graph: StrategyGraph,
         step: PlanStepNode,
         parameters: JSONObject,
     ) -> JSONObject | None:
@@ -224,7 +250,7 @@ class StrategyEditOps(StrategyToolsHelpers):
         return None
 
 
-def _find_dependent_steps(graph: object, step_id: str) -> set[str]:
+def _find_dependent_steps(graph: StrategyGraph, step_id: str) -> set[str]:
     """Find all steps transitively dependent on the given step."""
     to_remove = {step_id}
     changed = True

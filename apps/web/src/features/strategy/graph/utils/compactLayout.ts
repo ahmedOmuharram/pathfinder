@@ -41,7 +41,7 @@ interface SpineSegment {
 function toCompact(step: Step, stepNumber: number): CompactStep {
   const compact: CompactStep = {
     id: step.id,
-    displayName: step.displayName,
+    displayName: step.displayName ?? "",
     kind: inferStepKind(step),
     stepNumber,
   };

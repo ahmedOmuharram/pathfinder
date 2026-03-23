@@ -60,7 +60,7 @@ export function serializeStrategyPlan(
     const node: PlanStepNode = {
       id: step.id,
       searchName: resolvedSearchName,
-      displayName: step.displayName,
+      displayName: step.displayName ?? "",
       parameters: sanitizeParametersForPlan(step.parameters ?? {}),
     };
 

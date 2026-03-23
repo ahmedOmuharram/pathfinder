@@ -20,8 +20,8 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
         </div>
       )}
       <StepNameFields
-        oldName={state.oldName}
-        name={state.name}
+        oldName={state.oldName ?? ""}
+        name={state.name ?? ""}
         onNameChange={state.setName}
       />
 

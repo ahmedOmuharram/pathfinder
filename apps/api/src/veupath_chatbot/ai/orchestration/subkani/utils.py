@@ -76,7 +76,7 @@ async def _emit_tool_call_starts(
                     task=task,
                     id=tc.id,
                     name=tc.function.name,
-                    arguments=tc.function.arguments,
+                    arguments=tc.function.kwargs,
                 ).model_dump(by_alias=True, exclude_none=True),
             }
         )

@@ -120,8 +120,8 @@ export function useStepEditorState({
   const handleSave = buildStepSaveHandler({
     step,
     siteId,
-    name: metadata.name,
-    oldName: metadata.oldName,
+    name: metadata.name ?? "",
+    oldName: metadata.oldName ?? "",
     searchName: searchState.searchName,
     selectedSearch: searchState.selectedSearch,
     isSearchNameAvailable: searchState.isSearchNameAvailable,

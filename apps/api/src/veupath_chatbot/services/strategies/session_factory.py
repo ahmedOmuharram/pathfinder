@@ -2,13 +2,14 @@
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 logger = get_logger(__name__)
 
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 def _restore_wdk_state(graph: StrategyGraph, strategy_graph: JSONObject) -> None:
     """Restore WDK build state (strategy ID, step IDs, counts) from plan metadata.
 
-    Reads ``step_counts`` and ``wdk_step_ids`` from the plan AST stored in
+    Reads ``step_counts`` and ``wdk_step_ids`` from the plan payload stored in
     the persisted strategy graph payload.  If the plan is missing or
     unparseable, WDK state is simply not restored.
     """
@@ -28,17 +29,17 @@ def _restore_wdk_state(graph: StrategyGraph, strategy_graph: JSONObject) -> None
     if not isinstance(plan, dict):
         return
     try:
-        ast = StrategyAST.model_validate(plan)
+        payload = StrategyPlanPayload.model_validate(plan)
     except ValueError, TypeError, KeyError:
         return
 
-    if ast.wdk_step_ids:
-        for sid, wdk_step_id in ast.wdk_step_ids.items():
+    if payload.wdk_step_ids:
+        for sid, wdk_step_id in payload.wdk_step_ids.items():
             if sid in graph.steps:
                 graph.wdk_step_ids[sid] = wdk_step_id
 
-    if ast.step_counts:
-        for sid, count in ast.step_counts.items():
+    if payload.step_counts:
+        for sid, count in payload.step_counts.items():
             if sid in graph.steps:
                 graph.step_counts[sid] = count
 
@@ -75,13 +76,15 @@ def build_strategy_session(
         graph = StrategyGraph(graph_id, name, site_id)
         if plan and isinstance(plan, dict):
             try:
-                strategy = StrategyAST.model_validate(plan)
-                graph.current_strategy = strategy
-                graph.name = strategy.name or name
-                graph.steps = {step.id: step for step in strategy.get_all_steps()}
+                payload = StrategyPlanPayload.model_validate(plan)
+                graph.record_type = payload.record_type
+                graph.name = payload.name or name
+                all_steps = walk_step_tree(payload.root)
+                graph.steps = {step.id: step for step in all_steps}
                 graph.recompute_roots()
-                graph.last_step_id = strategy.root.id
-                graph.save_history(f"Loaded graph: {strategy.name or name}")
+                graph.last_step_id = payload.root.id
+                graph.description = payload.description
+                graph.save_history(f"Loaded graph: {payload.name or name}")
             except (ValueError, TypeError, KeyError) as e:
                 logger.warning(
                     "Failed to load graph plan",

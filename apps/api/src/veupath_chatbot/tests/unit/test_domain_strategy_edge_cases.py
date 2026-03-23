@@ -10,7 +10,7 @@ from veupath_chatbot.domain.strategy.ast import (
     StepAnalysis,
     StepFilter,
     StepReport,
-    StrategyAST,
+    walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
@@ -30,6 +30,7 @@ from veupath_chatbot.domain.strategy.validate import (
     validate_strategy,
 )
 from veupath_chatbot.tests.fixtures.builders import make_combine, make_leaf
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 def _leaf(step_id: str = "s1", search_name: str = "S1") -> PlanStepNode:
@@ -53,20 +54,20 @@ def _combine(
 class TestModelValidateEdgeCases:
     def test_empty_string_search_name_accepted(self) -> None:
         """Empty search_name is accepted by model_validate (caught by validate_strategy)."""
-        ast = StrategyAST.model_validate(
+        ast = StrategyPlanPayload.model_validate(
             {"recordType": "gene", "root": {"searchName": ""}}
         )
         assert ast.root.search_name == ""
 
     def test_non_string_search_name_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {"recordType": "gene", "root": {"searchName": 42}}
             )
 
     def test_parameters_as_list_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {"searchName": "S1", "parameters": [1, 2, 3]},
@@ -75,22 +76,22 @@ class TestModelValidateEdgeCases:
 
     def test_non_string_record_type_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate({"recordType": 42, "root": {"searchName": "S1"}})
+            StrategyPlanPayload.model_validate({"recordType": 42, "root": {"searchName": "S1"}})
 
     def test_root_is_list_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {"recordType": "gene", "root": [{"searchName": "S1"}]}
             )
 
     def test_root_is_string_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate({"recordType": "gene", "root": "not_a_dict"})
+            StrategyPlanPayload.model_validate({"recordType": "gene", "root": "not_a_dict"})
 
     def test_invalid_operator_string(self) -> None:
         """Invalid operator string should raise PydanticValidationError."""
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -104,7 +105,7 @@ class TestModelValidateEdgeCases:
 
     def test_operator_without_secondary_input(self) -> None:
         """Operator present but no secondary input -> valid transform, not combine."""
-        ast = StrategyAST.model_validate(
+        ast = StrategyPlanPayload.model_validate(
             {
                 "recordType": "gene",
                 "root": {
@@ -122,7 +123,7 @@ class TestModelValidateEdgeCases:
     def test_null_parameters_raises(self) -> None:
         """parameters: null is rejected by Pydantic (dict field, not Optional)."""
         with pytest.raises(PydanticValidationError):
-            StrategyAST.model_validate(
+            StrategyPlanPayload.model_validate(
                 {
                     "recordType": "gene",
                     "root": {"searchName": "S1", "parameters": None},
@@ -145,24 +146,24 @@ class TestModelValidateEdgeCases:
                 "operator": "INTERSECT",
             },
         }
-        ast = StrategyAST.model_validate(data)
-        assert ast.root.infer_kind() == "combine"
-        assert ast.root.primary_input is not None
-        assert ast.root.primary_input.infer_kind() == "combine"
-        steps = ast.get_all_steps()
+        payload = StrategyPlanPayload.model_validate(data)
+        assert payload.root.infer_kind() == "combine"
+        assert payload.root.primary_input is not None
+        assert payload.root.primary_input.infer_kind() == "combine"
+        steps = walk_step_tree(payload.root)
         assert len(steps) == 5  # S1, S2, bool2, S3, root
 
 
-class TestStrategyASTEdgeCases:
-    def test_get_all_steps_single_node(self) -> None:
+class TestStrategyPlanPayloadEdgeCases:
+    def test_walk_step_tree_single_node(self) -> None:
         root = _leaf("s1")
-        ast = StrategyAST(record_type="gene", root=root)
-        assert len(ast.get_all_steps()) == 1
+        assert len(walk_step_tree(root)) == 1
 
-    def test_get_step_by_id_root(self) -> None:
+    def test_find_step_by_id_in_tree(self) -> None:
         root = _leaf("root")
-        ast = StrategyAST(record_type="gene", root=root)
-        assert ast.get_step_by_id("root") is root
+        steps = walk_step_tree(root)
+        found = next((s for s in steps if s.id == "root"), None)
+        assert found is root
 
     def test_secondary_without_primary_rejected(self) -> None:
         """secondary_input without primary_input is rejected by model validator."""
@@ -425,8 +426,8 @@ class TestStrategyGraphEdgeCases:
         graph.recompute_roots()
         assert graph.roots == set()
 
-    def test_save_history_without_strategy(self) -> None:
-        """save_history with no current_strategy is a no-op."""
+    def test_save_history_without_steps(self) -> None:
+        """save_history with no steps is a no-op."""
         graph = StrategyGraph("g1", "Test", "site")
         graph.save_history("test")
         assert len(graph.history) == 0
@@ -434,8 +435,9 @@ class TestStrategyGraphEdgeCases:
     def test_undo_with_one_history_entry(self) -> None:
         """Cannot undo with only one history entry."""
         graph = StrategyGraph("g1", "Test", "site")
+        graph.record_type = "gene"
         root = _leaf("s1")
-        graph.current_strategy = StrategyAST(record_type="gene", root=root)
+        graph.add_step(root)
         graph.save_history("initial")
         assert graph.undo() is False
 
@@ -490,18 +492,15 @@ class TestStrategySessionEdgeCases:
 
 
 class TestValidationEdgeCases:
-    def test_none_root_strategy(self) -> None:
-        """Strategy with root=None should be rejected by Pydantic validation."""
+    def test_none_root_payload(self) -> None:
+        """Payload with root=None should be rejected by Pydantic validation."""
         with pytest.raises(PydanticValidationError):
-            StrategyAST(record_type="gene", root=None)
+            StrategyPlanPayload(record_type="gene", root=None)
 
     def test_empty_record_type_and_empty_search_name(self) -> None:
         """Multiple simultaneous errors should all be reported."""
-        strategy = StrategyAST(
-            record_type="",
-            root=PlanStepNode(search_name="", parameters={}),
-        )
-        result = validate_strategy(strategy)
+        root = PlanStepNode(search_name="", parameters={})
+        result = validate_strategy(root, "")
         assert not result.valid
         codes = {e.code for e in result.errors}
         assert "MISSING_RECORD_TYPE" in codes
@@ -515,8 +514,7 @@ class TestValidationEdgeCases:
         inner = _combine(s1, s_bad, step_id="inner", op=CombineOp.INTERSECT)
         s3 = PlanStepNode(search_name="S3", parameters={})
         outer = _combine(inner, s3, step_id="outer", op=CombineOp.UNION)
-        strategy = StrategyAST(record_type="gene", root=outer)
-        result = validate_strategy(strategy)
+        result = validate_strategy(outer, "gene")
         assert not result.valid
         # The empty searchName error should be in the secondary of the inner combine
         assert any(
@@ -537,8 +535,7 @@ class TestValidationEdgeCases:
             ),
             id="c1",
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert result.valid
 
     def test_validation_result_success_factory(self) -> None:
@@ -550,8 +547,7 @@ class TestValidationEdgeCases:
         """When available_searches has the record_type but it's empty list."""
         validator = StrategyValidator(available_searches={"gene": []})
         step = _leaf("s1", "S1")
-        strategy = StrategyAST(record_type="gene", root=step)
-        result = validator.validate(strategy)
+        result = validator.validate(step, "gene")
         # S1 is not in the empty list -> UNKNOWN_SEARCH
         assert not result.valid
         assert any(e.code == "UNKNOWN_SEARCH" for e in result.errors)
@@ -560,8 +556,7 @@ class TestValidationEdgeCases:
         """When available_searches doesn't have the current record_type."""
         validator = StrategyValidator(available_searches={"transcript": ["S1"]})
         step = _leaf("s1", "S1")
-        strategy = StrategyAST(record_type="gene", root=step)
-        result = validator.validate(strategy)
+        result = validator.validate(step, "gene")
         # "gene" not in available_searches -> rt_searches is [] -> S1 not in [] -> error
         assert not result.valid
 
@@ -573,8 +568,7 @@ class TestValidationEdgeCases:
             primary_input=bad_child,
             parameters={},
         )
-        strategy = StrategyAST(record_type="gene", root=transform)
-        result = validate_strategy(strategy)
+        result = validate_strategy(transform, "gene")
         assert not result.valid
         assert any(
             e.code == "MISSING_SEARCH_NAME" and "primaryInput" in e.path
@@ -589,9 +583,9 @@ class TestValidationEdgeCases:
 
 class TestRoundTripEdgeCases:
     def test_minimal_strategy_round_trip(self) -> None:
-        ast = StrategyAST(record_type="gene", root=_leaf("s1", "S1"))
+        ast = StrategyPlanPayload(record_type="gene", root=_leaf("s1", "S1"))
         d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-        parsed = StrategyAST.model_validate(d)
+        parsed = StrategyPlanPayload.model_validate(d)
         assert parsed.record_type == "gene"
         assert parsed.root.search_name == "S1"
 
@@ -618,7 +612,7 @@ class TestRoundTripEdgeCases:
             id="root",
             display_name="Combined",
         )
-        ast = StrategyAST(
+        ast = StrategyPlanPayload(
             record_type="gene",
             root=root,
             name="My Strategy",
@@ -626,7 +620,7 @@ class TestRoundTripEdgeCases:
             metadata={"custom": "field"},
         )
         d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-        parsed = StrategyAST.model_validate(d)
+        parsed = StrategyPlanPayload.model_validate(d)
 
         assert parsed.record_type == "gene"
         assert parsed.name == "My Strategy"
@@ -654,9 +648,9 @@ class TestRoundTripEdgeCases:
             ),
             id="c1",
         )
-        ast = StrategyAST(record_type="gene", root=root)
+        ast = StrategyPlanPayload(record_type="gene", root=root)
         d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-        parsed = StrategyAST.model_validate(d)
+        parsed = StrategyPlanPayload.model_validate(d)
         cp = parsed.root.colocation_params
         assert cp is not None
         assert cp.upstream == 500
@@ -673,28 +667,26 @@ class TestUndoEdgeCases:
     def test_undo_multiple_times(self) -> None:
         """Multiple undos should step through history."""
         graph = StrategyGraph("g1", "Test", "site")
+        graph.record_type = "gene"
 
         # State 1
         s1 = _leaf("s1")
         graph.add_step(s1)
-        graph.current_strategy = StrategyAST(record_type="gene", root=s1)
         graph.save_history("state1")
 
         # State 2
         s2 = _leaf("s2")
-        graph.add_step(s2)
         root2 = _combine(s1, s2, step_id="c1")
-        graph.current_strategy = StrategyAST(record_type="gene", root=root2)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        all_steps = walk_step_tree(root2)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.save_history("state2")
 
         # State 3
         s3 = _leaf("s3")
-        graph.add_step(s3)
         root3 = _combine(root2, s3, step_id="c2")
-        graph.current_strategy = StrategyAST(record_type="gene", root=root3)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        all_steps = walk_step_tree(root3)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.save_history("state3")
 
@@ -709,13 +701,13 @@ class TestUndoEdgeCases:
         # Can't undo further
         assert graph.undo() is False
 
-    def test_undo_preserves_correct_strategy(self) -> None:
-        """After undo, current_strategy should match the previous state."""
+    def test_undo_preserves_correct_root(self) -> None:
+        """After undo, root step should match the previous state."""
         graph = StrategyGraph("g1", "Test", "site")
+        graph.record_type = "gene"
 
         root1 = _leaf("s1")
-        graph.current_strategy = StrategyAST(record_type="gene", root=root1)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        graph.steps = {root1.id: root1}
         graph.recompute_roots()
         graph.save_history("first")
 
@@ -724,11 +716,11 @@ class TestUndoEdgeCases:
             parameters={"x": "y"},
             id="s2",
         )
-        graph.current_strategy = StrategyAST(record_type="gene", root=root2)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        all_steps = walk_step_tree(root2)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.save_history("second")
 
         graph.undo()
-        assert graph.current_strategy is not None
-        assert graph.current_strategy.root.search_name == "S1"
+        assert "s1" in graph.steps
+        assert graph.steps["s1"].search_name == "S1"

@@ -2,18 +2,21 @@
 
 from pydantic import ValidationError
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
 from veupath_chatbot.platform.types import JSONObject
 
 
 def count_plan_nodes(plan: JSONObject) -> int:
     """Count step nodes in a plan dict.
 
-    Accepts a raw dict (e.g. from the database) and validates it into
-    a :class:`StrategyAST` before counting.  Returns 0 for invalid data.
+    Accepts a raw dict (e.g. from the database) and validates the ``root``
+    into a :class:`PlanStepNode` before counting.  Returns 0 for invalid data.
     """
+    root_raw = plan.get("root")
+    if not isinstance(root_raw, dict):
+        return 0
     try:
-        ast = StrategyAST.model_validate(plan)
+        root = PlanStepNode.model_validate(root_raw)
     except ValidationError, TypeError, ValueError:
         return 0
-    return len(ast.get_all_steps())
+    return len(walk_step_tree(root))

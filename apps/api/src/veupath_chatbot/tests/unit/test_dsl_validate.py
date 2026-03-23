@@ -1,9 +1,6 @@
 """Tests for strategy DSL validation."""
 
-import pytest
-from pydantic import ValidationError
-
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.validate import (
     StepValidationIssue,
@@ -21,9 +18,8 @@ class TestStrategyValidator:
         step = PlanStepNode(
             search_name="GenesByGoTerm", parameters={"GoTerm": "GO:0016301"}
         )
-        strategy = StrategyAST(record_type="gene", root=step)
 
-        result = validate_strategy(strategy)
+        result = validate_strategy(step, "gene")
         assert result.valid
         assert len(result.errors) == 0
 
@@ -32,18 +28,16 @@ class TestStrategyValidator:
         step = PlanStepNode(
             search_name="GenesByGoTerm", parameters={"GoTerm": "GO:0016301"}
         )
-        strategy = StrategyAST(record_type="", root=step)
 
-        result = validate_strategy(strategy)
+        result = validate_strategy(step, "")
         assert not result.valid
         assert any(e.code == "MISSING_RECORD_TYPE" for e in result.errors)
 
     def test_validate_missing_search_name(self) -> None:
         """Test validation fails when search name is missing."""
         step = PlanStepNode(search_name="", parameters={})
-        strategy = StrategyAST(record_type="gene", root=step)
 
-        result = validate_strategy(strategy)
+        result = validate_strategy(step, "gene")
         assert not result.valid
         assert any(e.code == "MISSING_SEARCH_NAME" for e in result.errors)
 
@@ -61,9 +55,8 @@ class TestStrategyValidator:
             primary_input=left,
             secondary_input=right,
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
 
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert result.valid
 
     def test_validate_transform_strategy(self) -> None:
@@ -76,9 +69,8 @@ class TestStrategyValidator:
             primary_input=search,
             parameters={"taxon": "Toxoplasma"},
         )
-        strategy = StrategyAST(record_type="gene", root=transform)
 
-        result = validate_strategy(strategy)
+        result = validate_strategy(transform, "gene")
         assert result.valid
 
     def test_validate_with_available_searches(self) -> None:
@@ -89,14 +81,12 @@ class TestStrategyValidator:
 
         # Valid search
         step = PlanStepNode(search_name="GenesByGoTerm", parameters={})
-        strategy = StrategyAST(record_type="gene", root=step)
-        result = validator.validate(strategy)
+        result = validator.validate(step, "gene")
         assert result.valid
 
         # Invalid search
         step = PlanStepNode(search_name="NonexistentSearch", parameters={})
-        strategy = StrategyAST(record_type="gene", root=step)
-        result = validator.validate(strategy)
+        result = validator.validate(step, "gene")
         assert not result.valid
         assert any(e.code == "UNKNOWN_SEARCH" for e in result.errors)
 
@@ -110,8 +100,7 @@ class TestStrategyValidator:
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(upstream=-1, downstream=0),
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert not result.valid
         assert any(e.code == "INVALID_COLOCATION_PARAMS" for e in result.errors)
 
@@ -127,13 +116,8 @@ class TestStrategyValidator:
                 upstream=100, downstream=200, strand="same"
             ),
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert result.valid
-
-    def test_validate_empty_strategy(self) -> None:
-        with pytest.raises(ValidationError):
-            StrategyAST(record_type="gene", root=None)
 
     def test_recursive_validation_of_children(self) -> None:
         """Child nodes with missing searchName should be flagged."""
@@ -145,8 +129,7 @@ class TestStrategyValidator:
             secondary_input=right,
             operator=CombineOp.INTERSECT,
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert not result.valid
         assert any(
             e.code == "MISSING_SEARCH_NAME" and "primaryInput" in e.path
@@ -162,8 +145,7 @@ class TestStrategyValidator:
             secondary_input=right,
             operator=CombineOp.INTERSECT,
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert not result.valid
         assert any(
             e.code == "MISSING_SEARCH_NAME" and "secondaryInput" in e.path
@@ -183,8 +165,7 @@ class TestStrategyValidator:
             secondary_input=right,
             operator=CombineOp.INTERSECT,
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validator.validate(strategy)
+        result = validator.validate(combine, "gene")
         assert not result.valid
         # "bool" root is also unknown, but secondaryInput child should be flagged
         assert any(
@@ -195,8 +176,7 @@ class TestStrategyValidator:
     def test_multiple_errors_accumulated(self) -> None:
         """Multiple errors should all appear."""
         leaf = PlanStepNode(search_name="", parameters={})
-        strategy = StrategyAST(record_type="", root=leaf)
-        result = validate_strategy(strategy)
+        result = validate_strategy(leaf, "")
         assert not result.valid
         codes = {e.code for e in result.errors}
         assert "MISSING_RECORD_TYPE" in codes
@@ -212,8 +192,7 @@ class TestStrategyValidator:
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(upstream=-1, downstream=-2),
         )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
+        result = validate_strategy(combine, "gene")
         assert not result.valid
         colocation_errors = [
             e for e in result.errors if e.code == "INVALID_COLOCATION_PARAMS"

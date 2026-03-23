@@ -39,8 +39,7 @@ class TestBuildStrategySession:
         assert graph.name == "My Strategy"
         assert "s1" in graph.steps
         assert graph.steps["s1"].search_name == "GenesByTextSearch"
-        assert graph.current_strategy is not None
-        assert graph.current_strategy.record_type == "gene"
+        assert graph.record_type == "gene"
 
     def test_no_plan_creates_empty_graph(self) -> None:
         """When plan is missing, graph is created but has no steps."""
@@ -193,7 +192,6 @@ class TestBuildStrategySession:
         graph = session.get_graph(None)
         assert graph is not None
         assert graph.steps, "Graph should have steps from plan"
-        assert graph.current_strategy is not None
         assert graph.wdk_strategy_id == 329971733
         assert graph.wdk_step_ids == {"step_a": 438251663}
         assert graph.step_counts == {"step_a": 5678}

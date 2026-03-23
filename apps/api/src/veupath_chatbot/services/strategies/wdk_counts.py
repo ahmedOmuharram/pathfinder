@@ -2,7 +2,7 @@
 
 Supports two paths:
 - **Leaf-only strategies**: parallel anonymous reports (fast, no strategy creation)
-- **Complex strategies**: temporary WDK strategy compilation (slower)
+- **Complex strategies**: temporary WDK strategy via step creation
 
 Results are cached by plan hash to avoid redundant API calls.
 """
@@ -13,15 +13,24 @@ import json
 
 from cachetools import LRUCache
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
-from veupath_chatbot.domain.strategy.compile import compile_strategy
+from veupath_chatbot.domain.strategy.ast import (
+    PlanStepNode,
+    walk_step_tree,
+)
+from veupath_chatbot.domain.strategy.ops import get_wdk_operator
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    NewStepSpec,
+    WDKSearchConfig,
+)
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
+from veupath_chatbot.services.strategies.sync import build_step_tree_from_graph
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 logger = get_logger(__name__)
 
@@ -43,7 +52,7 @@ async def _count_via_anonymous_report(
     """Get result count for a single search using the anonymous report endpoint.
 
     ``POST /record-types/{recordType}/searches/{searchName}/reports/standard``
-    with ``numRecords: 0`` returns only ``meta.totalCount`` — no step or
+    with ``numRecords: 0`` returns only ``meta.totalCount`` -- no step or
     strategy creation needed. Returns ``None`` on failure.
     """
     search_config: JSONObject = {"parameters": parameters}
@@ -64,20 +73,20 @@ async def _count_via_anonymous_report(
         return answer.meta.total_count
 
 
-def is_leaf_only_strategy(strategy_ast: StrategyAST) -> bool:
-    """Check if all steps in the strategy are leaf (search) steps."""
-    return all(step.infer_kind() == "search" for step in strategy_ast.get_all_steps())
+def is_leaf_only_plan(root: PlanStepNode) -> bool:
+    """Check if all steps in the plan tree are leaf (search) steps."""
+    return all(step.infer_kind() == "search" for step in walk_step_tree(root))
 
 
 async def compute_step_counts_for_plan(
     plan: JSONObject,
-    strategy_ast: StrategyAST,
+    payload: StrategyPlanPayload,
     site_id: str,
 ) -> dict[str, int | None]:
     """Compute per-step result counts for a strategy plan.
 
     For **leaf-only strategies** (all search steps, no combines/transforms),
-    uses WDK's anonymous report endpoint in parallel — no step or strategy
+    uses WDK's anonymous report endpoint in parallel -- no step or strategy
     creation needed. This is dramatically faster than full compilation.
 
     For **complex strategies** (with combines/transforms), falls back to
@@ -93,24 +102,26 @@ async def compute_step_counts_for_plan(
     api = get_strategy_api(site_id)
 
     # Fast path: leaf-only strategies use parallel anonymous reports.
-    if is_leaf_only_strategy(strategy_ast):
-        counts = await _compute_leaf_counts_parallel(api.client, strategy_ast)
+    if is_leaf_only_plan(payload.root):
+        counts = await _compute_leaf_counts_parallel(
+            api.client, payload.root, payload.record_type
+        )
         _cache_counts(cache_key, counts)
         return counts
 
-    # Slow path: complex strategies require full WDK compilation.
-    counts = await _compute_counts_via_compilation(api, strategy_ast, site_id)
+    # Slow path: complex strategies require creating steps + temporary strategy.
+    counts = await _compute_counts_via_temp_strategy(api, payload, site_id)
     _cache_counts(cache_key, counts)
     return counts
 
 
 async def _compute_leaf_counts_parallel(
     client: VEuPathDBClient,
-    strategy_ast: StrategyAST,
+    root: PlanStepNode,
+    record_type: str,
 ) -> dict[str, int | None]:
     """Compute counts for all leaf steps in parallel using anonymous reports."""
-    all_steps = strategy_ast.get_all_steps()
-    record_type = strategy_ast.record_type
+    all_steps = walk_step_tree(root)
 
     tasks = [
         _count_via_anonymous_report(
@@ -122,23 +133,116 @@ async def _compute_leaf_counts_parallel(
     return {step.id: count for step, count in zip(all_steps, results, strict=True)}
 
 
-async def _compute_counts_via_compilation(
+async def _create_wdk_step(
     api: StrategyAPI,
-    strategy_ast: StrategyAST,
+    step: PlanStepNode,
+    record_type: str,
+    wdk_step_ids: dict[str, int],
+) -> int | None:
+    """Create a single WDK step and return its WDK ID, or None on failure."""
+    kind = step.infer_kind()
+    params = {k: str(v) for k, v in step.parameters.items() if v is not None}
+    try:
+        if kind == "search":
+            result = await api.create_step(
+                NewStepSpec(
+                    search_name=step.search_name,
+                    search_config=WDKSearchConfig(parameters=params),
+                ),
+                record_type=record_type,
+            )
+            return result.id
+        if kind == "transform" and step.primary_input:
+            input_wdk_id = wdk_step_ids.get(step.primary_input.id)
+            if input_wdk_id is None:
+                return None
+            result = await api.create_transform_step(
+                NewStepSpec(
+                    search_name=step.search_name,
+                    search_config=WDKSearchConfig(parameters=params),
+                ),
+                input_step_id=input_wdk_id,
+                record_type=record_type,
+            )
+            return result.id
+        if kind == "combine" and step.primary_input and step.secondary_input:
+            primary_wdk_id = wdk_step_ids.get(step.primary_input.id)
+            secondary_wdk_id = wdk_step_ids.get(step.secondary_input.id)
+            if primary_wdk_id is None or secondary_wdk_id is None:
+                return None
+            operator = get_wdk_operator(step.operator) if step.operator else "INTERSECT"
+            result = await api.create_combined_step(
+                primary_step_id=primary_wdk_id,
+                secondary_step_id=secondary_wdk_id,
+                boolean_operator=operator,
+                record_type=record_type,
+            )
+            return result.id
+    except AppError as exc:
+        logger.warning(
+            "Failed to create step for count computation",
+            step_id=step.id,
+            error=str(exc),
+        )
+    return None
+
+
+async def _read_counts_from_strategy(
+    api: StrategyAPI,
+    strategy_id: int,
+    all_steps: list[PlanStepNode],
+    wdk_step_ids: dict[str, int],
+    counts: dict[str, int | None],
+) -> None:
+    """Read estimatedSize from a WDK strategy and populate the counts dict."""
+    try:
+        wdk_strategy = await api.get_strategy(strategy_id)
+        for step in all_steps:
+            wdk_id = wdk_step_ids.get(step.id)
+            if wdk_id is None:
+                continue
+            wdk_step = wdk_strategy.steps.get(str(wdk_id))
+            if wdk_step is not None and wdk_step.estimated_size is not None:
+                counts[step.id] = wdk_step.estimated_size
+    except AppError as e:
+        logger.warning("Failed to read counts from strategy payload", error=str(e))
+
+
+async def _compute_counts_via_temp_strategy(
+    api: StrategyAPI,
+    payload: StrategyPlanPayload,
     site_id: str,
 ) -> dict[str, int | None]:
-    """Compute counts by creating a temporary WDK strategy (legacy path)."""
-    result = await compile_strategy(
-        strategy_ast,
-        api,
-        site_id=site_id,
-        resolve_record_type=True,
-    )
+    """Compute counts by creating steps, a temporary strategy, and reading counts.
+
+    Creates each step on WDK, builds a step tree, creates a temporary
+    strategy, reads counts from the strategy payload, then cleans up.
+    """
+    all_steps = walk_step_tree(payload.root)
+
+    # Create each step on WDK and collect local->WDK ID mapping.
+    wdk_step_ids: dict[str, int] = {}
+    for step in all_steps:
+        wdk_id = await _create_wdk_step(api, step, payload.record_type, wdk_step_ids)
+        if wdk_id is not None:
+            wdk_step_ids[step.id] = wdk_id
+
+    counts: dict[str, int | None] = {step.id: None for step in all_steps}
+
+    # If we couldn't create all steps, return None counts.
+    if len(wdk_step_ids) != len(all_steps):
+        return counts
+
+    # Build step tree and create temporary strategy.
+    try:
+        step_tree = build_step_tree_from_graph(payload.root, wdk_step_ids)
+    except AppError:
+        return counts
 
     temp_strategy_id: int | None = None
     try:
         created = await api.create_strategy(
-            step_tree=result.step_tree,
+            step_tree=step_tree,
             name="Pathfinder step counts",
             description=None,
             is_internal=True,
@@ -149,20 +253,13 @@ async def _compute_counts_via_compilation(
             "Failed to create temporary WDK strategy for step counts",
             error=str(exc),
             site_id=site_id,
-            step_count=len(result.steps),
+            step_count=len(all_steps),
         )
 
-    counts: dict[str, int | None] = {step.local_id: None for step in result.steps}
-
     if temp_strategy_id is not None:
-        try:
-            wdk_strategy = await api.get_strategy(temp_strategy_id)
-            for step in result.steps:
-                wdk_step = wdk_strategy.steps.get(str(step.wdk_step_id))
-                if wdk_step is not None and wdk_step.estimated_size is not None:
-                    counts[step.local_id] = wdk_step.estimated_size
-        except AppError as e:
-            logger.warning("Failed to read counts from strategy payload", error=str(e))
+        await _read_counts_from_strategy(
+            api, temp_strategy_id, all_steps, wdk_step_ids, counts
+        )
 
     await delete_temp_strategy(api, temp_strategy_id)
     return counts

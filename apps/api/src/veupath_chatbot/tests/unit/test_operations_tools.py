@@ -10,7 +10,7 @@ from veupath_chatbot.ai.tools.strategy_tools.attachment_ops import (
 )
 from veupath_chatbot.ai.tools.strategy_tools.edit_ops import StrategyEditOps
 from veupath_chatbot.ai.tools.strategy_tools.graph_ops import StrategyGraphOps
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 
@@ -224,10 +224,6 @@ class TestUndoEdgeCases:
     async def test_undo_with_single_history_entry_fails(self):
         """undo requires at least 2 history entries to go back."""
         ops, graph = _make_edit_ops()
-        step_ids = list(graph.steps.keys())
-        root = graph.steps[step_ids[0]]
-        strategy = StrategyAST(record_type="gene", root=root, name="V1")
-        graph.current_strategy = strategy
         graph.save_history("Only entry")
 
         result = await ops.undo_last_change(graph_id="g1")
@@ -240,26 +236,23 @@ class TestUndoEdgeCases:
         graph = session.create_graph("test", graph_id="g1")
         graph.record_type = "gene"
 
-        step_a = PlanStepNode(search_name="A", parameters={})
+        step_a = PlanStepNode(search_name="A", parameters={}, id="sa")
         graph.add_step(step_a)
-        strategy_v1 = StrategyAST(record_type="gene", root=step_a, name="V1")
-        graph.current_strategy = strategy_v1
-        graph.save_history("V1")
+        graph.save_history("V1 - one step")
 
-        step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_b)
-        strategy_v2 = StrategyAST(record_type="gene", root=step_a, name="V2")
-        graph.current_strategy = strategy_v2
-        graph.save_history("V2")
+        # Update the step's parameters (graph stays at 1 root).
+        step_a.parameters = {"updated": "true"}
+        graph.save_history("V2 - updated params")
 
         ops = StrategyEditOps.__new__(StrategyEditOps)
         ops.session = session
 
         result = await ops.undo_last_change(graph_id="g1")
         assert result["ok"] is True
-        # After undo, the graph should be back to V1 state
-        assert graph.current_strategy is not None
-        assert graph.current_strategy.name == "V1"
+        # After undo, step_a should have original empty params.
+        restored_step = graph.steps.get("sa")
+        assert restored_step is not None
+        assert restored_step.parameters == {}
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +320,7 @@ class TestRenameStepResponseFormat:
 
 
 class TestClearStrategyWdkState:
-    """clear_strategy resets steps, roots, history, current_strategy,
+    """clear_strategy resets steps, roots, history,
     AND WDK state (wdk_strategy_id, wdk_step_ids, step_counts).
     """
 
@@ -336,8 +329,6 @@ class TestClearStrategyWdkState:
         graph = session.create_graph("test", graph_id="g1")
         step = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step)
-        strategy = StrategyAST(record_type="gene", root=step, name="S")
-        graph.current_strategy = strategy
 
         # Simulate a built strategy
         graph.wdk_strategy_id = 42

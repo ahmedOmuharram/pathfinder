@@ -2,10 +2,7 @@
 
 from dataclasses import dataclass
 
-from veupath_chatbot.domain.strategy.ast import (
-    PlanStepNode,
-    StrategyAST,
-)
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 
 
@@ -56,16 +53,17 @@ class StrategyValidator:
         self.available_searches = available_searches or {}
         self.available_transforms = available_transforms or []
 
-    def validate(self, strategy: StrategyAST) -> ValidationResult:
-        """Validate a strategy AST.
+    def validate(self, root: PlanStepNode, record_type: str) -> ValidationResult:
+        """Validate a strategy tree.
 
-        :param strategy: Strategy AST.
+        :param root: Root node of the strategy tree.
+        :param record_type: Record type (e.g. "gene", "transcript").
 
         """
         errors: list[StepValidationIssue] = []
 
         # Validate record type
-        if not strategy.record_type:
+        if not record_type:
             errors.append(
                 StepValidationIssue(
                     path="recordType",
@@ -74,18 +72,8 @@ class StrategyValidator:
                 )
             )
 
-        # Check for empty strategy
-        if strategy.root is None:
-            errors.append(
-                StepValidationIssue(
-                    path="root",
-                    message="Strategy must have at least one step",
-                    code="EMPTY_STRATEGY",
-                )
-            )
-        else:
-            # Validate the tree
-            self._validate_node(strategy.root, "root", strategy.record_type, errors)
+        # Validate the tree
+        self._validate_node(root, "root", record_type, errors)
 
         return (
             ValidationResult.success()
@@ -194,10 +182,11 @@ class StrategyValidator:
             )
 
 
-def validate_strategy(strategy: StrategyAST) -> ValidationResult:
-    """Validate a strategy AST with default validator.
+def validate_strategy(root: PlanStepNode, record_type: str) -> ValidationResult:
+    """Validate a strategy tree with default validator.
 
-    :param strategy: Strategy AST.
+    :param root: Root node of the strategy tree.
+    :param record_type: Record type (e.g. "gene", "transcript").
 
     """
-    return StrategyValidator().validate(strategy)
+    return StrategyValidator().validate(root, record_type)

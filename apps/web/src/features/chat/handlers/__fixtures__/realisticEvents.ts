@@ -35,7 +35,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-1",
       name: "search_for_searches",
-      arguments: '{"site_id":"plasmodb","query":"epitope antigen"}',
+      arguments: { site_id: "plasmodb", query: "epitope antigen" },
     },
   },
   {
@@ -59,7 +59,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-2",
       name: "create_step",
-      arguments: JSON.stringify({
+      arguments: {
         search_name: "GenesWithEpitopes",
         record_type: "transcript",
         parameters: {
@@ -67,7 +67,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
           epitope_confidence: '["High","Medium"]',
         },
         display_name: "P. falciparum epitope genes",
-      }),
+      },
     },
   },
   {
@@ -113,8 +113,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-3",
       name: "build_strategy",
-      arguments:
-        '{"strategy_name":"Epitope vaccine targets","record_type":"transcript"}',
+      arguments: { strategy_name: "Epitope vaccine targets", record_type: "transcript" },
     },
   },
   {
@@ -231,7 +230,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-opt",
       name: "optimize_search_parameters",
-      arguments: "{}",
+      arguments: {},
     },
   },
   {
@@ -256,7 +255,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
         score: 0.65,
         recall: 0.8,
         falsePositiveRate: 0.25,
-        resultCount: null,
+        estimatedSize: null,
         positiveHits: null,
         negativeHits: null,
         totalPositives: null,
@@ -277,7 +276,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
         score: 0.78,
         recall: 0.7,
         falsePositiveRate: 0.1,
-        resultCount: null,
+        estimatedSize: null,
         positiveHits: null,
         negativeHits: null,
         totalPositives: null,
@@ -298,7 +297,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
         score: 0.82,
         recall: 0.75,
         falsePositiveRate: 0.12,
-        resultCount: null,
+        estimatedSize: null,
         positiveHits: null,
         negativeHits: null,
         totalPositives: null,
@@ -319,7 +318,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
         score: 0.82,
         recall: null,
         falsePositiveRate: null,
-        resultCount: null,
+        estimatedSize: null,
         positiveHits: null,
         negativeHits: null,
         totalPositives: null,
@@ -372,7 +371,7 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-del",
       name: "delegate_strategy_subtasks",
-      arguments: '{"goal":"Build a multi-step gene strategy"}',
+      arguments: { goal: "Build a multi-step gene strategy" },
     },
   },
   // Sub-kani events
@@ -386,7 +385,7 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
       task: "delegate:build-step-1",
       id: "sub-tc-1",
       name: "search_for_searches",
-      arguments: '{"site_id":"plasmodb","query":"epitope"}',
+      arguments: { site_id: "plasmodb", query: "epitope" },
     },
   },
   {
@@ -403,7 +402,7 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
       task: "delegate:build-step-1",
       id: "sub-tc-2",
       name: "create_step",
-      arguments: '{"search_name":"GenesWithEpitopes"}',
+      arguments: { search_name: "GenesWithEpitopes" },
     },
   },
   {

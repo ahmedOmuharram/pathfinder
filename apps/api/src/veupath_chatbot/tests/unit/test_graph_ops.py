@@ -1,9 +1,6 @@
 """Unit tests for services.strategies.engine.graph_ops.GraphOpsMixin."""
 
-from veupath_chatbot.domain.strategy.ast import (
-    PlanStepNode,
-    StrategyAST,
-)
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
@@ -249,9 +246,7 @@ class TestBuildGraphSnapshot:
         graph.add_step(c1)
         graph.last_step_id = "c1"
         graph.record_type = "gene"
-        # Set up a strategy AST for context plan
-        ast = StrategyAST(record_type="gene", root=c1, name="My Strategy")
-        graph.current_strategy = ast
+        graph.name = "My Strategy"
         snapshot = mixin._build_graph_snapshot(graph)
         assert snapshot["graphId"] == "g1"
         assert snapshot["rootStepId"] == "c1"
@@ -280,8 +275,6 @@ class TestBuildGraphSnapshot:
         graph.add_step(s2)
         graph.add_step(c1)
         graph.record_type = "gene"
-        ast = StrategyAST(record_type="gene", root=c1)
-        graph.current_strategy = ast
         snapshot = mixin._build_graph_snapshot(graph)
         edges = snapshot["edges"]
         primary_edges = [e for e in edges if e["kind"] == "primary"]
@@ -346,8 +339,7 @@ class TestBuildContextPlan:
         step = _leaf("s1")
         graph.add_step(step)
         graph.record_type = "gene"
-        ast = StrategyAST(record_type="gene", root=step, name="My Custom Name")
-        graph.current_strategy = ast
+        graph.name = "My Custom Name"
         result = mixin._build_context_plan(graph)
         assert result is not None
         assert result.name == "My Custom Name"

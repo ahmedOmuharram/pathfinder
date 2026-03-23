@@ -1,18 +1,18 @@
-"""WDK -> AST conversion: parse typed WDK strategy models into internal AST.
+"""WDK -> plan conversion: parse typed WDK strategy models into internal plan.
 
 Pure conversion functions (no I/O except ``normalize_synced_parameters`` which
 fetches param specs from WDK).
 
 Public API:
-- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyAST (with step_counts and wdk_step_ids)
-- ``normalize_synced_parameters`` -- enrich AST nodes with normalized param values
+- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyPlanPayload (with step_counts and wdk_step_ids)
+- ``normalize_synced_parameters`` -- enrich plan nodes with normalized param values
 """
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import adapt_param_specs_from_search
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
-    StrategyAST,
+    walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -25,6 +25,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 logger = get_logger(__name__)
 
@@ -95,13 +96,13 @@ def _build_node(
 
 
 def _extract_wdk_metadata(
-    ast: StrategyAST,
+    root: PlanStepNode,
     wdk_steps: dict[str, WDKStep],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Extract step_counts and wdk_step_ids from AST matched against WDK steps."""
+    """Extract step_counts and wdk_step_ids from plan tree matched against WDK steps."""
     step_counts: dict[str, int] = {}
     wdk_step_ids: dict[str, int] = {}
-    for step in ast.get_all_steps():
+    for step in walk_step_tree(root):
         if not step.id.isdigit():
             continue
         wdk_id = int(step.id)
@@ -117,10 +118,10 @@ def _extract_wdk_metadata(
 
 def build_snapshot_from_wdk(
     wdk_strategy: WDKStrategyDetails,
-) -> StrategyAST:
-    """Convert a typed WDK strategy into a StrategyAST with enrichment metadata.
+) -> StrategyPlanPayload:
+    """Convert a typed WDK strategy into a StrategyPlanPayload with enrichment metadata.
 
-    Step counts and WDK step ID mappings are stored directly on the AST's
+    Step counts and WDK step ID mappings are stored directly on the payload's
     ``step_counts`` and ``wdk_step_ids`` fields.
     """
     record_type = wdk_strategy.record_class_name or ""
@@ -130,17 +131,16 @@ def build_snapshot_from_wdk(
     record_type = record_type.strip()
 
     root = _build_node(wdk_strategy.step_tree, wdk_strategy.steps, record_type)
-    ast = StrategyAST(
+
+    step_counts, wdk_step_ids = _extract_wdk_metadata(root, wdk_strategy.steps)
+    return StrategyPlanPayload(
         record_type=record_type,
         root=root,
         name=wdk_strategy.name or None,
         description=wdk_strategy.description or None,
+        step_counts=step_counts or None,
+        wdk_step_ids=wdk_step_ids or None,
     )
-
-    step_counts, wdk_step_ids = _extract_wdk_metadata(ast, wdk_strategy.steps)
-    ast.step_counts = step_counts or None
-    ast.wdk_step_ids = wdk_step_ids or None
-    return ast
 
 
 # -- Parameter normalization ----------------------------------------------------
@@ -187,20 +187,20 @@ async def _load_search_spec(
 
 
 async def normalize_synced_parameters(
-    ast: StrategyAST,
+    payload: StrategyPlanPayload,
     api: StrategyAPI,
 ) -> None:
     """Normalize parameters from WDK response using param specs.
 
-    Mutates AST nodes in place with normalized parameter values.
+    Mutates plan step nodes in place with normalized parameter values.
     """
     spec_cache: dict[tuple[str, str], WDKSearch | None] = {}
 
-    for step in ast.get_all_steps():
+    for step in walk_step_tree(payload.root):
         if step.infer_kind() == "combine":
             continue
         search_name = step.search_name
-        record_type = ast.record_type
+        record_type = payload.record_type
 
         if not search_name or not record_type:
             continue

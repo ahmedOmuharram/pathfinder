@@ -2,15 +2,16 @@
 
 The existing test_auto_push_lock.py covers _get_push_lock eviction.
 This file covers try_auto_push_to_wdk end-to-end with mocked
-DB sessions, repos, and WDK API calls.
+DB sessions, repos, and WDK sync calls.
 """
 
+from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.auto_push import (
     _PUSH_LOCKS_MAX,
@@ -18,6 +19,7 @@ from veupath_chatbot.services.strategies.auto_push import (
     _push_locks,
     try_auto_push_to_wdk,
 )
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 @pytest.fixture(autouse=True)
@@ -55,12 +57,27 @@ def _mock_projection(
     return proj
 
 
+@dataclass
+class _MockSyncResult:
+    wdk_strategy_id: int | None = 100
+    wdk_url: str | None = None
+    root_step_id: int = 1001
+    counts: dict = None  # type: ignore[assignment]
+    root_count: int | None = 150
+    zero_step_ids: list = None  # type: ignore[assignment]
+    step_count: int = 1
+
+    def __post_init__(self) -> None:
+        if self.counts is None:
+            self.counts = {"s1": 150}
+        if self.zero_step_ids is None:
+            self.zero_step_ids = []
+
+
 def _make_patches(
     projection: MagicMock | None = None,
-    compile_result: MagicMock | None = None,
     validate_raise: Exception | None = None,
-    compile_raise: Exception | None = None,
-    api_update_raise: Exception | None = None,
+    sync_raise: Exception | None = None,
 ):
     """Build a context manager stack of patches for try_auto_push_to_wdk."""
     proj = projection or _mock_projection()
@@ -73,25 +90,11 @@ def _make_patches(
     mock_session.commit = AsyncMock()
     mock_session.rollback = AsyncMock()
 
-    if compile_result is None:
-        compiled_step = MagicMock()
-        compiled_step.local_id = "s1"
-        compiled_step.wdk_step_id = 1001
-        compile_result = MagicMock()
-        compile_result.steps = [compiled_step]
-        compile_result.step_tree = MagicMock()
-
-    mock_api = MagicMock()
-    if api_update_raise:
-        mock_api.update_strategy = AsyncMock(side_effect=api_update_raise)
-    else:
-        mock_api.update_strategy = AsyncMock()
-
     validate_fn = MagicMock()
     if validate_raise:
         validate_fn.side_effect = validate_raise
     else:
-        mock_ast = StrategyAST(
+        mock_payload = StrategyPlanPayload(
             record_type="gene",
             root=PlanStepNode(
                 search_name="GenesByTextSearch",
@@ -99,13 +102,13 @@ def _make_patches(
                 id="s1",
             ),
         )
-        validate_fn.return_value = mock_ast
+        validate_fn.return_value = mock_payload
 
-    compile_fn = AsyncMock()
-    if compile_raise:
-        compile_fn.side_effect = compile_raise
+    sync_fn = AsyncMock()
+    if sync_raise:
+        sync_fn.side_effect = sync_raise
     else:
-        compile_fn.return_value = compile_result
+        sync_fn.return_value = _MockSyncResult()
 
     patches = {
         "session_factory": patch(
@@ -123,174 +126,155 @@ def _make_patches(
             "veupath_chatbot.services.strategies.auto_push.validate_plan_or_raise",
             validate_fn,
         ),
-        "get_api": patch(
-            "veupath_chatbot.services.strategies.auto_push.get_strategy_api",
-            return_value=mock_api,
-        ),
-        "compile": patch(
-            "veupath_chatbot.services.strategies.auto_push.compile_strategy",
-            compile_fn,
+        "sync": patch(
+            "veupath_chatbot.services.strategies.auto_push.sync_strategy_for_site",
+            sync_fn,
         ),
     }
-    return patches, repo, mock_session, mock_api, compile_fn
+    return patches, repo, mock_session, sync_fn
+
+
+def _enter_patches(patches: dict) -> None:
+    """No-op — patches are used via context managers."""
 
 
 class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_skips_when_no_projection(self) -> None:
         """When get_projection returns None, no WDK push happens."""
-        patches, repo, _mock_session, mock_api, _compile_fn = _make_patches()
+        patches, repo, _mock_session, sync_fn = _make_patches()
         repo.get_projection = AsyncMock(return_value=None)
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
-        mock_api.update_strategy.assert_not_called()
+        sync_fn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_when_no_wdk_strategy_id(self) -> None:
         proj = _mock_projection(wdk_strategy_id=None)
-        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
-            projection=proj
-        )
+        patches, _repo, _mock_session, sync_fn = _make_patches(projection=proj)
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
-        mock_api.update_strategy.assert_not_called()
+        sync_fn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_when_no_site_id(self) -> None:
         proj = _mock_projection(site_id=None)
-        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
-            projection=proj
-        )
+        patches, _repo, _mock_session, sync_fn = _make_patches(projection=proj)
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
-        mock_api.update_strategy.assert_not_called()
+        sync_fn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_when_empty_plan(self) -> None:
         proj = _mock_projection(plan={})
-        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
-            projection=proj
-        )
+        patches, _repo, _mock_session, sync_fn = _make_patches(projection=proj)
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
-        mock_api.update_strategy.assert_not_called()
+        sync_fn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_when_plan_is_not_dict(self) -> None:
         proj = _mock_projection()
         proj.plan = "not a dict"
-        patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches(
-            projection=proj
-        )
+        patches, _repo, _mock_session, sync_fn = _make_patches(projection=proj)
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
-        mock_api.update_strategy.assert_not_called()
+        sync_fn.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_successful_push_updates_projection(self) -> None:
-        patches, repo, mock_session, mock_api, _compile_fn = _make_patches()
+        patches, repo, mock_session, sync_fn = _make_patches()
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
 
-        mock_api.update_strategy.assert_called_once()
+        sync_fn.assert_called_once()
         repo.update_projection.assert_called_once()
         mock_session.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_successful_push_rewrites_ids(self) -> None:
-        """After compilation, local step IDs should be rewritten to WDK IDs."""
-        patches, repo, _mock_session, _mock_api, _compile_fn = _make_patches()
+    async def test_successful_push_calls_sync(self) -> None:
+        """After validation, sync_strategy_for_site should be called."""
+        patches, repo, _mock_session, sync_fn = _make_patches()
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
 
-        # update_projection should be called with the rewritten plan
+        sync_fn.assert_called_once()
+        # update_projection should be called with the updated plan
         call_kwargs = repo.update_projection.call_args
         assert call_kwargs is not None
 
     @pytest.mark.asyncio
     async def test_wdk_404_clears_strategy_id(self) -> None:
         """When WDK returns 404, the stale wdk_strategy_id should be cleared."""
-        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
-            api_update_raise=WDKError("Not found", status=404)
+        patches, _repo, mock_session, _sync_fn = _make_patches(
+            sync_raise=WDKError("Not found", status=404)
         )
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             # Should not raise
             await try_auto_push_to_wdk(uuid4())
 
-        # Should have tried to clear wdk_strategy_id
-        # The function recreates the repo, so we check that commit was called
-        # at least for the 404 branch
         mock_session.rollback.assert_called()
 
     @pytest.mark.asyncio
     async def test_wdk_non_404_error_logged_not_raised(self) -> None:
         """Non-404 WDK errors are logged but not raised."""
-        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
-            api_update_raise=WDKError("Server error", status=500)
+        patches, _repo, mock_session, _sync_fn = _make_patches(
+            sync_raise=WDKError("Server error", status=500)
         )
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             # Should not raise
             await try_auto_push_to_wdk(uuid4())
@@ -300,16 +284,15 @@ class TestTryAutoPushToWdk:
     @pytest.mark.asyncio
     async def test_generic_exception_logged_not_raised(self) -> None:
         """Generic exceptions are logged but not raised."""
-        patches, _repo, mock_session, _mock_api, _compile_fn = _make_patches(
-            compile_raise=RuntimeError("unexpected")
+        patches, _repo, mock_session, _sync_fn = _make_patches(
+            sync_raise=RuntimeError("unexpected")
         )
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
 
@@ -323,45 +306,37 @@ class TestTryAutoPushToWdk:
         await lock.acquire()
 
         try:
-            patches, _repo, _mock_session, mock_api, _compile_fn = _make_patches()
+            patches, _repo, _mock_session, sync_fn = _make_patches()
             with (
                 patches["session_factory"],
                 patches["repo_cls"],
                 patches["validate"],
-                patches["get_api"],
-                patches["compile"],
+                patches["sync"],
             ):
                 await try_auto_push_to_wdk(sid)
-            # Should have skipped entirely, no update_strategy call
-            mock_api.update_strategy.assert_not_called()
+            # Should have skipped entirely, no sync call
+            sync_fn.assert_not_called()
         finally:
             lock.release()
 
     @pytest.mark.asyncio
-    async def test_unmapped_steps_skip_id_rewrite(self) -> None:
-        """When compiled map is missing step IDs, skip ID rewrite to prevent corruption."""
-        compiled_step = MagicMock()
-        compiled_step.local_id = "s_other"  # Does NOT match "s1" in the plan
-        compiled_step.wdk_step_id = 1001
-        compile_result = MagicMock()
-        compile_result.steps = [compiled_step]
-        compile_result.step_tree = MagicMock()
-
-        patches, repo, _mock_session, _mock_api, _compile_fn = _make_patches(
-            compile_result=compile_result
+    async def test_validate_failure_raises_and_rolls_back(self) -> None:
+        """When validate_plan_or_raise fails, the error propagates and session rolls back."""
+        patches, _repo, mock_session, sync_fn = _make_patches(
+            validate_raise=RuntimeError("Invalid plan")
         )
 
         with (
             patches["session_factory"],
             patches["repo_cls"],
             patches["validate"],
-            patches["get_api"],
-            patches["compile"],
+            patches["sync"],
         ):
             await try_auto_push_to_wdk(uuid4())
 
-        # Should still call update_projection (plan without ID rewrite)
-        repo.update_projection.assert_called_once()
+        # validate_plan_or_raise raises AppError -> caught by outer handler
+        sync_fn.assert_not_called()
+        mock_session.rollback.assert_called()
 
 
 class TestGetPushLockEdgeCases:

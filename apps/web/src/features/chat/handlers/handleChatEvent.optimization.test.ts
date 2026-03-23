@@ -59,7 +59,7 @@ describe("handleChatEvent — optimization progress events", () => {
             score: 0.5,
             recall: 0.5,
             falsePositiveRate: 0.1,
-            resultCount: 10,
+            estimatedSize: 10,
             positiveHits: null,
             negativeHits: null,
             totalPositives: null,

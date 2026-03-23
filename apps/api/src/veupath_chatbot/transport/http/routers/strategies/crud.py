@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.persistence.repositories.stream import ProjectionUpdate
 from veupath_chatbot.platform.errors import (
     AppError,
@@ -70,8 +71,8 @@ async def create_strategy(
 ) -> StrategyResponse:
     """Create a new strategy (CQRS only)."""
     plan_in = request.plan.model_dump(exclude_none=True)
-    strategy_ast = validate_plan_or_raise(plan_in)
-    plan = strategy_ast.model_dump(by_alias=True, exclude_none=True, mode="json")
+    payload = validate_plan_or_raise(plan_in)
+    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     stream = await stream_repo.create(
         user_id=user_id,
@@ -82,8 +83,8 @@ async def create_strategy(
         stream.id,
         ProjectionUpdate(
             plan=plan,
-            record_type=strategy_ast.record_type,
-            step_count=len(strategy_ast.get_all_steps()),
+            record_type=payload.record_type,
+            step_count=len(walk_step_tree(payload.root)),
         ),
     )
 
@@ -128,14 +129,14 @@ async def update_strategy(
     """Update a strategy (CQRS only)."""
     await get_owned_projection_or_404(stream_repo, strategyId, user_id)
 
-    strategy_ast = None
+    payload = None
     record_type = None
     plan: JSONObject | None = None
     if request.plan:
         plan_in = request.plan.model_dump(exclude_none=True)
-        strategy_ast = validate_plan_or_raise(plan_in)
-        plan = strategy_ast.model_dump(by_alias=True, exclude_none=True, mode="json")
-        record_type = strategy_ast.record_type
+        payload = validate_plan_or_raise(plan_in)
+        plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+        record_type = payload.record_type
 
     fields_set: set[str] = getattr(request, "model_fields_set", set())
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
@@ -151,7 +152,7 @@ async def update_strategy(
             wdk_strategy_id_set=wdk_strategy_id_set,
             is_saved=request.is_saved,
             is_saved_set=is_saved_set,
-            step_count=len(strategy_ast.get_all_steps()) if strategy_ast else None,
+            step_count=len(walk_step_tree(payload.root)) if payload else None,
         ),
     )
 

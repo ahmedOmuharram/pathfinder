@@ -3,7 +3,7 @@
 from uuid import uuid4
 
 from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 
 
@@ -11,17 +11,12 @@ def _make_session_with_graph(
     *, with_strategy: bool = True, strategy_name: str = "Test Strategy"
 ) -> tuple[StrategySession, StrategyGraph]:
     session = StrategySession("plasmodb")
-    graph = session.create_graph("Draft graph", graph_id="g1")
+    graph = session.create_graph(strategy_name, graph_id="g1")
     if with_strategy:
         step = PlanStepNode(search_name="GenesByText", parameters={"text": "kinase"})
         graph.add_step(step)
-        strategy = StrategyAST(
-            record_type="gene",
-            root=step,
-            name=strategy_name,
-            description="A test strategy",
-        )
-        graph.current_strategy = strategy
+        graph.record_type = "gene"
+        graph.description = "A test strategy"
     return session, graph
 
 
@@ -146,7 +141,6 @@ async def test_clear_strategy_with_confirmation():
     assert result["cleared"] is True
     assert len(graph.steps) == 0
     assert len(graph.roots) == 0
-    assert graph.current_strategy is None
     assert graph.last_step_id is None
 
 
@@ -174,8 +168,18 @@ async def test_get_strategy_summary_without_strategy():
 
     result = await tools.get_strategy_summary(graph_id=graph.id)
 
+    # Now the graph has steps, so it has a strategy
+    assert result["hasStrategy"] is True
+
+
+async def test_get_strategy_summary_empty_graph():
+    session, graph = _make_session_with_graph(with_strategy=False)
+    tools = ConversationTools(session)
+
+    result = await tools.get_strategy_summary(graph_id=graph.id)
+
     assert result["hasStrategy"] is False
-    assert result["stepCount"] == 1
+    assert result["stepCount"] == 0
     assert "No complete strategy" in str(result["message"])
 
 

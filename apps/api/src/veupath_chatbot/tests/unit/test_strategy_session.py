@@ -1,6 +1,6 @@
 """Unit tests for StrategyGraph session operations."""
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
@@ -20,14 +20,15 @@ def _make_combine(
     return make_combine(step_id, left, right)
 
 
-def _build_graph_with_strategy(n_leaves: int = 2) -> StrategyGraph:
-    """Build a StrategyGraph with a simple combine strategy."""
+def _build_graph_with_steps(n_leaves: int = 2) -> StrategyGraph:
+    """Build a StrategyGraph with a simple combine from leaf steps."""
     graph = StrategyGraph("g1", "Test", "plasmodb")
+    graph.record_type = "gene"
     leaves = [_make_leaf(f"step{i + 1}") for i in range(n_leaves)]
     root = _make_combine("step_combine", leaves[0], leaves[1])
-    ast = StrategyAST(record_type="gene", root=root)
-    graph.current_strategy = ast
-    graph.steps = {s.id: s for s in ast.get_all_steps()}
+    all_steps = walk_step_tree(root)
+    for step in all_steps:
+        graph.steps[step.id] = step
     graph.recompute_roots()
     graph.last_step_id = root.id
     return graph
@@ -99,6 +100,67 @@ class TestRecomputeRoots:
         assert graph.roots == set()
 
 
+class TestToPlan:
+    def test_produces_plan_for_single_root(self) -> None:
+        graph = _build_graph_with_steps()
+        plan = graph.to_plan()
+        assert plan["recordType"] == "gene"
+        assert plan["name"] == "Test"
+        assert "root" in plan
+
+    def test_returns_empty_dict_when_no_root(self) -> None:
+        graph = StrategyGraph("g1", "Test", "plasmodb")
+        plan = graph.to_plan()
+        assert plan == {}
+
+    def test_returns_empty_when_multiple_roots(self) -> None:
+        graph = StrategyGraph("g1", "Test", "plasmodb")
+        graph.record_type = "gene"
+        graph.add_step(_make_leaf("s1"))
+        graph.add_step(_make_leaf("s2"))
+        # Two roots, no root_step_id specified -> empty
+        plan = graph.to_plan()
+        assert plan == {}
+
+    def test_explicit_root_step_id(self) -> None:
+        graph = StrategyGraph("g1", "Test", "plasmodb")
+        graph.record_type = "gene"
+        s1 = _make_leaf("s1")
+        graph.add_step(s1)
+        graph.add_step(_make_leaf("s2"))
+        plan = graph.to_plan(root_step_id="s1")
+        assert plan["root"]["searchName"] == "GenesByTextSearch"
+
+    def test_includes_description_when_set(self) -> None:
+        graph = _build_graph_with_steps()
+        graph.description = "A test strategy"
+        plan = graph.to_plan()
+        assert plan["description"] == "A test strategy"
+
+    def test_excludes_description_when_none(self) -> None:
+        graph = _build_graph_with_steps()
+        plan = graph.to_plan()
+        assert "description" not in plan
+
+    def test_includes_step_counts_when_present(self) -> None:
+        graph = _build_graph_with_steps()
+        graph.step_counts = {"step1": 10, "step2": 20}
+        plan = graph.to_plan()
+        assert plan["stepCounts"] == {"step1": 10, "step2": 20}
+
+    def test_filters_none_step_counts(self) -> None:
+        graph = _build_graph_with_steps()
+        graph.step_counts = {"step1": 10, "step2": None}
+        plan = graph.to_plan()
+        assert plan["stepCounts"] == {"step1": 10}
+
+    def test_includes_wdk_step_ids_when_present(self) -> None:
+        graph = _build_graph_with_steps()
+        graph.wdk_step_ids = {"step1": 100, "step2": 200}
+        plan = graph.to_plan()
+        assert plan["wdkStepIds"] == {"step1": 100, "step2": 200}
+
+
 class TestStrategySessionCreateGraph:
     def test_creates_new_graph(self) -> None:
         session = StrategySession("plasmodb")
@@ -166,37 +228,45 @@ class TestStrategySessionGetGraph:
 
 
 class TestSaveHistory:
-    def test_saves_when_strategy_exists(self) -> None:
-        graph = _build_graph_with_strategy()
+    def test_saves_when_graph_has_root(self) -> None:
+        graph = _build_graph_with_steps()
         graph.save_history("test")
         assert len(graph.history) == 1
         assert graph.history[0]["description"] == "test"
-        assert "strategy" in graph.history[0]
+        assert "plan" in graph.history[0]
 
-    def test_noop_when_no_strategy(self) -> None:
+    def test_noop_when_no_steps(self) -> None:
         graph = StrategyGraph("g1", "Test", "plasmodb")
         graph.save_history("test")
         assert len(graph.history) == 0
 
+    def test_plan_contains_root(self) -> None:
+        graph = _build_graph_with_steps()
+        graph.save_history("test")
+        plan = graph.history[0]["plan"]
+        assert "root" in plan
+        assert plan["recordType"] == "gene"
+
 
 class TestUndoRestoresFullGraphState:
-    """Undo must restore steps, roots, and last_step_id — not just current_strategy."""
+    """Undo must restore steps, roots, and last_step_id."""
 
     def test_undo_restores_steps(self) -> None:
-        graph = _build_graph_with_strategy()
+        graph = _build_graph_with_steps()
         assert len(graph.steps) == 3
         graph.save_history("initial 3-step strategy")
 
-        # Add a 4th step
+        # Add a 4th step and create a new combine on top
         extra = _make_leaf("step_extra")
         graph.add_step(extra)
         assert len(graph.steps) == 4, "Precondition: 4 steps after add"
 
-        # Build new AST including the extra step
-        assert graph.current_strategy is not None
-        new_root = _make_combine("step_new_root", graph.current_strategy.root, extra)
-        graph.current_strategy = StrategyAST(record_type="gene", root=new_root)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        # Build new root combining old root + new step
+        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        old_root = graph.steps[old_root_id]
+        new_root = _make_combine("step_new_root", old_root, extra)
+        all_steps = walk_step_tree(new_root)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.last_step_id = new_root.id
         graph.save_history("added 4th step")
@@ -207,24 +277,25 @@ class TestUndoRestoresFullGraphState:
         result = graph.undo()
         assert result is True
 
-        # After undo, steps must reflect the 3-step strategy, not the 5-step one
+        # After undo, steps must reflect the 3-step strategy
         assert len(graph.steps) == 3, (
             f"Expected 3 steps after undo, got {len(graph.steps)}: "
             f"{list(graph.steps.keys())}"
         )
 
     def test_undo_restores_roots(self) -> None:
-        graph = _build_graph_with_strategy()
+        graph = _build_graph_with_steps()
         graph.save_history("initial")
         original_roots = set(graph.roots)
 
         # Modify graph
         extra = _make_leaf("step_extra")
         graph.add_step(extra)
-        assert graph.current_strategy is not None
-        new_root = _make_combine("step_new_root", graph.current_strategy.root, extra)
-        graph.current_strategy = StrategyAST(record_type="gene", root=new_root)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        old_root = graph.steps[old_root_id]
+        new_root = _make_combine("step_new_root", old_root, extra)
+        all_steps = walk_step_tree(new_root)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.last_step_id = new_root.id
         graph.save_history("modified")
@@ -235,16 +306,17 @@ class TestUndoRestoresFullGraphState:
         )
 
     def test_undo_restores_last_step_id(self) -> None:
-        graph = _build_graph_with_strategy()
+        graph = _build_graph_with_steps()
         original_last = graph.last_step_id
         graph.save_history("initial")
 
         extra = _make_leaf("step_extra")
         graph.add_step(extra)
-        assert graph.current_strategy is not None
-        new_root = _make_combine("step_new_root", graph.current_strategy.root, extra)
-        graph.current_strategy = StrategyAST(record_type="gene", root=new_root)
-        graph.steps = {s.id: s for s in graph.current_strategy.get_all_steps()}
+        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        old_root = graph.steps[old_root_id]
+        new_root = _make_combine("step_new_root", old_root, extra)
+        all_steps = walk_step_tree(new_root)
+        graph.steps = {s.id: s for s in all_steps}
         graph.recompute_roots()
         graph.last_step_id = new_root.id
         graph.save_history("modified")
@@ -259,5 +331,36 @@ class TestUndoRestoresFullGraphState:
         graph = StrategyGraph("g1", "Test", "plasmodb")
         assert graph.undo() is False
 
+        graph.record_type = "gene"
+        s = _make_leaf("s1")
+        graph.add_step(s)
         graph.save_history("only one")
         assert graph.undo() is False
+
+    def test_undo_old_strategy_format_fails_gracefully(self) -> None:
+        """Old-format history entries are no longer supported (StrategyAST removed).
+
+        Undo returns False when encountering old-format entries.
+        """
+        graph = StrategyGraph("g1", "Test", "plasmodb")
+        graph.record_type = "gene"
+        s1 = _make_leaf("s1")
+        graph.add_step(s1)
+
+        # Manually inject old-format history entries
+        old_entry = {
+            "description": "old format",
+            "strategy": {
+                "recordType": "gene",
+                "root": {
+                    "searchName": "GenesByTextSearch",
+                    "parameters": {"text_expression": "s1"},
+                    "id": "s1",
+                },
+            },
+        }
+        graph.history.append(old_entry)
+        graph.history.append(old_entry)  # need >= 2 for undo
+
+        result = graph.undo()
+        assert result is False

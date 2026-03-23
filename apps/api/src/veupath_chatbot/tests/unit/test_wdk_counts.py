@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
@@ -14,16 +14,16 @@ from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies import wdk_counts
 from veupath_chatbot.services.strategies.wdk_counts import (
     _STEP_COUNTS_CACHE,
-    _STEP_COUNTS_CACHE_MAX,
     _cache_counts,
     compute_step_counts_for_plan,
-    is_leaf_only_strategy,
+    is_leaf_only_plan,
     plan_cache_key,
 )
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
-def _simple_ast() -> StrategyAST:
-    return StrategyAST(
+def _simple_ast() -> StrategyPlanPayload:
+    return StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(
             search_name="GenesByTextSearch",
@@ -33,11 +33,11 @@ def _simple_ast() -> StrategyAST:
     )
 
 
-def _two_leaf_ast() -> StrategyAST:
+def _two_leaf_ast() -> StrategyPlanPayload:
     """Two leaf steps (no combine)."""
     left = PlanStepNode(search_name="GenesByTaxon", parameters={"org": "pfal"}, id="s1")
     right = PlanStepNode(search_name="GenesByText", parameters={"q": "kinase"}, id="s2")
-    return StrategyAST(
+    return StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(
             search_name="boolean_question",
@@ -49,12 +49,12 @@ def _two_leaf_ast() -> StrategyAST:
     )
 
 
-def _transform_ast() -> StrategyAST:
+def _transform_ast() -> StrategyPlanPayload:
     """Transform step (primary input only)."""
     child = PlanStepNode(
         search_name="GenesByTaxon", parameters={"org": "pfal"}, id="s1"
     )
-    return StrategyAST(
+    return StrategyPlanPayload(
         record_type="gene",
         root=PlanStepNode(
             search_name="GenesByOrthologPattern",
@@ -107,22 +107,20 @@ class TestPlanCacheKey:
 # ── is_leaf_only_strategy ─────────────────────────────────────────
 
 
-class TestIsLeafOnlyStrategy:
+class TestIsLeafOnlyPlan:
     def test_single_search_step(self) -> None:
-        assert is_leaf_only_strategy(_simple_ast()) is True
+        assert is_leaf_only_plan(_simple_ast().root) is True
 
     def test_combine_step_is_not_leaf_only(self) -> None:
-        assert is_leaf_only_strategy(_two_leaf_ast()) is False
+        assert is_leaf_only_plan(_two_leaf_ast().root) is False
 
     def test_transform_step_is_not_leaf_only(self) -> None:
-        assert is_leaf_only_strategy(_transform_ast()) is False
+        assert is_leaf_only_plan(_transform_ast().root) is False
 
     def test_two_search_steps_without_combine(self) -> None:
-        """A strategy with only search steps but no combine is leaf-only."""
-        # This shouldn't normally happen (two roots), but the function
-        # checks get_all_steps() which traverses the tree
-        ast = _simple_ast()
-        assert is_leaf_only_strategy(ast) is True
+        """A plan with only search steps but no combine is leaf-only."""
+        payload = _simple_ast()
+        assert is_leaf_only_plan(payload.root) is True
 
 
 # ── Cache eviction ────────────────────────────────────────────────
@@ -131,32 +129,33 @@ class TestIsLeafOnlyStrategy:
 class TestCacheEviction:
     def test_lru_eviction_at_max(self) -> None:
         """When cache exceeds max, oldest entry should be evicted."""
+        maxsize = _STEP_COUNTS_CACHE.maxsize
 
         # Fill cache to max
-        for i in range(_STEP_COUNTS_CACHE_MAX):
+        for i in range(maxsize):
             _cache_counts(f"key_{i}", {f"step_{i}": i})
-        assert len(_STEP_COUNTS_CACHE) == _STEP_COUNTS_CACHE_MAX
+        assert len(_STEP_COUNTS_CACHE) == maxsize
 
         # Add one more — should evict oldest (key_0)
         _cache_counts("new_key", {"new_step": 999})
-        assert len(_STEP_COUNTS_CACHE) == _STEP_COUNTS_CACHE_MAX
+        assert len(_STEP_COUNTS_CACHE) == maxsize
         assert "key_0" not in _STEP_COUNTS_CACHE
         assert "new_key" in _STEP_COUNTS_CACHE
         assert _STEP_COUNTS_CACHE["new_key"] == {"new_step": 999}
 
     def test_cache_hit_promotes_entry(self) -> None:
-        """Accessing a cached entry should move it to end (prevent eviction)."""
+        """Accessing a cached entry should promote it (prevent eviction)."""
+        maxsize = _STEP_COUNTS_CACHE.maxsize
 
         _cache_counts("old", {"s": 1})
         _cache_counts("mid", {"s": 2})
         _cache_counts("new", {"s": 3})
 
-        # Access "old" to promote it
-        _STEP_COUNTS_CACHE.get("old")
-        _STEP_COUNTS_CACHE.move_to_end("old")
+        # Access "old" to promote it in the LRU
+        _ = _STEP_COUNTS_CACHE["old"]
 
         # Fill to max and evict — "mid" should be evicted before "old"
-        for i in range(_STEP_COUNTS_CACHE_MAX - 3):
+        for i in range(maxsize - 3):
             _cache_counts(f"fill_{i}", {})
         _cache_counts("overflow", {})
 

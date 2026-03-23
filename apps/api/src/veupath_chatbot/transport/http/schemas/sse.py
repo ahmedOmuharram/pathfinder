@@ -66,7 +66,7 @@ class ToolCallStartEventData(CamelModel):
 
     id: str
     name: str
-    arguments: JSONObject | None = None
+    arguments: JSONObject = Field(default_factory=dict)
 
 
 class ToolCallEndEventData(CamelModel):
@@ -86,21 +86,16 @@ class SubKaniTaskStartEventData(CamelModel):
     model_id: str | None = None
 
 
-class SubKaniToolCallStartEventData(CamelModel):
+class SubKaniToolCallStartEventData(ToolCallStartEventData):
     """Payload for ``subkani_tool_call_start`` SSE events."""
 
     task: str | None = None
-    id: str
-    name: str
-    arguments: JSONObject | None = None
 
 
-class SubKaniToolCallEndEventData(CamelModel):
+class SubKaniToolCallEndEventData(ToolCallEndEventData):
     """Payload for ``subkani_tool_call_end`` SSE events."""
 
     task: str | None = None
-    id: str
-    result: str | None = None
 
 
 class SubKaniTaskEndEventData(CamelModel):

@@ -5,7 +5,6 @@ from uuid import uuid4
 from pydantic import Field, ValidationError, model_validator
 
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -184,39 +183,22 @@ class PlanStepNode(CamelModel):
         return "search"
 
 
-class StrategyAST(CamelModel):
-    """Complete strategy represented as an AST."""
+def walk_step_tree(root: PlanStepNode) -> list[PlanStepNode]:
+    """Depth-first traversal of a PlanStepNode tree.
 
-    record_type: str
-    root: PlanStepNode
-    name: str | None = None
-    description: str | None = None
-    metadata: JSONObject | None = None
-    step_counts: dict[str, int] | None = None
-    wdk_step_ids: dict[str, int] | None = None
-    step_validations: dict[str, WDKValidation] | None = None
+    Visits primary_input before secondary_input, appends current node last.
+    Visits primary_input before secondary_input, appends current node last.
+    """
+    steps: list[PlanStepNode] = []
 
-    def get_all_steps(self) -> list[PlanStepNode]:
-        """Get all steps in the tree (depth-first)."""
-        steps: list[PlanStepNode] = []
+    def visit(node: PlanStepNode) -> None:
+        if node.primary_input is not None:
+            visit(node.primary_input)
+        if node.secondary_input is not None:
+            visit(node.secondary_input)
+        steps.append(node)
 
-        def visit(node: PlanStepNode) -> None:
-            if node.primary_input is not None:
-                visit(node.primary_input)
-            if node.secondary_input is not None:
-                visit(node.secondary_input)
-            steps.append(node)
+    visit(root)
+    return steps
 
-        visit(self.root)
-        return steps
 
-    def get_step_by_id(self, step_id: str) -> PlanStepNode | None:
-        """Find a step by its ID.
-
-        :param step_id: Step identifier.
-
-        """
-        for step in self.get_all_steps():
-            if step.id == step_id:
-                return step
-        return None

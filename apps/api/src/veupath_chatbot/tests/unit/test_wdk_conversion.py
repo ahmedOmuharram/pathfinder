@@ -10,6 +10,7 @@ Public API under test:
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
@@ -410,7 +411,7 @@ class TestNodeConstruction:
 
         assert ast.root.secondary_input is not None
         assert ast.root.secondary_input.search_name == "GenesByGoTerm"
-        assert len(ast.get_all_steps()) == 5
+        assert len(walk_step_tree(ast.root)) == 5
 
     def test_empty_parameters_produces_empty_dict(self) -> None:
         """Step with empty searchConfig.parameters yields empty params dict."""

@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.transport.http.schemas.chat import (
     ChatMention,
@@ -49,6 +49,7 @@ from veupath_chatbot.transport.http.schemas.steps import (
 from veupath_chatbot.transport.http.schemas.strategies import (
     CreateStrategyRequest,
     OpenStrategyRequest,
+    StrategyPlanPayload,
     StrategyResponse,
     UpdateStrategyRequest,
 )
@@ -259,7 +260,7 @@ class TestSpecialCharacterSerialization:
         assert "<script>" in msg.content
 
     def test_strategy_name_with_special_chars(self) -> None:
-        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
         req = CreateStrategyRequest(
             name='Strategy "with quotes" & <tags>',
             siteId="plasmodb",

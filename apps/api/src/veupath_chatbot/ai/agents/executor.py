@@ -41,11 +41,12 @@ from veupath_chatbot.services.research import (
     LiteratureSearchService,
     WebSearchService,
 )
-from veupath_chatbot.services.strategies.build import (
-    BuildResult,
-    build_strategy_for_site,
-)
+from veupath_chatbot.services.strategies.build import RootResolutionError
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session
+from veupath_chatbot.services.strategies.sync import (
+    SyncResult,
+    sync_strategy_for_site,
+)
 from veupath_chatbot.transport.http.schemas.sse import (
     GraphSnapshotContent,
     GraphSnapshotEventData,
@@ -212,7 +213,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         if not isinstance(graph, StrategyGraph):
             return result
         try:
-            build_result = await build_strategy_for_site(
+            sync_result = await sync_strategy_for_site(
                 graph=graph,
                 site_id=self.site_id,
                 strategy_name=graph.name,
@@ -221,21 +222,21 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             build_data: JSONObject = {
                 "autoBuild": {
                     "ok": True,
-                    "wdkStrategyId": build_result.wdk_strategy_id,
-                    "wdkUrl": build_result.wdk_url,
-                    "counts": {str(k): v for k, v in build_result.counts.items()},
-                    "rootCount": build_result.root_count,
-                    "zeroStepIds": cast("JSONArray", build_result.zero_step_ids),
+                    "wdkStrategyId": sync_result.wdk_strategy_id,
+                    "wdkUrl": sync_result.wdk_url,
+                    "counts": {str(k): v for k, v in sync_result.counts.items()},
+                    "rootCount": sync_result.root_count,
+                    "zeroStepIds": cast("JSONArray", sync_result.zero_step_ids),
                 },
             }
 
-            await self._maybe_create_gene_set(build_result, build_data, graph)
-            await self._emit_strategy_link(build_result, graph)
+            await self._maybe_create_gene_set(sync_result, build_data, graph)
+            await self._emit_strategy_link(sync_result, graph)
             await self._emit_graph_snapshot(graph)
 
             result.message.content = _merge_auto_build(result.message.text, build_data)
 
-        except (AppError, OSError) as exc:
+        except (AppError, OSError, RootResolutionError) as exc:
             result.message.content = _merge_auto_build(
                 result.message.text,
                 {"autoBuild": {"ok": False, "error": str(exc)}},
@@ -245,14 +246,10 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         return result
 
     async def _maybe_create_gene_set(
-        self, build_result: object, build_data: JSONObject, graph: object
+        self, sync_result: SyncResult, build_data: JSONObject, graph: StrategyGraph
     ) -> None:
         """Create or reuse the gene set for the strategy."""
-        if not isinstance(build_result, BuildResult) or not isinstance(
-            graph, StrategyGraph
-        ):
-            return
-        if build_result.wdk_strategy_id is None or self.user_id is None:
+        if sync_result.wdk_strategy_id is None or self.user_id is None:
             return
         try:
             store = get_gene_set_store()
@@ -263,11 +260,11 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                 gs = store.get(self._auto_build_gene_set_id)
             if gs is None:
                 gs = svc.find_by_wdk_strategy(
-                    self.user_id, build_result.wdk_strategy_id
+                    self.user_id, sync_result.wdk_strategy_id
                 )
 
             if gs is not None:
-                gs.wdk_strategy_id = build_result.wdk_strategy_id
+                gs.wdk_strategy_id = sync_result.wdk_strategy_id
                 gs.name = graph.name or gs.name
                 store.save(gs)
                 await svc.flush(gs.id)
@@ -279,7 +276,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                     gene_ids=[],
                     source="strategy",
                     wdk=GeneSetWdkContext(
-                        wdk_strategy_id=build_result.wdk_strategy_id,
+                        wdk_strategy_id=sync_result.wdk_strategy_id,
                         record_type=graph.record_type,
                     ),
                 )
@@ -297,29 +294,25 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         except (AppError, OSError) as gs_exc:
             logger.warning("Gene set creation failed", error=str(gs_exc))
 
-    async def _emit_strategy_link(self, build_result: object, graph: object) -> None:
+    async def _emit_strategy_link(
+        self, sync_result: SyncResult, graph: StrategyGraph
+    ) -> None:
         """Emit strategy_link so frontend updates immediately."""
-        if not isinstance(build_result, BuildResult) or not isinstance(
-            graph, StrategyGraph
-        ):
-            return
         await self._emit_event(
             {
                 "type": "strategy_link",
                 "data": StrategyLinkEventData(
                     graph_id=graph.id,
-                    wdk_strategy_id=build_result.wdk_strategy_id,
-                    wdk_url=build_result.wdk_url,
+                    wdk_strategy_id=sync_result.wdk_strategy_id,
+                    wdk_url=sync_result.wdk_url,
                     name=graph.name,
                     is_saved=False,
                 ).model_dump(by_alias=True, exclude_none=True),
             }
         )
 
-    async def _emit_graph_snapshot(self, graph: object) -> None:
+    async def _emit_graph_snapshot(self, graph: StrategyGraph) -> None:
         """Emit graph_snapshot with updated WDK step IDs and counts."""
-        if not isinstance(graph, StrategyGraph):
-            return
         await self._emit_event(
             {
                 "type": "graph_snapshot",

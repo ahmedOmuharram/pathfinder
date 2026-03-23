@@ -5,12 +5,12 @@ from collections.abc import Mapping
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 # -- Helpers ----------------------------------------------------------------
 
@@ -91,9 +91,9 @@ async def _failing_search_details(
     raise RuntimeError(msg)
 
 
-def _make_plan(data: JSONObject) -> StrategyAST:
-    """Construct a StrategyAST from a camelCase dict (convenience helper)."""
-    return StrategyAST.model_validate(data)
+def _make_plan(data: JSONObject) -> StrategyPlanPayload:
+    """Construct a StrategyPlanPayload from a camelCase dict (convenience helper)."""
+    return StrategyPlanPayload.model_validate(data)
 
 
 # -- Tests for missing recordType ------------------------------------------
@@ -114,11 +114,11 @@ class TestMissingRecordType:
             )
 
     def test_raises_when_record_type_empty(self) -> None:
-        """StrategyAST requires a non-empty recordType string.
+        """StrategyPlanPayload requires a non-empty recordType string.
 
         Pydantic accepts empty strings by default for str fields, so
-        this test verifies the StrategyAST can be constructed (Pydantic allows it).
-        If business rules require non-empty, a validator should be added to StrategyAST.
+        this test verifies the StrategyPlanPayload can be constructed (Pydantic allows it).
+        If business rules require non-empty, a validator should be added to StrategyPlanPayload.
         """
         # Empty string is technically valid per Pydantic str type — construction succeeds.
         # The original test checked for our custom ValidationError from _validate_plan_record_type.

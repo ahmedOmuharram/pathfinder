@@ -14,10 +14,11 @@ from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
     adapt_param_specs_from_search,
 )
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 def _strip_combine_bq_keys(params: JSONObject) -> None:
@@ -67,12 +68,12 @@ async def _load_and_cache_spec(
 
 async def canonicalize_plan_parameters(
     *,
-    plan: StrategyAST,
+    plan: StrategyPlanPayload,
     site_id: str,
     load_search_details: Callable[
         [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
     ],
-) -> StrategyAST:
+) -> StrategyPlanPayload:
     """Canonicalize all search/transform node parameters using WDK specs.
 
     `load_search_details(record_type, search_or_transform_name, params) -> dict` must return a WDK

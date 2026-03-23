@@ -10,7 +10,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.transport.http.schemas.chat import ChatMention, ChatRequest
 from veupath_chatbot.transport.http.schemas.experiments import (
@@ -35,6 +35,7 @@ from veupath_chatbot.transport.http.schemas.gene_sets import (
 from veupath_chatbot.transport.http.schemas.sites import SearchDetailsResponse
 from veupath_chatbot.transport.http.schemas.strategies import (
     CreateStrategyRequest,
+    StrategyPlanPayload,
     UpdateStrategyRequest,
 )
 from veupath_chatbot.transport.http.sse import SSE_HEADERS, sse_stream
@@ -165,12 +166,12 @@ class TestExtraFieldBehavior:
 
 class TestCreateStrategyRequestConstraints:
     def test_name_min_length(self) -> None:
-        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="", siteId="x", plan=plan)
 
     def test_name_max_length(self) -> None:
-        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
         CreateStrategyRequest(name="a" * 255, siteId="x", plan=plan)
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="a" * 256, siteId="x", plan=plan)

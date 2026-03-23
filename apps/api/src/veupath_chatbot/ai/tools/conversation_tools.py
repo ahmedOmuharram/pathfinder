@@ -5,13 +5,19 @@ from uuid import UUID
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.domain.strategy.session import StrategySession
+from veupath_chatbot.domain.strategy.ast import walk_step_tree
+from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
+
+
+def _has_strategy(graph: StrategyGraph) -> bool:
+    """Check if the graph has at least one root with steps."""
+    return len(graph.roots) > 0 and len(graph.steps) > 0
 
 
 class ConversationTools:
@@ -40,17 +46,15 @@ class ConversationTools:
         graph = self.session.get_graph(graph_id)
         if not graph:
             return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
-        if not graph.current_strategy:
+        if not _has_strategy(graph):
             return tool_error(
                 ErrorCode.INVALID_STRATEGY,
                 "No strategy to save. Build a strategy first.",
             )
 
-        strategy = graph.current_strategy
-        strategy.name = name
-        if description is not None:
-            strategy.description = description
         graph.name = name
+        if description is not None:
+            graph.description = description
 
         # In production, this would save to database
         logger.info("Saving strategy", name=name, user_id=str(self.user_id))
@@ -59,10 +63,10 @@ class ConversationTools:
             "ok": True,
             "graphId": graph.id,
             "name": name,
-            "description": strategy.description,
-            "recordType": strategy.record_type,
+            "description": graph.description,
+            "recordType": graph.record_type or "",
             "graphName": graph.name,
-            "plan": strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            "plan": graph.to_plan(),
             "message": f"Strategy '{name}' saved successfully.",
         }
 
@@ -77,13 +81,12 @@ class ConversationTools:
         graph = self.session.get_graph(graph_id)
         if not graph:
             return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
-        if not graph.current_strategy:
+        if not _has_strategy(graph):
             return tool_error(ErrorCode.INVALID_STRATEGY, "No strategy to rename.")
 
-        old_name = graph.current_strategy.name
-        graph.current_strategy.name = new_name
-        graph.current_strategy.description = description
+        old_name = graph.name
         graph.name = new_name
+        graph.description = description
         graph.save_history(f"Renamed from '{old_name}' to '{new_name}'")
 
         return {
@@ -92,11 +95,9 @@ class ConversationTools:
             "oldName": old_name,
             "newName": new_name,
             "name": new_name,
-            "recordType": graph.current_strategy.record_type,
-            "description": graph.current_strategy.description,
-            "plan": graph.current_strategy.model_dump(
-                by_alias=True, exclude_none=True, mode="json"
-            ),
+            "recordType": graph.record_type or "",
+            "description": graph.description,
+            "plan": graph.to_plan(),
         }
 
     @ai_function()
@@ -126,7 +127,6 @@ class ConversationTools:
 
         graph.steps.clear()
         graph.roots.clear()
-        graph.current_strategy = None
         graph.history.clear()
         graph.last_step_id = None
         graph.wdk_strategy_id = None
@@ -152,7 +152,7 @@ class ConversationTools:
         graph = self.session.get_graph(graph_id)
         if not graph:
             return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
-        if not graph.current_strategy:
+        if not _has_strategy(graph):
             return {
                 "hasStrategy": False,
                 "graphId": graph.id,
@@ -163,13 +163,17 @@ class ConversationTools:
                 ),
             }
 
-        strategy = graph.current_strategy
+        # Count all steps by walking from the single root.
+        root_id = next(iter(graph.roots)) if len(graph.roots) == 1 else None
+        root = graph.steps.get(root_id) if root_id else None
+        step_count = len(walk_step_tree(root)) if root else len(graph.steps)
+
         return {
             "hasStrategy": True,
             "graphId": graph.id,
             "graphName": graph.name,
-            "name": strategy.name,
-            "recordType": strategy.record_type,
-            "stepCount": len(strategy.get_all_steps()),
-            "description": strategy.description,
+            "name": graph.name,
+            "recordType": graph.record_type or "",
+            "stepCount": step_count,
+            "description": graph.description,
         }

@@ -1,6 +1,6 @@
 """Graph traversal, node/edge operations, serialization, and snapshots."""
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
@@ -176,26 +176,24 @@ class GraphOpsMixin(StrategyToolsBase):
         record_type = graph.record_type
         if not record_type:
             return None
-        name = graph.current_strategy.name if graph.current_strategy else graph.name
-        description = (
-            graph.current_strategy.description if graph.current_strategy else None
-        )
+        name = graph.name
+        description = graph.description
         if self._is_placeholder_name(name):
             name = self._derive_strategy_name(record_type, root_step)
         if not description:
             description = self._derive_strategy_description(record_type, root_step)
-        strategy = StrategyAST(
-            record_type=record_type,
-            root=root_step,
-            name=name,
-            description=description,
-        )
-        graph.current_strategy = strategy
         graph.name = name or graph.name
+        graph.description = description
+        plan = graph.to_plan(root_id)
+        if not plan:
+            return None
+        # Ensure description is in the plan dict
+        if description:
+            plan["description"] = description
         return ContextPlanPayload(
             graph_id=graph.id,
             graph_name=graph.name,
-            plan=strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            plan=plan,
             record_type=record_type,
             name=name,
             description=description,

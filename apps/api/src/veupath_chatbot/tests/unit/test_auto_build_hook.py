@@ -16,11 +16,9 @@ from kani.models import FunctionCall
 from veupath_chatbot.ai.agents.executor import AgentContext, PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.compile import CompilationResult
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.parsing import parse_jsonish
-from veupath_chatbot.services.strategies.build import BuildResult
+from veupath_chatbot.services.strategies.sync import SyncResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,9 +60,9 @@ def _tool_result_json(step_id: str = "s1") -> str:
     )
 
 
-def _build_result(wdk_strategy_id: int = 999) -> object:
-    """Create a successful BuildResult."""
-    return BuildResult(
+def _sync_result(wdk_strategy_id: int = 999) -> SyncResult:
+    """Create a successful SyncResult."""
+    return SyncResult(
         wdk_strategy_id=wdk_strategy_id,
         wdk_url=f"https://plasmodb.org/plasmo/app/workspace/strategies/{wdk_strategy_id}",
         root_step_id=100,
@@ -72,9 +70,6 @@ def _build_result(wdk_strategy_id: int = 999) -> object:
         step_count=1,
         counts={"s1": 42},
         zero_step_ids=[],
-        compilation=CompilationResult(
-            steps=[], step_tree=WDKStepTree(step_id=100), root_step_id=100
-        ),
     )
 
 
@@ -118,8 +113,8 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -143,8 +138,8 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -165,7 +160,7 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
                 side_effect=WDKError("WDK rejected the strategy"),
             ),
         ):
@@ -185,7 +180,7 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
                 side_effect=WDKError("WDK error"),
             ),
         ):
@@ -195,7 +190,7 @@ class TestAutoBuildResultFormat:
         assert parsed["ok"] is True
         assert parsed["stepId"] == "s1"
 
-    async def test_parse_jsonish_succeeds_on_auto_build_result(self, agent):
+    async def test_parse_jsonish_succeeds_on_auto_sync_result(self, agent):
         """parse_jsonish must succeed on the auto-build merged result.
 
         This is the exact function that streaming.py uses to parse tool results.
@@ -206,8 +201,8 @@ class TestAutoBuildResultFormat:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -248,8 +243,8 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -270,8 +265,8 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -293,8 +288,8 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",
@@ -316,7 +311,7 @@ class TestAutoBuildEventEmission:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
                 side_effect=WDKError("WDK down"),
             ),
         ):
@@ -399,8 +394,8 @@ class TestAutoBuildGating:
         with (
             patch("kani.Kani.do_function_call", return_value=_parent_result()),
             patch(
-                "veupath_chatbot.ai.agents.executor.build_strategy_for_site",
-                return_value=_build_result(wdk_strategy_id=456),
+                "veupath_chatbot.ai.agents.executor.sync_strategy_for_site",
+                return_value=_sync_result(wdk_strategy_id=456),
             ),
             patch(
                 "veupath_chatbot.ai.agents.executor.GeneSetService",

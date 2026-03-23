@@ -19,10 +19,10 @@ async def compute_step_counts(
     """Compute step counts by executing the plan in WDK."""
     del user_id  # reserved for future authz
     plan = request.plan.model_dump(exclude_none=True)
-    strategy_ast = validate_plan_or_raise(plan)
+    payload = validate_plan_or_raise(plan)
 
     try:
-        counts = await compute_step_counts_for_plan(plan, strategy_ast, request.site_id)
+        counts = await compute_step_counts_for_plan(plan, payload, request.site_id)
     except Exception as e:
         msg = f"WDK compile failed: {e}"
         raise WDKError(msg) from e

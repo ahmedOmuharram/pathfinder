@@ -118,7 +118,6 @@ class TestPlanPathRestoresWdkStepIds:
         assert graph is not None
         # Plan loaded successfully
         assert graph.steps, "Graph should have steps from plan"
-        assert graph.current_strategy is not None
         # WDK build state restored from plan metadata
         assert graph.wdk_strategy_id == 329971733
         assert graph.wdk_step_ids == {"step_a": 438251663}

@@ -52,7 +52,7 @@ describe("handleChatEvent — buffering & core events", () => {
 
     handleChatEvent(ctx, {
       type: "tool_call_start",
-      data: { id: "t1", name: "tool", arguments: "{}" },
+      data: { id: "t1", name: "tool", arguments: {} },
     } as ChatSSEEvent);
     handleChatEvent(ctx, {
       type: "tool_call_end",
@@ -261,7 +261,7 @@ describe("handleChatEvent — buffering & core events", () => {
     } as ChatSSEEvent);
     handleChatEvent(ctx, {
       type: "subkani_tool_call_start",
-      data: { task: "t", id: "1", name: "n", arguments: "{}" },
+      data: { task: "t", id: "1", name: "n", arguments: {} },
     } as ChatSSEEvent);
     handleChatEvent(ctx, {
       type: "subkani_tool_call_end",
