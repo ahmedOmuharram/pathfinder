@@ -19,6 +19,11 @@ from veupath_chatbot.services.experiment.metrics import (
     metrics_from_control_result,
 )
 from veupath_chatbot.services.experiment.types import ConfusionMatrix
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 
 class TestComputeConfusionMatrixEdgeCases:
@@ -223,42 +228,42 @@ class TestComputeMetricsEdgeCases:
 class TestMetricsFromControlResultEdgeCases:
     """metrics_from_control_result with unusual inputs."""
 
-    def test_float_counts(self) -> None:
-        """WDK may return float counts (e.g. 8.0 instead of 8)."""
-        result = {
-            "positive": {"intersectionCount": 8.0, "controlsCount": 10.0},
-            "negative": {"intersectionCount": 3.0, "controlsCount": 20.0},
-            "target": {"resultCount": 100.0},
-        }
+    def test_int_counts(self) -> None:
+        """Standard int counts should produce correct metrics."""
+        result = ControlTestResult(
+            positive=ControlSetData(intersection_count=8, controls_count=10),
+            negative=ControlSetData(intersection_count=3, controls_count=20),
+            target=ControlTargetData(result_count=100),
+        )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 8
         assert m.total_results == 100
 
-    def test_none_in_nested_values(self) -> None:
-        """None values for counts should default to 0."""
-        result = {
-            "positive": {"intersectionCount": None, "controlsCount": None},
-            "negative": {"intersectionCount": None, "controlsCount": None},
-            "target": {"resultCount": None},
-        }
+    def test_zero_counts_default(self) -> None:
+        """Default ControlSetData has zero counts."""
+        result = ControlTestResult(
+            positive=ControlSetData(),
+            negative=ControlSetData(),
+            target=ControlTargetData(),
+        )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 0
         assert m.total_results == 0
 
     def test_positive_none_negative_present(self) -> None:
         """When positive is None but negative has data."""
-        result = {
-            "positive": None,
-            "negative": {"intersectionCount": 5, "controlsCount": 20},
-            "target": {"resultCount": 50},
-        }
+        result = ControlTestResult(
+            positive=None,
+            negative=ControlSetData(intersection_count=5, controls_count=20),
+            target=ControlTargetData(result_count=50),
+        )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 0
         assert m.confusion_matrix.false_positives == 5
         assert m.confusion_matrix.true_negatives == 15
 
-    def test_completely_empty_dict(self) -> None:
-        result: dict[str, object] = {}
+    def test_empty_control_test_result(self) -> None:
+        result = ControlTestResult()
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 0
         assert m.confusion_matrix.false_positives == 0

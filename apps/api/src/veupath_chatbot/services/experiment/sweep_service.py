@@ -28,6 +28,7 @@ from veupath_chatbot.services.experiment.step_analysis import (
     run_controls_against_tree,
 )
 from veupath_chatbot.services.experiment.types import (
+    ControlTestResult,
     Experiment,
     ExperimentMetrics,
 )
@@ -205,7 +206,7 @@ async def _run_sweep_point_tree(
     exp: Experiment,
     param_name: str,
     value: str,
-) -> JSONObject:
+) -> ControlTestResult:
     """Run a single tree-mode sweep point.
 
     Deep-copies the step tree, injects *value* into every node whose

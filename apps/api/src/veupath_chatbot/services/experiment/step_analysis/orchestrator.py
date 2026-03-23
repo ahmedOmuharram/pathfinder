@@ -25,6 +25,7 @@ from veupath_chatbot.services.experiment.step_analysis.phase_step_eval import (
     evaluate_steps,
 )
 from veupath_chatbot.services.experiment.types import (
+    ControlTestResult,
     StepAnalysisResult,
     StepContribution,
     StepEvaluation,
@@ -45,7 +46,7 @@ _FPR_INCREASE_THRESHOLD = 0.05
 
 def _enrich_step_evals_with_movement(
     evals: list[StepEvaluation],
-    baseline_result: JSONObject,
+    baseline_result: ControlTestResult,
 ) -> list[StepEvaluation]:
     """Add TP/FP/FN movement fields relative to the full-strategy baseline."""
     baseline_counts = _extract_eval_counts(baseline_result)
@@ -133,7 +134,7 @@ def _enrich_contributions_with_narrative(
 async def run_step_analysis(
     ctx: ControlsContext,
     tree: JSONObject,
-    baseline_result: JSONObject,
+    baseline_result: ControlTestResult,
     phases: list[str] | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> StepAnalysisResult:
@@ -141,7 +142,7 @@ async def run_step_analysis(
 
     :param ctx: Shared controls context (site, record type, controls config).
     :param tree: ``PlanStepNode``-shaped dict.
-    :param baseline_result: Raw result from the initial tree evaluation.
+    :param baseline_result: Typed control-test result from the initial tree evaluation.
     :param phases: Which phases to run. Defaults to all four.
     :returns: Aggregated :class:`StepAnalysisResult`.
     """

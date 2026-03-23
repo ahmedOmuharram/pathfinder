@@ -280,7 +280,9 @@ class TestControlsOverlapWithTarget:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         # First call: target count (100), second call: intersection count (3)
         api.get_step_count = AsyncMock(side_effect=[100, 3])
         mock_get_api.return_value = api
@@ -298,10 +300,9 @@ class TestControlsOverlapWithTarget:
             _cfg, positive_controls=pos_ids, skip_cleanup=True
         )
 
-        pos_result = result.get("positive")
-        assert isinstance(pos_result, dict)
-        assert pos_result["recall"] == 1.0
-        assert pos_result["missingIdsSample"] == []
+        assert result.positive is not None
+        assert result.positive.recall == 1.0
+        assert result.positive.missing_ids_sample == []
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +333,7 @@ class TestEmptyControlSets:
             _cfg, positive_controls=[], skip_cleanup=True
         )
 
-        assert result["positive"] is None
+        assert result.positive is None
         api.create_step.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -355,7 +356,7 @@ class TestEmptyControlSets:
             _cfg, negative_controls=[], skip_cleanup=True
         )
 
-        assert result["negative"] is None
+        assert result.negative is None
         api.create_step.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -381,7 +382,7 @@ class TestEmptyControlSets:
         )
 
         # All filtered out -> no positives
-        assert result["positive"] is None
+        assert result.positive is None
         api.create_step.assert_not_awaited()
 
 
@@ -412,7 +413,9 @@ class TestDuplicateControls:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         # target count = 50, intersection count = 1
         api.get_step_count = AsyncMock(side_effect=[50, 1])
         mock_get_api.return_value = api
@@ -430,10 +433,9 @@ class TestDuplicateControls:
             _cfg, positive_controls=["G1", "G1", "G2"], skip_cleanup=True
         )
 
-        pos = result.get("positive")
-        assert isinstance(pos, dict)
+        assert result.positive is not None
         # controlsCount is len of cleaned IDs which includes duplicates
-        assert pos["controlsCount"] == 3
+        assert result.positive.controls_count == 3
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -450,7 +452,9 @@ class TestDuplicateControls:
                 "records": [],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         # target count = 50, intersection count = 0
         api.get_step_count = AsyncMock(side_effect=[50, 0])
         mock_get_api.return_value = api
@@ -468,10 +472,9 @@ class TestDuplicateControls:
             _cfg, negative_controls=["NEG1", "NEG1"], skip_cleanup=True
         )
 
-        neg = result.get("negative")
-        assert isinstance(neg, dict)
-        assert neg["controlsCount"] == 2
-        assert neg["falsePositiveRate"] == 0.0
+        assert result.negative is not None
+        assert result.negative.controls_count == 2
+        assert result.negative.false_positive_rate == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -497,7 +500,9 @@ class TestRecallAndFPR:
                 "records": [],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         # target count = 50, intersection count = 0
         api.get_step_count = AsyncMock(side_effect=[50, 0])
         mock_get_api.return_value = api
@@ -515,9 +520,8 @@ class TestRecallAndFPR:
             _cfg, positive_controls=["G1", "G2"], skip_cleanup=True
         )
 
-        pos = result.get("positive")
-        assert isinstance(pos, dict)
-        assert pos["recall"] == 0.0
+        assert result.positive is not None
+        assert result.positive.recall == 0.0
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -537,7 +541,9 @@ class TestRecallAndFPR:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         # target count = 100, intersection count = 2
         api.get_step_count = AsyncMock(side_effect=[100, 2])
         mock_get_api.return_value = api
@@ -555,9 +561,8 @@ class TestRecallAndFPR:
             _cfg, negative_controls=["NEG1", "NEG2"], skip_cleanup=True
         )
 
-        neg = result.get("negative")
-        assert isinstance(neg, dict)
-        assert neg["falsePositiveRate"] == 1.0
+        assert result.negative is not None
+        assert result.negative.false_positive_rate == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -579,7 +584,9 @@ class TestControlsExtraParams:
                 }
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         mock_get_api.return_value = api
 
         await _run_intersection_control(
@@ -614,7 +621,9 @@ class TestControlsExtraParams:
                 }
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         mock_get_api.return_value = api
 
         await _run_intersection_control(

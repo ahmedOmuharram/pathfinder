@@ -6,10 +6,11 @@ intersection counts returned by :func:`run_positive_negative_controls`.
 
 import math
 
-from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.helpers import safe_int
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
     ExperimentMetrics,
 )
 
@@ -101,74 +102,68 @@ def evaluate_gene_ids_against_controls(
     negative_controls: list[str],
     site_id: str = "",
     record_type: str = "",
-) -> JSONObject:
+) -> ControlTestResult:
     """Evaluate a gene set against controls using pure set intersection.
 
-    No WDK calls — the gene set already has its results.  Returns the
-    same dict shape that :func:`metrics_from_control_result` and
+    No WDK calls -- the gene set already has its results.  Returns a
+    :class:`ControlTestResult` that :func:`metrics_from_control_result` and
     :func:`extract_and_enrich_genes` consume.
     """
     gene_set = set(gene_ids)
     pos = [s.strip() for s in positive_controls if s.strip()]
     neg = [s.strip() for s in negative_controls if s.strip()]
 
-    result: JSONObject = {
-        "siteId": site_id,
-        "recordType": record_type,
-        "target": {"searchName": "__gene_set__", "resultCount": len(gene_ids)},
-        "positive": None,
-        "negative": None,
-    }
+    result = ControlTestResult(
+        site_id=site_id,
+        record_type=record_type,
+        target=ControlTargetData(
+            search_name="__gene_set__",
+            result_count=len(gene_ids),
+        ),
+    )
 
     if pos:
-        pos_hits: list[JSONValue] = [g for g in pos if g in gene_set]
-        pos_missing: list[JSONValue] = [g for g in pos if g not in gene_set]
-        result["positive"] = {
-            "controlsCount": len(pos),
-            "intersectionCount": len(pos_hits),
-            "intersectionIds": pos_hits,
-            "intersectionIdsSample": pos_hits[:50],
-            "targetStepId": None,
-            "targetResultCount": len(gene_ids),
-            "missingIdsSample": pos_missing[:50],
-            "recall": len(pos_hits) / len(pos) if pos else None,
-        }
+        pos_hits = [g for g in pos if g in gene_set]
+        pos_missing = [g for g in pos if g not in gene_set]
+        result.positive = ControlSetData(
+            controls_count=len(pos),
+            intersection_count=len(pos_hits),
+            intersection_ids=pos_hits,
+            intersection_ids_sample=pos_hits[:50],
+            target_result_count=len(gene_ids),
+            missing_ids_sample=pos_missing[:50],
+            recall=len(pos_hits) / len(pos) if pos else None,
+        )
 
     if neg:
-        neg_hits: list[JSONValue] = [g for g in neg if g in gene_set]
-        result["negative"] = {
-            "controlsCount": len(neg),
-            "intersectionCount": len(neg_hits),
-            "intersectionIds": neg_hits,
-            "intersectionIdsSample": neg_hits[:50],
-            "targetStepId": None,
-            "targetResultCount": len(gene_ids),
-            "unexpectedHitsSample": neg_hits[:50],
-            "falsePositiveRate": len(neg_hits) / len(neg) if neg else None,
-        }
+        neg_hits = [g for g in neg if g in gene_set]
+        result.negative = ControlSetData(
+            controls_count=len(neg),
+            intersection_count=len(neg_hits),
+            intersection_ids=neg_hits,
+            intersection_ids_sample=neg_hits[:50],
+            target_result_count=len(gene_ids),
+            unexpected_hits_sample=neg_hits[:50],
+            false_positive_rate=len(neg_hits) / len(neg) if neg else None,
+        )
 
     return result
 
 
-def metrics_from_control_result(result: JSONObject) -> ExperimentMetrics:
-    """Build metrics from the dict returned by :func:`run_positive_negative_controls`.
+def metrics_from_control_result(result: ControlTestResult) -> ExperimentMetrics:
+    """Build metrics from the result returned by :func:`run_positive_negative_controls`.
 
-    :param result: Raw control-test result dict.
+    :param result: Typed control-test result.
     :returns: Full metrics.
     """
-    positive = result.get("positive") or {}
-    negative = result.get("negative") or {}
-    target = result.get("target") or {}
+    pos = result.positive
+    neg = result.negative
 
-    pos_data = positive if isinstance(positive, dict) else {}
-    neg_data = negative if isinstance(negative, dict) else {}
-    tgt_data = target if isinstance(target, dict) else {}
-
-    pos_count = safe_int(pos_data.get("intersectionCount"), 0)
-    pos_total = safe_int(pos_data.get("controlsCount"), 0)
-    neg_count = safe_int(neg_data.get("intersectionCount"), 0)
-    neg_total = safe_int(neg_data.get("controlsCount"), 0)
-    total_results = safe_int(tgt_data.get("resultCount"), 0)
+    pos_count = pos.intersection_count if pos else 0
+    pos_total = pos.controls_count if pos else 0
+    neg_count = neg.intersection_count if neg else 0
+    neg_total = neg.controls_count if neg else 0
+    total_results = result.target.result_count or 0
 
     cm = compute_confusion_matrix(
         positive_hits=pos_count,

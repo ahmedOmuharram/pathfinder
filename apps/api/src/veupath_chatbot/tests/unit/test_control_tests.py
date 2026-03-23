@@ -383,7 +383,9 @@ class TestRunIntersectionControl:
             },
         )
         # Two create_step calls: target + controls
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         mock_get_api.return_value = api
 
         await _run_intersection_control(
@@ -410,7 +412,9 @@ class TestRunIntersectionControl:
     async def test_cleanup_on_answer_failure(self, mock_get_api: MagicMock) -> None:
         """Strategy is cleaned up even if get_step_answer fails."""
         api = _make_mock_api()
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         api.get_step_answer = AsyncMock(side_effect=Exception("WDK boom"))
         mock_get_api.return_value = api
 
@@ -444,7 +448,9 @@ class TestRunIntersectionControl:
                 }
             }
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
+        )
         api.list_strategies = AsyncMock(
             return_value=[
                 {
@@ -733,24 +739,19 @@ class TestRunPositiveNegativeControls:
         )
 
         # Target info comes from the positive run's target step
-        target = result.get("target")
-        assert isinstance(target, dict)
-        assert target["stepId"] == 10  # first create_step call
-        assert target["resultCount"] == 5  # mocked step_count
-        assert result["siteId"] == "plasmodb"
+        assert result.target is not None
+        assert result.target.step_id == 10  # first create_step call
+        assert result.target.result_count == 5  # mocked step_count
+        assert result.site_id == "plasmodb"
 
         # Positive results populated
-        positive = result.get("positive")
-        assert positive is not None
-        assert isinstance(positive, dict)
-        assert positive["controlsCount"] == 3
-        assert positive["recall"] is not None
+        assert result.positive is not None
+        assert result.positive.controls_count == 3
+        assert result.positive.recall is not None
 
         # Negative results populated
-        negative = result.get("negative")
-        assert negative is not None
-        assert isinstance(negative, dict)
-        assert negative["controlsCount"] == 2
+        assert result.negative is not None
+        assert result.negative.controls_count == 2
 
         # 4 create_step calls total (2 per control set)
         assert api.create_step.await_count == 4
@@ -777,13 +778,12 @@ class TestRunPositiveNegativeControls:
             ),
         )
 
-        assert result["positive"] is None
-        assert result["negative"] is None
+        assert result.positive is None
+        assert result.negative is None
         # No target step since no control sets were run
-        target = result.get("target")
-        assert isinstance(target, dict)
-        assert target["stepId"] is None
-        assert target["resultCount"] is None
+        assert result.target is not None
+        assert result.target.step_id is None
+        assert result.target.result_count is None
         # No WDK calls made
         api.create_step.assert_not_awaited()
 
@@ -807,7 +807,9 @@ class TestRunPositiveNegativeControls:
                 ],
             },
         )
-        api.create_step = AsyncMock(side_effect=[WDKIdentifier(id=77), WDKIdentifier(id=78)])
+        api.create_step = AsyncMock(
+            side_effect=[WDKIdentifier(id=77), WDKIdentifier(id=78)]
+        )
         mock_get_api.return_value = api
 
         _cfg = IntersectionConfig(
@@ -823,10 +825,9 @@ class TestRunPositiveNegativeControls:
             negative_controls=["NEG1", "NEG2"],
         )
 
-        assert result["positive"] is None
-        assert result["negative"] is not None
+        assert result.positive is None
+        assert result.negative is not None
         # Target info filled from the negative run
-        target = result.get("target")
-        assert isinstance(target, dict)
-        assert target["stepId"] == 77
-        assert target["resultCount"] == 42
+        assert result.target is not None
+        assert result.target.step_id == 77
+        assert result.target.result_count == 42

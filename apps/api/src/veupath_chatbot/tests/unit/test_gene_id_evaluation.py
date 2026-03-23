@@ -84,12 +84,12 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=POSITIVE_IDS,
             negative_controls=[],
         )
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["intersectionCount"] == 5
-        assert pos["controlsCount"] == 5
-        assert set(pos["intersectionIds"]) == set(POSITIVE_IDS)
-        assert pos["missingIdsSample"] == []
+        pos = result.positive
+        assert pos is not None
+        assert pos.intersection_count == 5
+        assert pos.controls_count == 5
+        assert set(pos.intersection_ids) == set(POSITIVE_IDS)
+        assert pos.missing_ids_sample == []
 
     def test_some_positives_missing(self) -> None:
         result = evaluate_gene_ids_against_controls(
@@ -97,12 +97,12 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=POSITIVE_IDS,
             negative_controls=[],
         )
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["intersectionCount"] == 2
-        assert pos["controlsCount"] == 5
-        assert set(pos["intersectionIds"]) == {"G1", "G3"}
-        assert set(pos["missingIdsSample"]) == {"G2", "G4", "G5"}
+        pos = result.positive
+        assert pos is not None
+        assert pos.intersection_count == 2
+        assert pos.controls_count == 5
+        assert set(pos.intersection_ids) == {"G1", "G3"}
+        assert set(pos.missing_ids_sample) == {"G2", "G4", "G5"}
 
     def test_negatives_excluded(self) -> None:
         result = evaluate_gene_ids_against_controls(
@@ -110,11 +110,11 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=[],
             negative_controls=NEGATIVE_IDS,
         )
-        neg = result["negative"]
-        assert isinstance(neg, dict)
-        assert neg["intersectionCount"] == 0
-        assert neg["controlsCount"] == 3
-        assert neg["intersectionIds"] == []
+        neg = result.negative
+        assert neg is not None
+        assert neg.intersection_count == 0
+        assert neg.controls_count == 3
+        assert neg.intersection_ids == []
 
     def test_some_negatives_leak_through(self) -> None:
         gene_ids = [*GENE_IDS, "N1"]  # N1 leaked into results
@@ -123,10 +123,10 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=[],
             negative_controls=NEGATIVE_IDS,
         )
-        neg = result["negative"]
-        assert isinstance(neg, dict)
-        assert neg["intersectionCount"] == 1
-        assert neg["intersectionIds"] == ["N1"]
+        neg = result.negative
+        assert neg is not None
+        assert neg.intersection_count == 1
+        assert neg.intersection_ids == ["N1"]
 
     def test_target_result_count_matches_gene_ids(self) -> None:
         result = evaluate_gene_ids_against_controls(
@@ -134,9 +134,8 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=POSITIVE_IDS,
             negative_controls=NEGATIVE_IDS,
         )
-        target = result["target"]
-        assert isinstance(target, dict)
-        assert target["resultCount"] == len(GENE_IDS)
+        assert result.target is not None
+        assert result.target.result_count == len(GENE_IDS)
 
     def test_empty_controls(self) -> None:
         result = evaluate_gene_ids_against_controls(
@@ -144,8 +143,8 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=[],
             negative_controls=[],
         )
-        assert result["positive"] is None
-        assert result["negative"] is None
+        assert result.positive is None
+        assert result.negative is None
 
     def test_whitespace_controls_stripped(self) -> None:
         result = evaluate_gene_ids_against_controls(
@@ -153,13 +152,13 @@ class TestEvaluateGeneIdsAgainstControls:
             positive_controls=["  G1  ", " ", "G3"],
             negative_controls=[],
         )
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["intersectionCount"] == 1
-        assert pos["controlsCount"] == 2  # whitespace-only stripped
+        pos = result.positive
+        assert pos is not None
+        assert pos.intersection_count == 1
+        assert pos.controls_count == 2  # whitespace-only stripped
 
     def test_compatible_with_metrics_from_control_result(self) -> None:
-        """The returned dict must be consumable by metrics_from_control_result."""
+        """The returned ControlTestResult must be consumable by metrics_from_control_result."""
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=POSITIVE_IDS,

@@ -14,6 +14,11 @@ import optuna
 import pytest
 
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,
@@ -45,16 +50,16 @@ def _wdk_result(
     fpr: float = 0.1,
     pos_intersection: int = 8,
     neg_intersection: int = 1,
-) -> JSONObject:
-    """Build a realistic WDK result dict."""
-    return {
-        "target": {"resultCount": result_count},
-        "positive": {"recall": recall, "intersectionCount": pos_intersection},
-        "negative": {
-            "falsePositiveRate": fpr,
-            "intersectionCount": neg_intersection,
-        },
-    }
+) -> ControlTestResult:
+    """Build a realistic WDK result."""
+    return ControlTestResult(
+        target=ControlTargetData(result_count=result_count),
+        positive=ControlSetData(recall=recall, intersection_count=pos_intersection),
+        negative=ControlSetData(
+            false_positive_rate=fpr,
+            intersection_count=neg_intersection,
+        ),
+    )
 
 
 def _make_ctx(
@@ -122,10 +127,10 @@ class TestExtractTrialMetrics:
         assert m.negative_hits == 2
 
     def test_missing_positive(self) -> None:
-        wdk: JSONObject = {
-            "target": {"resultCount": 50},
-            "negative": {"falsePositiveRate": 0.1, "intersectionCount": 1},
-        }
+        wdk = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
+        )
         m = _extract_trial_metrics(wdk)
         assert m.recall is None
         assert m.positive_hits is None
@@ -133,33 +138,33 @@ class TestExtractTrialMetrics:
         assert m.result_count == 50
 
     def test_missing_negative(self) -> None:
-        wdk: JSONObject = {
-            "target": {"resultCount": 50},
-            "positive": {"recall": 0.8, "intersectionCount": 8},
-        }
+        wdk = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            positive=ControlSetData(recall=0.8, intersection_count=8),
+        )
         m = _extract_trial_metrics(wdk)
         assert m.fpr is None
         assert m.negative_hits is None
         assert m.recall == 0.8
 
     def test_missing_target(self) -> None:
-        wdk: JSONObject = {
-            "positive": {"recall": 0.8, "intersectionCount": 8},
-            "negative": {"falsePositiveRate": 0.1, "intersectionCount": 1},
-        }
+        wdk = ControlTestResult(
+            positive=ControlSetData(recall=0.8, intersection_count=8),
+            negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
+        )
         m = _extract_trial_metrics(wdk)
         assert m.result_count is None
 
     def test_empty_result(self) -> None:
-        m = _extract_trial_metrics({})
+        m = _extract_trial_metrics(ControlTestResult())
         assert m.recall is None
         assert m.fpr is None
         assert m.result_count is None
         assert m.positive_hits is None
         assert m.negative_hits is None
 
-    def test_non_dict_sections_produce_none(self) -> None:
-        wdk: JSONObject = {"target": "invalid", "positive": None, "negative": 42}
+    def test_none_sections_produce_none(self) -> None:
+        wdk = ControlTestResult(positive=None, negative=None)
         m = _extract_trial_metrics(wdk)
         assert m.recall is None
         assert m.fpr is None
@@ -248,7 +253,7 @@ class TestBuildSuccessfulTrial:
         t = _build_successful_trial(
             trial_number=1,
             params={},
-            wdk_result={},
+            wdk_result=ControlTestResult(),
             cfg=cfg,
             n_positives=0,
             n_negatives=0,
@@ -258,7 +263,7 @@ class TestBuildSuccessfulTrial:
         assert t.false_positive_rate is None
 
     def test_none_sections(self) -> None:
-        wdk: JSONObject = {"target": None, "positive": None, "negative": None}
+        wdk = ControlTestResult(positive=None, negative=None)
         cfg = OptimizationConfig(objective="f1")
         t = _build_successful_trial(
             trial_number=1,
@@ -280,13 +285,14 @@ class TestBuildSuccessfulTrial:
 
 class TestUnpackGatherResult:
     def test_success_pair(self) -> None:
-        raw: tuple[JSONObject | None, str] = ({"target": {}}, "")
+        ctr = ControlTestResult()
+        raw: tuple[ControlTestResult | None, str] = (ctr, "")
         wdk_result, wdk_error = _unpack_gather_result(raw, 1, {})
-        assert wdk_result == {"target": {}}
+        assert wdk_result is ctr
         assert wdk_error == ""
 
     def test_error_pair(self) -> None:
-        raw: tuple[JSONObject | None, str] = (None, "WDK 422")
+        raw: tuple[ControlTestResult | None, str] = (None, "WDK 422")
         wdk_result, wdk_error = _unpack_gather_result(raw, 1, {})
         assert wdk_result is None
         assert wdk_error == "WDK 422"
@@ -527,22 +533,22 @@ def _make_wdk_result(
     result_count: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
-) -> JSONObject:
+) -> ControlTestResult:
     pos = [f"POS_{i}" for i in range(10)]
     neg = [f"NEG_{i}" for i in range(8)]
     n_pos_found = int(len(pos) * pos_recall)
     n_neg_found = int(len(neg) * neg_fpr)
-    return {
-        "target": {"resultCount": result_count},
-        "positive": {
-            "recall": n_pos_found / len(pos) if n_pos_found > 0 else None,
-            "intersectionCount": n_pos_found,
-        },
-        "negative": {
-            "falsePositiveRate": (n_neg_found / len(neg) if n_neg_found > 0 else None),
-            "intersectionCount": n_neg_found,
-        },
-    }
+    return ControlTestResult(
+        target=ControlTargetData(result_count=result_count),
+        positive=ControlSetData(
+            recall=n_pos_found / len(pos) if n_pos_found > 0 else None,
+            intersection_count=n_pos_found,
+        ),
+        negative=ControlSetData(
+            false_positive_rate=n_neg_found / len(neg) if n_neg_found > 0 else None,
+            intersection_count=n_neg_found,
+        ),
+    )
 
 
 class TestRunTrialLoopIntegration:
@@ -573,7 +579,7 @@ class TestRunTrialLoopIntegration:
     async def test_cancellation(self) -> None:
         call_count = 0
 
-        async def _counting_wdk(_config: Any, **kwargs: Any) -> JSONObject:
+        async def _counting_wdk(_config: Any, **kwargs: Any) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)

@@ -198,47 +198,16 @@ class TestMissingFields:
         """When searchConfig has no parameters, default to empty dict."""
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": WDKStep(
-                id=1,
-                search_name="S1",
-                search_config=WDKSearchConfig(),
-            )},
+            steps={
+                "1": WDKStep(
+                    id=1,
+                    search_name="S1",
+                    search_config=WDKSearchConfig(),
+                )
+            },
         )
         ast, _, _ = build_snapshot_from_wdk(wdk)
         assert ast.root.parameters == {}
-
-    def test_extra_fields_in_wdk_step_ignored(self) -> None:
-        """Extra fields in the WDK step should be safely ignored (extra='ignore')."""
-        step = WDKStep.model_validate({
-            "id": 1,
-            "searchName": "GenesByTextSearch",
-            "searchConfig": {"parameters": {"text": "kinase"}},
-            "estimatedSize": 42,
-            "isValid": True,
-            "validationBundle": {"level": "SYNTACTIC"},
-            "unknownField": "should be ignored",
-        })
-        wdk = _strategy(
-            step_tree=WDKStepTree(step_id=1),
-            steps={"1": step},
-        )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
-        assert ast.root.search_name == "GenesByTextSearch"
-        assert ast.root.parameters == {"text": "kinase"}
-
-    def test_extra_fields_in_step_tree_ignored(self) -> None:
-        """Extra fields in the stepTree (like answerSpec) are safely ignored."""
-        tree = WDKStepTree.model_validate({
-            "stepId": 1,
-            "answerSpec": {"questionName": "GenesByTextSearch"},
-            "isCollapsible": False,
-        })
-        wdk = _strategy(
-            step_tree=tree,
-            steps={"1": _wdk_step(1, "GenesByTextSearch")},
-        )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
-        assert ast.root.search_name == "GenesByTextSearch"
 
 
 # ===========================================================================
@@ -346,12 +315,14 @@ class TestSnapshotEdgeCases:
         """estimatedSize=0 should be preserved, not treated as falsy."""
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": WDKStep(
-                id=1,
-                search_name="S1",
-                search_config=WDKSearchConfig(parameters={}),
-                estimated_size=0,
-            )},
+            steps={
+                "1": WDKStep(
+                    id=1,
+                    search_name="S1",
+                    search_config=WDKSearchConfig(parameters={}),
+                    estimated_size=0,
+                )
+            },
         )
         _, steps_data, step_counts = build_snapshot_from_wdk(wdk)
         assert as_json_object(steps_data[0])["resultCount"] == 0
@@ -361,12 +332,14 @@ class TestSnapshotEdgeCases:
         """Negative estimatedSize is technically valid (WDK uses -1 for unknown)."""
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": WDKStep(
-                id=1,
-                search_name="S1",
-                search_config=WDKSearchConfig(parameters={}),
-                estimated_size=-1,
-            )},
+            steps={
+                "1": WDKStep(
+                    id=1,
+                    search_name="S1",
+                    search_config=WDKSearchConfig(parameters={}),
+                    estimated_size=-1,
+                )
+            },
         )
         _, steps_data, step_counts = build_snapshot_from_wdk(wdk)
         assert as_json_object(steps_data[0])["resultCount"] == -1

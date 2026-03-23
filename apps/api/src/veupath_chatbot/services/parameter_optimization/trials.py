@@ -14,7 +14,10 @@ from veupath_chatbot.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
 )
-from veupath_chatbot.services.experiment.types import ControlValueFormat
+from veupath_chatbot.services.experiment.types import (
+    ControlTestResult,
+    ControlValueFormat,
+)
 from veupath_chatbot.services.parameter_optimization.callbacks import (
     TrialProgressEvent,
     emit_error,
@@ -32,8 +35,6 @@ from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_pareto_frontier,
     _compute_score,
     _compute_sensitivity,
-    _to_float,
-    _to_int,
     _trial_to_json,
 )
 
@@ -189,30 +190,17 @@ class TrialMetrics:
     negative_hits: int | None
 
 
-def _extract_trial_metrics(wdk_result: JSONObject) -> TrialMetrics:
-    """Extract recall, FPR, result count, and hit counts from a WDK result."""
-    target_data = wdk_result.get("target")
-    pos_data = wdk_result.get("positive")
-    neg_data = wdk_result.get("negative")
-
-    recall_val = pos_data.get("recall") if isinstance(pos_data, dict) else None
-    fpr_val = neg_data.get("falsePositiveRate") if isinstance(neg_data, dict) else None
-    result_count_val = (
-        target_data.get("resultCount") if isinstance(target_data, dict) else None
-    )
-    positive_hits_val = (
-        pos_data.get("intersectionCount") if isinstance(pos_data, dict) else None
-    )
-    negative_hits_val = (
-        neg_data.get("intersectionCount") if isinstance(neg_data, dict) else None
-    )
+def _extract_trial_metrics(wdk_result: ControlTestResult) -> TrialMetrics:
+    """Extract recall, FPR, result count, and hit counts from a control-test result."""
+    pos = wdk_result.positive
+    neg = wdk_result.negative
 
     return TrialMetrics(
-        recall=_to_float(recall_val),
-        fpr=_to_float(fpr_val),
-        result_count=_to_int(result_count_val),
-        positive_hits=_to_int(positive_hits_val),
-        negative_hits=_to_int(negative_hits_val),
+        recall=pos.recall if pos else None,
+        fpr=neg.false_positive_rate if neg else None,
+        result_count=wdk_result.target.result_count,
+        positive_hits=pos.intersection_count if pos else None,
+        negative_hits=neg.intersection_count if neg else None,
     )
 
 
@@ -245,7 +233,7 @@ def _build_successful_trial(
     *,
     trial_number: int,
     params: dict[str, JSONValue],
-    wdk_result: JSONObject,
+    wdk_result: ControlTestResult,
     cfg: OptimizationConfig,
     n_positives: int,
     n_negatives: int,
@@ -349,7 +337,7 @@ def _cache_key(params: dict[str, JSONValue]) -> tuple[tuple[str, str], ...]:
 
 
 _CacheKey = tuple[tuple[str, str], ...]
-_CacheValue = tuple[JSONObject | None, str]
+_CacheValue = tuple[ControlTestResult | None, str]
 _EvalCache = dict[_CacheKey, _CacheValue]
 
 # Per-key locks prevent duplicate WDK calls when multiple trials in the
@@ -364,7 +352,7 @@ async def _evaluate_trial(
     sem: asyncio.Semaphore,
     cache: _EvalCache,
     key_locks: _KeyLocks,
-) -> tuple[JSONObject | None, str]:
+) -> tuple[ControlTestResult | None, str]:
     """Run WDK evaluation for a single trial (semaphore-guarded + cached).
 
     Uses double-checked locking: a fast cache lookup outside the lock,
@@ -396,7 +384,7 @@ async def _evaluate_trial(
 
         async with sem:
             wdk_error = ""
-            wdk_result: JSONObject | None = None
+            wdk_result: ControlTestResult | None = None
             try:
                 wdk_result = await run_positive_negative_controls(
                     ctx.build_intersection_config(trial_params),
@@ -405,10 +393,6 @@ async def _evaluate_trial(
                 )
             except AppError as trial_exc:
                 wdk_error = str(trial_exc)
-                wdk_result = None
-
-            if wdk_result is not None and isinstance(wdk_result.get("error"), str):
-                wdk_error = str(wdk_result["error"])
                 wdk_result = None
 
             result_pair = (wdk_result, wdk_error)
@@ -523,7 +507,7 @@ class _TrialEvalInput:
 
     ot: optuna.trial.Trial
     params: dict[str, JSONValue]
-    wdk_result: JSONObject | None
+    wdk_result: ControlTestResult | None
     wdk_error: str
     trial_num: int
     n_positives: int
@@ -531,10 +515,10 @@ class _TrialEvalInput:
 
 
 def _unpack_gather_result(
-    raw_result: tuple[JSONObject | None, str] | BaseException,
+    raw_result: tuple[ControlTestResult | None, str] | BaseException,
     trial_num: int,
     params: dict[str, JSONValue],
-) -> tuple[JSONObject | None, str]:
+) -> tuple[ControlTestResult | None, str]:
     """Unpack a result from asyncio.gather (may be an exception)."""
     if isinstance(raw_result, BaseException):
         wdk_error = str(raw_result)
@@ -683,7 +667,7 @@ class _BatchInput:
 
     optuna_trials: list[optuna.trial.Trial]
     batch_params: list[dict[str, JSONValue]]
-    wdk_results: list[tuple[JSONObject | None, str] | BaseException]
+    wdk_results: list[tuple[ControlTestResult | None, str] | BaseException]
     trial_idx: int
     n_positives: int
     n_negatives: int

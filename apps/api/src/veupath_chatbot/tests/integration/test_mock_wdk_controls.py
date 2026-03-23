@@ -458,30 +458,26 @@ class TestPositiveNegativeControls:
                 negative_controls=NEGATIVE_CONTROLS,
             )
 
-        assert result["siteId"] == SITE_ID
-        assert result["recordType"] == RECORD_TYPE
+        assert result.site_id == SITE_ID
+        assert result.record_type == RECORD_TYPE
 
-        target = result["target"]
-        assert isinstance(target, dict)
-        assert target["stepId"] == TARGET_STEP_ID
-        assert target["resultCount"] == 500
+        assert result.target.step_id == TARGET_STEP_ID
+        assert result.target.result_count == 500
 
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["controlsCount"] == len(POSITIVE_CONTROLS)
-        assert pos["intersectionCount"] == len(pos_hits)
-        assert pos["recall"] == len(pos_hits) / len(POSITIVE_CONTROLS)
-        assert "missingIdsSample" in pos
-        missing = pos["missingIdsSample"]
+        assert result.positive is not None
+        assert result.positive.controls_count == len(POSITIVE_CONTROLS)
+        assert result.positive.intersection_count == len(pos_hits)
+        assert result.positive.recall == len(pos_hits) / len(POSITIVE_CONTROLS)
+        missing = result.positive.missing_ids_sample
         expected_missing = [x for x in POSITIVE_CONTROLS if x not in set(pos_hits)]
         assert set(missing) == set(expected_missing)
 
-        neg = result["negative"]
-        assert isinstance(neg, dict)
-        assert neg["controlsCount"] == len(NEGATIVE_CONTROLS)
-        assert neg["intersectionCount"] == len(neg_hits)
-        assert neg["falsePositiveRate"] == len(neg_hits) / len(NEGATIVE_CONTROLS)
-        assert "unexpectedHitsSample" in neg
+        assert result.negative is not None
+        assert result.negative.controls_count == len(NEGATIVE_CONTROLS)
+        assert result.negative.intersection_count == len(neg_hits)
+        assert result.negative.false_positive_rate == len(neg_hits) / len(
+            NEGATIVE_CONTROLS
+        )
 
     @respx.mock
     @pytest.mark.asyncio
@@ -526,8 +522,8 @@ class TestPositiveNegativeControls:
                 positive_controls=POSITIVE_CONTROLS,
             )
 
-        assert result["positive"] is not None
-        assert result["negative"] is None
+        assert result.positive is not None
+        assert result.negative is None
 
 
 # ===================================================================
@@ -729,21 +725,17 @@ class TestEmptyResults:
                 negative_controls=NEGATIVE_CONTROLS,
             )
 
-        target = result["target"]
-        assert isinstance(target, dict)
-        assert target["resultCount"] == 0
+        assert result.target.result_count == 0
 
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["intersectionCount"] == 0
-        assert pos["intersectionIds"] == []
-        assert pos["recall"] == 0.0
+        assert result.positive is not None
+        assert result.positive.intersection_count == 0
+        assert result.positive.intersection_ids == []
+        assert result.positive.recall == 0.0
 
-        neg = result["negative"]
-        assert isinstance(neg, dict)
-        assert neg["intersectionCount"] == 0
-        assert neg["intersectionIds"] == []
-        assert neg["falsePositiveRate"] == 0.0
+        assert result.negative is not None
+        assert result.negative.intersection_count == 0
+        assert result.negative.intersection_ids == []
+        assert result.negative.false_positive_rate == 0.0
 
     @respx.mock
     @pytest.mark.asyncio

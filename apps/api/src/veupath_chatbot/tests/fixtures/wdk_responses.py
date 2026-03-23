@@ -854,9 +854,7 @@ def wdk_strategy_summary_json(
     strategy_id: int = 99999,
     name: str = "Test Strategy",
     root_step_id: int = 12345,
-    record_class_name: str | None = (
-        "TranscriptRecordClasses.TranscriptRecordClass"
-    ),
+    record_class_name: str | None = ("TranscriptRecordClasses.TranscriptRecordClass"),
     estimated_size: int | None = 150,
     is_saved: bool = False,
 ) -> dict[str, Any]:
@@ -1278,49 +1276,51 @@ def analysis_status_response(status: str = "COMPLETE") -> dict:
 def analysis_result_response() -> dict:
     """GET .../analyses/{analysisId}/result -- GO enrichment result.
 
-    Contains realistic GO enrichment rows for *Plasmodium falciparum*.
+    Uses real WDK field names verified from GoEnrichmentPlugin.java
+    and live PlasmoDB response (2026-03-22). All values are strings.
     """
     return {
-        "resultSize": 42,
-        "backgroundSize": 5305,
-        "rows": [
+        "resultData": [
             {
-                "ID": "GO:0003735",
-                "Description": "structural constituent of ribosome",
-                "ResultCount": 12,
-                "BgdCount": 88,
-                "FoldEnrich": 2.41,
-                "OddsRatio": 2.95,
-                "PValue": 3.2e-5,
-                "BenjaminiHochberg": 1.1e-3,
-                "Bonferroni": 4.8e-3,
-                "ResultIDList": "PF3D7_0100100,PF3D7_0831900,PF3D7_1133400",
+                "goId": "GO:0003735",
+                "goTerm": "structural constituent of ribosome",
+                "bgdGenes": "88",
+                "resultGenes": "<a href='?idList=PF3D7_0100100,PF3D7_0831900,PF3D7_1133400&autoRun=1'>12</a>",
+                "percentInResult": "28.6",
+                "foldEnrich": "2.41",
+                "oddsRatio": "2.95",
+                "pValue": "3.2e-5",
+                "benjamini": "1.1e-3",
+                "bonferroni": "4.8e-3",
             },
             {
-                "ID": "GO:0006412",
-                "Description": "translation",
-                "ResultCount": 15,
-                "BgdCount": 140,
-                "FoldEnrich": 1.89,
-                "OddsRatio": 2.17,
-                "PValue": 8.4e-4,
-                "BenjaminiHochberg": 1.5e-2,
-                "Bonferroni": 7.6e-2,
-                "ResultIDList": "PF3D7_0709000,PF3D7_1343700,PF3D7_0100100",
+                "goId": "GO:0005840",
+                "goTerm": "ribosome",
+                "bgdGenes": "140",
+                "resultGenes": "<a href='?idList=PF3D7_0709000,PF3D7_1343700,PF3D7_0100100&autoRun=1'>15</a>",
+                "percentInResult": "35.7",
+                "foldEnrich": "1.89",
+                "oddsRatio": "2.03",
+                "pValue": "8.7e-4",
+                "benjamini": "1.5e-2",
+                "bonferroni": "7.6e-2",
             },
             {
-                "ID": "GO:0005840",
-                "Description": "ribosome",
-                "ResultCount": 10,
-                "BgdCount": 72,
-                "FoldEnrich": 2.45,
-                "OddsRatio": 3.01,
-                "PValue": 1.7e-4,
-                "BenjaminiHochberg": 3.9e-3,
-                "Bonferroni": 2.1e-2,
-                "ResultIDList": "PF3D7_0831900,PF3D7_1133400",
+                "goId": "GO:0006412",
+                "goTerm": "translation",
+                "bgdGenes": "72",
+                "resultGenes": "<a href='?idList=PF3D7_0831900,PF3D7_1133400&autoRun=1'>10</a>",
+                "percentInResult": "23.8",
+                "foldEnrich": "2.45",
+                "oddsRatio": "2.92",
+                "pValue": "9.5e-4",
+                "benjamini": "3.9e-3",
+                "bonferroni": "2.1e-2",
             },
         ],
+        "downloadPath": "goEnrichmentResult.tsv",
+        "pvalueCutoff": "0.05",
+        "goTermBaseUrl": "http://amigo.geneontology.org/amigo/term/",
     }
 
 

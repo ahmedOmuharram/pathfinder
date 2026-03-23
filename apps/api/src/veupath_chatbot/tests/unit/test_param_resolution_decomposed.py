@@ -52,6 +52,7 @@ def _to_wdk_search_response(details: dict[str, Any]) -> WDKSearchResponse:
     search = WDKSearch.model_validate(normalized)
     return WDKSearchResponse(search_data=search, validation=WDKValidation())
 
+
 # ---------------------------------------------------------------------------
 # allowed_values
 # ---------------------------------------------------------------------------
@@ -166,19 +167,6 @@ class TestFormatParamInfo:
         assert isinstance(p, dict)
         assert p["name"] == "valid"
 
-    def test_is_required_field_is_ignored(self) -> None:
-        """isRequired is not a WDK field -- only allowEmptyValue matters."""
-        specs: JSONArray = [
-            {"name": "p1", "isRequired": True},
-            {"name": "p2", "isRequired": False},
-        ]
-        result = self._call(specs)
-        p1 = next(p for p in result if isinstance(p, dict) and p["name"] == "p1")
-        p2 = next(p for p in result if isinstance(p, dict) and p["name"] == "p2")
-        # Both have no allowEmptyValue, so required = not bool(None) = True
-        assert p1["required"] is True
-        assert p2["required"] is True
-
     def test_required_from_allow_empty_value(self) -> None:
         specs: JSONArray = [
             {"name": "optional", "allowEmptyValue": True},
@@ -290,10 +278,12 @@ class TestFetchSearchDetails:
     """Tests for fetch_search_details() helper."""
 
     async def test_returns_details_on_success(self) -> None:
-        expected = _to_wdk_search_response({
-            "displayName": "Test Search",
-            "parameters": [],
-        })
+        expected = _to_wdk_search_response(
+            {
+                "displayName": "Test Search",
+                "parameters": [],
+            }
+        )
         discovery = MagicMock()
         discovery.get_search_details = AsyncMock(return_value=expected)
         discovery.get_searches = AsyncMock(return_value=[])
@@ -409,20 +399,22 @@ class TestGetSearchParametersAfterDecomposition:
             return_value=[WDKRecordType(url_segment="gene", full_name="Genes")]
         )
         discovery.get_search_details = AsyncMock(
-            return_value=_to_wdk_search_response({
-                "displayName": "Genes by Taxon",
-                "description": "Find genes by taxonomy",
-                "parameters": [
-                    {
-                        "name": "organism",
-                        "displayName": "Organism",
-                        "type": "single-pick-vocabulary",
-                        "allowEmptyValue": False,
-                        "isVisible": True,
-                        "help": "Choose an organism",
-                    },
-                ],
-            })
+            return_value=_to_wdk_search_response(
+                {
+                    "displayName": "Genes by Taxon",
+                    "description": "Find genes by taxonomy",
+                    "parameters": [
+                        {
+                            "name": "organism",
+                            "displayName": "Organism",
+                            "type": "single-pick-vocabulary",
+                            "allowEmptyValue": False,
+                            "isVisible": True,
+                            "help": "Choose an organism",
+                        },
+                    ],
+                }
+            )
         )
         discovery.get_searches = AsyncMock(return_value=[])
 
@@ -430,7 +422,9 @@ class TestGetSearchParametersAfterDecomposition:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "gene", "GenesByTaxon"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
+            )
 
         assert result["searchName"] == "GenesByTaxon"
         assert result["displayName"] == "Genes by Taxon"
@@ -454,11 +448,13 @@ class TestGetSearchParametersAfterDecomposition:
             if call_count == 1:
                 msg = "not found"
                 raise AppError(ErrorCode.SEARCH_NOT_FOUND, msg)
-            return _to_wdk_search_response({
-                "displayName": "Found",
-                "description": "desc",
-                "parameters": [{"name": "p1", "type": "string"}],
-            })
+            return _to_wdk_search_response(
+                {
+                    "displayName": "Found",
+                    "description": "desc",
+                    "parameters": [{"name": "p1", "type": "string"}],
+                }
+            )
 
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
@@ -478,7 +474,9 @@ class TestGetSearchParametersAfterDecomposition:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "gene", "SharedSearch"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "gene", "SharedSearch")
+            )
 
         assert result["resolvedRecordType"] == "transcript"
         assert result["displayName"] == "Found"

@@ -63,6 +63,7 @@ from veupath_chatbot.services.experiment.tree_knobs import (
     optimize_tree_knobs,
 )
 from veupath_chatbot.services.experiment.types import (
+    ControlTestResult,
     Experiment,
     ExperimentConfig,
     ExperimentMetrics,
@@ -101,6 +102,7 @@ class PhaseContext:
     emit: EmitFn
     store: ExperimentStore
 
+
 # Per-experiment lock to prevent concurrent mutations of the same experiment
 # (e.g., DELETE while a run_experiment() is in-flight).
 _experiment_locks: dict[str, asyncio.Lock] = {}
@@ -138,12 +140,10 @@ def _get_experiment_lock(experiment_id: str) -> asyncio.Lock:
 async def _run_single_step_controls(
     config: ExperimentConfig,
     parameters: JSONObject,
-) -> JSONObject:
+) -> ControlTestResult:
     """Run single-step control tests with the given parameters."""
     return await run_positive_negative_controls(
-        IntersectionConfig.from_experiment_config(
-            config, target_parameters=parameters
-        ),
+        IntersectionConfig.from_experiment_config(config, target_parameters=parameters),
         positive_controls=config.positive_controls or None,
         negative_controls=config.negative_controls or None,
     )
@@ -152,7 +152,7 @@ async def _run_single_step_controls(
 async def _apply_control_result(
     config: ExperimentConfig,
     experiment: Experiment,
-    result: JSONObject,
+    result: ControlTestResult,
 ) -> ExperimentMetrics:
     """Compute metrics and populate gene lists from a control-test result."""
     metrics = metrics_from_control_result(result)
@@ -177,7 +177,7 @@ async def _apply_control_result(
 
 async def _phase_evaluate(
     pctx: PhaseContext,
-) -> tuple[JSONObject, ExperimentMetrics]:
+) -> tuple[ControlTestResult, ExperimentMetrics]:
     """Run control-test evaluation, compute metrics, and enrich gene lists.
 
     :returns: ``(control_result, metrics)`` for downstream phases.
@@ -220,7 +220,7 @@ async def _phase_evaluate(
 async def _phase_step_analysis(
     pctx: PhaseContext,
     tree: JSONObject,
-    baseline_result: JSONObject,
+    baseline_result: ControlTestResult,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
     config, experiment = pctx.config, pctx.experiment
@@ -357,7 +357,7 @@ async def _phase_robustness(
 async def _phase_optimize_parameters(
     pctx: PhaseContext,
     metrics: ExperimentMetrics,
-) -> tuple[JSONObject | None, ExperimentMetrics]:
+) -> tuple[ControlTestResult | None, ExperimentMetrics]:
     """Run parameter optimization and optionally re-evaluate with best params.
 
     :returns: ``(updated_result_or_None, updated_metrics)``.

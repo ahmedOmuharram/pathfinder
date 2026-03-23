@@ -3,7 +3,6 @@
 Provides gene-list extraction utilities and the progress callback type alias.
 """
 
-import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -11,6 +10,8 @@ from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import (
+    ControlSetData,
+    ControlTestResult,
     ControlValueFormat,
     ExperimentConfig,
     GeneInfo,
@@ -54,79 +55,36 @@ class ControlsContext:
         )
 
 
-def safe_int(val: object, default: int = 0) -> int:
-    """Safely convert a value to int, returning *default* on failure."""
-    if isinstance(val, int):
-        return val
-    if isinstance(val, (float, str)):
-        try:
-            return int(float(val))
-        except ValueError, TypeError, OverflowError:
-            pass
-    return default
+def _ids_to_gene_infos(ids: list[str]) -> list[GeneInfo]:
+    """Wrap a list of string IDs as :class:`GeneInfo` objects."""
+    return [GeneInfo(id=g) for g in ids]
 
 
-def safe_float(val: object, default: float = 0.0) -> float:
-    """Safely convert a value to float, returning *default* on failure.
-
-    Non-finite values (``inf``, ``-inf``, ``nan``) are replaced with
-    *default* because they are not JSON-serializable and PostgreSQL
-    rejects them in JSON columns.
-    """
-    result: float
-    if isinstance(val, (int, float)):
-        result = float(val)
-    elif isinstance(val, str):
-        try:
-            result = float(val)
-        except ValueError:
-            return default
-    else:
-        return default
-    if not math.isfinite(result):
-        return default
-    return result
-
-
-
-def _extract_gene_list(
-    result: JSONObject,
-    section: str,
-    key: str,
+def _gene_infos_from_section(
+    section: ControlSetData | None,
+    field_name: str,
     *,
     fallback_from_controls: bool = False,
     all_controls: list[str] | None = None,
     hit_ids: set[str] | None = None,
 ) -> list[GeneInfo]:
-    """Extract a gene ID list from control-test result and wrap as GeneInfo."""
-    section_data = result.get(section)
-    if not isinstance(section_data, dict):
-        if fallback_from_controls and all_controls and hit_ids is not None:
-            return [GeneInfo(id=g) for g in all_controls if g not in hit_ids]
-        return []
+    """Extract a gene list from a :class:`ControlSetData` field.
 
-    ids_raw = section_data.get(key)
-    if isinstance(ids_raw, list):
-        return [GeneInfo(id=str(g)) for g in ids_raw if g is not None]
+    :param section: The positive or negative control set data (may be ``None``).
+    :param field_name: Attribute name on ``ControlSetData`` (e.g. ``"intersection_ids"``).
+    :param fallback_from_controls: When True and the section/field is empty,
+        derive the list from *all_controls* minus *hit_ids*.
+    :param all_controls: Full control list for fallback computation.
+    :param hit_ids: IDs that were hits (used to compute the complement for TN).
+    """
+    if section is not None:
+        ids = getattr(section, field_name, [])
+        if ids:
+            return _ids_to_gene_infos(ids)
 
     if fallback_from_controls and all_controls and hit_ids is not None:
         return [GeneInfo(id=g) for g in all_controls if g not in hit_ids]
     return []
-
-
-def _extract_id_set(
-    result: JSONObject,
-    section: str,
-    key: str,
-) -> set[str]:
-    """Extract a set of IDs from a control-test result section."""
-    section_data = result.get(section)
-    if not isinstance(section_data, dict):
-        return set()
-    ids_raw = section_data.get(key)
-    if isinstance(ids_raw, list):
-        return {str(g) for g in ids_raw if g is not None}
-    return set()
 
 
 def _enrich_list(
@@ -181,7 +139,7 @@ async def _resolve_gene_lookup(
 async def extract_and_enrich_genes(
     *,
     site_id: str,
-    result: JSONObject,
+    result: ControlTestResult,
     negative_controls: list[str] | None = None,
 ) -> tuple[list[GeneInfo], list[GeneInfo], list[GeneInfo], list[GeneInfo]]:
     """Extract gene lists from a control-test result and enrich with WDK metadata.
@@ -190,16 +148,17 @@ async def extract_and_enrich_genes(
 
     :returns: (true_positive, false_negative, false_positive, true_negative)
     """
-    tp = _extract_gene_list(result, "positive", "intersectionIds")
-    fn = _extract_gene_list(result, "positive", "missingIdsSample")
-    fp = _extract_gene_list(result, "negative", "intersectionIds")
-    tn = _extract_gene_list(
-        result,
-        "negative",
-        "missingIdsSample",
+    tp = _gene_infos_from_section(result.positive, "intersection_ids")
+    fn = _gene_infos_from_section(result.positive, "missing_ids_sample")
+    fp = _gene_infos_from_section(result.negative, "intersection_ids")
+
+    neg_hit_ids = set(result.negative.intersection_ids) if result.negative else set()
+    tn = _gene_infos_from_section(
+        result.negative,
+        "missing_ids_sample",
         fallback_from_controls=True,
         all_controls=negative_controls,
-        hit_ids=_extract_id_set(result, "negative", "intersectionIds"),
+        hit_ids=neg_hit_ids,
     )
 
     try:

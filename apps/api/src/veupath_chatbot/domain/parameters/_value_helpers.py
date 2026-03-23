@@ -13,10 +13,23 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from veupath_chatbot.domain.parameters._decode_values import decode_values
-from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized, _safe_float
+from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.domain.parameters.vocab_utils import match_vocab_value
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+
+
+def _safe_float(value: JSONValue) -> float | None:
+    """Convert a raw JSON value to float, returning None on failure."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
 
 # Handler signature: (spec, value) -> ProcessedParam
 _ParamHandler = Callable[["ParamSpecNormalized", "JSONValue"], "ProcessedParam"]

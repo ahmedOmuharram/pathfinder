@@ -10,6 +10,11 @@ from veupath_chatbot.services.experiment.types import (
     StepContribution,
     StepEvaluation,
 )
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -54,20 +59,18 @@ def _baseline_result(
     neg_hits: int = 3,
     neg_total: int = 20,
     result_count: int = 150,
-) -> dict:
-    return {
-        "positive": {
-            "intersectionCount": pos_hits,
-            "controlsCount": pos_total,
-        },
-        "negative": {
-            "intersectionCount": neg_hits,
-            "controlsCount": neg_total,
-        },
-        "target": {
-            "resultCount": result_count,
-        },
-    }
+) -> ControlTestResult:
+    return ControlTestResult(
+        positive=ControlSetData(
+            intersection_count=pos_hits,
+            controls_count=pos_total,
+        ),
+        negative=ControlSetData(
+            intersection_count=neg_hits,
+            controls_count=neg_total,
+        ),
+        target=ControlTargetData(result_count=result_count),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +141,7 @@ class TestEnrichStepEvalsWithMovement:
         step_evals = [
             _make_step_evaluation(counts=_StepEvalCounts(pos_hits=5, neg_hits=2))
         ]
-        enriched = _enrich_step_evals_with_movement(step_evals, {})
+        enriched = _enrich_step_evals_with_movement(step_evals, ControlTestResult())
         # baseline TP=0, FP=0, FN=0-0=0
         ev = enriched[0]
         assert ev.tp_movement == 5

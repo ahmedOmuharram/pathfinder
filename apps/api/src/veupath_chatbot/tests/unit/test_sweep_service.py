@@ -23,6 +23,11 @@ from veupath_chatbot.services.experiment.types import (
     ExperimentConfig,
     ExperimentMetrics,
 )
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -163,11 +168,11 @@ class TestRunSweepPoint:
     @pytest.mark.asyncio
     async def test_successful_numeric_point(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = ControlTestResult(
+            positive=ControlSetData(intersection_count=2, controls_count=2),
+            negative=ControlSetData(intersection_count=0, controls_count=1),
+            target=ControlTargetData(result_count=50),
+        )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
@@ -211,11 +216,11 @@ class TestGenerateSweepEvents:
     @pytest.mark.asyncio
     async def test_emits_point_and_complete_events(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = ControlTestResult(
+            positive=ControlSetData(intersection_count=2, controls_count=2),
+            negative=ControlSetData(intersection_count=0, controls_count=1),
+            target=ControlTargetData(result_count=50),
+        )
 
         with (
             patch(

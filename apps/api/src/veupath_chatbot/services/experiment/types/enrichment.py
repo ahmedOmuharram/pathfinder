@@ -2,12 +2,21 @@
 
 from pydantic import ConfigDict, Field
 
-from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat
+from veupath_chatbot.platform.pydantic_base import (
+    CamelModel,
+    SafeFiniteFloat,
+    SafeFiniteRoundedFloat,
+)
 from veupath_chatbot.services.experiment.types.core import EnrichmentAnalysisType
 
 
 class EnrichmentTerm(CamelModel):
-    """Single enriched term from WDK analysis."""
+    """Single enriched term from WDK analysis.
+
+    WDK returns numeric fields as JSON strings (``"3.48"``, ``"3.40e-13"``,
+    ``"Infinity"``).  Pydantic lax mode coerces str→int/float; SafeFiniteFloat
+    clamps inf/nan to 0.0.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -15,11 +24,11 @@ class EnrichmentTerm(CamelModel):
     term_name: str
     gene_count: int
     background_count: int
-    fold_enrichment: RoundedFloat
-    odds_ratio: RoundedFloat
-    p_value: float
-    fdr: float
-    bonferroni: float
+    fold_enrichment: SafeFiniteRoundedFloat
+    odds_ratio: SafeFiniteRoundedFloat
+    p_value: SafeFiniteFloat
+    fdr: SafeFiniteFloat
+    bonferroni: SafeFiniteFloat
     genes: list[str] = Field(default_factory=list)
 
 

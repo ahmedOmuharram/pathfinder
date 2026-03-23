@@ -391,6 +391,7 @@ class WDKUserInfo(WDKModel):
 # WDKDatasetConfig — discriminated union (5 source types)
 # ---------------------------------------------------------------------------
 
+
 class WDKDatasetIdListContent(WDKModel):
     """Content for ``sourceType: "idList"``."""
 
@@ -471,6 +472,69 @@ WDKDatasetConfig = Annotated[
     Discriminator("source_type"),
 ]
 """Discriminated union of WDK dataset config source types."""
+
+
+# ---------------------------------------------------------------------------
+# Enrichment response models (step-analysis plugin output)
+# ---------------------------------------------------------------------------
+
+
+class WDKEnrichmentRowBase(WDKModel):
+    """Shared statistical fields across GO, Pathway, and Word enrichment plugins.
+
+    ALL values are strings — WDK Java plugins serialize every field via
+    ``json.put(key, stringValue)``.  Verified from GoEnrichmentPlugin.java,
+    PathwaysEnrichmentPlugin.java, WordEnrichmentPlugin.java in
+    VEuPathDB/ApiCommonWebsite.
+    """
+
+    bgd_genes: str = "0"
+    result_genes: str = "0"
+    percent_in_result: str = "0"
+    fold_enrich: str = "0"
+    odds_ratio: str = "0"
+    p_value: str = "1"
+    benjamini: str = "1"
+    bonferroni: str = "1"
+
+
+class WDKGoEnrichmentRow(WDKEnrichmentRowBase):
+    """A single row from the GO enrichment plugin."""
+
+    go_id: str
+    go_term: str
+
+
+class WDKPathwayEnrichmentRow(WDKEnrichmentRowBase):
+    """A single row from the pathway enrichment plugin."""
+
+    pathway_id: str
+    pathway_name: str
+    pathway_source: str = ""
+
+
+class WDKWordEnrichmentRow(WDKEnrichmentRowBase):
+    """Word enrichment result row (WordEnrichmentPlugin.java).
+
+    WDK Java field ``_descrip`` serializes to JSON key ``pathwayName``.
+    Verified from live PlasmoDB word enrichment response (2026-03-22).
+    """
+
+    word: str
+    pathway_name: str = ""
+
+
+class WDKEnrichmentResponse(WDKModel):
+    """Envelope returned by ``GET .../analyses/{id}/result``.
+
+    Contains ``resultData`` (list of raw row dicts), ``downloadPath``,
+    and ``pvalueCutoff``.  Plugin-specific keys (``goTermBaseUrl``,
+    ``accessToken``, ``contextHash``) are dropped via ``extra="ignore"``.
+    """
+
+    result_data: list[JSONObject] = Field(default_factory=list)
+    download_path: str = ""
+    pvalue_cutoff: str = ""
 
 
 # ---------------------------------------------------------------------------

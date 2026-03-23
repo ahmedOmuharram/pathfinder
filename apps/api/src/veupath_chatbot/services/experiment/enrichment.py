@@ -26,8 +26,7 @@ from veupath_chatbot.services.experiment.enrichment_params import (
 from veupath_chatbot.services.experiment.enrichment_parser import (
     ANALYSIS_TYPE_MAP,
     GO_ONTOLOGY_MAP,
-    extract_analysis_rows,
-    extract_result_totals,
+    parse_enrichment_response,
     parse_enrichment_terms,
 )
 from veupath_chatbot.services.experiment.types import (
@@ -137,15 +136,12 @@ async def _execute_analysis(
         msg = "Enrichment analysis failed after retries"
         raise InternalError(detail=msg)
 
-    rows = extract_analysis_rows(result)
-    terms = parse_enrichment_terms(rows)
-    total_analyzed, bg_size = extract_result_totals(result)
+    envelope = parse_enrichment_response(result)
+    terms = parse_enrichment_terms(envelope.result_data, analysis_type)
 
     return EnrichmentResult(
         analysis_type=analysis_type,
         terms=terms,
-        total_genes_analyzed=total_analyzed,
-        background_size=bg_size,
     )
 
 
@@ -164,7 +160,9 @@ async def run_enrichment_analysis(
         NewStepSpec(
             search_name=search_name,
             search_config=WDKSearchConfig(
-                parameters={k: str(v) for k, v in (parameters or {}).items() if v is not None},
+                parameters={
+                    k: str(v) for k, v in (parameters or {}).items() if v is not None
+                },
             ),
             custom_name="Enrichment target",
         ),

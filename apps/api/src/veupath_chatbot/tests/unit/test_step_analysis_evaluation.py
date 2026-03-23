@@ -5,6 +5,11 @@ from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
     _f1_from_counts,
 )
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 # ---------------------------------------------------------------------------
 # _EvalCounts dataclass
@@ -35,21 +40,19 @@ class TestEvalCounts:
 
 class TestExtractEvalCounts:
     def test_full_result(self) -> None:
-        result = {
-            "positive": {
-                "intersectionCount": 8,
-                "controlsCount": 10,
-                "intersectionIds": ["g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"],
-            },
-            "negative": {
-                "intersectionCount": 3,
-                "controlsCount": 20,
-                "intersectionIds": ["n1", "n2", "n3"],
-            },
-            "target": {
-                "resultCount": 150,
-            },
-        }
+        result = ControlTestResult(
+            positive=ControlSetData(
+                intersection_count=8,
+                controls_count=10,
+                intersection_ids=["g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"],
+            ),
+            negative=ControlSetData(
+                intersection_count=3,
+                controls_count=20,
+                intersection_ids=["n1", "n2", "n3"],
+            ),
+            target=ControlTargetData(result_count=150),
+        )
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 8
         assert ec.pos_total == 10
@@ -60,7 +63,7 @@ class TestExtractEvalCounts:
         assert len(ec.neg_ids) == 3
 
     def test_empty_result(self) -> None:
-        ec = _extract_eval_counts({})
+        ec = _extract_eval_counts(ControlTestResult())
         assert ec.pos_hits == 0
         assert ec.pos_total == 0
         assert ec.neg_hits == 0
@@ -70,34 +73,20 @@ class TestExtractEvalCounts:
         assert ec.neg_ids == []
 
     def test_none_sections(self) -> None:
-        """When positive/negative/target are None."""
-        result = {"positive": None, "negative": None, "target": None}
+        """When positive/negative are None."""
+        result = ControlTestResult(positive=None, negative=None)
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 0
         assert ec.neg_hits == 0
         assert ec.total_results == 0
 
-    def test_non_dict_sections_ignored(self) -> None:
-        """When positive/negative/target are strings or ints."""
-        result = {"positive": "oops", "negative": 42, "target": [1, 2]}
-        ec = _extract_eval_counts(result)
-        assert ec.pos_hits == 0
-        assert ec.neg_hits == 0
-        assert ec.total_results == 0
-
-    def test_string_counts_coerced(self) -> None:
-        """safe_int should handle string representations of numbers."""
-        result = {
-            "positive": {
-                "intersectionCount": "5",
-                "controlsCount": "10",
-            },
-            "negative": {
-                "intersectionCount": "2",
-                "controlsCount": "8",
-            },
-            "target": {"resultCount": "100"},
-        }
+    def test_int_counts(self) -> None:
+        """Integer counts produce correct values."""
+        result = ControlTestResult(
+            positive=ControlSetData(intersection_count=5, controls_count=10),
+            negative=ControlSetData(intersection_count=2, controls_count=8),
+            target=ControlTargetData(result_count=100),
+        )
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 5
         assert ec.pos_total == 10
@@ -105,28 +94,28 @@ class TestExtractEvalCounts:
         assert ec.neg_total == 8
         assert ec.total_results == 100
 
-    def test_intersection_ids_non_list_returns_empty(self) -> None:
-        """When intersectionIds is a string or None."""
-        result = {
-            "positive": {"intersectionIds": "not_a_list"},
-            "negative": {"intersectionIds": None},
-        }
+    def test_empty_intersection_ids(self) -> None:
+        """Default empty intersection_ids produces empty pos_ids."""
+        result = ControlTestResult(
+            positive=ControlSetData(),
+            negative=ControlSetData(),
+        )
         ec = _extract_eval_counts(result)
         assert ec.pos_ids == []
         assert ec.neg_ids == []
 
-    def test_intersection_ids_with_mixed_types(self) -> None:
-        """IDs containing ints are converted to strings."""
-        result = {
-            "positive": {"intersectionIds": [123, "g2", None]},
-        }
+    def test_intersection_ids_preserved(self) -> None:
+        """IDs are preserved as strings."""
+        result = ControlTestResult(
+            positive=ControlSetData(intersection_ids=["g1", "g2"]),
+        )
         ec = _extract_eval_counts(result)
-        assert ec.pos_ids == ["123", "g2", "None"]
+        assert ec.pos_ids == ["g1", "g2"]
 
     def test_only_positive_present(self) -> None:
-        result = {
-            "positive": {"intersectionCount": 3, "controlsCount": 5},
-        }
+        result = ControlTestResult(
+            positive=ControlSetData(intersection_count=3, controls_count=5),
+        )
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 3
         assert ec.pos_total == 5

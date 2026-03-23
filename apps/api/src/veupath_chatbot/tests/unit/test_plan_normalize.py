@@ -13,6 +13,17 @@ from veupath_chatbot.services.strategies.plan_normalize import (
 # -- Helpers ----------------------------------------------------------------
 
 
+def _wrap_search_response(search_name: str, parameters: list[JSONObject]) -> JSONObject:
+    """Wrap parameters in a WDKSearchResponse-compatible envelope."""
+    return {
+        "searchData": {
+            "urlSegment": search_name,
+            "parameters": parameters,
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
+
 async def _stub_search_details(
     record_type: str,
     search_name: str,
@@ -20,8 +31,9 @@ async def _stub_search_details(
 ) -> JSONObject:
     """Return minimal WDK-style parameter spec for the search."""
     if search_name == "GenesByTextSearch":
-        return {
-            "parameters": [
+        return _wrap_search_response(
+            search_name,
+            [
                 {
                     "name": "text_expression",
                     "type": "string",
@@ -37,20 +49,22 @@ async def _stub_search_details(
                     ],
                 },
             ],
-        }
+        )
     if search_name == "GenesByGoTerm":
-        return {
-            "parameters": [
+        return _wrap_search_response(
+            search_name,
+            [
                 {
                     "name": "goTerm",
                     "type": "string",
                     "allowEmptyValue": False,
                 },
             ],
-        }
+        )
     if search_name == "GenesByOrthologs":
-        return {
-            "parameters": [
+        return _wrap_search_response(
+            search_name,
+            [
                 {
                     "name": "organism",
                     "type": "single-pick-vocabulary",
@@ -61,7 +75,7 @@ async def _stub_search_details(
                     ],
                 },
             ],
-        }
+        )
     msg = f"Unknown search: {search_name}"
     raise ValueError(msg)
 
@@ -528,7 +542,7 @@ class TestSpecsCaching:
 class TestSearchDataUnwrapping:
     @pytest.mark.asyncio
     async def test_unwraps_search_data_wrapper(self) -> None:
-        """When load_search_details returns {searchData: {parameters: [...]}}, unwrap it."""
+        """When load_search_details returns {searchData: {parameters: [...]}, validation: ...}, parse it."""
 
         async def wrapped_loader(
             record_type: str,
@@ -537,6 +551,7 @@ class TestSearchDataUnwrapping:
         ) -> JSONObject:
             return {
                 "searchData": {
+                    "urlSegment": search_name,
                     "parameters": [
                         {
                             "name": "text_expression",
@@ -545,6 +560,7 @@ class TestSearchDataUnwrapping:
                         },
                     ],
                 },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
             }
 
         plan: JSONObject = {
@@ -571,7 +587,7 @@ class TestSearchDataUnwrapping:
 class TestNonDictSearchDetails:
     @pytest.mark.asyncio
     async def test_handles_non_dict_details_result(self) -> None:
-        """When load_search_details returns a non-dict, treat as empty specs."""
+        """When load_search_details returns a non-dict, WDKSearchResponse validation fails."""
 
         async def bad_loader(
             record_type: str,
@@ -588,8 +604,9 @@ class TestNonDictSearchDetails:
                 "parameters": {"text_expression": "kinase"},
             },
         }
-        # With empty specs, unknown params will raise ValidationError
-        with pytest.raises(ValidationError):
+        # Non-dict return causes WDKSearchResponse.model_validate to fail,
+        # which is wrapped in a ValidationError by _load_and_cache_spec.
+        with pytest.raises(ValidationError, match="metadata"):
             await canonicalize_plan_parameters(
                 plan=plan, site_id="plasmodb", load_search_details=bad_loader
             )

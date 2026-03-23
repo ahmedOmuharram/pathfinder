@@ -19,6 +19,7 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _remove_leaf_from_tree,
 )
 from veupath_chatbot.services.experiment.types import (
+    ControlTestResult,
     StepContribution,
     StepContributionVerdict,
 )
@@ -35,12 +36,12 @@ _RECALL_HARMFUL_IMPROVEMENT = 0.02
 async def analyze_contributions(
     ctx: ControlsContext,
     tree: JSONObject,
-    baseline_metrics: JSONObject,
+    baseline_metrics: ControlTestResult,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepContribution]:
     """Ablation analysis: remove each leaf and measure the impact.
 
-    :param baseline_metrics: Metrics from the full tree evaluation.
+    :param baseline_metrics: Typed control-test result from the full tree evaluation.
     :returns: One :class:`StepContribution` per leaf.
     """
     leaves = _collect_leaves(tree)

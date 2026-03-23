@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import math
 from typing import TypedDict
 
 from veupath_chatbot.domain.parameters.specs import (
@@ -16,7 +17,6 @@ from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,
-    safe_float,
 )
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _extract_eval_counts,
@@ -48,19 +48,19 @@ class _NumericParamSpec(TypedDict):
 
 
 def _safe_float(v: object) -> float | None:
-    """Convert to float, returning ``None`` for missing/unparseable values.
-
-    Delegates to :func:`safe_float` for the actual conversion (including
-    ``inf``/``nan`` rejection) but preserves ``None`` semantics for callers
-    that need to distinguish "missing" from zero.
-    """
+    """Convert to float, returning None for missing/unparseable/non-finite."""
     if v is None:
         return None
-    # Use a sentinel that safe_float cannot produce from valid input.
-    # safe_float rejects inf/nan, so inf is safe as a "not converted" marker.
-    sentinel = float("inf")
-    result = safe_float(v, default=sentinel)
-    if result == sentinel:
+    if isinstance(v, (int, float)):
+        result = float(v)
+    elif isinstance(v, str):
+        try:
+            result = float(v)
+        except ValueError:
+            return None
+    else:
+        return None
+    if not math.isfinite(result):
         return None
     return result
 

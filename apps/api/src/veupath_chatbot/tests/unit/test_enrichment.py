@@ -16,8 +16,6 @@ from veupath_chatbot.services.experiment.enrichment_params import (
 from veupath_chatbot.services.experiment.enrichment_parser import (
     ANALYSIS_TYPE_MAP,
     GO_ONTOLOGY_MAP,
-    extract_analysis_rows,
-    extract_result_totals,
     infer_enrichment_type,
     is_enrichment_analysis,
     parse_enrichment_from_raw,
@@ -340,21 +338,21 @@ class TestParseEnrichmentTerms:
     """parse_enrichment_terms handles both WDK row formats."""
 
     def test_parses_standard_wdk_rows(self) -> None:
+        """WDK GO enrichment: all camelCase keys, all string values, HTML resultGenes."""
         rows = [
             {
-                "ID": "GO:0003735",
-                "Description": "structural constituent of ribosome",
-                "ResultCount": 42,
-                "BgdCount": 100,
-                "FoldEnrich": 3.14,
-                "OddsRatio": 2.5,
-                "PValue": 0.001,
-                "BenjaminiHochberg": 0.01,
-                "Bonferroni": 0.05,
-                "ResultIDList": "PF3D7_0100100,PF3D7_0831900",
+                "goId": "GO:0003735",
+                "goTerm": "structural constituent of ribosome",
+                "bgdGenes": "100",
+                "resultGenes": "<a href='?idList=PF3D7_0100100,PF3D7_0831900&autoRun=1'>42</a>",
+                "foldEnrich": "3.14",
+                "oddsRatio": "2.5",
+                "pValue": "0.001",
+                "benjamini": "0.01",
+                "bonferroni": "0.05",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "GO:0003735"
@@ -368,33 +366,12 @@ class TestParseEnrichmentTerms:
         assert t.bonferroni == pytest.approx(0.05)
         assert t.genes == ["PF3D7_0100100", "PF3D7_0831900"]
 
-    def test_parses_alternative_key_names(self) -> None:
-        rows = [
-            {
-                "id": "GO:0005840",
-                "description": "ribosome",
-                "resultCount": 10,
-                "bgdCount": 50,
-                "foldEnrichment": 2.0,
-                "oddsRatio": 1.5,
-                "pValue": 0.05,
-                "benjamini": 0.1,
-                "bonferroni": 0.2,
-                "genes": ["G1", "G2"],
-            }
-        ]
-        terms = parse_enrichment_terms(rows)
-        assert len(terms) == 1
-        t = terms[0]
-        assert t.term_id == "GO:0005840"
-        assert t.genes == ["G1", "G2"]
-
     def test_handles_empty_list(self) -> None:
-        assert parse_enrichment_terms([]) == []
+        assert parse_enrichment_terms([], analysis_type="go_process") == []
 
     def test_skips_non_dict_entries(self) -> None:
-        rows: list = [{"ID": "GO:1", "Description": "x"}, "bad", None]
-        terms = parse_enrichment_terms(rows)
+        rows: list = [{"goId": "GO:1", "goTerm": "x"}, "bad", None]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert len(terms) == 1
 
     def test_parses_wdk_go_enrichment_rows(self) -> None:
@@ -413,7 +390,7 @@ class TestParseEnrichmentTerms:
                 "percentInResult": "69.6",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "GO:0006260"
@@ -442,18 +419,18 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.05",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert len(terms) == 1
         t = terms[0]
         assert t.fold_enrichment == 0.0
         assert t.odds_ratio == 0.0
 
     def test_parses_word_enrichment_rows(self) -> None:
-        """WDK Word enrichment uses 'word' as ID and 'descrip' as description."""
+        """WDK Word enrichment uses 'word' as ID and 'pathwayName' as description."""
         rows = [
             {
                 "word": "kinase",
-                "descrip": "Protein kinase activity",
+                "pathwayName": "Protein kinase activity",
                 "bgdGenes": "300",
                 "resultGenes": "<a href='?idList=G1,G2,&autoRun=1'>2</a>",
                 "foldEnrich": "4.2",
@@ -463,7 +440,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.04",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="word")
         assert len(terms) == 1
         t = terms[0]
         assert t.term_id == "kinase"
@@ -473,8 +450,8 @@ class TestParseEnrichmentTerms:
         assert t.fold_enrichment == pytest.approx(4.2)
         assert t.genes == ["G1", "G2"]
 
-    def test_parses_word_enrichment_no_descrip(self) -> None:
-        """Word enrichment with no 'descrip' uses 'word' for both ID and name."""
+    def test_parses_word_enrichment_no_pathway_name(self) -> None:
+        """Word enrichment with no 'pathwayName' uses empty string for name."""
         rows = [
             {
                 "word": "ribosome",
@@ -487,10 +464,10 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.2",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="word")
         assert len(terms) == 1
         assert terms[0].term_id == "ribosome"
-        assert terms[0].term_name == "ribosome"
+        assert terms[0].term_name == ""
 
     def test_parses_pathway_enrichment_rows(self) -> None:
         """Pathway enrichment uses pathwayId and pathwayName."""
@@ -507,7 +484,7 @@ class TestParseEnrichmentTerms:
                 "bonferroni": "0.1",
             }
         ]
-        terms = parse_enrichment_terms(rows)
+        terms = parse_enrichment_terms(rows, analysis_type="pathway")
         assert len(terms) == 1
         assert terms[0].term_id == "ec01100"
         assert terms[0].term_name == "Metabolic pathways"
@@ -583,59 +560,6 @@ class TestParseResultGenesHtml:
         count, genes = parse_result_genes_html("42")
         assert count == 0
         assert genes == []
-
-
-class TestExtractAnalysisRows:
-    """extract_analysis_rows handles multiple WDK response formats."""
-
-    def test_extracts_from_result_data(self) -> None:
-        result = {"resultData": [{"goId": "GO:1"}, {"goId": "GO:2"}]}
-        rows = extract_analysis_rows(result)
-        assert len(rows) == 2
-
-    def test_extracts_from_rows_key(self) -> None:
-        result = {"rows": [{"id": "1"}]}
-        assert len(extract_analysis_rows(result)) == 1
-
-    def test_extracts_from_data_key(self) -> None:
-        result = {"data": [{"id": "1"}]}
-        assert len(extract_analysis_rows(result)) == 1
-
-    def test_prefers_result_data_over_rows(self) -> None:
-        """resultData takes precedence (enrichment plugins use it)."""
-        result = {"resultData": [{"goId": "GO:1"}], "rows": [{"id": "other"}]}
-        rows = extract_analysis_rows(result)
-        assert rows[0].get("goId") == "GO:1"
-
-    def test_returns_empty_for_non_dict(self) -> None:
-        assert extract_analysis_rows(None) == []
-        assert extract_analysis_rows([]) == []
-
-    def test_filters_non_dict_entries(self) -> None:
-        result = {"resultData": [{"goId": "GO:1"}, "bad", None]}
-        rows = extract_analysis_rows(result)
-        assert len(rows) == 1
-
-    def test_results_key_fallback(self) -> None:
-        result = {"results": [{"id": "1"}, {"id": "2"}]}
-        rows = extract_analysis_rows(result)
-        assert len(rows) == 2
-
-    def test_non_list_rows_returns_empty(self) -> None:
-        result = {"resultData": "not a list"}
-        rows = extract_analysis_rows(result)
-        assert rows == []
-
-    def test_string_input(self) -> None:
-        assert extract_analysis_rows("string") == []
-
-    def test_integer_input(self) -> None:
-        assert extract_analysis_rows(42) == []
-
-    def test_empty_result_data(self) -> None:
-        result = {"resultData": []}
-        rows = extract_analysis_rows(result)
-        assert rows == []
 
 
 class TestInferEnrichmentType:
@@ -752,7 +676,7 @@ class TestParseEnrichmentFromRaw:
 class TestUpsertEnrichmentResult:
     """upsert_enrichment_result replaces existing results of the same analysis_type."""
 
-    def _make_result(self, analysis_type, n_terms=1):
+    def _make_result(self, analysis_type: str, n_terms: int = 1) -> EnrichmentResult:
         return EnrichmentResult(
             analysis_type=analysis_type,
             terms=[],
@@ -817,12 +741,13 @@ class TestParseEnrichmentTermsEdgeCases:
     """Edge cases for parse_enrichment_terms not covered by standard tests."""
 
     def test_all_fields_missing_produces_defaults(self) -> None:
-        rows = [{"unknownField": "value"}]
-        terms = parse_enrichment_terms(rows)
+        """GO row with required fields but no numeric fields -> defaults."""
+        rows: list = [{"goId": "X", "goTerm": "Y"}]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert len(terms) == 1
         t = terms[0]
-        assert t.term_id == ""
-        assert t.term_name == ""
+        assert t.term_id == "X"
+        assert t.term_name == "Y"
         assert t.gene_count == 0
         assert t.background_count == 0
         assert t.fold_enrichment == 0.0
@@ -832,46 +757,28 @@ class TestParseEnrichmentTermsEdgeCases:
         assert t.bonferroni == 1.0
         assert t.genes == []
 
-    def test_result_count_as_string(self) -> None:
-        rows = [{"ID": "T1", "ResultCount": "42"}]
-        terms = parse_enrichment_terms(rows)
-        assert terms[0].gene_count == 42
-
     def test_result_genes_numeric_string_no_html(self) -> None:
-        rows = [{"ID": "T1", "resultGenes": "15"}]
-        terms = parse_enrichment_terms(rows)
-        assert terms[0].gene_count == 15
+        """resultGenes as plain numeric string -> gene_count parsed as int."""
+        rows: list = [{"goId": "X", "goTerm": "Y", "resultGenes": "46"}]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
+        assert terms[0].gene_count == 46
 
     def test_result_genes_plain_text_no_html_returns_zero(self) -> None:
-        rows = [{"ID": "T1", "resultGenes": "not_a_number"}]
-        terms = parse_enrichment_terms(rows)
+        """resultGenes as non-numeric text -> gene_count 0."""
+        rows: list = [{"goId": "X", "goTerm": "Y", "resultGenes": "not_a_number"}]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert terms[0].gene_count == 0
 
-    def test_genes_from_list_field(self) -> None:
-        rows = [{"ID": "T1", "genes": [123, "G2", None]}]
-        terms = parse_enrichment_terms(rows)
-        assert "123" in terms[0].genes
-        assert "G2" in terms[0].genes
-
-    def test_genes_from_comma_separated_string(self) -> None:
-        rows = [{"ID": "T1", "ResultIDList": "G1, G2, G3"}]
-        terms = parse_enrichment_terms(rows)
-        assert terms[0].genes == ["G1", "G2", "G3"]
-
-    def test_genes_from_empty_string(self) -> None:
-        rows = [{"ID": "T1", "ResultIDList": ""}]
-        terms = parse_enrichment_terms(rows)
-        assert terms[0].genes == []
-
     def test_nan_pvalue_handled(self) -> None:
-        """NaN in p-value defaults to 1.0 (not significant)."""
-        rows = [{"ID": "T1", "pValue": "NaN"}]
-        terms = parse_enrichment_terms(rows)
-        assert terms[0].p_value == 1.0
+        """NaN in p-value -> 0.0 (SafeFiniteFloat clamps nan)."""
+        rows: list = [{"goId": "X", "goTerm": "Y", "pValue": "NaN"}]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
+        assert terms[0].p_value == 0.0
 
     def test_negative_infinity_fold_enrichment(self) -> None:
-        rows = [{"ID": "T1", "foldEnrich": "-Infinity"}]
-        terms = parse_enrichment_terms(rows)
+        """-Infinity fold enrichment -> 0.0 (SafeFiniteFloat clamps)."""
+        rows: list = [{"goId": "X", "goTerm": "Y", "foldEnrich": "-Infinity"}]
+        terms = parse_enrichment_terms(rows, analysis_type="go_process")
         assert terms[0].fold_enrichment == 0.0
 
 
@@ -900,45 +807,6 @@ class TestParseEnrichmentFromRawEdgeCases:
         assert er.terms == []
         assert er.total_genes_analyzed == 0
         assert er.background_size == 0
-
-    def test_alternative_total_keys(self) -> None:
-        er = parse_enrichment_from_raw(
-            "pathway-enrichment",
-            {},
-            {"totalResults": 42, "bgdSize": 1000, "resultData": []},
-        )
-        assert er.total_genes_analyzed == 42
-        assert er.background_size == 1000
-
-    def test_result_size_takes_precedence(self) -> None:
-        er = parse_enrichment_from_raw(
-            "pathway-enrichment",
-            {},
-            {"resultSize": 99, "totalResults": 42, "resultData": []},
-        )
-        assert er.total_genes_analyzed == 99
-
-
-# ---------------------------------------------------------------------------
-# extract_result_totals
-# ---------------------------------------------------------------------------
-
-
-class TestExtractResultTotals:
-    """extract_result_totals extracts total gene counts from WDK result."""
-
-    def test_standard_keys(self) -> None:
-        total, bg = extract_result_totals({"resultSize": 100, "backgroundSize": 5000})
-        assert total == 100
-        assert bg == 5000
-
-    def test_fallback_keys(self) -> None:
-        total, bg = extract_result_totals({"totalResults": 42, "bgdSize": 1000})
-        assert total == 42
-        assert bg == 1000
-
-    def test_non_dict(self) -> None:
-        assert extract_result_totals(None) == (0, 0)
 
 
 # ---------------------------------------------------------------------------

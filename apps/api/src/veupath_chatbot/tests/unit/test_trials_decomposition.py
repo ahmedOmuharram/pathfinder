@@ -12,6 +12,11 @@ import optuna
 import pytest
 
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,
@@ -79,17 +84,11 @@ def _make_ctx(
 
 class TestExtractTrialMetrics:
     def test_full_wdk_result(self) -> None:
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 250},
-            "positive": {
-                "recall": 0.85,
-                "intersectionCount": 17,
-            },
-            "negative": {
-                "falsePositiveRate": 0.12,
-                "intersectionCount": 3,
-            },
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=250),
+            positive=ControlSetData(recall=0.85, intersection_count=17),
+            negative=ControlSetData(false_positive_rate=0.12, intersection_count=3),
+        )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall == 0.85
         assert metrics.fpr == 0.12
@@ -98,11 +97,11 @@ class TestExtractTrialMetrics:
         assert metrics.negative_hits == 3
 
     def test_missing_positive_data(self) -> None:
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 50},
-            "positive": None,
-            "negative": None,
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            positive=None,
+            negative=None,
+        )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall is None
         assert metrics.fpr is None
@@ -111,28 +110,26 @@ class TestExtractTrialMetrics:
         assert metrics.negative_hits is None
 
     def test_missing_target_data(self) -> None:
-        wdk_result: JSONObject = {
-            "target": None,
-            "positive": {"recall": 0.5, "intersectionCount": 5},
-            "negative": {"falsePositiveRate": 0.2, "intersectionCount": 2},
-        }
+        wdk_result = ControlTestResult(
+            positive=ControlSetData(recall=0.5, intersection_count=5),
+            negative=ControlSetData(false_positive_rate=0.2, intersection_count=2),
+        )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall == 0.5
         assert metrics.fpr == 0.2
         assert metrics.result_count is None
 
-    def test_empty_dicts(self) -> None:
-        wdk_result: JSONObject = {
-            "target": {},
-            "positive": {},
-            "negative": {},
-        }
+    def test_default_control_set_data(self) -> None:
+        wdk_result = ControlTestResult(
+            positive=ControlSetData(),
+            negative=ControlSetData(),
+        )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall is None
         assert metrics.fpr is None
         assert metrics.result_count is None
-        assert metrics.positive_hits is None
-        assert metrics.negative_hits is None
+        assert metrics.positive_hits == 0
+        assert metrics.negative_hits == 0
 
 
 # ===================================================================
@@ -177,17 +174,11 @@ class TestBuildFailedTrial:
 
 class TestBuildSuccessfulTrial:
     def test_basic_f1_scoring(self) -> None:
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 100},
-            "positive": {
-                "recall": 0.8,
-                "intersectionCount": 8,
-            },
-            "negative": {
-                "falsePositiveRate": 0.1,
-                "intersectionCount": 1,
-            },
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=100),
+            positive=ControlSetData(recall=0.8, intersection_count=8),
+            negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
+        )
         cfg = OptimizationConfig(objective="f1")
         params: dict[str, JSONValue] = {"fc": 2.0}
         trial = _build_successful_trial(
@@ -211,11 +202,11 @@ class TestBuildSuccessfulTrial:
 
     def test_no_positive_negative_data(self) -> None:
         """When positive/negative data is None, score should still compute."""
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 50},
-            "positive": None,
-            "negative": None,
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            positive=None,
+            negative=None,
+        )
         cfg = OptimizationConfig(objective="f1")
         trial = _build_successful_trial(
             trial_number=1,
@@ -231,11 +222,11 @@ class TestBuildSuccessfulTrial:
         assert trial.score == 0.0
 
     def test_recall_objective(self) -> None:
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 200},
-            "positive": {"recall": 0.7, "intersectionCount": 7},
-            "negative": {"falsePositiveRate": 0.5, "intersectionCount": 4},
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=200),
+            positive=ControlSetData(recall=0.7, intersection_count=7),
+            negative=ControlSetData(false_positive_rate=0.5, intersection_count=4),
+        )
         cfg = OptimizationConfig(objective="recall")
         trial = _build_successful_trial(
             trial_number=2,

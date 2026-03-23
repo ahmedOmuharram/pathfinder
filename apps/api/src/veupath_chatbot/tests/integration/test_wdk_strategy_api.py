@@ -347,10 +347,9 @@ class TestRunStepAnalysis:
             poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
-        # Verify result content
-        assert result["resultSize"] == 42
-        assert len(result["rows"]) == 3
-        assert result["rows"][0]["ID"] == "GO:0003735"
+        # Verify result content (real WDK format: resultData with camelCase string fields)
+        assert len(result["resultData"]) == 3
+        assert result["resultData"][0]["goId"] == "GO:0003735"
 
         # Status was polled exactly twice (RUNNING, then COMPLETE)
         assert status_route.call_count == 2
@@ -395,7 +394,7 @@ class TestRunStepAnalysis:
             poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
-        assert result["resultSize"] == 42
+        assert len(result["resultData"]) == 3
         # Warmup report was called before creating the analysis
         assert warmup_route.called
 
@@ -453,7 +452,7 @@ class TestRunStepAnalysis:
             poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
-        assert result["resultSize"] == 42
+        assert len(result["resultData"]) == 3
 
         # Instance created exactly once — no new instance on retry
         assert create_route.call_count == 1
@@ -504,7 +503,7 @@ class TestRunStepAnalysis:
             poll_config=AnalysisPollConfig(poll_interval=0.0, max_wait=10.0),
         )
 
-        assert result["resultSize"] == 42
+        assert len(result["resultData"]) == 3
         assert create_route.call_count == 1
         assert run_route.call_count == 2  # initial + retry
 

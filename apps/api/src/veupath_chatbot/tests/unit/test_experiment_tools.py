@@ -4,6 +4,10 @@ from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.ai.tools.planner.experiment_tools import ExperimentToolsMixin
 from veupath_chatbot.services.control_tests import IntersectionConfig
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTestResult,
+)
 
 _SITE_ID = "plasmodb"
 
@@ -18,13 +22,16 @@ class _TestableTools(ExperimentToolsMixin):
 class TestRunControlTests:
     async def test_delegates_all_args(self) -> None:
         tools = _TestableTools()
-        expected = {"positiveRecall": 0.8, "negativeExclusion": 1.0}
+        mock_return = ControlTestResult(
+            positive=ControlSetData(recall=0.8),
+            negative=ControlSetData(false_positive_rate=0.0),
+        )
 
         with (
             patch(
                 "veupath_chatbot.ai.tools.planner.experiment_tools.run_positive_negative_controls",
                 new_callable=AsyncMock,
-                return_value=expected,
+                return_value=mock_return,
             ) as mock_run,
             patch(
                 "veupath_chatbot.services.export.get_export_service",
@@ -39,7 +46,8 @@ class TestRunControlTests:
                 negative_controls=["PF3D7_0200200"],
             )
 
-        assert result == expected
+        assert isinstance(result, dict)
+        assert result["positive"]["recall"] == 0.8
         call_args = mock_run.call_args
         cfg: IntersectionConfig = call_args.args[0]
         assert cfg.site_id == _SITE_ID
@@ -59,7 +67,7 @@ class TestRunControlTests:
             patch(
                 "veupath_chatbot.ai.tools.planner.experiment_tools.run_positive_negative_controls",
                 new_callable=AsyncMock,
-                return_value={},
+                return_value=ControlTestResult(),
             ) as mock_run,
             patch(
                 "veupath_chatbot.services.export.get_export_service",
@@ -88,7 +96,7 @@ class TestRunControlTests:
             patch(
                 "veupath_chatbot.ai.tools.planner.experiment_tools.run_positive_negative_controls",
                 new_callable=AsyncMock,
-                return_value={},
+                return_value=ControlTestResult(),
             ) as mock_run,
             patch(
                 "veupath_chatbot.services.export.get_export_service",

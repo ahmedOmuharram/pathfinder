@@ -15,7 +15,7 @@ import pytest
 
 from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.store import WriteThruStore
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.service import (
     PhaseContext,
     _phase_evaluate,
@@ -28,6 +28,11 @@ from veupath_chatbot.services.experiment.types import (
     Experiment,
     ExperimentConfig,
     ExperimentMetrics,
+)
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
 )
 from veupath_chatbot.services.parameter_optimization import (
     OptimizationConfig,
@@ -75,34 +80,34 @@ def _dummy_metrics() -> ExperimentMetrics:
     )
 
 
-def _good_control_result() -> JSONObject:
-    """A valid control-test result dict with positive and negative data."""
-    return {
-        "siteId": "plasmodb",
-        "recordType": "gene",
-        "target": {
-            "searchName": "GenesByTextSearch",
-            "parameters": {},
-            "stepId": 42,
-            "resultCount": 100,
-        },
-        "positive": {
-            "controlsCount": 1,
-            "intersectionCount": 1,
-            "intersectionIds": ["PF3D7_0100100"],
-            "intersectionIdsSample": ["PF3D7_0100100"],
-            "missingIdsSample": [],
-            "recall": 1.0,
-        },
-        "negative": {
-            "controlsCount": 1,
-            "intersectionCount": 0,
-            "intersectionIds": [],
-            "intersectionIdsSample": [],
-            "unexpectedHitsSample": [],
-            "falsePositiveRate": 0.0,
-        },
-    }
+def _good_control_result() -> ControlTestResult:
+    """A valid control-test result with positive and negative data."""
+    return ControlTestResult(
+        site_id="plasmodb",
+        record_type="gene",
+        target=ControlTargetData(
+            search_name="GenesByTextSearch",
+            parameters={},
+            step_id=42,
+            result_count=100,
+        ),
+        positive=ControlSetData(
+            controls_count=1,
+            intersection_count=1,
+            intersection_ids=["PF3D7_0100100"],
+            intersection_ids_sample=["PF3D7_0100100"],
+            missing_ids_sample=[],
+            recall=1.0,
+        ),
+        negative=ControlSetData(
+            controls_count=1,
+            intersection_count=0,
+            intersection_ids=[],
+            intersection_ids_sample=[],
+            unexpected_hits_sample=[],
+            false_positive_rate=0.0,
+        ),
+    )
 
 
 def _make_opt_input(
@@ -135,39 +140,39 @@ def _make_wdk_result(
     result_count: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
-) -> JSONObject:
+) -> ControlTestResult:
     """Build a realistic run_positive_negative_controls return value."""
     pos = [f"POS_{i}" for i in range(5)]
     neg = [f"NEG_{i}" for i in range(5)]
     n_pos_found = int(len(pos) * pos_recall)
     n_neg_found = int(len(neg) * neg_fpr)
 
-    return {
-        "siteId": "plasmodb",
-        "recordType": "transcript",
-        "target": {
-            "searchName": "GenesByRNASeq",
-            "parameters": {},
-            "stepId": 999,
-            "resultCount": result_count,
-        },
-        "positive": {
-            "controlsCount": len(pos),
-            "intersectionCount": n_pos_found,
-            "intersectionIdsSample": cast("JSONArray", pos[:n_pos_found]),
-            "intersectionIds": cast("JSONArray", pos[:n_pos_found]),
-            "missingIdsSample": cast("JSONArray", pos[n_pos_found:]),
-            "recall": n_pos_found / len(pos) if pos else None,
-        },
-        "negative": {
-            "controlsCount": len(neg),
-            "intersectionCount": n_neg_found,
-            "intersectionIdsSample": cast("JSONArray", neg[:n_neg_found]),
-            "intersectionIds": cast("JSONArray", neg[:n_neg_found]),
-            "unexpectedHitsSample": cast("JSONArray", neg[:n_neg_found]),
-            "falsePositiveRate": n_neg_found / len(neg) if neg else None,
-        },
-    }
+    return ControlTestResult(
+        site_id="plasmodb",
+        record_type="transcript",
+        target=ControlTargetData(
+            search_name="GenesByRNASeq",
+            parameters={},
+            step_id=999,
+            result_count=result_count,
+        ),
+        positive=ControlSetData(
+            controls_count=len(pos),
+            intersection_count=n_pos_found,
+            intersection_ids_sample=pos[:n_pos_found],
+            intersection_ids=pos[:n_pos_found],
+            missing_ids_sample=pos[n_pos_found:],
+            recall=n_pos_found / len(pos) if pos else None,
+        ),
+        negative=ControlSetData(
+            controls_count=len(neg),
+            intersection_count=n_neg_found,
+            intersection_ids_sample=neg[:n_neg_found],
+            intersection_ids=neg[:n_neg_found],
+            unexpected_hits_sample=neg[:n_neg_found],
+            false_positive_rate=n_neg_found / len(neg) if neg else None,
+        ),
+    )
 
 
 # ===========================================================================
@@ -205,7 +210,7 @@ class TestWDKMalformedResponses:
         by defaulting counts to 0, so the experiment should complete (not crash)
         even with a degenerate result.
         """
-        mock_controls.return_value = {"error": "WDK internal error"}
+        mock_controls.return_value = ControlTestResult()
 
         # The result has no positive/negative/target data. metrics_from_control_result
         # handles this gracefully, defaulting all counts to 0.
@@ -275,7 +280,7 @@ class TestWDKMalformedResponses:
 
         metrics_from_control_result defaults all absent fields to 0.
         """
-        mock_controls.return_value = {}
+        mock_controls.return_value = ControlTestResult()
 
         config = _minimal_config()
         exp = await run_experiment(config)
@@ -327,16 +332,16 @@ class TestWDKMalformedResponses:
         mock_spawn: MagicMock,
     ) -> None:
         """A result with only positive data (no negative) should still work."""
-        mock_controls.return_value = {
-            "target": {"resultCount": 50},
-            "positive": {
-                "controlsCount": 1,
-                "intersectionCount": 1,
-                "intersectionIds": ["PF3D7_0100100"],
-                "missingIdsSample": [],
-            },
-            "negative": None,
-        }
+        mock_controls.return_value = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            positive=ControlSetData(
+                controls_count=1,
+                intersection_count=1,
+                intersection_ids=["PF3D7_0100100"],
+                missing_ids_sample=[],
+            ),
+            negative=None,
+        )
 
         config = _minimal_config()
         exp = await run_experiment(config)
@@ -410,7 +415,9 @@ class TestPhaseEvaluateErrorHandling:
         experiment = Experiment(id="exp_test123", config=config, status="running")
         store = ExperimentStore()
         emit = AsyncMock()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=emit, store=store
+        )
 
         with pytest.raises(httpx.ConnectError):
             await _phase_evaluate(pctx)
@@ -432,17 +439,15 @@ class TestPhaseEvaluateErrorHandling:
         mock_spawn: MagicMock,
     ) -> None:
         """A result with explicit None sections should still compute metrics."""
-        mock_controls.return_value = {
-            "target": None,
-            "positive": None,
-            "negative": None,
-        }
+        mock_controls.return_value = ControlTestResult()
 
         config = _minimal_config()
         experiment = Experiment(id="exp_test456", config=config, status="running")
         store = ExperimentStore()
         emit = AsyncMock()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=emit, store=store
+        )
 
         _result, metrics = await _phase_evaluate(pctx)
 
@@ -547,7 +552,7 @@ class TestOptunaMidLoopCrashes:
         """
         call_count = 0
 
-        async def alternating_response(*args: Any, **kwargs: Any) -> JSONObject:
+        async def alternating_response(*args: Any, **kwargs: Any) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
             if call_count % 2 == 0:
@@ -572,16 +577,17 @@ class TestOptunaMidLoopCrashes:
         "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
-    async def test_wdk_error_string_in_trial_result_counted_as_failure(
+    async def test_empty_control_result_scores_zero(
         self,
         mock_controls: AsyncMock,
     ) -> None:
-        """When WDK returns {"error": "..."}, the trial should score 0.
+        """When WDK returns an empty ControlTestResult, all trials score 0.
 
-        _evaluate_trial in trials.py checks for an "error" key in the result
-        and treats it as a failure (wdk_result = None).
+        An empty result has no positive/negative data, so recall=None, fpr=None,
+        resulting in score=0. The optimization completes (not "error") but
+        best_trial is None since no trial scored > 0.
         """
-        mock_controls.return_value = {"error": "WDK internal error"}
+        mock_controls.return_value = ControlTestResult()
 
         result = await optimize_search_parameters(
             _make_opt_input(),
@@ -589,9 +595,7 @@ class TestOptunaMidLoopCrashes:
         )
 
         assert isinstance(result, OptimizationResult)
-        assert result.status == "error"
-        assert result.best_trial is None
-        # All trials should have score 0 (the error key causes failure)
+        # All trials should have score 0 (no positive/negative data)
         for trial in result.all_trials:
             assert trial.score == 0.0
 

@@ -205,6 +205,7 @@ class ExperimentToolsMixin:
             positive_controls=positive_controls,
             negative_controls=negative_controls,
         )
+        result_dict: JSONObject = result.model_dump(by_alias=True)
         return await self._export_control_result(
-            result, f"{target_search_name}_control_tests"
+            result_dict, f"{target_search_name}_control_tests"
         )

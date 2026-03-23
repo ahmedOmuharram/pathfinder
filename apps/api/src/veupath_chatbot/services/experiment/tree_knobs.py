@@ -14,7 +14,7 @@ import optuna
 from veupath_chatbot.domain.strategy.tree import walk_dict_tree
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.helpers import ControlsContext, safe_int
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
@@ -114,22 +114,13 @@ async def optimize_tree_knobs(
 
         result = await run_controls_against_tree(ctx, modified_tree)
 
-        target = result.get("target", {})
-        total_results = (
-            safe_int(target.get("resultCount", 0)) if isinstance(target, dict) else 0
-        )
+        total_results = result.target.result_count or 0
 
         if opts.max_list_size is not None and total_results > opts.max_list_size:
             return -1.0
 
-        pos = result.get("positive", {})
-        neg = result.get("negative", {})
-        pos_hits = (
-            safe_int(pos.get("intersectionCount", 0)) if isinstance(pos, dict) else 0
-        )
-        neg_hits = (
-            safe_int(neg.get("intersectionCount", 0)) if isinstance(neg, dict) else 0
-        )
+        pos_hits = result.positive.intersection_count if result.positive else 0
+        neg_hits = result.negative.intersection_count if result.negative else 0
         total_pos = len(ctx.positive_controls)
         total_neg = len(ctx.negative_controls)
 

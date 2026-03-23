@@ -28,6 +28,9 @@ from veupath_chatbot.services.experiment.store import (
 )
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
     Experiment,
     ExperimentConfig,
     ExperimentMetrics,
@@ -72,39 +75,39 @@ def _make_control_result(
     neg_count: int = 1,
     step_id: int = 100,
     result_count: int = 150,
-) -> JSONObject:
+) -> ControlTestResult:
     pos_ids = list(POSITIVE_IDS[:pos_count])
     neg_ids = list(NEGATIVE_IDS[:neg_count])
-    return {
-        "siteId": "PlasmoDB",
-        "recordType": "gene",
-        "target": {
-            "searchName": "GenesByTaxon",
-            "parameters": {},
-            "stepId": step_id,
-            "resultCount": result_count,
-        },
-        "positive": {
-            "controlsCount": len(POSITIVE_IDS),
-            "intersectionCount": pos_count,
-            "intersectionIds": pos_ids,
-            "intersectionIdsSample": pos_ids,
-            "targetStepId": step_id,
-            "targetResultCount": result_count,
-            "missingIdsSample": [g for g in POSITIVE_IDS if g not in pos_ids],
-            "recall": pos_count / len(POSITIVE_IDS),
-        },
-        "negative": {
-            "controlsCount": len(NEGATIVE_IDS),
-            "intersectionCount": neg_count,
-            "intersectionIds": neg_ids,
-            "intersectionIdsSample": neg_ids,
-            "targetStepId": step_id,
-            "targetResultCount": result_count,
-            "unexpectedHitsSample": neg_ids,
-            "falsePositiveRate": neg_count / len(NEGATIVE_IDS),
-        },
-    }
+    return ControlTestResult(
+        site_id="PlasmoDB",
+        record_type="gene",
+        target=ControlTargetData(
+            search_name="GenesByTaxon",
+            parameters={},
+            step_id=step_id,
+            result_count=result_count,
+        ),
+        positive=ControlSetData(
+            controls_count=len(POSITIVE_IDS),
+            intersection_count=pos_count,
+            intersection_ids=pos_ids,
+            intersection_ids_sample=pos_ids,
+            target_step_id=step_id,
+            target_result_count=result_count,
+            missing_ids_sample=[g for g in POSITIVE_IDS if g not in pos_ids],
+            recall=pos_count / len(POSITIVE_IDS),
+        ),
+        negative=ControlSetData(
+            controls_count=len(NEGATIVE_IDS),
+            intersection_count=neg_count,
+            intersection_ids=neg_ids,
+            intersection_ids_sample=neg_ids,
+            target_step_id=step_id,
+            target_result_count=result_count,
+            unexpected_hits_sample=neg_ids,
+            false_positive_rate=neg_count / len(NEGATIVE_IDS),
+        ),
+    )
 
 
 async def _noop_emit(phase: ExperimentProgressPhase, **extra: object) -> None:
@@ -161,7 +164,9 @@ class TestPhaseEvaluate:
         config = _make_config()
         experiment = _make_experiment(config)
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
         control_result = _make_control_result()
 
         with patch(
@@ -182,7 +187,9 @@ class TestPhaseEvaluate:
         config = _make_config(mode="multi-step", step_tree=tree)
         experiment = _make_experiment(config)
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
         control_result = _make_control_result()
 
         with patch(
@@ -201,7 +208,9 @@ class TestPhaseEvaluate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         events, emit = _tracking_emit()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
@@ -218,7 +227,9 @@ class TestPhaseEvaluate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
@@ -245,7 +256,9 @@ class TestPhasePersistStrategy:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
@@ -262,7 +275,9 @@ class TestPhasePersistStrategy:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
@@ -289,7 +304,9 @@ class TestPhaseRankMetrics:
         experiment.wdk_step_id = 100
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         fake_ids = ["G1", "G3", "G5", "N1", "G2"]
 
@@ -315,7 +332,9 @@ class TestPhaseRankMetrics:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         ordered = await _phase_rank_metrics(pctx)
 
@@ -327,7 +346,9 @@ class TestPhaseRankMetrics:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = None
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         ordered = await _phase_rank_metrics(pctx)
 
@@ -338,7 +359,9 @@ class TestPhaseRankMetrics:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service.fetch_ordered_result_ids",
@@ -364,7 +387,9 @@ class TestPhaseRobustness:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
         ids = ["G1", "G2", "G3"]
 
         with patch(
@@ -381,7 +406,9 @@ class TestPhaseRobustness:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with (
             patch(
@@ -403,7 +430,9 @@ class TestPhaseRobustness:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = None
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         await _phase_robustness(pctx, [], is_ranked=False)
 
@@ -414,7 +443,9 @@ class TestPhaseRobustness:
         experiment = _make_experiment(config)
         experiment.wdk_step_id = 100
         store = get_experiment_store()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         with patch(
             "veupath_chatbot.services.experiment.service.compute_robustness",
@@ -438,7 +469,9 @@ class TestPhaseCrossValidate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
         sentinel = object()
 
         with patch(
@@ -461,7 +494,9 @@ class TestPhaseCrossValidate:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
         sentinel = object()
 
         with patch(
@@ -491,7 +526,9 @@ class TestPhaseEnrich:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         store.save(experiment)
-        pctx = PhaseContext(config=config, experiment=experiment, emit=_noop_emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=_noop_emit, store=store
+        )
 
         mock_svc = AsyncMock()
         mock_svc.run_batch.return_value = (
@@ -513,7 +550,9 @@ class TestPhaseEnrich:
         experiment = _make_experiment(config)
         store = get_experiment_store()
         events, emit = _tracking_emit()
-        pctx = PhaseContext(config=config, experiment=experiment, emit=emit, store=store)
+        pctx = PhaseContext(
+            config=config, experiment=experiment, emit=emit, store=store
+        )
 
         mock_svc = AsyncMock()
         mock_svc.run_batch.return_value = ([], [])

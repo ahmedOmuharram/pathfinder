@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock, patch
 import optuna
 import pytest
 
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 from veupath_chatbot.services.parameter_optimization.callbacks import (
     OptimizationCompletedEvent,
     OptimizationStartedEvent,
@@ -76,41 +81,39 @@ def _make_wdk_result(
     neg_fpr: float = 0.1,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
-) -> JSONObject:
+) -> ControlTestResult:
     pos = positive_controls or [f"POS_{i}" for i in range(10)]
     neg = negative_controls or [f"NEG_{i}" for i in range(8)]
     n_pos_found = int(len(pos) * pos_recall)
     n_neg_found = int(len(neg) * neg_fpr)
     pos_found_ids = pos[:n_pos_found]
     neg_found_ids = neg[:n_neg_found]
-    return {
-        "siteId": "plasmodb",
-        "recordType": "transcript",
-        "target": {
-            "searchName": "GenesByRNASeq",
-            "parameters": {},
-            "stepId": 999,
-            "resultCount": result_count,
-        },
-        "positive": {
-            "controlsCount": len(pos),
-            "intersectionCount": n_pos_found,
-            "intersectionIdsSample": cast("JSONArray", pos_found_ids[:50]),
-            "intersectionIds": cast("JSONArray", pos_found_ids),
-            "missingIdsSample": cast(
-                "JSONArray", [x for x in pos if x not in pos_found_ids][:50]
-            ),
-            "recall": n_pos_found / len(pos) if n_pos_found > 0 else None,
-        },
-        "negative": {
-            "controlsCount": len(neg),
-            "intersectionCount": n_neg_found,
-            "intersectionIdsSample": cast("JSONArray", neg_found_ids[:50]),
-            "intersectionIds": cast("JSONArray", neg_found_ids),
-            "unexpectedHitsSample": cast("JSONArray", neg_found_ids[:50]),
-            "falsePositiveRate": n_neg_found / len(neg) if n_neg_found > 0 else None,
-        },
-    }
+    return ControlTestResult(
+        site_id="plasmodb",
+        record_type="transcript",
+        target=ControlTargetData(
+            search_name="GenesByRNASeq",
+            parameters={},
+            step_id=999,
+            result_count=result_count,
+        ),
+        positive=ControlSetData(
+            controls_count=len(pos),
+            intersection_count=n_pos_found,
+            intersection_ids_sample=pos_found_ids[:50],
+            intersection_ids=pos_found_ids,
+            missing_ids_sample=[x for x in pos if x not in pos_found_ids][:50],
+            recall=n_pos_found / len(pos) if n_pos_found > 0 else None,
+        ),
+        negative=ControlSetData(
+            controls_count=len(neg),
+            intersection_count=n_neg_found,
+            intersection_ids_sample=neg_found_ids[:50],
+            intersection_ids=neg_found_ids,
+            unexpected_hits_sample=neg_found_ids[:50],
+            false_positive_rate=n_neg_found / len(neg) if n_neg_found > 0 else None,
+        ),
+    )
 
 
 def _common_inp(
@@ -1502,11 +1505,11 @@ class TestOptimizeSearchParametersExtended:
     @pytest.mark.asyncio
     async def test_wdk_result_with_no_positive_data(self) -> None:
         """WDK result missing positive/negative data should still produce a trial."""
-        wdk_result: JSONObject = {
-            "target": {"resultCount": 50},
-            "positive": None,
-            "negative": None,
-        }
+        wdk_result = ControlTestResult(
+            target=ControlTargetData(result_count=50),
+            positive=None,
+            negative=None,
+        )
         mock_wdk = AsyncMock(return_value=wdk_result)
         specs = [
             ParameterSpec(
@@ -1532,7 +1535,7 @@ class TestOptimizeSearchParametersExtended:
         """Identical param combos should be served from cache, not re-evaluated."""
         call_count = 0
 
-        async def counting_wdk(*args: Any, **kwargs: Any) -> JSONObject:
+        async def counting_wdk(*args: Any, **kwargs: Any) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)

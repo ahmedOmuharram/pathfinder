@@ -9,12 +9,9 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping
 
-import pydantic
-
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
-    adapt_param_specs,
     adapt_param_specs_from_search,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
@@ -99,6 +96,7 @@ async def _load_and_cache_spec(
         return cached
     try:
         details = await load_search_details(record_type, name, params)
+        response = WDKSearchResponse.model_validate(details)
     except Exception as exc:
         raise ValidationError(
             title="Failed to load search metadata",
@@ -111,16 +109,7 @@ async def _load_and_cache_spec(
                 }
             ],
         ) from exc
-    # Try typed parsing first; fall back to dict-based adaptation
-    try:
-        response = WDKSearchResponse.model_validate(details)
-        spec_map = adapt_param_specs_from_search(response.search_data)
-    except (pydantic.ValidationError, TypeError, KeyError, AttributeError):
-        # Inline unwrap: if the payload has a searchData wrapper, use it
-        raw = details if isinstance(details, dict) else {}
-        inner = raw.get("searchData")
-        payload = inner if isinstance(inner, dict) else raw
-        spec_map = adapt_param_specs(payload)
+    spec_map = adapt_param_specs_from_search(response.search_data)
     specs_cache[cache_key] = spec_map
     return spec_map
 

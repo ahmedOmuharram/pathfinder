@@ -144,10 +144,8 @@ class TestSingleStepGeneSet:
                 positive_controls=POSITIVE,
             )
 
-            pos = result.get("positive")
-            assert pos is not None, "Positive result must not be None"
-            assert isinstance(pos, dict)
-            assert "intersectionCount" in pos
+            assert result.positive is not None, "Positive result must not be None"
+            assert result.positive.intersection_count is not None
         finally:
             await api.delete_strategy(sid)
 

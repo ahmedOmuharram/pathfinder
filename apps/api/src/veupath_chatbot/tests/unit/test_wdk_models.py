@@ -308,9 +308,18 @@ class TestWDKColumnDistribution:
     def test_parse_string_distribution(self) -> None:
         raw = {
             "histogram": [
-                {"value": 2890, "binStart": "Pf3D7", "binEnd": "Pf3D7", "binLabel": "Pf3D7"},
+                {
+                    "value": 2890,
+                    "binStart": "Pf3D7",
+                    "binEnd": "Pf3D7",
+                    "binLabel": "Pf3D7",
+                },
             ],
-            "statistics": {"subsetSize": 4429, "numVarValues": 4429, "numDistinctValues": 1},
+            "statistics": {
+                "subsetSize": 4429,
+                "numVarValues": 4429,
+                "numDistinctValues": 1,
+            },
         }
         dist = WDKColumnDistribution.model_validate(raw)
         assert len(dist.histogram) == 1
@@ -318,9 +327,6 @@ class TestWDKColumnDistribution:
         assert dist.histogram[0].bin_start == "Pf3D7"
         assert dist.statistics.subset_size == 4429
         assert dist.statistics.num_distinct_values == 1
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -331,34 +337,40 @@ class TestWDKDatasetConfig:
 
     def test_id_list_variant(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
-        cfg = adapter.validate_python({
-            "sourceType": "idList",
-            "sourceContent": {"ids": ["PF3D7_0100100", "PF3D7_0831900"]},
-        })
+        cfg = adapter.validate_python(
+            {
+                "sourceType": "idList",
+                "sourceContent": {"ids": ["PF3D7_0100100", "PF3D7_0831900"]},
+            }
+        )
         assert isinstance(cfg, WDKDatasetConfigIdList)
         assert cfg.source_type == "idList"
         assert cfg.source_content.ids == ["PF3D7_0100100", "PF3D7_0831900"]
 
     def test_basket_variant(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
-        cfg = adapter.validate_python({
-            "sourceType": "basket",
-            "sourceContent": {"basketName": "transcript"},
-        })
+        cfg = adapter.validate_python(
+            {
+                "sourceType": "basket",
+                "sourceContent": {"basketName": "transcript"},
+            }
+        )
         assert isinstance(cfg, WDKDatasetConfigBasket)
         assert cfg.source_content.basket_name == "transcript"
 
     def test_file_variant(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
-        cfg = adapter.validate_python({
-            "sourceType": "file",
-            "sourceContent": {
-                "temporaryFileId": "tmp-123",
-                "parser": "text",
-                "searchName": "GenesByLocusTag",
-                "parameterName": "ds_gene_ids",
-            },
-        })
+        cfg = adapter.validate_python(
+            {
+                "sourceType": "file",
+                "sourceContent": {
+                    "temporaryFileId": "tmp-123",
+                    "parser": "text",
+                    "searchName": "GenesByLocusTag",
+                    "parameterName": "ds_gene_ids",
+                },
+            }
+        )
         assert isinstance(cfg, WDKDatasetConfigFile)
         assert cfg.source_content.temporary_file_id == "tmp-123"
         assert cfg.source_content.parser == "text"
@@ -366,24 +378,28 @@ class TestWDKDatasetConfig:
 
     def test_strategy_variant(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
-        cfg = adapter.validate_python({
-            "sourceType": "strategy",
-            "sourceContent": {"strategyId": 42},
-        })
+        cfg = adapter.validate_python(
+            {
+                "sourceType": "strategy",
+                "sourceContent": {"strategyId": 42},
+            }
+        )
         assert isinstance(cfg, WDKDatasetConfigStrategy)
         assert cfg.source_content.strategy_id == 42
 
     def test_url_variant(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
-        cfg = adapter.validate_python({
-            "sourceType": "url",
-            "sourceContent": {
-                "url": "https://example.com/genes.txt",
-                "parser": "text",
-                "searchName": "GenesByLocusTag",
-                "parameterName": "ds_gene_ids",
-            },
-        })
+        cfg = adapter.validate_python(
+            {
+                "sourceType": "url",
+                "sourceContent": {
+                    "url": "https://example.com/genes.txt",
+                    "parser": "text",
+                    "searchName": "GenesByLocusTag",
+                    "parameterName": "ds_gene_ids",
+                },
+            }
+        )
         assert isinstance(cfg, WDKDatasetConfigUrl)
         assert cfg.source_content.url == "https://example.com/genes.txt"
         assert cfg.source_content.parser == "text"
@@ -391,10 +407,12 @@ class TestWDKDatasetConfig:
     def test_invalid_discriminator_raises(self) -> None:
         adapter = TypeAdapter(WDKDatasetConfig)
         with pytest.raises(ValidationError):
-            adapter.validate_python({
-                "sourceType": "invalid",
-                "sourceContent": {},
-            })
+            adapter.validate_python(
+                {
+                    "sourceType": "invalid",
+                    "sourceContent": {},
+                }
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -450,39 +468,50 @@ class TestWDKAttributeField:
     """Tests for WDKAttributeField and WDKReporter models."""
 
     def test_parse_reporter(self) -> None:
-        reporter = WDKReporter.model_validate({
-            "name": "attributesTabular",
-            "type": "standard",
-            "displayName": "Tab/CSV",
-            "description": "Tab-delimited",
-            "isInReport": True,
-            "scopes": ["results"],
-        })
+        reporter = WDKReporter.model_validate(
+            {
+                "name": "attributesTabular",
+                "type": "standard",
+                "displayName": "Tab/CSV",
+                "description": "Tab-delimited",
+                "isInReport": True,
+                "scopes": ["results"],
+            }
+        )
         assert reporter.name == "attributesTabular"
         assert reporter.is_in_report is True
         assert reporter.scopes == ["results"]
 
     def test_parse_attribute_field_full(self) -> None:
-        field = WDKAttributeField.model_validate({
-            "name": "gene_source_id",
-            "displayName": "Gene ID",
-            "help": "Unique identifier",
-            "type": "string",
-            "isSortable": True,
-            "isRemovable": True,
-            "isDisplayable": True,
-            "isInReport": True,
-            "truncateTo": 100,
-            "formats": [{"name": "text", "type": "standard", "displayName": "Text", "isInReport": True, "scopes": []}],
-            "properties": {"datatype": ["string"]},
-        })
+        field = WDKAttributeField.model_validate(
+            {
+                "name": "gene_source_id",
+                "displayName": "Gene ID",
+                "help": "Unique identifier",
+                "type": "string",
+                "isSortable": True,
+                "isRemovable": True,
+                "isDisplayable": True,
+                "isInReport": True,
+                "truncateTo": 100,
+                "formats": [
+                    {
+                        "name": "text",
+                        "type": "standard",
+                        "displayName": "Text",
+                        "isInReport": True,
+                        "scopes": [],
+                    }
+                ],
+                "properties": {"datatype": ["string"]},
+            }
+        )
         assert field.name == "gene_source_id"
         assert field.display_name == "Gene ID"
         assert field.is_sortable is True
         assert field.is_in_report is True
         assert len(field.formats) == 1
         assert field.formats[0].name == "text"
-
 
 
 # ---------------------------------------------------------------------------
@@ -492,30 +521,42 @@ class TestWDKRecordTypeAttributes:
     """Tests for typed attribute fields on WDKRecordType."""
 
     def test_parse_attributes_as_list(self) -> None:
-        rt = WDKRecordType.model_validate({
-            "urlSegment": "transcript",
-            "attributes": [
-                {"name": "gene_source_id", "displayName": "Gene ID", "type": "string", "isSortable": True},
-                {"name": "organism", "displayName": "Organism", "type": "string"},
-            ],
-        })
+        rt = WDKRecordType.model_validate(
+            {
+                "urlSegment": "transcript",
+                "attributes": [
+                    {
+                        "name": "gene_source_id",
+                        "displayName": "Gene ID",
+                        "type": "string",
+                        "isSortable": True,
+                    },
+                    {"name": "organism", "displayName": "Organism", "type": "string"},
+                ],
+            }
+        )
         assert rt.attributes is not None
         assert len(rt.attributes) == 2
         assert rt.attributes[0].name == "gene_source_id"
         assert rt.attributes[0].is_sortable is True
 
     def test_parse_attributes_map_as_dict(self) -> None:
-        rt = WDKRecordType.model_validate({
-            "urlSegment": "transcript",
-            "attributesMap": {
-                "gene_source_id": {"name": "gene_source_id", "displayName": "Gene ID", "type": "string"},
-                "organism": {"name": "organism", "displayName": "Organism"},
-            },
-        })
+        rt = WDKRecordType.model_validate(
+            {
+                "urlSegment": "transcript",
+                "attributesMap": {
+                    "gene_source_id": {
+                        "name": "gene_source_id",
+                        "displayName": "Gene ID",
+                        "type": "string",
+                    },
+                    "organism": {"name": "organism", "displayName": "Organism"},
+                },
+            }
+        )
         assert rt.attributes_map is not None
         assert len(rt.attributes_map) == 2
         assert rt.attributes_map["gene_source_id"].display_name == "Gene ID"
-
 
 
 # ---------------------------------------------------------------------------
@@ -525,30 +566,34 @@ class TestWDKAnswerTypedRecords:
     """Tests for WDKAnswer.records typed record parsing."""
 
     def test_parse_answer_with_typed_records(self) -> None:
-        answer = WDKAnswer.model_validate({
-            "meta": {"totalCount": 2, "responseCount": 2},
-            "records": [
-                {
-                    "displayName": "PF3D7_0100100",
-                    "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
-                    "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
-                    "attributes": {"gene_source_id": "PF3D7_0100100", "organism": "P. falciparum"},
-                    "tables": {},
-                    "tableErrors": [],
-                },
-                {
-                    "displayName": "PF3D7_0200200",
-                    "id": [{"name": "source_id", "value": "PF3D7_0200200"}],
-                    "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
-                    "attributes": {"gene_source_id": "PF3D7_0200200"},
-                    "tables": {},
-                    "tableErrors": [],
-                },
-            ],
-        })
+        answer = WDKAnswer.model_validate(
+            {
+                "meta": {"totalCount": 2, "responseCount": 2},
+                "records": [
+                    {
+                        "displayName": "PF3D7_0100100",
+                        "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
+                        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                        "attributes": {
+                            "gene_source_id": "PF3D7_0100100",
+                            "organism": "P. falciparum",
+                        },
+                        "tables": {},
+                        "tableErrors": [],
+                    },
+                    {
+                        "displayName": "PF3D7_0200200",
+                        "id": [{"name": "source_id", "value": "PF3D7_0200200"}],
+                        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                        "attributes": {"gene_source_id": "PF3D7_0200200"},
+                        "tables": {},
+                        "tableErrors": [],
+                    },
+                ],
+            }
+        )
         assert len(answer.records) == 2
         assert answer.records[0].id == [{"name": "source_id", "value": "PF3D7_0100100"}]
         assert answer.records[0].attributes["gene_source_id"] == "PF3D7_0100100"
         assert answer.records[0].display_name == "PF3D7_0100100"
         assert answer.records[1].id == [{"name": "source_id", "value": "PF3D7_0200200"}]
-

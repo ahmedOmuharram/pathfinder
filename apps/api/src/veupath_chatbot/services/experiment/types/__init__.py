@@ -4,6 +4,11 @@ This package consolidates all experiment-related dataclasses, type aliases,
 and serialization helpers. All public symbols are re-exported here.
 """
 
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 from veupath_chatbot.services.experiment.types.core import (
     DEFAULT_K_VALUES,
     DEFAULT_STEP_ANALYSIS_PHASES,
@@ -72,8 +77,12 @@ __all__ = [
     "ConfidenceInterval",
     # Metrics
     "ConfusionMatrix",
+    # Control result
+    "ControlSetData",
     # Core type aliases
     "ControlSetSource",
+    "ControlTargetData",
+    "ControlTestResult",
     "ControlValueFormat",
     "CrossValidationResult",
     "EnrichmentAnalysisType",

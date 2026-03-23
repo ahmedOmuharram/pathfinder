@@ -106,26 +106,28 @@ def _make_mock_api(
     resolved_type = param_type or "string"
     api.client = MagicMock()
     api.client.get_search_details = AsyncMock(
-        return_value=WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": CONTROLS_SEARCH_NAME,
-                "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
-                "displayName": "Controls Search",
-                "paramNames": [CONTROLS_PARAM_NAME],
-                "groups": [],
-                "parameters": [
-                    {
-                        "name": CONTROLS_PARAM_NAME,
-                        "type": resolved_type,
-                        "isVisible": True,
-                        "group": "empty",
-                        "allowEmptyValue": True,
-                        "dependentParams": [],
-                    },
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        return_value=WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": CONTROLS_SEARCH_NAME,
+                    "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                    "displayName": "Controls Search",
+                    "paramNames": [CONTROLS_PARAM_NAME],
+                    "groups": [],
+                    "parameters": [
+                        {
+                            "name": CONTROLS_PARAM_NAME,
+                            "type": resolved_type,
+                            "isVisible": True,
+                            "group": "empty",
+                            "allowEmptyValue": True,
+                            "dependentParams": [],
+                        },
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
     )
 
     # create_dataset (only called when param_type == "input-dataset")
@@ -222,26 +224,28 @@ class TestResolveControlsParamType:
         api = AsyncMock()
         api.client = MagicMock()
         api.client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": CONTROLS_SEARCH_NAME,
-                    "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
-                    "displayName": "Gene by Locus Tag",
-                    "paramNames": [CONTROLS_PARAM_NAME],
-                    "groups": [],
-                    "parameters": [
-                        {
-                            "name": CONTROLS_PARAM_NAME,
-                            "type": "input-dataset",
-                            "isVisible": True,
-                            "group": "empty",
-                            "allowEmptyValue": True,
-                            "dependentParams": [],
-                        },
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            })
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": CONTROLS_SEARCH_NAME,
+                        "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                        "displayName": "Gene by Locus Tag",
+                        "paramNames": [CONTROLS_PARAM_NAME],
+                        "groups": [],
+                        "parameters": [
+                            {
+                                "name": CONTROLS_PARAM_NAME,
+                                "type": "input-dataset",
+                                "isVisible": True,
+                                "group": "empty",
+                                "allowEmptyValue": True,
+                                "dependentParams": [],
+                            },
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            )
         )
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
@@ -253,26 +257,28 @@ class TestResolveControlsParamType:
         api = AsyncMock()
         api.client = MagicMock()
         api.client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": CONTROLS_SEARCH_NAME,
-                    "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
-                    "displayName": "Gene by Locus Tag",
-                    "paramNames": ["other_param"],
-                    "groups": [],
-                    "parameters": [
-                        {
-                            "name": "other_param",
-                            "type": "string",
-                            "isVisible": True,
-                            "group": "empty",
-                            "allowEmptyValue": True,
-                            "dependentParams": [],
-                        },
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            })
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": CONTROLS_SEARCH_NAME,
+                        "fullName": f"GeneQuestions.{CONTROLS_SEARCH_NAME}",
+                        "displayName": "Gene by Locus Tag",
+                        "paramNames": ["other_param"],
+                        "groups": [],
+                        "parameters": [
+                            {
+                                "name": "other_param",
+                                "type": "string",
+                                "isVisible": True,
+                                "group": "empty",
+                                "allowEmptyValue": True,
+                                "dependentParams": [],
+                            },
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            )
         )
         result = await resolve_controls_param_type(
             api, RECORD_TYPE, CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME
@@ -444,27 +450,21 @@ class TestBothControls:
                 negative_controls=NEGATIVE_IDS,
             )
 
-        assert result["siteId"] == SITE_ID
-        assert result["recordType"] == RECORD_TYPE
+        assert result.site_id == SITE_ID
+        assert result.record_type == RECORD_TYPE
 
-        target = result["target"]
-        assert isinstance(target, dict)
-        assert target["stepId"] == TARGET_STEP_ID
-        assert target["resultCount"] == 150
+        assert result.target.step_id == TARGET_STEP_ID
+        assert result.target.result_count == 150
 
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        assert pos["controlsCount"] == len(POSITIVE_IDS)
-        assert pos["intersectionCount"] == 3
-        assert pos["recall"] == 3 / len(POSITIVE_IDS)
-        assert "missingIdsSample" in pos
+        assert result.positive is not None
+        assert result.positive.controls_count == len(POSITIVE_IDS)
+        assert result.positive.intersection_count == 3
+        assert result.positive.recall == 3 / len(POSITIVE_IDS)
 
-        neg = result["negative"]
-        assert isinstance(neg, dict)
-        assert neg["controlsCount"] == len(NEGATIVE_IDS)
-        assert neg["intersectionCount"] == 1
-        assert neg["falsePositiveRate"] == 1 / len(NEGATIVE_IDS)
-        assert "unexpectedHitsSample" in neg
+        assert result.negative is not None
+        assert result.negative.controls_count == len(NEGATIVE_IDS)
+        assert result.negative.intersection_count == 1
+        assert result.negative.false_positive_rate == 1 / len(NEGATIVE_IDS)
 
     @pytest.mark.asyncio
     async def test_positive_only(self) -> None:
@@ -485,8 +485,8 @@ class TestBothControls:
                 negative_controls=None,
             )
 
-        assert result["positive"] is not None
-        assert result["negative"] is None
+        assert result.positive is not None
+        assert result.negative is None
 
     @pytest.mark.asyncio
     async def test_negative_only(self) -> None:
@@ -507,8 +507,8 @@ class TestBothControls:
                 negative_controls=NEGATIVE_IDS,
             )
 
-        assert result["positive"] is None
-        assert result["negative"] is not None
+        assert result.positive is None
+        assert result.negative is not None
 
     @pytest.mark.asyncio
     async def test_both_empty_returns_nulls(self) -> None:
@@ -526,8 +526,8 @@ class TestBothControls:
             )
 
         mock_factory.assert_not_called()
-        assert result["positive"] is None
-        assert result["negative"] is None
+        assert result.positive is None
+        assert result.negative is None
 
     @pytest.mark.asyncio
     async def test_missing_ids_sample_populated(self) -> None:
@@ -549,10 +549,8 @@ class TestBothControls:
                 positive_controls=POSITIVE_IDS,
             )
 
-        pos = result["positive"]
-        assert isinstance(pos, dict)
-        missing = pos["missingIdsSample"]
-        assert isinstance(missing, list)
+        assert result.positive is not None
+        missing = result.positive.missing_ids_sample
         # The IDs NOT found in the intersection should appear as missing
         expected_missing = [x for x in POSITIVE_IDS if x not in found_ids]
         assert set(missing) == set(expected_missing)
@@ -590,7 +588,9 @@ class TestControlsWithDatasetParam:
         # The controls step should have received the dataset ID as the param value.
         # NewStepSpec is passed as the first positional argument.
         controls_spec = mock_api.create_step.call_args_list[1].args[0]
-        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == str(DATASET_ID)
+        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == str(
+            DATASET_ID
+        )
 
     @pytest.mark.asyncio
     async def test_no_dataset_for_string_type(self) -> None:
@@ -612,7 +612,9 @@ class TestControlsWithDatasetParam:
         # The controls step should have received the raw newline-encoded IDs.
         # NewStepSpec is passed as the first positional argument.
         controls_spec = mock_api.create_step.call_args_list[1].args[0]
-        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == "\n".join(POSITIVE_IDS)
+        assert controls_spec.search_config.parameters[CONTROLS_PARAM_NAME] == "\n".join(
+            POSITIVE_IDS
+        )
 
 
 # ===================================================================
@@ -637,20 +639,22 @@ class TestCleanupOnSuccess:
     async def test_stale_strategies_cleaned_up(self) -> None:
         """Stale internal strategies from previous interrupted runs are deleted."""
         stale = [
-            WDKStrategySummary.model_validate({
-                "strategyId": 999,
-                "name": "__pathfinder_internal__:Pathfinder control test",
-                "rootStepId": 1,
-                "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
-                "estimatedSize": 0,
-                "isSaved": False,
-                "isDeleted": False,
-                "isValid": True,
-                "isPublic": False,
-                "signature": "stale",
-                "createdTime": "2026-01-01T00:00:00Z",
-                "lastModified": "2026-01-01T00:00:00Z",
-            }),
+            WDKStrategySummary.model_validate(
+                {
+                    "strategyId": 999,
+                    "name": "__pathfinder_internal__:Pathfinder control test",
+                    "rootStepId": 1,
+                    "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+                    "estimatedSize": 0,
+                    "isSaved": False,
+                    "isDeleted": False,
+                    "isValid": True,
+                    "isPublic": False,
+                    "signature": "stale",
+                    "createdTime": "2026-01-01T00:00:00Z",
+                    "lastModified": "2026-01-01T00:00:00Z",
+                }
+            ),
         ]
         cleanup_api = _make_mock_api(stale_strategies=stale)
         pos_api = _make_mock_api(

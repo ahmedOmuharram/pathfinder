@@ -18,16 +18,18 @@ from veupath_chatbot.services.control_tests import (
     _extract_intersection_data,
     resolve_controls_param_type,
 )
-from veupath_chatbot.services.experiment.helpers import (
-    ControlsContext,
-    safe_int,
-)
+from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
 )
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
+)
+from veupath_chatbot.services.experiment.types import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
 )
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
@@ -41,28 +43,27 @@ _MAX_CONTROL_IDS_FOR_ANSWER = 500
 async def run_controls_against_tree(
     ctx: ControlsContext,
     tree: JSONObject,
-) -> JSONObject:
+) -> ControlTestResult:
     """Materialise a ``PlanStepNode`` tree, intersect with controls, return metrics.
 
     Creates a temporary WDK strategy containing the full tree, adds an
     intersection step with each control set on top of the root, queries the
     result counts, then deletes everything.
 
-    Returns the same shape as :func:`run_positive_negative_controls` so
-    :func:`metrics_from_control_result` can consume it directly.
+    Returns a :class:`ControlTestResult` so :func:`metrics_from_control_result`
+    can consume it directly.
     """
     api = get_strategy_api(ctx.site_id)
 
     pos = [s.strip() for s in ctx.positive_controls if s.strip()]
     neg = [s.strip() for s in ctx.negative_controls if s.strip()]
 
-    result: JSONObject = {
-        "siteId": ctx.site_id,
-        "recordType": ctx.record_type,
-        "target": {"searchName": "__tree__", "resultCount": None},
-        "positive": None,
-        "negative": None,
-    }
+    target = ControlTargetData(search_name="__tree__")
+    result = ControlTestResult(
+        site_id=ctx.site_id,
+        record_type=ctx.record_type,
+        target=target,
+    )
 
     async def _eval_control_set(
         control_ids: list[str],
@@ -95,7 +96,9 @@ async def run_controls_against_tree(
             NewStepSpec(
                 search_name=ctx.controls_search_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in controls_params.items() if v is not None},
+                    parameters={
+                        k: str(v) for k, v in controls_params.items() if v is not None
+                    },
                 ),
                 custom_name=f"Controls ({label})",
             ),
@@ -156,39 +159,28 @@ async def run_controls_against_tree(
 
     if pos:
         pos_payload = await _eval_control_set(pos, "positive")
+        pos_data = ControlSetData.model_validate(pos_payload)
+
         pos_count, found_ids, has_ids = _extract_intersection_data(pos_payload)
         missing = [x for x in pos if x not in found_ids] if has_ids else []
-        missing_sample: JSONArray = list(missing[:50])
 
-        result["target"] = {
-            "searchName": "__tree__",
-            "resultCount": pos_payload.get("targetResultCount"),
-        }
-        result["positive"] = {
-            **pos_payload,
-            "missingIdsSample": missing_sample,
-            "recall": pos_count / len(pos) if pos else None,
-        }
+        target.result_count = pos_data.target_result_count
+        pos_data.missing_ids_sample = missing[:50]
+        pos_data.recall = pos_count / len(pos) if pos else None
+        result.positive = pos_data
 
     if neg:
         neg_payload = await _eval_control_set(neg, "negative")
-        neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
+        neg_data = ControlSetData.model_validate(neg_payload)
 
-        if result["target"] is None or (
-            isinstance(result["target"], dict)
-            and result["target"].get("resultCount") is None
-        ):
-            result["target"] = {
-                "searchName": "__tree__",
-                "resultCount": neg_payload.get("targetResultCount"),
-            }
+        if target.result_count is None:
+            target.result_count = neg_data.target_result_count
+
+        neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
         unexpected_hits = sorted(hit_ids)[:50] if hit_ids else []
-        unexpected_sample: JSONArray = list(unexpected_hits)
-        result["negative"] = {
-            **neg_payload,
-            "unexpectedHitsSample": unexpected_sample,
-            "falsePositiveRate": neg_count / len(neg) if neg else None,
-        }
+        neg_data.unexpected_hits_sample = unexpected_hits
+        neg_data.false_positive_rate = neg_count / len(neg) if neg else None
+        result.negative = neg_data
 
     return result
 
@@ -206,29 +198,19 @@ class _EvalCounts:
     neg_ids: list[str] = field(default_factory=list)
 
 
-def _extract_eval_counts(result: JSONObject) -> _EvalCounts:
+def _extract_eval_counts(result: ControlTestResult) -> _EvalCounts:
     """Pull hit counts and IDs from a control-test result."""
-    pos = result.get("positive") or {}
-    neg = result.get("negative") or {}
-    tgt = result.get("target") or {}
-
-    pos_data = pos if isinstance(pos, dict) else {}
-    neg_data = neg if isinstance(neg, dict) else {}
-    tgt_data = tgt if isinstance(tgt, dict) else {}
-
-    def _str_list(v: object) -> list[str]:
-        if isinstance(v, list):
-            return [str(x) for x in v]
-        return []
+    pos = result.positive
+    neg = result.negative
 
     return _EvalCounts(
-        pos_hits=safe_int(pos_data.get("intersectionCount")),
-        pos_total=safe_int(pos_data.get("controlsCount")),
-        neg_hits=safe_int(neg_data.get("intersectionCount")),
-        neg_total=safe_int(neg_data.get("controlsCount")),
-        total_results=safe_int(tgt_data.get("resultCount")),
-        pos_ids=_str_list(pos_data.get("intersectionIds")),
-        neg_ids=_str_list(neg_data.get("intersectionIds")),
+        pos_hits=pos.intersection_count if pos else 0,
+        pos_total=pos.controls_count if pos else 0,
+        neg_hits=neg.intersection_count if neg else 0,
+        neg_total=neg.controls_count if neg else 0,
+        total_results=result.target.result_count or 0,
+        pos_ids=list(pos.intersection_ids) if pos else [],
+        neg_ids=list(neg.intersection_ids) if neg else [],
     )
 
 

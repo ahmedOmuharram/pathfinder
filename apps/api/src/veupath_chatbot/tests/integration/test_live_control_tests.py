@@ -275,57 +275,32 @@ class TestLiveFullControlFlow:
             negative_controls=NEGATIVE_CONTROLS,
         )
 
-        target_raw = result.get("target") or {}
-        target = target_raw if isinstance(target_raw, dict) else {}
+        assert result.site_id == SITE_ID
+        assert result.record_type == RECORD_TYPE
+        assert result.target.step_id is not None
+        assert result.target.result_count is not None
+        assert result.target.result_count > 0
 
-        pos_raw = result.get("positive")
-        pos = pos_raw if isinstance(pos_raw, dict) else None
-        if pos:
-            pass
-
-        neg_raw = result.get("negative")
-        neg = neg_raw if isinstance(neg_raw, dict) else None
-        if neg:
-            pass
-
-        assert result.get("siteId") == SITE_ID
-        assert result.get("recordType") == RECORD_TYPE
-        assert target.get("stepId") is not None
-        result_count = target.get("resultCount")
-        assert result_count is not None
-        assert isinstance(result_count, (int, float))
-        assert int(result_count) > 0
-
-        assert pos is not None, "Positive controls result should not be None"
-        assert pos.get("controlsCount") == len(POSITIVE_CONTROLS)
-        pos_ic = pos.get("intersectionCount")
-        assert pos_ic is not None
-        assert isinstance(pos_ic, (int, float))
-        assert int(pos_ic) > 0, (
+        assert result.positive is not None, (
+            "Positive controls result should not be None"
+        )
+        assert result.positive.controls_count == len(POSITIVE_CONTROLS)
+        assert result.positive.intersection_count is not None
+        assert result.positive.intersection_count > 0, (
             "Expected at least some positive controls at fold_change=2"
         )
-        pos_recall = pos.get("recall")
-        assert pos_recall is not None
-        assert isinstance(pos_recall, (int, float))
-        assert float(pos_recall) > 0
+        assert result.positive.recall is not None
+        assert result.positive.recall > 0
 
         # THIS is the part that was failing before the fix.
         # If the cascade-delete bug still exists, this will blow up with
         # "X is not a valid step ID" from WDK.
-        assert neg is not None, (
+        assert result.negative is not None, (
             "Negative controls result should not be None - "
             "this means the second control run FAILED"
         )
-        assert neg.get("controlsCount") == len(NEGATIVE_CONTROLS)
-        assert neg.get("intersectionCount") is not None
+        assert result.negative.controls_count == len(NEGATIVE_CONTROLS)
+        assert result.negative.intersection_count is not None
         # Housekeeping genes *shouldn't* be gametocyte-upregulated, but at
         # a low fold_change some might sneak through.  We just check it ran.
-        assert neg.get("falsePositiveRate") is not None
-
-        neg_fpr = neg.get("falsePositiveRate")
-        if (
-            pos_recall is not None
-            and neg_fpr is not None
-            and isinstance(neg_fpr, (int, float))
-        ):
-            pass
+        assert result.negative.false_positive_rate is not None

@@ -8,6 +8,11 @@ from veupath_chatbot.services.experiment.metrics import (
     metrics_from_control_result,
 )
 from veupath_chatbot.services.experiment.types import ConfusionMatrix
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 
 class TestComputeConfusionMatrix:
@@ -150,27 +155,26 @@ class TestComputeMetrics:
 
 class TestMetricsFromControlResult:
     def test_standard_result(self) -> None:
-        result = {
-            "positive": {"intersectionCount": 8, "controlsCount": 10},
-            "negative": {"intersectionCount": 3, "controlsCount": 20},
-            "target": {"resultCount": 100},
-        }
+        result = ControlTestResult(
+            positive=ControlSetData(intersection_count=8, controls_count=10),
+            negative=ControlSetData(intersection_count=3, controls_count=20),
+            target=ControlTargetData(result_count=100),
+        )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 8
         assert m.confusion_matrix.false_positives == 3
         assert m.total_results == 100
 
     def test_missing_fields_default_to_zero(self) -> None:
-        result: dict[str, object] = {}
+        result = ControlTestResult()
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 0
         assert m.total_results == 0
 
-    def test_non_dict_values_ignored(self) -> None:
-        result = {
-            "positive": "invalid",
-            "negative": None,
-            "target": 42,
-        }
+    def test_none_sections_default_to_zero(self) -> None:
+        result = ControlTestResult(
+            positive=None,
+            negative=None,
+        )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 0

@@ -33,6 +33,7 @@ from veupath_chatbot.services.control_tests import (
     _run_intersection_control,
     run_positive_negative_controls,
 )
+from veupath_chatbot.services.experiment.types import ControlTestResult
 
 pytestmark = pytest.mark.live_wdk
 
@@ -634,83 +635,53 @@ class TestLargeControlSets:
 # ---------------------------------------------------------------------------
 
 
-def _print_full_flow_result(db_name: str, result: JSONObject) -> None:
-    """Print the full control flow result for debugging."""
-
-    target_raw = result.get("target") or {}
-    target_raw if isinstance(target_raw, dict) else {}
-
-    pos_raw = result.get("positive")
-    pos = pos_raw if isinstance(pos_raw, dict) else None
-    if pos:
-        pass
-
-    neg_raw = result.get("negative")
-    neg = neg_raw if isinstance(neg_raw, dict) else None
-    if neg:
-        pass
-
-    if pos and neg:
-        recall = pos.get("recall")
-        fpr = neg.get("falsePositiveRate")
-        if isinstance(recall, (int, float)) and isinstance(fpr, (int, float)):
-            pass
+def _print_full_flow_result(db_name: str, result: ControlTestResult) -> None:
+    """No-op: kept for call-site compatibility."""
+    _ = db_name, result
 
 
 def _assert_full_flow(
-    result: JSONObject,
+    result: ControlTestResult,
     site_id: str,
     positive_controls: list[str],
     negative_controls: list[str],
 ) -> None:
     """Shared assertions for full control flow tests."""
-    assert result.get("siteId") == site_id
-    assert result.get("recordType") == RECORD_TYPE
+    assert result.site_id == site_id
+    assert result.record_type == RECORD_TYPE
 
     # Target assertions
-    target_raw = result.get("target") or {}
-    target = target_raw if isinstance(target_raw, dict) else {}
-    assert target.get("stepId") is not None
-    result_count = target.get("resultCount")
-    assert result_count is not None
-    assert isinstance(result_count, (int, float))
-    assert int(result_count) > 0
+    assert result.target.step_id is not None
+    assert result.target.result_count is not None
+    assert result.target.result_count > 0
 
     # Positive control assertions
-    pos_raw = result.get("positive")
-    pos = pos_raw if isinstance(pos_raw, dict) else None
-    assert pos is not None, "Positive controls result should not be None"
-    assert pos.get("controlsCount") == len(positive_controls)
+    assert result.positive is not None, "Positive controls result should not be None"
+    assert result.positive.controls_count == len(positive_controls)
 
-    pos_ic = pos.get("intersectionCount")
-    assert pos_ic is not None
-    assert isinstance(pos_ic, (int, float))
-    assert int(pos_ic) == len(positive_controls), (
+    assert result.positive.intersection_count == len(positive_controls), (
         f"Expected recall == 1.0 (all {len(positive_controls)} positives intersect), "
-        f"but only {pos_ic} did"
+        f"but only {result.positive.intersection_count} did"
     )
 
-    pos_recall = pos.get("recall")
-    assert pos_recall is not None
-    assert isinstance(pos_recall, (int, float))
-    assert float(pos_recall) == 1.0, f"Expected recall == 1.0, got {pos_recall}"
+    assert result.positive.recall is not None
+    assert result.positive.recall == 1.0, (
+        f"Expected recall == 1.0, got {result.positive.recall}"
+    )
 
-    # Negative control assertions — second control run must succeed
+    # Negative control assertions -- second control run must succeed
     # (this was the cascade-delete bug)
-    neg_raw = result.get("negative")
-    neg = neg_raw if isinstance(neg_raw, dict) else None
-    assert neg is not None, (
+    assert result.negative is not None, (
         "Negative controls result should not be None -- "
         "this means the second control run FAILED"
     )
-    assert neg.get("controlsCount") == len(negative_controls)
+    assert result.negative.controls_count == len(negative_controls)
 
-    neg_ic = neg.get("intersectionCount")
-    assert neg_ic is not None
-    assert isinstance(neg_ic, (int, float))
-    assert int(neg_ic) == 0, f"Expected 0 cross-species intersection, got {neg_ic}"
+    assert result.negative.intersection_count == 0, (
+        f"Expected 0 cross-species intersection, got {result.negative.intersection_count}"
+    )
 
-    neg_fpr = neg.get("falsePositiveRate")
-    assert neg_fpr is not None
-    assert isinstance(neg_fpr, (int, float))
-    assert float(neg_fpr) == 0.0, f"Expected FPR == 0.0, got {neg_fpr}"
+    assert result.negative.false_positive_rate is not None
+    assert result.negative.false_positive_rate == 0.0, (
+        f"Expected FPR == 0.0, got {result.negative.false_positive_rate}"
+    )

@@ -30,6 +30,7 @@ from veupath_chatbot.services.experiment.step_analysis import (
 )
 from veupath_chatbot.services.experiment.types import (
     ConfusionMatrix,
+    ControlTestResult,
     CrossValidationResult,
     ExperimentMetrics,
     FoldMetrics,
@@ -161,9 +162,9 @@ def _compute_overfitting_score(
 
 FoldEvaluator = Callable[
     [list[str] | None, list[str] | None],
-    Coroutine[Any, Any, JSONObject],
+    Coroutine[Any, Any, ControlTestResult],
 ]
-"""Async callback(holdout_pos, holdout_neg) → control-test result dict."""
+"""Async callback(holdout_pos, holdout_neg) → control-test result."""
 
 
 async def _run_kfold(
@@ -281,7 +282,7 @@ async def run_cross_validation(
 
         async def _evaluate_tree(
             pos: list[str] | None, neg: list[str] | None
-        ) -> JSONObject:
+        ) -> ControlTestResult:
             fold_ctx = replace(
                 ctx,
                 positive_controls=pos or [],
@@ -306,7 +307,7 @@ async def run_cross_validation(
 
         async def _evaluate_single(
             pos: list[str] | None, neg: list[str] | None
-        ) -> JSONObject:
+        ) -> ControlTestResult:
             return await run_positive_negative_controls(
                 _intersection_cfg,
                 positive_controls=pos,

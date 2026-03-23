@@ -20,8 +20,6 @@ from veupath_chatbot.domain.parameters.canonicalize import (
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
-    adapt_param_specs,
-    extract_param_specs,
     find_missing_required_params,
 )
 from veupath_chatbot.domain.parameters.vocab_utils import (
@@ -29,6 +27,10 @@ from veupath_chatbot.domain.parameters.vocab_utils import (
     match_vocab_value,
     normalize_vocab_key,
     numeric_equivalent,
+)
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
+    WDKEnumParam,
+    WDKStringParam,
 )
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.tests.fixtures.builders import ParamSpecConfig, make_param_spec
@@ -335,105 +337,79 @@ class TestMatchVocabValueEdgeCases:
 # ===========================================================================
 
 
-class TestExtractParamSpecsEdgeCases:
-    def test_falsy_candidates_skipped(self) -> None:
-        """Empty list, empty dict, None values should be skipped."""
-        payload = {
-            "parameters": [],  # falsy
-            "paramMap": {},  # falsy
-            "searchConfig": {"parameters": [{"name": "p1", "type": "string"}]},
-        }
-        specs = extract_param_specs(payload)
-        assert len(specs) == 1
-        assert specs[0]["name"] == "p1"
+class TestFromWdkEdgeCases:
+    """Edge cases for ParamSpecNormalized.from_wdk with typed WDK params."""
 
-    def test_non_dict_search_config(self) -> None:
-        """searchConfig that isn't a dict should be handled."""
-        payload = {"searchConfig": "not_a_dict"}
-        specs = extract_param_specs(payload)
-        assert specs == []
-
-
-class TestAdaptParamSpecsEdgeCases:
     def test_zero_max_selected(self) -> None:
         """maxSelectedCount=0 should be kept (it's >= 0, not negative)."""
-        payload = {
-            "parameters": [
-                {"name": "p1", "type": "multi-pick-vocabulary", "maxSelectedCount": 0}
-            ]
-        }
-        specs = adapt_param_specs(payload)
-        assert specs["p1"].max_selected_count == 0
+        param = WDKEnumParam(
+            name="p1",
+            type="multi-pick-vocabulary",
+            max_selected_count=0,
+        )
+        spec = ParamSpecNormalized.from_wdk(param)
+        assert spec.max_selected_count == 0
 
-    def test_float_min_selected_ignored(self) -> None:
-        """Float minSelectedCount should be treated as non-int -> None."""
-        payload = {
-            "parameters": [{"name": "p1", "type": "string", "minSelectedCount": 1.5}]
-        }
-        specs = adapt_param_specs(payload)
-        assert specs["p1"].min_selected_count is None
+    def test_allow_empty_value_true(self) -> None:
+        """allowEmptyValue=True should be preserved."""
+        param = WDKStringParam(name="p1", allow_empty_value=True)
+        spec = ParamSpecNormalized.from_wdk(param)
+        assert spec.allow_empty_value is True
 
-    def test_bool_allow_empty_truthy(self) -> None:
-        """allowEmptyValue as truthy non-bool (int 1) should be treated as truthy."""
-        payload = {
-            "parameters": [{"name": "p1", "type": "string", "allowEmptyValue": 1}]
-        }
-        specs = adapt_param_specs(payload)
-        assert specs["p1"].allow_empty_value is True
-
-    def test_allow_empty_value_zero_is_false(self) -> None:
-        """allowEmptyValue=0 should be falsy."""
-        payload = {
-            "parameters": [{"name": "p1", "type": "string", "allowEmptyValue": 0}]
-        }
-        specs = adapt_param_specs(payload)
-        assert specs["p1"].allow_empty_value is False
-
-    def test_duplicate_param_names_last_wins(self) -> None:
-        """If multiple params have same name, last one wins in the dict."""
-        payload = {
-            "parameters": [
-                {"name": "p1", "type": "string"},
-                {"name": "p1", "type": "number"},
-            ]
-        }
-        specs = adapt_param_specs(payload)
-        assert specs["p1"].param_type == "number"
+    def test_allow_empty_value_false(self) -> None:
+        """allowEmptyValue=False should be preserved."""
+        param = WDKStringParam(name="p1", allow_empty_value=False)
+        spec = ParamSpecNormalized.from_wdk(param)
+        assert spec.allow_empty_value is False
 
 
 class TestFindMissingRequiredParamsEdgeCases:
     def test_multi_pick_with_non_empty_json_string(self) -> None:
         """Non-empty JSON array string should not be flagged as missing."""
         specs = {
-            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False
+            )
         }
         missing = find_missing_required_params(specs, {"p1": '["Plasmodium"]'})
         assert missing == []
 
     def test_multi_pick_with_none_value(self) -> None:
         specs = {
-            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False
+            )
         }
         missing = find_missing_required_params(specs, {"p1": None})
         assert missing == ["p1"]
 
     def test_multi_pick_with_empty_string(self) -> None:
         specs = {
-            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False
+            )
         }
         missing = find_missing_required_params(specs, {"p1": ""})
         assert missing == ["p1"]
 
     def test_value_is_zero(self) -> None:
         """Zero is falsy but should NOT be treated as missing for non-multi-pick."""
-        specs = {"p1": ParamSpecNormalized(name="p1", param_type="number", allow_empty_value=False)}
+        specs = {
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="number", allow_empty_value=False
+            )
+        }
         missing = find_missing_required_params(specs, {"p1": 0})
         # 0 is not in (None, "", [], {})
         assert missing == []
 
     def test_value_is_false(self) -> None:
         """Boolean False should NOT be treated as missing."""
-        specs = {"p1": ParamSpecNormalized(name="p1", param_type="string", allow_empty_value=False)}
+        specs = {
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="string", allow_empty_value=False
+            )
+        }
         missing = find_missing_required_params(specs, {"p1": False})
         # False is not in (None, "", [], {})
         assert missing == []
@@ -441,7 +417,9 @@ class TestFindMissingRequiredParamsEdgeCases:
     def test_multi_pick_type_exact_match(self) -> None:
         """Multi-pick-vocabulary type must match exactly for the multi-pick logic branch."""
         specs = {
-            "p1": ParamSpecNormalized(name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False)
+            "p1": ParamSpecNormalized(
+                name="p1", param_type="multi-pick-vocabulary", allow_empty_value=False
+            )
         }
         missing = find_missing_required_params(specs, {"p1": "[]"})
         assert missing == ["p1"]

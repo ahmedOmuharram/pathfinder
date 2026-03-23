@@ -5,7 +5,6 @@ positive controls are returned and known negative controls are excluded.
 """
 
 from dataclasses import dataclass, field
-from typing import cast
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.domain.strategy.ast import StepTreeNode
@@ -22,7 +21,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue, as_json_object
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.catalog.searches import find_record_type_for_search
 from veupath_chatbot.services.control_helpers import (
     _encode_id_list,
@@ -34,6 +33,9 @@ from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
 )
 from veupath_chatbot.services.experiment.types import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
     ControlValueFormat,
     ExperimentConfig,
 )
@@ -157,7 +159,9 @@ async def resolve_controls_param_type(
     :returns: Parameter type string (e.g. ``"input-dataset"``) or None.
     """
     try:
-        response = await api.client.get_search_details(record_type, controls_search_name)
+        response = await api.client.get_search_details(
+            record_type, controls_search_name
+        )
         params = response.search_data.parameters
         if params is not None:
             return _find_param_type(params, controls_param_name)
@@ -200,7 +204,11 @@ async def _run_intersection_control(
         NewStepSpec(
             search_name=config.target_search_name,
             search_config=WDKSearchConfig(
-                parameters={k: str(v) for k, v in (config.target_parameters or {}).items() if v is not None},
+                parameters={
+                    k: str(v)
+                    for k, v in (config.target_parameters or {}).items()
+                    if v is not None
+                },
             ),
             custom_name="Target",
         ),
@@ -231,7 +239,9 @@ async def _run_intersection_control(
         NewStepSpec(
             search_name=config.controls_search_name,
             search_config=WDKSearchConfig(
-                parameters={k: str(v) for k, v in controls_params.items() if v is not None},
+                parameters={
+                    k: str(v) for k, v in controls_params.items() if v is not None
+                },
             ),
             custom_name="Controls",
         ),
@@ -340,7 +350,7 @@ async def run_positive_negative_controls(
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
     skip_cleanup: bool = False,
-) -> JSONObject:
+) -> ControlTestResult:
     """Run positive + negative controls against a single WDK question configuration.
 
     Each control set (positive / negative) creates its own target step
@@ -358,52 +368,46 @@ async def run_positive_negative_controls(
         cleanup_api = get_strategy_api(config.site_id)
         await _cleanup_internal_control_test_strategies(cleanup_api)
 
-    result: JSONObject = {
-        "siteId": config.site_id,
-        "recordType": config.record_type,
-        "target": {
-            "searchName": config.target_search_name,
-            "parameters": config.target_parameters or {},
-            "stepId": None,
-            "resultCount": None,
-        },
-        "positive": None,
-        "negative": None,
-    }
+    target = ControlTargetData(
+        search_name=config.target_search_name,
+        parameters=config.target_parameters or {},
+    )
+    result = ControlTestResult(
+        site_id=config.site_id,
+        record_type=config.record_type,
+        target=target,
+    )
 
     pos = [str(x).strip() for x in (positive_controls or []) if str(x).strip()]
     neg = [str(x).strip() for x in (negative_controls or []) if str(x).strip()]
 
     if pos:
         pos_payload = await _run_intersection_control(config, controls_ids=pos)
+        pos_data = ControlSetData.model_validate(pos_payload)
+
         # Capture target info from the first successful run.
-        target = as_json_object(result["target"])
-        target["stepId"] = pos_payload.get("targetStepId")
-        target["resultCount"] = pos_payload.get("targetResultCount")
+        target.step_id = pos_data.target_step_id
+        target.result_count = pos_data.target_result_count
 
         pos_count, found_ids, has_ids = _extract_intersection_data(pos_payload)
         missing = [x for x in pos if x not in found_ids] if has_ids else []
-        missing_sample = cast("JSONValue", missing[:50])
-        result["positive"] = {
-            **pos_payload,
-            "missingIdsSample": missing_sample,
-            "recall": pos_count / len(pos) if pos else None,
-        }
+        pos_data.missing_ids_sample = missing[:50]
+        pos_data.recall = pos_count / len(pos) if pos else None
+        result.positive = pos_data
 
     if neg:
         neg_payload = await _run_intersection_control(config, controls_ids=neg)
+        neg_data = ControlSetData.model_validate(neg_payload)
+
         # Fill target info if not set yet (e.g. no positive controls).
-        target = as_json_object(result["target"])
-        if target.get("stepId") is None:
-            target["stepId"] = neg_payload.get("targetStepId")
-            target["resultCount"] = neg_payload.get("targetResultCount")
+        if target.step_id is None:
+            target.step_id = neg_data.target_step_id
+            target.result_count = neg_data.target_result_count
 
         neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
-        unexpected_sample = cast("JSONValue", list(hit_ids)[:50] if hit_ids else [])
-        result["negative"] = {
-            **neg_payload,
-            "unexpectedHitsSample": unexpected_sample,
-            "falsePositiveRate": neg_count / len(neg) if neg else None,
-        }
+        unexpected_hits = sorted(hit_ids)[:50] if hit_ids else []
+        neg_data.unexpected_hits_sample = unexpected_hits
+        neg_data.false_positive_rate = neg_count / len(neg) if neg else None
+        result.negative = neg_data
 
     return result

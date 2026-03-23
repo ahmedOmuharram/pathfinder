@@ -2,15 +2,22 @@
 
 Pure module (no I/O). Converts raw WDK enrichment analysis results
 into structured ``EnrichmentTerm`` and ``EnrichmentResult`` objects.
-Handles the various field name conventions used by different WDK
-enrichment plugins (GO, pathway, word).
+Uses typed WDK models for validation instead of manual ``.get()`` chains.
 """
 
 import json
 
+from pydantic import ValidationError
+
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKEnrichmentResponse,
+    WDKEnrichmentRowBase,
+    WDKGoEnrichmentRow,
+    WDKPathwayEnrichmentRow,
+    WDKWordEnrichmentRow,
+)
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.enrichment_html import parse_result_genes_html
-from veupath_chatbot.services.experiment.helpers import safe_float, safe_int
 from veupath_chatbot.services.experiment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,
@@ -41,6 +48,10 @@ _WDK_TO_ANALYSIS_TYPE: dict[str, EnrichmentAnalysisType] = {
 }
 
 ENRICHMENT_ANALYSIS_NAMES = frozenset(ANALYSIS_TYPE_MAP.values())
+
+_GO_ANALYSIS_TYPES: frozenset[EnrichmentAnalysisType] = frozenset(
+    {"go_function", "go_component", "go_process"}
+)
 
 
 def infer_enrichment_type(
@@ -97,139 +108,89 @@ def upsert_enrichment_result(
     results.append(new)
 
 
-def extract_result_totals(result: JSONValue) -> tuple[int, int]:
-    """Extract total-analyzed and background-size from a WDK result dict.
-
-    WDK enrichment plugins use different keys for the same concepts:
-    ``resultSize`` / ``totalResults`` for the gene count, and
-    ``backgroundSize`` / ``bgdSize`` for the background universe.
-
-    :returns: ``(total_genes_analyzed, background_size)``
-    """
+def parse_enrichment_response(result: JSONValue) -> WDKEnrichmentResponse:
+    """Validate a raw WDK analysis result into a typed envelope."""
     if not isinstance(result, dict):
-        return 0, 0
-    total = safe_int(result.get("resultSize", result.get("totalResults", 0)))
-    bg = safe_int(result.get("backgroundSize", result.get("bgdSize", 0)))
-    return total, bg
+        return WDKEnrichmentResponse()
+    try:
+        return WDKEnrichmentResponse.model_validate(result)
+    except ValidationError:
+        return WDKEnrichmentResponse()
+
+
+def _extract_genes(result_genes: str) -> tuple[int, list[str]]:
+    """Extract gene count and IDs from a WDK resultGenes field.
+
+    WDK returns resultGenes as either:
+    - HTML: ``<a href='?idList=G1,G2,...'>2</a>`` -- parse count + IDs
+    - Plain count string: ``"46"`` -- parse as int, no IDs
+    """
+    if "<" in result_genes:
+        return parse_result_genes_html(result_genes)
+    try:
+        return int(float(result_genes)), []
+    except ValueError, TypeError:
+        return 0, []
+
+
+def _row_to_term(
+    row: WDKEnrichmentRowBase,
+    term_id: str,
+    term_name: str,
+) -> EnrichmentTerm:
+    """Map a WDK enrichment row to a domain EnrichmentTerm.
+
+    Passes raw WDK string values directly — Pydantic lax mode on
+    ``EnrichmentTerm`` coerces str→int/float, and ``SafeFiniteFloat``
+    clamps ``"Infinity"`` → 0.0.
+    """
+    gene_count, genes = _extract_genes(row.result_genes)
+    return EnrichmentTerm.model_validate(
+        {
+            "term_id": term_id,
+            "term_name": term_name,
+            "gene_count": gene_count,
+            "background_count": row.bgd_genes,
+            "fold_enrichment": row.fold_enrich,
+            "odds_ratio": row.odds_ratio,
+            "p_value": row.p_value,
+            "fdr": row.benjamini,
+            "bonferroni": row.bonferroni,
+            "genes": genes,
+        }
+    )
 
 
 def parse_enrichment_terms(
     rows: list[JSONObject],
+    analysis_type: EnrichmentAnalysisType = "go_process",
 ) -> list[EnrichmentTerm]:
-    """Parse WDK enrichment result rows into structured terms.
-
-    Handles both the "standard" field names used by some WDK analysis
-    plugins and the field names returned by the GO/pathway/word enrichment
-    plugins (``goId``, ``goTerm``, ``resultGenes`` as HTML, ``bgdGenes``,
-    ``foldEnrich``, etc.).
-    """
+    """Parse WDK enrichment result rows into structured terms."""
     terms: list[EnrichmentTerm] = []
     for row in rows:
         if not isinstance(row, dict):
             continue
-
-        # Term identifier — plugins use different keys:
-        #   GO: goId, Pathway: pathwayId, Word: word (no separate ID)
-        term_id = str(
-            row.get(
-                "ID",
-                row.get(
-                    "id",
-                    row.get(
-                        "goId",
-                        row.get("pathwayId", row.get("word", "")),
-                    ),
-                ),
-            )
-        )
-        # Term name / description — Word enrichment uses "descrip" (truncated).
-        term_name = str(
-            row.get(
-                "Description",
-                row.get(
-                    "description",
-                    row.get(
-                        "goTerm",
-                        row.get(
-                            "pathwayName",
-                            row.get("descrip", row.get("word", "")),
-                        ),
-                    ),
-                ),
-            )
-        )
-
-        # Gene count + gene list — WDK enrichment returns resultGenes as
-        # an HTML <a> tag embedding the count and gene IDs in the URL.
-        gene_count: int = 0
-        genes: list[str] = []
-
-        result_count_raw = row.get("ResultCount", row.get("resultCount"))
-        if result_count_raw is not None:
-            gene_count = safe_int(result_count_raw)
-        else:
-            result_genes_raw = row.get("resultGenes", "")
-            if isinstance(result_genes_raw, str) and "<" in result_genes_raw:
-                gene_count, genes = parse_result_genes_html(result_genes_raw)
+        try:
+            wdk_row: WDKEnrichmentRowBase
+            term_id: str
+            term_name: str
+            if analysis_type in _GO_ANALYSIS_TYPES:
+                go_row = WDKGoEnrichmentRow.model_validate(row)
+                wdk_row, term_id, term_name = go_row, go_row.go_id, go_row.go_term
+            elif analysis_type == "pathway":
+                pw_row = WDKPathwayEnrichmentRow.model_validate(row)
+                wdk_row, term_id, term_name = (
+                    pw_row,
+                    pw_row.pathway_id,
+                    pw_row.pathway_name,
+                )
             else:
-                gene_count = safe_int(result_genes_raw)
-
-        # If genes weren't extracted from HTML, try explicit gene list fields
-        if not genes:
-            genes_raw = row.get("ResultIDList", row.get("genes"))
-            if isinstance(genes_raw, str):
-                genes = [g.strip() for g in genes_raw.split(",") if g.strip()]
-            elif isinstance(genes_raw, list):
-                genes = [str(g) for g in genes_raw]
-
-        bg_count = safe_int(
-            row.get("BgdCount", row.get("bgdCount", row.get("bgdGenes", 0)))
-        )
-        fold = safe_float(
-            row.get("FoldEnrich", row.get("foldEnrichment", row.get("foldEnrich", 0)))
-        )
-        odds = safe_float(row.get("OddsRatio", row.get("oddsRatio", 0)))
-        pval = safe_float(row.get("PValue", row.get("pValue", 1.0)), default=1.0)
-        fdr = safe_float(
-            row.get("BenjaminiHochberg", row.get("benjamini", 1.0)), default=1.0
-        )
-        bonf = safe_float(
-            row.get("Bonferroni", row.get("bonferroni", 1.0)), default=1.0
-        )
-
-        terms.append(
-            EnrichmentTerm(
-                term_id=term_id,
-                term_name=term_name,
-                gene_count=gene_count,
-                background_count=bg_count,
-                fold_enrichment=fold,
-                odds_ratio=odds,
-                p_value=pval,
-                fdr=fdr,
-                bonferroni=bonf,
-                genes=genes,
-            )
-        )
+                wd_row = WDKWordEnrichmentRow.model_validate(row)
+                wdk_row, term_id, term_name = wd_row, wd_row.word, wd_row.pathway_name
+            terms.append(_row_to_term(wdk_row, term_id, term_name))
+        except ValidationError:
+            continue
     return terms
-
-
-def extract_analysis_rows(result: JSONValue) -> list[JSONObject]:
-    """Extract tabular rows from a WDK analysis result.
-
-    WDK enrichment plugins (GO, pathway, word) return rows under
-    ``resultData``; other plugins may use ``rows``, ``data``, or ``results``.
-    """
-    if not isinstance(result, dict):
-        return []
-
-    rows = result.get(
-        "resultData",
-        result.get("rows", result.get("data", result.get("results", []))),
-    )
-    if isinstance(rows, list):
-        return [r for r in rows if isinstance(r, dict)]
-    return []
 
 
 def parse_enrichment_from_raw(
@@ -237,19 +198,11 @@ def parse_enrichment_from_raw(
     params: JSONObject,
     result: JSONValue,
 ) -> EnrichmentResult:
-    """Parse a raw WDK analysis result into an ``EnrichmentResult``.
-
-    Used by the generic ``analyses/run`` endpoint to return structured
-    enrichment data instead of raw JSON.
-    """
+    """Parse a raw WDK analysis result into an ``EnrichmentResult``."""
     analysis_type = infer_enrichment_type(wdk_analysis_name, params, result)
-    rows = extract_analysis_rows(result)
-    terms = parse_enrichment_terms(rows)
-    total_analyzed, bg_size = extract_result_totals(result)
-
+    envelope = parse_enrichment_response(result)
+    terms = parse_enrichment_terms(envelope.result_data, analysis_type)
     return EnrichmentResult(
         analysis_type=analysis_type,
         terms=terms,
-        total_genes_analyzed=total_analyzed,
-        background_size=bg_size,
     )

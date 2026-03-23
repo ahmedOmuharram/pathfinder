@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from veupath_chatbot.domain.parameters.specs import adapt_param_specs
+from veupath_chatbot.domain.parameters.specs import ParamSpecNormalized
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import StrategyCompiler
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -15,6 +15,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
     WDKSearchResponse,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKEnumParam
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "wdk"
@@ -53,18 +54,13 @@ class FakeStrategyAPI:
 
 
 def test_param_specs_treat_negative_max_as_unlimited() -> None:
-    specs = adapt_param_specs(
-        {
-            "parameters": [
-                {
-                    "name": "organism",
-                    "type": "multi-pick-vocabulary",
-                    "maxSelectedCount": -1,
-                }
-            ]
-        }
+    param = WDKEnumParam(
+        name="organism",
+        type="multi-pick-vocabulary",
+        max_selected_count=-1,
     )
-    assert specs["organism"].max_selected_count is None
+    spec = ParamSpecNormalized.from_wdk(param)
+    assert spec.max_selected_count is None
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, patch
 import optuna
 import pytest
 
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 from veupath_chatbot.services.parameter_optimization import (
     OptimizationConfig,
     OptimizationInput,
@@ -32,16 +37,8 @@ def _make_wdk_result(
     neg_fpr: float = 0.1,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
-) -> JSONObject:
-    """Build a realistic ``run_positive_negative_controls`` return value.
-
-    :param result_count: Expected result count (default: 100).
-    :param pos_recall: Positive recall target (default: 0.8).
-    :param neg_fpr: Negative false positive rate target (default: 0.1).
-    :param positive_controls: Positive control IDs (default: None).
-    :param negative_controls: Negative control IDs (default: None).
-
-    """
+) -> ControlTestResult:
+    """Build a realistic ``run_positive_negative_controls`` return value."""
     pos = positive_controls or [f"POS_{i}" for i in range(10)]
     neg = negative_controls or [f"NEG_{i}" for i in range(8)]
 
@@ -51,34 +48,32 @@ def _make_wdk_result(
     pos_found_ids = pos[:n_pos_found]
     neg_found_ids = neg[:n_neg_found]
 
-    return {
-        "siteId": "plasmodb",
-        "recordType": "transcript",
-        "target": {
-            "searchName": "GenesByRNASeq",
-            "parameters": {},
-            "stepId": 999,
-            "resultCount": result_count,
-        },
-        "positive": {
-            "controlsCount": len(pos),
-            "intersectionCount": n_pos_found,
-            "intersectionIdsSample": cast("JSONArray", pos_found_ids[:50]),
-            "intersectionIds": cast("JSONArray", pos_found_ids),
-            "missingIdsSample": cast(
-                "JSONArray", [x for x in pos if x not in pos_found_ids][:50]
-            ),
-            "recall": n_pos_found / len(pos) if n_pos_found > 0 else None,
-        },
-        "negative": {
-            "controlsCount": len(neg),
-            "intersectionCount": n_neg_found,
-            "intersectionIdsSample": cast("JSONArray", neg_found_ids[:50]),
-            "intersectionIds": cast("JSONArray", neg_found_ids),
-            "unexpectedHitsSample": cast("JSONArray", neg_found_ids[:50]),
-            "falsePositiveRate": n_neg_found / len(neg) if n_neg_found > 0 else None,
-        },
-    }
+    return ControlTestResult(
+        site_id="plasmodb",
+        record_type="transcript",
+        target=ControlTargetData(
+            search_name="GenesByRNASeq",
+            parameters={},
+            step_id=999,
+            result_count=result_count,
+        ),
+        positive=ControlSetData(
+            controls_count=len(pos),
+            intersection_count=n_pos_found,
+            intersection_ids_sample=pos_found_ids[:50],
+            intersection_ids=pos_found_ids,
+            missing_ids_sample=[x for x in pos if x not in pos_found_ids][:50],
+            recall=n_pos_found / len(pos) if n_pos_found > 0 else None,
+        ),
+        negative=ControlSetData(
+            controls_count=len(neg),
+            intersection_count=n_neg_found,
+            intersection_ids_sample=neg_found_ids[:50],
+            intersection_ids=neg_found_ids,
+            unexpected_hits_sample=neg_found_ids[:50],
+            false_positive_rate=n_neg_found / len(neg) if n_neg_found > 0 else None,
+        ),
+    )
 
 
 def _common_inp(
@@ -350,9 +345,9 @@ class TestOptimizeSearchParameters:
             assert t.recall is None
 
     @pytest.mark.asyncio
-    async def test_all_trials_fail_with_error_dict(self) -> None:
-        """WDK returns error dict → treated as failed trial."""
-        mock_wdk = AsyncMock(return_value={"error": "Invalid value 'average'."})
+    async def test_all_trials_return_empty_result(self) -> None:
+        """Empty ControlTestResult → all trials score 0."""
+        mock_wdk = AsyncMock(return_value=ControlTestResult())
         specs = [
             ParameterSpec(
                 name="fold_change", param_type="numeric", min_value=1.0, max_value=16.0
@@ -366,7 +361,6 @@ class TestOptimizeSearchParameters:
                 config=cfg,
             )
 
-        assert result.best_trial is None
         for t in result.all_trials:
             assert t.score == 0.0
 
@@ -375,7 +369,7 @@ class TestOptimizeSearchParameters:
         """Some trials succeed, some fail → bestTrial from successful ones."""
         call_count = 0
 
-        async def _mixed_wdk(*args: Any, **kwargs: Any) -> JSONObject:
+        async def _mixed_wdk(*args: Any, **kwargs: Any) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
             if call_count % 2 == 0:
@@ -410,7 +404,7 @@ class TestOptimizeSearchParameters:
         """Cancel after a few trials → status 'cancelled', partial results."""
         call_count = 0
 
-        async def _slow_wdk(*args: Any, **kwargs: Any) -> JSONObject:
+        async def _slow_wdk(*args: Any, **kwargs: Any) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
             return _make_wdk_result(pos_recall=0.8, neg_fpr=0.1)

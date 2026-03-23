@@ -19,25 +19,30 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _collect_combine_nodes,
     _node_id,
 )
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 
 class TestExtractEvalCounts:
     """_extract_eval_counts pulls structured counts from control-test results."""
 
     def test_complete_result(self) -> None:
-        result = {
-            "positive": {
-                "controlsCount": 10,
-                "intersectionCount": 8,
-                "intersectionIds": ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"],
-            },
-            "negative": {
-                "controlsCount": 20,
-                "intersectionCount": 3,
-                "intersectionIds": ["N1", "N2", "N3"],
-            },
-            "target": {"resultCount": 100},
-        }
+        result = ControlTestResult(
+            positive=ControlSetData(
+                controls_count=10,
+                intersection_count=8,
+                intersection_ids=["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"],
+            ),
+            negative=ControlSetData(
+                controls_count=20,
+                intersection_count=3,
+                intersection_ids=["N1", "N2", "N3"],
+            ),
+            target=ControlTargetData(result_count=100),
+        )
         counts = _extract_eval_counts(result)
         assert counts.pos_hits == 8
         assert counts.pos_total == 10
@@ -48,7 +53,7 @@ class TestExtractEvalCounts:
         assert len(counts.neg_ids) == 3
 
     def test_empty_result(self) -> None:
-        counts = _extract_eval_counts({})
+        counts = _extract_eval_counts(ControlTestResult())
         assert counts.pos_hits == 0
         assert counts.pos_total == 0
         assert counts.neg_hits == 0
@@ -58,52 +63,22 @@ class TestExtractEvalCounts:
         assert counts.neg_ids == []
 
     def test_none_sections(self) -> None:
-        result = {"positive": None, "negative": None, "target": None}
+        result = ControlTestResult(positive=None, negative=None)
         counts = _extract_eval_counts(result)
         assert counts.pos_hits == 0
         assert counts.total_results == 0
 
-    def test_string_sections(self) -> None:
-        """Non-dict sections fall through to empty."""
-        result = {"positive": "invalid", "negative": 42, "target": []}
-        counts = _extract_eval_counts(result)
-        assert counts.pos_hits == 0
-
     def test_missing_intersection_ids(self) -> None:
-        """When intersectionIds is not present, pos_ids is empty."""
-        result = {
-            "positive": {"controlsCount": 5, "intersectionCount": 3},
-            "negative": {"controlsCount": 10, "intersectionCount": 1},
-            "target": {"resultCount": 50},
-        }
+        """When intersectionIds is empty, pos_ids is empty."""
+        result = ControlTestResult(
+            positive=ControlSetData(controls_count=5, intersection_count=3),
+            negative=ControlSetData(controls_count=10, intersection_count=1),
+            target=ControlTargetData(result_count=50),
+        )
         counts = _extract_eval_counts(result)
         assert counts.pos_hits == 3
         assert counts.pos_ids == []
         assert counts.neg_ids == []
-
-    def test_non_list_intersection_ids(self) -> None:
-        """Non-list intersectionIds returns empty list."""
-        result = {
-            "positive": {
-                "controlsCount": 5,
-                "intersectionCount": 3,
-                "intersectionIds": "G1,G2,G3",
-            },
-        }
-        counts = _extract_eval_counts(result)
-        assert counts.pos_ids == []
-
-    def test_intersection_ids_with_non_string_entries(self) -> None:
-        """Non-string entries in intersectionIds are converted via str()."""
-        result = {
-            "positive": {
-                "controlsCount": 2,
-                "intersectionCount": 2,
-                "intersectionIds": [123, None],
-            },
-        }
-        counts = _extract_eval_counts(result)
-        assert counts.pos_ids == ["123", "None"]
 
 
 class TestF1FromCounts:

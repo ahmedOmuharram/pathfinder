@@ -23,6 +23,11 @@ from veupath_chatbot.services.experiment.types import (
     ExperimentConfig,
     ExperimentMetrics,
 )
+from veupath_chatbot.services.experiment.types.control_result import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -76,6 +81,27 @@ def _make_metrics(**overrides: object) -> ExperimentMetrics:
     }
     defaults.update(overrides)
     return ExperimentMetrics(**defaults)
+
+
+def _mock_control_result(
+    pos_intersection: int = 0,
+    pos_controls: int = 0,
+    neg_intersection: int = 0,
+    neg_controls: int = 0,
+    result_count: int = 0,
+) -> ControlTestResult:
+    """Build a minimal ControlTestResult for mocking."""
+    return ControlTestResult(
+        target=ControlTargetData(result_count=result_count),
+        positive=ControlSetData(
+            intersection_count=pos_intersection,
+            controls_count=pos_controls,
+        ),
+        negative=ControlSetData(
+            intersection_count=neg_intersection,
+            controls_count=neg_controls,
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -253,11 +279,13 @@ class TestRunSweepPoint:
     @pytest.mark.asyncio
     async def test_successful_numeric_point(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=2,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=50,
+        )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
@@ -277,11 +305,13 @@ class TestRunSweepPoint:
     @pytest.mark.asyncio
     async def test_successful_categorical_point(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 1, "controlsCount": 2},
-            "negative": {"intersectionCount": 1, "controlsCount": 1},
-            "target": {"resultCount": 30},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=1,
+            pos_controls=2,
+            neg_intersection=1,
+            neg_controls=1,
+            result_count=30,
+        )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
             new_callable=AsyncMock,
@@ -325,11 +355,13 @@ class TestReEvaluate:
     @pytest.mark.asyncio
     async def test_single_mode(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=2,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=50,
+        )
         mock_genes = ([], [], [], [])
 
         with (
@@ -363,11 +395,13 @@ class TestReEvaluate:
                 "step_tree": {"searchName": "X", "primaryInput": {"searchName": "Y"}},
             }
         )
-        mock_result = {
-            "positive": {"intersectionCount": 1, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 20},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=1,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=20,
+        )
         mock_genes = ([], [], [], [])
 
         with (
@@ -402,11 +436,13 @@ class TestGenerateSweepEvents:
     @pytest.mark.asyncio
     async def test_emits_point_and_complete_events(self) -> None:
         exp = _make_experiment()
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=2,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=50,
+        )
 
         with (
             patch(
@@ -527,15 +563,19 @@ class TestRunSweepPointTree:
                 },
             }
         )
-        mock_result = {
-            "positive": {"intersectionCount": 2, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 40},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=2,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=40,
+        )
 
         captured_tree = None
 
-        async def _capture_tree(ctx: ControlsContext, tree: JSONObject) -> JSONObject:
+        async def _capture_tree(
+            ctx: ControlsContext, tree: JSONObject
+        ) -> ControlTestResult:
             nonlocal captured_tree
             captured_tree = tree
             return mock_result
@@ -583,14 +623,16 @@ class TestNumericValueSorting:
         exp = _make_experiment()
         call_count = 0
 
-        async def _mock_controls(*_args: object, **_: object) -> dict:  # type: ignore[type-arg]
+        async def _mock_controls(*_args: object, **_: object) -> ControlTestResult:
             nonlocal call_count
             call_count += 1
-            return {
-                "positive": {"intersectionCount": 1, "controlsCount": 2},
-                "negative": {"intersectionCount": 0, "controlsCount": 1},
-                "target": {"resultCount": 50},
-            }
+            return _mock_control_result(
+                pos_intersection=1,
+                pos_controls=2,
+                neg_intersection=0,
+                neg_controls=1,
+                result_count=50,
+            )
 
         with (
             patch(
@@ -625,11 +667,13 @@ class TestNumericValueSorting:
         """Non-numeric string values should be treated as 0.0 for sorting."""
         exp = _make_experiment()
 
-        mock_result = {
-            "positive": {"intersectionCount": 1, "controlsCount": 2},
-            "negative": {"intersectionCount": 0, "controlsCount": 1},
-            "target": {"resultCount": 50},
-        }
+        mock_result = _mock_control_result(
+            pos_intersection=1,
+            pos_controls=2,
+            neg_intersection=0,
+            neg_controls=1,
+            result_count=50,
+        )
 
         with (
             patch(
