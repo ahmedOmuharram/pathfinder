@@ -10,7 +10,6 @@ Design goals:
 
 from pydantic import ConfigDict
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.pydantic_base import CamelModel
 
@@ -65,13 +64,11 @@ def validate_graph_integrity(graph: StrategyGraph) -> list[GraphIntegrityError]:
 
     # Check for dangling references (inputs pointing to non-existent steps).
     for step_id, step in graph.steps.items():
-        if not isinstance(step, PlanStepNode):
-            continue
-        primary = getattr(step.primary_input, "id", None)
-        secondary = getattr(step.secondary_input, "id", None)
-        if isinstance(primary, str) and primary and primary not in all_ids:
+        primary = step.primary_input.id if step.primary_input else None
+        secondary = step.secondary_input.id if step.secondary_input else None
+        if primary and primary not in all_ids:
             add_missing(primary, step_id, "primary_input")
-        if isinstance(secondary, str) and secondary and secondary not in all_ids:
+        if secondary and secondary not in all_ids:
             add_missing(secondary, step_id, "secondary_input")
 
     # Use the incrementally-maintained root set.

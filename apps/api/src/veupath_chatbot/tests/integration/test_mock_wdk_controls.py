@@ -262,7 +262,7 @@ class TestSingleIntersectionControl:
             )
 
         assert result["targetStepId"] == TARGET_STEP_ID
-        assert result["targetResultCount"] == 500
+        assert result["targetEstimatedSize"] == 500
         assert result["controlsCount"] == len(POSITIVE_CONTROLS)
         assert result["intersectionCount"] == 3
         assert isinstance(result["intersectionIds"], list)
@@ -462,7 +462,7 @@ class TestPositiveNegativeControls:
         assert result.record_type == RECORD_TYPE
 
         assert result.target.step_id == TARGET_STEP_ID
-        assert result.target.result_count == 500
+        assert result.target.estimated_size == 500
 
         assert result.positive is not None
         assert result.positive.controls_count == len(POSITIVE_CONTROLS)
@@ -647,7 +647,7 @@ class TestErrorHandling:
             )
 
         # Counts are None because the 500 was caught by _get_total_count_for_step
-        assert result["targetResultCount"] is None
+        assert result["targetEstimatedSize"] is None
         assert result["intersectionCount"] is None
 
         # Strategy was still cleaned up
@@ -725,7 +725,7 @@ class TestEmptyResults:
                 negative_controls=NEGATIVE_CONTROLS,
             )
 
-        assert result.target.result_count == 0
+        assert result.target.estimated_size == 0
 
         assert result.positive is not None
         assert result.positive.intersection_count == 0
@@ -755,7 +755,7 @@ class TestEmptyResults:
                 _common_config(), controls_ids=POSITIVE_CONTROLS
             )
 
-        assert result["targetResultCount"] == 0
+        assert result["targetEstimatedSize"] == 0
         assert result["intersectionCount"] == 0
         assert result["intersectionIds"] == []
         assert result["controlsCount"] == len(POSITIVE_CONTROLS)

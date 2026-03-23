@@ -57,6 +57,8 @@ export function handleStrategyUpdateEvent(
     kind: (step.kind as string | null) ?? "search",
     displayName:
       (step.displayName as string | undefined) ?? step.kind ?? "Untitled step",
+    isBuilt: false,
+    isFiltered: false,
   };
   if (step.recordType != null) newStep.recordType = step.recordType;
   if (step.searchName != null) newStep.searchName = step.searchName;

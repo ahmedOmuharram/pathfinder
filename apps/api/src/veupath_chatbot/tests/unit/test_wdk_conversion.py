@@ -5,7 +5,7 @@ AST representation. These functions are critical for strategy import:
 wrong parsing silently corrupts imported strategies.
 
 Public API under test:
-- build_snapshot_from_wdk(WDKStrategyDetails) -> (StrategyAST, JSONArray, JSONObject)
+- build_snapshot_from_wdk(WDKStrategyDetails) -> StrategyAST
 """
 
 import pytest
@@ -22,7 +22,7 @@ from veupath_chatbot.services.strategies.wdk_conversion import (
     build_snapshot_from_wdk,
 )
 
-# ── Helpers ─────────────────────────────────────────────────────────
+# -- Helpers -----------------------------------------------------------------
 
 
 def _make_step(
@@ -71,7 +71,7 @@ def _make_strategy(
     )
 
 
-# ── build_snapshot_from_wdk: AST shape ────────────────────────────
+# -- build_snapshot_from_wdk: AST shape ----------------------------------------
 
 
 class TestBuildSnapshotAst:
@@ -91,7 +91,7 @@ class TestBuildSnapshotAst:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.record_type == "transcript"
         assert ast.name == "My Strategy"
         assert ast.description == "Test strategy"
@@ -100,32 +100,33 @@ class TestBuildSnapshotAst:
     def test_name_and_description_none_when_empty(self) -> None:
         """Empty name and description map to None in the AST."""
         wdk = _make_strategy(name="", description="")
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.name is None
         assert ast.description is None
 
     def test_record_type_stripped(self) -> None:
         """Leading/trailing whitespace is stripped from recordClassName."""
         wdk = _make_strategy(record_class_name="  transcript  ")
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.record_type == "transcript"
 
 
-# ── build_snapshot_from_wdk: step counts ──────────────────────────
+# -- build_snapshot_from_wdk: step counts on AST -------------------------------
 
 
 class TestBuildSnapshotStepCounts:
-    """Verify that step_counts (third return value) is populated correctly."""
+    """Verify that ast.step_counts is populated correctly."""
 
     def test_single_step_count(self) -> None:
-        """Step with estimatedSize appears in step_counts."""
+        """Step with estimatedSize appears in ast.step_counts."""
         wdk = _make_strategy(
             steps={
                 "100": _make_step(100, "GenesByTaxon", estimated_size=5000),
             },
         )
-        _, _, step_counts = build_snapshot_from_wdk(wdk)
-        assert step_counts["100"] == 5000
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts["100"] == 5000
 
     def test_multi_step_counts(self) -> None:
         """Multi-step combine strategy tracks counts for all steps."""
@@ -154,10 +155,11 @@ class TestBuildSnapshotStepCounts:
                 ),
             },
         )
-        _, _, step_counts = build_snapshot_from_wdk(wdk)
-        assert step_counts["100"] == 5000
-        assert step_counts["200"] == 200
-        assert step_counts["300"] == 150
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts["100"] == 5000
+        assert ast.step_counts["200"] == 200
+        assert ast.step_counts["300"] == 150
 
     def test_missing_estimated_size_excluded(self) -> None:
         """Steps without estimatedSize should not appear in step_counts."""
@@ -166,8 +168,9 @@ class TestBuildSnapshotStepCounts:
                 "100": _make_step(100, "GenesByTaxon"),
             },
         )
-        _, _, step_counts = build_snapshot_from_wdk(wdk)
-        assert "100" not in step_counts
+        ast = build_snapshot_from_wdk(wdk)
+        # No steps have estimated sizes, so step_counts is None
+        assert ast.step_counts is None
 
     def test_zero_estimated_size_included(self) -> None:
         """Steps with estimatedSize=0 should still appear in step_counts."""
@@ -176,18 +179,30 @@ class TestBuildSnapshotStepCounts:
                 "100": _make_step(100, "GenesByTaxon", estimated_size=0),
             },
         )
-        _, _, step_counts = build_snapshot_from_wdk(wdk)
-        assert step_counts["100"] == 0
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts["100"] == 0
 
 
-# ── build_snapshot_from_wdk: steps_data enrichment ────────────────
+# -- build_snapshot_from_wdk: wdk_step_ids on AST ------------------------------
 
 
-class TestBuildSnapshotStepsData:
-    """Verify the steps_data (second return value) is enriched correctly."""
+class TestBuildSnapshotWdkStepIds:
+    """Verify that ast.wdk_step_ids is populated correctly."""
 
-    def test_steps_data_count(self) -> None:
-        """steps_data should have one entry per step in the tree."""
+    def test_single_step_wdk_id(self) -> None:
+        """Step with numeric ID appears in wdk_step_ids."""
+        wdk = _make_strategy(
+            steps={
+                "100": _make_step(100, "GenesByTaxon"),
+            },
+        )
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.wdk_step_ids is not None
+        assert ast.wdk_step_ids["100"] == 100
+
+    def test_multi_step_wdk_ids(self) -> None:
+        """Multi-step strategy has all WDK step IDs."""
         wdk = _make_strategy(
             root_step_id=300,
             step_tree=WDKStepTree(
@@ -196,61 +211,22 @@ class TestBuildSnapshotStepsData:
                 secondary_input=WDKStepTree(step_id=200),
             ),
             steps={
-                "100": _make_step(100, "GenesByTaxon", parameters={"organism": "pfal"}),
-                "200": _make_step(200, "GenesByText", parameters={"text_expression": "kinase"}),
+                "100": _make_step(100, "GenesByTaxon"),
+                "200": _make_step(200, "GenesByText"),
                 "300": _make_step(
                     300, "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                 ),
             },
         )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        assert len(steps_data) == 3
-
-    def test_steps_data_has_wdk_step_id(self) -> None:
-        """Each step in steps_data should have wdkStepId set."""
-        wdk = _make_strategy(
-            steps={
-                "100": _make_step(100, "GenesByTaxon", estimated_size=500),
-            },
-        )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        assert any(
-            s.get("wdkStepId") == 100
-            for s in steps_data
-            if isinstance(s, dict)
-        )
-
-    def test_steps_data_has_result_count(self) -> None:
-        """Steps with estimatedSize should get resultCount in steps_data."""
-        wdk = _make_strategy(
-            steps={
-                "100": _make_step(100, "GenesByTaxon", estimated_size=500),
-            },
-        )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        assert any(
-            s.get("resultCount") == 500
-            for s in steps_data
-            if isinstance(s, dict)
-        )
-
-    def test_steps_data_result_count_none_when_no_size(self) -> None:
-        """Steps without estimatedSize should have resultCount=None in steps_data."""
-        wdk = _make_strategy(
-            steps={
-                "100": _make_step(100, "GenesByTaxon"),
-            },
-        )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        step = next(
-            s for s in steps_data
-            if isinstance(s, dict) and s.get("wdkStepId") == 100
-        )
-        assert step.get("resultCount") is None
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.wdk_step_ids is not None
+        assert ast.wdk_step_ids["100"] == 100
+        assert ast.wdk_step_ids["200"] == 200
+        assert ast.wdk_step_ids["300"] == 300
 
 
-# ── Node construction via build_snapshot_from_wdk ───────────────────
+# -- Node construction via build_snapshot_from_wdk -----------------------------
 
 
 class TestNodeConstruction:
@@ -267,7 +243,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.search_name == "GenesByTaxon"
         assert ast.root.id == "100"
         assert ast.root.parameters == {"organism": "Plasmodium falciparum"}
@@ -293,7 +269,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.search_name == "GenesByOrthologPattern"
         assert ast.root.primary_input is not None
         assert ast.root.primary_input.search_name == "GenesByTaxon"
@@ -323,7 +299,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "combine"
         assert ast.root.operator == CombineOp.INTERSECT
         assert ast.root.primary_input is not None
@@ -349,7 +325,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.operator == CombineOp.UNION
 
     def test_combine_minus_operator(self) -> None:
@@ -370,7 +346,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.operator == CombineOp.MINUS
 
     def test_deep_nested_tree(self) -> None:
@@ -400,7 +376,7 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, steps_data, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "combine"
         assert ast.root.operator == CombineOp.UNION
 
@@ -415,7 +391,7 @@ class TestNodeConstruction:
 
         assert ast.root.secondary_input is not None
         assert ast.root.secondary_input.search_name == "GenesByGoTerm"
-        assert len(steps_data) == 5
+        assert len(ast.get_all_steps()) == 5
 
     def test_empty_parameters_produces_empty_dict(self) -> None:
         """Step with empty searchConfig.parameters yields empty params dict."""
@@ -424,7 +400,7 @@ class TestNodeConstruction:
                 "100": _make_step(100, "GenesByTaxon", parameters={}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.parameters == {}
 
     def test_multiple_parameters_preserved(self) -> None:
@@ -440,12 +416,12 @@ class TestNodeConstruction:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.parameters["organism"] == '["Plasmodium falciparum 3D7"]'
         assert ast.root.parameters["nonterminal_param"] == "value"
 
 
-# ── Display name resolution ────────────────────────────────────────
+# -- Display name resolution ---------------------------------------------------
 
 
 class TestDisplayName:
@@ -460,7 +436,7 @@ class TestDisplayName:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name == "My Custom Step"
 
     def test_display_name_field_used(self) -> None:
@@ -472,7 +448,7 @@ class TestDisplayName:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name == "Genes by Taxon"
 
     def test_custom_name_takes_priority(self) -> None:
@@ -486,7 +462,7 @@ class TestDisplayName:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name == "Custom"
 
     def test_no_name_yields_none(self) -> None:
@@ -496,11 +472,11 @@ class TestDisplayName:
                 "100": _make_step(100, "GenesByTaxon"),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name is None
 
 
-# ── Error paths ─────────────────────────────────────────────────────
+# -- Error paths ---------------------------------------------------------------
 
 
 class TestBuildSnapshotErrors:

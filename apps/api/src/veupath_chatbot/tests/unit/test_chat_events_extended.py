@@ -1,17 +1,7 @@
 """Extended tests for services.chat.events — edge cases and special characters."""
 
 from veupath_chatbot.services.chat.events import (
-    CITATIONS,
-    EXECUTOR_BUILD_REQUEST,
-    GRAPH_CLEARED,
-    GRAPH_PLAN,
-    GRAPH_SNAPSHOT,
-    PLANNING_ARTIFACT,
-    REASONING,
-    STRATEGY_LINK,
-    STRATEGY_META,
-    STRATEGY_UPDATE,
-    WORKBENCH_GENE_SET,
+    EventType,
     tool_result_to_events,
 )
 
@@ -36,7 +26,7 @@ class TestSpecialCharactersInEvents:
     def test_reasoning_with_html_tags(self):
         result = {"reasoning": '<b>Important</b> finding with <a href="#">link</a>'}
         events = tool_result_to_events(result)
-        assert events[0]["type"] == REASONING
+        assert events[0]["type"] == EventType.REASONING
         assert "<b>Important</b>" in events[0]["data"]["reasoning"]
 
     def test_conversation_title_with_unicode(self):
@@ -82,7 +72,7 @@ class TestDuplicateEventEmission:
             "name": "Name from graph",
         }
         events = tool_result_to_events(result)
-        meta_events = [e for e in events if e["type"] == STRATEGY_META]
+        meta_events = [e for e in events if e["type"] == EventType.STRATEGY_META]
         # Both conversationTitle and graphId+name paths trigger STRATEGY_META
         assert len(meta_events) == 2
         # First one is from conversationTitle (just 'name')
@@ -105,7 +95,7 @@ class TestEventOrdering:
         }
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
-        assert types.index(CITATIONS) < types.index(REASONING)
+        assert types.index(EventType.CITATIONS) < types.index(EventType.REASONING)
 
     def test_reasoning_before_strategy_update(self):
         result = {
@@ -116,7 +106,7 @@ class TestEventOrdering:
         }
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
-        assert types.index(REASONING) < types.index(STRATEGY_UPDATE)
+        assert types.index(EventType.REASONING) < types.index(EventType.STRATEGY_UPDATE)
 
     def test_strategy_link_is_last_link_related_event(self):
         result = {
@@ -128,8 +118,8 @@ class TestEventOrdering:
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
         # strategy_link should come after strategy_update and strategy_meta
-        assert types.index(STRATEGY_LINK) > types.index(STRATEGY_UPDATE)
-        assert types.index(STRATEGY_LINK) > types.index(STRATEGY_META)
+        assert types.index(EventType.STRATEGY_LINK) > types.index(EventType.STRATEGY_UPDATE)
+        assert types.index(EventType.STRATEGY_LINK) > types.index(EventType.STRATEGY_META)
 
 
 # ---------------------------------------------------------------------------
@@ -138,34 +128,18 @@ class TestEventOrdering:
 
 
 class TestGraphIdEdgeCases:
-    def test_graph_id_as_int_in_strategy_meta(self):
-        """Non-string graphId is still truthy, so STRATEGY_META fires."""
-        result = {"graphId": 42, "name": "Strategy"}
-        events = tool_result_to_events(result)
-        meta_events = [e for e in events if e["type"] == STRATEGY_META]
-        assert len(meta_events) == 1
-        # graphId is read via result.get("graphId"), so it's 42 (int)
-        assert meta_events[0]["data"]["graphId"] == 42
-
-    def test_graph_id_as_bool_true_in_strategy_meta(self):
-        """Bool True is truthy, triggers STRATEGY_META."""
-        result = {"graphId": True, "name": "Strategy"}
-        events = tool_result_to_events(result)
-        meta_events = [e for e in events if e["type"] == STRATEGY_META]
-        assert len(meta_events) == 1
-
     def test_empty_string_graph_id_no_strategy_meta(self):
         """Empty string is falsy, should NOT trigger STRATEGY_META."""
         result = {"graphId": "", "name": "Strategy"}
         events = tool_result_to_events(result)
-        meta_events = [e for e in events if e["type"] == STRATEGY_META]
+        meta_events = [e for e in events if e["type"] == EventType.STRATEGY_META]
         assert len(meta_events) == 0
 
     def test_graph_id_zero_in_strategy_meta(self):
         """0 is falsy, should NOT trigger STRATEGY_META."""
         result = {"graphId": 0, "name": "Strategy"}
         events = tool_result_to_events(result)
-        meta_events = [e for e in events if e["type"] == STRATEGY_META]
+        meta_events = [e for e in events if e["type"] == EventType.STRATEGY_META]
         assert len(meta_events) == 0
 
 
@@ -175,29 +149,23 @@ class TestGraphIdEdgeCases:
 
 
 class TestGraphPlanEdgeCases:
-    def test_plan_as_empty_dict_is_falsy(self):
-        """An empty dict is falsy, so plan should NOT be emitted."""
-        result = {"plan": {}}
-        events = tool_result_to_events(result)
-        plan_events = [e for e in events if e["type"] == GRAPH_PLAN]
-        assert len(plan_events) == 0
-
     def test_plan_as_empty_list_is_falsy(self):
         result = {"plan": []}
         events = tool_result_to_events(result)
-        plan_events = [e for e in events if e["type"] == GRAPH_PLAN]
+        plan_events = [e for e in events if e["type"] == EventType.GRAPH_PLAN]
         assert len(plan_events) == 0
 
     def test_plan_with_missing_optional_fields(self):
         result = {"plan": {"root": {}}}
         events = tool_result_to_events(result)
-        plan_events = [e for e in events if e["type"] == GRAPH_PLAN]
+        plan_events = [e for e in events if e["type"] == EventType.GRAPH_PLAN]
         assert len(plan_events) == 1
         data = plan_events[0]["data"]
-        assert data["graphId"] is None
-        assert data["name"] is None
-        assert data["recordType"] is None
-        assert data["description"] is None
+        # CamelModel uses exclude_none=True, so absent optional fields are omitted
+        assert "graphId" not in data
+        assert "name" not in data
+        assert "recordType" not in data
+        assert "description" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -206,19 +174,11 @@ class TestGraphPlanEdgeCases:
 
 
 class TestGraphSnapshotEdgeCases:
-    def test_graph_snapshot_with_non_string_graph_id_in_snapshot(self):
-        """Non-string graphId inside snapshot dict is coerced to None."""
-        snapshot = {"steps": [], "graphId": 42}
-        result = {"graphSnapshot": snapshot}
-        events = tool_result_to_events(result)
-        snap_events = [e for e in events if e["type"] == GRAPH_SNAPSHOT]
-        assert snap_events[0]["data"]["graphId"] is None
-
     def test_graph_snapshot_empty_dict_is_falsy(self):
         """Empty dict is falsy, so graphSnapshot should NOT emit."""
         result = {"graphSnapshot": {}}
         events = tool_result_to_events(result)
-        snap_events = [e for e in events if e["type"] == GRAPH_SNAPSHOT]
+        snap_events = [e for e in events if e["type"] == EventType.GRAPH_SNAPSHOT]
         assert len(snap_events) == 0
 
 
@@ -231,25 +191,25 @@ class TestClearedEdgeCases:
     def test_cleared_none_not_emitted(self):
         result = {"cleared": None}
         events = tool_result_to_events(result)
-        cleared_events = [e for e in events if e["type"] == GRAPH_CLEARED]
+        cleared_events = [e for e in events if e["type"] == EventType.GRAPH_CLEARED]
         assert len(cleared_events) == 0
 
     def test_cleared_zero_not_emitted(self):
         result = {"cleared": 0}
         events = tool_result_to_events(result)
-        cleared_events = [e for e in events if e["type"] == GRAPH_CLEARED]
+        cleared_events = [e for e in events if e["type"] == EventType.GRAPH_CLEARED]
         assert len(cleared_events) == 0
 
     def test_cleared_empty_string_not_emitted(self):
         result = {"cleared": ""}
         events = tool_result_to_events(result)
-        cleared_events = [e for e in events if e["type"] == GRAPH_CLEARED]
+        cleared_events = [e for e in events if e["type"] == EventType.GRAPH_CLEARED]
         assert len(cleared_events) == 0
 
     def test_cleared_truthy_string_emitted(self):
         result = {"cleared": "yes", "graphId": "g1"}
         events = tool_result_to_events(result)
-        cleared_events = [e for e in events if e["type"] == GRAPH_CLEARED]
+        cleared_events = [e for e in events if e["type"] == EventType.GRAPH_CLEARED]
         assert len(cleared_events) == 1
 
 
@@ -263,7 +223,7 @@ class TestGeneSetCreatedEdgeCases:
         """Empty dict is falsy, should NOT emit."""
         result = {"geneSetCreated": {}}
         events = tool_result_to_events(result)
-        gs_events = [e for e in events if e["type"] == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e["type"] == EventType.WORKBENCH_GENE_SET]
         # isinstance({}, dict) is True, but truthiness check missing --
         # the code only checks isinstance, so an empty dict IS emitted.
         assert len(gs_events) == 1
@@ -271,7 +231,7 @@ class TestGeneSetCreatedEdgeCases:
     def test_gene_set_created_list_not_emitted(self):
         result = {"geneSetCreated": [{"id": "gs1"}]}
         events = tool_result_to_events(result)
-        gs_events = [e for e in events if e["type"] == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e["type"] == EventType.WORKBENCH_GENE_SET]
         assert len(gs_events) == 0
 
     def test_gene_set_created_with_nested_data(self):
@@ -282,7 +242,7 @@ class TestGeneSetCreatedEdgeCases:
         }
         result = {"geneSetCreated": gene_set}
         events = tool_result_to_events(result)
-        gs_events = [e for e in events if e["type"] == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e["type"] == EventType.WORKBENCH_GENE_SET]
         assert len(gs_events) == 1
         assert len(gs_events[0]["data"]["geneSet"]["geneIds"]) == 1000
 
@@ -297,14 +257,14 @@ class TestStrategyLinkEdgeCases:
         """String wdkStrategyId is not None, so link should emit."""
         result = {"wdkStrategyId": "12345"}
         events = tool_result_to_events(result)
-        link_events = [e for e in events if e["type"] == STRATEGY_LINK]
+        link_events = [e for e in events if e["type"] == EventType.STRATEGY_LINK]
         assert len(link_events) == 1
 
     def test_wdk_strategy_id_false_not_emitted(self):
         """False is not None, so link should emit."""
         result = {"wdkStrategyId": False}
         events = tool_result_to_events(result)
-        link_events = [e for e in events if e["type"] == STRATEGY_LINK]
+        link_events = [e for e in events if e["type"] == EventType.STRATEGY_LINK]
         assert len(link_events) == 1
 
 
@@ -348,14 +308,14 @@ class TestAllEventsCombined:
         events = tool_result_to_events(result, get_graph=lambda gid: MockGraph())
         types = {e["type"] for e in events}
         # Should have all event types
-        assert CITATIONS in types
-        assert PLANNING_ARTIFACT in types
-        assert REASONING in types
-        assert STRATEGY_META in types
-        assert EXECUTOR_BUILD_REQUEST in types
-        assert STRATEGY_UPDATE in types
-        assert GRAPH_SNAPSHOT in types
-        assert GRAPH_PLAN in types
-        assert GRAPH_CLEARED in types
-        assert WORKBENCH_GENE_SET in types
-        assert STRATEGY_LINK in types
+        assert EventType.CITATIONS in types
+        assert EventType.PLANNING_ARTIFACT in types
+        assert EventType.REASONING in types
+        assert EventType.STRATEGY_META in types
+        assert EventType.EXECUTOR_BUILD_REQUEST in types
+        assert EventType.STRATEGY_UPDATE in types
+        assert EventType.GRAPH_SNAPSHOT in types
+        assert EventType.GRAPH_PLAN in types
+        assert EventType.GRAPH_CLEARED in types
+        assert EventType.WORKBENCH_GENE_SET in types
+        assert EventType.STRATEGY_LINK in types

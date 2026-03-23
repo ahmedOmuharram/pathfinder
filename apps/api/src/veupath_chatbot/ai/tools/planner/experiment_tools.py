@@ -40,7 +40,7 @@ async def _run_step_control_tests(
     result: JSONObject = {
         "siteId": site_id,
         "wdkStepId": wdk_step_id,
-        "resultCount": len(result_set),
+        "estimatedSize": len(result_set),
         "positive": None,
         "negative": None,
     }

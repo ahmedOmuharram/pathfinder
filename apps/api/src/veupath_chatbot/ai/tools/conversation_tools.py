@@ -62,7 +62,7 @@ class ConversationTools:
             "description": strategy.description,
             "recordType": strategy.record_type,
             "graphName": graph.name,
-            "plan": strategy.to_dict(),
+            "plan": strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
             "message": f"Strategy '{name}' saved successfully.",
         }
 
@@ -94,7 +94,7 @@ class ConversationTools:
             "name": new_name,
             "recordType": graph.current_strategy.record_type,
             "description": graph.current_strategy.description,
-            "plan": graph.current_strategy.to_dict(),
+            "plan": graph.current_strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
         }
 
     @ai_function()

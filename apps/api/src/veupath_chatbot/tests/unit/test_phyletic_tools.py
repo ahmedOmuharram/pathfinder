@@ -119,7 +119,7 @@ class TestFormatParamInfoPhyleticFiltering:
         names = _names(result)
         assert "organism" in names
 
-    def test_result_count_excludes_structural(self) -> None:
+    def test_estimated_size_excludes_structural(self) -> None:
         """6 input params minus 2 structural = 4 output params."""
         result = format_param_info(PHYLETIC_PARAMS)
         assert len(result) == 4

@@ -18,7 +18,7 @@ type RawNodeData = {
   operator?: string;
   parameters?: unknown;
   recordType?: string;
-  resultCount?: unknown;
+  estimatedSize?: unknown;
   wdkStepId?: unknown;
   selected?: boolean;
 };
@@ -63,7 +63,7 @@ export function normalizeNodeSelection(data: Record<string, unknown>): NodeSelec
             ? { parameters: n.parameters as StepParameters }
             : {}),
           ...(typeof n.recordType === "string" ? { recordType: n.recordType } : {}),
-          ...(typeof n.resultCount === "number" ? { resultCount: n.resultCount } : {}),
+          ...(typeof n.estimatedSize === "number" ? { estimatedSize: n.estimatedSize } : {}),
           ...(typeof n.wdkStepId === "number" ? { wdkStepId: n.wdkStepId } : {}),
         }))
       : fallbackNodeIds.map((id) => ({ id, displayName: id }));

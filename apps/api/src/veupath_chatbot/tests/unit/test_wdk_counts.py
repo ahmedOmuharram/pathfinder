@@ -176,7 +176,7 @@ async def test_all_none_results_are_cached():
     For leaf-only strategies, the function now uses anonymous reports
     (not compilation), so we mock ``client.run_search_report``.
     """
-    plan = _simple_ast().to_dict()
+    plan = _simple_ast().model_dump(by_alias=True, exclude_none=True, mode="json")
     ast = _simple_ast()
 
     mock_client = AsyncMock()
@@ -212,7 +212,7 @@ async def test_all_none_results_are_cached():
 async def test_successful_leaf_count():
     """Successful anonymous report returns actual count."""
     ast = _simple_ast()
-    plan = ast.to_dict()
+    plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     mock_answer = WDKAnswer(
         meta=WDKAnswerMeta(total_count=5000, display_total_count=0),
@@ -242,7 +242,7 @@ async def test_successful_leaf_count():
 async def test_different_sites_not_cached_together():
     """Same plan on different sites should have separate cache entries."""
     ast = _simple_ast()
-    plan = ast.to_dict()
+    plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     mock_answer = WDKAnswer(
         meta=WDKAnswerMeta(total_count=100, display_total_count=0),

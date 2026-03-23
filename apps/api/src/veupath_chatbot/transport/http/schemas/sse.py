@@ -1,162 +1,141 @@
 """SSE event payload schemas — typed Pydantic models for every SSE event."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.transport.http.schemas.chat import (
     CitationResponse,
     PlanningArtifactResponse,
 )
+from veupath_chatbot.transport.http.schemas.steps import StepResponse
 
 # ── Message lifecycle ────────────────────────────────────────────────
 
 
-class MessageStartEventData(BaseModel):
+class MessageStartEventData(CamelModel):
     """Payload for ``message_start`` SSE events."""
 
-    strategy_id: str | None = Field(default=None, alias="strategyId")
+    strategy_id: str | None = None
     strategy: JSONObject | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class UserMessageEventData(BaseModel):
+class UserMessageEventData(CamelModel):
     """Payload for ``user_message`` SSE events."""
 
-    message_id: str | None = Field(default=None, alias="messageId")
+    message_id: str | None = None
     content: str | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class AssistantDeltaEventData(BaseModel):
+class AssistantDeltaEventData(CamelModel):
     """Payload for ``assistant_delta`` SSE events (streaming tokens)."""
 
-    message_id: str | None = Field(default=None, alias="messageId")
+    message_id: str | None = None
     delta: str | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class AssistantMessageEventData(BaseModel):
+class AssistantMessageEventData(CamelModel):
     """Payload for ``assistant_message`` SSE events (complete message)."""
 
-    message_id: str | None = Field(default=None, alias="messageId")
+    message_id: str | None = None
     content: str | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class MessageEndEventData(BaseModel):
+class MessageEndEventData(CamelModel):
     """Payload for ``message_end`` SSE events — mirrors TokenUsageResponse."""
 
-    model_id: str | None = Field(default=None, alias="modelId")
-    prompt_tokens: int | None = Field(default=None, alias="promptTokens")
-    completion_tokens: int | None = Field(default=None, alias="completionTokens")
-    total_tokens: int | None = Field(default=None, alias="totalTokens")
-    cached_tokens: int | None = Field(default=None, alias="cachedTokens")
-    tool_call_count: int | None = Field(default=None, alias="toolCallCount")
-    registered_tool_count: int | None = Field(default=None, alias="registeredToolCount")
-    llm_call_count: int | None = Field(default=None, alias="llmCallCount")
-    sub_kani_prompt_tokens: int | None = Field(
-        default=None, alias="subKaniPromptTokens"
-    )
-    sub_kani_completion_tokens: int | None = Field(
-        default=None, alias="subKaniCompletionTokens"
-    )
-    sub_kani_call_count: int | None = Field(default=None, alias="subKaniCallCount")
-    estimated_cost_usd: float | None = Field(default=None, alias="estimatedCostUsd")
-
-    model_config = {"populate_by_name": True}
+    model_id: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    cached_tokens: int | None = None
+    tool_call_count: int | None = None
+    registered_tool_count: int | None = None
+    llm_call_count: int | None = None
+    sub_kani_prompt_tokens: int | None = None
+    sub_kani_completion_tokens: int | None = None
+    sub_kani_call_count: int | None = None
+    estimated_cost_usd: float | None = None
 
 
 # ── Tool calls ───────────────────────────────────────────────────────
 
 
-class ToolCallStartEventData(BaseModel):
+class ToolCallStartEventData(CamelModel):
     """Payload for ``tool_call_start`` SSE events."""
 
     id: str
     name: str
-    arguments: str | None = None
-
-    model_config = {"populate_by_name": True}
+    arguments: JSONObject | None = None
 
 
-class ToolCallEndEventData(BaseModel):
+class ToolCallEndEventData(CamelModel):
     """Payload for ``tool_call_end`` SSE events."""
 
     id: str
     result: str | None = None
 
-    model_config = {"populate_by_name": True}
-
 
 # ── Sub-kani events ──────────────────────────────────────────────────
 
 
-class SubKaniTaskStartEventData(BaseModel):
+class SubKaniTaskStartEventData(CamelModel):
     """Payload for ``subkani_task_start`` SSE events."""
 
     task: str | None = None
-    model_id: str | None = Field(default=None, alias="modelId")
-
-    model_config = {"populate_by_name": True}
+    model_id: str | None = None
 
 
-class SubKaniToolCallStartEventData(BaseModel):
+class SubKaniToolCallStartEventData(CamelModel):
     """Payload for ``subkani_tool_call_start`` SSE events."""
 
     task: str | None = None
     id: str
     name: str
-    arguments: str | None = None
-
-    model_config = {"populate_by_name": True}
+    arguments: JSONObject | None = None
 
 
-class SubKaniToolCallEndEventData(BaseModel):
+class SubKaniToolCallEndEventData(CamelModel):
     """Payload for ``subkani_tool_call_end`` SSE events."""
 
     task: str | None = None
     id: str
     result: str | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class SubKaniTaskEndEventData(BaseModel):
+class SubKaniTaskEndEventData(CamelModel):
     """Payload for ``subkani_task_end`` SSE events."""
 
     task: str | None = None
     status: str | None = None
-    model_id: str | None = Field(default=None, alias="modelId")
-    prompt_tokens: int | None = Field(default=None, alias="promptTokens")
-    completion_tokens: int | None = Field(default=None, alias="completionTokens")
-    llm_call_count: int | None = Field(default=None, alias="llmCallCount")
-    estimated_cost_usd: float | None = Field(default=None, alias="estimatedCostUsd")
+    model_id: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    llm_call_count: int | None = None
+    estimated_cost_usd: float | None = None
 
-    model_config = {"populate_by_name": True}
+
+class SubKaniTaskRetryEventData(CamelModel):
+    """Payload for ``subkani_task_retry`` SSE events."""
+
+    task: str | None = None
+    attempt: int | None = None
 
 
 # ── Token usage / model selection ────────────────────────────────────
 
 
-class TokenUsagePartialEventData(BaseModel):
+class TokenUsagePartialEventData(CamelModel):
     """Payload for ``token_usage_partial`` SSE events."""
 
-    prompt_tokens: int | None = Field(default=None, alias="promptTokens")
-    registered_tool_count: int | None = Field(default=None, alias="registeredToolCount")
-
-    model_config = {"populate_by_name": True}
+    prompt_tokens: int | None = None
+    registered_tool_count: int | None = None
 
 
-class ModelSelectedEventData(BaseModel):
+class ModelSelectedEventData(CamelModel):
     """Payload for ``model_selected`` SSE events."""
 
-    model_id: str = Field(alias="modelId")
-
-    model_config = {"populate_by_name": True}
+    model_id: str
 
 
 # ── Optimization events (imported from optimization.py) ─────────────
@@ -167,136 +146,121 @@ class ModelSelectedEventData(BaseModel):
 # ── Error ────────────────────────────────────────────────────────────
 
 
-class ErrorEventData(BaseModel):
+class ErrorEventData(CamelModel):
     """Payload for ``error`` SSE events."""
 
     error: str
-
-    model_config = {"populate_by_name": True}
 
 
 # ── Strategy / graph events ──────────────────────────────────────────
 
 
-class GraphSnapshotEventData(BaseModel):
+class GraphSnapshotContent(CamelModel):
+    """Content of a graph_snapshot event payload."""
+
+    graph_id: str | None = None
+    graph_name: str | None = None
+    record_type: str | None = None
+    name: str | None = None
+    description: str | None = None
+    root_step_id: str | None = None
+    steps: list[JSONObject] = Field(default_factory=list)
+    edges: list[JSONObject] = Field(default_factory=list)
+    plan: JSONObject | None = None
+
+
+class GraphSnapshotEventData(CamelModel):
     """Payload for ``graph_snapshot`` SSE events."""
 
-    graph_snapshot: JSONObject | None = Field(default=None, alias="graphSnapshot")
-
-    model_config = {"populate_by_name": True}
+    graph_snapshot: GraphSnapshotContent | None = None
 
 
-class StrategyMetaEventData(BaseModel):
+class StrategyMetaEventData(CamelModel):
     """Payload for ``strategy_meta`` SSE events."""
 
-    graph_id: str | None = Field(default=None, alias="graphId")
-    graph_name: str | None = Field(default=None, alias="graphName")
+    graph_id: str | None = None
+    graph_name: str | None = None
     name: str | None = None
     description: str | None = None
-    record_type: str | None = Field(default=None, alias="recordType")
-
-    model_config = {"populate_by_name": True}
+    record_type: str | None = None
 
 
-class GraphPlanEventData(BaseModel):
+class GraphPlanEventData(CamelModel):
     """Payload for ``graph_plan`` SSE events."""
 
-    graph_id: str | None = Field(default=None, alias="graphId")
+    graph_id: str | None = None
     plan: JSONObject | None = None
     name: str | None = None
-    record_type: str | None = Field(default=None, alias="recordType")
+    record_type: str | None = None
     description: str | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class StrategyUpdateEventData(BaseModel):
+class StrategyUpdateEventData(CamelModel):
     """Payload for ``strategy_update`` SSE events."""
 
-    graph_id: str | None = Field(default=None, alias="graphId")
+    graph_id: str | None = None
     step: JSONObject | None = None
+    all_steps: list[StepResponse] = Field(default_factory=list)
 
-    model_config = {"populate_by_name": True}
 
-
-class StrategyLinkEventData(BaseModel):
+class StrategyLinkEventData(CamelModel):
     """Payload for ``strategy_link`` SSE events."""
 
-    graph_id: str | None = Field(default=None, alias="graphId")
-    wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
-    wdk_url: str | None = Field(default=None, alias="wdkUrl")
+    graph_id: str | None = None
+    wdk_strategy_id: int | None = None
+    wdk_url: str | None = None
     name: str | None = None
     description: str | None = None
-    is_saved: bool | None = Field(default=None, alias="isSaved")
-
-    model_config = {"populate_by_name": True}
+    is_saved: bool | None = None
 
 
-class GraphClearedEventData(BaseModel):
+class GraphClearedEventData(CamelModel):
     """Payload for ``graph_cleared`` SSE events."""
 
-    graph_id: str | None = Field(default=None, alias="graphId")
-
-    model_config = {"populate_by_name": True}
+    graph_id: str | None = None
 
 
-class ExecutorBuildRequestEventData(BaseModel):
+class ExecutorBuildRequestEventData(CamelModel):
     """Payload for ``executor_build_request`` SSE events."""
 
-    executor_build_request: JSONObject | None = Field(
-        default=None, alias="executorBuildRequest"
-    )
-
-    model_config = {"populate_by_name": True}
+    executor_build_request: JSONObject | None = None
 
 
 # ── Workbench gene sets ──────────────────────────────────────────────
 
 
-class GeneSetSummary(BaseModel):
+class GeneSetSummary(CamelModel):
     """Summary of a gene set — nested model, not a top-level event."""
 
     id: str | None = None
     name: str | None = None
-    gene_count: int | None = Field(default=None, alias="geneCount")
+    gene_count: int | None = None
     source: str | None = None
-    site_id: str | None = Field(default=None, alias="siteId")
-
-    model_config = {"populate_by_name": True}
+    site_id: str | None = None
 
 
-class WorkbenchGeneSetEventData(BaseModel):
+class WorkbenchGeneSetEventData(CamelModel):
     """Payload for ``workbench_gene_set`` SSE events."""
 
-    gene_set: GeneSetSummary | None = Field(default=None, alias="geneSet")
-
-    model_config = {"populate_by_name": True}
+    gene_set: GeneSetSummary | None = None
 
 
 # ── Miscellaneous events ────────────────────────────────────────────
 
 
-class CitationsEventData(BaseModel):
+class CitationsEventData(CamelModel):
     """Payload for ``citations`` SSE events."""
 
     citations: list[CitationResponse] | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class PlanningArtifactEventData(BaseModel):
+class PlanningArtifactEventData(CamelModel):
     """Payload for ``planning_artifact`` SSE events."""
 
-    planning_artifact: PlanningArtifactResponse | None = Field(
-        default=None, alias="planningArtifact"
-    )
-
-    model_config = {"populate_by_name": True}
+    planning_artifact: PlanningArtifactResponse | None = None
 
 
-class ReasoningEventData(BaseModel):
+class ReasoningEventData(CamelModel):
     """Payload for ``reasoning`` SSE events."""
 
     reasoning: str | None = None
-
-    model_config = {"populate_by_name": True}

@@ -17,60 +17,11 @@ import pytest
 
 from veupath_chatbot.platform.events import (
     _entry_id_to_iso,
-    _parse_arguments,
     _project_event,
     emit,
     read_stream_messages,
     read_stream_thinking,
 )
-
-
-class TestParseArguments:
-    """_parse_arguments converts tool call arguments to dicts."""
-
-    def test_dict_passthrough(self):
-        d = {"key": "value"}
-        assert _parse_arguments(d) is d
-
-    def test_json_string_parsed(self):
-        result = _parse_arguments('{"key": "value"}')
-        assert result == {"key": "value"}
-
-    def test_invalid_json_returns_empty_dict(self):
-        assert _parse_arguments("not json {{") == {}
-
-    def test_json_array_string_returns_empty_dict(self):
-        """JSON string that parses to a list (not dict) should return {}."""
-        assert _parse_arguments("[1, 2, 3]") == {}
-
-    def test_json_scalar_returns_empty_dict(self):
-        assert _parse_arguments("42") == {}
-        assert _parse_arguments('"just a string"') == {}
-        assert _parse_arguments("true") == {}
-        assert _parse_arguments("null") == {}
-
-    def test_none_returns_empty_dict(self):
-        assert _parse_arguments(None) == {}
-
-    def test_int_returns_empty_dict(self):
-        assert _parse_arguments(42) == {}
-
-    def test_list_returns_empty_dict(self):
-        assert _parse_arguments([1, 2]) == {}
-
-    def test_empty_string_returns_empty_dict(self):
-        assert _parse_arguments("") == {}
-
-    def test_empty_dict_string(self):
-        assert _parse_arguments("{}") == {}
-
-    def test_nested_json_string(self):
-        result = _parse_arguments('{"a": {"b": [1, 2]}}')
-        assert result == {"a": {"b": [1, 2]}}
-
-    def test_already_dict_with_nested_structure(self):
-        d = {"filters": [{"name": "organism", "value": "Pf"}]}
-        assert _parse_arguments(d) is d
 
 
 class TestEntryIdToIso:
@@ -287,7 +238,7 @@ class TestReadStreamThinkingEdgeCases:
                 {
                     b"op": b"op_1",
                     b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc1"}).encode(),
+                    b"data": json.dumps({"id": "tc1", "name": "search"}).encode(),
                 },
             ),
             (

@@ -28,6 +28,8 @@ function makeBaseArgs(overrides: Record<string, unknown> = {}) {
       searchName: "GenesByTaxon",
       recordType: "transcript",
       parameters: { organism: "Plasmodium falciparum 3D7" },
+      isBuilt: false,
+      isFiltered: false,
     } as Step,
     siteId: "PlasmoDB",
     name: "Step 1",
@@ -87,10 +89,17 @@ describe("buildStepSaveHandler", () => {
     const handleSave = buildStepSaveHandler(args);
     await handleSave();
 
-    // Still calls onUpdate but with validationError set
+    // Still calls onUpdate but with validation set
     expect(args.onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        validationError: expect.stringContaining("not available"),
+        validation: expect.objectContaining({
+          isValid: false,
+          errors: expect.objectContaining({
+            general: expect.arrayContaining([
+              expect.stringContaining("not available"),
+            ]),
+          }),
+        }),
       }),
     );
     expect(args.onClose).toHaveBeenCalledTimes(1);
@@ -114,7 +123,14 @@ describe("buildStepSaveHandler", () => {
 
     expect(args.onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        validationError: expect.stringContaining("Something is wrong"),
+        validation: expect.objectContaining({
+          isValid: false,
+          errors: expect.objectContaining({
+            general: expect.arrayContaining([
+              expect.stringContaining("Something is wrong"),
+            ]),
+          }),
+        }),
       }),
     );
   });

@@ -3,6 +3,11 @@ import type { Step, Strategy } from "@pathfinder/shared";
 import { buildStrategyFromGraphSnapshot } from "./graphSnapshot";
 import type { GraphSnapshotInput } from "./graphSnapshot";
 
+/** Minimal Step with required boolean fields defaulted. */
+function s(partial: Partial<Step> & { id: string; displayName: string }): Step {
+  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+}
+
 describe("features/chat/utils/graphSnapshot", () => {
   it("treats missing steps field as metadata-only update (keeps existing steps)", () => {
     const strategy = buildStrategyFromGraphSnapshot({
@@ -10,14 +15,14 @@ describe("features/chat/utils/graphSnapshot", () => {
       siteId: "plasmodb",
       graphSnapshot: { name: "New" }, // no steps field
       stepsById: {
-        a: { id: "a", displayName: "A", kind: "search" } satisfies Step,
+        a: s({ id: "a", displayName: "A", kind: "search" }),
       },
       existingStrategy: {
         id: "old",
         name: "Old",
         siteId: "plasmodb",
         recordType: "gene",
-        steps: [{ id: "a", displayName: "A" }] satisfies Step[],
+        steps: [s({ id: "a", displayName: "A" })],
         rootStepId: "a",
         isSaved: false,
         createdAt: "t",
@@ -36,7 +41,7 @@ describe("features/chat/utils/graphSnapshot", () => {
       snapshotId: "s1",
       siteId: "plasmodb",
       graphSnapshot: { steps: null } as unknown as GraphSnapshotInput,
-      stepsById: { a: { id: "a", displayName: "A", kind: "search" } satisfies Step },
+      stepsById: { a: s({ id: "a", displayName: "A", kind: "search" }) },
       existingStrategy: null,
     });
     expect(strategy.steps).toEqual([]);
@@ -47,13 +52,13 @@ describe("features/chat/utils/graphSnapshot", () => {
       snapshotId: "s1",
       siteId: "plasmodb",
       graphSnapshot: { steps: undefined } as unknown as GraphSnapshotInput,
-      stepsById: { a: { id: "a", displayName: "A", kind: "search" } satisfies Step },
+      stepsById: { a: s({ id: "a", displayName: "A", kind: "search" }) },
       existingStrategy: {
         id: "s1",
         name: "Old",
         siteId: "plasmodb",
         recordType: "gene",
-        steps: [{ id: "a", displayName: "A" }] satisfies Step[],
+        steps: [s({ id: "a", displayName: "A" })],
         rootStepId: "a",
         isSaved: false,
         createdAt: "t",
@@ -110,12 +115,12 @@ describe("features/chat/utils/graphSnapshot", () => {
         ],
       },
       stepsById: {
-        a: {
+        a: s({
           id: "a",
           displayName: "Curated Name",
           kind: "search",
           searchName: "q",
-        } satisfies Step,
+        }),
       },
       existingStrategy: null,
     });
@@ -130,12 +135,12 @@ describe("features/chat/utils/graphSnapshot", () => {
         steps: [{ id: "a", displayName: "search", kind: "search", searchName: "q" }],
       },
       stepsById: {
-        a: {
+        a: s({
           id: "a",
           displayName: "My Custom Name",
           kind: "search",
           searchName: "q",
-        } satisfies Step,
+        }),
       },
       existingStrategy: null,
     });
@@ -160,7 +165,7 @@ describe("features/chat/utils/graphSnapshot", () => {
       stepsById: {},
       existingStrategy: null,
     });
-    const c = strategy.steps.find((s) => s.id === "c");
+    const c = strategy.steps.find((st) => st.id === "c");
     expect(c?.primaryInputStepId).toBe("a");
     expect(c?.secondaryInputStepId).toBe("b");
   });

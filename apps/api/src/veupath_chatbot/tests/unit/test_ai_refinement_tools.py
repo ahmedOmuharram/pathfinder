@@ -99,7 +99,7 @@ class TestRefineWithSearch:
         assert result["success"] is True
         assert result["newStepId"] == 300
         assert result["operator"] == "INTERSECT"
-        assert result["resultCount"] == 150
+        assert result["estimatedSize"] == 150
 
         # Experiment should have been updated
         assert exp.wdk_step_id == 300
@@ -423,7 +423,7 @@ class TestCombineAndUpdate:
 
         assert result["success"] is True
         assert result["newStepId"] == 300
-        assert result["resultCount"] == 75
+        assert result["estimatedSize"] == 75
         assert exp.wdk_step_id == 300
 
     @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
@@ -449,7 +449,7 @@ class TestCombineAndUpdate:
     async def test_combine_handles_count_failure(
         self, mock_spawn: MagicMock, mock_get_api: MagicMock
     ) -> None:
-        """If get_step_count fails, resultCount should be None."""
+        """If get_step_count fails, estimatedSize should be None."""
         api = AsyncMock()
         api.create_combined_step.return_value = WDKIdentifier(id=300)
         api.update_strategy = AsyncMock()
@@ -469,7 +469,7 @@ class TestCombineAndUpdate:
             result = await agent._combine_and_update(exp, api, 200, "INTERSECT")
 
         assert result["success"] is True
-        assert result["resultCount"] is None  # Failure handled gracefully
+        assert result["estimatedSize"] is None  # Failure handled gracefully
 
 
 # ---------------------------------------------------------------------------

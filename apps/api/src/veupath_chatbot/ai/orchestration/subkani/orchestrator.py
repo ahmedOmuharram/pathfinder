@@ -44,9 +44,14 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.transport.http.schemas.sse import (
+    GraphSnapshotContent,
+    GraphSnapshotEventData,
+    StrategyUpdateEventData,
     SubKaniTaskEndEventData,
+    SubKaniTaskRetryEventData,
     SubKaniTaskStartEventData,
 )
+from veupath_chatbot.transport.http.schemas.steps import StepResponse
 
 logger = get_logger(__name__)
 
@@ -95,8 +100,8 @@ def _clean_chat_history(context: SubkaniContext) -> list[ChatMessage]:
         message
         for message in context.chat_history
         if message.role != ChatRole.FUNCTION
-        and not getattr(message, "tool_calls", None)
-        and getattr(message, "tool_call_id", None) is None
+        and not message.tool_calls
+        and message.tool_call_id is None
     ]
 
 
@@ -141,7 +146,7 @@ async def _emit_step_events(
     emit_event: EmitEvent,
 ) -> None:
     """Emit strategy_update and graph_snapshot events for newly created steps."""
-    if not isinstance(graph, StrategyGraph):
+    if graph is None:
         return
 
     for step_value in created_steps:
@@ -158,18 +163,14 @@ async def _emit_step_events(
         await emit_event(
             {
                 "type": "strategy_update",
-                "data": {
-                    "graphId": graph_id_str,
-                    "step": step,
-                    "allSteps": [
-                        {
-                            "stepId": sid,
-                            "kind": getattr(s, "infer_kind", lambda: None)(),
-                            "displayName": s.display_name,
-                        }
+                "data": StrategyUpdateEventData(
+                    graph_id=graph_id_str,
+                    step=step,
+                    all_steps=[
+                        StepResponse(id=sid, kind=s.infer_kind(), display_name=s.display_name or s.search_name)
                         for sid, s in graph.steps.items()
                     ],
-                },
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
         snapshot_raw = step.get("graphSnapshot")
@@ -178,10 +179,9 @@ async def _emit_step_events(
             await emit_event(
                 {
                     "type": "graph_snapshot",
-                    "data": {
-                        "graphId": snapshot.get("graphId") or graph_id,
-                        "graphSnapshot": snapshot,
-                    },
+                    "data": GraphSnapshotEventData(
+                        graph_snapshot=GraphSnapshotContent.model_validate(snapshot),
+                    ).model_dump(by_alias=True, exclude_none=True),
                 }
             )
 
@@ -206,11 +206,11 @@ async def _emit_task_end(
             "data": SubKaniTaskEndEventData(
                 task=task,
                 status=status,
-                modelId=subkani_model_id,
-                promptTokens=round_result.prompt_tokens if round_result else 0,
-                completionTokens=round_result.completion_tokens if round_result else 0,
-                llmCallCount=round_result.llm_call_count if round_result else 0,
-                estimatedCostUsd=sub_cost,
+                model_id=subkani_model_id,
+                prompt_tokens=round_result.prompt_tokens if round_result else 0,
+                completion_tokens=round_result.completion_tokens if round_result else 0,
+                llm_call_count=round_result.llm_call_count if round_result else 0,
+                estimated_cost_usd=sub_cost,
             ).model_dump(by_alias=True),
         }
     )
@@ -266,7 +266,7 @@ async def run_subkani_task(
         {
             "type": "subkani_task_start",
             "data": SubKaniTaskStartEventData(
-                task=task, modelId=subkani_model_id
+                task=task, model_id=subkani_model_id
             ).model_dump(by_alias=True),
         }
     )
@@ -319,7 +319,7 @@ async def _run_subkani_retry_loop(
                     "data": SubKaniTaskEndEventData(
                         task=run_state.task,
                         status="timeout",
-                        modelId=run_state.subkani_model_id,
+                        model_id=run_state.subkani_model_id,
                     ).model_dump(by_alias=True),
                 }
             )
@@ -340,7 +340,9 @@ async def _run_subkani_retry_loop(
             await context.emit_event(
                 {
                     "type": "subkani_task_retry",
-                    "data": {"task": run_state.task, "attempt": attempt + 2},
+                    "data": SubKaniTaskRetryEventData(
+                        task=run_state.task, attempt=attempt + 2
+                    ).model_dump(by_alias=True, exclude_none=True),
                 }
             )
             prompt = _build_retry_prompt(
@@ -353,7 +355,7 @@ async def _run_subkani_retry_loop(
             "data": SubKaniTaskEndEventData(
                 task=run_state.task,
                 status="no_steps",
-                modelId=run_state.subkani_model_id,
+                model_id=run_state.subkani_model_id,
             ).model_dump(by_alias=True),
         }
     )
@@ -484,7 +486,10 @@ async def _run_combine_node(
         await emit_event(
             {
                 "type": "strategy_update",
-                "data": {"graphId": response.get("graphId"), "step": response},
+                "data": StrategyUpdateEventData(
+                    graph_id=response.get("graphId"),
+                    step=response,
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
         current_step_id = response.get("stepId") or current_step_id
@@ -601,7 +606,11 @@ async def delegate_strategy_subtasks(
     await context.emit_event(
         {
             "type": "graph_snapshot",
-            "data": {"graphSnapshot": strategy_tools._build_graph_snapshot(graph)},
+            "data": GraphSnapshotEventData(
+                graph_snapshot=GraphSnapshotContent.model_validate(
+                    strategy_tools._build_graph_snapshot(graph)
+                ),
+            ).model_dump(by_alias=True, exclude_none=True),
         }
     )
 
@@ -701,11 +710,11 @@ async def _build_delegation_response(
         await emit_event(
             {
                 "type": "graph_snapshot",
-                "data": {
-                    "graphSnapshot": strategy_tools._build_graph_snapshot(
-                        run_data.graph
-                    )
-                },
+                "data": GraphSnapshotEventData(
+                    graph_snapshot=GraphSnapshotContent.model_validate(
+                        strategy_tools._build_graph_snapshot(run_data.graph)
+                    ),
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
 

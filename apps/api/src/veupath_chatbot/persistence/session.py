@@ -82,11 +82,21 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
             raise
 
 
+def _run_alembic_upgrade(connection: object) -> None:
+    """Run Alembic migrations synchronously on the given connection."""
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.attributes["connection"] = connection
+    command.upgrade(alembic_cfg, "head")
+
+
 async def init_db() -> None:
-    """Initialize database - creates all tables from ORM models."""
+    """Initialize database — runs Alembic migrations to head."""
     real_engine = _get_engine()
     async with real_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_run_alembic_upgrade)
 
 
 async def close_db() -> None:

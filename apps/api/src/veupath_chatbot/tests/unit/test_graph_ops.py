@@ -2,16 +2,10 @@
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
-    StepAnalysis,
-    StepFilter,
-    StepReport,
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
-from veupath_chatbot.services.strategies.engine.graph_ops import (
-    _serialize_step_decorations,
-)
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 from veupath_chatbot.tests.fixtures.builders import (
     make_combine,
@@ -45,44 +39,6 @@ def _leaf(
     return make_leaf(
         step_id, name=name, display=display, parameters={"text_expression": "test"}
     )
-
-
-# ── _serialize_step_decorations ───────────────────────────────────────
-
-
-class TestSerializeStepDecorations:
-    def test_empty_decorations_not_added(self) -> None:
-        step = _leaf("s1")
-        info = {}
-        _serialize_step_decorations(step, info)
-        assert "filters" not in info
-        assert "analyses" not in info
-        assert "reports" not in info
-
-    def test_filters_added(self) -> None:
-        step = _leaf("s1")
-        step.filters = [StepFilter(name="ranked", value=5)]
-        info = {}
-        _serialize_step_decorations(step, info)
-        assert "filters" in info
-        assert len(info["filters"]) == 1
-        assert info["filters"][0]["name"] == "ranked"
-
-    def test_analyses_added(self) -> None:
-        step = _leaf("s1")
-        step.analyses = [StepAnalysis(analysis_type="enrichment")]
-        info = {}
-        _serialize_step_decorations(step, info)
-        assert "analyses" in info
-        assert info["analyses"][0]["analysisType"] == "enrichment"
-
-    def test_reports_added(self) -> None:
-        step = _leaf("s1")
-        step.reports = [StepReport(report_name="tabular", config={"sep": ","})]
-        info = {}
-        _serialize_step_decorations(step, info)
-        assert "reports" in info
-        assert info["reports"][0]["reportName"] == "tabular"
 
 
 # ── _derive_strategy_name ─────────────────────────────────────────────
@@ -207,7 +163,7 @@ class TestSerializeStep:
         step = _leaf("s1", display="My Search")
         graph.add_step(step)
         result = mixin._serialize_step(graph, step)
-        assert result["stepId"] == "s1"
+        assert result["id"] == "s1"
         assert result["kind"] == "search"
         assert result["displayName"] == "My Search"
         assert result["searchName"] == "GenesByTextSearch"
@@ -227,7 +183,7 @@ class TestSerializeStep:
         assert result["operator"] == "UNION"
         assert result["primaryInputStepId"] == "s1"
         assert result["secondaryInputStepId"] == "s2"
-        assert "searchName" not in result  # combine steps omit searchName
+        assert result["searchName"] is not None  # WDK always includes searchName
 
     def test_transform_step_serialization(self) -> None:
         session, graph = _make_session_with_graph()
@@ -312,7 +268,7 @@ class TestBuildGraphSnapshot:
         graph.add_step(s2)
         graph.record_type = "gene"
         snapshot = mixin._build_graph_snapshot(graph)
-        assert snapshot["rootStepId"] is None
+        assert "rootStepId" not in snapshot
 
     def test_snapshot_edges_primary_and_secondary(self) -> None:
         session, graph = _make_session_with_graph()
@@ -339,7 +295,7 @@ class TestBuildGraphSnapshot:
         snapshot = mixin._build_graph_snapshot(graph)
         assert snapshot["steps"] == []
         assert snapshot["edges"] == []
-        assert snapshot["rootStepId"] is None
+        assert "rootStepId" not in snapshot
 
 
 # ── _build_context_plan ───────────────────────────────────────────────
@@ -354,9 +310,9 @@ class TestBuildContextPlan:
         graph.record_type = "gene"
         result = mixin._build_context_plan(graph)
         assert result is not None
-        assert result["recordType"] == "gene"
-        assert result["plan"] is not None
-        assert "graphId" in result
+        assert result.record_type == "gene"
+        assert result.plan is not None
+        assert result.graph_id is not None
 
     def test_returns_none_without_record_type(self) -> None:
         session, graph = _make_session_with_graph(record_type=None)
@@ -382,7 +338,7 @@ class TestBuildContextPlan:
         result = mixin._build_context_plan(graph)
         assert result is not None
         # Name should be derived, not "Draft Graph"
-        assert result["name"] != "Draft Graph"
+        assert result.name != "Draft Graph"
 
     def test_keeps_existing_name(self) -> None:
         session, graph = _make_session_with_graph()
@@ -394,7 +350,7 @@ class TestBuildContextPlan:
         graph.current_strategy = ast
         result = mixin._build_context_plan(graph)
         assert result is not None
-        assert result["name"] == "My Custom Name"
+        assert result.name == "My Custom Name"
 
     def test_falls_back_to_last_step_id(self) -> None:
         """When multiple roots exist, falls back to last_step_id."""
@@ -409,7 +365,7 @@ class TestBuildContextPlan:
         result = mixin._build_context_plan(graph)
         assert result is not None
         # Should use s2 as root since it's last_step_id
-        assert result["plan"]["root"]["id"] == "s2"
+        assert result.plan["root"]["id"] == "s2"
 
 
 # ── _with_plan_payload ────────────────────────────────────────────────

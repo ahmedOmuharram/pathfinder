@@ -14,7 +14,7 @@ export type NodeSelectionNode = {
   operator?: string | null;
   parameters?: StepParameters | null;
   recordType?: string | null;
-  resultCount?: number | null;
+  estimatedSize?: number | null;
   wdkStepId?: number | null;
   selected?: boolean;
 };

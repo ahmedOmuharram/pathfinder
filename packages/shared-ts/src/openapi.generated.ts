@@ -4012,6 +4012,35 @@ export type components = {
             config?: components["schemas"]["JSONObject"];
         };
         /**
+         * WDKValidationErrors
+         * @description Validation error details.
+         */
+        WDKValidationErrors: {
+            /** General */
+            general?: string[];
+            /** Bykey */
+            byKey?: {
+                [key: string]: string[];
+            };
+        };
+        /**
+         * WDKValidation
+         * @description Step/search/strategy validation state.
+         */
+        WDKValidation: {
+            /**
+             * Level
+             * @default NONE
+             */
+            level: string;
+            /**
+             * Isvalid
+             * @default true
+             */
+            isValid: boolean;
+            errors?: components["schemas"]["WDKValidationErrors"] | null;
+        };
+        /**
          * StepResponse
          * @description Strategy step.
          */
@@ -4034,18 +4063,27 @@ export type components = {
             primaryInputStepId?: string | null;
             /** Secondaryinputstepid */
             secondaryInputStepId?: string | null;
-            /** Resultcount */
-            resultCount?: number | null;
+            /** Estimatedsize */
+            estimatedSize?: number | null;
             /** Wdkstepid */
             wdkStepId?: number | null;
+            /**
+             * Isbuilt
+             * @default false
+             */
+            isBuilt: boolean;
+            /**
+             * Isfiltered
+             * @default false
+             */
+            isFiltered: boolean;
+            validation?: components["schemas"]["WDKValidation"] | null;
             /** Filters */
             filters?: components["schemas"]["StepFilterResponse"][] | null;
             /** Analyses */
             analyses?: components["schemas"]["StepAnalysisResponse"][] | null;
             /** Reports */
             reports?: components["schemas"]["StepReportResponse"][] | null;
-            /** Validationerror */
-            validationError?: string | null;
         };
         /**
          * StrategyLinkEventData
@@ -4103,7 +4141,7 @@ export type components = {
          * StrategyResponse
          * @description Unified strategy response — used for both list and detail views.
          *
-         *     List views: ``steps`` is ``[]``, ``stepCount``/``resultCount`` are populated.
+         *     List views: ``steps`` is ``[]``, ``stepCount``/``estimatedSize`` are populated.
          *     Detail views: ``steps`` is populated, summary fields may also be set.
          */
         StrategyResponse: {
@@ -4150,8 +4188,8 @@ export type components = {
             updatedAt: string;
             /** Stepcount */
             stepCount?: number | null;
-            /** Resultcount */
-            resultCount?: number | null;
+            /** Estimatedsize */
+            estimatedSize?: number | null;
             /** Wdkurl */
             wdkUrl?: string | null;
             /** Genesetid */

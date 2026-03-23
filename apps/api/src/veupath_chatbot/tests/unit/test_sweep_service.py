@@ -171,7 +171,7 @@ class TestRunSweepPoint:
         mock_result = ControlTestResult(
             positive=ControlSetData(intersection_count=2, controls_count=2),
             negative=ControlSetData(intersection_count=0, controls_count=1),
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
         )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
@@ -219,7 +219,7 @@ class TestGenerateSweepEvents:
         mock_result = ControlTestResult(
             positive=ControlSetData(intersection_count=2, controls_count=2),
             negative=ControlSetData(intersection_count=0, controls_count=1),
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
         )
 
         with (

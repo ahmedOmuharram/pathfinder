@@ -18,7 +18,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
     WDKStrategySummary,
 )
-from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.platform.errors import validate_response
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -59,7 +59,7 @@ class StrategiesMixin(StrategyAPIBase):
             "name": name,
             "isPublic": is_public,
             "isSaved": is_saved,
-            "stepTree": step_tree.to_dict(),
+            "stepTree": step_tree.model_dump(by_alias=True, exclude_none=True, mode="json"),
         }
         if description:
             payload["description"] = description
@@ -79,11 +79,9 @@ class StrategiesMixin(StrategyAPIBase):
         """Get a strategy by ID."""
         uid = await self._get_user_id(user_id)
         raw = await self.client.get(f"/users/{uid}/strategies/{strategy_id}")
-        try:
-            return WDKStrategyDetails.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK strategy response for {strategy_id}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKStrategyDetails, raw, f"WDK strategy response for {strategy_id}"
+        )
 
     async def list_strategies(
         self, user_id: str | None = None
@@ -113,7 +111,7 @@ class StrategiesMixin(StrategyAPIBase):
         if step_tree is not None:
             await self.client.put(
                 f"/users/{uid}/strategies/{strategy_id}/step-tree",
-                json={"stepTree": step_tree.to_dict()},
+                json={"stepTree": step_tree.model_dump(by_alias=True, exclude_none=True, mode="json")},
             )
 
         if name:

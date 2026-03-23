@@ -1,7 +1,7 @@
 """Unit tests for WDK import: fetch_and_convert and graph reconstruction.
 
 Covers:
-- fetch_and_convert: WDK → AST conversion via mocked StrategyAPI
+- fetch_and_convert: WDK -> AST conversion via mocked StrategyAPI
 - Graph reconstruction: linear chains, nested trees, parameter preservation
 - Metadata: name, description, record_type, is_saved, display_name
 - Serialization: to_dict round-trip
@@ -20,7 +20,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies.wdk_sync import fetch_and_convert
 
-# ── Helpers ────────────────────────────────────────────────────────────
+# -- Helpers ------------------------------------------------------------------
 
 
 def _wdk_step(
@@ -79,7 +79,7 @@ def _mock_api(wdk_strategy: WDKStrategyDetails) -> AsyncMock:
     return api
 
 
-# ── fetch_and_convert: single step tree → AST ─────────────────────────
+# -- fetch_and_convert: single step tree -> AST --------------------------------
 
 
 class TestFetchAndConvertSingleStep:
@@ -94,7 +94,7 @@ class TestFetchAndConvertSingleStep:
         )
         api = _mock_api(wdk)
 
-        ast, is_saved, _ = await fetch_and_convert(api, 1)
+        ast, is_saved = await fetch_and_convert(api, 1)
 
         assert ast.record_type == "gene"
         assert ast.name == "Kinase Search"
@@ -114,7 +114,7 @@ class TestFetchAndConvertSingleStep:
         )
         api = _mock_api(wdk)
 
-        ast, is_saved, _ = await fetch_and_convert(api, 10)
+        ast, is_saved = await fetch_and_convert(api, 10)
 
         assert is_saved is False
         assert ast.root.search_name == "GenesByGoTerm"
@@ -127,13 +127,13 @@ class TestFetchAndConvertSingleStep:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 99)
+        ast, _ = await fetch_and_convert(api, 99)
 
         assert ast.root.id == "99"
         assert isinstance(ast.root.id, str)
 
 
-# ── fetch_and_convert: combined step tree → AST ───────────────────────
+# -- fetch_and_convert: combined step tree -> AST ------------------------------
 
 
 class TestFetchAndConvertCombine:
@@ -155,7 +155,7 @@ class TestFetchAndConvertCombine:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
+        ast, _ = await fetch_and_convert(api, 3)
 
         assert ast.root.infer_kind() == "combine"
         assert ast.root.operator == CombineOp.INTERSECT
@@ -180,7 +180,7 @@ class TestFetchAndConvertCombine:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
+        ast, _ = await fetch_and_convert(api, 3)
 
         assert ast.root.operator == CombineOp.UNION
 
@@ -199,12 +199,12 @@ class TestFetchAndConvertCombine:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
+        ast, _ = await fetch_and_convert(api, 3)
 
         assert ast.root.operator == CombineOp.MINUS
 
 
-# ── fetch_and_convert: parameters preserved ───────────────────────────
+# -- fetch_and_convert: parameters preserved -----------------------------------
 
 
 class TestFetchAndConvertParameters:
@@ -222,7 +222,7 @@ class TestFetchAndConvertParameters:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.root.parameters["text_expression"] == "kinase"
         assert ast.root.parameters["text_fields"] == "product,gene_name"
@@ -235,7 +235,7 @@ class TestFetchAndConvertParameters:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.root.parameters == {}
 
@@ -254,7 +254,7 @@ class TestFetchAndConvertParameters:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
+        ast, _ = await fetch_and_convert(api, 3)
 
         left = ast.root.primary_input
         right = ast.root.secondary_input
@@ -264,7 +264,7 @@ class TestFetchAndConvertParameters:
         assert right.parameters == {"GoTerm": "GO:0006915"}
 
 
-# ── Graph reconstruction: linear chain ─────────────────────────────────
+# -- Graph reconstruction: linear chain ----------------------------------------
 
 
 class TestGraphReconstructionLinearChain:
@@ -288,7 +288,7 @@ class TestGraphReconstructionLinearChain:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
+        ast, _ = await fetch_and_convert(api, 3)
 
         # Root should be step3 (transform)
         assert ast.root.search_name == "GenesByRNASeqEvidence"
@@ -311,7 +311,7 @@ class TestGraphReconstructionLinearChain:
         assert len(ast.get_all_steps()) == 3
 
 
-# ── Graph reconstruction: nested tree ──────────────────────────────────
+# -- Graph reconstruction: nested tree -----------------------------------------
 
 
 class TestGraphReconstructionNestedTree:
@@ -343,7 +343,7 @@ class TestGraphReconstructionNestedTree:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 5)
+        ast, _ = await fetch_and_convert(api, 5)
 
         # Root is UNION combine
         assert ast.root.infer_kind() == "combine"
@@ -390,7 +390,7 @@ class TestGraphReconstructionNestedTree:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 4)
+        ast, _ = await fetch_and_convert(api, 4)
 
         # Root is a transform
         assert ast.root.infer_kind() == "transform"
@@ -405,7 +405,7 @@ class TestGraphReconstructionNestedTree:
         assert len(ast.get_all_steps()) == 4
 
 
-# ── fetch_and_convert: metadata & edge cases ──────────────────────────
+# -- fetch_and_convert: metadata & edge cases ----------------------------------
 
 
 class TestFetchAndConvertEdgeCases:
@@ -420,7 +420,7 @@ class TestFetchAndConvertEdgeCases:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.name is None
 
@@ -432,7 +432,7 @@ class TestFetchAndConvertEdgeCases:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.description == "A useful description"
 
@@ -450,7 +450,7 @@ class TestFetchAndConvertEdgeCases:
         api.client.get_search_details = AsyncMock(side_effect=WDKError(detail="boom"))
 
         # Should not raise -- normalization failures are logged and swallowed
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.root.parameters == {"text": "kinase"}
 
@@ -473,7 +473,7 @@ class TestFetchAndConvertEdgeCases:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.record_type == "transcript"
 
@@ -492,7 +492,7 @@ class TestFetchAndConvertEdgeCases:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.root.display_name == "My Custom Step"
 
@@ -510,12 +510,12 @@ class TestFetchAndConvertEdgeCases:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
+        ast, _ = await fetch_and_convert(api, 1)
 
         assert ast.root.display_name == "Text Search"
 
 
-# ── fetch_and_convert: to_dict round-trip ──────────────────────────────
+# -- fetch_and_convert: to_dict round-trip -------------------------------------
 
 
 class TestFetchAndConvertToDict:
@@ -529,8 +529,8 @@ class TestFetchAndConvertToDict:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 1)
-        plan = ast.to_dict()
+        ast, _ = await fetch_and_convert(api, 1)
+        plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
 
         assert "recordType" in plan
         assert "root" in plan
@@ -555,8 +555,8 @@ class TestFetchAndConvertToDict:
         )
         api = _mock_api(wdk)
 
-        ast, _, _ = await fetch_and_convert(api, 3)
-        plan = ast.to_dict()
+        ast, _ = await fetch_and_convert(api, 3)
+        plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
 
         root = plan["root"]
         assert isinstance(root, dict)

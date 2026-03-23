@@ -29,6 +29,8 @@ describe("state/useStrategySelectors", () => {
       displayName: "Search 1",
       searchName: "geneById",
       recordType: "gene",
+      isBuilt: false,
+      isFiltered: false,
     });
 
     const { result } = renderHook(() => useCurrentStrategy());

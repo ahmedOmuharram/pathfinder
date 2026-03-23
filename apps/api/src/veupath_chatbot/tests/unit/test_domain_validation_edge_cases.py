@@ -200,39 +200,10 @@ class TestEnsureUniqueCitationTagsEdgeCases:
 
 
 class TestCitationEdgeCases:
-    def test_minimal_citation(self) -> None:
-        c = Citation(id="x", source="web", title="T")
-        d = c.to_dict()
-        assert d["id"] == "x"
-        assert d["source"] == "web"
-        assert d["title"] == "T"
-        assert "tag" in d
-        # All optional fields should be None
-        assert d["url"] is None
-        assert d["authors"] is None
-        assert d["year"] is None
-        assert d["doi"] is None
-        assert d["pmid"] is None
-        assert d["snippet"] is None
-        assert d["accessedAt"] is None
-
-    def test_citation_tag_generation(self) -> None:
-        """Citation.to_dict() should generate a tag via _suggest_citation_tag."""
-        c = Citation(
-            id="x",
-            source="pubmed",
-            title="Test",
-            authors=["Smith J"],
-            year=2020,
-        )
-        d = c.to_dict()
-        assert d["tag"] == "smith2020"
-
-    def test_citation_immutable(self) -> None:
-        """Citation is frozen Pydantic model."""
-        c = Citation(id="x", source="web", title="T")
-        with __import__("pytest").raises(ValidationError):
-            c.title = "New"  # type: ignore[misc]
+    def test_tag_prefers_doi_over_source(self) -> None:
+        c = Citation(id="x", source="pubmed", title="Test", doi="10.1234/abc")
+        # Tag should incorporate the DOI, not just fall back to source
+        assert c.tag != "pubmed"
 
 
 # ===========================================================================

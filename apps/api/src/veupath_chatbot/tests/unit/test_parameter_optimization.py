@@ -32,7 +32,7 @@ from veupath_chatbot.services.parameter_optimization import (
 
 def _make_wdk_result(
     *,
-    result_count: int = 100,
+    estimated_size: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
     positive_controls: list[str] | None = None,
@@ -55,7 +55,7 @@ def _make_wdk_result(
             search_name="GenesByRNASeq",
             parameters={},
             step_id=999,
-            result_count=result_count,
+            estimated_size=estimated_size,
         ),
         positive=ControlSetData(
             controls_count=len(pos),
@@ -135,26 +135,26 @@ class TestComputeScore:
         # f_beta = (1+4) * 0.8 * 0.9 / (4*0.8 + 0.9) = 5*0.72/(3.2+0.9) = 3.6/4.1 ≈ 0.878
         assert 0.87 < score < 0.89
 
-    def test_result_count_penalty_zero_weight(self) -> None:
+    def test_estimated_size_penalty_zero_weight(self) -> None:
         """No penalty when weight is 0."""
-        cfg = OptimizationConfig(objective="f1", result_count_penalty=0.0)
+        cfg = OptimizationConfig(objective="f1", estimated_size_penalty=0.0)
         score_no_penalty = _compute_score(
-            recall=0.8, fpr=0.1, cfg=cfg, result_count=5000
+            recall=0.8, fpr=0.1, cfg=cfg, estimated_size=5000
         )
-        score_baseline = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, result_count=None)
+        score_baseline = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, estimated_size=None)
         assert score_no_penalty == score_baseline
 
-    def test_result_count_penalty_applied(self) -> None:
+    def test_estimated_size_penalty_applied(self) -> None:
         """Larger result sets should produce lower scores with penalty."""
-        cfg = OptimizationConfig(objective="f1", result_count_penalty=0.1)
-        score_small = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, result_count=200)
-        score_large = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, result_count=5000)
+        cfg = OptimizationConfig(objective="f1", estimated_size_penalty=0.1)
+        score_small = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, estimated_size=200)
+        score_large = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, estimated_size=5000)
         assert score_small > score_large
 
-    def test_result_count_penalty_floor_at_zero(self) -> None:
+    def test_estimated_size_penalty_floor_at_zero(self) -> None:
         """Score should never go below zero."""
-        cfg = OptimizationConfig(objective="f1", result_count_penalty=10.0)
-        score = _compute_score(recall=0.1, fpr=0.9, cfg=cfg, result_count=50000)
+        cfg = OptimizationConfig(objective="f1", estimated_size_penalty=10.0)
+        score = _compute_score(recall=0.1, fpr=0.9, cfg=cfg, estimated_size=50000)
         assert score == 0.0
 
 
@@ -169,7 +169,7 @@ class TestComputePareto:
             score=0.8,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         frontier = _compute_pareto_frontier([t])
         assert len(frontier) == 1
@@ -182,7 +182,7 @@ class TestComputePareto:
             score=0.9,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         bad = TrialResult(
             trial_number=2,
@@ -190,7 +190,7 @@ class TestComputePareto:
             score=0.3,
             recall=0.5,
             false_positive_rate=0.5,
-            result_count=50,
+            estimated_size=50,
         )
         frontier = _compute_pareto_frontier([good, bad])
         # good dominates bad (higher recall AND lower FPR)
@@ -205,7 +205,7 @@ class TestComputePareto:
             score=0.0,
             recall=None,
             false_positive_rate=None,
-            result_count=None,
+            estimated_size=None,
         )
         assert _compute_pareto_frontier([t]) == []
 
@@ -253,7 +253,7 @@ class TestResultToJson:
             score=0.85,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
             positive_hits=9,
             negative_hits=1,
             total_positives=10,

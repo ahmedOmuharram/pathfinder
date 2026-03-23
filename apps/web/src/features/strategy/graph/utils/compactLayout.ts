@@ -16,7 +16,7 @@ export interface CompactStep {
   id: string;
   displayName: string;
   kind: StepKind;
-  resultCount?: number | null;
+  estimatedSize?: number | null;
   recordType?: string | null;
   operator?: string | null;
   /** 1-based index in the strategy execution order. */
@@ -45,8 +45,8 @@ function toCompact(step: Step, stepNumber: number): CompactStep {
     kind: inferStepKind(step),
     stepNumber,
   };
-  if (step.resultCount != null) {
-    compact.resultCount = step.resultCount;
+  if (step.estimatedSize != null) {
+    compact.estimatedSize = step.estimatedSize;
   }
   if (step.recordType != null) {
     compact.recordType = step.recordType;

@@ -293,7 +293,7 @@ class TestParamOptimizationCacheDedup:
         key_locks: _KeyLocks = {}
 
         fake_wdk_result = {
-            "target": {"resultCount": 100},
+            "target": {"estimatedSize": 100},
             "positive": {"recall": 0.8, "intersectionCount": 40},
             "negative": {"falsePositiveRate": 0.1, "intersectionCount": 5},
         }
@@ -337,7 +337,7 @@ class TestParamOptimizationCacheDedup:
             nonlocal call_count
             call_count += 1
             return {
-                "target": {"resultCount": 50},
+                "target": {"estimatedSize": 50},
                 "positive": {"recall": 0.5, "intersectionCount": 20},
                 "negative": {"falsePositiveRate": 0.05, "intersectionCount": 2},
             }
@@ -369,7 +369,7 @@ class TestParamOptimizationCacheDedup:
 
         optimised_params: dict[str, JSONValue] = {"p": 0.42}
         key = _cache_key(optimised_params)
-        cached_value: JSONObject = {"target": {"resultCount": 77}}
+        cached_value: JSONObject = {"target": {"estimatedSize": 77}}
         cached_result: tuple[JSONObject | None, str] = (cached_value, "")
         cache: _EvalCache = {key: cached_result}
 

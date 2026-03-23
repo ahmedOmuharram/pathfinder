@@ -671,8 +671,6 @@ class TestSearchForSearches:
 
         for r in result:
             assert not hasattr(r, "score")
-            # Also verify to_dict() output has no score key
-            assert "score" not in r.to_dict()
 
 
 # ---------------------------------------------------------------------------

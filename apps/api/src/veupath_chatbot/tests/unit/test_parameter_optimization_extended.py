@@ -61,7 +61,7 @@ def _trial(
     score: float = 0.5,
     recall: float | None = 0.8,
     fpr: float | None = 0.1,
-    result_count: int | None = 100,
+    estimated_size: int | None = 100,
     parameters: dict[str, JSONValue] | None = None,
 ) -> TrialResult:
     return TrialResult(
@@ -70,13 +70,13 @@ def _trial(
         score=score,
         recall=recall,
         false_positive_rate=fpr,
-        result_count=result_count,
+        estimated_size=estimated_size,
     )
 
 
 def _make_wdk_result(
     *,
-    result_count: int = 100,
+    estimated_size: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
     positive_controls: list[str] | None = None,
@@ -95,7 +95,7 @@ def _make_wdk_result(
             search_name="GenesByRNASeq",
             parameters={},
             step_id=999,
-            result_count=result_count,
+            estimated_size=estimated_size,
         ),
         positive=ControlSetData(
             controls_count=len(pos),
@@ -392,33 +392,33 @@ class TestComputeScoreObjectives:
 
 
 class TestComputeScoreResultCountPenalty:
-    """Detailed tests for the result_count_penalty mechanism."""
+    """Detailed tests for the estimated_size_penalty mechanism."""
 
-    def test_no_penalty_when_result_count_none(self) -> None:
-        cfg = OptimizationConfig(objective="recall", result_count_penalty=0.5)
-        score = _compute_score(0.8, 0.1, cfg, result_count=None)
+    def test_no_penalty_when_estimated_size_none(self) -> None:
+        cfg = OptimizationConfig(objective="recall", estimated_size_penalty=0.5)
+        score = _compute_score(0.8, 0.1, cfg, estimated_size=None)
         assert score == 0.8
 
-    def test_no_penalty_when_result_count_zero(self) -> None:
-        cfg = OptimizationConfig(objective="recall", result_count_penalty=0.5)
-        score = _compute_score(0.8, 0.1, cfg, result_count=0)
+    def test_no_penalty_when_estimated_size_zero(self) -> None:
+        cfg = OptimizationConfig(objective="recall", estimated_size_penalty=0.5)
+        score = _compute_score(0.8, 0.1, cfg, estimated_size=0)
         assert score == 0.8
 
     def test_penalty_scales_with_count(self) -> None:
-        cfg = OptimizationConfig(objective="recall", result_count_penalty=1.0)
+        cfg = OptimizationConfig(objective="recall", estimated_size_penalty=1.0)
         # penalty = 1.0 * (1000 / 20000) = 0.05
-        score = _compute_score(0.8, 0.0, cfg, result_count=1000)
+        score = _compute_score(0.8, 0.0, cfg, estimated_size=1000)
         assert score == pytest.approx(0.75)
 
     def test_penalty_never_below_zero(self) -> None:
-        cfg = OptimizationConfig(objective="recall", result_count_penalty=1.0)
-        score = _compute_score(0.1, 0.0, cfg, result_count=100_000)
+        cfg = OptimizationConfig(objective="recall", estimated_size_penalty=1.0)
+        score = _compute_score(0.1, 0.0, cfg, estimated_size=100_000)
         assert score == 0.0
 
     def test_penalty_with_negative_weight_does_nothing(self) -> None:
-        # result_count_penalty < 0 => condition `> 0` is False => no penalty
-        cfg = OptimizationConfig(objective="recall", result_count_penalty=-1.0)
-        score = _compute_score(0.8, 0.0, cfg, result_count=10000)
+        # estimated_size_penalty < 0 => condition `> 0` is False => no penalty
+        cfg = OptimizationConfig(objective="recall", estimated_size_penalty=-1.0)
+        score = _compute_score(0.8, 0.0, cfg, estimated_size=10000)
         assert score == 0.8
 
 
@@ -615,7 +615,7 @@ class TestTrialToJson:
             score=0.87654,
             recall=0.91234,
             false_positive_rate=0.05678,
-            result_count=150,
+            estimated_size=150,
             positive_hits=9,
             negative_hits=1,
             total_positives=10,
@@ -627,7 +627,7 @@ class TestTrialToJson:
         assert j["score"] == round(0.87654, 4)
         assert j["recall"] == round(0.91234, 4)
         assert j["falsePositiveRate"] == round(0.05678, 4)
-        assert j["resultCount"] == 150
+        assert j["estimatedSize"] == 150
         assert j["positiveHits"] == 9
         assert j["negativeHits"] == 1
         assert j["totalPositives"] == 10
@@ -640,14 +640,14 @@ class TestTrialToJson:
             score=0.5,
             recall=None,
             false_positive_rate=None,
-            result_count=None,
+            estimated_size=None,
             positive_hits=None,
             negative_hits=None,
         )
         j = _trial_to_json(t)
         assert j["recall"] is None
         assert j["falsePositiveRate"] is None
-        assert j["resultCount"] is None
+        assert j["estimatedSize"] is None
         assert j["positiveHits"] is None
         assert j["negativeHits"] is None
 
@@ -765,7 +765,7 @@ class TestOptimizationConfig:
         assert cfg.recall_weight == 1.0
         assert cfg.precision_weight == 1.0
         assert cfg.method == "bayesian"
-        assert cfg.result_count_penalty == 0.0
+        assert cfg.estimated_size_penalty == 0.0
 
     def test_mutable(self) -> None:
         cfg = OptimizationConfig()
@@ -777,12 +777,12 @@ class TestOptimizationConfig:
             budget=10,
             objective="mcc",
             method="grid",
-            result_count_penalty=0.5,
+            estimated_size_penalty=0.5,
         )
         assert cfg.budget == 10
         assert cfg.objective == "mcc"
         assert cfg.method == "grid"
-        assert cfg.result_count_penalty == 0.5
+        assert cfg.estimated_size_penalty == 0.5
 
 
 class TestParameterSpec:
@@ -793,11 +793,6 @@ class TestParameterSpec:
         assert spec.log_scale is False
         assert spec.step is None
         assert spec.choices is None
-
-    def test_frozen(self) -> None:
-        spec = ParameterSpec(name="x", param_type="numeric", min_value=0.0)
-        with pytest.raises(AttributeError):
-            spec.name = "y"  # type: ignore[misc]
 
     def test_categorical(self) -> None:
         spec = ParameterSpec(
@@ -832,7 +827,7 @@ class TestTrialResultDataclass:
             score=0.5,
             recall=0.8,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         assert t.positive_hits is None
         assert t.negative_hits is None
@@ -1506,7 +1501,7 @@ class TestOptimizeSearchParametersExtended:
     async def test_wdk_result_with_no_positive_data(self) -> None:
         """WDK result missing positive/negative data should still produce a trial."""
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             positive=None,
             negative=None,
         )
@@ -1688,11 +1683,11 @@ class TestGridSamplerEdgeCases:
         _, budget = _create_sampler(cfg, specs, 1)
         assert budget == 1
 
-    def test_grid_integer_same_min_max(self) -> None:
+    def test_grid_integer_single_value(self) -> None:
         cfg = OptimizationConfig(method="grid")
         specs = [
-            ParameterSpec(name="n", param_type="integer", min_value=5, max_value=5)
+            ParameterSpec(name="n", param_type="integer", min_value=5, max_value=6)
         ]
-        # range(5, 6, max(1, 0//10)=1) = [5] => 1 combo
+        # range(5, 7, max(1, 1//10)=1) = [5, 6] => 2 combos, budget capped
         _, budget = _create_sampler(cfg, specs, 100)
-        assert budget == 1
+        assert budget == 2

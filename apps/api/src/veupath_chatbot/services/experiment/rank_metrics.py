@@ -12,6 +12,7 @@ from veupath_chatbot.services.experiment.types import (
     DEFAULT_K_VALUES,
     RankMetrics,
 )
+from veupath_chatbot.services.wdk.helpers import extract_record_ids
 
 logger = get_logger(__name__)
 
@@ -140,12 +141,4 @@ async def fetch_ordered_result_ids(
             pagination={"offset": 0, "numRecords": max_results},
         )
 
-    records = answer.records
-
-    ids: list[str] = []
-    for rec in records:
-        if rec.id:
-            val = rec.id[0].get("value", "")
-            if val:
-                ids.append(val)
-    return ids
+    return extract_record_ids(answer.records)

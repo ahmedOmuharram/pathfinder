@@ -18,7 +18,7 @@ class ControlTargetData(CamelModel):
     search_name: str = ""
     parameters: JSONObject = Field(default_factory=dict)
     step_id: int | None = None
-    result_count: int | None = None
+    estimated_size: int | None = None
 
 
 class ControlSetData(CamelModel):
@@ -29,7 +29,7 @@ class ControlSetData(CamelModel):
     intersection_ids: list[str] = Field(default_factory=list)
     intersection_ids_sample: list[str] = Field(default_factory=list)
     target_step_id: int | None = None
-    target_result_count: int = 0
+    target_estimated_size: int = 0
     missing_ids_sample: list[str] = Field(default_factory=list)
     unexpected_hits_sample: list[str] = Field(default_factory=list)
     recall: float | None = None

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
 
+from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from veupath_chatbot.platform.context import request_base_url_ctx
@@ -21,6 +22,14 @@ logger = get_logger(__name__)
 
 EXPORT_TTL = 600  # 10 minutes
 REDIS_PREFIX = "export:"
+
+
+class _ExportPayload(BaseModel):
+    """Shape of the JSON blob stored in Redis for each export."""
+
+    filename: str
+    content_type: str
+    data: str  # base64-encoded content bytes
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,14 +61,12 @@ class ExportService:
         """Store file bytes in Redis and return export metadata."""
         export_id = str(uuid4())
         key = f"{REDIS_PREFIX}{export_id}"
-        payload = json.dumps(
-            {
-                "filename": filename,
-                "content_type": content_type,
-                "data": base64.b64encode(content).decode("ascii"),
-            }
+        payload = _ExportPayload(
+            filename=filename,
+            content_type=content_type,
+            data=base64.b64encode(content).decode("ascii"),
         )
-        await self._redis.set(key, payload.encode("utf-8"), ex=EXPORT_TTL)
+        await self._redis.set(key, payload.model_dump_json().encode("utf-8"), ex=EXPORT_TTL)
         logger.info(
             "Export stored",
             export_id=export_id,
@@ -82,9 +89,9 @@ class ExportService:
         raw = await self._redis.get(key)
         if raw is None:
             return None
-        data = json.loads(raw)
-        content = base64.b64decode(data["data"])
-        return content, data["filename"], data["content_type"]
+        payload = _ExportPayload.model_validate_json(raw)
+        content = base64.b64decode(payload.data)
+        return content, payload.filename, payload.content_type
 
     async def export_gene_set(
         self, gene_set: GeneSet, output_format: Literal["csv", "txt"]

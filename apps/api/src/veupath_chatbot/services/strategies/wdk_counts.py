@@ -10,7 +10,8 @@ Results are cached by plan hash to avoid redundant API calls.
 import asyncio
 import hashlib
 import json
-from collections import OrderedDict
+
+from cachetools import LRUCache
 
 from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.compile import compile_strategy
@@ -24,8 +25,7 @@ from veupath_chatbot.services.control_helpers import delete_temp_strategy
 
 logger = get_logger(__name__)
 
-_STEP_COUNTS_CACHE: OrderedDict[str, dict[str, int | None]] = OrderedDict()
-_STEP_COUNTS_CACHE_MAX = 20
+_STEP_COUNTS_CACHE: LRUCache[str, dict[str, int | None]] = LRUCache(maxsize=20)
 
 
 def plan_cache_key(site_id: str, plan: JSONObject) -> str:
@@ -86,9 +86,8 @@ async def compute_step_counts_for_plan(
     Results are cached by plan hash.
     """
     cache_key = plan_cache_key(site_id, plan)
-    cached = _STEP_COUNTS_CACHE.get(cache_key)
+    cached: dict[str, int | None] | None = _STEP_COUNTS_CACHE.get(cache_key)
     if cached is not None:
-        _STEP_COUNTS_CACHE.move_to_end(cache_key)
         return cached
 
     api = get_strategy_api(site_id)
@@ -172,5 +171,3 @@ async def _compute_counts_via_compilation(
 def _cache_counts(cache_key: str, counts: dict[str, int | None]) -> None:
     """Store counts in the LRU cache."""
     _STEP_COUNTS_CACHE[cache_key] = counts
-    if len(_STEP_COUNTS_CACHE) > _STEP_COUNTS_CACHE_MAX:
-        _STEP_COUNTS_CACHE.popitem(last=False)

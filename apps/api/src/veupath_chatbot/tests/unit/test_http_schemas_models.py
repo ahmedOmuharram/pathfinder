@@ -50,10 +50,10 @@ def test_http_schemas_import_and_basic_model_parsing() -> None:
         kind="search",
         displayName="Step",
         recordType="gene",
-        resultCount=5,
+        estimatedSize=5,
     )
     assert step.display_name == "Step"
-    assert step.result_count == 5
+    assert step.estimated_size == 5
 
     _ = schemas.OpenStrategyRequest(siteId="plasmodb", strategyId=uuid4())
 

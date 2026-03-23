@@ -85,7 +85,7 @@ def _make_control_result(
     positive_intersection_ids: list[str] | None = None,
     negative_intersection_count: int = 1,
     negative_intersection_ids: list[str] | None = None,
-    target_result_count: int = 150,
+    target_estimated_size: int = 150,
     target_step_id: int = 100,
 ) -> JSONObject:
     """Build a realistic ``run_positive_negative_controls`` return value."""
@@ -105,7 +105,7 @@ def _make_control_result(
             "searchName": "GenesByTaxon",
             "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
             "stepId": target_step_id,
-            "resultCount": target_result_count,
+            "estimatedSize": target_estimated_size,
         },
         "positive": {
             "controlsCount": len(POSITIVE_IDS),
@@ -113,7 +113,7 @@ def _make_control_result(
             "intersectionIds": list(pos_ids),
             "intersectionIdsSample": list(pos_ids[:50]),
             "targetStepId": target_step_id,
-            "targetResultCount": target_result_count,
+            "targetEstimatedSize": target_estimated_size,
             "missingIdsSample": list(pos_missing[:50]),
             "recall": positive_intersection_count / len(POSITIVE_IDS),
         },
@@ -123,7 +123,7 @@ def _make_control_result(
             "intersectionIds": list(neg_ids),
             "intersectionIdsSample": list(neg_ids[:50]),
             "targetStepId": target_step_id,
-            "targetResultCount": target_result_count,
+            "targetEstimatedSize": target_estimated_size,
             "unexpectedHitsSample": list(neg_unexpected[:50]),
             "falsePositiveRate": negative_intersection_count / len(NEGATIVE_IDS),
         },

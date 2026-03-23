@@ -31,7 +31,7 @@ from veupath_chatbot.services.strategies.build import (
     create_or_update_wdk_strategy,
     create_strategy_ast,
     extract_step_counts,
-    get_result_count,
+    get_estimated_size,
     resolve_root_step,
 )
 
@@ -477,7 +477,7 @@ class TestCreateOrUpdateWdkStrategy:
 
 
 # ---------------------------------------------------------------------------
-# get_result_count
+# get_estimated_size
 # ---------------------------------------------------------------------------
 
 
@@ -488,7 +488,7 @@ class TestGetResultCount:
                 steps={"42": {"estimatedSize": 100}},
             ),
         )
-        result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=42, wdk_strategy_id=1)
         assert result == StepCountResult(step_id=42, count=100)
 
     async def test_fallback_to_step_count(self):
@@ -496,12 +496,12 @@ class TestGetResultCount:
             get_strategy_response=_make_strategy_details(steps={}),
             step_count=77,
         )
-        result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=42, wdk_strategy_id=1)
         assert result == StepCountResult(step_id=42, count=77)
 
     async def test_no_strategy_id(self):
         api = FakeBuildAPI(step_count=55)
-        result = await get_result_count(api, wdk_step_id=10)
+        result = await get_estimated_size(api, wdk_step_id=10)
         assert result == StepCountResult(step_id=10, count=55)
 
     async def test_estimated_size_none_falls_back(self):
@@ -511,7 +511,7 @@ class TestGetResultCount:
             ),
             step_count=33,
         )
-        result = await get_result_count(api, wdk_step_id=42, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=42, wdk_strategy_id=1)
         assert result.count == 33
 
 

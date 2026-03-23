@@ -47,13 +47,13 @@ def _extract_wdk_step_id(r1) -> object | None:
     return None
 
 
-def _assert_result_count(r2) -> None:
-    """Assert that get_result_count returned a positive numeric count.
+def _assert_estimated_size(r2) -> None:
+    """Assert that get_estimated_size returned a positive numeric count.
 
     :param r2: ChatStreamResult from the count phase.
     """
     for start, end in r2.tool_calls:
-        if start.data.get("name") != "get_result_count":
+        if start.data.get("name") != "get_estimated_size":
             continue
         result_str = end.data.get("result", "{}")
         try:
@@ -63,7 +63,7 @@ def _assert_result_count(r2) -> None:
         if isinstance(data, dict):
             count = (
                 data.get("count")
-                or data.get("resultCount")
+                or data.get("estimatedSize")
                 or data.get("estimatedSize")
             )
             assert count is not None, f"Expected result count, got {data}"
@@ -155,7 +155,7 @@ class TestGetResultCount:
     """After building a strategy, get the result count for a step."""
 
     @pytest.mark.asyncio
-    async def test_result_count(self, authed_client, scripted_engine_factory) -> None:
+    async def test_estimated_size(self, authed_client, scripted_engine_factory) -> None:
         # Phase 1: build strategy
         build_turns = [
             ScriptedTurn(
@@ -208,7 +208,7 @@ class TestGetResultCount:
             ScriptedTurn(
                 tool_calls=[
                     ScriptedToolCall(
-                        "get_result_count",
+                        "get_estimated_size",
                         {"wdk_step_id": int(wdk_step_id)},
                     )
                 ]
@@ -227,8 +227,8 @@ class TestGetResultCount:
 
         assert r2.http_status == 202
         tool_names = [s.data.get("name") for s, _ in r2.tool_calls]
-        assert "get_result_count" in tool_names
-        _assert_result_count(r2)
+        assert "get_estimated_size" in tool_names
+        _assert_estimated_size(r2)
 
 
 class TestToxoDBSearch:

@@ -50,12 +50,27 @@ const StepSchema = z
     colocationParams: z.record(z.string(), z.unknown()).nullable().optional(),
     primaryInputStepId: z.string().nullable().optional(),
     secondaryInputStepId: z.string().nullable().optional(),
-    resultCount: z.number().nullable().optional(),
+    estimatedSize: z.number().nullable().optional(),
     wdkStepId: z.number().nullable().optional(),
+    isBuilt: z.boolean().optional().default(false),
+    isFiltered: z.boolean().optional().default(false),
+    validation: z
+      .object({
+        level: z.string(),
+        isValid: z.boolean(),
+        errors: z
+          .object({
+            general: z.array(z.string()),
+            byKey: z.record(z.string(), z.array(z.string())),
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable()
+      .optional(),
     filters: z.array(StepFilterSchema).nullable().optional(),
     analyses: z.array(StepAnalysisSchema).nullable().optional(),
     reports: z.array(StepReportSchema).nullable().optional(),
-    validationError: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -78,7 +93,7 @@ export const StrategySchema = z
     createdAt: DateTimeString,
     updatedAt: DateTimeString,
     stepCount: z.number().nullable().optional(),
-    resultCount: z.number().nullable().optional(),
+    estimatedSize: z.number().nullable().optional(),
     wdkUrl: z.string().nullable().optional(),
     // messages / thinking are large nested blobs — accept but don't validate deeply
     messages: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
@@ -123,7 +138,7 @@ export const StrategyListItemSchema = z
     wdkStrategyId: z.number().nullable().optional(),
     isSaved: z.boolean().optional(),
     stepCount: z.number().nullable().optional(),
-    resultCount: z.number().nullable().optional(),
+    estimatedSize: z.number().nullable().optional(),
     wdkUrl: z.string().nullable().optional(),
     messages: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
     thinking: z.record(z.string(), z.unknown()).nullable().optional(),

@@ -19,6 +19,8 @@ from veupath_chatbot.services.parameter_optimization.core import (
     optimize_search_parameters,
 )
 from veupath_chatbot.services.parameter_optimization.scoring import (
+    OptimizationResultResponse,
+    TrialResultResponse,
     _compute_pareto_frontier,
     _compute_score,
     _compute_sensitivity,
@@ -32,9 +34,11 @@ __all__ = [
     "OptimizationInput",
     "OptimizationMethod",
     "OptimizationResult",
+    "OptimizationResultResponse",
     "ParameterSpec",
     "ProgressCallback",
     "TrialResult",
+    "TrialResultResponse",
     "_compute_pareto_frontier",
     "_compute_score",
     "_compute_sensitivity",

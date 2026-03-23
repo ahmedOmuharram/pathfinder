@@ -1,8 +1,6 @@
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.events import (
-    CITATIONS,
-    EXECUTOR_BUILD_REQUEST,
-    PLANNING_ARTIFACT,
+    EventType,
     tool_result_to_events,
 )
 
@@ -20,8 +18,8 @@ def test_tool_result_to_events_emits_citations_and_planning_artifact() -> None:
     }
     events = tool_result_to_events(result)
     types = [e.get("type") for e in events]
-    assert CITATIONS in types
-    assert PLANNING_ARTIFACT in types
+    assert EventType.CITATIONS in types
+    assert EventType.PLANNING_ARTIFACT in types
 
 
 def test_tool_result_to_events_emits_executor_build_request() -> None:
@@ -34,4 +32,4 @@ def test_tool_result_to_events_emits_executor_build_request() -> None:
         }
     }
     events = tool_result_to_events(result)
-    assert any(e.get("type") == EXECUTOR_BUILD_REQUEST for e in events)
+    assert any(e.get("type") == EventType.EXECUTOR_BUILD_REQUEST for e in events)

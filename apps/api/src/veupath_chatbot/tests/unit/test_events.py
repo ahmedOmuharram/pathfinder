@@ -96,7 +96,7 @@ async def test_read_stream_messages(mock_redis):
             {
                 b"op": b"op_1",
                 b"type": b"tool_call_start",
-                b"data": json.dumps({"id": "tc1"}).encode(),
+                b"data": json.dumps({"id": "tc1", "name": "search"}).encode(),
             },
         ),
         (
@@ -166,7 +166,7 @@ async def test_read_stream_messages_parses_tool_call_arguments(mock_redis):
                     {
                         "id": "tc1",
                         "name": "set_title",
-                        "arguments": '{"title": "My Strategy"}',
+                        "arguments": {"title": "My Strategy"},
                     }
                 ).encode(),
             },
@@ -241,40 +241,6 @@ async def test_read_stream_messages_handles_dict_arguments(mock_redis):
 
 
 @pytest.mark.asyncio
-async def test_read_stream_messages_handles_invalid_arguments(mock_redis):
-    """Non-parseable arguments should fall back to empty dict."""
-    mock_redis.xrange.return_value = [
-        (
-            b"1-0",
-            {
-                b"op": b"op_1",
-                b"type": b"tool_call_start",
-                b"data": json.dumps(
-                    {
-                        "id": "tc1",
-                        "name": "broken",
-                        "arguments": "not valid json {{",
-                    }
-                ).encode(),
-            },
-        ),
-        (
-            b"2-0",
-            {
-                b"op": b"op_1",
-                b"type": b"assistant_message",
-                b"data": json.dumps({"messageId": "m1", "content": "hmm"}).encode(),
-            },
-        ),
-    ]
-
-    messages = await read_stream_messages(mock_redis, str(uuid4()))
-    assert len(messages) == 1
-    tc = messages[0]["toolCalls"][0]
-    assert isinstance(tc["arguments"], dict)
-
-
-@pytest.mark.asyncio
 async def test_graph_plan_event_updates_step_count(mock_redis, mock_session):
     """A graph_plan event must update both plan AND step_count in the projection.
 
@@ -346,7 +312,7 @@ async def test_read_stream_thinking_completed_turn(mock_redis):
             {
                 b"op": b"op_1",
                 b"type": b"tool_call_start",
-                b"data": json.dumps({"id": "tc1"}).encode(),
+                b"data": json.dumps({"id": "tc1", "name": "search"}).encode(),
             },
         ),
         (

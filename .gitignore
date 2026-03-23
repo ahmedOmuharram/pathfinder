@@ -35,6 +35,7 @@ env/
 .vscode/
 .cursor/
 .claude/
+docs/superpowers/
 CLAUDE.md
 *.swp
 *.swo

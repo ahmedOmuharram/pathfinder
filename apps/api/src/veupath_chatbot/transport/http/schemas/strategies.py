@@ -61,7 +61,7 @@ class OpenStrategyResponse(BaseModel):
 class StrategyResponse(BaseModel):
     """Unified strategy response — used for both list and detail views.
 
-    List views: ``steps`` is ``[]``, ``stepCount``/``resultCount`` are populated.
+    List views: ``steps`` is ``[]``, ``stepCount``/``estimatedSize`` are populated.
     Detail views: ``steps`` is populated, summary fields may also be set.
     """
 
@@ -82,7 +82,7 @@ class StrategyResponse(BaseModel):
     updated_at: datetime = Field(alias="updatedAt")
     # Summary fields — always set, avoids needing steps loaded.
     step_count: int | None = Field(default=None, alias="stepCount")
-    result_count: int | None = Field(default=None, alias="resultCount")
+    estimated_size: int | None = Field(default=None, alias="estimatedSize")
     wdk_url: str | None = Field(default=None, alias="wdkUrl")
     gene_set_id: str | None = Field(default=None, alias="geneSetId")
     dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")

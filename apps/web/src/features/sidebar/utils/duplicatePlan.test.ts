@@ -12,7 +12,7 @@ import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 
 const base: Strategy = {
   id: "s1",
-  steps: [{ id: "a", displayName: "A" }],
+  steps: [{ id: "a", displayName: "A", isBuilt: false, isFiltered: false }],
   name: "X",
   description: "",
   siteId: "s",

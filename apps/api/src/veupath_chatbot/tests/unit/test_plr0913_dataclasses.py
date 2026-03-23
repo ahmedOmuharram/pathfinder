@@ -252,7 +252,7 @@ class TestTrialProgressEvent:
             score=0.75,
             recall=0.8,
             false_positive_rate=0.1,
-            result_count=120,
+            estimated_size=120,
         )
         ev = TrialProgressEvent(
             optimization_id="opt-2",
@@ -316,7 +316,7 @@ class TestOptimizationCompletedEvent:
             score=0.9,
             recall=0.85,
             false_positive_rate=0.05,
-            result_count=90,
+            estimated_size=90,
         )
         ev = OptimizationCompletedEvent(
             optimization_id="opt-done",
@@ -629,19 +629,19 @@ class TestOptimizationSettingsModel:
         assert s.objective == "f1"
         assert s.beta == 1.0
         assert s.method == "bayesian"
-        assert s.result_count_penalty == 0.1
+        assert s.estimated_size_penalty == 0.1
 
     def test_custom_values(self) -> None:
         s = OptimizationSettings(
             budget=30,
             objective="recall",
             method="random",
-            result_count_penalty=0.0,
+            estimated_size_penalty=0.0,
         )
         assert s.budget == 30
         assert s.objective == "recall"
         assert s.method == "random"
-        assert s.result_count_penalty == 0.0
+        assert s.estimated_size_penalty == 0.0
 
     def test_json_schema_is_serializable(self) -> None:
         schema = OptimizationSettings.model_json_schema()

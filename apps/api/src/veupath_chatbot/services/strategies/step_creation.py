@@ -7,7 +7,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import cast
 
 from veupath_chatbot.domain.parameters.specs import (
     adapt_param_specs_from_search,
@@ -24,6 +24,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.catalog.param_validation import (
+    ResolveRecordTypeFn,
     ValidationCallbacks,
     validate_parameters,
 )
@@ -31,20 +32,6 @@ from veupath_chatbot.services.catalog.param_validation import (
 logger = get_logger(__name__)
 
 COMBINE_PLACEHOLDER_SEARCH_NAME = COMBINE_SEARCH_NAME
-
-
-class ResolveRecordTypeFn(Protocol):
-    """Protocol for resolve_record_type_for_search callbacks."""
-
-    async def __call__(
-        self,
-        record_type: str | None,
-        search_name: str | None,
-        *,
-        require_match: bool = ...,
-        allow_fallback: bool = ...,
-    ) -> str | None: ...
-
 
 # Callback type aliases for injected dependencies.
 FindRecordTypeHintFn = Callable[[str, str | None], Awaitable[str | None]]

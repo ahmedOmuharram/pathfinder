@@ -114,7 +114,7 @@ async def optimize_tree_knobs(
 
         result = await run_controls_against_tree(ctx, modified_tree)
 
-        total_results = result.target.result_count or 0
+        total_results = result.target.estimated_size or 0
 
         if opts.max_list_size is not None and total_results > opts.max_list_size:
             return -1.0

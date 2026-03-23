@@ -43,6 +43,8 @@ export function computeOrthologInsert(args: {
     recordType: inferredRecordType,
     parameters: {},
     primaryInputStepId: selectedId,
+    isBuilt: false,
+    isFiltered: false,
   };
 
   const downstream = findFirstDownstream(steps, selectedId);

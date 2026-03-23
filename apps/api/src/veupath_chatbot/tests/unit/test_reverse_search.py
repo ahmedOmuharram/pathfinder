@@ -81,7 +81,7 @@ class TestRankGeneSetsByRecall:
         assert results[0].overlap_count == 0
 
     def test_includes_metrics(self) -> None:
-        """Each result includes recall, precision, f1, result_count, overlap_count."""
+        """Each result includes recall, precision, f1, estimated_size, overlap_count."""
         candidates = [
             _candidate("gs1", "Test Set", ["G1", "G2", "G3", "N1"]),
         ]
@@ -91,7 +91,7 @@ class TestRankGeneSetsByRecall:
         assert r.recall == pytest.approx(3 / 5)  # 3 of 5 positives found
         assert r.precision == pytest.approx(3 / 4)  # 3 of 4 total are positives
         assert r.f1 > 0.0
-        assert r.result_count == 4
+        assert r.estimated_size == 4
         assert r.overlap_count == 3
 
     def test_ties_broken_by_f1(self) -> None:
@@ -124,6 +124,6 @@ class TestRankGeneSetsByRecall:
         results = rank_gene_sets_by_recall(candidates, POSITIVES)
         r = results[0]
         assert r.recall == pytest.approx(2 / 5)
-        # Without negatives, precision = overlap / result_count
+        # Without negatives, precision = overlap / estimated_size
         assert r.precision == pytest.approx(2 / 3)
         assert r.f1 > 0.0

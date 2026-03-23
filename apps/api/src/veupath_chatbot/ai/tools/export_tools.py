@@ -6,10 +6,29 @@ from uuid import UUID
 from kani import AIParam, ai_function
 
 from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
+
+
+class ExportResultResponse(CamelModel):
+    """Typed response for a successful gene-set export."""
+
+    download_url: str
+    filename: str
+    format: str
+    item_count: int
+    expires_in_seconds: int
+
+
+class GeneSetSummaryItem(CamelModel):
+    """Summary of a single gene set for error context."""
+
+    id: str
+    name: str
+    gene_count: int
 
 
 class ExportToolsMixin:
@@ -26,7 +45,9 @@ class ExportToolsMixin:
         else:
             sets = store.list_all(site_id=self.site_id)
         return [
-            {"id": gs.id, "name": gs.name, "geneCount": len(gs.gene_ids)}
+            GeneSetSummaryItem(
+                id=gs.id, name=gs.name, gene_count=len(gs.gene_ids)
+            ).model_dump(by_alias=True, exclude_none=True, mode="json")
             for gs in sets[:10]
         ]
 
@@ -66,10 +87,10 @@ class ExportToolsMixin:
         svc = get_export_service()
         fmt: Literal["csv", "txt"] = "txt" if output_format == "txt" else "csv"
         result = await svc.export_gene_set(gs, fmt)
-        return {
-            "downloadUrl": result.url,
-            "filename": result.filename,
-            "format": output_format,
-            "itemCount": len(gs.gene_ids),
-            "expiresInSeconds": result.expires_in_seconds,
-        }
+        return ExportResultResponse(
+            download_url=result.url,
+            filename=result.filename,
+            format=output_format,
+            item_count=len(gs.gene_ids),
+            expires_in_seconds=result.expires_in_seconds,
+        ).model_dump(by_alias=True, exclude_none=True, mode="json")

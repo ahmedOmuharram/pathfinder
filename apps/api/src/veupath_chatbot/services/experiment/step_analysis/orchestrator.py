@@ -62,7 +62,7 @@ def _enrich_step_evals_with_movement(
                 step_id=ev.step_id,
                 search_name=ev.search_name,
                 display_name=ev.display_name,
-                result_count=ev.result_count,
+                estimated_size=ev.estimated_size,
                 positive_hits=ev.positive_hits,
                 positive_total=ev.positive_total,
                 negative_hits=ev.negative_hits,

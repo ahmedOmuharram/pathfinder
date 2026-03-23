@@ -34,7 +34,12 @@ from veupath_chatbot.services.chat.mention_context import build_mention_context
 from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.types import ChatContext, ChatTurnConfig
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
-from veupath_chatbot.transport.http.schemas.sse import ModelSelectedEventData
+from veupath_chatbot.transport.http.schemas.sse import (
+    ErrorEventData,
+    MessageStartEventData,
+    ModelSelectedEventData,
+    UserMessageEventData,
+)
 
 logger = get_logger(__name__)
 
@@ -166,7 +171,9 @@ async def start_chat_stream(
         stream_id_str,
         operation_id,
         "user_message",
-        {"content": message, "messageId": str(uuid4())},
+        UserMessageEventData(
+            content=message, message_id=str(uuid4())
+        ).model_dump(by_alias=True, exclude_none=True),
         session=context.stream_repo.session,
     )
 
@@ -235,7 +242,6 @@ async def _build_agent_context(
         "id": turn.stream_id_str,
         "name": projection.name,
         "plan": projection.plan,
-        "steps": projection.steps,
         "rootStepId": projection.root_step_id,
         "recordType": projection.record_type,
         "wdkStrategyId": projection.wdk_strategy_id,
@@ -319,7 +325,9 @@ async def _run_stream_loop(
         emit_ctx.stream_id_str,
         emit_ctx.operation_id,
         "message_start",
-        {"strategyId": emit_ctx.stream_id_str, "strategy": strategy_payload},
+        MessageStartEventData(
+            strategy_id=emit_ctx.stream_id_str, strategy=strategy_payload
+        ).model_dump(by_alias=True, exclude_none=True),
         session=emit_ctx.session,
     )
 
@@ -381,7 +389,9 @@ async def _handle_error(
         stream_id_str,
         operation_id,
         "error",
-        {"error": str(error)},
+        ErrorEventData(
+            error=str(error)
+        ).model_dump(by_alias=True, exclude_none=True),
         session=session,
     )
     await emit(
@@ -414,7 +424,9 @@ async def _chat_producer(
                 turn.stream_id_str,
                 operation_id,
                 "error",
-                {"error": "Stream not found"},
+                ErrorEventData(
+                    error="Stream not found"
+                ).model_dump(by_alias=True, exclude_none=True),
             )
             await bg_stream_repo.fail_operation(operation_id)
             await session.commit()
@@ -434,7 +446,9 @@ async def _chat_producer(
             turn.stream_id_str,
             operation_id,
             "model_selected",
-            ModelSelectedEventData(modelId=effective_model).model_dump(by_alias=True),
+            ModelSelectedEventData(
+                model_id=effective_model
+            ).model_dump(by_alias=True, exclude_none=True),
             session=session,
         )
 

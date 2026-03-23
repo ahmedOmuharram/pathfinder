@@ -10,30 +10,30 @@ from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from veupath_chatbot.domain.strategy.plan_ast import count_plan_nodes, steps_to_plan
+from veupath_chatbot.domain.strategy.plan_ast import count_plan_nodes
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.transport.http.schemas.sse import (
+    AssistantMessageEventData,
+    GraphPlanEventData,
+    GraphSnapshotEventData,
+    MessageEndEventData,
+    ModelSelectedEventData,
+    ReasoningEventData,
+    StrategyLinkEventData,
+    StrategyMetaEventData,
+    SubKaniTaskEndEventData,
+    SubKaniTaskStartEventData,
+    SubKaniToolCallEndEventData,
+    SubKaniToolCallStartEventData,
+    ToolCallEndEventData,
+    ToolCallStartEventData,
+    UserMessageEventData,
+)
 
 logger = get_logger(__name__)
 
-
-def _parse_arguments(raw: object) -> JSONObject:
-    """Parse tool call arguments into a dict.
-
-    Arguments arrive as JSON strings from Redis but must be dicts for
-    ``ToolCallResponse`` validation.  Already-dict values pass through.
-    """
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError, ValueError:
-            pass
-    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -110,74 +110,58 @@ _PROJECTED_EVENT_TYPES = frozenset(
 
 
 def _project_strategy_meta(updates: dict[str, object], data: JSONObject) -> None:
-    name = data.get("name")
-    if isinstance(name, str) and name:
-        updates["name"] = name
-    rt = data.get("recordType")
-    if isinstance(rt, str) and rt:
-        updates["record_type"] = rt
+    event = StrategyMetaEventData.model_validate(data)
+    if event.name:
+        updates["name"] = event.name
+    if event.record_type:
+        updates["record_type"] = event.record_type
 
 
 def _project_strategy_link(updates: dict[str, object], data: JSONObject) -> None:
-    wdk_id = data.get("wdkStrategyId")
-    if isinstance(wdk_id, int):
-        updates["wdk_strategy_id"] = wdk_id
-    is_saved = data.get("isSaved")
-    if isinstance(is_saved, bool):
-        updates["is_saved"] = is_saved
+    event = StrategyLinkEventData.model_validate(data)
+    if event.wdk_strategy_id is not None:
+        updates["wdk_strategy_id"] = event.wdk_strategy_id
+    if event.is_saved is not None:
+        updates["is_saved"] = event.is_saved
 
 
 def _project_graph_snapshot(updates: dict[str, object], data: JSONObject) -> None:
-    snapshot = data.get("graphSnapshot")
-    if not isinstance(snapshot, dict):
+    event = GraphSnapshotEventData.model_validate(data)
+    if not event.graph_snapshot:
         return
-    steps = snapshot.get("steps")
-    if isinstance(steps, list):
-        updates["steps"] = steps
-        updates["step_count"] = len(steps)
-    root = snapshot.get("rootStepId")
-    if isinstance(root, str):
-        updates["root_step_id"] = root
-    name = snapshot.get("name") or snapshot.get("graphName")
-    if isinstance(name, str) and name:
+    snapshot = event.graph_snapshot
+    if snapshot.steps:
+        updates["step_count"] = len(snapshot.steps)
+    if snapshot.root_step_id:
+        updates["root_step_id"] = snapshot.root_step_id
+    name = snapshot.name or snapshot.graph_name
+    if name:
         updates["name"] = name
-    rt = snapshot.get("recordType")
-    if isinstance(rt, str) and rt:
-        updates["record_type"] = rt
-    # Build the plan AST from the flat steps when we have a root step ID.
-    # This covers the case where sub-kanis build steps (emitting snapshots)
-    # but never emit a graph_plan event.
-    if isinstance(steps, list) and isinstance(root, str) and steps:
-        typed_steps: list[JSONObject] = [s for s in steps if isinstance(s, dict)]
-        if typed_steps:
-            plan = steps_to_plan(typed_steps, root, snapshot)
-            if plan:
-                updates["plan"] = plan
+    if snapshot.record_type:
+        updates["record_type"] = snapshot.record_type
+    if snapshot.plan:
+        updates["plan"] = snapshot.plan
 
 
 def _project_graph_plan(updates: dict[str, object], data: JSONObject) -> None:
-    plan_val = data.get("plan")
-    if isinstance(plan_val, dict):
-        updates["plan"] = plan_val
-        updates["step_count"] = count_plan_nodes(plan_val)
-    name = data.get("name")
-    if isinstance(name, str) and name:
-        updates["name"] = name
-    rt = data.get("recordType")
-    if isinstance(rt, str) and rt:
-        updates["record_type"] = rt
+    event = GraphPlanEventData.model_validate(data)
+    if event.plan:
+        updates["plan"] = event.plan
+        updates["step_count"] = count_plan_nodes(event.plan)
+    if event.name:
+        updates["name"] = event.name
+    if event.record_type:
+        updates["record_type"] = event.record_type
 
 
 def _project_model_selected(updates: dict[str, object], data: JSONObject) -> None:
-    model_id = data.get("modelId")
-    if isinstance(model_id, str):
-        updates["model_id"] = model_id
+    event = ModelSelectedEventData.model_validate(data)
+    updates["model_id"] = event.model_id
 
 
 def _project_graph_cleared(updates: dict[str, object]) -> None:
     updates["name"] = DEFAULT_STREAM_NAME
     updates["plan"] = {}
-    updates["steps"] = []
     updates["root_step_id"] = None
     updates["step_count"] = 0
     updates["wdk_strategy_id"] = None
@@ -225,16 +209,15 @@ async def _project_event(
     # Pre-clear conflicting wdk_strategy_id before the main update.
     # WDK can reuse strategy IDs (same user, same search), so when
     # a new stream claims a WDK ID, the old owner must release it.
-    if event_type == "strategy_link":
-        wdk_id = event_data.get("wdkStrategyId")
-        if isinstance(wdk_id, int):
-            clear_stmt = (
-                update(StreamProjection)
-                .where(StreamProjection.wdk_strategy_id == wdk_id)
-                .where(StreamProjection.stream_id != stream_id)
-                .values(wdk_strategy_id=None, is_saved=False)
-            )
-            await session.execute(clear_stmt)
+    if event_type == "strategy_link" and "wdk_strategy_id" in updates:
+        wdk_id = updates["wdk_strategy_id"]
+        clear_stmt = (
+            update(StreamProjection)
+            .where(StreamProjection.wdk_strategy_id == wdk_id)
+            .where(StreamProjection.stream_id != stream_id)
+            .values(wdk_strategy_id=None, is_saved=False)
+        )
+        await session.execute(clear_stmt)
 
     stmt = (
         update(StreamProjection)
@@ -318,16 +301,29 @@ class _TurnAccumulator:
         self.subkani_models.clear()
         self.subkani_token_usage.clear()
 
+    def _build_subkani_activity(self) -> JSONObject:
+        """Build subkani activity summary from accumulated state."""
+        activity: JSONObject = {
+            "calls": {k: list(v) for k, v in self.subkani_calls.items()},
+            "status": dict(self.subkani_status),
+        }
+        if self.subkani_models:
+            activity["models"] = dict(self.subkani_models)
+        if self.subkani_token_usage:
+            activity["tokenUsage"] = dict(self.subkani_token_usage)
+        return activity
+
     def build_assistant_message(
         self,
         data: JSONObject,
         entry_id: bytes | str,
     ) -> JSONObject:
         """Build a complete assistant message with accumulated metadata."""
+        event = AssistantMessageEventData.model_validate(data)
         msg: JSONObject = {
             "role": "assistant",
-            "content": data.get("content", ""),
-            "messageId": data.get("messageId"),
+            "content": event.content or "",
+            "messageId": event.message_id,
             "timestamp": _entry_id_to_iso(entry_id),
         }
         if self.model_id:
@@ -341,20 +337,169 @@ class _TurnAccumulator:
         if self.reasoning:
             msg["reasoning"] = self.reasoning
         if self.subkani_calls:
-            activity: JSONObject = {
-                "calls": {k: list(v) for k, v in self.subkani_calls.items()},
-                "status": dict(self.subkani_status),
-            }
-            if self.subkani_models:
-                activity["models"] = dict(self.subkani_models)
-            if self.subkani_token_usage:
-                activity["tokenUsage"] = dict(self.subkani_token_usage)
-            msg["subKaniActivity"] = activity
+            msg["subKaniActivity"] = self._build_subkani_activity()
         # Preserve any fields directly on the event data.
         for key in ("citations", "planningArtifacts", "toolCalls", "reasoning"):
             if key in data and key not in msg:
                 msg[key] = data[key]
         return msg
+
+
+def _handle_user_message(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = UserMessageEventData.model_validate(data)
+    messages.append(
+        {
+            "role": "user",
+            "content": event.content or "",
+            "messageId": event.message_id,
+            "timestamp": _entry_id_to_iso(entry_id),
+        }
+    )
+
+
+def _handle_tool_call_start(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    # Arguments arrive from Redis as either a JSON string or an
+    event = ToolCallStartEventData.model_validate(data)
+    turn.tool_calls.append(
+        {
+            "id": event.id,
+            "name": event.name,
+            "arguments": event.arguments or {},
+        }
+    )
+
+
+def _handle_tool_call_end(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = ToolCallEndEventData.model_validate(data)
+    for tc in turn.tool_calls:
+        if tc["id"] == event.id:
+            tc["result"] = event.result
+            break
+
+
+# Citations and planning artifacts use pass-through extraction because their
+# SSE models (CitationsEventData, PlanningArtifactEventData) validate nested
+# items through strict inner models (CitationResponse, PlanningArtifactResponse)
+# that require fields not always present in Redis replay data.  The stream
+# reconstruction only accumulates these for later inclusion in the assistant
+# message — no field mapping needed.
+def _handle_citations(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    cites = data.get("citations")
+    if isinstance(cites, list):
+        turn.citations.extend(c for c in cites if isinstance(c, dict))
+
+
+def _handle_planning_artifact(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    artifact = data.get("planningArtifact")
+    if isinstance(artifact, dict):
+        turn.planning_artifacts.append(artifact)
+
+
+def _handle_reasoning(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = ReasoningEventData.model_validate(data)
+    if event.reasoning:
+        turn.reasoning = event.reasoning
+
+
+def _handle_model_selected(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = ModelSelectedEventData.model_validate(data)
+    turn.model_id = event.model_id
+
+
+def _handle_subkani_tool_call_start(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = SubKaniToolCallStartEventData.model_validate(data)
+    task = event.task or ""
+    if task:
+        turn.subkani_calls.setdefault(task, []).append(
+            {
+                "id": event.id,
+                "name": event.name,
+                "arguments": event.arguments or {},
+            }
+        )
+
+
+def _handle_subkani_tool_call_end(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = SubKaniToolCallEndEventData.model_validate(data)
+    task = event.task or ""
+    for tc in turn.subkani_calls.get(task, []):
+        if tc["id"] == event.id:
+            tc["result"] = event.result
+            break
+
+
+def _handle_assistant_message(
+    data: JSONObject,
+    entry_id: bytes | str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    messages.append(turn.build_assistant_message(data, entry_id))
+
+
+# Type alias for stream event handler functions.
+type _StreamEventHandler = Callable[
+    [JSONObject, bytes | str, _TurnAccumulator, list[JSONObject]], None
+]
+
+# Dispatch table for stream reconstruction event handlers.
+_STREAM_EVENT_HANDLERS: dict[str, _StreamEventHandler] = {
+    "user_message": _handle_user_message,
+    "tool_call_start": _handle_tool_call_start,
+    "tool_call_end": _handle_tool_call_end,
+    "citations": _handle_citations,
+    "planning_artifact": _handle_planning_artifact,
+    "reasoning": _handle_reasoning,
+    "model_selected": _handle_model_selected,
+    "subkani_tool_call_start": _handle_subkani_tool_call_start,
+    "subkani_tool_call_end": _handle_subkani_tool_call_end,
+    "assistant_message": _handle_assistant_message,
+}
 
 
 def _process_stream_event(
@@ -366,118 +511,57 @@ def _process_stream_event(
 ) -> None:
     """Process a single Redis stream event, mutating *turn* and *messages*.
 
-    Extracted from :func:`read_stream_messages` to keep statement count
-    manageable while preserving identical semantics.
+    Uses a dispatch table for most event types; a few special cases
+    (message_start, subkani_task_start/end, message_end) that need the
+    turn/messages pair in non-standard ways are handled inline.
     """
-    match event_type:
-        case "message_start":
-            turn.reset()
+    if event_type == "message_start":
+        turn.reset()
+        return
 
-        case "user_message":
-            messages.append(
-                {
-                    "role": "user",
-                    "content": data.get("content", ""),
-                    "messageId": data.get("messageId"),
-                    "timestamp": _entry_id_to_iso(entry_id),
-                }
-            )
+    if event_type == "subkani_task_start":
+        _handle_subkani_task_start(turn, data)
+        return
 
-        case "tool_call_start":
-            turn.tool_calls.append(
-                {
-                    "id": data.get("id", ""),
-                    "name": data.get("name", ""),
-                    "arguments": _parse_arguments(data.get("arguments")),
-                }
-            )
+    if event_type == "subkani_task_end":
+        _handle_subkani_task_end(turn, data)
+        return
 
-        case "tool_call_end":
-            call_id = data.get("id", "")
-            for tc in turn.tool_calls:
-                if tc["id"] == call_id:
-                    tc["result"] = data.get("result")
-                    break
+    if event_type == "message_end":
+        _handle_message_end(data, messages, turn)
+        return
 
-        case "citations":
-            cites = data.get("citations")
-            if isinstance(cites, list):
-                turn.citations.extend(cites)
-
-        case "planning_artifact":
-            artifact = data.get("planningArtifact")
-            if artifact:
-                turn.planning_artifacts.append(artifact)
-
-        case "reasoning":
-            r = data.get("reasoning")
-            if isinstance(r, str):
-                turn.reasoning = r
-
-        case "model_selected":
-            mid = data.get("modelId")
-            if isinstance(mid, str):
-                turn.model_id = mid
-
-        case "subkani_task_start":
-            _handle_subkani_task_start(turn, data)
-
-        case "subkani_tool_call_start":
-            task = data.get("task", "")
-            if task:
-                turn.subkani_calls.setdefault(task, []).append(
-                    {
-                        "id": data.get("id", ""),
-                        "name": data.get("name", ""),
-                        "arguments": _parse_arguments(data.get("arguments")),
-                    }
-                )
-
-        case "subkani_tool_call_end":
-            task = data.get("task", "")
-            call_id = data.get("id", "")
-            for tc in turn.subkani_calls.get(task, []):
-                if tc["id"] == call_id:
-                    tc["result"] = data.get("result")
-                    break
-
-        case "subkani_task_end":
-            _handle_subkani_task_end(turn, data)
-
-        case "assistant_message":
-            messages.append(turn.build_assistant_message(data, entry_id))
-
-        case "message_end":
-            _handle_message_end(data, messages, turn)
+    handler = _STREAM_EVENT_HANDLERS.get(event_type)
+    if handler:
+        handler(data, entry_id, turn, messages)
 
 
 def _handle_subkani_task_start(turn: _TurnAccumulator, data: JSONObject) -> None:
     """Process a subkani_task_start event."""
-    task = data.get("task", "")
+    event = SubKaniTaskStartEventData.model_validate(data)
+    task = event.task or ""
     if task:
         turn.subkani_status[task] = "running"
         turn.subkani_calls.setdefault(task, [])
-        mid = data.get("modelId")
-        if isinstance(mid, str) and mid:
-            turn.subkani_models[task] = mid
+        if event.model_id:
+            turn.subkani_models[task] = event.model_id
 
 
 def _handle_subkani_task_end(turn: _TurnAccumulator, data: JSONObject) -> None:
     """Process a subkani_task_end event, capturing token usage."""
-    task = data.get("task", "")
+    event = SubKaniTaskEndEventData.model_validate(data)
+    task = event.task or ""
     if not task:
         return
-    turn.subkani_status[task] = data.get("status", "done")
-    mid = data.get("modelId")
-    if isinstance(mid, str) and mid:
-        turn.subkani_models[task] = mid
-    pt = data.get("promptTokens")
-    if pt is not None:
+    turn.subkani_status[task] = event.status or "done"
+    if event.model_id:
+        turn.subkani_models[task] = event.model_id
+    if event.prompt_tokens is not None:
         turn.subkani_token_usage[task] = {
-            "promptTokens": pt or 0,
-            "completionTokens": data.get("completionTokens", 0),
-            "llmCallCount": data.get("llmCallCount", 0),
-            "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
+            "promptTokens": event.prompt_tokens or 0,
+            "completionTokens": event.completion_tokens or 0,
+            "llmCallCount": event.llm_call_count or 0,
+            "estimatedCostUsd": event.estimated_cost_usd or 0.0,
         }
 
 
@@ -485,21 +569,22 @@ def _handle_message_end(
     data: JSONObject, messages: list[JSONObject], turn: _TurnAccumulator
 ) -> None:
     """Process a message_end event, attaching token usage to messages."""
-    total = data.get("totalTokens", 0)
-    if isinstance(total, int) and total > 0:
+    event = MessageEndEventData.model_validate(data)
+    total = event.total_tokens or 0
+    if total > 0:
         token_usage: JSONObject = {
-            "promptTokens": data.get("promptTokens", 0),
-            "completionTokens": data.get("completionTokens", 0),
+            "promptTokens": event.prompt_tokens or 0,
+            "completionTokens": event.completion_tokens or 0,
             "totalTokens": total,
-            "cachedTokens": data.get("cachedTokens", 0),
-            "toolCallCount": data.get("toolCallCount", 0),
-            "registeredToolCount": data.get("registeredToolCount", 0),
-            "llmCallCount": data.get("llmCallCount", 0),
-            "subKaniPromptTokens": data.get("subKaniPromptTokens", 0),
-            "subKaniCompletionTokens": data.get("subKaniCompletionTokens", 0),
-            "subKaniCallCount": data.get("subKaniCallCount", 0),
-            "estimatedCostUsd": data.get("estimatedCostUsd", 0.0),
-            "modelId": data.get("modelId", ""),
+            "cachedTokens": event.cached_tokens or 0,
+            "toolCallCount": event.tool_call_count or 0,
+            "registeredToolCount": event.registered_tool_count or 0,
+            "llmCallCount": event.llm_call_count or 0,
+            "subKaniPromptTokens": event.sub_kani_prompt_tokens or 0,
+            "subKaniCompletionTokens": event.sub_kani_completion_tokens or 0,
+            "subKaniCallCount": event.sub_kani_call_count or 0,
+            "estimatedCostUsd": event.estimated_cost_usd or 0.0,
+            "modelId": event.model_id or "",
         }
         for i in range(len(messages) - 1, -1, -1):
             if messages[i]["role"] == "user" and "tokenUsage" not in messages[i]:
@@ -537,6 +622,35 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
     return messages
 
 
+def _collect_open_tool_calls(
+    entries: list[tuple[bytes | str, dict[bytes, bytes]]],
+    start_idx: int,
+) -> dict[str, JSONObject]:
+    """Collect tool calls that have started but not ended since *start_idx*."""
+    open_tools: dict[str, JSONObject] = {}
+    for _eid, fields in entries[start_idx:]:
+        event_type = fields.get(b"type", b"").decode()
+        if event_type == "tool_call_start":
+            try:
+                data = json.loads(fields[b"data"])
+                start = ToolCallStartEventData.model_validate(data)
+                open_tools[start.id] = {
+                    "id": start.id,
+                    "name": start.name,
+                    "arguments": start.arguments,
+                }
+            except json.JSONDecodeError, KeyError, ValueError:
+                pass
+        elif event_type == "tool_call_end":
+            try:
+                data = json.loads(fields[b"data"])
+                end = ToolCallEndEventData.model_validate(data)
+                open_tools.pop(end.id, None)
+            except json.JSONDecodeError, KeyError, ValueError:
+                pass
+    return open_tools
+
+
 async def read_stream_thinking(redis: Redis, stream_id: str) -> JSONObject | None:
     """Derive in-progress thinking state from stream events.
 
@@ -562,25 +676,7 @@ async def read_stream_thinking(redis: Redis, stream_id: str) -> JSONObject | Non
     if has_end:
         return None
 
-    # Collect in-progress tool calls
-    open_tools: dict[str, JSONObject] = {}
-    for _eid, fields in entries[last_start_idx:]:
-        event_type = fields.get(b"type", b"").decode()
-        if event_type == "tool_call_start":
-            try:
-                data = json.loads(fields[b"data"])
-                call_id = data.get("id", "")
-                open_tools[call_id] = data
-            except json.JSONDecodeError, KeyError:
-                pass
-        elif event_type == "tool_call_end":
-            try:
-                data = json.loads(fields[b"data"])
-                call_id = data.get("id", "")
-                open_tools.pop(call_id, None)
-            except json.JSONDecodeError, KeyError:
-                pass
-
+    open_tools = _collect_open_tool_calls(entries, last_start_idx)
     if not open_tools:
         return None
 

@@ -64,7 +64,7 @@ export function useBuildStrategy({
       });
       strategyId = created.id;
     }
-    // Refresh after save so we pick up server-updated steps (wdkStepId/resultCount).
+    // Refresh after save so we pick up server-updated steps (wdkStepId/estimatedSize).
     const refreshed = await getStrategy(strategyId);
     addExecutedStrategy(refreshed);
     setStrategyMeta({

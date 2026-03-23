@@ -1,11 +1,11 @@
-"""WDK → AST conversion: parse typed WDK strategy models into internal AST.
+"""WDK -> AST conversion: parse typed WDK strategy models into internal AST.
 
 Pure conversion functions (no I/O except ``normalize_synced_parameters`` which
 fetches param specs from WDK).
 
 Public API:
-- ``build_snapshot_from_wdk`` — WDKStrategyDetails → (AST, steps_data, step_counts)
-- ``normalize_synced_parameters`` — enrich AST nodes with normalized param values
+- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyAST (with step_counts and wdk_step_ids)
+- ``normalize_synced_parameters`` -- enrich AST nodes with normalized param values
 """
 
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
@@ -24,18 +24,12 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 )
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import (
-    JSONArray,
-    JSONObject,
-    as_json_object,
-)
-
-from .step_builders import build_steps_data_from_ast
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 
-# ── Internal conversion helpers ────────────────────────────────────────
+# -- Internal conversion helpers ------------------------------------------------
 
 
 def _extract_operator(parameters: dict[str, str]) -> str | None:
@@ -100,20 +94,34 @@ def _build_node(
     )
 
 
-# ── Public API ─────────────────────────────────────────────────────────
+def _extract_wdk_metadata(
+    ast: StrategyAST,
+    wdk_steps: dict[str, WDKStep],
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Extract step_counts and wdk_step_ids from AST matched against WDK steps."""
+    step_counts: dict[str, int] = {}
+    wdk_step_ids: dict[str, int] = {}
+    for step in ast.get_all_steps():
+        if not step.id.isdigit():
+            continue
+        wdk_id = int(step.id)
+        wdk_step_ids[step.id] = wdk_id
+        wdk_step = wdk_steps.get(str(wdk_id))
+        if wdk_step is not None and wdk_step.estimated_size is not None:
+            step_counts[step.id] = wdk_step.estimated_size
+    return step_counts, wdk_step_ids
+
+
+# -- Public API -----------------------------------------------------------------
 
 
 def build_snapshot_from_wdk(
     wdk_strategy: WDKStrategyDetails,
-) -> tuple[StrategyAST, JSONArray, JSONObject]:
-    """Convert a typed WDK strategy into an internal AST, steps list, and step counts.
+) -> StrategyAST:
+    """Convert a typed WDK strategy into a StrategyAST with enrichment metadata.
 
-    The steps list is used only for parameter normalization enrichment ---
-    steps are derived from plan at read time and not persisted.
-
-    The step counts dict maps step IDs (strings) to their ``estimatedSize``
-    values from the WDK response, enabling zero-cost count display for
-    WDK-linked strategies.
+    Step counts and WDK step ID mappings are stored directly on the AST's
+    ``step_counts`` and ``wdk_step_ids`` fields.
     """
     record_type = wdk_strategy.record_class_name or ""
     if not record_type.strip():
@@ -129,32 +137,13 @@ def build_snapshot_from_wdk(
         description=wdk_strategy.description or None,
     )
 
-    steps_data = build_steps_data_from_ast(ast)
-    step_counts: JSONObject = {}
-
-    for step_value in steps_data:
-        if not isinstance(step_value, dict):
-            continue
-        step = as_json_object(step_value)
-        raw_id = step.get("id")
-        wdk_step_id: int | None = None
-        if isinstance(raw_id, int):
-            wdk_step_id = raw_id
-        elif isinstance(raw_id, str) and raw_id.isdigit():
-            wdk_step_id = int(raw_id)
-        step["wdkStepId"] = wdk_step_id
-
-        if wdk_step_id is None:
-            continue
-        wdk_step = wdk_strategy.steps.get(str(wdk_step_id))
-        if wdk_step is not None and wdk_step.estimated_size is not None:
-            step["resultCount"] = wdk_step.estimated_size
-            step_counts[str(wdk_step_id)] = wdk_step.estimated_size
-
-    return ast, steps_data, step_counts
+    step_counts, wdk_step_ids = _extract_wdk_metadata(ast, wdk_strategy.steps)
+    ast.step_counts = step_counts or None
+    ast.wdk_step_ids = wdk_step_ids or None
+    return ast
 
 
-# ── Parameter normalization ────────────────────────────────────────────
+# -- Parameter normalization ----------------------------------------------------
 
 
 async def _load_search_spec(
@@ -197,29 +186,14 @@ async def _load_search_spec(
     return response.search_data
 
 
-def _index_steps_by_id(steps_data: JSONArray) -> dict[str, JSONObject]:
-    """Build a dict mapping step id → step data from a steps array."""
-    steps_by_id: dict[str, JSONObject] = {}
-    for step_value in steps_data:
-        if not isinstance(step_value, dict):
-            continue
-        step_data = as_json_object(step_value)
-        step_id_value = step_data.get("id")
-        if step_id_value is not None:
-            steps_by_id[str(step_id_value)] = step_data
-    return steps_by_id
-
-
 async def normalize_synced_parameters(
     ast: StrategyAST,
-    steps_data: JSONArray,
     api: StrategyAPI,
 ) -> None:
     """Normalize parameters from WDK response using param specs.
 
     Mutates AST nodes in place with normalized parameter values.
     """
-    steps_by_id = _index_steps_by_id(steps_data)
     spec_cache: dict[tuple[str, str], WDKSearch | None] = {}
 
     for step in ast.get_all_steps():
@@ -255,7 +229,3 @@ async def normalize_synced_parameters(
             continue
 
         step.parameters = normalized
-        step_data_value = steps_by_id.get(str(step.id))
-        if step_data_value is not None and isinstance(step_data_value, dict):
-            step_data = as_json_object(step_data_value)
-            step_data["parameters"] = normalized

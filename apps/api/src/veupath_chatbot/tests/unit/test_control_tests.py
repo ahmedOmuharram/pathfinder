@@ -362,7 +362,7 @@ class TestRunIntersectionControl:
         assert result["controlsCount"] == 3
         assert result["intersectionCount"] == 3
         assert result["targetStepId"] == 50
-        assert result["targetResultCount"] == 3
+        assert result["targetEstimatedSize"] == 3
         assert result["intersectionIds"] == [
             "PF3D7_001",
             "PF3D7_002",
@@ -741,7 +741,7 @@ class TestRunPositiveNegativeControls:
         # Target info comes from the positive run's target step
         assert result.target is not None
         assert result.target.step_id == 10  # first create_step call
-        assert result.target.result_count == 5  # mocked step_count
+        assert result.target.estimated_size == 5  # mocked step_count
         assert result.site_id == "plasmodb"
 
         # Positive results populated
@@ -783,7 +783,7 @@ class TestRunPositiveNegativeControls:
         # No target step since no control sets were run
         assert result.target is not None
         assert result.target.step_id is None
-        assert result.target.result_count is None
+        assert result.target.estimated_size is None
         # No WDK calls made
         api.create_step.assert_not_awaited()
 
@@ -830,4 +830,4 @@ class TestRunPositiveNegativeControls:
         # Target info filled from the negative run
         assert result.target is not None
         assert result.target.step_id == 77
-        assert result.target.result_count == 42
+        assert result.target.estimated_size == 42

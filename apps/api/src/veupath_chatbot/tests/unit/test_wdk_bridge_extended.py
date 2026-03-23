@@ -14,7 +14,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import DataParsingError
-from veupath_chatbot.platform.types import JSONObject, as_json_object
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.wdk_conversion import (
     build_snapshot_from_wdk,
 )
@@ -135,7 +135,7 @@ class TestStepTypeInference:
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "GenesByTextSearch", {"text": "kinase"})},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "search"
         assert ast.root.primary_input is None
         assert ast.root.secondary_input is None
@@ -152,7 +152,7 @@ class TestStepTypeInference:
                 "2": _wdk_step(2, "GenesByRNASeqEvidence", {"threshold": "10"}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "transform"
         assert ast.root.primary_input is not None
         assert ast.root.secondary_input is None
@@ -171,7 +171,7 @@ class TestStepTypeInference:
                 "3": _wdk_step(3, "BooleanQuestion", {"bq_operator": "UNION"}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "combine"
         assert ast.root.primary_input is not None
         assert ast.root.secondary_input is not None
@@ -206,7 +206,7 @@ class TestMissingFields:
                 )
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.parameters == {}
 
 
@@ -238,7 +238,7 @@ class TestDeepTreeStructures:
                 "5": _wdk_step(5, "BooleanQuestion", {"bq_operator": "UNION"}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         # Root is UNION of (INTERSECT of S1,S2) and S4
         assert ast.root.infer_kind() == "combine"
         assert ast.root.operator == CombineOp.UNION
@@ -265,7 +265,7 @@ class TestDeepTreeStructures:
                 "4": _wdk_step(4, "GenesByOrthologs", {"organism": "Pf3D7"}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "transform"
         assert ast.root.search_name == "GenesByOrthologs"
         input_node = ast.root.primary_input
@@ -288,7 +288,7 @@ class TestSnapshotEdgeCases:
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "S1")},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.name is None
 
     def test_strategy_with_empty_description(self) -> None:
@@ -298,7 +298,7 @@ class TestSnapshotEdgeCases:
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "S1")},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.description is None
 
     def test_step_ids_are_strings_in_ast(self) -> None:
@@ -307,7 +307,7 @@ class TestSnapshotEdgeCases:
             step_tree=WDKStepTree(step_id=42),
             steps={"42": _wdk_step(42, "S1")},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.id == "42"
         assert isinstance(ast.root.id, str)
 
@@ -324,9 +324,9 @@ class TestSnapshotEdgeCases:
                 )
             },
         )
-        _, steps_data, step_counts = build_snapshot_from_wdk(wdk)
-        assert as_json_object(steps_data[0])["resultCount"] == 0
-        assert step_counts.get("1") == 0
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts.get("1") == 0
 
     def test_estimated_size_negative_preserved(self) -> None:
         """Negative estimatedSize is technically valid (WDK uses -1 for unknown)."""
@@ -341,12 +341,12 @@ class TestSnapshotEdgeCases:
                 )
             },
         )
-        _, steps_data, step_counts = build_snapshot_from_wdk(wdk)
-        assert as_json_object(steps_data[0])["resultCount"] == -1
-        assert step_counts.get("1") == -1
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts.get("1") == -1
 
-    def test_steps_data_includes_wdk_step_id(self) -> None:
-        """The steps_data list should have wdkStepId populated."""
+    def test_wdk_step_ids_populated(self) -> None:
+        """The AST should have wdk_step_ids populated for numeric step IDs."""
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=100),
             steps={
@@ -358,12 +358,11 @@ class TestSnapshotEdgeCases:
                 ),
             },
         )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        assert len(steps_data) >= 1
-        step = steps_data[0]
-        assert isinstance(step, dict)
-        assert step.get("wdkStepId") == 100
-        assert step.get("resultCount") == 500
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.wdk_step_ids is not None
+        assert ast.wdk_step_ids["100"] == 100
+        assert ast.step_counts is not None
+        assert ast.step_counts["100"] == 500
 
 
 # ===========================================================================

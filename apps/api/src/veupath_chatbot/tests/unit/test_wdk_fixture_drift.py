@@ -40,20 +40,21 @@ class TestStrategyFixtureRoundTrip:
     """Verify realistic strategy fixture parses into valid AST."""
 
     def test_three_step_strategy_parses(self) -> None:
-        """strategy_get_response (3 steps) → build_snapshot_from_wdk succeeds."""
+        """strategy_get_response (3 steps) -> build_snapshot_from_wdk succeeds."""
         raw = strategy_get_response(strategy_id=200, step_ids=[100, 101, 102])
         wdk = WDKStrategyDetails.model_validate(raw)
-        ast, steps_data, step_counts = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
 
         # AST structure
         assert ast.record_type is not None
         assert ast.root is not None
         assert ast.root.search_name is not None
 
-        # Steps data extracted
-        assert len(steps_data) >= 1
+        # Steps extracted from AST
+        assert len(ast.get_all_steps()) >= 1
 
-        # Step counts from estimatedSize
+        # Step counts from estimatedSize (on AST)
+        step_counts = ast.step_counts or {}
         for step_id_str, count in step_counts.items():
             assert isinstance(count, int), (
                 f"Step count for {step_id_str} should be int, got {type(count)}"
@@ -62,10 +63,10 @@ class TestStrategyFixtureRoundTrip:
     def test_single_step_strategy(self) -> None:
         raw = strategy_get_response(strategy_id=100, step_ids=[100])
         wdk = WDKStrategyDetails.model_validate(raw)
-        ast, steps_data, _step_counts = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
 
         assert ast.root.search_name is not None
-        assert len(steps_data) == 1
+        assert len(ast.get_all_steps()) == 1
 
 
 # ── standard_report_response → WDKAnswer ──────────────────────────

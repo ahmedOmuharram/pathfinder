@@ -3,6 +3,7 @@
 from enum import StrEnum
 from http import HTTPStatus
 
+import pydantic
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -219,6 +220,19 @@ class DataParsingError(AppError):
             status=500,
             detail=detail,
         )
+
+
+def validate_response[M: BaseModel](model: type[M], raw: object, context: str) -> M:
+    """Validate an external API response against a Pydantic model.
+
+    Converts :exc:`pydantic.ValidationError` to :class:`DataParsingError`
+    to distinguish "API returned unexpected data" from "our logic has a bug".
+    """
+    try:
+        return model.model_validate(raw)
+    except pydantic.ValidationError as e:
+        msg = f"Unexpected {context}: {e}"
+        raise DataParsingError(msg) from e
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:

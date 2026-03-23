@@ -198,5 +198,5 @@ class PubmedClient(BaseClient):
             pmid=pmid,
             snippet=abstract or journal,
             accessed_at=_now_iso(),
-        ).to_dict()
+        ).model_dump(by_alias=True, exclude_none=True, mode="json")
         return result, citation

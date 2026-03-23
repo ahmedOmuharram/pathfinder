@@ -5,7 +5,7 @@ import type { Step } from "@pathfinder/shared";
 function makeStep(
   overrides: Partial<Step> & { id: string; displayName: string },
 ): Step {
-  return { resultCount: null, ...overrides } as Step;
+  return { estimatedSize: null, ...overrides } as Step;
 }
 
 describe("buildSpineLayout", () => {

@@ -14,7 +14,7 @@ class StepEvaluation(CamelModel):
     step_id: str
     search_name: str
     display_name: str
-    result_count: int
+    estimated_size: int
     positive_hits: int
     positive_total: int
     negative_hits: int

@@ -157,10 +157,10 @@ class TestLiveSingleIntersection:
 
         # Target result count should be a positive integer (hundreds or thousands
         # of genes pass fold_change >= 2 for gametocyte V vs asexual)
-        target_result_count = result.get("targetResultCount")
-        assert target_result_count is not None
-        assert isinstance(target_result_count, (int, float))
-        assert int(target_result_count) > 0
+        target_estimated_size = result.get("targetEstimatedSize")
+        assert target_estimated_size is not None
+        assert isinstance(target_estimated_size, (int, float))
+        assert int(target_estimated_size) > 0
 
         # Intersection count should be a non-negative integer
         intersection_count = result.get("intersectionCount")
@@ -198,10 +198,10 @@ class TestLiveSingleIntersection:
 
         target_step_id = result.get("targetStepId")
         assert target_step_id is not None
-        target_result_count = result.get("targetResultCount")
-        assert target_result_count is not None
-        assert isinstance(target_result_count, (int, float))
-        assert int(target_result_count) > 0
+        target_estimated_size = result.get("targetEstimatedSize")
+        assert target_estimated_size is not None
+        assert isinstance(target_estimated_size, (int, float))
+        assert int(target_estimated_size) > 0
         assert result.get("controlsCount") == len(NEGATIVE_CONTROLS)
         assert result.get("intersectionCount") is not None
 
@@ -278,8 +278,8 @@ class TestLiveFullControlFlow:
         assert result.site_id == SITE_ID
         assert result.record_type == RECORD_TYPE
         assert result.target.step_id is not None
-        assert result.target.result_count is not None
-        assert result.target.result_count > 0
+        assert result.target.estimated_size is not None
+        assert result.target.estimated_size > 0
 
         assert result.positive is not None, (
             "Positive controls result should not be None"

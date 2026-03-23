@@ -132,7 +132,7 @@ async def _eval_control_set(
             "intersectionIds": ids_list,
             "intersectionIdsSample": ids_sample,
             "targetStepId": root_tree.step_id,
-            "targetResultCount": target_total,
+            "targetEstimatedSize": target_total,
         }
     finally:
         await delete_temp_strategy(api, strategy_id)
@@ -170,7 +170,7 @@ async def run_controls_against_tree(
         pos_count, found_ids, has_ids = _extract_intersection_data(pos_payload)
         missing = [x for x in pos if x not in found_ids] if has_ids else []
 
-        target.result_count = pos_data.target_result_count
+        target.estimated_size = pos_data.target_estimated_size
         pos_data.missing_ids_sample = missing[:50]
         pos_data.recall = pos_count / len(pos) if pos else None
         result.positive = pos_data
@@ -179,8 +179,8 @@ async def run_controls_against_tree(
         neg_payload = await _eval_control_set(api, ctx, tree, neg, "negative")
         neg_data = ControlSetData.model_validate(neg_payload)
 
-        if target.result_count is None:
-            target.result_count = neg_data.target_result_count
+        if target.estimated_size is None:
+            target.estimated_size = neg_data.target_estimated_size
 
         neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
         unexpected_hits = sorted(hit_ids)[:50] if hit_ids else []
@@ -214,7 +214,7 @@ def _extract_eval_counts(result: ControlTestResult) -> _EvalCounts:
         pos_total=pos.controls_count if pos else 0,
         neg_hits=neg.intersection_count if neg else 0,
         neg_total=neg.controls_count if neg else 0,
-        total_results=result.target.result_count or 0,
+        total_results=result.target.estimated_size or 0,
         pos_ids=list(pos.intersection_ids) if pos else [],
         neg_ids=list(neg.intersection_ids) if neg else [],
     )

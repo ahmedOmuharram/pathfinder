@@ -58,8 +58,8 @@ function Pill({ step }: { step: CompactStep }) {
         {step.displayName}
       </div>
       <div className={`text-xs ${countCls}`}>
-        {typeof step.resultCount === "number"
-          ? `${step.resultCount.toLocaleString()} ${step.recordType ?? ""}`
+        {typeof step.estimatedSize === "number"
+          ? `${step.estimatedSize.toLocaleString()} ${step.recordType ?? ""}`
           : "\u2026"}
       </div>
     </div>

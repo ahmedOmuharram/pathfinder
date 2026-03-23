@@ -128,7 +128,7 @@ async def _do_push(
         for step in all_steps:
             step.id = str(compiled_map[step.id])
 
-    updated_plan = strategy_ast.to_dict()
+    updated_plan = strategy_ast.model_dump(by_alias=True, exclude_none=True, mode="json")
     await repo.update_projection(
         strategy_id,
         ProjectionUpdate(

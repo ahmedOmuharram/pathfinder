@@ -109,7 +109,7 @@ async def test_tool_calls_aggregated_into_assistant_message(redis):
         {
             "id": "tc1",
             "name": "search_for_searches",
-            "arguments": '{"query": "kinase"}',
+            "arguments": {"query": "kinase"},
         },
     )
     await emit(
@@ -204,7 +204,7 @@ async def test_multiple_turns_independent(redis):
         stream_id,
         "op_1",
         "tool_call_start",
-        {"id": "tc1", "name": "tool_a", "arguments": "{}"},
+        {"id": "tc1", "name": "tool_a", "arguments": {}},
     )
     await emit(redis, stream_id, "op_1", "tool_call_end", {"id": "tc1", "result": "r1"})
     await emit(

@@ -19,9 +19,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatSSEEvent } from "@/lib/sse_events";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { makeCtx } from "./handleChatEvent.testUtils";
+
+/** Minimal Step with required boolean fields defaulted. */
+function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
+  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+}
 
 // ── Mock delegation events (matches mock_chat.py) ──
 
@@ -196,27 +202,27 @@ describe("setStrategy race condition with delegation flow", () => {
     const { addStep, setStrategy } = useStrategyStore.getState();
 
     // Simulate SSE events adding 3 delegation steps
-    addStep({
+    addStep(step({
       id: "mock_search_1",
       displayName: "Search",
       searchName: "mock_search",
       recordType: "gene",
-    });
-    addStep({
+    }));
+    addStep(step({
       id: "mock_transform_1",
       displayName: "Transform",
       searchName: "mock_transform",
       primaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
-    addStep({
+    }));
+    addStep(step({
       id: "mock_combine_1",
       displayName: "Combine",
       operator: "UNION" as const,
       primaryInputStepId: "mock_transform_1",
       secondaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
+    }));
 
     let state = useStrategyStore.getState();
     expect(state.strategy!.steps).toHaveLength(3);
@@ -260,27 +266,27 @@ describe("setStrategy race condition with delegation flow", () => {
     });
 
     // SSE events arrive after
-    addStep({
+    addStep(step({
       id: "mock_search_1",
       displayName: "Search",
       searchName: "mock_search",
       recordType: "gene",
-    });
-    addStep({
+    }));
+    addStep(step({
       id: "mock_transform_1",
       displayName: "Transform",
       searchName: "mock_transform",
       primaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
-    addStep({
+    }));
+    addStep(step({
       id: "mock_combine_1",
       displayName: "Combine",
       operator: "UNION" as const,
       primaryInputStepId: "mock_transform_1",
       secondaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
+    }));
 
     const state = useStrategyStore.getState();
     expect(state.strategy!.steps).toHaveLength(3);
@@ -295,29 +301,29 @@ describe("setStrategy race condition with delegation flow", () => {
     const session = new StreamingSession(null);
 
     // SSE events add steps and mark snapshot applied
-    addStep({
+    addStep(step({
       id: "mock_search_1",
       displayName: "Search",
       searchName: "mock_search",
       recordType: "gene",
-    });
+    }));
     session.markSnapshotApplied();
 
-    addStep({
+    addStep(step({
       id: "mock_transform_1",
       displayName: "Transform",
       searchName: "mock_transform",
       primaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
-    addStep({
+    }));
+    addStep(step({
       id: "mock_combine_1",
       displayName: "Combine",
       operator: "UNION" as const,
       primaryInputStepId: "mock_transform_1",
       secondaryInputStepId: "mock_search_1",
       recordType: "gene",
-    });
+    }));
 
     // Guard check (simulates applyStrategy logic)
     const shouldApply = !session.snapshotApplied;
@@ -371,12 +377,12 @@ describe("setStrategy race condition with delegation flow", () => {
     }
 
     // SSE events arrive AFTER — steps still get added
-    addStep({
+    addStep(step({
       id: "mock_search_1",
       displayName: "Search",
       searchName: "mock_search",
       recordType: "gene",
-    });
+    }));
 
     const state = useStrategyStore.getState();
     expect(state.strategy!.steps).toHaveLength(1);

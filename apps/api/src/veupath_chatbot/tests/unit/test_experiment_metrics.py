@@ -158,7 +158,7 @@ class TestMetricsFromControlResult:
         result = ControlTestResult(
             positive=ControlSetData(intersection_count=8, controls_count=10),
             negative=ControlSetData(intersection_count=3, controls_count=20),
-            target=ControlTargetData(result_count=100),
+            target=ControlTargetData(estimated_size=100),
         )
         m = metrics_from_control_result(result)
         assert m.confusion_matrix.true_positives == 8

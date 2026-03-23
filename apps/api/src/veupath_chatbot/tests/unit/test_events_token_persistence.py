@@ -124,7 +124,7 @@ async def test_subkani_models_and_token_usage_persist():
                 "task": "Find genes",
                 "id": "tc1",
                 "name": "search_for_searches",
-                "arguments": "{}",
+                "arguments": {},
             },
         ),
         ("subkani_tool_call_end", {"task": "Find genes", "id": "tc1", "result": "{}"}),

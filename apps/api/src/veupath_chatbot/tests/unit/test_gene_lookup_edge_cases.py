@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from veupath_chatbot.integrations.veupathdb.site_search_client import SiteSearchDocument
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.gene_lookup.enrich import (
     enrich_sparse_gene_results,
 )
@@ -32,7 +33,6 @@ from veupath_chatbot.services.gene_lookup.scoring import score_gene_relevance
 from veupath_chatbot.services.gene_lookup.site_search import (
     parse_site_search_docs,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.services.gene_lookup.wdk import (
     GeneResolveResult,
     WdkTextResult,

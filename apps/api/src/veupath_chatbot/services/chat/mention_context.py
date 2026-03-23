@@ -9,10 +9,16 @@ import json
 from typing import Literal
 from uuid import UUID
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.store import get_experiment_store
-from veupath_chatbot.services.experiment.types import ExperimentMetrics
+from veupath_chatbot.services.experiment.types import (
+    Experiment,
+    ExperimentConfig,
+    ExperimentMetrics,
+)
 
 logger = get_logger(__name__)
 
@@ -81,57 +87,71 @@ async def _build_strategy_context(
         f"- **Record type**: {projection.record_type or 'unknown'}",
     ]
 
-    steps = projection.steps
-    if isinstance(steps, list) and steps:
-        lines.append(f"- **Steps** ({len(steps)}):")
+    plan: JSONObject = projection.plan if isinstance(projection.plan, dict) else {}
+    ast = _parse_plan_ast(plan)
+
+    if ast:
+        all_steps = ast.get_all_steps()
+        lines.append(f"- **Steps** ({len(all_steps)}):")
         lines.append("")
-        for i, step in enumerate(steps):
-            if not isinstance(step, dict):
-                continue
-            display_name = (
-                step.get("displayName") or step.get("searchName") or f"Step {i + 1}"
-            )
-            kind = step.get("kind") or "search"
-            step_id = step.get("id", "?")
-
-            lines.append(f"### Step {i + 1}: {display_name} ({kind}) [id={step_id}]")
-
-            search_name = step.get("searchName")
-            if search_name:
-                lines.append(f"- Search: `{search_name}`")
-
-            params = step.get("parameters")
-            if isinstance(params, dict) and params:
-                non_empty = {k: v for k, v in params.items() if v}
-                if non_empty:
-                    param_strs = [
-                        f"`{k}`: {_truncate(str(v), 80)}" for k, v in non_empty.items()
-                    ]
-                    lines.append(f"- Parameters: {', '.join(param_strs)}")
-
-            result_count = step.get("resultCount")
-            if result_count is not None:
-                lines.append(f"- Result count: {result_count}")
-
-            primary = step.get("primaryInputStepId")
-            secondary = step.get("secondaryInputStepId")
-            operator = step.get("operator")
-            if primary and secondary and operator:
-                lines.append(
-                    f"- Combines: step {primary} **{operator}** step {secondary}"
-                )
-            elif primary:
-                lines.append(f"- Input: step {primary}")
-
-            lines.append("")
-    elif isinstance(projection.plan, dict):
+        for i, step in enumerate(all_steps):
+            _format_step_context(lines, i, step, ast)
+    elif plan:
         lines.append("")
         lines.append("### Strategy plan (AST):")
         lines.append("```json")
-        lines.append(json.dumps(projection.plan, indent=2, default=str)[:4000])
+        lines.append(json.dumps(plan, indent=2, default=str)[:4000])
         lines.append("```")
 
     return "\n".join(lines)
+
+
+def _parse_plan_ast(plan: JSONObject) -> StrategyAST | None:
+    """Parse a plan dict into a StrategyAST, returning None on failure."""
+    if not plan or "root" not in plan:
+        return None
+    try:
+        return StrategyAST.model_validate(plan)
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _format_step_context(
+    lines: list[str], index: int, step: PlanStepNode, ast: StrategyAST,
+) -> None:
+    """Append formatted lines for a single step to the output."""
+    display_name = step.display_name or step.search_name or f"Step {index + 1}"
+    kind = step.infer_kind()
+    step_id = step.id
+
+    lines.append(f"### Step {index + 1}: {display_name} ({kind}) [id={step_id}]")
+
+    if step.search_name:
+        lines.append(f"- Search: `{step.search_name}`")
+
+    if step.parameters:
+        non_empty = {k: v for k, v in step.parameters.items() if v}
+        if non_empty:
+            param_strs = [
+                f"`{k}`: {_truncate(str(v), 80)}" for k, v in non_empty.items()
+            ]
+            lines.append(f"- Parameters: {', '.join(param_strs)}")
+
+    estimated_size = ast.step_counts.get(step.id) if ast.step_counts else None
+    if estimated_size is not None:
+        lines.append(f"- Result count: {estimated_size}")
+
+    primary_id = step.primary_input.id if step.primary_input else None
+    secondary_id = step.secondary_input.id if step.secondary_input else None
+    if primary_id and secondary_id and step.operator:
+        lines.append(
+            f"- Combines: step {primary_id} "
+            f"**{step.operator.value}** step {secondary_id}"
+        )
+    elif primary_id:
+        lines.append(f"- Input: step {primary_id}")
+
+    lines.append("")
 
 
 async def _build_experiment_context(experiment_id: str) -> str | None:
@@ -149,6 +169,16 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
         f"- **Search**: `{cfg.search_name}` on `{cfg.record_type}`",
     ]
 
+    _format_experiment_config(lines, cfg)
+    _format_experiment_results(lines, experiment)
+
+    return "\n".join(lines)
+
+
+def _format_experiment_config(
+    lines: list[str], cfg: ExperimentConfig,
+) -> None:
+    """Append config details (parameters, controls) to lines."""
     if cfg.parameters:
         non_empty = {k: v for k, v in cfg.parameters.items() if v}
         if non_empty:
@@ -157,73 +187,101 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
             ]
             lines.append(f"- **Parameters**: {', '.join(param_strs)}")
 
-    if cfg.positive_controls:
-        ids = ", ".join(cfg.positive_controls[:_MAX_DISPLAYED_POSITIVE_CONTROLS])
-        suffix = (
-            f" ... ({len(cfg.positive_controls)} total)"
-            if len(cfg.positive_controls) > _MAX_DISPLAYED_POSITIVE_CONTROLS
-            else ""
-        )
-        lines.append(
-            f"- **Positive controls** ({len(cfg.positive_controls)}): {ids}{suffix}"
-        )
+    _format_control_list(
+        lines, "Positive controls", cfg.positive_controls, _MAX_DISPLAYED_POSITIVE_CONTROLS
+    )
+    _format_control_list(
+        lines, "Negative controls", cfg.negative_controls, _MAX_DISPLAYED_NEGATIVE_CONTROLS
+    )
 
-    if cfg.negative_controls:
-        ids = ", ".join(cfg.negative_controls[:_MAX_DISPLAYED_NEGATIVE_CONTROLS])
-        suffix = (
-            f" ... ({len(cfg.negative_controls)} total)"
-            if len(cfg.negative_controls) > _MAX_DISPLAYED_NEGATIVE_CONTROLS
-            else ""
-        )
-        lines.append(
-            f"- **Negative controls** ({len(cfg.negative_controls)}): {ids}{suffix}"
-        )
 
-    metrics = experiment.metrics
-    if metrics:
+def _format_control_list(
+    lines: list[str],
+    label: str,
+    controls: list[str] | None,
+    max_displayed: int,
+) -> None:
+    """Append a control-ID list line if controls are present."""
+    if not controls:
+        return
+    ids = ", ".join(controls[:max_displayed])
+    suffix = (
+        f" ... ({len(controls)} total)"
+        if len(controls) > max_displayed
+        else ""
+    )
+    lines.append(f"- **{label}** ({len(controls)}): {ids}{suffix}")
+
+
+def _format_experiment_results(
+    lines: list[str], experiment: Experiment,
+) -> None:
+    """Append metrics, cross-validation, enrichment, and optimization."""
+    if experiment.metrics:
         lines.append("")
         lines.append("### Metrics")
-        lines.append(_format_metrics(metrics))
+        lines.append(_format_metrics(experiment.metrics))
 
+    _format_cross_validation(lines, experiment)
+    _format_enrichment_results(lines, experiment)
+    _format_optimization_result(lines, experiment)
+
+
+def _format_cross_validation(
+    lines: list[str], experiment: Experiment,
+) -> None:
+    """Append cross-validation summary."""
     cv = experiment.cross_validation
-    if cv:
+    if not cv:
+        return
+    lines.append("")
+    lines.append(
+        f"### Cross-validation ({cv.k}-fold): "
+        f"overfitting={cv.overfitting_level} (score={cv.overfitting_score:.3f})"
+    )
+    lines.append(f"- Mean F1: {cv.mean_metrics.f1_score:.4f}")
+    lines.append(f"- Mean sensitivity: {cv.mean_metrics.sensitivity:.4f}")
+    lines.append(f"- Mean specificity: {cv.mean_metrics.specificity:.4f}")
+
+
+def _format_enrichment_results(
+    lines: list[str], experiment: Experiment,
+) -> None:
+    """Append enrichment result summaries."""
+    for er in experiment.enrichment_results[:3]:
+        if not er.terms:
+            continue
         lines.append("")
         lines.append(
-            f"### Cross-validation ({cv.k}-fold): "
-            f"overfitting={cv.overfitting_level} (score={cv.overfitting_score:.3f})"
+            f"### Enrichment: {er.analysis_type} ({er.total_genes_analyzed} genes)"
         )
-        lines.append(f"- Mean F1: {cv.mean_metrics.f1_score:.4f}")
-        lines.append(f"- Mean sensitivity: {cv.mean_metrics.sensitivity:.4f}")
-        lines.append(f"- Mean specificity: {cv.mean_metrics.specificity:.4f}")
-
-    for er in experiment.enrichment_results[:3]:
-        if er.terms:
-            lines.append("")
+        lines.extend(
+            f"- {term.term_name} ({term.gene_count} genes, "
+            f"p={term.p_value:.2e}, FDR={term.fdr:.2e})"
+            for term in er.terms[:_MAX_DISPLAYED_ENRICHMENT_TERMS]
+        )
+        if len(er.terms) > _MAX_DISPLAYED_ENRICHMENT_TERMS:
             lines.append(
-                f"### Enrichment: {er.analysis_type} ({er.total_genes_analyzed} genes)"
+                f"- ... {len(er.terms) - _MAX_DISPLAYED_ENRICHMENT_TERMS} more terms"
             )
-            lines.extend(
-                f"- {term.term_name} ({term.gene_count} genes, "
-                f"p={term.p_value:.2e}, FDR={term.fdr:.2e})"
-                for term in er.terms[:_MAX_DISPLAYED_ENRICHMENT_TERMS]
-            )
-            if len(er.terms) > _MAX_DISPLAYED_ENRICHMENT_TERMS:
-                lines.append(
-                    f"- ... {len(er.terms) - _MAX_DISPLAYED_ENRICHMENT_TERMS} more terms"
-                )
 
-    if experiment.optimization_result:
-        best = experiment.optimization_result.get("bestTrial")
-        if isinstance(best, dict):
-            lines.append("")
-            lines.append("### Optimization result")
-            lines.append(f"- Best score: {best.get('score', '?')}")
-            params = best.get("parameters")
-            if isinstance(params, dict):
-                param_strs = [f"`{k}`: {v}" for k, v in params.items()]
-                lines.append(f"- Best parameters: {', '.join(param_strs)}")
 
-    return "\n".join(lines)
+def _format_optimization_result(
+    lines: list[str], experiment: Experiment,
+) -> None:
+    """Append optimization result summary."""
+    if not experiment.optimization_result:
+        return
+    best = experiment.optimization_result.get("bestTrial")
+    if not isinstance(best, dict):
+        return
+    lines.append("")
+    lines.append("### Optimization result")
+    lines.append(f"- Best score: {best.get('score', '?')}")
+    params = best.get("parameters")
+    if isinstance(params, dict):
+        param_strs = [f"`{k}`: {v}" for k, v in params.items()]
+        lines.append(f"- Best parameters: {', '.join(param_strs)}")
 
 
 def _format_metrics(m: ExperimentMetrics) -> str:

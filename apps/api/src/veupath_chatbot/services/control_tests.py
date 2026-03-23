@@ -302,7 +302,7 @@ async def _run_intersection_control(
             "intersectionIdsSample": intersection_ids_sample,
             "intersectionIds": intersection_ids,
             "targetStepId": target_step_id,
-            "targetResultCount": target_total,
+            "targetEstimatedSize": target_total,
         }
     finally:
         await delete_temp_strategy(api, temp_strategy_id)
@@ -387,7 +387,7 @@ async def run_positive_negative_controls(
 
         # Capture target info from the first successful run.
         target.step_id = pos_data.target_step_id
-        target.result_count = pos_data.target_result_count
+        target.estimated_size = pos_data.target_estimated_size
 
         pos_count, found_ids, has_ids = _extract_intersection_data(pos_payload)
         missing = [x for x in pos if x not in found_ids] if has_ids else []
@@ -402,7 +402,7 @@ async def run_positive_negative_controls(
         # Fill target info if not set yet (e.g. no positive controls).
         if target.step_id is None:
             target.step_id = neg_data.target_step_id
-            target.result_count = neg_data.target_result_count
+            target.estimated_size = neg_data.target_estimated_size
 
         neg_count, hit_ids, _ = _extract_intersection_data(neg_payload)
         unexpected_hits = sorted(hit_ids)[:50] if hit_ids else []

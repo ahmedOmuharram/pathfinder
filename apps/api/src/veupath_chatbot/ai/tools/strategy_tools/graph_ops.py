@@ -81,7 +81,7 @@ class StrategyGraphOps(StrategyToolsHelpers):
         if not graph:
             return self._graph_not_found(graph_id)
 
-        errors = [err.to_dict() for err in validate_graph_integrity(graph)]
+        errors = [err.model_dump(by_alias=True, exclude_none=True, mode="json") for err in validate_graph_integrity(graph)]
         root_step_ids = find_root_step_ids(graph)
 
         ok = len(errors) == 0 and len(root_step_ids) == 1

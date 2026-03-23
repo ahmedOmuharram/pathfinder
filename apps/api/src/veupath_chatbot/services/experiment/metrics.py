@@ -118,7 +118,7 @@ def evaluate_gene_ids_against_controls(
         record_type=record_type,
         target=ControlTargetData(
             search_name="__gene_set__",
-            result_count=len(gene_ids),
+            estimated_size=len(gene_ids),
         ),
     )
 
@@ -130,7 +130,7 @@ def evaluate_gene_ids_against_controls(
             intersection_count=len(pos_hits),
             intersection_ids=pos_hits,
             intersection_ids_sample=pos_hits[:50],
-            target_result_count=len(gene_ids),
+            target_estimated_size=len(gene_ids),
             missing_ids_sample=pos_missing[:50],
             recall=len(pos_hits) / len(pos) if pos else None,
         )
@@ -142,7 +142,7 @@ def evaluate_gene_ids_against_controls(
             intersection_count=len(neg_hits),
             intersection_ids=neg_hits,
             intersection_ids_sample=neg_hits[:50],
-            target_result_count=len(gene_ids),
+            target_estimated_size=len(gene_ids),
             unexpected_hits_sample=neg_hits[:50],
             false_positive_rate=len(neg_hits) / len(neg) if neg else None,
         )
@@ -163,7 +163,7 @@ def metrics_from_control_result(result: ControlTestResult) -> ExperimentMetrics:
     pos_total = pos.controls_count if pos else 0
     neg_count = neg.intersection_count if neg else 0
     neg_total = neg.controls_count if neg else 0
-    total_results = result.target.result_count or 0
+    total_results = result.target.estimated_size or 0
 
     cm = compute_confusion_matrix(
         positive_hits=pos_count,

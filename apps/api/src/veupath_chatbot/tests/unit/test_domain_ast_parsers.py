@@ -373,7 +373,7 @@ class TestModelValidate:
             name="Test Strategy",
             description="A test",
         )
-        data = original.to_dict()
+        data = original.model_dump(by_alias=True, exclude_none=True, mode="json")
         restored = StrategyAST.model_validate(data)
         assert restored.record_type == original.record_type
         assert restored.root.search_name == original.root.search_name

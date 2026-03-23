@@ -159,7 +159,7 @@ class TestWDKStepTree:
     def test_simple_tree(self) -> None:
         """Test simple step tree serialization."""
         node = WDKStepTree(step_id=100)
-        assert node.to_dict() == {"stepId": 100}
+        assert node.model_dump(by_alias=True, exclude_none=True, mode="json") == {"stepId": 100}
 
     def test_nested_tree(self) -> None:
         """Test nested step tree serialization."""
@@ -169,7 +169,7 @@ class TestWDKStepTree:
             secondary_input=WDKStepTree(step_id=11),
         )
 
-        result = tree.to_dict()
+        result = tree.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert result["stepId"] == 100
         primary_input_value = result.get("primaryInput")
         assert isinstance(primary_input_value, dict)
@@ -189,7 +189,7 @@ class TestWDKStepTree:
             ),
         )
 
-        result = tree.to_dict()
+        result = tree.model_dump(by_alias=True, exclude_none=True, mode="json")
         primary_input_value = result.get("primaryInput")
         assert isinstance(primary_input_value, dict)
         nested_primary_input_value = primary_input_value.get("primaryInput")

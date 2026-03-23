@@ -12,7 +12,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKRecordInstance,
     WDKRecordType,
 )
-from veupath_chatbot.platform.errors import DataParsingError, WDKError
+from veupath_chatbot.platform.errors import WDKError, validate_response
 from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,11 +32,9 @@ class RecordsMixin(StrategyAPIBase):
             f"/record-types/{record_type}",
             params={"format": "expanded"},
         )
-        try:
-            return WDKRecordType.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK record type response for {record_type}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKRecordType, raw, f"WDK record type response for {record_type}"
+        )
 
     async def get_single_record(
         self,
@@ -70,11 +68,9 @@ class RecordsMixin(StrategyAPIBase):
             f"/record-types/{record_type}/records",
             json=payload,
         )
-        try:
-            return WDKRecordInstance.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK record response for {record_type}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKRecordInstance, raw, f"WDK record response for {record_type}"
+        )
 
     async def get_column_distribution(
         self, step_id: int, column_name: str

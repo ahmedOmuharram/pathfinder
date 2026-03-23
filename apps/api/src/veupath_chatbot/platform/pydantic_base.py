@@ -12,7 +12,7 @@ str→float.  Use :data:`SafeFiniteFloat` for float fields that must also clamp
 """
 
 import math
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from pydantic.alias_generators import to_camel
@@ -40,7 +40,7 @@ def _clamp_finite(v: object) -> object:
 class CamelModel(BaseModel):
     """Base model with camelCase JSON aliases.
 
-    Serialization:  ``model.to_dict()`` or ``model.model_dump(by_alias=True)``
+    Serialization:  ``model.model_dump(by_alias=True, exclude_none=True, mode="json")``
     Deserialization: ``Model.model_validate(data)``
     """
 
@@ -48,10 +48,6 @@ class CamelModel(BaseModel):
         alias_generator=to_camel,
         populate_by_name=True,
     )
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a camelCase dict with None values excluded."""
-        return self.model_dump(by_alias=True, exclude_none=True)
 
 
 RoundedFloat = Annotated[

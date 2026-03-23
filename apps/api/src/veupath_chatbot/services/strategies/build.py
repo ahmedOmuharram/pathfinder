@@ -23,6 +23,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
     WDKStepTree,
     WDKStrategyDetails,
+    WDKValidation,
 )
 from veupath_chatbot.platform.errors import AppError, StrategyCompilationError
 from veupath_chatbot.platform.logging import get_logger
@@ -392,8 +393,9 @@ async def build_strategy(
     graph.wdk_step_ids = dict(compiled_map)
     graph.wdk_strategy_id = wdk_strategy_id
 
-    # Fetch step counts from WDK.
+    # Fetch step counts and validations from WDK.
     step_counts: dict[str, int | None] = {}
+    step_validations: dict[str, WDKValidation] = {}
     root_count: int | None = None
     if wdk_strategy_id is not None:
         try:
@@ -401,10 +403,15 @@ async def build_strategy(
             step_counts, root_count = extract_step_counts(
                 strategy_info, compiled_map
             )
+            for local_id, wdk_id in compiled_map.items():
+                wdk_step = strategy_info.steps.get(str(wdk_id))
+                if wdk_step is not None:
+                    step_validations[local_id] = wdk_step.validation
         except AppError as e:
             logger.warning("Strategy count lookup failed", error=str(e))
 
     graph.step_counts = step_counts
+    graph.step_validations = step_validations
 
     zeros = sorted([sid for sid, c in step_counts.items() if c == 0])
 
@@ -425,7 +432,7 @@ async def build_strategy(
 # ---------------------------------------------------------------------------
 
 
-async def get_result_count(
+async def get_estimated_size(
     api: StrategyBuildAPI,
     wdk_step_id: int,
     wdk_strategy_id: int | None = None,
@@ -481,7 +488,7 @@ async def build_strategy_for_site(
     )
 
 
-async def get_result_count_for_site(
+async def get_estimated_size_for_site(
     site_id: str,
     wdk_step_id: int,
     wdk_strategy_id: int | None = None,
@@ -491,4 +498,4 @@ async def get_result_count_for_site(
     This is the entry point for the AI tool layer.
     """
     api = _get_build_api(site_id)
-    return await get_result_count(api, wdk_step_id, wdk_strategy_id)
+    return await get_estimated_size(api, wdk_step_id, wdk_strategy_id)

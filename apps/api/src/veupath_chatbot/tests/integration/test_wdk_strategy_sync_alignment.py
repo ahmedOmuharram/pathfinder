@@ -40,7 +40,7 @@ async def test_sync_creates_projections_with_correct_wdk_fields(
     authed_client: httpx.AsyncClient,
     wdk_respx: respx.Router,
 ) -> None:
-    """POST /sync-wdk → projections have wdkStrategyId, name, recordType, resultCount.
+    """POST /sync-wdk → projections have wdkStrategyId, name, recordType, estimatedSize.
 
     Workflow: Pathfinder calls GET /users/{id}/strategies on WDK, parses
     the list response, and creates DB projections from summary data.
@@ -80,7 +80,7 @@ async def test_sync_creates_projections_with_correct_wdk_fields(
     # Verify WDK fields correctly mapped to Pathfinder fields
     assert proj["wdkStrategyId"] == 42
     assert proj["name"] == "Malaria Drug Resistance Genes"
-    assert proj["resultCount"] == 1234
+    assert proj["estimatedSize"] == 1234
     assert proj["stepCount"] == 3
     assert proj["isSaved"] is True
 

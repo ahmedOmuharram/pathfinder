@@ -188,7 +188,7 @@ class StreamProjection(Base):
     plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)
     steps: Mapped[JSONArray] = mapped_column(JSON, default=list)
     root_step_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    result_count: Mapped[int | None] = mapped_column(nullable=True)
+    estimated_size: Mapped[int | None] = mapped_column(nullable=True)
     last_event_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

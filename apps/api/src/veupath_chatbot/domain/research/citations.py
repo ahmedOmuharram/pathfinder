@@ -3,10 +3,10 @@
 import re
 from datetime import UTC, datetime
 from string import ascii_lowercase
-from typing import Literal, cast
+from typing import Literal
 from uuid import uuid4
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, computed_field
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject
@@ -111,10 +111,11 @@ class Citation(CamelModel):
     snippet: str | None = None
     accessed_at: str | None = None
 
-    def to_dict(self) -> JSONObject:
-        d = cast("JSONObject", self.model_dump(by_alias=True))
-        d["tag"] = _suggest_tag(self)
-        return d
+    @computed_field
+    @property
+    def tag(self) -> str:
+        """Short tag for inline references (e.g. ``[pubmed-kinase]``)."""
+        return _suggest_tag(self)
 
 
 def _now_iso() -> str:

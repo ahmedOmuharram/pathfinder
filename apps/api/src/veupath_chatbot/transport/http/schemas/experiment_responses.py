@@ -208,7 +208,7 @@ class StepEvaluationResponse(BaseModel):
     step_id: str = Field(alias="stepId")
     search_name: str = Field(alias="searchName")
     display_name: str = Field(alias="displayName")
-    result_count: int = Field(alias="resultCount")
+    estimated_size: int = Field(alias="estimatedSize")
     positive_hits: int = Field(alias="positiveHits")
     positive_total: int = Field(alias="positiveTotal")
     negative_hits: int = Field(alias="negativeHits")
@@ -545,7 +545,7 @@ class TrialProgressDataResponse(BaseModel):
     score: float | None = None
     recall: float | None = None
     false_positive_rate: float | None = Field(default=None, alias="falsePositiveRate")
-    result_count: int | None = Field(default=None, alias="resultCount")
+    estimated_size: int | None = Field(default=None, alias="estimatedSize")
     parameters: dict[str, JSONValue] | None = None
 
     model_config = _MODEL_CONFIG

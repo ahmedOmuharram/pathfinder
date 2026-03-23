@@ -65,6 +65,8 @@ export function buildStrategyFromGraphSnapshot(args: {
             id: step.id,
             kind: step.kind ?? "search",
             displayName: resolvedName,
+            isBuilt: false,
+            isFiltered: false,
             ...(resolvedRecordType != null ? { recordType: resolvedRecordType } : {}),
             ...(step.searchName != null ? { searchName: step.searchName } : {}),
             ...(step.operator != null ? { operator: step.operator } : {}),

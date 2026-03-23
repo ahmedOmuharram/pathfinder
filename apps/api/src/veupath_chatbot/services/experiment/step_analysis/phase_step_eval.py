@@ -104,7 +104,7 @@ async def evaluate_steps(
             step_id=lid,
             search_name=search_name,
             display_name=display,
-            result_count=counts.total_results,
+            estimated_size=counts.total_results,
             positive_hits=counts.pos_hits,
             positive_total=counts.pos_total,
             negative_hits=counts.neg_hits,

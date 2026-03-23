@@ -88,11 +88,11 @@ def _mock_control_result(
     pos_controls: int = 0,
     neg_intersection: int = 0,
     neg_controls: int = 0,
-    result_count: int = 0,
+    estimated_size: int = 0,
 ) -> ControlTestResult:
     """Build a minimal ControlTestResult for mocking."""
     return ControlTestResult(
-        target=ControlTargetData(result_count=result_count),
+        target=ControlTargetData(estimated_size=estimated_size),
         positive=ControlSetData(
             intersection_count=pos_intersection,
             controls_count=pos_controls,
@@ -285,7 +285,7 @@ class TestRunSweepPoint:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=50,
+            estimated_size=50,
         )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
@@ -311,7 +311,7 @@ class TestRunSweepPoint:
             pos_controls=2,
             neg_intersection=1,
             neg_controls=1,
-            result_count=30,
+            estimated_size=30,
         )
         with patch(
             "veupath_chatbot.services.experiment.sweep_service.run_positive_negative_controls",
@@ -363,7 +363,7 @@ class TestReEvaluate:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=50,
+            estimated_size=50,
         )
         mock_genes = ([], [], [], [])
 
@@ -403,7 +403,7 @@ class TestReEvaluate:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=20,
+            estimated_size=20,
         )
         mock_genes = ([], [], [], [])
 
@@ -444,7 +444,7 @@ class TestGenerateSweepEvents:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=50,
+            estimated_size=50,
         )
 
         with (
@@ -569,7 +569,7 @@ class TestRunSweepPointTree:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=40,
+            estimated_size=40,
         )
 
         captured_tree: PlanStepNode | None = None
@@ -636,7 +636,7 @@ class TestNumericValueSorting:
                 pos_controls=2,
                 neg_intersection=0,
                 neg_controls=1,
-                result_count=50,
+                estimated_size=50,
             )
 
         with (
@@ -677,7 +677,7 @@ class TestNumericValueSorting:
             pos_controls=2,
             neg_intersection=0,
             neg_controls=1,
-            result_count=50,
+            estimated_size=50,
         )
 
         with (

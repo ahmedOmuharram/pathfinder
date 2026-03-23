@@ -1,24 +1,35 @@
 """Graph traversal, node/edge operations, serialization, and snapshots."""
 
-from typing import cast
-
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.transport.http.schemas.sse import GraphSnapshotContent
+from veupath_chatbot.transport.http.schemas.steps import StepResponse
 
 from .base import StrategyToolsBase
 from .graph_integrity import find_root_step_ids
 
 
-def _serialize_step_decorations(step: PlanStepNode, info: JSONObject) -> None:
-    """Add filter/analysis/report data to a step dict (if non-empty)."""
-    if step.filters:
-        info["filters"] = [f.to_dict() for f in step.filters]
-    if step.analyses:
-        info["analyses"] = [a.to_dict() for a in step.analyses]
-    if step.reports:
-        info["reports"] = [r.to_dict() for r in step.reports]
+class GraphEdge(CamelModel):
+    """A single edge in a graph snapshot."""
+
+    source_id: str
+    target_id: str
+    kind: str
+
+
+class ContextPlanPayload(CamelModel):
+    """Typed payload returned by _build_context_plan."""
+
+    graph_id: str
+    graph_name: str | None = None
+    plan: JSONObject
+    record_type: str
+    name: str | None = None
+    description: str | None = None
 
 
 class GraphOpsMixin(StrategyToolsBase):
@@ -68,145 +79,82 @@ class GraphOpsMixin(StrategyToolsBase):
             return f"{verb} {record_type} results for {summary}."
         return f"{verb} results for {summary}."
 
-    def _build_step_fields(
+    def _build_step_response(
         self,
         graph: StrategyGraph | None,
         step: PlanStepNode,
-        *,
-        id_key: str = "stepId",
-        always_include_inputs: bool = False,
-    ) -> JSONObject:
-        """Build the common serialized fields for a step node.
+    ) -> StepResponse:
+        """Build a StepResponse from a PlanStepNode + graph enrichment."""
+        wdk_step_id: int | None = None
+        validation: WDKValidation | None = None
+        estimated_size: int | None = None
+        record_type: str | None = None
 
-        Shared by ``_serialize_step`` (tool responses) and
-        ``_serialize_graph_step`` (graph snapshots).
-
-        :param graph: Strategy graph (for WDK IDs / counts), or None.
-        :param step: Step node to serialize.
-        :param id_key: Key name for the step ID ("stepId" or "id").
-        :param always_include_inputs: If True, always emit primaryInputStepId /
-            secondaryInputStepId (graph-snapshot mode). If False, only emit them
-            when structurally relevant (combine/transform).
-        :returns: Serialized step dict.
-        """
-        kind = step.infer_kind()
-        info: JSONObject = {
-            id_key: step.id,
-            "kind": kind,
-            "displayName": step.display_name or step.search_name,
-        }
-
-        # searchName is only meaningful for leaf / transform steps.
-        if kind != "combine":
-            info["searchName"] = step.search_name
-
-        # Structural relationships.
-        include_primary = kind in ("combine", "transform") or always_include_inputs
-        include_secondary = kind == "combine" or always_include_inputs
-        if kind == "combine":
-            info["operator"] = step.operator.value if step.operator else None
-        if include_primary:
-            info["primaryInputStepId"] = (
-                step.primary_input.id if step.primary_input else None
-            )
-        if include_secondary:
-            info["secondaryInputStepId"] = (
-                step.secondary_input.id if step.secondary_input else None
-            )
-
-        # WDK-aligned fields (populated after build_strategy).
         if graph:
+            record_type = graph.record_type
             wdk_step_id = graph.wdk_step_ids.get(step.id)
-            if wdk_step_id is not None:
-                info["wdkStepId"] = wdk_step_id
-            info["isBuilt"] = wdk_step_id is not None
+            validation = graph.step_validations.get(step.id)
+            count = graph.step_counts.get(step.id)
+            if isinstance(count, int):
+                estimated_size = count
 
-            estimated_size = graph.step_counts.get(step.id)
-            if estimated_size is not None:
-                info["estimatedSize"] = estimated_size
-
-        # Only include heavy fields when non-empty.
-        if step.parameters:
-            info["parameters"] = step.parameters
-        _serialize_step_decorations(step, info)
-        return info
-
-    def _serialize_step(
-        self,
-        graph: StrategyGraph,
-        step: PlanStepNode,
-    ) -> JSONObject:
-        """Serialize a step with WDK-aligned fields.
-
-        Includes ``estimatedSize`` and ``wdkStepId`` when available on the
-        graph (populated after ``build_strategy``).  Omits noisy fields
-        (parameters, filters, analyses, reports) when empty.
-
-        :param graph: Strategy graph with WDK IDs and counts.
-        :param step: Step node to serialize.
-        :returns: Serialized step dict.
-        """
-        return self._build_step_fields(graph, step, id_key="stepId")
-
-    def _serialize_graph_step(self, step: PlanStepNode) -> JSONObject:
-        """Serialize a step for graph snapshots.
-
-        Same enrichments as ``_serialize_step`` (WDK IDs, counts) but keyed
-        by ``id`` instead of ``stepId`` for graph-snapshot compatibility.
-
-        :param step: Step node to serialize.
-        :returns: Serialized step dict keyed by id.
-        """
-        graph = self._get_graph(None)
-        return self._build_step_fields(
-            graph, step, id_key="id", always_include_inputs=True
+        return StepResponse(
+            id=step.id,
+            kind=step.infer_kind(),
+            display_name=step.display_name or step.search_name,
+            search_name=step.search_name,
+            record_type=record_type,
+            parameters=step.parameters or None,
+            operator=step.operator.value if step.operator else None,
+            colocation_params=step.colocation_params,
+            primary_input_step_id=step.primary_input.id if step.primary_input else None,
+            secondary_input_step_id=step.secondary_input.id if step.secondary_input else None,
+            estimated_size=estimated_size,
+            wdk_step_id=wdk_step_id,
+            is_built=wdk_step_id is not None,
+            is_filtered=bool(step.filters),
+            validation=validation,
+            filters=step.filters or None,
+            analyses=step.analyses or None,
+            reports=step.reports or None,
         )
 
+
+    def _serialize_step(self, graph: StrategyGraph, step: PlanStepNode) -> JSONObject:
+        """Serialize a step for AI tool responses."""
+        return self._build_step_response(graph, step).model_dump(by_alias=True, exclude_none=True, mode="json")
+
     def _build_graph_snapshot(self, graph: StrategyGraph) -> JSONObject:
-        plan_payload = self._build_context_plan(graph)
-        record_type = plan_payload.get("recordType") if plan_payload else None
-        name = plan_payload.get("name") if plan_payload else graph.name
-        description = plan_payload.get("description") if plan_payload else None
-        # rootStepId should only be set when the working graph has exactly
-        # one output (one root). Do not guess based on "last_step_id" when multiple
-        # roots exist, otherwise the UI/agent may incorrectly assume the strategy is done.
+        ctx = self._build_context_plan(graph)
         roots = find_root_step_ids(graph)
-        root_step_id = roots[0] if len(roots) == 1 else None
 
-        steps = [self._serialize_graph_step(step) for step in graph.steps.values()]
-        edges: JSONArray = []
-        for step in graph.steps.values():
-            primary_input = getattr(step, "primary_input", None)
-            if primary_input is not None:
-                edges.append(
-                    {
-                        "sourceId": primary_input.id,
-                        "targetId": step.id,
-                        "kind": "primary",
-                    }
-                )
-            secondary_input = getattr(step, "secondary_input", None)
-            if secondary_input is not None:
-                edges.append(
-                    {
-                        "sourceId": secondary_input.id,
-                        "targetId": step.id,
-                        "kind": "secondary",
-                    }
-                )
+        steps = [
+            self._build_step_response(graph, step).model_dump(by_alias=True, exclude_none=True, mode="json")
+            for step in graph.steps.values()
+        ]
+        edges = [
+            GraphEdge(source_id=inp.id, target_id=step.id, kind=kind).model_dump(by_alias=True, exclude_none=True, mode="json")
+            for step in graph.steps.values()
+            for kind, inp in [
+                ("primary", step.primary_input),
+                ("secondary", step.secondary_input),
+            ]
+            if inp is not None
+        ]
 
-        return {
-            "graphId": graph.id,
-            "graphName": graph.name,
-            "recordType": record_type,
-            "name": name,
-            "description": description,
-            "rootStepId": root_step_id,
-            "steps": cast("JSONValue", steps),
-            "edges": edges,
-        }
+        return GraphSnapshotContent(
+            graph_id=graph.id,
+            graph_name=graph.name,
+            record_type=ctx.record_type if ctx else None,
+            name=ctx.name if ctx else graph.name,
+            description=ctx.description if ctx else None,
+            root_step_id=roots[0] if len(roots) == 1 else None,
+            steps=steps,
+            edges=edges,
+            plan=ctx.plan if ctx else None,
+        ).model_dump(by_alias=True, exclude_none=True, mode="json")
 
-    def _build_context_plan(self, graph: StrategyGraph) -> JSONObject | None:
+    def _build_context_plan(self, graph: StrategyGraph) -> ContextPlanPayload | None:
         # Prefer the single subtree root from graph.roots; fall back to
         # last_step_id when roots is ambiguous or not yet populated.
         if len(graph.roots) == 1:
@@ -237,14 +185,14 @@ class GraphOpsMixin(StrategyToolsBase):
         )
         graph.current_strategy = strategy
         graph.name = name or graph.name
-        return {
-            "graphId": graph.id,
-            "graphName": graph.name,
-            "plan": strategy.to_dict(),
-            "recordType": record_type,
-            "name": name,
-            "description": description,
-        }
+        return ContextPlanPayload(
+            graph_id=graph.id,
+            graph_name=graph.name,
+            plan=strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            record_type=record_type,
+            name=name,
+            description=description,
+        )
 
     def _step_ok_response(self, graph: StrategyGraph, step: PlanStepNode) -> JSONObject:
         """Serialize a step as an ``ok=True`` response with a full graph snapshot.
@@ -261,7 +209,7 @@ class GraphOpsMixin(StrategyToolsBase):
     ) -> JSONObject:
         plan_payload = self._build_context_plan(graph)
         if plan_payload:
-            payload.update(plan_payload)
+            payload.update(plan_payload.model_dump(by_alias=True, exclude_none=True))
         else:
             payload.setdefault("graphId", graph.id)
             payload.setdefault("graphName", graph.name)

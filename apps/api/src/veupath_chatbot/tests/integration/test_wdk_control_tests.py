@@ -319,7 +319,7 @@ class TestPositiveControlsIntersection:
             result = await _run_intersection_control(config, POSITIVE_IDS)
 
         assert result["targetStepId"] == TARGET_STEP_ID
-        assert result["targetResultCount"] == 150
+        assert result["targetEstimatedSize"] == 150
         assert result["controlsCount"] == len(POSITIVE_IDS)
         assert result["intersectionCount"] == 3
 
@@ -454,7 +454,7 @@ class TestBothControls:
         assert result.record_type == RECORD_TYPE
 
         assert result.target.step_id == TARGET_STEP_ID
-        assert result.target.result_count == 150
+        assert result.target.estimated_size == 150
 
         assert result.positive is not None
         assert result.positive.controls_count == len(POSITIVE_IDS)
@@ -697,8 +697,8 @@ class TestCleanupOnFailure:
         ):
             result = await _run_intersection_control(config, POSITIVE_IDS)
 
-        # targetResultCount should be None because get_step_count failed
-        assert result["targetResultCount"] is None
+        # targetEstimatedSize should be None because get_step_count failed
+        assert result["targetEstimatedSize"] is None
         # Strategy cleanup still happened
         mock_api.delete_strategy.assert_awaited_once_with(STRATEGY_ID)
 

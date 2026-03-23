@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import { serializeStrategyPlan } from "./serialize";
 import type { Step, Strategy } from "@pathfinder/shared";
 
+/** Minimal Step with required boolean fields defaulted. */
+function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
+  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+}
+
 describe("core/strategyGraph/serialize", () => {
   it("returns null when graph has multiple roots (multiple outputs)", () => {
     const stepsById: Record<string, Step> = {
-      a: { id: "a", displayName: "A", searchName: "q1", recordType: "gene" },
-      b: { id: "b", displayName: "B", searchName: "q2", recordType: "gene" },
+      a: step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
+      b: step({ id: "b", displayName: "B", searchName: "q2", recordType: "gene" }),
     };
     const res = serializeStrategyPlan(stepsById, {
       id: "s",
@@ -24,21 +29,21 @@ describe("core/strategyGraph/serialize", () => {
 
   it("serializes a linear plan and sanitizes @@fake@@ parameters", () => {
     const stepsById: Record<string, Step> = {
-      a: {
+      a: step({
         id: "a",
         displayName: "A",
         searchName: "q1",
         recordType: "gene",
         parameters: { ok: 1, fake: "@@fake@@", arr: ["x", "@@fake@@"] },
-      },
-      b: {
+      }),
+      b: step({
         id: "b",
         displayName: "B",
         searchName: "q2",
         recordType: "gene",
         primaryInputStepId: "a",
         parameters: { ok: true },
-      },
+      }),
     };
 
     const strategy: Strategy = {
@@ -67,16 +72,16 @@ describe("core/strategyGraph/serialize", () => {
 
   it("serializes combine nodes with __combine__ searchName and requires operator", () => {
     const stepsById: Record<string, Step> = {
-      l: { id: "l", displayName: "L", searchName: "q1", recordType: "gene" },
-      r: { id: "r", displayName: "R", searchName: "q2", recordType: "gene" },
-      c: {
+      l: step({ id: "l", displayName: "L", searchName: "q1", recordType: "gene" }),
+      r: step({ id: "r", displayName: "R", searchName: "q2", recordType: "gene" }),
+      c: step({
         id: "c",
         displayName: "C",
         primaryInputStepId: "l",
         secondaryInputStepId: "r",
         operator: "UNION",
         recordType: "gene",
-      },
+      }),
     };
 
     const strategy: Strategy = {

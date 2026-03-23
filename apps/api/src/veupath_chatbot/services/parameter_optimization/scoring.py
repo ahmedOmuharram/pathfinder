@@ -1,11 +1,15 @@
 """Scoring, analysis, and serialization helpers for parameter optimization."""
 
 import warnings
-from typing import cast
 
 import optuna
 
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.pydantic_base import (
+    CamelModel,
+    RoundedFloat,
+    RoundedFloat2,
+)
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
@@ -80,7 +84,7 @@ def _compute_score(
     fpr: float | None,
     cfg: OptimizationConfig,
     *,
-    result_count: int | None = None,
+    estimated_size: int | None = None,
     positive_hits: int | None = None,
     negative_hits: int | None = None,
 ) -> float:
@@ -99,8 +103,8 @@ def _compute_score(
     base = _score_for_objective(r, precision, specificity, raw_fpr, cfg)
 
     # Apply optional result-count penalty (tiebreaker for large result sets).
-    if cfg.result_count_penalty > 0 and result_count is not None and result_count > 0:
-        penalty = cfg.result_count_penalty * (result_count / _DEFAULT_TOTAL_GENES)
+    if cfg.estimated_size_penalty > 0 and estimated_size is not None and estimated_size > 0:
+        penalty = cfg.estimated_size_penalty * (estimated_size / _DEFAULT_TOTAL_GENES)
         base = max(base - penalty, 0.0)
 
     return base
@@ -176,34 +180,73 @@ def _compute_pareto_frontier(trials: list[TrialResult]) -> list[TrialResult]:
     return frontier
 
 
+class TrialResultResponse(CamelModel):
+    """Typed JSON representation of a single optimization trial."""
+
+    trial_number: int
+    parameters: dict[str, JSONValue]
+    score: RoundedFloat
+    recall: RoundedFloat | None = None
+    false_positive_rate: RoundedFloat | None = None
+    estimated_size: int | None = None
+    positive_hits: int | None = None
+    negative_hits: int | None = None
+    total_positives: int | None = None
+    total_negatives: int | None = None
+
+    @staticmethod
+    def from_trial(trial: TrialResult) -> "TrialResultResponse":
+        return TrialResultResponse(
+            trial_number=trial.trial_number,
+            parameters=dict(trial.parameters),
+            score=trial.score,
+            recall=trial.recall,
+            false_positive_rate=trial.false_positive_rate,
+            estimated_size=trial.estimated_size,
+            positive_hits=trial.positive_hits,
+            negative_hits=trial.negative_hits,
+            total_positives=trial.total_positives,
+            total_negatives=trial.total_negatives,
+        )
+
+
+class OptimizationResultResponse(CamelModel):
+    """Typed JSON representation of a full optimization result."""
+
+    optimization_id: str
+    status: str
+    best_trial: TrialResultResponse | None = None
+    all_trials: list[TrialResultResponse]
+    pareto_frontier: list[TrialResultResponse]
+    sensitivity: dict[str, float]
+    total_time_seconds: RoundedFloat2
+    total_trials: int
+    error_message: str | None = None
+
+    @staticmethod
+    def from_result(result: OptimizationResult) -> "OptimizationResultResponse":
+        return OptimizationResultResponse(
+            optimization_id=result.optimization_id,
+            status=result.status,
+            best_trial=(
+                TrialResultResponse.from_trial(result.best_trial)
+                if result.best_trial
+                else None
+            ),
+            all_trials=[TrialResultResponse.from_trial(t) for t in result.all_trials],
+            pareto_frontier=[
+                TrialResultResponse.from_trial(t) for t in result.pareto_frontier
+            ],
+            sensitivity=result.sensitivity,
+            total_time_seconds=result.total_time_seconds,
+            total_trials=len(result.all_trials),
+            error_message=result.error_message,
+        )
+
+
 def _trial_to_json(trial: TrialResult) -> JSONObject:
-    return {
-        "trialNumber": trial.trial_number,
-        "parameters": dict(trial.parameters),
-        "score": round(trial.score, 4),
-        "recall": round(trial.recall, 4) if trial.recall is not None else None,
-        "falsePositiveRate": (
-            round(trial.false_positive_rate, 4)
-            if trial.false_positive_rate is not None
-            else None
-        ),
-        "resultCount": trial.result_count,
-        "positiveHits": trial.positive_hits,
-        "negativeHits": trial.negative_hits,
-        "totalPositives": trial.total_positives,
-        "totalNegatives": trial.total_negatives,
-    }
+    return TrialResultResponse.from_trial(trial).model_dump(by_alias=True, mode="json")
 
 
 def result_to_json(result: OptimizationResult) -> JSONObject:
-    return {
-        "optimizationId": result.optimization_id,
-        "status": result.status,
-        "bestTrial": _trial_to_json(result.best_trial) if result.best_trial else None,
-        "allTrials": [_trial_to_json(t) for t in result.all_trials],
-        "paretoFrontier": [_trial_to_json(t) for t in result.pareto_frontier],
-        "sensitivity": cast("JSONValue", result.sensitivity),
-        "totalTimeSeconds": round(result.total_time_seconds, 2),
-        "totalTrials": len(result.all_trials),
-        "errorMessage": result.error_message,
-    }
+    return OptimizationResultResponse.from_result(result).model_dump(by_alias=True, mode="json")

@@ -16,7 +16,7 @@ from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
 )
 from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.services.chat.events import (
-    WORKBENCH_GENE_SET,
+    EventType,
     tool_result_to_events,
 )
 
@@ -101,7 +101,7 @@ class TestEventExtractorPicksUpGeneSetFromDelegation:
             "geneSetCreated": gene_set_payload,
         }
         events = tool_result_to_events(delegation_result)
-        gs_events = [e for e in events if e.get("type") == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e.get("type") == EventType.WORKBENCH_GENE_SET]
         assert len(gs_events) == 1
         event_data = gs_events[0].get("data")
         assert isinstance(event_data, dict)
@@ -117,7 +117,7 @@ class TestEventExtractorPicksUpGeneSetFromDelegation:
             "rejected": [],
         }
         events = tool_result_to_events(delegation_result)
-        gs_events = [e for e in events if e.get("type") == WORKBENCH_GENE_SET]
+        gs_events = [e for e in events if e.get("type") == EventType.WORKBENCH_GENE_SET]
         assert len(gs_events) == 0
 
 

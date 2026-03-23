@@ -56,12 +56,15 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const typeStyle = TYPE_STYLES[kind] ?? defaultStyle;
   const isTransform = kind === "transform";
 
-  const validationError = step.validationError;
-  const hasValidationError = validationError != null && validationError !== "";
-  const isZeroResults = step.resultCount === 0;
+  const validation = step.validation;
+  const hasValidationError =
+    validation != null && validation.isValid === false;
+  const validationMessage =
+    validation?.errors?.general?.[0] ?? (hasValidationError ? "Validation error" : null);
+  const isZeroResults = step.estimatedSize === 0;
   const resultLabel =
     step.recordType != null && step.recordType !== ""
-      ? `${step.recordType}${step.resultCount === 1 ? "" : "s"}`
+      ? `${step.recordType}${step.estimatedSize === 1 ? "" : "s"}`
       : "results";
 
   const transformFrameFill = hasValidationError
@@ -188,9 +191,9 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         )}
         {!hasValidationError && (
           <div className="mt-1 text-xs font-mono text-muted-foreground">
-            {typeof step.resultCount === "number"
-              ? `${step.resultCount.toLocaleString()} ${resultLabel}`
-              : step.resultCount === null
+            {typeof step.estimatedSize === "number"
+              ? `${step.estimatedSize.toLocaleString()} ${resultLabel}`
+              : step.estimatedSize === null
                 ? `? ${resultLabel}`
                 : "Loading..."}
           </div>
@@ -211,7 +214,7 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
         )}
         {hasValidationError && (
           <div className="mt-1 text-center text-xs font-semibold text-destructive">
-            {validationError}
+            {validationMessage}
             <button
               type="button"
               onClick={(event) => {

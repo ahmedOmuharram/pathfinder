@@ -96,7 +96,7 @@ class ReverseSearchResultItem(BaseModel):
     recall: float
     precision: float
     f1: float
-    result_count: int = Field(alias="resultCount")
+    estimated_size: int = Field(alias="estimatedSize")
     overlap_count: int = Field(alias="overlapCount")
 
     model_config = {"populate_by_name": True}

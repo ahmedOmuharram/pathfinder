@@ -11079,6 +11079,57 @@
         "type": "object",
         "title": "StepReportSpec"
       },
+      "WDKValidationErrors": {
+        "properties": {
+          "general": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "General"
+          },
+          "byKey": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Bykey"
+          }
+        },
+        "type": "object",
+        "title": "WDKValidationErrors",
+        "description": "Validation error details."
+      },
+      "WDKValidation": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level",
+            "default": "NONE"
+          },
+          "isValid": {
+            "type": "boolean",
+            "title": "Isvalid",
+            "default": true
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WDKValidationErrors"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "WDKValidation",
+        "description": "Step/search/strategy validation state."
+      },
       "StepResponse": {
         "properties": {
           "id": {
@@ -11175,7 +11226,7 @@
             ],
             "title": "Secondaryinputstepid"
           },
-          "resultCount": {
+          "estimatedSize": {
             "anyOf": [
               {
                 "type": "integer"
@@ -11184,7 +11235,7 @@
                 "type": "null"
               }
             ],
-            "title": "Resultcount"
+            "title": "Estimatedsize"
           },
           "wdkStepId": {
             "anyOf": [
@@ -11196,6 +11247,26 @@
               }
             ],
             "title": "Wdkstepid"
+          },
+          "isBuilt": {
+            "type": "boolean",
+            "title": "Isbuilt",
+            "default": false
+          },
+          "isFiltered": {
+            "type": "boolean",
+            "title": "Isfiltered",
+            "default": false
+          },
+          "validation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WDKValidation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "filters": {
             "anyOf": [
@@ -11238,17 +11309,6 @@
               }
             ],
             "title": "Reports"
-          },
-          "validationError": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Validationerror"
           }
         },
         "type": "object",
@@ -11588,7 +11648,7 @@
             ],
             "title": "Stepcount"
           },
-          "resultCount": {
+          "estimatedSize": {
             "anyOf": [
               {
                 "type": "integer"
@@ -11597,7 +11657,7 @@
                 "type": "null"
               }
             ],
-            "title": "Resultcount"
+            "title": "Estimatedsize"
           },
           "wdkUrl": {
             "anyOf": [
@@ -11644,7 +11704,7 @@
           "updatedAt"
         ],
         "title": "StrategyResponse",
-        "description": "Unified strategy response — used for both list and detail views.\n\nList views: ``steps`` is ``[]``, ``stepCount``/``resultCount`` are populated.\nDetail views: ``steps`` is populated, summary fields may also be set."
+        "description": "Unified strategy response — used for both list and detail views.\n\nList views: ``steps`` is ``[]``, ``stepCount``/``estimatedSize`` are populated.\nDetail views: ``steps`` is populated, summary fields may also be set."
       },
       "StrategyUpdateEventData": {
         "properties": {

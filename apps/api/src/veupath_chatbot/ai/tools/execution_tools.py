@@ -9,7 +9,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.build import (
-    get_result_count_for_site,
+    get_estimated_size_for_site,
 )
 from veupath_chatbot.services.strategies.engine.validation import ValidationMixin
 
@@ -20,7 +20,7 @@ class ExecutionTools(ValidationMixin):
     """Tools for retrieving strategy execution results."""
 
     @ai_function()
-    async def get_result_count(
+    async def get_estimated_size(
         self,
         wdk_step_id: Annotated[int, AIParam(desc="WDK step ID")],
         wdk_strategy_id: Annotated[
@@ -32,7 +32,7 @@ class ExecutionTools(ValidationMixin):
         For imported WDK strategies, provide wdk_strategy_id.
         """
         try:
-            result = await get_result_count_for_site(
+            result = await get_estimated_size_for_site(
                 self.session.site_id, wdk_step_id, wdk_strategy_id
             )
         except (AppError, OSError) as e:

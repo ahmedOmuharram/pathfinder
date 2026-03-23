@@ -500,7 +500,7 @@ class TestSiteInfoEdgeCases:
             project_id="PlasmoDB",
             is_portal=True,
         )
-        d = site.to_dict()
+        d = site.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["id"] == "plasmo"
         assert d["isPortal"] is True
         assert d["baseUrl"] == "https://plasmodb.org/plasmo/service"

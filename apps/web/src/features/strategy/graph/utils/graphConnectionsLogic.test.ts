@@ -21,8 +21,8 @@ function step(partial: Partial<Step> & { id: string }): Step {
     searchName: partial.searchName,
     primaryInputStepId: partial.primaryInputStepId,
     secondaryInputStepId: partial.secondaryInputStepId,
-    resultCount: partial.resultCount,
-    validationError: partial.validationError,
+    estimatedSize: partial.estimatedSize,
+    validation: partial.validation,
     wdkStepId: partial.wdkStepId,
     colocationParams: partial.colocationParams,
   } as Step;

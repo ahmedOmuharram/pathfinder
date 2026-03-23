@@ -253,6 +253,6 @@ class RefinementToolsMixin:
                 "success": True,
                 "newStepId": combined_id,
                 "operator": operator,
-                "resultCount": count,
+                "estimatedSize": count,
             },
         )

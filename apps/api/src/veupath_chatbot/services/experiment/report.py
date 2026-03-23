@@ -199,7 +199,7 @@ def _step_analysis_section(sa: StepAnalysisResult) -> str:
         header = "<tr><th>Step</th><th class='numeric'>Results</th><th class='numeric'>Recall</th><th class='numeric'>FPR</th><th class='numeric'>TP Δ</th><th class='numeric'>FP Δ</th></tr>"
         rows = [
             f"<tr><td>{_esc(ev.display_name)}</td>"
-            f"<td class='numeric'>{ev.result_count}</td>"
+            f"<td class='numeric'>{ev.estimated_size}</td>"
             f"<td class='numeric'>{_pct(ev.recall)}</td>"
             f"<td class='numeric'>{_pct(ev.false_positive_rate)}</td>"
             f"<td class='numeric'>{ev.tp_movement:+d}</td>"

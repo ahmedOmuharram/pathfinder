@@ -68,21 +68,20 @@ def plan_needs_detail_fetch(projection: StreamProjection) -> bool:
 async def fetch_and_convert(
     api: StrategyAPI,
     wdk_id: int,
-) -> tuple[StrategyAST, bool, JSONObject]:
+) -> tuple[StrategyAST, bool]:
     """Fetch a WDK strategy and convert to internal AST.
 
     Normalizes parameters best-effort (failures are logged and swallowed).
+    Step counts and WDK step ID mappings are stored on the AST directly.
 
-    :returns: Tuple of (StrategyAST, is_saved, step_counts).
-        ``step_counts`` maps step IDs to ``estimatedSize`` values from the
-        WDK response, enabling zero-cost count display.
+    :returns: Tuple of (StrategyAST, is_saved).
     """
     wdk_strategy = await api.get_strategy(wdk_id)
 
-    ast, steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
+    ast = build_snapshot_from_wdk(wdk_strategy)
 
     try:
-        await normalize_synced_parameters(ast, steps_data, api)
+        await normalize_synced_parameters(ast, api)
     except AppError as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",
@@ -90,7 +89,7 @@ async def fetch_and_convert(
             error=str(exc),
         )
 
-    return ast, wdk_strategy.is_saved, step_counts
+    return ast, wdk_strategy.is_saved
 
 
 async def sync_to_projection(
@@ -105,10 +104,8 @@ async def sync_to_projection(
 
     Shared by ``open_strategy`` and ``sync_all_wdk_strategies``.
     """
-    ast, is_saved, step_counts = await fetch_and_convert(api, wdk_id)
-    plan = ast.to_dict()
-    if step_counts:
-        plan["stepCounts"] = step_counts
+    ast, is_saved = await fetch_and_convert(api, wdk_id)
+    plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
     name = ast.name or f"WDK Strategy {wdk_id}"
 
     return await upsert_projection(
@@ -220,8 +217,8 @@ async def upsert_summary_projection(
                 is_saved=is_saved,
                 is_saved_set=True,
                 step_count=step_count,
-                result_count=estimated_size,
-                result_count_set=True,
+                estimated_size=estimated_size,
+                estimated_size_set=True,
             ),
         )
         proj = await stream_repo.get_projection(existing.stream_id)
@@ -240,8 +237,8 @@ async def upsert_summary_projection(
                 is_saved=is_saved,
                 is_saved_set=True,
                 step_count=step_count,
-                result_count=estimated_size,
-                result_count_set=True,
+                estimated_size=estimated_size,
+                estimated_size_set=True,
             ),
         )
         proj = await stream_repo.get_projection(stream.id)
@@ -268,10 +265,8 @@ async def lazy_fetch_wdk_detail(
 
     try:
         api = get_strategy_api(site_id)
-        ast, is_saved, step_counts = await fetch_and_convert(api, wdk_id)
-        plan = ast.to_dict()
-        if step_counts:
-            plan["stepCounts"] = step_counts
+        ast, is_saved = await fetch_and_convert(api, wdk_id)
+        plan = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         await stream_repo.update_projection(
             projection.stream_id,
             ProjectionUpdate(

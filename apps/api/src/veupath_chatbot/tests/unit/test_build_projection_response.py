@@ -28,7 +28,7 @@ def _make_projection(**overrides):
     proj.plan = overrides.get("plan", {})
     proj.steps = overrides.get("steps", [])
     proj.root_step_id = overrides.get("root_step_id")
-    proj.result_count = overrides.get("result_count")
+    proj.estimated_size = overrides.get("estimated_size")
     proj.updated_at = overrides.get("updated_at", datetime.now(UTC))
     proj.gene_set_id = overrides.get("gene_set_id")
     proj.dismissed_at = overrides.get("dismissed_at")

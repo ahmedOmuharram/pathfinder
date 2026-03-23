@@ -13,7 +13,7 @@ class OptimizationTrialData(BaseModel):
     score: float = 0.0
     recall: float | None = None
     false_positive_rate: float | None = Field(default=None, alias="falsePositiveRate")
-    result_count: int | None = Field(default=None, alias="resultCount")
+    estimated_size: int | None = Field(default=None, alias="estimatedSize")
     positive_hits: int | None = Field(default=None, alias="positiveHits")
     negative_hits: int | None = Field(default=None, alias="negativeHits")
     total_positives: int | None = Field(default=None, alias="totalPositives")

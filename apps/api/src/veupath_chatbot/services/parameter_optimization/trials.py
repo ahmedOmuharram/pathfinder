@@ -3,7 +3,7 @@
 import asyncio
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import optuna
 
@@ -185,7 +185,7 @@ class TrialMetrics:
 
     recall: float | None
     fpr: float | None
-    result_count: int | None
+    estimated_size: int | None
     positive_hits: int | None
     negative_hits: int | None
 
@@ -198,7 +198,7 @@ def _extract_trial_metrics(wdk_result: ControlTestResult) -> TrialMetrics:
     return TrialMetrics(
         recall=pos.recall if pos else None,
         fpr=neg.false_positive_rate if neg else None,
-        result_count=wdk_result.target.result_count,
+        estimated_size=wdk_result.target.estimated_size,
         positive_hits=pos.intersection_count if pos else None,
         negative_hits=neg.intersection_count if neg else None,
     )
@@ -223,7 +223,7 @@ def _build_failed_trial(
         score=0.0,
         recall=None,
         false_positive_rate=None,
-        result_count=None,
+        estimated_size=None,
         total_positives=n_positives,
         total_negatives=n_negatives,
     )
@@ -244,7 +244,7 @@ def _build_successful_trial(
         metrics.recall,
         metrics.fpr,
         cfg,
-        result_count=metrics.result_count,
+        estimated_size=metrics.estimated_size,
         positive_hits=metrics.positive_hits,
         negative_hits=metrics.negative_hits,
     )
@@ -254,7 +254,7 @@ def _build_successful_trial(
         score=score,
         recall=metrics.recall,
         false_positive_rate=metrics.fpr,
-        result_count=metrics.result_count,
+        estimated_size=metrics.estimated_size,
         positive_hits=metrics.positive_hits,
         negative_hits=metrics.negative_hits,
         total_positives=n_positives,
@@ -405,7 +405,7 @@ async def _evaluate_trial(
 # ---------------------------------------------------------------------------
 
 
-class EarlyStopReason(Enum):
+class EarlyStopReason(StrEnum):
     """Why the optimisation loop stopped early."""
 
     PERFECT_SCORE = "perfect_score"

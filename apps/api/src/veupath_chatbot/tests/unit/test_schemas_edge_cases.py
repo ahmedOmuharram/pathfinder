@@ -17,7 +17,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from veupath_chatbot.domain.strategy.ops import ColocationParams
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.transport.http.schemas.chat import (
     ChatMention,
     ChatRequest,
@@ -34,8 +35,6 @@ from veupath_chatbot.transport.http.schemas.gene_sets import (
     RunGeneSetAnalysisRequest,
     SetOperationRequest,
 )
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
-from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.transport.http.schemas.sites import (
     SearchDetailsResponse,
     SearchValidationErrors,
@@ -363,12 +362,12 @@ class TestStepResponseFromWdkJson:
             "searchName": "GenesByOrganism",
             "recordType": "gene",
             "parameters": {"organism": "Plasmodium falciparum"},
-            "resultCount": 5000,
+            "estimatedSize": 5000,
             "wdkStepId": 12345,
         }
         step = StepResponse.model_validate(raw)
         assert step.search_name == "GenesByOrganism"
-        assert step.result_count == 5000
+        assert step.estimated_size == 5000
 
 
 # ---------------------------------------------------------------------------

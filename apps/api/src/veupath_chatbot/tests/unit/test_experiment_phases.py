@@ -74,7 +74,7 @@ def _make_control_result(
     pos_count: int = 4,
     neg_count: int = 1,
     step_id: int = 100,
-    result_count: int = 150,
+    estimated_size: int = 150,
 ) -> ControlTestResult:
     pos_ids = list(POSITIVE_IDS[:pos_count])
     neg_ids = list(NEGATIVE_IDS[:neg_count])
@@ -85,7 +85,7 @@ def _make_control_result(
             search_name="GenesByTaxon",
             parameters={},
             step_id=step_id,
-            result_count=result_count,
+            estimated_size=estimated_size,
         ),
         positive=ControlSetData(
             controls_count=len(POSITIVE_IDS),
@@ -93,7 +93,7 @@ def _make_control_result(
             intersection_ids=pos_ids,
             intersection_ids_sample=pos_ids,
             target_step_id=step_id,
-            target_result_count=result_count,
+            target_estimated_size=estimated_size,
             missing_ids_sample=[g for g in POSITIVE_IDS if g not in pos_ids],
             recall=pos_count / len(POSITIVE_IDS),
         ),
@@ -103,7 +103,7 @@ def _make_control_result(
             intersection_ids=neg_ids,
             intersection_ids_sample=neg_ids,
             target_step_id=step_id,
-            target_result_count=result_count,
+            target_estimated_size=estimated_size,
             unexpected_hits_sample=neg_ids,
             false_positive_rate=neg_count / len(NEGATIVE_IDS),
         ),

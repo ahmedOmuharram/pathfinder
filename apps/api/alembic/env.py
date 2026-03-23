@@ -63,7 +63,12 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    # If called from app startup with a connection, use it directly.
+    connection = config.attributes.get("connection")
+    if connection:
+        do_run_migrations(connection)
+    else:
+        asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

@@ -7,17 +7,7 @@ tool_result_to_events dispatcher.
 from typing import ClassVar
 
 from veupath_chatbot.services.chat.events import (
-    CITATIONS,
-    EXECUTOR_BUILD_REQUEST,
-    GRAPH_CLEARED,
-    GRAPH_PLAN,
-    GRAPH_SNAPSHOT,
-    PLANNING_ARTIFACT,
-    REASONING,
-    STRATEGY_LINK,
-    STRATEGY_META,
-    STRATEGY_UPDATE,
-    WORKBENCH_GENE_SET,
+    EventType,
     _extract_citations,
     _extract_cleared,
     _extract_conversation_title,
@@ -43,7 +33,7 @@ class TestExtractCitations:
         result = {"citations": [{"url": "http://example.com"}]}
         event = _extract_citations(result, get_graph=None)
         assert event is not None
-        assert event["type"] == CITATIONS
+        assert event["type"] == EventType.CITATIONS
         assert event["data"]["citations"] == [{"url": "http://example.com"}]
 
     def test_empty_list_returns_none(self):
@@ -69,7 +59,7 @@ class TestExtractPlanningArtifact:
         result = {"planningArtifact": {"id": "art1"}}
         event = _extract_planning_artifact(result, get_graph=None)
         assert event is not None
-        assert event["type"] == PLANNING_ARTIFACT
+        assert event["type"] == EventType.PLANNING_ARTIFACT
         assert event["data"]["planningArtifact"] == {"id": "art1"}
 
     def test_falsy_values_return_none(self):
@@ -93,7 +83,7 @@ class TestExtractReasoning:
         result = {"reasoning": "The user wants kinases."}
         event = _extract_reasoning(result, get_graph=None)
         assert event is not None
-        assert event["type"] == REASONING
+        assert event["type"] == EventType.REASONING
         assert event["data"]["reasoning"] == "The user wants kinases."
 
     def test_whitespace_only_returns_none(self):
@@ -119,7 +109,7 @@ class TestExtractConversationTitle:
         result = {"conversationTitle": "My Strategy"}
         event = _extract_conversation_title(result, get_graph=None)
         assert event is not None
-        assert event["type"] == STRATEGY_META
+        assert event["type"] == EventType.STRATEGY_META
         assert event["data"]["name"] == "My Strategy"
 
     def test_strips_whitespace(self):
@@ -155,7 +145,7 @@ class TestExtractExecutorBuildRequest:
         result = {"executorBuildRequest": req}
         event = _extract_executor_build_request(result, get_graph=None)
         assert event is not None
-        assert event["type"] == EXECUTOR_BUILD_REQUEST
+        assert event["type"] == EventType.EXECUTOR_BUILD_REQUEST
         assert event["data"]["executorBuildRequest"] == req
 
     def test_non_dict_returns_none(self):
@@ -180,7 +170,7 @@ class TestExtractStepUpdate:
         result = {"stepId": "s1", "graphId": "g1"}
         event = _extract_step_update(result, get_graph=None)
         assert event is not None
-        assert event["type"] == STRATEGY_UPDATE
+        assert event["type"] == EventType.STRATEGY_UPDATE
         assert event["data"]["graphId"] == "g1"
         assert event["data"]["step"] == result
         assert event["data"]["allSteps"] == []
@@ -196,6 +186,7 @@ class TestExtractStepUpdate:
             def __init__(self, display_name, kind):
                 self.display_name = display_name
                 self._kind = kind
+                self.search_name = display_name
 
             def infer_kind(self):
                 return self._kind
@@ -213,14 +204,16 @@ class TestExtractStepUpdate:
         assert event is not None
         all_steps = event["data"]["allSteps"]
         assert len(all_steps) == 2
-        step_ids = {s["stepId"] for s in all_steps}
+        # StepResponse serializes step ID as "id", not "stepId"
+        step_ids = {s["id"] for s in all_steps}
         assert step_ids == {"s1", "s2"}
 
     def test_non_string_graph_id_coerced_to_none(self):
         result = {"stepId": "s1", "graphId": 999}
         event = _extract_step_update(result, get_graph=None)
         assert event is not None
-        assert event["data"]["graphId"] is None
+        # exclude_none=True omits graphId when it's None
+        assert "graphId" not in event["data"]
 
     def test_no_step_id_returns_none(self):
         result = {"graphId": "g1"}
@@ -239,8 +232,8 @@ class TestExtractGraphSnapshot:
         result = {"graphSnapshot": snapshot}
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_SNAPSHOT
-        assert event["data"]["graphId"] == "g1"
+        assert event["type"] == EventType.GRAPH_SNAPSHOT
+        assert event["data"]["graphSnapshot"]["graphId"] == "g1"
         assert event["data"]["graphSnapshot"] == snapshot
 
     def test_fallback_to_result_graph_id(self):
@@ -248,7 +241,8 @@ class TestExtractGraphSnapshot:
         result = {"graphSnapshot": snapshot, "graphId": "g_fallback"}
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["data"]["graphId"] == "g_fallback"
+        # graphId is inside the graphSnapshot dict, not at top level of data
+        assert event["data"]["graphSnapshot"] == snapshot
 
     def test_non_dict_snapshot_still_emitted(self):
         result = {"graphSnapshot": "some_string"}
@@ -265,7 +259,9 @@ class TestExtractGraphSnapshot:
         result = {"graphSnapshot": snapshot}
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["data"]["graphId"] is None
+        # graphId is inside graphSnapshot, and non-string values stay as-is
+        # (coercion is in _extract_step_update, not _extract_graph_snapshot)
+        assert event["data"]["graphSnapshot"]["graphId"] == 42
 
     def test_skipped_when_auto_build_succeeded(self):
         """When autoBuild.ok is True, the auto-build hook already emitted
@@ -291,7 +287,7 @@ class TestExtractGraphSnapshot:
         }
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_SNAPSHOT
+        assert event["type"] == EventType.GRAPH_SNAPSHOT
 
     def test_not_skipped_when_auto_build_skipped(self):
         """When autoBuild was skipped (multiple roots), the tool result
@@ -303,7 +299,7 @@ class TestExtractGraphSnapshot:
         }
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_SNAPSHOT
+        assert event["type"] == EventType.GRAPH_SNAPSHOT
 
     def test_not_skipped_without_auto_build(self):
         """Without autoBuild, normal extraction should work."""
@@ -311,7 +307,7 @@ class TestExtractGraphSnapshot:
         result = {"graphSnapshot": snapshot}
         event = _extract_graph_snapshot(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_SNAPSHOT
+        assert event["type"] == EventType.GRAPH_SNAPSHOT
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +327,7 @@ class TestExtractGraphPlan:
         }
         event = _extract_graph_plan(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_PLAN
+        assert event["type"] == EventType.GRAPH_PLAN
         assert event["data"]["plan"] == plan
         assert event["data"]["graphId"] == "g1"
         assert event["data"]["name"] == "Strategy"
@@ -339,8 +335,11 @@ class TestExtractGraphPlan:
 
     def test_falsy_plan_returns_none(self):
         assert _extract_graph_plan({"plan": None}, get_graph=None) is None
-        assert _extract_graph_plan({"plan": {}}, get_graph=None) is None
         assert _extract_graph_plan({"plan": []}, get_graph=None) is None
+        # An empty dict IS a valid dict, so it produces an event
+        event = _extract_graph_plan({"plan": {}}, get_graph=None)
+        assert event is not None
+        assert event["type"] == EventType.GRAPH_PLAN
 
     def test_absent_plan_returns_none(self):
         assert _extract_graph_plan({}, get_graph=None) is None
@@ -356,7 +355,7 @@ class TestExtractStrategyMeta:
         result = {"graphId": "g1", "name": "My Strategy"}
         event = _extract_strategy_meta(result, get_graph=None)
         assert event is not None
-        assert event["type"] == STRATEGY_META
+        assert event["type"] == EventType.STRATEGY_META
         assert event["data"]["graphId"] == "g1"
         assert event["data"]["name"] == "My Strategy"
 
@@ -384,7 +383,10 @@ class TestExtractStrategyMeta:
         result = {"graphId": "g1", "name": None, "graphName": "Fallback"}
         event = _extract_strategy_meta(result, get_graph=None)
         assert event is not None
-        assert event["data"]["name"] == "Fallback"
+        # name=None is excluded by exclude_none serialization
+        assert "name" not in event["data"]
+        # graphName is preserved as a separate field
+        assert event["data"]["graphName"] == "Fallback"
 
     def test_falsy_graph_id_returns_none(self):
         result = {"graphId": "", "name": "Strategy"}
@@ -402,7 +404,7 @@ class TestExtractCleared:
         result = {"cleared": True, "graphId": "g1"}
         event = _extract_cleared(result, get_graph=None)
         assert event is not None
-        assert event["type"] == GRAPH_CLEARED
+        assert event["type"] == EventType.GRAPH_CLEARED
         assert event["data"]["graphId"] == "g1"
 
     def test_falsy_cleared_returns_none(self):
@@ -426,7 +428,7 @@ class TestExtractGeneSetCreated:
         result = {"geneSetCreated": gene_set}
         event = _extract_gene_set_created(result, get_graph=None)
         assert event is not None
-        assert event["type"] == WORKBENCH_GENE_SET
+        assert event["type"] == EventType.WORKBENCH_GENE_SET
         assert event["data"]["geneSet"] == gene_set
 
     def test_non_dict_returns_none(self):
@@ -461,7 +463,7 @@ class TestExtractStrategyLink:
         }
         event = _extract_strategy_link(result, get_graph=None)
         assert event is not None
-        assert event["type"] == STRATEGY_LINK
+        assert event["type"] == EventType.STRATEGY_LINK
         assert event["data"]["wdkStrategyId"] == 12345
         assert event["data"]["graphId"] == "g1"
 
@@ -503,9 +505,9 @@ class TestRegistryDispatch:
         }
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
-        assert CITATIONS in types
-        assert REASONING in types
-        assert GRAPH_CLEARED in types
+        assert EventType.CITATIONS in types
+        assert EventType.REASONING in types
+        assert EventType.GRAPH_CLEARED in types
 
     def test_ordering_matches_extractor_registration(self):
         """Events should appear in the order extractors are registered."""
@@ -516,8 +518,8 @@ class TestRegistryDispatch:
         }
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
-        assert types.index(CITATIONS) < types.index(REASONING)
-        assert types.index(REASONING) < types.index(STRATEGY_LINK)
+        assert types.index(EventType.CITATIONS) < types.index(EventType.REASONING)
+        assert types.index(EventType.REASONING) < types.index(EventType.STRATEGY_LINK)
 
     def test_non_dict_returns_empty(self):
         assert tool_result_to_events("not a dict") == []
@@ -541,6 +543,6 @@ class TestRegistryDispatch:
 
         result = {"stepId": "s1", "graphId": "g1"}
         events = tool_result_to_events(result, get_graph=lambda gid: MockGraph())
-        update_events = [e for e in events if e["type"] == STRATEGY_UPDATE]
+        update_events = [e for e in events if e["type"] == EventType.STRATEGY_UPDATE]
         assert len(update_events) == 1
         assert len(update_events[0]["data"]["allSteps"]) == 1

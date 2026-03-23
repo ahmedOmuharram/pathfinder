@@ -115,9 +115,9 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
           updates.colocationParams = null;
         }
       }
-      let validationError: string | null = null;
+      let validationMessage: string | null = null;
       if (!isSearchNameAvailable && kind === "search") {
-        validationError =
+        validationMessage =
           "Cannot be saved: search name is not available for this record type.";
       }
       if (
@@ -125,7 +125,7 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
         resolvedRecordType != null &&
         resolvedRecordType !== "" &&
         nextSearchName !== "" &&
-        validationError == null
+        validationMessage == null
       ) {
         try {
           const response: SearchValidationResponse = await validateSearchParams(
@@ -136,13 +136,20 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
           );
           const formatted = formatSearchValidationResponse(response);
           if (formatted.message != null && formatted.message !== "") {
-            validationError = formatted.message;
+            validationMessage = formatted.message;
           }
         } catch (err) {
-          validationError = `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
+          validationMessage = `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
         }
       }
-      updates.validationError = validationError ?? null;
+      updates.validation =
+        validationMessage != null
+          ? {
+              level: "UNRUNNABLE",
+              isValid: false,
+              errors: { general: [validationMessage], byKey: {} },
+            }
+          : null;
       onUpdate(updates);
       onClose();
     } catch {

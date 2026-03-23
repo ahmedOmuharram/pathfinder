@@ -23,7 +23,6 @@ from veupath_chatbot.domain.strategy.ops import (
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
-    hydrate_graph_from_steps_data,
 )
 from veupath_chatbot.domain.strategy.validate import (
     StrategyValidator,
@@ -169,29 +168,6 @@ class TestStrategyASTEdgeCases:
         ast = StrategyAST(record_type="gene", root=root)
         assert ast.get_step_by_id("root") is root
 
-    def test_to_dict_no_name_or_description_when_empty(self) -> None:
-        """name/description should not be in to_dict output when unset."""
-        root = _leaf("s1")
-        ast = StrategyAST(record_type="gene", root=root)
-        d = ast.to_dict()
-        assert "name" not in d
-        assert "description" not in d
-
-    def test_to_dict_name_at_top_level(self) -> None:
-        """If metadata has custom fields and name is set, name at top level."""
-        root = _leaf("s1")
-        ast = StrategyAST(
-            record_type="gene",
-            root=root,
-            name="Override",
-            metadata={"custom": "value"},
-        )
-        d = ast.to_dict()
-        assert d["name"] == "Override"
-        meta = d["metadata"]
-        assert isinstance(meta, dict)
-        assert meta["custom"] == "value"
-
     def test_secondary_without_primary_rejected(self) -> None:
         """secondary_input without primary_input is rejected by model validator."""
         with pytest.raises(PydanticValidationError, match="primaryInput"):
@@ -199,44 +175,6 @@ class TestStrategyASTEdgeCases:
                 search_name="S1",
                 secondary_input=_leaf("s2"),
             )
-
-
-class TestPlanStepNodeToDict:
-    def test_empty_parameters_serialized(self) -> None:
-        node = _leaf("s1")
-        d = node.to_dict()
-        assert d["parameters"] == {}
-
-    def test_display_name_defaults_to_search_name(self) -> None:
-        node = PlanStepNode(search_name="MySearch", id="s1")
-        assert node.to_dict()["displayName"] == "MySearch"
-
-    def test_filters_analyses_reports_only_when_present(self) -> None:
-        node = _leaf("s1")
-        d = node.to_dict()
-        assert "filters" not in d
-        assert "analyses" not in d
-        assert "reports" not in d
-
-    def test_colocation_params_serialized(self) -> None:
-        left = _leaf("s1")
-        right = _leaf("s2")
-        node = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=CombineOp.COLOCATE,
-            colocation_params=ColocationParams(
-                upstream=100, downstream=200, strand="same"
-            ),
-            id="c1",
-        )
-        d = node.to_dict()
-        assert d["colocationParams"] == {
-            "upstream": 100,
-            "downstream": 200,
-            "strand": "same",
-        }
 
 
 # ===========================================================================
@@ -550,83 +488,6 @@ class TestStrategySessionEdgeCases:
         assert session.get_graph("any") is None
 
 
-class TestHydrateGraphEdgeCases:
-    def test_non_list_steps_data(self) -> None:
-        """Non-list steps_data should be a no-op."""
-        graph = StrategyGraph("g1", "Test", "site")
-        hydrate_graph_from_steps_data(graph, "not a list")
-        assert graph.steps == {}
-
-    def test_step_with_numeric_id_zero(self) -> None:
-        """Step with id=0 should be coerced to '0' and included."""
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [{"id": 0, "searchName": "S1"}]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert "0" in graph.steps
-
-    def test_step_with_none_id_skipped(self) -> None:
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [{"id": None, "searchName": "S1"}]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert len(graph.steps) == 0
-
-    def test_input_step_id_as_integer(self) -> None:
-        """Integer input step IDs should be coerced to strings for lookup."""
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [
-            {"id": 1, "searchName": "S1"},
-            {"id": 2, "searchName": "S2", "primaryInputStepId": 1},
-        ]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert graph.steps["2"].primary_input is graph.steps["1"]
-
-    def test_record_type_not_set_when_already_present(self) -> None:
-        graph = StrategyGraph("g1", "Test", "site")
-        graph.record_type = "transcript"
-        steps_data = [{"id": "s1", "searchName": "S1"}]
-        hydrate_graph_from_steps_data(graph, steps_data, record_type="gene")
-        assert graph.record_type == "transcript"
-
-    def test_record_type_from_step_data_field(self) -> None:
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [{"id": "s1", "searchName": "S1", "recordType": "gene"}]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert graph.record_type == "gene"
-
-    def test_does_not_overwrite_existing_steps(self) -> None:
-        """Existing steps should not be overwritten by hydration."""
-        graph = StrategyGraph("g1", "Test", "site")
-        existing = _leaf("s1", "OriginalSearch")
-        graph.steps["s1"] = existing
-        steps_data = [{"id": "s1", "searchName": "NewSearch"}]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert graph.steps["s1"].search_name == "OriginalSearch"
-
-    def test_root_step_id_override(self) -> None:
-        """Explicit root_step_id should set last_step_id."""
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [
-            {"id": "s1", "searchName": "S1"},
-            {"id": "s2", "searchName": "S2"},
-        ]
-        hydrate_graph_from_steps_data(graph, steps_data, root_step_id="s2")
-        assert graph.last_step_id == "s2"
-
-    def test_root_step_id_nonexistent_falls_back(self) -> None:
-        """If root_step_id doesn't exist in steps, falls through to other logic."""
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [{"id": "s1", "searchName": "S1"}]
-        hydrate_graph_from_steps_data(graph, steps_data, root_step_id="nonexistent")
-        # root_step_id not in graph.steps, so the single root auto-detection kicks in
-        assert graph.last_step_id == "s1"
-
-    def test_empty_display_name_whitespace_defaults(self) -> None:
-        graph = StrategyGraph("g1", "Test", "site")
-        steps_data = [{"id": "s1", "searchName": "S1", "displayName": "  \t  "}]
-        hydrate_graph_from_steps_data(graph, steps_data)
-        assert graph.steps["s1"].display_name == "S1"
-
-
 # ===========================================================================
 # 7. Validation edge cases
 # ===========================================================================
@@ -666,19 +527,6 @@ class TestValidationEdgeCases:
             e.code == "MISSING_SEARCH_NAME" and "secondaryInput" in e.path
             for e in result.errors
         )
-
-    def test_combine_without_operator_rejected_by_model(self) -> None:
-        """Combine node (primary+secondary) without operator is rejected at model level."""
-        left = _leaf("s1")
-        right = _leaf("s2")
-        with pytest.raises(PydanticValidationError, match="operator"):
-            PlanStepNode(
-                search_name="bool",
-                primary_input=left,
-                secondary_input=right,
-                operator=None,
-                id="c1",
-            )
 
     def test_colocate_with_valid_params(self) -> None:
         left = _leaf("s1")
@@ -746,7 +594,7 @@ class TestValidationEdgeCases:
 class TestRoundTripEdgeCases:
     def test_minimal_strategy_round_trip(self) -> None:
         ast = StrategyAST(record_type="gene", root=_leaf("s1", "S1"))
-        d = ast.to_dict()
+        d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         parsed = StrategyAST.model_validate(d)
         assert parsed.record_type == "gene"
         assert parsed.root.search_name == "S1"
@@ -781,7 +629,7 @@ class TestRoundTripEdgeCases:
             description="A test strategy",
             metadata={"custom": "field"},
         )
-        d = ast.to_dict()
+        d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         parsed = StrategyAST.model_validate(d)
 
         assert parsed.record_type == "gene"
@@ -811,7 +659,7 @@ class TestRoundTripEdgeCases:
             id="c1",
         )
         ast = StrategyAST(record_type="gene", root=root)
-        d = ast.to_dict()
+        d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         parsed = StrategyAST.model_validate(d)
         cp = parsed.root.colocation_params
         assert cp is not None

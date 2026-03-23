@@ -5,7 +5,7 @@ Covers edge cases in:
 - create_strategy_ast (validation failure, description passthrough)
 - extract_step_counts (empty steps, non-int estimatedSize variants, ID mapping)
 - create_or_update_wdk_strategy (create returns None ID, update sets name)
-- get_result_count (step in strategy but estimatedSize is None, non-dict steps)
+- get_estimated_size (step in strategy but estimatedSize is None, non-dict steps)
 
 These tests complement test_strategy_build_service.py by covering scenarios
 not present there.
@@ -32,7 +32,7 @@ from veupath_chatbot.services.strategies.build import (
     create_or_update_wdk_strategy,
     create_strategy_ast,
     extract_step_counts,
-    get_result_count,
+    get_estimated_size,
     resolve_root_step,
 )
 
@@ -454,7 +454,7 @@ class TestCreateOrUpdateEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# get_result_count — edge cases
+# get_estimated_size — edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -467,7 +467,7 @@ class TestGetResultCountEdgeCases:
             ),
             step_count=88,
         )
-        result = await get_result_count(api, wdk_step_id=5, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=5, wdk_strategy_id=1)
         assert result == StepCountResult(step_id=5, count=88)
         assert 5 in api.step_count_calls
 
@@ -477,13 +477,13 @@ class TestGetResultCountEdgeCases:
             get_strategy_response=_make_strategy_details(steps={}),
             step_count=12,
         )
-        result = await get_result_count(api, wdk_step_id=7, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=7, wdk_strategy_id=1)
         assert result.count == 12
 
     async def test_no_strategy_id_calls_step_count_directly(self):
         """Without wdk_strategy_id, get_step_count is called directly."""
         api = _FakeBuildAPI(step_count=99)
-        result = await get_result_count(api, wdk_step_id=42)
+        result = await get_estimated_size(api, wdk_step_id=42)
         assert result == StepCountResult(step_id=42, count=99)
         assert 42 in api.step_count_calls
 
@@ -496,7 +496,7 @@ class TestGetResultCountEdgeCases:
             step_count=60,
         )
         # wdk_step_id=200 is not in the steps dict
-        result = await get_result_count(api, wdk_step_id=200, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=200, wdk_strategy_id=1)
         assert result.count == 60
         assert 200 in api.step_count_calls
 
@@ -508,5 +508,5 @@ class TestGetResultCountEdgeCases:
             ),
             step_count=999,
         )
-        result = await get_result_count(api, wdk_step_id=3, wdk_strategy_id=1)
+        result = await get_estimated_size(api, wdk_step_id=3, wdk_strategy_id=1)
         assert result.count == 0

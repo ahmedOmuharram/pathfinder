@@ -85,27 +85,27 @@ def _make_ctx(
 class TestExtractTrialMetrics:
     def test_full_wdk_result(self) -> None:
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=250),
+            target=ControlTargetData(estimated_size=250),
             positive=ControlSetData(recall=0.85, intersection_count=17),
             negative=ControlSetData(false_positive_rate=0.12, intersection_count=3),
         )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall == 0.85
         assert metrics.fpr == 0.12
-        assert metrics.result_count == 250
+        assert metrics.estimated_size == 250
         assert metrics.positive_hits == 17
         assert metrics.negative_hits == 3
 
     def test_missing_positive_data(self) -> None:
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             positive=None,
             negative=None,
         )
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall is None
         assert metrics.fpr is None
-        assert metrics.result_count == 50
+        assert metrics.estimated_size == 50
         assert metrics.positive_hits is None
         assert metrics.negative_hits is None
 
@@ -117,7 +117,7 @@ class TestExtractTrialMetrics:
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall == 0.5
         assert metrics.fpr == 0.2
-        assert metrics.result_count is None
+        assert metrics.estimated_size is None
 
     def test_default_control_set_data(self) -> None:
         wdk_result = ControlTestResult(
@@ -127,7 +127,7 @@ class TestExtractTrialMetrics:
         metrics = _extract_trial_metrics(wdk_result)
         assert metrics.recall is None
         assert metrics.fpr is None
-        assert metrics.result_count is None
+        assert metrics.estimated_size is None
         assert metrics.positive_hits == 0
         assert metrics.negative_hits == 0
 
@@ -151,7 +151,7 @@ class TestBuildFailedTrial:
         assert trial.score == 0.0
         assert trial.recall is None
         assert trial.false_positive_rate is None
-        assert trial.result_count is None
+        assert trial.estimated_size is None
         assert trial.total_positives == 10
         assert trial.total_negatives == 8
 
@@ -175,7 +175,7 @@ class TestBuildFailedTrial:
 class TestBuildSuccessfulTrial:
     def test_basic_f1_scoring(self) -> None:
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=100),
+            target=ControlTargetData(estimated_size=100),
             positive=ControlSetData(recall=0.8, intersection_count=8),
             negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
         )
@@ -194,7 +194,7 @@ class TestBuildSuccessfulTrial:
         assert trial.score > 0
         assert trial.recall == 0.8
         assert trial.false_positive_rate == 0.1
-        assert trial.result_count == 100
+        assert trial.estimated_size == 100
         assert trial.positive_hits == 8
         assert trial.negative_hits == 1
         assert trial.total_positives == 10
@@ -203,7 +203,7 @@ class TestBuildSuccessfulTrial:
     def test_no_positive_negative_data(self) -> None:
         """When positive/negative data is None, score should still compute."""
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             positive=None,
             negative=None,
         )
@@ -223,7 +223,7 @@ class TestBuildSuccessfulTrial:
 
     def test_recall_objective(self) -> None:
         wdk_result = ControlTestResult(
-            target=ControlTargetData(result_count=200),
+            target=ControlTargetData(estimated_size=200),
             positive=ControlSetData(recall=0.7, intersection_count=7),
             negative=ControlSetData(false_positive_rate=0.5, intersection_count=4),
         )
@@ -263,7 +263,7 @@ class TestAggregateResults:
             score=0.85,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
             total_positives=10,
             total_negatives=8,
         )
@@ -315,7 +315,7 @@ class TestEmitTrialResult:
             score=0.85,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         await _emit_trial_result(ctx, trial_num=3, trial_result=trial)
         callback.assert_called_once()
@@ -335,7 +335,7 @@ class TestEmitTrialResult:
             score=0.0,
             recall=None,
             false_positive_rate=None,
-            result_count=None,
+            estimated_size=None,
         )
         await _emit_trial_result(
             ctx, trial_num=1, trial_result=trial, wdk_error="WDK 422"
@@ -357,7 +357,7 @@ class TestEmitTrialResult:
             score=0.5,
             recall=0.8,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         # Should not raise
         await _emit_trial_result(ctx, trial_num=1, trial_result=trial)
@@ -371,7 +371,7 @@ class TestEmitTrialResult:
             score=0.9,
             recall=0.95,
             false_positive_rate=0.05,
-            result_count=50,
+            estimated_size=50,
         )
         ctx = _make_ctx(progress_callback=callback, best_trial=best)
         current = TrialResult(
@@ -380,7 +380,7 @@ class TestEmitTrialResult:
             score=0.7,
             recall=0.8,
             false_positive_rate=0.2,
-            result_count=100,
+            estimated_size=100,
         )
         ctx.trials.append(best)
         ctx.trials.append(current)

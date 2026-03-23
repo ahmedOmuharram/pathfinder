@@ -104,7 +104,7 @@ async def test_sync_wdk_creates_projections_from_summary_only(
 async def test_sync_wdk_populates_record_type_and_counts(
     authed_client: httpx.AsyncClient, wdk_respx: respx.Router
 ) -> None:
-    """Sync populates recordType, stepCount, and resultCount from WDK summary."""
+    """Sync populates recordType, stepCount, and estimatedSize from WDK summary."""
     base = "https://plasmodb.org/plasmo/service"
 
     items = [
@@ -135,7 +135,7 @@ async def test_sync_wdk_populates_record_type_and_counts(
     strategy = data[0]
     assert strategy["recordType"] == "TranscriptRecordClasses.TranscriptRecordClass"
     assert strategy["stepCount"] == 2
-    assert strategy["resultCount"] == 150
+    assert strategy["estimatedSize"] == 150
 
 
 async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
@@ -233,8 +233,8 @@ async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
 
     # Step counts from estimatedSize should be injected into step responses
     step = strategy["steps"][0]
-    assert step["resultCount"] == 150, (
-        "Lazy fetch should populate resultCount from WDK estimatedSize"
+    assert step["estimatedSize"] == 150, (
+        "Lazy fetch should populate estimatedSize from WDK estimatedSize"
     )
 
 
@@ -348,7 +348,7 @@ async def test_step_counts_uses_anonymous_reports_for_leaf_only(
 async def test_lazy_fetch_multi_step_populates_all_counts(
     authed_client: httpx.AsyncClient, wdk_respx: respx.Router
 ) -> None:
-    """GET /strategies/{id} lazy fetch populates resultCount for all steps in a multi-step strategy."""
+    """GET /strategies/{id} lazy fetch populates estimatedSize for all steps in a multi-step strategy."""
     base = "https://plasmodb.org/plasmo/service"
 
     # All WDK mocks must be registered before sync-wdk: the background auto-import
@@ -446,7 +446,7 @@ async def test_lazy_fetch_multi_step_populates_all_counts(
     assert sync_resp.status_code == 200
     strategy_id = sync_resp.json()[0]["id"]
 
-    # Step 2: GET the strategy — lazy fetch populates resultCount from the detail
+    # Step 2: GET the strategy — lazy fetch populates estimatedSize from the detail
     get_resp = await authed_client.get(f"/api/v1/strategies/{strategy_id}")
     assert get_resp.status_code == 200
 
@@ -454,7 +454,7 @@ async def test_lazy_fetch_multi_step_populates_all_counts(
     steps = strategy["steps"]
     assert len(steps) == 3
 
-    counts_by_search = {s["searchName"]: s["resultCount"] for s in steps}
+    counts_by_search = {s["searchName"]: s["estimatedSize"] for s in steps}
     assert counts_by_search["GenesByTaxon"] == 5000
     assert counts_by_search["GenesByLocation"] == 300
     assert (

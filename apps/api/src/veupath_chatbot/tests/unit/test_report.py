@@ -155,7 +155,7 @@ class TestGenerateReport:
                     step_id="s1",
                     search_name="GenesByText",
                     display_name="Text Search",
-                    result_count=100,
+                    estimated_size=100,
                     positive_hits=8,
                     positive_total=10,
                     negative_hits=2,

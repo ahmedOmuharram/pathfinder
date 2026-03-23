@@ -40,7 +40,7 @@ class BuildGoldResponse(BaseModel):
     gold_id: str = Field(alias="goldId")
     wdk_strategy_id: int = Field(alias="wdkStrategyId")
     root_step_id: int = Field(alias="rootStepId")
-    result_count: int = Field(alias="resultCount")
+    estimated_size: int = Field(alias="estimatedSize")
     gene_ids: list[str] = Field(alias="geneIds")
 
     model_config = {"populate_by_name": True}
@@ -62,7 +62,7 @@ async def build_gold_strategy_endpoint(
         goldId=result.gold_id,
         wdkStrategyId=result.wdk_strategy_id,
         rootStepId=result.root_step_id,
-        resultCount=len(result.gene_ids),
+        estimatedSize=len(result.gene_ids),
         geneIds=result.gene_ids,
     )
 
@@ -92,4 +92,4 @@ async def get_strategy_gene_ids(
 
     if not gene_ids:
         return {"geneIds": [], "error": "No gene IDs found"}
-    return {"geneIds": gene_ids, "resultCount": len(gene_ids)}
+    return {"geneIds": gene_ids, "estimatedSize": len(gene_ids)}

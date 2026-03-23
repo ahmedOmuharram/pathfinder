@@ -35,6 +35,8 @@ const baseStrategy: Strategy = {
       recordType: "gene",
       wdkStepId: 42,
       parameters: { text: "kinase" },
+      isBuilt: false,
+      isFiltered: false,
     },
   ],
   wdkStrategyId: 99,

@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "./strategy/store";
+
+/** Minimal Step with required boolean fields defaulted. */
+function step(
+  partial: Partial<Step> & { id: string; displayName: string },
+): Step {
+  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+}
 
 describe("state/useStrategyStore", () => {
   beforeEach(() => {
@@ -9,23 +17,27 @@ describe("state/useStrategyStore", () => {
   it("builds a simple strategy and tracks rootStepId", () => {
     const { addStep } = useStrategyStore.getState();
 
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     let state = useStrategyStore.getState();
     expect(state.strategy?.steps).toHaveLength(1);
     expect(state.strategy?.rootStepId).toBe("s1");
 
-    addStep({
-      id: "t1",
-      displayName: "Transform",
-      searchName: "transformStep",
-      primaryInputStepId: "s1",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "t1",
+        displayName: "Transform",
+        searchName: "transformStep",
+        primaryInputStepId: "s1",
+        recordType: "gene",
+      }),
+    );
     state = useStrategyStore.getState();
     expect(state.strategy?.steps).toHaveLength(2);
     expect(state.strategy?.rootStepId).toBe("t1");
@@ -34,36 +46,42 @@ describe("state/useStrategyStore", () => {
   it("preserves user-edited displayName when incoming update is fallback-like", () => {
     const { addStep } = useStrategyStore.getState();
 
-    addStep({
-      id: "s1",
-      displayName: "My Custom Name",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "My Custom Name",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
 
     // Incoming AI update tries to overwrite the name with a generic fallback.
-    addStep({
-      id: "s1",
-      displayName: "search",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "search",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
 
-    const step = useStrategyStore.getState().stepsById["s1"];
-    if (step === undefined) throw new Error("step s1 not found");
-    expect(step.displayName).toBe("My Custom Name");
+    const s = useStrategyStore.getState().stepsById["s1"];
+    if (s === undefined) throw new Error("step s1 not found");
+    expect(s.displayName).toBe("My Custom Name");
   });
 
   it("supports undo/redo over history", () => {
     const { addStep, updateStep, undo, redo, canUndo, canRedo } =
       useStrategyStore.getState();
 
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     updateStep("s1", { displayName: "Renamed" });
 
     expect(canUndo()).toBe(true);
@@ -79,18 +97,22 @@ describe("state/useStrategyStore", () => {
 
   it("removeStep removes step and rebuilds strategy", () => {
     const { addStep, removeStep } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
-    addStep({
-      id: "s2",
-      displayName: "Search 2",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
+    addStep(
+      step({
+        id: "s2",
+        displayName: "Search 2",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     removeStep("s1");
     const state = useStrategyStore.getState();
     expect(state.stepsById["s1"]).toBeUndefined();
@@ -100,12 +122,14 @@ describe("state/useStrategyStore", () => {
 
   it("setStrategy clears when null", () => {
     const { addStep, setStrategy } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setStrategy(null);
     const state = useStrategyStore.getState();
     expect(state.strategy).toBeNull();
@@ -114,24 +138,26 @@ describe("state/useStrategyStore", () => {
 
   it("setStrategy merges with existing steps preserving user edits", () => {
     const { addStep, setStrategy } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "My Custom Name",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "My Custom Name",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setStrategy({
       id: "draft",
       name: "Test",
       siteId: "plasmodb",
       recordType: "gene",
       steps: [
-        {
+        step({
           id: "s1",
           displayName: "search",
           searchName: "geneById",
           recordType: "gene",
-        },
+        }),
       ],
       rootStepId: "s1",
       isSaved: false,
@@ -144,12 +170,14 @@ describe("state/useStrategyStore", () => {
 
   it("setStrategyMeta updates strategy metadata", () => {
     const { addStep, setStrategyMeta } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setStrategyMeta({ name: "New Name", description: "New Desc" });
     const state = useStrategyStore.getState();
     expect(state.strategy?.name).toBe("New Name");
@@ -158,12 +186,14 @@ describe("state/useStrategyStore", () => {
 
   it("setWdkInfo updates wdk metadata", () => {
     const { addStep, setWdkInfo } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setWdkInfo(123, "http://example.com", "WDK Name", "WDK Desc");
     const state = useStrategyStore.getState();
     expect(state.strategy?.wdkStrategyId).toBe(123);
@@ -174,28 +204,32 @@ describe("state/useStrategyStore", () => {
 
   it("setStepValidationErrors updates validation errors", () => {
     const { addStep, setStepValidationErrors } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setStepValidationErrors({ s1: "Error message" });
     const state = useStrategyStore.getState();
-    expect(state.stepsById["s1"]?.validationError).toBe("Error message");
+    expect(state.stepsById["s1"]?.validation?.errors?.general?.[0]).toBe("Error message");
   });
 
   it("setStepCounts updates step counts", () => {
     const { addStep, setStepCounts } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     setStepCounts({ s1: 42 });
     const state = useStrategyStore.getState();
-    expect(state.stepsById["s1"]?.resultCount).toBe(42);
+    expect(state.stepsById["s1"]?.estimatedSize).toBe(42);
   });
 
   it("buildPlan returns null for empty strategy", () => {
@@ -205,12 +239,14 @@ describe("state/useStrategyStore", () => {
 
   it("buildPlan returns plan for valid strategy", () => {
     const { addStep, buildPlan } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     const plan = buildPlan();
     expect(plan).not.toBeNull();
     expect(plan?.plan.root.id).toBe("s1");
@@ -219,29 +255,35 @@ describe("state/useStrategyStore", () => {
 
   it("preserves recordType when updating step without it", () => {
     const { addStep } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "Search 1",
-      searchName: "geneById",
-      recordType: "gene",
-    });
-    addStep({
-      id: "s1",
-      displayName: "Search 1 Updated",
-      searchName: "geneById",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
+    addStep(
+      step({
+        id: "s1",
+        displayName: "Search 1 Updated",
+        searchName: "geneById",
+      }),
+    );
     const state = useStrategyStore.getState();
     expect(state.stepsById["s1"]?.recordType).toBe("gene");
   });
 
   it("uses fallback displayName when none provided", () => {
     const { addStep } = useStrategyStore.getState();
-    addStep({
-      id: "s1",
-      displayName: "",
-      searchName: "geneById",
-      recordType: "gene",
-    });
+    addStep(
+      step({
+        id: "s1",
+        displayName: "",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
+    );
     const state = useStrategyStore.getState();
     expect(state.stepsById["s1"]?.displayName).toBe("geneById");
   });

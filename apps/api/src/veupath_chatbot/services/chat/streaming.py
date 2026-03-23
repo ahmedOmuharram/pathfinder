@@ -142,7 +142,7 @@ async def _handle_function_stream(
             payload = tool_error(
                 ErrorCode.VALIDATION_ERROR,
                 "Tool arguments failed validation.",
-                toolCallId=getattr(msg, "tool_call_id", None),
+                toolCallId=msg.tool_call_id,
                 **pyd,
             )
             tool_result_text = json.dumps(payload)
@@ -221,7 +221,7 @@ async def _process_assistant_stream(
             {
                 "type": "assistant_delta",
                 "data": AssistantDeltaEventData(
-                    messageId=message_id, delta=token
+                    message_id=message_id, delta=token
                 ).model_dump(by_alias=True),
             }
         )
@@ -234,8 +234,8 @@ async def _process_assistant_stream(
             {
                 "type": "token_usage_partial",
                 "data": TokenUsagePartialEventData(
-                    promptTokens=counters.total_prompt_tokens,
-                    registeredToolCount=registered_tool_count,
+                    prompt_tokens=counters.total_prompt_tokens,
+                    registered_tool_count=registered_tool_count,
                 ).model_dump(by_alias=True),
             }
         )
@@ -303,7 +303,7 @@ async def _produce_chat_events(
             {
                 "type": "assistant_message",
                 "data": AssistantMessageEventData(
-                    messageId=message_id,
+                    message_id=message_id,
                     content=full_text
                     or (
                         ""
@@ -337,19 +337,19 @@ async def _produce_chat_events(
             {
                 "type": "message_end",
                 "data": MessageEndEventData(
-                    promptTokens=counters.total_prompt_tokens,
-                    completionTokens=counters.total_completion_tokens,
-                    totalTokens=counters.total_prompt_tokens
+                    prompt_tokens=counters.total_prompt_tokens,
+                    completion_tokens=counters.total_completion_tokens,
+                    total_tokens=counters.total_prompt_tokens
                     + counters.total_completion_tokens,
-                    cachedTokens=counters.cached_tokens,
-                    toolCallCount=counters.tool_call_count,
-                    registeredToolCount=registered_tool_count,
-                    llmCallCount=counters.llm_call_count,
-                    subKaniPromptTokens=int(metrics["subkani_prompt"]),
-                    subKaniCompletionTokens=int(metrics["subkani_completion"]),
-                    subKaniCallCount=int(metrics["subkani_calls"]),
-                    estimatedCostUsd=estimated_cost,
-                    modelId=model_id,
+                    cached_tokens=counters.cached_tokens,
+                    tool_call_count=counters.tool_call_count,
+                    registered_tool_count=registered_tool_count,
+                    llm_call_count=counters.llm_call_count,
+                    sub_kani_prompt_tokens=int(metrics["subkani_prompt"]),
+                    sub_kani_completion_tokens=int(metrics["subkani_completion"]),
+                    sub_kani_call_count=int(metrics["subkani_calls"]),
+                    estimated_cost_usd=estimated_cost,
+                    model_id=model_id,
                 ).model_dump(by_alias=True),
             }
         )

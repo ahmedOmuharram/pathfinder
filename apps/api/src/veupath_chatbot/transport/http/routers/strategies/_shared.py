@@ -2,12 +2,11 @@
 
 from datetime import UTC, datetime
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.strategies.step_builders import build_steps_data_from_ast
 from veupath_chatbot.transport.http.schemas import (
     MessageResponse,
     StepResponse,
@@ -38,44 +37,52 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
         return None
 
 
-def build_step_response(step: JSONObject) -> StepResponse:
-    """Build a StepResponse from a step dict."""
-    return StepResponse.model_validate(step)
+def step_response_from_ast(ast: StrategyAST, step: PlanStepNode) -> StepResponse:
+    """Build a StepResponse from a PlanStepNode using AST metadata."""
+    counts = ast.step_counts or {}
+    ids = ast.wdk_step_ids or {}
+    validations = ast.step_validations or {}
+
+    wdk_step_id = ids.get(step.id)
+    if wdk_step_id is None and step.id.isdigit():
+        wdk_step_id = int(step.id)
+
+    return StepResponse(
+        id=step.id,
+        kind=step.infer_kind(),
+        display_name=step.display_name or step.search_name,
+        search_name=step.search_name,
+        record_type=ast.record_type,
+        parameters=step.parameters,
+        operator=step.operator.value if step.operator else None,
+        colocation_params=step.colocation_params,
+        primary_input_step_id=step.primary_input.id if step.primary_input else None,
+        secondary_input_step_id=step.secondary_input.id if step.secondary_input else None,
+        estimated_size=counts.get(step.id),
+        wdk_step_id=wdk_step_id,
+        is_built=wdk_step_id is not None,
+        is_filtered=bool(step.filters),
+        validation=validations.get(step.id),
+        filters=step.filters or None,
+        analyses=step.analyses or None,
+        reports=step.reports or None,
+    )
 
 
 def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
     """Derive step responses from a plan dict. Returns [] if plan is empty/invalid.
 
-    If the plan contains a ``stepCounts`` dict (stored during WDK detail fetch),
-    each step's ``resultCount`` is populated from it, enabling zero-cost count
+    If the AST contains ``step_counts`` (stored during WDK detail fetch),
+    each step's ``estimated_size`` is populated from it, enabling zero-cost count
     display for WDK-linked strategies.
     """
     if not plan or not isinstance(plan, dict) or "root" not in plan:
         return []
     try:
         ast = StrategyAST.model_validate(plan)
-        steps_data = build_steps_data_from_ast(ast)
-
-        # Inject stored step counts from plan metadata.
-        step_counts = plan.get("stepCounts")
-        if isinstance(step_counts, dict):
-            for s in steps_data:
-                if not isinstance(s, dict):
-                    continue
-                sid = s.get("id")
-                if isinstance(sid, str) and sid in step_counts:
-                    count = step_counts[sid]
-                    if isinstance(count, int):
-                        s["resultCount"] = count
-
-        return [build_step_response(s) for s in steps_data if isinstance(s, dict)]
+        return [step_response_from_ast(ast, step) for step in ast.get_all_steps()]
     except (ValueError, KeyError, TypeError) as exc:
-        logger.exception(
-            "derive_steps_from_plan failed",
-            error=str(exc),
-            error_type=type(exc).__name__,
-            plan_keys=list(plan.keys()) if isinstance(plan, dict) else None,
-        )
+        logger.exception("derive_steps_from_plan failed", error=str(exc))
         return []
 
 
@@ -194,7 +201,7 @@ def build_projection_summary(
         geneSetId=projection.gene_set_id,
         isSaved=projection.is_saved,
         stepCount=projection.step_count,
-        resultCount=projection.result_count,
+        estimatedSize=projection.estimated_size,
         createdAt=projection.stream.created_at
         if projection.stream
         else datetime.now(UTC),

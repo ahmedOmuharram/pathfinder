@@ -5,10 +5,17 @@ Provides :class:`OptimizationToolsMixin` with the long-running
 """
 
 import json
-from typing import Annotated, Literal, cast
+from typing import Annotated
 
 from kani import AIParam, ai_function
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import (
@@ -21,352 +28,90 @@ from veupath_chatbot.services.parameter_optimization import (
     OptimizationInput,
     OptimizationMethod,
     ParameterSpec,
-)
-from veupath_chatbot.services.parameter_optimization import (
-    optimize_search_parameters as _run_optimization,
-)
-from veupath_chatbot.services.parameter_optimization import (
-    result_to_json as _opt_result_to_json,
+    optimize_search_parameters,
+    result_to_json,
 )
 
-_VALID_OBJECTIVES = ("f1", "f_beta", "recall", "precision", "custom")
-_VALID_METHODS = ("bayesian", "grid", "random")
-_VALID_FORMATS: tuple[str, ...] = ("newline", "json_list", "comma")
-_VALID_PARAM_TYPES = ("numeric", "integer", "categorical")
 _MAX_BUDGET = 50
+_NONEMPTY = StringConstraints(min_length=1, strip_whitespace=True)
+
+_DICT_ADAPTER: TypeAdapter[JSONObject] = TypeAdapter(JSONObject)
+_PARAM_SPACE_ADAPTER: TypeAdapter[list[ParameterSpec]] = TypeAdapter(list[ParameterSpec])
 
 
 def _err(msg: str) -> str:
     return json.dumps({"error": msg})
 
 
-def _first_error(errors: list[str | None]) -> str | None:
-    """Return the first non-None error from the list, or None."""
-    return next((e for e in errors if e is not None), None)
 
+def _parse_parameter_space(raw_json: str) -> list[ParameterSpec]:
+    """Parse and validate the parameter space JSON array.
 
-def _require_non_empty(value: str, name: str) -> str | None:
-    """Return error if value is empty/whitespace, otherwise None."""
-    if not value or not value.strip():
-        return _err(f"{name} is required and must be a non-empty string.")
-    return None
-
-
-def _validate_enum(value: str, valid: tuple[str, ...], label: str) -> str | None:
-    """Return error if value is not in valid choices, otherwise None."""
-    if value not in valid:
-        return _err(
-            f"Invalid {label} '{value}'. "
-            f"Must be one of: {', '.join(repr(v) for v in valid)}."
-        )
-    return None
-
-
-def _validate_required_fields(
-    *,
-    record_type: str,
-    search_name: str,
-    controls_search_name: str,
-    controls_param_name: str,
-    positive_controls: list[str] | None,
-    negative_controls: list[str] | None,
-) -> str | None:
-    """Validate that required fields are present."""
-    field_error = _first_error(
-        [
-            _require_non_empty(record_type, "record_type"),
-            _require_non_empty(search_name, "search_name"),
-            _require_non_empty(controls_search_name, "controls_search_name"),
-            _require_non_empty(controls_param_name, "controls_param_name"),
-        ]
-    )
-    if field_error is not None:
-        return field_error
-    has_positives = positive_controls and len(positive_controls) > 0
-    has_negatives = negative_controls and len(negative_controls) > 0
-    if not has_positives and not has_negatives:
-        return _err(
-            "At least one of positive_controls or negative_controls must be "
-            "provided with at least one ID. Without any controls the optimiser "
-            "has no signal to score against."
-        )
-    return None
-
-
-def _validate_budget(budget: int, objective: str, beta: float) -> str | None:
-    """Validate budget range and beta for f_beta objective."""
-    if not isinstance(budget, int) or budget < 1:
-        return _err(f"budget must be a positive integer, got {budget!r}.")
-    range_error = (
-        _err(
-            f"budget={budget} exceeds the maximum of {_MAX_BUDGET}. "
-            "Use a smaller budget or narrow the parameter space."
-        )
-        if budget > _MAX_BUDGET
-        else None
-    )
-    beta_error = (
-        _err(
-            f"beta must be a positive number when objective is 'f_beta', got {beta!r}."
-        )
-        if objective == "f_beta" and (not isinstance(beta, (int, float)) or beta <= 0)
-        else None
-    )
-    return range_error or beta_error
-
-
-def _validate_enum_and_budget(
-    *,
-    objective: str,
-    method: str,
-    controls_value_format: str,
-    budget: int,
-    beta: float,
-) -> str | None:
-    """Validate enum choices and budget constraints."""
-    return _first_error(
-        [
-            _validate_enum(objective, _VALID_OBJECTIVES, "objective"),
-            _validate_enum(method, _VALID_METHODS, "method"),
-            _validate_enum(
-                controls_value_format, _VALID_FORMATS, "controls_value_format"
-            ),
-            _validate_budget(budget, objective, beta),
-        ]
-    )
-
-
-def _parse_json_list(raw_json: str, field_name: str) -> list[object] | str:
-    """Parse a JSON array field. Returns parsed list or error string."""
-    try:
-        parsed = json.loads(raw_json)
-    except (json.JSONDecodeError, TypeError) as exc:
-        return _err(f"{field_name} is not valid JSON: {exc}")
-    if not isinstance(parsed, list) or len(parsed) == 0:
+    Pydantic handles type coercion, field aliases, and logical constraint
+    checks (min < max, step > 0) via the :class:`ParameterSpec` model.
+    This function adds semantic checks that Pydantic can't express:
+    non-empty list, duplicate names, and required-field-per-type rules
+    (numeric needs min/max, categorical needs choices).
+    """
+    specs = _PARAM_SPACE_ADAPTER.validate_json(raw_json)
+    if not specs:
         msg = (
-            f"{field_name} must be a JSON array."
-            if not isinstance(parsed, list)
-            else f"{field_name} is an empty array. Provide at least one parameter to optimise."
+            "parameter_space_json is an empty array. "
+            "Provide at least one parameter to optimise."
         )
-        return _err(msg)
-    return parsed
+        raise ValueError(msg)
+    names = [s.name for s in specs]
+    dupes = {n for n in names if names.count(n) > 1}
+    if dupes:
+        msg = (
+            f"Duplicate parameter names: {', '.join(sorted(dupes))}. "
+            "Each parameter must have a unique name."
+        )
+        raise ValueError(msg)
+    for s in specs:
+        if s.param_type in ("numeric", "integer"):
+            if s.min_value is None or s.max_value is None:
+                msg = f"'{s.name}': type '{s.param_type}' requires both 'min' and 'max'"
+                raise ValueError(msg)
+        elif s.param_type == "categorical" and not s.choices:
+            msg = f"'{s.name}': type 'categorical' requires a non-empty 'choices' array"
+            raise ValueError(msg)
+    return specs
 
 
 def _parse_json_object(
-    raw_json: str | None, field_name: str, default: JSONObject | None = None
-) -> JSONObject | None | str:
-    """Parse a JSON object field. Returns parsed dict, None, or error string."""
+    raw_json: str | None, default: JSONObject | None = None
+) -> JSONObject | None:
+    """Parse a JSON object field. Returns parsed dict or default."""
     if not raw_json:
         return default if default is not None else {}
-    try:
-        parsed = json.loads(raw_json)
-    except (json.JSONDecodeError, TypeError) as exc:
-        return _err(f"{field_name} is not valid JSON: {exc}")
-    return (
-        parsed
-        if isinstance(parsed, dict)
-        else _err(
-            f"{field_name} must be a JSON object (dict), got {type(parsed).__name__}."
-        )
-    )
+    return _DICT_ADAPTER.validate_json(raw_json)
 
 
-def _parse_json_args(
-    parameter_space_json: str,
-    fixed_parameters_json: str,
-    controls_extra_parameters_json: str | None,
-) -> tuple[list[object], JSONObject, JSONObject | None] | str:
-    """Parse JSON string arguments. Returns parsed data or error string."""
-    raw_space = _parse_json_list(parameter_space_json, "parameter_space_json")
-    if isinstance(raw_space, str):
-        return raw_space
 
-    fixed_result = _parse_json_object(
-        fixed_parameters_json, "fixed_parameters_json", default={}
-    )
-    controls_result = _parse_json_object(
-        controls_extra_parameters_json, "controls_extra_parameters_json"
-    )
-    obj_error = _first_error(
-        [
-            fixed_result if isinstance(fixed_result, str) else None,
-            controls_result if isinstance(controls_result, str) else None,
-        ]
-    )
-    if obj_error is not None:
-        return obj_error
+def _parse_and_validate_inputs(
+    target: "OptimizationTarget",
+    controls: "OptimizationControls",
+) -> tuple[list[ParameterSpec], JSONObject, JSONObject | None]:
+    """Parse JSON string fields into typed objects.
 
-    # At this point both results are not strings — they are JSONObject | None.
-    fixed_obj: JSONObject = fixed_result if isinstance(fixed_result, dict) else {}
-    controls_obj: JSONObject | None = (
-        controls_result if isinstance(controls_result, dict) else None
-    )
-    return raw_space, fixed_obj, controls_obj
+    Scalar fields (objective, method, budget, etc.) are already validated
+    by Pydantic on the model classes. This function handles the JSON string
+    fields that need explicit parsing.
+    """
+    specs = _parse_parameter_space(target.parameter_space_json)
+    fixed = _parse_json_object(target.fixed_parameters_json, default={})
+    controls_extra = _parse_json_object(controls.controls_extra_parameters_json)
+    return specs, fixed or {}, controls_extra
 
-
-def _to_float_field(v: object) -> float:
-    """Convert a dict value to float. Raises TypeError/ValueError on failure."""
-    return float(cast("float | int | str", v))
-
-
-def _validate_min_max(i: int, pname: str, p: dict[str, object]) -> str | None:
-    """Validate that min/max are present and valid numbers with min < max."""
-    if "min" not in p or "max" not in p:
-        return _err(
-            f"parameter_space[{i}] ('{pname}'): "
-            f"type '{p.get('type')}' requires both 'min' and 'max' fields."
-        )
-    try:
-        lo = _to_float_field(p["min"])
-        hi = _to_float_field(p["max"])
-        return (
-            _err(
-                f"parameter_space[{i}] ('{pname}'): "
-                f"'min' ({lo}) must be strictly less than 'max' ({hi})."
-            )
-            if lo >= hi
-            else None
-        )
-    except TypeError, ValueError:
-        return _err(
-            f"parameter_space[{i}] ('{pname}'): "
-            f"'min' and 'max' must be numbers, "
-            f"got min={p['min']!r}, max={p['max']!r}."
-        )
-
-
-def _validate_step_field(i: int, pname: str, p: dict[str, object]) -> str | None:
-    """Validate optional step field."""
-    if "step" not in p:
-        return None
-    try:
-        step_val = _to_float_field(p["step"])
-        return (
-            _err(
-                f"parameter_space[{i}] ('{pname}'): "
-                f"'step' must be positive, got {step_val}."
-            )
-            if step_val <= 0
-            else None
-        )
-    except TypeError, ValueError:
-        return _err(
-            f"parameter_space[{i}] ('{pname}'): "
-            f"'step' must be a number, got {p['step']!r}."
-        )
-
-
-def _validate_numeric_param(i: int, pname: str, p: dict[str, object]) -> str | None:
-    """Validate numeric/integer parameter bounds. Returns error or None."""
-    error = _validate_min_max(i, pname, p)
-    if error is not None:
-        return error
-    return _validate_step_field(i, pname, p)
-
-
-def _validate_pname_and_type(
-    i: int, p: dict[str, object], seen_names: set[str]
-) -> tuple[str, str] | str:
-    """Validate name and type fields. Returns (pname, ptype) or error string."""
-    pname = p.get("name")
-    ptype = p.get("type")
-    # Resolve a valid pname first; if missing/invalid, return error immediately.
-    if not pname or not isinstance(pname, str):
-        return _err(f"parameter_space[{i}] is missing a 'name' string field.")
-    error = _first_error(
-        [
-            (
-                _err(
-                    f"parameter_space[{i}]: duplicate parameter name '{pname}'. "
-                    "Each parameter must have a unique name."
-                )
-                if pname in seen_names
-                else None
-            ),
-            (
-                _err(
-                    f"parameter_space[{i}] ('{pname}'): "
-                    f"invalid type '{ptype}'. "
-                    f"Must be one of: {', '.join(repr(t) for t in _VALID_PARAM_TYPES)}."
-                )
-                if ptype not in _VALID_PARAM_TYPES
-                else None
-            ),
-        ]
-    )
-    return error if error is not None else (pname, str(ptype))
-
-
-def _validate_single_param_entry(
-    i: int,
-    p: object,
-    seen_names: set[str],
-) -> tuple[str, str, dict[str, object]] | str:
-    """Validate a single parameter entry. Returns (pname, ptype, p_dict) or error."""
-    if not isinstance(p, dict):
-        return _err(f"parameter_space[{i}] must be an object, got {type(p).__name__}.")
-    result = _validate_pname_and_type(i, p, seen_names)
-    if isinstance(result, str):
-        return result
-    pname, ptype = result
-    return pname, ptype, p
-
-
-def _validate_param_constraints(
-    i: int, pname: str, ptype: str, p: dict[str, object]
-) -> str | None:
-    """Validate type-specific constraints for a single parameter."""
-    if ptype in ("numeric", "integer"):
-        return _validate_numeric_param(i, pname, p)
-    if ptype == "categorical":
-        choices_raw = p.get("choices")
-        if not isinstance(choices_raw, list) or len(choices_raw) == 0:
-            return _err(
-                f"parameter_space[{i}] ('{pname}'): "
-                f"type 'categorical' requires a non-empty 'choices' array."
-            )
-    return None
-
-
-def _validate_parameter_space(
-    raw_space: list[object],
-) -> list[ParameterSpec] | str:
-    """Validate and parse parameter space entries. Returns specs or error."""
-    specs: list[ParameterSpec] = []
-    seen_names: set[str] = set()
-    for i, p in enumerate(raw_space):
-        entry_result = _validate_single_param_entry(i, p, seen_names)
-        if isinstance(entry_result, str):
-            return entry_result
-        pname, ptype, p_dict = entry_result
-        seen_names.add(pname)
-        constraint_error = _validate_param_constraints(i, pname, ptype, p_dict)
-        if constraint_error is not None:
-            return constraint_error
-        specs.append(
-            ParameterSpec(
-                name=pname,
-                param_type=cast("Literal['numeric', 'integer', 'categorical']", ptype),
-                min_value=_to_float_field(p_dict["min"]) if "min" in p_dict else None,
-                max_value=_to_float_field(p_dict["max"]) if "max" in p_dict else None,
-                log_scale=bool(p_dict.get("logScale", False)),
-                step=_to_float_field(p_dict["step"]) if "step" in p_dict else None,
-                choices=(
-                    [str(c) for c in p_dict["choices"]]
-                    if "choices" in p_dict and isinstance(p_dict["choices"], list)
-                    else None
-                ),
-            )
-        )
-    return specs
 
 
 class OptimizationTarget(BaseModel):
     """Target search and parameter space to optimise."""
 
-    record_type: Annotated[str, AIParam(desc="WDK record type (e.g. 'transcript')")]
+    record_type: Annotated[str, _NONEMPTY, AIParam(desc="WDK record type (e.g. 'transcript')")]
     search_name: Annotated[
-        str, AIParam(desc="WDK search/question urlSegment to optimise")
+        str, _NONEMPTY, AIParam(desc="WDK search/question urlSegment to optimise")
     ]
     parameter_space_json: Annotated[
         str,
@@ -394,12 +139,24 @@ class OptimizationTarget(BaseModel):
 class OptimizationControls(BaseModel):
     """Control sets for scoring."""
 
+    @model_validator(mode="after")
+    def _require_at_least_one_control_set(self) -> "OptimizationControls":
+        has_pos = self.positive_controls and len(self.positive_controls) > 0
+        has_neg = self.negative_controls and len(self.negative_controls) > 0
+        if not has_pos and not has_neg:
+            msg = (
+                "At least one of positive_controls or negative_controls must be "
+                "provided with at least one ID."
+            )
+            raise ValueError(msg)
+        return self
+
     controls_search_name: Annotated[
-        str,
+        str, _NONEMPTY,
         AIParam(desc="Search that accepts a list of record IDs (for controls)"),
     ]
     controls_param_name: Annotated[
-        str,
+        str, _NONEMPTY,
         AIParam(desc="Parameter name within controls_search_name that accepts IDs"),
     ]
     positive_controls: Annotated[
@@ -411,7 +168,7 @@ class OptimizationControls(BaseModel):
         AIParam(desc="Known-negative IDs that should NOT be returned"),
     ] = None
     controls_value_format: Annotated[
-        str,
+        ControlValueFormat,
         AIParam(desc="How to encode the control ID list (default: 'newline')"),
     ] = "newline"
     controls_extra_parameters_json: Annotated[
@@ -427,11 +184,19 @@ class OptimizationControls(BaseModel):
 class OptimizationSettings(BaseModel):
     """Optimization hyperparameters."""
 
+    @model_validator(mode="after")
+    def _validate_beta(self) -> "OptimizationSettings":
+        if self.objective == "f_beta" and self.beta <= 0:
+            msg = f"beta must be positive when objective is 'f_beta', got {self.beta!r}"
+            raise ValueError(msg)
+        return self
+
     budget: Annotated[
-        int, AIParam(desc="Max number of trials (default 15, max 50)")
+        int, AIParam(desc="Max number of trials (default 15, max 50)"),
+        Field(ge=1, le=_MAX_BUDGET),
     ] = 15
     objective: Annotated[
-        str,
+        OptimizationObjective,
         AIParam(
             desc=(
                 "Scoring objective: 'f1' (balanced, default), 'recall', "
@@ -443,12 +208,12 @@ class OptimizationSettings(BaseModel):
         float, AIParam(desc="Beta value for f_beta objective (default 1.0)")
     ] = 1.0
     method: Annotated[
-        str,
+        OptimizationMethod,
         AIParam(
             desc="Optimisation method: 'bayesian' (default, recommended), 'grid', or 'random'"
         ),
     ] = "bayesian"
-    result_count_penalty: Annotated[
+    estimated_size_penalty: Annotated[
         float,
         AIParam(
             desc=(
@@ -459,51 +224,8 @@ class OptimizationSettings(BaseModel):
     ] = 0.1
 
 
-def _parse_and_validate_inputs(
-    target: "OptimizationTarget",
-    controls: "OptimizationControls",
-    settings: "OptimizationSettings",
-) -> tuple[list[ParameterSpec], JSONObject, JSONObject | None] | str:
-    """Run all validation and JSON parsing. Returns (specs, fixed_params, extra) or error."""
-    scalar_error = _first_error(
-        [
-            _validate_required_fields(
-                record_type=target.record_type,
-                search_name=target.search_name,
-                controls_search_name=controls.controls_search_name,
-                controls_param_name=controls.controls_param_name,
-                positive_controls=controls.positive_controls,
-                negative_controls=controls.negative_controls,
-            ),
-            _validate_enum_and_budget(
-                objective=settings.objective,
-                method=settings.method,
-                controls_value_format=controls.controls_value_format,
-                budget=settings.budget,
-                beta=settings.beta,
-            ),
-        ]
-    )
-    if scalar_error is not None:
-        return scalar_error
-
-    json_result = _parse_json_args(
-        target.parameter_space_json,
-        target.fixed_parameters_json,
-        controls.controls_extra_parameters_json,
-    )
-    if isinstance(json_result, str):
-        return json_result
-    raw_space, fixed_parameters, controls_extra_parameters = json_result
-    specs_result = _validate_parameter_space(raw_space)
-    return (
-        specs_result
-        if isinstance(specs_result, str)
-        else (specs_result, fixed_parameters, controls_extra_parameters)
-    )
-
-
 _DEFAULT_SETTINGS = OptimizationSettings()
+
 
 
 class OptimizationToolsMixin:
@@ -537,10 +259,12 @@ class OptimizationToolsMixin:
         This is a long-running operation. The user will see real-time progress
         in the UI. Always confirm the plan with the user before calling this.
         """
-        validated = _parse_and_validate_inputs(target, controls, settings)
-        if isinstance(validated, str):
-            return validated
-        specs, fixed_parameters, controls_extra_parameters = validated
+        try:
+            specs, fixed_parameters, controls_extra_parameters = (
+                _parse_and_validate_inputs(target, controls)
+            )
+        except (ValueError, ValidationError) as exc:
+            return _err(str(exc))
 
         opt_inp = OptimizationInput(
             site_id=self.site_id,
@@ -552,18 +276,16 @@ class OptimizationToolsMixin:
             controls_param_name=controls.controls_param_name,
             positive_controls=controls.positive_controls,
             negative_controls=controls.negative_controls,
-            controls_value_format=cast(
-                "ControlValueFormat", controls.controls_value_format
-            ),
+            controls_value_format=controls.controls_value_format,
             controls_extra_parameters=controls_extra_parameters,
             id_field=controls.id_field,
         )
         opt_cfg = OptimizationConfig(
             budget=settings.budget,
-            objective=cast("OptimizationObjective", settings.objective),
+            objective=settings.objective,
             beta=settings.beta,
-            method=cast("OptimizationMethod", settings.method),
-            result_count_penalty=max(0.0, settings.result_count_penalty),
+            method=settings.method,
+            estimated_size_penalty=max(0.0, settings.estimated_size_penalty),
         )
         return await self._run_optimization(opt_inp, opt_cfg)
 
@@ -575,14 +297,14 @@ class OptimizationToolsMixin:
         """Execute the optimization and return JSON result."""
         cancel_event = getattr(self, "_cancel_event", None)
 
-        result = await _run_optimization(
+        result = await optimize_search_parameters(
             inp,
             config=config,
             progress_callback=self._emit_event,
             check_cancelled=(cancel_event.is_set if cancel_event is not None else None),
         )
 
-        result_json = _opt_result_to_json(result)
+        result_json = result_to_json(result)
         await _attach_export(result_json, inp.search_name)
         return json.dumps(result_json)
 

@@ -31,7 +31,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
-from veupath_chatbot.platform.errors import DataParsingError, WDKError
+from veupath_chatbot.platform.errors import WDKError, validate_response
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -369,11 +369,9 @@ class VEuPathDBClient:
             f"/record-types/{record_type}/searches/{search_name}",
             params=params,
         )
-        try:
-            return WDKSearchResponse.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK search response for {record_type}/{search_name}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKSearchResponse, raw, f"WDK search response for {record_type}/{search_name}"
+        )
 
     async def get_search_details_with_params(
         self,
@@ -391,11 +389,9 @@ class VEuPathDBClient:
             json={"contextParamValues": encoded_context},
             params=params,
         )
-        try:
-            return WDKSearchResponse.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK search response for {record_type}/{search_name}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKSearchResponse, raw, f"WDK search response for {record_type}/{search_name}"
+        )
 
     async def get_refreshed_dependent_params(
         self,
@@ -465,11 +461,9 @@ class VEuPathDBClient:
             f"/record-types/{record_type}/searches/{search_name}/reports/standard",
             json=payload,
         )
-        try:
-            return WDKAnswer.model_validate(result)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK answer for {record_type}/{search_name}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKAnswer, result, f"WDK answer for {record_type}/{search_name}"
+        )
 
     async def get_step_view_filters(
         self, user_id: str, step_id: int
@@ -528,11 +522,9 @@ class VEuPathDBClient:
         raw = await self.get(
             f"/users/{user_id}/steps/{step_id}/analysis-types/{analysis_type}"
         )
-        try:
-            return WDKStepAnalysisType.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK analysis type response for {analysis_type}: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKStepAnalysisType, raw, f"WDK analysis type response for {analysis_type}"
+        )
 
     async def list_step_analyses(
         self, user_id: str, step_id: int
@@ -560,11 +552,9 @@ class VEuPathDBClient:
         raw = await self.post(
             f"/users/{user_id}/steps/{step_id}/analyses", json=payload
         )
-        try:
-            return WDKStepAnalysisConfig.model_validate(raw)
-        except pydantic.ValidationError as e:
-            msg = f"Unexpected WDK create analysis response: {e}"
-            raise DataParsingError(msg) from e
+        return validate_response(
+            WDKStepAnalysisConfig, raw, "WDK create analysis response"
+        )
 
     async def run_analysis_instance(
         self, user_id: str, step_id: int, analysis_id: int

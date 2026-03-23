@@ -2,7 +2,7 @@
 
 Tests:
 1. ``derive_steps_from_plan`` reads stored ``stepCounts`` from plan metadata
-2. ``_build_snapshot_from_wdk`` extracts estimatedSize into a step counts dict
+2. ``build_snapshot_from_wdk`` populates ast.step_counts from estimatedSize
 3. ``compute_step_counts_for_plan`` uses anonymous reports for leaf-only strategies
 
 Search names verified against live PlasmoDB API (2026-03-10):
@@ -46,10 +46,10 @@ _RECORD_CLASS = "TranscriptRecordClasses.TranscriptRecordClass"
 
 
 class TestDeriveStepsPopulatesCountsFromPlan:
-    """derive_steps_from_plan should inject resultCount from plan['stepCounts']."""
+    """derive_steps_from_plan should inject estimatedSize from plan['stepCounts']."""
 
     def test_counts_populated_from_step_counts_key(self) -> None:
-        """Steps get resultCount from plan['stepCounts'] dict."""
+        """Steps get estimatedSize from plan['stepCounts'] dict."""
         plan: JSONObject = {
             "recordType": "transcript",
             "root": {
@@ -64,7 +64,7 @@ class TestDeriveStepsPopulatesCountsFromPlan:
         }
         steps = derive_steps_from_plan(plan)
         assert len(steps) == 1
-        assert steps[0].result_count == 150
+        assert steps[0].estimated_size == 150
 
     def test_multi_step_counts(self) -> None:
         """Multiple steps each get their respective counts."""
@@ -97,13 +97,13 @@ class TestDeriveStepsPopulatesCountsFromPlan:
         }
         steps = derive_steps_from_plan(plan)
         assert len(steps) == 3
-        counts_by_id = {s.id: s.result_count for s in steps}
+        counts_by_id = {s.id: s.estimated_size for s in steps}
         assert counts_by_id["step_1"] == 5000
         assert counts_by_id["step_2"] == 300
         assert counts_by_id["step_3"] == 42
 
     def test_no_step_counts_key_backward_compatible(self) -> None:
-        """When plan has no 'stepCounts', resultCount stays None (backward compat)."""
+        """When plan has no 'stepCounts', estimatedSize stays None (backward compat)."""
         plan: JSONObject = {
             "recordType": "transcript",
             "root": {
@@ -115,7 +115,7 @@ class TestDeriveStepsPopulatesCountsFromPlan:
         }
         steps = derive_steps_from_plan(plan)
         assert len(steps) == 1
-        assert steps[0].result_count is None
+        assert steps[0].estimated_size is None
 
     def test_partial_counts(self) -> None:
         """Only steps present in stepCounts get counts; others stay None."""
@@ -146,7 +146,7 @@ class TestDeriveStepsPopulatesCountsFromPlan:
             },
         }
         steps = derive_steps_from_plan(plan)
-        counts_by_id = {s.id: s.result_count for s in steps}
+        counts_by_id = {s.id: s.estimated_size for s in steps}
         assert counts_by_id["step_1"] == 100
         assert counts_by_id["step_x"] is None
         assert counts_by_id["step_2"] is None
@@ -180,9 +180,9 @@ class TestBuildSnapshotExtractsStepCounts:
                 ),
             },
         )
-        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
-        assert isinstance(step_counts, dict)
-        assert step_counts.get("100") == 150
+        ast = build_snapshot_from_wdk(wdk_strategy)
+        assert isinstance(ast.step_counts, dict)
+        assert ast.step_counts.get("100") == 150
 
     def test_multi_step_extracts_all_counts(self) -> None:
         """Multi-step strategy extracts counts for all steps with estimatedSize."""
@@ -229,10 +229,11 @@ class TestBuildSnapshotExtractsStepCounts:
                 ),
             },
         )
-        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
-        assert step_counts.get("100") == 5000
-        assert step_counts.get("200") == 300
-        assert step_counts.get("300") == 42
+        ast = build_snapshot_from_wdk(wdk_strategy)
+        assert ast.step_counts is not None
+        assert ast.step_counts.get("100") == 5000
+        assert ast.step_counts.get("200") == 300
+        assert ast.step_counts.get("300") == 42
 
     def test_missing_estimated_size_excluded(self) -> None:
         """Steps without estimatedSize are not included in step_counts."""
@@ -257,7 +258,8 @@ class TestBuildSnapshotExtractsStepCounts:
                 ),
             },
         )
-        _ast, _steps_data, step_counts = build_snapshot_from_wdk(wdk_strategy)
+        ast = build_snapshot_from_wdk(wdk_strategy)
+        step_counts = ast.step_counts or {}
         assert "100" not in step_counts
 
 

@@ -45,7 +45,7 @@ from veupath_chatbot.services.parameter_optimization.trials import (
 
 def _wdk_result(
     *,
-    result_count: int = 100,
+    estimated_size: int = 100,
     recall: float = 0.8,
     fpr: float = 0.1,
     pos_intersection: int = 8,
@@ -53,7 +53,7 @@ def _wdk_result(
 ) -> ControlTestResult:
     """Build a realistic WDK result."""
     return ControlTestResult(
-        target=ControlTargetData(result_count=result_count),
+        target=ControlTargetData(estimated_size=estimated_size),
         positive=ControlSetData(recall=recall, intersection_count=pos_intersection),
         negative=ControlSetData(
             false_positive_rate=fpr,
@@ -113,7 +113,7 @@ def _make_ctx(
 class TestExtractTrialMetrics:
     def test_full_result(self) -> None:
         wdk = _wdk_result(
-            result_count=150,
+            estimated_size=150,
             recall=0.9,
             fpr=0.05,
             pos_intersection=9,
@@ -122,24 +122,24 @@ class TestExtractTrialMetrics:
         m = _extract_trial_metrics(wdk)
         assert m.recall == 0.9
         assert m.fpr == 0.05
-        assert m.result_count == 150
+        assert m.estimated_size == 150
         assert m.positive_hits == 9
         assert m.negative_hits == 2
 
     def test_missing_positive(self) -> None:
         wdk = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
         )
         m = _extract_trial_metrics(wdk)
         assert m.recall is None
         assert m.positive_hits is None
         assert m.fpr == 0.1
-        assert m.result_count == 50
+        assert m.estimated_size == 50
 
     def test_missing_negative(self) -> None:
         wdk = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             positive=ControlSetData(recall=0.8, intersection_count=8),
         )
         m = _extract_trial_metrics(wdk)
@@ -153,13 +153,13 @@ class TestExtractTrialMetrics:
             negative=ControlSetData(false_positive_rate=0.1, intersection_count=1),
         )
         m = _extract_trial_metrics(wdk)
-        assert m.result_count is None
+        assert m.estimated_size is None
 
     def test_empty_result(self) -> None:
         m = _extract_trial_metrics(ControlTestResult())
         assert m.recall is None
         assert m.fpr is None
-        assert m.result_count is None
+        assert m.estimated_size is None
         assert m.positive_hits is None
         assert m.negative_hits is None
 
@@ -168,7 +168,7 @@ class TestExtractTrialMetrics:
         m = _extract_trial_metrics(wdk)
         assert m.recall is None
         assert m.fpr is None
-        assert m.result_count is None
+        assert m.estimated_size is None
 
 
 # ===================================================================
@@ -180,7 +180,7 @@ class TestTrialMetrics:
     def test_frozen(self) -> None:
         assert dataclasses.fields(TrialMetrics)  # is a dataclass
         m = TrialMetrics(
-            recall=0.8, fpr=0.1, result_count=100, positive_hits=8, negative_hits=1
+            recall=0.8, fpr=0.1, estimated_size=100, positive_hits=8, negative_hits=1
         )
         assert m.recall == 0.8
         # Frozen dataclasses should not allow __dict__ (slots=True)
@@ -203,7 +203,7 @@ class TestBuildFailedTrial:
         assert t.score == 0.0
         assert t.recall is None
         assert t.false_positive_rate is None
-        assert t.result_count is None
+        assert t.estimated_size is None
         assert t.positive_hits is None
         assert t.negative_hits is None
         assert t.total_positives == 10
@@ -223,7 +223,7 @@ class TestBuildFailedTrial:
 class TestBuildSuccessfulTrial:
     def test_basic(self) -> None:
         wdk = _wdk_result(
-            result_count=150,
+            estimated_size=150,
             recall=0.9,
             fpr=0.05,
             pos_intersection=9,
@@ -242,7 +242,7 @@ class TestBuildSuccessfulTrial:
         assert t.score > 0
         assert t.recall == 0.9
         assert t.false_positive_rate == 0.05
-        assert t.result_count == 150
+        assert t.estimated_size == 150
         assert t.positive_hits == 9
         assert t.negative_hits == 2
         assert t.total_positives == 10
@@ -275,7 +275,7 @@ class TestBuildSuccessfulTrial:
         )
         assert t.recall is None
         assert t.false_positive_rate is None
-        assert t.result_count is None
+        assert t.estimated_size is None
 
 
 # ===================================================================
@@ -319,7 +319,7 @@ class TestCheckEarlyStopPure:
             score=1.0,
             recall=1.0,
             false_positive_rate=0.0,
-            result_count=50,
+            estimated_size=50,
         )
         assert (
             _check_early_stop(best_trial=best, trials_since_improvement=0)
@@ -333,7 +333,7 @@ class TestCheckEarlyStopPure:
             score=0.5,
             recall=0.5,
             false_positive_rate=0.3,
-            result_count=100,
+            estimated_size=100,
         )
         assert (
             _check_early_stop(best_trial=best, trials_since_improvement=10)
@@ -347,7 +347,7 @@ class TestCheckEarlyStopPure:
             score=0.5,
             recall=0.5,
             false_positive_rate=0.3,
-            result_count=100,
+            estimated_size=100,
         )
         assert _check_early_stop(best_trial=best, trials_since_improvement=3) is None
 
@@ -361,7 +361,7 @@ class TestCheckEarlyStopPure:
             score=0.8,
             recall=0.8,
             false_positive_rate=0.1,
-            result_count=50,
+            estimated_size=50,
         )
         assert (
             _check_early_stop(
@@ -399,7 +399,7 @@ class TestShouldEarlyStop:
             score=1.0,
             recall=1.0,
             false_positive_rate=0.0,
-            result_count=50,
+            estimated_size=50,
         )
         ctx = _make_ctx()
         ctx.best_trial = best
@@ -412,7 +412,7 @@ class TestShouldEarlyStop:
             score=0.5,
             recall=0.5,
             false_positive_rate=0.3,
-            result_count=100,
+            estimated_size=100,
         )
         ctx = _make_ctx()
         ctx.best_trial = best
@@ -425,7 +425,7 @@ class TestShouldEarlyStop:
             score=0.5,
             recall=0.5,
             false_positive_rate=0.3,
-            result_count=100,
+            estimated_size=100,
         )
         ctx = _make_ctx()
         ctx.best_trial = best
@@ -442,7 +442,7 @@ class TestShouldEarlyStop:
             score=0.999,
             recall=0.999,
             false_positive_rate=0.001,
-            result_count=50,
+            estimated_size=50,
         )
         ctx = _make_ctx()
         ctx.best_trial = best
@@ -455,7 +455,7 @@ class TestShouldEarlyStop:
             score=0.5,
             recall=0.5,
             false_positive_rate=0.3,
-            result_count=100,
+            estimated_size=100,
         )
         ctx = _make_ctx()
         ctx.best_trial = best
@@ -495,7 +495,7 @@ class TestAggregateResults:
             score=0.8,
             recall=0.9,
             false_positive_rate=0.1,
-            result_count=100,
+            estimated_size=100,
         )
         t2 = TrialResult(
             trial_number=2,
@@ -503,7 +503,7 @@ class TestAggregateResults:
             score=0.5,
             recall=0.6,
             false_positive_rate=0.3,
-            result_count=200,
+            estimated_size=200,
         )
         ctx = _make_ctx(trials=[t1, t2], best_trial=t1)
         result = _aggregate_results(ctx, status="completed")
@@ -530,7 +530,7 @@ WDK_PATCH = (
 
 def _make_wdk_result(
     *,
-    result_count: int = 100,
+    estimated_size: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
 ) -> ControlTestResult:
@@ -539,7 +539,7 @@ def _make_wdk_result(
     n_pos_found = int(len(pos) * pos_recall)
     n_neg_found = int(len(neg) * neg_fpr)
     return ControlTestResult(
-        target=ControlTargetData(result_count=result_count),
+        target=ControlTargetData(estimated_size=estimated_size),
         positive=ControlSetData(
             recall=n_pos_found / len(pos) if n_pos_found > 0 else None,
             intersection_count=n_pos_found,

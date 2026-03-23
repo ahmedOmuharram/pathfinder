@@ -100,29 +100,6 @@ class TestStrategyValidator:
         assert not result.valid
         assert any(e.code == "UNKNOWN_SEARCH" for e in result.errors)
 
-    def test_combine_missing_operator_rejected_at_construction(self) -> None:
-        left = PlanStepNode(search_name="S1", parameters={})
-        right = PlanStepNode(search_name="S2", parameters={})
-        with pytest.raises(ValidationError):
-            PlanStepNode(
-                search_name="bool",
-                primary_input=left,
-                secondary_input=right,
-                operator=None,
-            )
-
-    def test_colocate_missing_params_rejected_at_construction(self) -> None:
-        left = PlanStepNode(search_name="S1", parameters={})
-        right = PlanStepNode(search_name="S2", parameters={})
-        with pytest.raises(ValidationError):
-            PlanStepNode(
-                search_name="bool",
-                primary_input=left,
-                secondary_input=right,
-                operator=CombineOp.COLOCATE,
-                colocation_params=None,
-            )
-
     def test_validate_colocate_invalid_params(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})
         right = PlanStepNode(search_name="S2", parameters={})

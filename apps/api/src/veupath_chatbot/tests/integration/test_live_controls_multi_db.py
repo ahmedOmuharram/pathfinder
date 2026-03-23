@@ -263,7 +263,7 @@ class TestIntersectionMultiDb:
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
-        target_count = result.get("targetResultCount")
+        target_count = result.get("targetEstimatedSize")
         assert target_count is not None
         assert isinstance(target_count, (int, float))
         assert int(target_count) > 0
@@ -295,7 +295,7 @@ class TestIntersectionMultiDb:
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
-        target_count = result.get("targetResultCount")
+        target_count = result.get("targetEstimatedSize")
         assert target_count is not None
         assert isinstance(target_count, (int, float))
         assert int(target_count) > 0
@@ -327,7 +327,7 @@ class TestIntersectionMultiDb:
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
-        target_count = result.get("targetResultCount")
+        target_count = result.get("targetEstimatedSize")
         assert target_count is not None
         assert isinstance(target_count, (int, float))
         assert int(target_count) > 0
@@ -359,7 +359,7 @@ class TestIntersectionMultiDb:
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
-        target_count = result.get("targetResultCount")
+        target_count = result.get("targetEstimatedSize")
         assert target_count is not None
         assert isinstance(target_count, (int, float))
         assert int(target_count) > 0
@@ -615,7 +615,7 @@ class TestLargeControlSets:
         assert result.get("targetStepId") is not None
         assert isinstance(result.get("targetStepId"), int)
 
-        target_count = result.get("targetResultCount")
+        target_count = result.get("targetEstimatedSize")
         assert target_count is not None
         assert isinstance(target_count, (int, float))
         assert int(target_count) > 0
@@ -652,8 +652,8 @@ def _assert_full_flow(
 
     # Target assertions
     assert result.target.step_id is not None
-    assert result.target.result_count is not None
-    assert result.target.result_count > 0
+    assert result.target.estimated_size is not None
+    assert result.target.estimated_size > 0
 
     # Positive control assertions
     assert result.positive is not None, "Positive controls result should not be None"

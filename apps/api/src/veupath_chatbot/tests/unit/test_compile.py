@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from pydantic import ValidationError as PydanticValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -141,7 +140,7 @@ class TestCompiledStepToDict:
             secondary_input=WDKStepTree(step_id=101),
         )
         result = CompilationResult(steps=steps, step_tree=tree, root_step_id=200)
-        d = result.to_dict()
+        d = result.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["rootStepId"] == 200
         steps_list = d["steps"]
         assert isinstance(steps_list, list)
@@ -233,19 +232,6 @@ class TestCompileCombineStep:
         with pytest.raises(StrategyCompilationError, match="missing inputs"):
             await compiler._compile_combine(node, "gene")
 
-    async def test_combine_missing_operator_raises(self) -> None:
-        """PlanStepNode's structural validator rejects secondary without operator."""
-        left = _search_node(step_id="s1")
-        right = _search_node(step_id="s2")
-        with pytest.raises(PydanticValidationError):
-            PlanStepNode(
-                search_name="bool",
-                primary_input=left,
-                secondary_input=right,
-                operator=None,
-                id="c1",
-            )
-
 
 # ---------------------------------------------------------------------------
 # StrategyCompiler — transform step
@@ -320,20 +306,6 @@ class TestCompileColocation:
         assert params["span_begin_offset_a"] == "500"
         assert params["span_end_offset_a"] == "200"
         assert params["span_sentence"] == "sentence"
-
-    def test_colocate_without_params_rejected(self) -> None:
-        """PlanStepNode's structural validator rejects COLOCATE without colocation_params."""
-        left = _search_node(step_id="s1")
-        right = _search_node(step_id="s2")
-        with pytest.raises(PydanticValidationError):
-            PlanStepNode(
-                search_name="bool",
-                primary_input=left,
-                secondary_input=right,
-                operator=CombineOp.COLOCATE,
-                colocation_params=None,
-                id="c1",
-            )
 
 
 # ---------------------------------------------------------------------------

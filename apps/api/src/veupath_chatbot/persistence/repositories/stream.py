@@ -21,7 +21,7 @@ class ProjectionUpdate:
     Only fields explicitly set to non-None (or flagged with ``*_set=True``)
     are written. Use ``wdk_strategy_id_set=True`` to explicitly set that
     field (even to ``None``), similarly for ``is_saved_set``,
-    ``result_count_set``, ``gene_set_id_set``.
+    ``estimated_size_set``, ``gene_set_id_set``.
     """
 
     name: str | None = None
@@ -32,8 +32,8 @@ class ProjectionUpdate:
     is_saved_set: bool = False
     plan: JSONObject | None = None
     step_count: int | None = None
-    result_count: int | None = None
-    result_count_set: bool = False
+    estimated_size: int | None = None
+    estimated_size_set: bool = False
     gene_set_id: str | None = None
     gene_set_id_set: bool = False
     gene_set_auto_imported: bool | None = None
@@ -205,8 +205,8 @@ class StreamRepository:
             values["plan"] = upd.plan
         if upd.step_count is not None:
             values["step_count"] = upd.step_count
-        if upd.result_count_set:
-            values["result_count"] = upd.result_count
+        if upd.estimated_size_set:
+            values["estimated_size"] = upd.estimated_size
         if upd.gene_set_id_set:
             values["gene_set_id"] = upd.gene_set_id
         if upd.gene_set_auto_imported is not None:

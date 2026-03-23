@@ -1,6 +1,21 @@
 """Shared helper for building combined RAG + WDK tool outputs."""
 
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+
+
+class DataSourceEntry(CamelModel):
+    """A single data-source entry in a combined RAG+WDK response."""
+
+    data: JSONValue = None
+    note: str = ""
+
+
+class CombinedResultResponse(CamelModel):
+    """Typed combined RAG + WDK response for AI tools."""
+
+    rag: DataSourceEntry
+    wdk: DataSourceEntry
 
 
 def combined_result(
@@ -20,7 +35,7 @@ def combined_result(
     :param rag_note: RAG note (default: None).
     :param wdk_note: WDK note (default: None).
     """
-    return {
-        "rag": {"data": rag, "note": rag_note or ""},
-        "wdk": {"data": wdk, "note": wdk_note or ""},
-    }
+    return CombinedResultResponse(
+        rag=DataSourceEntry(data=rag, note=rag_note or ""),
+        wdk=DataSourceEntry(data=wdk, note=wdk_note or ""),
+    ).model_dump(by_alias=True, mode="json")

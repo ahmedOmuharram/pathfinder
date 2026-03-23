@@ -233,12 +233,12 @@ def _find_dependent_steps(graph: object, step_id: str) -> set[str]:
         for sid, step in list(graph.steps.items()):
             if sid in to_remove:
                 continue
-            primary_id = getattr(getattr(step, "primary_input", None), "id", None)
-            secondary_id = getattr(getattr(step, "secondary_input", None), "id", None)
-            if isinstance(primary_id, str) and primary_id in to_remove:
+            primary_id = step.primary_input.id if step.primary_input else None
+            secondary_id = step.secondary_input.id if step.secondary_input else None
+            if primary_id and primary_id in to_remove:
                 to_remove.add(sid)
                 changed = True
-            if isinstance(secondary_id, str) and secondary_id in to_remove:
+            if secondary_id and secondary_id in to_remove:
                 to_remove.add(sid)
                 changed = True
     return to_remove

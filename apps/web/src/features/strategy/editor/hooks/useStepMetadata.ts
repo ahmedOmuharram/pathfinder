@@ -15,7 +15,7 @@ export function useStepMetadata({ step }: UseStepMetadataArgs) {
   const [colocationParams, setColocationParams] = useState(step.colocationParams);
 
   const kind = inferStepKind(step);
-  const stepValidationError = step.validationError;
+  const stepValidationError = step.validation?.errors?.general?.[0] ?? null;
 
   return {
     oldName,

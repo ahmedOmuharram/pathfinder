@@ -89,7 +89,7 @@ def _good_control_result() -> ControlTestResult:
             search_name="GenesByTextSearch",
             parameters={},
             step_id=42,
-            result_count=100,
+            estimated_size=100,
         ),
         positive=ControlSetData(
             controls_count=1,
@@ -137,7 +137,7 @@ def _make_opt_input(
 
 def _make_wdk_result(
     *,
-    result_count: int = 100,
+    estimated_size: int = 100,
     pos_recall: float = 0.8,
     neg_fpr: float = 0.1,
 ) -> ControlTestResult:
@@ -154,7 +154,7 @@ def _make_wdk_result(
             search_name="GenesByRNASeq",
             parameters={},
             step_id=999,
-            result_count=result_count,
+            estimated_size=estimated_size,
         ),
         positive=ControlSetData(
             controls_count=len(pos),
@@ -333,7 +333,7 @@ class TestWDKMalformedResponses:
     ) -> None:
         """A result with only positive data (no negative) should still work."""
         mock_controls.return_value = ControlTestResult(
-            target=ControlTargetData(result_count=50),
+            target=ControlTargetData(estimated_size=50),
             positive=ControlSetData(
                 controls_count=1,
                 intersection_count=1,

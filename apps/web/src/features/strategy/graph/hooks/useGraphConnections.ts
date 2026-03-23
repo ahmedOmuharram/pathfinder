@@ -82,6 +82,8 @@ export function useGraphConnections({
         recordType: recordType ?? null,
         primaryInputStepId: pendingCombine.sourceId,
         secondaryInputStepId: pendingCombine.targetId,
+        isBuilt: false,
+        isFiltered: false,
       };
       addStep(nextStep);
       setPendingCombine(null);

@@ -1,4 +1,4 @@
-"""Tests for strategy DSL AST serialization."""
+"""Tests for strategy DSL AST domain logic and round-trip serialization."""
 
 import pytest
 from pydantic import ValidationError as PydanticValidationError
@@ -258,7 +258,7 @@ class TestToDictRoundTrip:
         )
         strategy = StrategyAST(record_type="gene", root=combine, name="Test")
 
-        payload = strategy.to_dict()
+        payload = strategy.model_dump(by_alias=True, exclude_none=True, mode="json")
         parsed = StrategyAST.model_validate(payload)
 
         root = parsed.root
@@ -286,7 +286,7 @@ class TestToDictRoundTrip:
             ),
         )
         ast = StrategyAST(record_type="gene", root=root)
-        payload = ast.to_dict()
+        payload = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         parsed = StrategyAST.model_validate(payload)
         cp = parsed.root.colocation_params
         assert cp is not None
@@ -306,76 +306,14 @@ class TestGenerateStepId:
         assert len(ids) == 100
 
 
-class TestStepFilterToDict:
-    def test_serializes(self) -> None:
-        f = StepFilter(name="ranked", value={"min": 5}, disabled=True)
-        d = f.to_dict()
-        assert d == {"name": "ranked", "value": {"min": 5}, "disabled": True}
+class TestPlanStepNodeDisplayName:
+    def test_display_name_none_by_default(self) -> None:
+        node = PlanStepNode(search_name="GenesByTaxon", id="s1")
+        assert node.display_name is None
 
-    def test_disabled_defaults_false(self) -> None:
-        f = StepFilter(name="f1", value=1)
-        assert f.to_dict()["disabled"] is False
-
-
-class TestStepAnalysisToDict:
-    def test_serializes_with_custom_name(self) -> None:
-        a = StepAnalysis(
-            analysis_type="enrichment",
-            parameters={"go": "yes"},
-            custom_name="GO enrichment",
-        )
-        d = a.to_dict()
-        assert d["analysisType"] == "enrichment"
-        assert d["parameters"] == {"go": "yes"}
-        assert d["customName"] == "GO enrichment"
-
-    def test_omits_custom_name_when_none(self) -> None:
-        a = StepAnalysis(analysis_type="word", parameters={})
-        d = a.to_dict()
-        assert "customName" not in d
-
-    def test_omits_custom_name_when_empty(self) -> None:
-        a = StepAnalysis(analysis_type="word", parameters={}, custom_name="")
-        d = a.to_dict()
-        assert "customName" not in d
-
-
-class TestStepReportToDict:
-    def test_serializes(self) -> None:
-        r = StepReport(report_name="tabular", config={"sep": ","})
-        d = r.to_dict()
-        assert d == {"reportName": "tabular", "config": {"sep": ","}}
-
-    def test_defaults(self) -> None:
-        r = StepReport()
-        d = r.to_dict()
-        assert d["reportName"] == "standard"
-        assert d["config"] == {}
-
-
-class TestPlanStepNodeToDict:
-    def test_search_node_to_dict(self) -> None:
-        node = PlanStepNode(search_name="S1", parameters={"x": "1"}, id="s1")
-        d = node.to_dict()
-        assert d["id"] == "s1"
-        assert d["searchName"] == "S1"
-        assert d["displayName"] == "S1"  # defaults to search_name
-        assert d["parameters"] == {"x": "1"}
-        assert "primaryInput" not in d
-        assert "secondaryInput" not in d
-        assert "operator" not in d
-        assert "colocationParams" not in d
-        assert "filters" not in d
-        assert "analyses" not in d
-        assert "reports" not in d
-
-    def test_display_name_used_when_set(self) -> None:
-        node = PlanStepNode(search_name="S1", display_name="Custom", id="s1")
-        assert node.to_dict()["displayName"] == "Custom"
-
-    def test_empty_parameters_still_dict(self) -> None:
-        node = PlanStepNode(search_name="S1", id="s1")
-        assert node.to_dict()["parameters"] == {}
+    def test_display_name_preserved_when_set(self) -> None:
+        node = PlanStepNode(search_name="GenesByTaxon", display_name="Organism", id="s1")
+        assert node.display_name == "Organism"
 
 
 class TestStrategyASTToDict:
@@ -387,17 +325,10 @@ class TestStrategyASTToDict:
             name="Test",
             description="A description",
         )
-        d = ast.to_dict()
+        d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["recordType"] == "gene"
         assert d["name"] == "Test"
         assert d["description"] == "A description"
-
-    def test_no_name_or_description_when_empty(self) -> None:
-        root = PlanStepNode(search_name="S1", id="s1")
-        ast = StrategyAST(record_type="gene", root=root)
-        d = ast.to_dict()
-        assert "name" not in d
-        assert "description" not in d
 
     def test_metadata_preserves_extra_fields(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
@@ -407,7 +338,7 @@ class TestStrategyASTToDict:
             name="Test",
             metadata={"custom_key": "custom_value"},
         )
-        d = ast.to_dict()
+        d = ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["name"] == "Test"
         metadata = d["metadata"]
         assert isinstance(metadata, dict)

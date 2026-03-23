@@ -6,7 +6,6 @@ from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
-    hydrate_graph_from_steps_data,
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -15,69 +14,33 @@ logger = get_logger(__name__)
 
 
 def _restore_wdk_state(graph: StrategyGraph, strategy_graph: JSONObject) -> None:
-    """Restore WDK build state (strategy ID, step IDs, counts) from persisted data.
+    """Restore WDK build state (strategy ID, step IDs, counts) from plan metadata.
 
-    This runs regardless of whether the graph was loaded from plan or
-    from steps hydration, because the plan AST doesn't carry WDK step
-    IDs -- only the persisted steps snapshot does.
+    Reads ``step_counts`` and ``wdk_step_ids`` from the plan AST stored in
+    the persisted strategy graph payload.  If the plan is missing or
+    unparseable, WDK state is simply not restored.
     """
     wdk_strategy_id = strategy_graph.get("wdkStrategyId")
     if isinstance(wdk_strategy_id, int):
         graph.wdk_strategy_id = wdk_strategy_id
 
-    steps_data_for_wdk = strategy_graph.get("steps")
-    if not isinstance(steps_data_for_wdk, list):
+    plan = strategy_graph.get("plan")
+    if not isinstance(plan, dict):
         return
-    for step in steps_data_for_wdk:
-        if not isinstance(step, dict):
-            continue
-        sid = step.get("id")
-        if sid is None:
-            continue
-        sid = str(sid)
-        wdk_step_id = step.get("wdkStepId")
-        if isinstance(wdk_step_id, int) and sid in graph.steps:
-            graph.wdk_step_ids[sid] = wdk_step_id
-        result_count = step.get("resultCount") or step.get("estimatedSize")
-        if isinstance(result_count, int) and sid in graph.steps:
-            graph.step_counts[sid] = result_count
-
-
-def _hydrate_graph_fallback(
-    graph: StrategyGraph, strategy_graph: JSONObject, name: str
-) -> None:
-    """Fall back to persisted steps/rootStepId hydration when plan is missing."""
-    steps_data_value = strategy_graph.get("steps")
-    steps_data = steps_data_value if isinstance(steps_data_value, list) else []
-    root_step_id_value = strategy_graph.get("rootStepId")
-    root_step_id_alt = strategy_graph.get("root_step_id")
-    root_step_id: str | None = None
-    if isinstance(root_step_id_value, str):
-        root_step_id = root_step_id_value
-    elif isinstance(root_step_id_alt, str):
-        root_step_id = root_step_id_alt
-    record_type_value = strategy_graph.get("recordType")
-    record_type_alt = strategy_graph.get("record_type")
-    record_type: str | None = None
-    if isinstance(record_type_value, str):
-        record_type = record_type_value
-    elif isinstance(record_type_alt, str):
-        record_type = record_type_alt
     try:
-        hydrate_graph_from_steps_data(
-            graph,
-            steps_data,
-            root_step_id=root_step_id,
-            record_type=record_type,
-        )
-        if graph.steps:
-            graph.save_history(f"Loaded graph from persisted steps: {name}")
-    except (ValueError, TypeError, KeyError) as e:
-        logger.warning(
-            "Failed to hydrate graph from persisted steps",
-            error=str(e),
-            graph_id=graph.id,
-        )
+        ast = StrategyAST.model_validate(plan)
+    except (ValueError, TypeError, KeyError):
+        return
+
+    if ast.wdk_step_ids:
+        for sid, wdk_step_id in ast.wdk_step_ids.items():
+            if sid in graph.steps:
+                graph.wdk_step_ids[sid] = wdk_step_id
+
+    if ast.step_counts:
+        for sid, count in ast.step_counts.items():
+            if sid in graph.steps:
+                graph.step_counts[sid] = count
 
 
 def build_strategy_session(
@@ -87,9 +50,8 @@ def build_strategy_session(
 ) -> StrategySession:
     """Build a StrategySession from a persisted strategy graph payload.
 
-    This mirrors UI persistence semantics: prefer canonical ``plan`` if
-    present/parseable, fall back to snapshot-derived ``steps`` + ``rootStepId``
-    hydration when plan is missing/invalid.
+    Hydration uses the canonical ``plan`` field exclusively.  Legacy
+    ``steps`` / ``rootStepId`` fallback has been removed.
 
     :param site_id: VEuPathDB site identifier.
     :param strategy_graph: JSONObject | None.
@@ -126,9 +88,6 @@ def build_strategy_session(
                     error=str(e),
                     graph_id=graph_id,
                 )
-
-        if not graph.steps:
-            _hydrate_graph_fallback(graph, strategy_graph, name)
 
         _restore_wdk_state(graph, strategy_graph)
         session.add_graph(graph)

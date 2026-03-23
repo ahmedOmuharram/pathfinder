@@ -234,7 +234,7 @@ async def reverse_search(
             recall=r.recall,
             precision=r.precision,
             f1=r.f1,
-            resultCount=r.result_count,
+            estimatedSize=r.estimated_size,
             overlapCount=r.overlap_count,
         )
         for r in ranked

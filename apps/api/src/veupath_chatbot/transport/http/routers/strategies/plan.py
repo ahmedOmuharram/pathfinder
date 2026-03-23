@@ -4,7 +4,6 @@ from collections.abc import Mapping
 
 from fastapi import APIRouter
 
-from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.strategies.plan_normalize import (
@@ -30,7 +29,6 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
     (and avoid re-implementing CSV/JSON parsing and WDK quirks).
     """
     api = get_strategy_api(payload.siteId)
-    plan: JSONObject = payload.plan.model_dump(by_alias=True, exclude_none=True)
 
     async def load_details(
         record_type: str, name: str, params: Mapping[str, JSONValue]
@@ -59,9 +57,8 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
         return result if isinstance(result, dict) else {}
 
     canonical = await canonicalize_plan_parameters(
-        plan=plan,
+        plan=payload.plan,
         site_id=payload.siteId,
         load_search_details=load_details,
     )
-    canonical_plan = StrategyAST.model_validate(canonical)
-    return PlanNormalizeResponse(plan=canonical_plan)
+    return PlanNormalizeResponse(plan=canonical)

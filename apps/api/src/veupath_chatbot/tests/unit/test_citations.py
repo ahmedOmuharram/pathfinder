@@ -1,7 +1,5 @@
 """Tests for citation domain types and utilities."""
 
-from pydantic import ValidationError
-
 from veupath_chatbot.domain.research.citations import (
     Citation,
     _new_citation_id,
@@ -144,45 +142,13 @@ class TestEnsureUniqueCitationTags:
 
 
 class TestCitation:
-    def test_to_dict_includes_all_fields(self) -> None:
-        c = Citation(
-            id="test_123",
-            source="pubmed",
-            title="Test Paper",
-            url="https://example.com",
-            authors=["Smith J"],
-            year=2020,
-            doi="10.1234/x",
-            pmid="123",
-            snippet="A snippet.",
-            accessed_at="2026-01-01T00:00:00+00:00",
-        )
-        d = c.to_dict()
-        assert d["id"] == "test_123"
-        assert d["source"] == "pubmed"
-        assert d["title"] == "Test Paper"
-        assert d["url"] == "https://example.com"
-        assert d["authors"] == ["Smith J"]
-        assert d["year"] == 2020
-        assert d["doi"] == "10.1234/x"
-        assert d["pmid"] == "123"
-        assert d["snippet"] == "A snippet."
-        assert d["accessedAt"] == "2026-01-01T00:00:00+00:00"
-        assert "tag" in d  # auto-generated
+    def test_tag_computed_from_author_and_year(self) -> None:
+        c = Citation(id="x", source="pubmed", title="Test", authors=["Smith J"], year=2020)
+        assert c.tag == "smith2020"
 
-    def test_to_dict_defaults(self) -> None:
-        c = Citation(id="x", source="web", title="T")
-        d = c.to_dict()
-        assert d["url"] is None
-        assert d["authors"] is None
-        assert d["year"] is None
-        assert d["doi"] is None
-        assert d["pmid"] is None
-
-    def test_frozen(self) -> None:
-        c = Citation(id="x", source="web", title="T")
-        with __import__("pytest").raises(ValidationError):
-            c.id = "y"  # type: ignore[misc]
+    def test_tag_falls_back_to_title_word(self) -> None:
+        c = Citation(id="x", source="web", title="Kinase signaling")
+        assert c.tag == "kinase"
 
 
 # ---------------------------------------------------------------------------

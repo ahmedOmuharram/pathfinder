@@ -169,7 +169,7 @@ MODELS_WITH_MINIMAL_DATA: list[tuple[type[BaseModel], dict]] = [
             "stepId": "s1",
             "searchName": "GenesByText",
             "displayName": "Text Search",
-            "resultCount": 100,
+            "estimatedSize": 100,
             "positiveHits": 8,
             "positiveTotal": 10,
             "negativeHits": 5,

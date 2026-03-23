@@ -136,7 +136,7 @@ class WebSearchService:
                     url=url_raw if isinstance(url_raw, str) else None,
                     snippet=snippet,
                     accessed_at=_now_iso(),
-                ).to_dict()
+                ).model_dump(by_alias=True, exclude_none=True, mode="json")
             )
         ensure_unique_citation_tags(citations)
         payload: JSONObject = {

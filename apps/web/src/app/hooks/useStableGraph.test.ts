@@ -16,6 +16,8 @@ const makeStrategy = (steps: number): Strategy => ({
     kind: "search" as const,
     displayName: `Step ${i}`,
     searchName: "GeneByTextSearch",
+    isBuilt: false as const,
+    isFiltered: false as const,
   })),
   rootStepId: "step-0",
   isSaved: false,

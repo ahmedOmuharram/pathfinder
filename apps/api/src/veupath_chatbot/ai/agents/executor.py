@@ -1,6 +1,7 @@
 """Kani agent runtime (class + subkani orchestration)."""
 
 import asyncio
+import contextlib
 import json
 from dataclasses import dataclass, field
 from typing import Annotated, cast
@@ -11,6 +12,7 @@ from kani.ai_function import AIFunction
 from kani.engines.base import BaseEngine
 from kani.internal import FunctionCallResult
 from kani.models import FunctionCall
+from pydantic import TypeAdapter, ValidationError
 
 from veupath_chatbot.ai.agents.engine_factory import create_engine
 from veupath_chatbot.ai.engines.mock import MockEngine
@@ -44,6 +46,11 @@ from veupath_chatbot.services.strategies.build import (
     build_strategy_for_site,
 )
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session
+from veupath_chatbot.transport.http.schemas.sse import (
+    GraphSnapshotContent,
+    GraphSnapshotEventData,
+    StrategyLinkEventData,
+)
 
 logger = get_logger(__name__)
 
@@ -62,6 +69,9 @@ class AgentContext:
     desired_response_tokens: int | None = None
 
 
+_DICT_ADAPTER: TypeAdapter[JSONObject] = TypeAdapter(JSONObject)
+
+
 def _merge_auto_build(original_text: str | None, extra: JSONObject) -> str:
     """Merge auto-build data into the tool result as valid JSON.
 
@@ -71,12 +81,8 @@ def _merge_auto_build(original_text: str | None, extra: JSONObject) -> str:
     """
     parsed: JSONObject = {}
     if original_text:
-        try:
-            loaded = json.loads(original_text)
-            if isinstance(loaded, dict):
-                parsed = loaded
-        except json.JSONDecodeError, TypeError:
-            pass
+        with contextlib.suppress(ValidationError):
+            parsed = _DICT_ADAPTER.validate_json(original_text)
     parsed.update(extra)
     return json.dumps(parsed)
 
@@ -300,13 +306,13 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         await self._emit_event(
             {
                 "type": "strategy_link",
-                "data": {
-                    "graphId": graph.id,
-                    "wdkStrategyId": build_result.wdk_strategy_id,
-                    "wdkUrl": build_result.wdk_url,
-                    "name": graph.name,
-                    "isSaved": False,
-                },
+                "data": StrategyLinkEventData(
+                    graph_id=graph.id,
+                    wdk_strategy_id=build_result.wdk_strategy_id,
+                    wdk_url=build_result.wdk_url,
+                    name=graph.name,
+                    is_saved=False,
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
 
@@ -317,10 +323,11 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         await self._emit_event(
             {
                 "type": "graph_snapshot",
-                "data": {
-                    "graphId": graph.id,
-                    "graphSnapshot": self.strategy_tools._build_graph_snapshot(graph),
-                },
+                "data": GraphSnapshotEventData(
+                    graph_snapshot=GraphSnapshotContent.model_validate(
+                        self.strategy_tools._build_graph_snapshot(graph)
+                    ),
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
 

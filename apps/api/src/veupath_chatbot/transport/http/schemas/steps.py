@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 
 from veupath_chatbot.domain.strategy.ast import StepAnalysis, StepFilter, StepReport
 from veupath_chatbot.domain.strategy.ops import ColocationParams
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
@@ -27,31 +29,27 @@ class StepReportRunResponse(BaseModel):
     wdk: JSONObject | None = None
 
 
-class StepResponse(BaseModel):
-    """Strategy step."""
+class StepResponse(CamelModel):
+    """Strategy step — WDK-aligned fields."""
 
     id: str
     kind: str | None = None
-    display_name: str = Field(alias="displayName")
-    search_name: str | None = Field(default=None, alias="searchName")
-    record_type: str | None = Field(default=None, alias="recordType")
+    display_name: str | None = None
+    search_name: str | None = None
+    record_type: str | None = None
     parameters: JSONObject | None = None
     operator: str | None = None
-    colocation_params: ColocationParams | None = Field(
-        default=None, alias="colocationParams"
-    )
-    primary_input_step_id: str | None = Field(default=None, alias="primaryInputStepId")
-    secondary_input_step_id: str | None = Field(
-        default=None, alias="secondaryInputStepId"
-    )
-    result_count: int | None = Field(default=None, alias="resultCount")
-    wdk_step_id: int | None = Field(default=None, alias="wdkStepId")
+    colocation_params: ColocationParams | None = None
+    primary_input_step_id: str | None = None
+    secondary_input_step_id: str | None = None
+    estimated_size: int | None = None
+    wdk_step_id: int | None = None
+    is_built: bool = False
+    is_filtered: bool = False
+    validation: WDKValidation | None = None
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None
     reports: list[StepReport] | None = None
-    validation_error: str | None = Field(default=None, alias="validationError")
-
-    model_config = {"populate_by_name": True}
 
 
 class StepFilterRequest(BaseModel):

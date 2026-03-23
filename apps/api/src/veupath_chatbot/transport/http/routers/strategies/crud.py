@@ -71,7 +71,7 @@ async def create_strategy(
     """Create a new strategy (CQRS only)."""
     plan_in = request.plan.model_dump(exclude_none=True)
     strategy_ast = validate_plan_or_raise(plan_in)
-    plan = strategy_ast.to_dict()
+    plan = strategy_ast.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     stream = await stream_repo.create(
         user_id=user_id,
@@ -134,7 +134,7 @@ async def update_strategy(
     if request.plan:
         plan_in = request.plan.model_dump(exclude_none=True)
         strategy_ast = validate_plan_or_raise(plan_in)
-        plan = strategy_ast.to_dict()
+        plan = strategy_ast.model_dump(by_alias=True, exclude_none=True, mode="json")
         record_type = strategy_ast.record_type
 
     fields_set: set[str] = getattr(request, "model_fields_set", set())

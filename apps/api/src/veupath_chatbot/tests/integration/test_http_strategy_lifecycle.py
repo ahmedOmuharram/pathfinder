@@ -375,7 +375,7 @@ async def test_open_wdk_strategy_imports_full_plan(
     strategy = get_resp.json()
     assert len(strategy["steps"]) == 1
     assert strategy["steps"][0]["searchName"] == "GenesByTaxon"
-    assert strategy["steps"][0]["resultCount"] == 200
+    assert strategy["steps"][0]["estimatedSize"] == 200
     assert strategy["wdkStrategyId"] == 900
     assert strategy["isSaved"] is True
 

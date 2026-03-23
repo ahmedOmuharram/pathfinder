@@ -31,7 +31,7 @@ clear_strategy  # noqa
 get_strategy_summary  # noqa
 
 # ai/tools/execution_tools.py
-get_result_count  # noqa
+get_estimated_size  # noqa
 
 # ai/tools/export_tools.py
 export_gene_set  # noqa

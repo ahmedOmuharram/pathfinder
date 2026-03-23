@@ -5,6 +5,7 @@ from uuid import uuid4
 from pydantic import Field, ValidationError, model_validator
 
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -85,13 +86,6 @@ class StepAnalysis(CamelModel):
             result.pop("customName", None)
             result.pop("custom_name", None)
         return result
-
-    def to_dict(self) -> dict[str, JSONValue]:
-        """Serialize; omits customName when empty."""
-        d: dict[str, JSONValue] = super().to_dict()
-        if not self.custom_name:
-            d.pop("customName", None)
-        return d
 
     @classmethod
     def from_list(cls, raw: object) -> list[StepAnalysis]:
@@ -189,32 +183,6 @@ class PlanStepNode(CamelModel):
             return "transform"
         return "search"
 
-    def to_dict(self) -> JSONObject:
-        result: JSONObject = {
-            "id": self.id,
-            "searchName": self.search_name,
-            "displayName": self.display_name or self.search_name,
-            "parameters": self.parameters or {},
-        }
-
-        if self.primary_input is not None:
-            result["primaryInput"] = self.primary_input.to_dict()
-        if self.secondary_input is not None:
-            result["secondaryInput"] = self.secondary_input.to_dict()
-        if self.operator is not None:
-            result["operator"] = self.operator.value
-        if self.colocation_params is not None:
-            result["colocationParams"] = self.colocation_params.to_dict()
-        if self.filters:
-            result["filters"] = [f.to_dict() for f in self.filters]
-        if self.analyses:
-            result["analyses"] = [a.to_dict() for a in self.analyses]
-        if self.reports:
-            result["reports"] = [r.to_dict() for r in self.reports]
-        if self.wdk_weight is not None:
-            result["wdkWeight"] = self.wdk_weight
-        return result
-
 
 class StrategyAST(CamelModel):
     """Complete strategy represented as an AST."""
@@ -224,20 +192,9 @@ class StrategyAST(CamelModel):
     name: str | None = None
     description: str | None = None
     metadata: JSONObject | None = None
-
-    def to_dict(self) -> JSONObject:
-        """Convert to dictionary representation."""
-        result: JSONObject = {
-            "recordType": self.record_type,
-            "root": self.root.to_dict(),
-        }
-        if self.name is not None:
-            result["name"] = self.name
-        if self.description is not None:
-            result["description"] = self.description
-        if self.metadata:
-            result["metadata"] = self.metadata
-        return result
+    step_counts: dict[str, int] | None = None
+    wdk_step_ids: dict[str, int] | None = None
+    step_validations: dict[str, WDKValidation] | None = None
 
     def get_all_steps(self) -> list[PlanStepNode]:
         """Get all steps in the tree (depth-first)."""

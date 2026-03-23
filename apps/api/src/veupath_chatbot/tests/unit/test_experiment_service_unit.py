@@ -95,7 +95,7 @@ def _control_result() -> dict[str, Any]:
             "intersectionIds": ["n1"],
             "missingIdsSample": ["n2"],
         },
-        "target": {"resultCount": 100},
+        "target": {"estimatedSize": 100},
     }
 
 

@@ -203,6 +203,8 @@ describe("useUnifiedChatDataLoading", () => {
           kind: "search",
           displayName: "Gene search",
           searchName: "GeneByTextSearch",
+          isBuilt: false,
+          isFiltered: false,
         },
       ],
     };

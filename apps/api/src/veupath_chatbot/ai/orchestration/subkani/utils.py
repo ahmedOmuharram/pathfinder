@@ -15,6 +15,10 @@ from veupath_chatbot.platform.types import (
     as_json_array,
     as_json_object,
 )
+from veupath_chatbot.transport.http.schemas.sse import (
+    SubKaniToolCallEndEventData,
+    SubKaniToolCallStartEventData,
+)
 
 logger = get_logger(__name__)
 
@@ -62,19 +66,18 @@ async def _emit_tool_call_starts(
     emit_event: Callable[[JSONObject], Awaitable[None]],
 ) -> None:
     """Emit subkani_tool_call_start events for tool calls in message."""
-    tool_calls = getattr(message, "tool_calls", None)
-    if not tool_calls:
+    if not message.tool_calls:
         return
-    for tc in tool_calls:
+    for tc in message.tool_calls:
         await emit_event(
             {
                 "type": "subkani_tool_call_start",
-                "data": {
-                    "task": task,
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
+                "data": SubKaniToolCallStartEventData(
+                    task=task,
+                    id=tc.id,
+                    name=tc.function.name,
+                    arguments=tc.function.arguments,
+                ).model_dump(by_alias=True, exclude_none=True),
             }
         )
 
@@ -126,11 +129,11 @@ async def consume_subkani_round(
             await emit_event(
                 {
                     "type": "subkani_tool_call_end",
-                    "data": {
-                        "task": task,
-                        "id": message.tool_call_id,
-                        "result": message.text,
-                    },
+                    "data": SubKaniToolCallEndEventData(
+                        task=task,
+                        id=message.tool_call_id or "",
+                        result=message.text,
+                    ).model_dump(by_alias=True, exclude_none=True),
                 }
             )
 

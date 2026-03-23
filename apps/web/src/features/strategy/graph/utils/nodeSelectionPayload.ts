@@ -47,7 +47,7 @@ export function buildNodeSelectionPayload(
       if (step.operator != null) node.operator = step.operator;
       if (step.parameters != null) node.parameters = step.parameters;
       if (step.recordType != null) node.recordType = step.recordType;
-      if (step.resultCount != null) node.resultCount = step.resultCount;
+      if (step.estimatedSize != null) node.estimatedSize = step.estimatedSize;
       if (step.wdkStepId != null) node.wdkStepId = step.wdkStepId;
       return node;
     });

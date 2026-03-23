@@ -14,45 +14,10 @@ from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
     adapt_param_specs_from_search,
 )
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-
-
-def _validate_plan_record_type(plan: JSONObject) -> str:
-    """Extract and validate 'recordType' from a plan, raising ValidationError if absent."""
-    record_type = plan.get("recordType")
-    if not isinstance(record_type, str) or not record_type:
-        raise ValidationError(
-            title="Invalid plan",
-            detail="Plan is missing 'recordType'.",
-            errors=[
-                {
-                    "path": "recordType",
-                    "message": "Required",
-                    "code": "INVALID_STRATEGY",
-                }
-            ],
-        )
-    return record_type
-
-
-def _validate_node_search_name(node: JSONObject) -> str:
-    """Extract and validate 'searchName' from a node, raising ValidationError if absent."""
-    name = node.get("searchName")
-    if not isinstance(name, str) or not name:
-        raise ValidationError(
-            title="Invalid plan",
-            detail="Missing searchName.",
-            errors=[
-                {
-                    "path": "root",
-                    "message": "Missing step searchName",
-                    "code": "INVALID_STRATEGY",
-                }
-            ],
-        )
-    return name
 
 
 def _strip_combine_bq_keys(params: JSONObject) -> None:
@@ -61,20 +26,6 @@ def _strip_combine_bq_keys(params: JSONObject) -> None:
         key = str(k)
         if key == "bq_operator" or key.startswith(("bq_left_op", "bq_right_op")):
             params.pop(k, None)
-
-
-def _validate_node_params(node: JSONObject) -> JSONObject:
-    """Validate and return the parameters dict from a node."""
-    params = node.get("parameters")
-    if params is None:
-        return {}
-    if not isinstance(params, dict):
-        raise ValidationError(
-            title="Invalid plan",
-            detail="Step parameters must be an object.",
-            errors=[{"path": "parameters", "message": "Expected object"}],
-        )
-    return params
 
 
 async def _load_and_cache_spec(
@@ -116,33 +67,28 @@ async def _load_and_cache_spec(
 
 async def canonicalize_plan_parameters(
     *,
-    plan: JSONObject,
+    plan: StrategyAST,
     site_id: str,
     load_search_details: Callable[
         [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
     ],
-) -> JSONObject:
+) -> StrategyAST:
     """Canonicalize all search/transform node parameters using WDK specs.
 
     `load_search_details(record_type, search_or_transform_name, params) -> dict` must return a WDK
     payload with expanded params (or raise).
     """
-    root = plan.get("root")
-    if not isinstance(root, dict):
-        return plan
-    record_type = _validate_plan_record_type(plan)
+    record_type = plan.record_type
 
     # NOTE: search details can be context-dependent (dependent vocabularies).
     # Cache by (record_type, search_name, context_hash) to avoid incorrect reuse.
     specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]] = {}
 
-    async def canonicalize_node(node: JSONObject) -> JSONObject:
-        name = _validate_node_search_name(node)
-        params = _validate_node_params(node)
+    async def canonicalize_node(node: PlanStepNode) -> None:
+        name = node.search_name
+        params = dict(node.parameters)
 
-        primary = node.get("primaryInput")
-        secondary = node.get("secondaryInput")
-        is_combine = isinstance(primary, dict) and isinstance(secondary, dict)
+        is_combine = node.primary_input is not None and node.secondary_input is not None
 
         # Combine nodes are structural (primary+secondary+operator) and do not require
         # WDK parameter metadata. Some WDK deployments do not expose a corresponding
@@ -152,20 +98,18 @@ async def canonicalize_plan_parameters(
             # Defensive cleanup: if a caller encoded a combine using WDK boolean-question
             # parameter conventions, strip those keys from persisted plans.
             _strip_combine_bq_keys(params)
-            node["parameters"] = params
+            node.parameters = params
         else:
             spec_map = await _load_and_cache_spec(
                 specs_cache, load_search_details, record_type, name, site_id, params
             )
             canonicalizer = ParameterCanonicalizer(spec_map)
-            node["parameters"] = canonicalizer.canonicalize(params)
+            node.parameters = canonicalizer.canonicalize(params)
 
-        if isinstance(primary, dict):
-            await canonicalize_node(primary)
-        if isinstance(secondary, dict):
-            await canonicalize_node(secondary)
-        return node
+        if node.primary_input is not None:
+            await canonicalize_node(node.primary_input)
+        if node.secondary_input is not None:
+            await canonicalize_node(node.secondary_input)
 
-    await canonicalize_node(root)
-    plan["root"] = root
+    await canonicalize_node(plan.root)
     return plan

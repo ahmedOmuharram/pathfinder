@@ -344,6 +344,7 @@ def get_model_catalog() -> tuple[ModelEntry, ...]:
     return _CLOUD_MODELS + _load_ollama_models()
 
 
+@lru_cache
 def _build_index() -> dict[str, ModelEntry]:
     return {m.id: m for m in get_model_catalog()}
 

@@ -1,6 +1,6 @@
 /**
  * Tests for step annotation helpers — pure functions that apply
- * validation errors or result counts to the step map, extracted
+ * validation errors or estimated sizes to the step map, extracted
  * from draftSlice for SRP.
  */
 
@@ -19,8 +19,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
     searchName: "GenesByTaxon",
     recordType: "transcript",
     parameters: {},
-    validationError: null,
-    resultCount: null,
+    isBuilt: false,
+    isFiltered: false,
+    validation: null,
+    estimatedSize: null,
     ...overrides,
   } as Step;
 }
@@ -32,7 +34,7 @@ function makeStep(overrides: Partial<Step> = {}): Step {
 describe("applyStepValidationErrors", () => {
   it("returns null when no changes are needed", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ validationError: null }),
+      s1: makeStep({ validation: null }),
     };
     const result = applyStepValidationErrors(stepsById, { s1: undefined });
     expect(result).toBeNull();
@@ -40,20 +42,27 @@ describe("applyStepValidationErrors", () => {
 
   it("applies validation error to matching step", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ validationError: null }),
+      s1: makeStep({ validation: null }),
     };
     const result = applyStepValidationErrors(stepsById, { s1: "Bad param" });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.validationError).toBe("Bad param");
+    expect(result!["s1"]!.validation?.errors?.general?.[0]).toBe("Bad param");
+    expect(result!["s1"]!.validation?.isValid).toBe(false);
   });
 
   it("clears validation error when set to undefined", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ validationError: "Old error" }),
+      s1: makeStep({
+        validation: {
+          level: "UNRUNNABLE",
+          isValid: false,
+          errors: { general: ["Old error"], byKey: {} },
+        },
+      }),
     };
     const result = applyStepValidationErrors(stepsById, { s1: undefined });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.validationError).toBeNull();
+    expect(result!["s1"]!.validation).toBeNull();
   });
 
   it("skips unknown step IDs", () => {
@@ -66,16 +75,16 @@ describe("applyStepValidationErrors", () => {
 
   it("handles multiple steps", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ id: "s1", validationError: null }),
-      s2: makeStep({ id: "s2", validationError: null }),
+      s1: makeStep({ id: "s1", validation: null }),
+      s2: makeStep({ id: "s2", validation: null }),
     };
     const result = applyStepValidationErrors(stepsById, {
       s1: "Error A",
       s2: "Error B",
     });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.validationError).toBe("Error A");
-    expect(result!["s2"]!.validationError).toBe("Error B");
+    expect(result!["s1"]!.validation?.errors?.general?.[0]).toBe("Error A");
+    expect(result!["s2"]!.validation?.errors?.general?.[0]).toBe("Error B");
   });
 });
 
@@ -86,7 +95,7 @@ describe("applyStepValidationErrors", () => {
 describe("applyStepCounts", () => {
   it("returns null when no changes are needed", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ resultCount: 42 }),
+      s1: makeStep({ estimatedSize: 42 }),
     };
     const result = applyStepCounts(stepsById, { s1: 42 });
     expect(result).toBeNull();
@@ -94,20 +103,20 @@ describe("applyStepCounts", () => {
 
   it("applies count to matching step", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ resultCount: null }),
+      s1: makeStep({ estimatedSize: null }),
     };
     const result = applyStepCounts(stepsById, { s1: 100 });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.resultCount).toBe(100);
+    expect(result!["s1"]!.estimatedSize).toBe(100);
   });
 
   it("sets count to null", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ resultCount: 42 }),
+      s1: makeStep({ estimatedSize: 42 }),
     };
     const result = applyStepCounts(stepsById, { s1: null });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.resultCount).toBeNull();
+    expect(result!["s1"]!.estimatedSize).toBeNull();
   });
 
   it("skips unknown step IDs", () => {
@@ -120,10 +129,10 @@ describe("applyStepCounts", () => {
 
   it("coerces undefined to null", () => {
     const stepsById: Record<string, Step> = {
-      s1: makeStep({ resultCount: 42 }),
+      s1: makeStep({ estimatedSize: 42 }),
     };
     const result = applyStepCounts(stepsById, { s1: undefined });
     expect(result).not.toBeNull();
-    expect(result!["s1"]!.resultCount).toBeNull();
+    expect(result!["s1"]!.estimatedSize).toBeNull();
   });
 });

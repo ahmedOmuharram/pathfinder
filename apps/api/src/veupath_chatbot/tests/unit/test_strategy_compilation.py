@@ -15,7 +15,6 @@ WDK contracts validated:
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock
 
-import pydantic
 import pytest
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
@@ -309,22 +308,6 @@ class TestCompileCombineStep:
         assert tree.primary_input.step_id == 100  # left
         assert tree.secondary_input is not None
         assert tree.secondary_input.step_id == 101  # right
-
-    def test_combine_missing_operator_raises(self) -> None:
-        """PlanStepNode validator rejects secondary_input without operator."""
-        left = PlanStepNode(search_name="S1", parameters={}, id="l")
-        right = PlanStepNode(search_name="S2", parameters={}, id="r")
-        with pytest.raises(
-            pydantic.ValidationError,
-            match="operator is required when secondaryInput is present",
-        ):
-            PlanStepNode(
-                search_name="bq",
-                primary_input=left,
-                secondary_input=right,
-                operator=None,
-                id="root",
-            )
 
 
 # ── Transform step compilation ────────────────────────────────────

@@ -43,7 +43,7 @@ def _make_step_evaluation(
         step_id=step_id,
         search_name=f"Search_{step_id}",
         display_name=f"Step {step_id}",
-        result_count=100,
+        estimated_size=100,
         positive_hits=c.pos_hits,
         positive_total=c.pos_total,
         negative_hits=c.neg_hits,
@@ -58,7 +58,7 @@ def _baseline_result(
     pos_total: int = 10,
     neg_hits: int = 3,
     neg_total: int = 20,
-    result_count: int = 150,
+    estimated_size: int = 150,
 ) -> ControlTestResult:
     return ControlTestResult(
         positive=ControlSetData(
@@ -69,7 +69,7 @@ def _baseline_result(
             intersection_count=neg_hits,
             controls_count=neg_total,
         ),
-        target=ControlTargetData(result_count=result_count),
+        target=ControlTargetData(estimated_size=estimated_size),
     )
 
 

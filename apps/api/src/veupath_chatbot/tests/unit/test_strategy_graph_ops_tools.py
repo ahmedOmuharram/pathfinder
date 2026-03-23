@@ -50,7 +50,7 @@ async def test_list_current_steps_returns_all():
     assert result["stepCount"] == 2
     assert result["recordType"] == "gene"
     assert result["isBuilt"] is False
-    returned_ids = [s["stepId"] for s in result["steps"]]
+    returned_ids = [s["id"] for s in result["steps"]]
     for sid in step_ids:
         assert sid in returned_ids
 
@@ -74,7 +74,7 @@ async def test_list_current_steps_includes_wdk_ids():
 
     assert result["wdkStrategyId"] == 42
     assert result["isBuilt"] is True
-    steps_by_id = {s["stepId"]: s for s in result["steps"]}
+    steps_by_id = {s["id"]: s for s in result["steps"]}
     assert steps_by_id[step_ids[0]]["wdkStepId"] == 100
     assert steps_by_id[step_ids[0]]["isBuilt"] is True
 
@@ -86,7 +86,7 @@ async def test_list_current_steps_includes_counts():
 
     result = await ops.list_current_steps(graph_id="g1")
 
-    steps_by_id = {s["stepId"]: s for s in result["steps"]}
+    steps_by_id = {s["id"]: s for s in result["steps"]}
     assert steps_by_id[step_ids[0]]["estimatedSize"] == 150
     assert steps_by_id[step_ids[1]]["estimatedSize"] == 0
 
@@ -96,7 +96,7 @@ async def test_list_current_steps_step_kinds():
 
     result = await ops.list_current_steps(graph_id="g1")
 
-    kinds = {s["stepId"]: s["kind"] for s in result["steps"]}
+    kinds = {s["id"]: s["kind"] for s in result["steps"]}
     assert kinds[step_ids[0]] == "search"
     assert kinds[step_ids[1]] == "search"
     assert kinds[step_ids[2]] == "combine"

@@ -7,18 +7,12 @@ VEuPathDB strategy during a chat session.
 from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
-    COMBINE_SEARCH_NAME,
-    UNKNOWN_SEARCH_NAME,
     PlanStepNode,
-    StepAnalysis,
-    StepFilter,
-    StepReport,
     StrategyAST,
 )
-from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import (
-    JSONArray,
     JSONObject,
     as_json_object,
 )
@@ -50,6 +44,8 @@ class StrategyGraph:
         self.wdk_step_ids: dict[str, int] = {}
         # Populated after build_strategy — maps local step IDs to estimatedSize.
         self.step_counts: dict[str, int | None] = {}
+        # Populated after build_strategy — maps local step IDs to WDK validation.
+        self.step_validations: dict[str, WDKValidation] = {}
         # WDK strategy ID, set after build_strategy creates the strategy on WDK.
         self.wdk_strategy_id: int | None = None
 
@@ -62,6 +58,7 @@ class StrategyGraph:
         """
         self.step_counts.clear()
         self.wdk_step_ids.clear()
+        self.step_validations.clear()
         self.wdk_strategy_id = None
         self.current_strategy = None
 
@@ -132,7 +129,7 @@ class StrategyGraph:
             self.history.append(
                 {
                     "description": description,
-                    "strategy": self.current_strategy.to_dict(),
+                    "strategy": self.current_strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
                 }
             )
 
@@ -216,144 +213,3 @@ class StrategySession:
         if graph_id is None or graph_id == self.graph.id:
             return self.graph
         return None
-
-
-def _build_node_from_step(
-    step: JSONObject,
-    graph: StrategyGraph,
-    input_refs: dict[str, tuple[str | None, str | None]],
-) -> tuple[str, PlanStepNode] | None:
-    """Parse a single persisted step dict into a PlanStepNode.
-
-    Returns ``(step_id, node)`` on success, or ``None`` if the step is
-    malformed.  Side-effects: populates ``graph.wdk_step_ids``,
-    ``graph.step_counts``, ``graph.record_type``, and ``input_refs``.
-    """
-    step_id = step.get("id")
-    if step_id is None:
-        return None
-    step_id = str(step_id)
-    if not step_id:
-        return None
-
-    kind = str(step.get("kind") or "").strip().lower()
-    search_name = step.get("searchName")
-    if not isinstance(search_name, str) or not search_name:
-        search_name = COMBINE_SEARCH_NAME if kind == "combine" else UNKNOWN_SEARCH_NAME
-
-    parameters_raw = step.get("parameters")
-    parameters: JSONObject = parameters_raw if isinstance(parameters_raw, dict) else {}
-    display_name = step.get("displayName")
-    if not isinstance(display_name, str) or not display_name.strip():
-        display_name = search_name
-
-    node = PlanStepNode(
-        search_name=search_name,
-        parameters=parameters,
-        display_name=display_name,
-        id=step_id,
-    )
-
-    node.filters = StepFilter.from_list(step.get("filters"))
-    node.analyses = StepAnalysis.from_list(step.get("analyses"))
-    node.reports = StepReport.from_list(step.get("reports"))
-
-    op_raw = step.get("operator")
-    if isinstance(op_raw, str) and op_raw:
-        try:
-            node.operator = CombineOp(op_raw)
-        except ValueError:
-            node.operator = None
-
-    node.colocation_params = ColocationParams.from_json(step.get("colocationParams"))
-
-    # Collect input references for the linking pass.
-    primary_raw = step.get("primaryInputStepId")
-    secondary_raw = step.get("secondaryInputStepId")
-    if primary_raw is not None or secondary_raw is not None:
-        input_refs[step_id] = (
-            str(primary_raw) if primary_raw is not None else None,
-            str(secondary_raw) if secondary_raw is not None else None,
-        )
-
-    # Restore WDK build state.
-    wdk_step_id = step.get("wdkStepId")
-    if isinstance(wdk_step_id, int):
-        graph.wdk_step_ids[step_id] = wdk_step_id
-    result_count = step.get("resultCount")
-    if isinstance(result_count, int):
-        graph.step_counts[step_id] = result_count
-
-    # Best-effort record type from first step that has one.
-    if not graph.record_type and step.get("recordType"):
-        graph.record_type = str(step["recordType"])
-
-    return step_id, node
-
-
-def hydrate_graph_from_steps_data(
-    graph: StrategyGraph,
-    steps_data: JSONArray | None,
-    *,
-    root_step_id: str | None = None,
-    record_type: str | None = None,
-) -> None:
-    """Hydrate an in-memory graph from persisted flat steps.
-
-    This is used when we have a persisted `steps` list (and maybe `root_step_id`) but
-    no canonical `plan` to parse into an AST. It enables tools like `list_current_steps`
-    to reflect existing UI-visible nodes.
-
-    :param graph: Strategy graph to hydrate.
-    :param steps_data: Flat steps list from persistence, or None.
-    :param root_step_id: Root step ID (default: None).
-    :param record_type: Record type (default: None).
-    """
-    if not steps_data:
-        return
-
-    nodes: dict[str, PlanStepNode] = {}
-    input_refs: dict[str, tuple[str | None, str | None]] = {}
-
-    for step in steps_data:
-        if not isinstance(step, dict):
-            continue
-        result = _build_node_from_step(step, graph, input_refs)
-        if result is not None:
-            step_id, node = result
-            nodes[step_id] = node
-
-    # Second pass: connect inputs (needs all nodes to exist).
-    for step_id, (primary_id, secondary_id) in input_refs.items():
-        node = nodes[step_id]
-        if primary_id is not None:
-            primary_node = nodes.get(primary_id)
-            if primary_node is not None:
-                node.primary_input = primary_node
-        if secondary_id is not None:
-            secondary_node = nodes.get(secondary_id)
-            if secondary_node is not None:
-                node.secondary_input = secondary_node
-
-    # Attach hydrated nodes to the graph (don't blow away any already-loaded plan steps).
-    if not graph.steps:
-        graph.steps = nodes
-    else:
-        for sid, node in nodes.items():
-            graph.steps.setdefault(sid, node)
-
-    # Best-effort record type context from caller.
-    if record_type and not graph.record_type:
-        graph.record_type = record_type
-
-    # Recompute the subtree-root set from the hydrated step graph.
-    graph.recompute_roots()
-
-    # Best-effort last-step pointer (used for plan emission when roots is ambiguous).
-    if root_step_id and str(root_step_id) in graph.steps:
-        graph.last_step_id = str(root_step_id)
-    elif len(graph.roots) == 1:
-        graph.last_step_id = next(iter(graph.roots))
-    elif not graph.last_step_id and graph.roots:
-        # Pick an arbitrary root when multiple exist.
-        graph.last_step_id = next(iter(graph.roots))

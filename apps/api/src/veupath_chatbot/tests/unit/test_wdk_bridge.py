@@ -9,7 +9,6 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import DataParsingError
-from veupath_chatbot.platform.types import as_json_object
 from veupath_chatbot.services.strategies.wdk_conversion import (
     build_snapshot_from_wdk,
 )
@@ -45,7 +44,7 @@ def _strategy(
     )
 
 
-# ── plan_cache_key ───────────────────────────────────────────────────
+# -- plan_cache_key ------------------------------------------------------------
 
 
 class TestPlanCacheKey:
@@ -67,7 +66,7 @@ class TestPlanCacheKey:
         assert key1 != key2
 
 
-# ── build_snapshot_from_wdk ──────────────────────────────────────────
+# -- build_snapshot_from_wdk ---------------------------------------------------
 
 
 class TestBuildSnapshotFromWdk:
@@ -78,12 +77,12 @@ class TestBuildSnapshotFromWdk:
             name="My Strategy",
             description="Test description",
         )
-        ast, steps_data, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.record_type == "gene"
         assert ast.name == "My Strategy"
         assert ast.description == "Test description"
         assert ast.root.search_name == "GenesByTextSearch"
-        assert len(steps_data) == 1
+        assert len(ast.get_all_steps()) == 1
 
     def test_combine_strategy(self) -> None:
         wdk = _strategy(
@@ -99,9 +98,9 @@ class TestBuildSnapshotFromWdk:
             },
             name="Combined",
         )
-        ast, steps_data, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "combine"
-        assert len(steps_data) == 3
+        assert len(ast.get_all_steps()) == 3
 
     def test_missing_record_class_name_raises(self) -> None:
         wdk = _strategy(
@@ -125,11 +124,12 @@ class TestBuildSnapshotFromWdk:
             step_tree=WDKStepTree(step_id=42),
             steps={"42": _wdk_step(42, "GenesByTextSearch")},
         )
-        ast, steps_data, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.id == "42"
-        assert as_json_object(steps_data[0])["wdkStepId"] == 42
+        assert ast.wdk_step_ids is not None
+        assert ast.wdk_step_ids["42"] == 42
 
-    def test_estimated_size_from_wdk(self) -> None:
+    def test_estimated_size_on_ast(self) -> None:
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
             steps={
@@ -141,8 +141,9 @@ class TestBuildSnapshotFromWdk:
                 ),
             },
         )
-        _, steps_data, _ = build_snapshot_from_wdk(wdk)
-        assert as_json_object(steps_data[0])["resultCount"] == 500
+        ast = build_snapshot_from_wdk(wdk)
+        assert ast.step_counts is not None
+        assert ast.step_counts["1"] == 500
 
     def test_missing_name_is_none(self) -> None:
         wdk = _strategy(
@@ -150,7 +151,7 @@ class TestBuildSnapshotFromWdk:
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "S1")},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         # Empty string is treated as None via `or None`
         assert ast.name is None
 
@@ -159,7 +160,7 @@ class TestBuildSnapshotFromWdk:
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})},
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "search"
         assert ast.root.primary_input is None
         assert ast.root.secondary_input is None
@@ -175,7 +176,7 @@ class TestBuildSnapshotFromWdk:
                 "2": _wdk_step(2, "GenesByOrthologs", {"organism": "Pf3D7"}),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "transform"
         assert ast.root.primary_input is not None
         assert ast.root.primary_input.search_name == "GenesByTextSearch"
@@ -210,7 +211,7 @@ class TestBuildSnapshotFromWdk:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name == "My Custom Step"
 
     def test_display_name_fallback(self) -> None:
@@ -225,5 +226,5 @@ class TestBuildSnapshotFromWdk:
                 ),
             },
         )
-        ast, _, _ = build_snapshot_from_wdk(wdk)
+        ast = build_snapshot_from_wdk(wdk)
         assert ast.root.display_name == "Text Search"

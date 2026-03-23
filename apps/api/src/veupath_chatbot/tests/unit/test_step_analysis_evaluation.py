@@ -51,7 +51,7 @@ class TestExtractEvalCounts:
                 controls_count=20,
                 intersection_ids=["n1", "n2", "n3"],
             ),
-            target=ControlTargetData(result_count=150),
+            target=ControlTargetData(estimated_size=150),
         )
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 8
@@ -85,7 +85,7 @@ class TestExtractEvalCounts:
         result = ControlTestResult(
             positive=ControlSetData(intersection_count=5, controls_count=10),
             negative=ControlSetData(intersection_count=2, controls_count=8),
-            target=ControlTargetData(result_count=100),
+            target=ControlTargetData(estimated_size=100),
         )
         ec = _extract_eval_counts(result)
         assert ec.pos_hits == 5

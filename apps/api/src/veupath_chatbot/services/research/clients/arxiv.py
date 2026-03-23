@@ -82,5 +82,5 @@ class ArxivClient(StandardClient):
             url=url_item,
             snippet=abstract,
             accessed_at=_now_iso(),
-        ).to_dict()
+        ).model_dump(by_alias=True, exclude_none=True, mode="json")
         return result, citation

@@ -34,7 +34,7 @@ from .param_resolution import (
 logger = get_logger(__name__)
 
 
-class _ResolveRecordTypeCallback(Protocol):
+class ResolveRecordTypeFn(Protocol):
     """Protocol for resolve_record_type_for_search callbacks."""
 
     async def __call__(
@@ -51,7 +51,7 @@ class _ResolveRecordTypeCallback(Protocol):
 class ValidationCallbacks:
     """Caller-provided callbacks for parameter validation."""
 
-    resolve_record_type_for_search: _ResolveRecordTypeCallback
+    resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
     extract_vocab_options: Callable[[JSONObject], list[str]]
 

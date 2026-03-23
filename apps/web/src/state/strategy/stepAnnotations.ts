@@ -1,5 +1,5 @@
 /**
- * Pure helpers for annotating steps with validation errors and result counts.
+ * Pure helpers for annotating steps with validation errors and estimated sizes.
  *
  * Extracted from draftSlice so the batch-update-with-change-detection
  * logic is independently testable and the slice stays focused on
@@ -24,8 +24,19 @@ export function applyStepValidationErrors(
     const step = next[stepId];
     if (!step) continue;
     const nextMessage = message ?? null;
-    if (step.validationError !== nextMessage) {
-      next[stepId] = { ...step, validationError: nextMessage };
+    const currentMessage = step.validation?.errors?.general?.[0] ?? null;
+    if (currentMessage !== nextMessage) {
+      next[stepId] = {
+        ...step,
+        validation:
+          nextMessage != null
+            ? {
+                level: "UNRUNNABLE",
+                isValid: false,
+                errors: { general: [nextMessage], byKey: {} },
+              }
+            : null,
+      };
       changed = true;
     }
   }
@@ -33,7 +44,7 @@ export function applyStepValidationErrors(
 }
 
 /**
- * Apply result count updates to the step map.
+ * Apply estimated size updates to the step map.
  *
  * Returns a new step map if any step changed, or `null` if nothing changed.
  */
@@ -47,8 +58,8 @@ export function applyStepCounts(
     const step = next[stepId];
     if (!step) continue;
     const nextCount = typeof count === "number" || count === null ? count : null;
-    if (step.resultCount !== nextCount) {
-      next[stepId] = { ...step, resultCount: nextCount };
+    if (step.estimatedSize !== nextCount) {
+      next[stepId] = { ...step, estimatedSize: nextCount };
       changed = true;
     }
   }

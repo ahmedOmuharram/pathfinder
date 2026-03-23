@@ -33,6 +33,8 @@ export function flattenPlanStepNode(node: PlanStepNode, recordType: string): Ste
     operator: node.operator ?? null,
     primaryInputStepId: primaryInputStepId ?? null,
     secondaryInputStepId: secondaryInputStepId ?? null,
+    isBuilt: false,
+    isFiltered: false,
   });
 
   return steps;

@@ -613,7 +613,7 @@ class _FakeProjection:
     plan: dict[str, Any] = field(default_factory=dict)
     steps: list[Any] = field(default_factory=list)
     root_step_id: str | None = None
-    result_count: int | None = None
+    estimated_size: int | None = None
     last_event_id: str | None = None
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     dismissed_at: datetime | None = None

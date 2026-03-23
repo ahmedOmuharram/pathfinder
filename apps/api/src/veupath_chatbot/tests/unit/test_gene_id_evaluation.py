@@ -128,14 +128,14 @@ class TestEvaluateGeneIdsAgainstControls:
         assert neg.intersection_count == 1
         assert neg.intersection_ids == ["N1"]
 
-    def test_target_result_count_matches_gene_ids(self) -> None:
+    def test_target_estimated_size_matches_gene_ids(self) -> None:
         result = evaluate_gene_ids_against_controls(
             gene_ids=GENE_IDS,
             positive_controls=POSITIVE_IDS,
             negative_controls=NEGATIVE_IDS,
         )
         assert result.target is not None
-        assert result.target.result_count == len(GENE_IDS)
+        assert result.target.estimated_size == len(GENE_IDS)
 
     def test_empty_controls(self) -> None:
         result = evaluate_gene_ids_against_controls(

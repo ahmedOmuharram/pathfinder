@@ -26,7 +26,7 @@ def _graph_with_steps(*steps: PlanStepNode) -> StrategyGraph:
 class TestGraphIntegrityError:
     def test_to_dict_minimal(self) -> None:
         err = GraphIntegrityError(code="TEST_CODE", message="Something broke")
-        d = err.to_dict()
+        d = err.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["code"] == "TEST_CODE"
         assert d["message"] == "Something broke"
         assert "stepId" not in d
@@ -41,7 +41,7 @@ class TestGraphIntegrityError:
             input_step_id="s2",
             kind="primary_input",
         )
-        d = err.to_dict()
+        d = err.model_dump(by_alias=True, exclude_none=True, mode="json")
         assert d["stepId"] == "s1"
         assert d["inputStepId"] == "s2"
         assert d["kind"] == "primary_input"

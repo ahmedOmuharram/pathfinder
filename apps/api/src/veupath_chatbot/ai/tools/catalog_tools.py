@@ -18,7 +18,7 @@ class CatalogTools:
     @ai_function()
     async def list_sites(self) -> list[dict[str, object]]:
         sites = await catalog.list_sites()
-        return [s.to_dict() for s in sites]
+        return [s.model_dump(by_alias=True, exclude_none=True, mode="json") for s in sites]
 
     @ai_function()
     async def get_record_types(

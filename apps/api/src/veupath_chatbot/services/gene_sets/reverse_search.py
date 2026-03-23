@@ -28,7 +28,7 @@ class RankedResult:
     recall: float
     precision: float
     f1: float
-    result_count: int
+    estimated_size: int
     overlap_count: int
 
 
@@ -55,7 +55,7 @@ def rank_gene_sets_by_recall(
         gs_ids = set(gs.gene_ids)
         overlap = gs_ids & pos
         overlap_count = len(overlap)
-        result_count = len(gs_ids)
+        estimated_size = len(gs_ids)
 
         recall = overlap_count / len(pos) if pos else 0.0
 
@@ -63,9 +63,9 @@ def rank_gene_sets_by_recall(
         # If negatives are provided, a result that's neither positive nor
         # negative is ignored (unknown).  Without negatives, every non-positive
         # result is treated as a false positive.
-        neg_hits = len(gs_ids & neg) if neg else result_count - overlap_count
+        neg_hits = len(gs_ids & neg) if neg else estimated_size - overlap_count
         tp = overlap_count
-        fp = neg_hits if neg else result_count - overlap_count
+        fp = neg_hits if neg else estimated_size - overlap_count
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
         f1_denom = precision + recall
@@ -79,7 +79,7 @@ def rank_gene_sets_by_recall(
                 recall=recall,
                 precision=precision,
                 f1=f1,
-                result_count=result_count,
+                estimated_size=estimated_size,
                 overlap_count=overlap_count,
             )
         )
