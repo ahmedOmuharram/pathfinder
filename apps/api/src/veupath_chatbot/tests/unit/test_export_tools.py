@@ -74,6 +74,7 @@ class TestExportGeneSetTool:
         ) as mock_store_fn:
             store = MagicMock()
             store.aget = AsyncMock(return_value=None)
+            store.alist_all = AsyncMock(return_value=[])
             mock_store_fn.return_value = store
 
             result = await mixin.export_gene_set("nonexistent", output_format="csv")

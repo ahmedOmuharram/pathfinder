@@ -18,6 +18,7 @@ from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 
 # Attribute names for the tool instances that hold @ai_function methods.
 _TOOL_ATTRS = (
+    "catalog_tools",
     "strategy_tools",
     "execution_tools",
     "result_tools",

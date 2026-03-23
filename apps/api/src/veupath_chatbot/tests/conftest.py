@@ -311,7 +311,7 @@ async def redis_setup(_redis_conn: Redis) -> AsyncGenerator[None]:
 def _test_env_defaults() -> None:
     # Keep tests deterministic and avoid background ingestion/LLM calls.
     os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
-    os.environ.setdefault("RAG_ENABLED", "false")
+
     os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
     os.environ.setdefault("OPENAI_API_KEY", "")
     os.environ.setdefault("ANTHROPIC_API_KEY", "")

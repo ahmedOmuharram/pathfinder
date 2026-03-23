@@ -2,7 +2,6 @@
 Description=Pathfinder API server
 After=pathfinder-db.service
 After=pathfinder-redis.service
-After=pathfinder-qdrant.service
 Requires=pathfinder-db.service
 Requires=pathfinder-redis.service
 
@@ -18,7 +17,6 @@ EnvironmentFile=%h/.config/pathfinder/.env
 
 # Infrastructure URLs — must use container network hostnames, override .env
 Environment=DATABASE_URL=postgresql+asyncpg://postgres:postgres@pathfinder-db:5432/pathfinder
-Environment=QDRANT_URL=http://pathfinder-qdrant:6333
 Environment=REDIS_URL=redis://pathfinder-redis:6379/0
 # Uncomment to use a local Ollama instance on the host
 # Environment=OLLAMA_BASE_URL=http://host.containers.internal:11434/v1

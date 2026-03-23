@@ -165,9 +165,9 @@ class WorkbenchToolsMixin:
         gs = await store.aget(gene_set_id)
         if gs is None:
             if self.user_id is not None:
-                available = store.list_for_user(self.user_id, site_id=self.site_id)
+                available = await store.alist_for_user(self.user_id, site_id=self.site_id)
             else:
-                available = store.list_all(site_id=self.site_id)
+                available = await store.alist_all(site_id=self.site_id)
             return {
                 "error": f"Gene set '{gene_set_id}' not found. Use one of the available IDs below.",
                 "availableGeneSets": [

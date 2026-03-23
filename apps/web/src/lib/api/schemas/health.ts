@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const SystemConfigResponseSchema = z
   .object({
-    chat_provider: z.string(),
-    llm_configured: z.boolean(),
+    chatProvider: z.string(),
+    llmConfigured: z.boolean(),
     providers: z.object({
       openai: z.boolean(),
       anthropic: z.boolean(),

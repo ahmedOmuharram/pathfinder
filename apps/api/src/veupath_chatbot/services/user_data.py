@@ -205,8 +205,13 @@ def _clear_gene_set_cache(user_id: UUID, site_id: str | None, uid_str: str) -> N
     """Clear in-memory gene set cache entries."""
     try:
         cache = get_gene_set_store()
-        for gs in list(cache.list_for_user(user_id, site_id=site_id)):
-            cache._cache.pop(gs.id, None)
+        to_evict = [
+            gid
+            for gid, gs in cache._cache.items()
+            if gs.user_id == user_id and (site_id is None or gs.site_id == site_id)
+        ]
+        for gid in to_evict:
+            cache._cache.pop(gid, None)
     except (RuntimeError, KeyError) as exc:
         logger.warning(
             "Failed to clear gene set cache during user data purge",

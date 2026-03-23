@@ -100,6 +100,22 @@ class StrategiesMixin(StrategyAPIBase):
                     result.append(WDKStrategySummary.model_validate(item))
         return result
 
+    async def list_public_strategies(self) -> list[WDKStrategySummary]:
+        """List all public strategies from WDK.
+
+        Endpoint: GET /strategy-lists/public
+        No authentication required. Uses the same tolerant parsing as
+        :meth:`list_strategies` — individual items that fail validation
+        are silently skipped.
+        """
+        adapter = pydantic.TypeAdapter(list[WDKStrategySummary])
+        raw = await self.client.get("/strategy-lists/public")
+        try:
+            return adapter.validate_python(raw)
+        except pydantic.ValidationError:
+            logger.warning("Failed to parse public strategies response")
+            return []
+
     async def update_strategy(
         self,
         strategy_id: int,

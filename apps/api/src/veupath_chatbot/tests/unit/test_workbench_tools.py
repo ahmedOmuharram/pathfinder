@@ -350,6 +350,7 @@ class TestRunGeneSetEnrichment:
                 return_value=store,
             ),
             patch.object(store, "aget", mock_aget),
+            patch.object(store, "alist_for_user", AsyncMock(return_value=[])),
         ):
             result = await tools.run_gene_set_enrichment(gene_set_id="nonexistent")
 

@@ -122,24 +122,6 @@ class Settings(BaseSettings):
     # Ollama (local models via OpenAI-compatible API)
     ollama_base_url: str = "http://localhost:11434/v1"
 
-    # Retrieval / vector store (Qdrant)
-    rag_enabled: bool = True
-    qdrant_url: str = "http://localhost:6333"
-    qdrant_api_key: str | None = None
-    qdrant_timeout_seconds: float = 10.0
-
-    # RAG ingestion (startup background job)
-    rag_startup_max_strategies_per_site: int | None = None
-    rag_startup_public_strategies_concurrency: int | None = None
-    rag_startup_public_strategies_llm_model: str = "gpt-4.1-nano"
-    rag_startup_public_strategies_report_path: str = (
-        "/tmp/ingest_public_strategies_report.jsonl"  # noqa: S108
-    )
-
-    # Embeddings
-    embeddings_model: str = "text-embedding-3-small"
-    embeddings_base_url: str = ""
-
     # Sub-kani orchestration
     subkani_model: str = "gpt-4.1-mini"
     subkani_temperature: float = 0.0

@@ -37,13 +37,13 @@ class ExportToolsMixin:
     site_id: str = ""
     user_id: UUID | None = None
 
-    def _available_gene_sets(self) -> list[JSONObject]:
+    async def _available_gene_sets(self) -> list[JSONObject]:
         """Return summary of available gene sets for error messages."""
         store = get_gene_set_store()
         if self.user_id is not None:
-            sets = store.list_for_user(self.user_id, site_id=self.site_id)
+            sets = await store.alist_for_user(self.user_id, site_id=self.site_id)
         else:
-            sets = store.list_all(site_id=self.site_id)
+            sets = await store.alist_all(site_id=self.site_id)
         return [
             GeneSetSummaryItem(
                 id=gs.id, name=gs.name, gene_count=len(gs.gene_ids)
@@ -76,7 +76,7 @@ class ExportToolsMixin:
         store = get_gene_set_store()
         gs = await store.aget(gene_set_id)
         if gs is None:
-            available = self._available_gene_sets()
+            available = await self._available_gene_sets()
             return tool_error(
                 ErrorCode.NOT_FOUND,
                 f"Gene set not found: {gene_set_id}. Use one of the available IDs below.",

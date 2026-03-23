@@ -32,6 +32,5 @@ alphabetical index of all documented objects.
    chat
    research
    persistence
-   vectorstore
    transport
    platform

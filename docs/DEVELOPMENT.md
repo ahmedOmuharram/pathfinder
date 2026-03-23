@@ -140,11 +140,11 @@ The CI workflow (`.github/workflows/ci.yml`) runs on push to `main`/`develop` an
 | Job | What it checks |
 |-----|----------------|
 | **lint-api** | ruff, ruff format, mypy, OpenAPI spec freshness |
-| **test-api** | pytest with coverage (Postgres + Qdrant service containers) |
+| **test-api** | pytest with coverage (Postgres service container) |
 | **lint-web** | eslint, prettier, tsc, boundary check |
 | **test-web** | vitest with coverage |
 | **check-shared-ts** | OpenAPI-generated types are up to date |
-| **test-e2e** | Playwright against real API + web (mock chat provider, Postgres, Qdrant, Redis) |
+| **test-e2e** | Playwright against real API + web (mock chat provider, Postgres, Redis) |
 | **build-docs** | Sphinx docs build |
 
 ## Security scanning

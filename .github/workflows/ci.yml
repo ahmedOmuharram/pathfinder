@@ -84,10 +84,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      qdrant:
-        image: qdrant/qdrant:latest
-        ports:
-          - 6333:6333
     steps:
       - uses: actions/checkout@v4
 
@@ -108,7 +104,6 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
           API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
-          QDRANT_URL: http://localhost:6333
         run: uv run pytest --cov=src --cov-report=xml --cov-fail-under=40
 
   lint-web:
@@ -209,10 +204,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      qdrant:
-        image: qdrant/qdrant:latest
-        ports:
-          - 6333:6333
       redis:
         image: redis:7-alpine
         ports:
@@ -242,9 +233,7 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
           API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
-          QDRANT_URL: http://localhost:6333
           REDIS_URL: redis://localhost:6379/0
-          RAG_ENABLED: "false"
           PATHFINDER_CHAT_PROVIDER: mock
         run: uv run uvicorn veupath_chatbot.main:app --host 0.0.0.0 --port 8000 &
 

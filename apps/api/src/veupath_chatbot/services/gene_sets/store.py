@@ -109,26 +109,7 @@ class GeneSetStore(WriteThruStore[GeneSet]):
     _to_row = staticmethod(_row_from_gene_set)
     _from_row = staticmethod(_gene_set_from_row)
 
-    # -- Sync listing (used by AI tools / workbench_tools.py) ----------------
-
-    def list_all(self, *, site_id: str | None = None) -> list[GeneSet]:
-        results = list(self._cache.values())
-        if site_id is not None:
-            results = [gs for gs in results if gs.site_id == site_id]
-        return sorted(results, key=lambda gs: gs.created_at, reverse=True)
-
-    def list_for_user(
-        self,
-        user_id: UUID,
-        *,
-        site_id: str | None = None,
-    ) -> list[GeneSet]:
-        results = [gs for gs in self._cache.values() if gs.user_id == user_id]
-        if site_id is not None:
-            results = [gs for gs in results if gs.site_id == site_id]
-        return sorted(results, key=lambda gs: gs.created_at, reverse=True)
-
-    # -- Async listing (used by endpoint handlers) ---------------------------
+    # -- Async listing --------------------------------------------------------
 
     def _merge_with_cache(
         self,

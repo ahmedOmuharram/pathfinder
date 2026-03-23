@@ -11,7 +11,6 @@ services:
   api:
     environment:
       PATHFINDER_CHAT_PROVIDER: mock
-      RAG_ENABLED: "false"
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
       REDIS_URL: redis://redis:6379/1
     healthcheck:

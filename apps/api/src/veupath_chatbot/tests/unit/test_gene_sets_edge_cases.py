@@ -2,12 +2,10 @@
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet
-
-_USER_A = uuid4()
 
 
 def _make_set(
@@ -100,17 +98,7 @@ class TestManyGeneSets:
         store = GeneSetStore()
         for i in range(500):
             store.save(_make_set(set_id=f"gs-{i}"))
-        assert len(store.list_all()) == 500
-
-    def test_list_all_performance_with_site_filter(self) -> None:
-        store = GeneSetStore()
-        for i in range(200):
-            site = "plasmo" if i % 2 == 0 else "toxo"
-            store.save(_make_set(set_id=f"gs-{i}", site_id=site))
-        plasmo = store.list_all(site_id="plasmo")
-        toxo = store.list_all(site_id="toxo")
-        assert len(plasmo) == 100
-        assert len(toxo) == 100
+        assert len(store._cache) == 500
 
 
 # ---------------------------------------------------------------------------
@@ -229,26 +217,3 @@ class TestSaveDeleteGet:
         assert retrieved.name == "Version 2"
 
 
-# ---------------------------------------------------------------------------
-# list_for_user with no user_id set on gene sets
-# ---------------------------------------------------------------------------
-
-
-class TestListForUserEdgeCases:
-    def test_list_for_user_skips_none_user(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("no-user", user_id=None))
-        result = store.list_for_user(_USER_A)
-        assert len(result) == 0
-
-    def test_list_for_user_empty_store(self) -> None:
-        store = GeneSetStore()
-        result = store.list_for_user(_USER_A)
-        assert result == []
-
-    def test_list_all_with_none_site_id(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", site_id="plasmo"))
-        store.save(_make_set("b", site_id="toxo"))
-        result = store.list_all(site_id=None)
-        assert len(result) == 2

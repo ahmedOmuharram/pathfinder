@@ -553,8 +553,8 @@ export type ExperimentStatus =
 
 export type ExperimentProgressPhase =
   | "started"
-  | "optimizing"
   | "evaluating"
+  | "optimizing"
   | "cross_validating"
   | "enriching"
   | "step_analysis"

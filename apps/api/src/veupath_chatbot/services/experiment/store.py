@@ -103,26 +103,6 @@ class ExperimentStore(WriteThruStore[Experiment]):
     _to_row = staticmethod(_row_from_experiment)
     _from_row = staticmethod(_experiment_from_row)
 
-    # -- Sync listing (used by service.py / ai_analysis_tools.py) ----------
-
-    def list_all(
-        self, site_id: str | None = None, user_id: str | None = None
-    ) -> list[Experiment]:
-        """List experiments from in-memory cache."""
-        experiments = list(self._cache.values())
-        if site_id:
-            experiments = [e for e in experiments if e.config.site_id == site_id]
-        if user_id:
-            experiments = [e for e in experiments if e.user_id == user_id]
-        experiments.sort(key=lambda e: e.created_at, reverse=True)
-        return experiments
-
-    def list_by_benchmark(self, benchmark_id: str) -> list[Experiment]:
-        """Return all experiments belonging to a benchmark suite (in-memory)."""
-        exps = [e for e in self._cache.values() if e.benchmark_id == benchmark_id]
-        exps.sort(key=lambda e: (not e.is_primary_benchmark, e.created_at))
-        return exps
-
     # -- Async listing (used by endpoint handlers) -------------------------
 
     async def alist_all(

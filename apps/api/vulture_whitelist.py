@@ -12,17 +12,12 @@ search_for_searches  # noqa
 get_search_parameters  # noqa
 lookup_genes  # noqa
 
-# ai/tools/catalog_registry.py
-list_sites  # noqa
-get_record_type_details  # noqa
-search_example_plans  # noqa
-lookup_phyletic_codes  # noqa
-get_dependent_vocab  # noqa
-
 # ai/tools/catalog_tools.py
+list_sites  # noqa
+get_dependent_vocab  # noqa
+lookup_phyletic_codes  # noqa
+search_example_plans  # noqa
 list_transforms  # noqa
-# list_sites, get_record_types, search_for_searches, list_searches,
-# get_search_parameters, lookup_phyletic_codes — already listed above
 
 # ai/tools/conversation_tools.py
 save_strategy  # noqa

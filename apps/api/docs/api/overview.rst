@@ -210,7 +210,7 @@ The backend follows a layered architecture with strict dependency rules:
    flowchart TD
        T["Transport<br/><small>FastAPI routers, SSE, schemas</small>"] --> S["Services<br/><small>Business logic orchestration</small>"]
        S --> D["Domain<br/><small>Strategy AST, parameters — pure, no I/O</small>"]
-       S --> I["Integrations<br/><small>WDK client, Qdrant, embeddings</small>"]
+       S --> I["Integrations<br/><small>WDK client</small>"]
        S --> P["Persistence<br/><small>PostgreSQL, Redis</small>"]
 
        style T fill:#2563eb,color:#fff

@@ -1,4 +1,4 @@
-"""Tests for tool registries: strategy_registry, catalog_registry, research_registry.
+"""Tests for tool registries: strategy_registry, research_registry.
 
 Verifies that:
 - All tools delegate correctly to their inner implementations
@@ -199,6 +199,7 @@ class TestWorkbenchListEdgeCases:
                 return_value=store,
             ),
             patch.object(store, "aget", mock_aget),
+            patch.object(store, "alist_for_user", AsyncMock(return_value=[])),
         ):
             result = await tools.run_gene_set_enrichment(gene_set_id="missing")
 

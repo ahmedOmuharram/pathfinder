@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from veupath_chatbot import __version__
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.health import check_database, check_qdrant
+from veupath_chatbot.platform.health import check_database
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.transport.http.schemas import HealthResponse, SystemConfigResponse
 from veupath_chatbot.transport.http.schemas.health import ProviderStatus
@@ -57,10 +57,9 @@ async def system_config() -> SystemConfigResponse:
 async def readiness_check() -> HealthResponse | JSONResponse:
     """Readiness check - is the service ready to accept requests?
 
-    Checks database connectivity and Qdrant availability (if RAG is enabled).
+    Checks database connectivity.
     Returns 503 if any dependency is unreachable.
     """
-    settings = get_settings()
     failures: list[str] = []
 
     try:
@@ -69,13 +68,6 @@ async def readiness_check() -> HealthResponse | JSONResponse:
     except Exception as e:
         logger.exception("Readiness check: database unreachable", error=str(e))
         failures.append("database")
-
-    if settings.rag_enabled:
-        try:
-            await check_qdrant()
-        except Exception as e:
-            logger.exception("Readiness check: Qdrant unreachable", error=str(e))
-            failures.append("qdrant")
 
     if failures:
         return JSONResponse(

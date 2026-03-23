@@ -18,8 +18,7 @@
     <img src="https://img.shields.io/badge/OpenAPI-6BA539?logo=openapi-initiative&logoColor=white" alt="OpenAPI" />
     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" />
     <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
-    <img src="https://img.shields.io/badge/Qdrant-FF4F7B?logo=qdrant&logoColor=white" alt="Qdrant" />
-    <img src="https://img.shields.io/badge/OpenAI-412991?logo=openai&logoColor=white" alt="OpenAI" />
+<img src="https://img.shields.io/badge/OpenAI-412991?logo=openai&logoColor=white" alt="OpenAI" />
     <img src="https://img.shields.io/badge/Anthropic-191919?logo=anthropic&logoColor=white" alt="Anthropic" />
     <img src="https://img.shields.io/badge/Gemini-8E75B2?logo=google-gemini&logoColor=white" alt="Google Gemini" />
     <img src="https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white" alt="Ollama" />
@@ -34,7 +33,7 @@ PathFinder’s goal is to make complex query/strategy construction **easier, fas
 
 - **Unified agent** (a single agent that researches, plans, and executes as needed per turn)
 - **Execution with real tools** (build/edit a real strategy graph via validated tool calls)
-- **Catalog grounding** (live WDK catalog + optional Qdrant RAG for fast discovery and examples)
+- **Catalog grounding** (live WDK catalog for discovery and examples)
 
 This project is intended to be integrated with **VEuPathDB systems** in the future once the research prototype is sufficiently mature.
 
@@ -82,20 +81,11 @@ Key entrypoints:
 - Unified tool registry: `apps/api/src/veupath_chatbot/ai/tools/unified_registry.py`
 - Graph step creation + validation: `apps/api/src/veupath_chatbot/ai/tools/strategy_tools/step_ops.py`
 
-### VEuPathDB + optional RAG
-
-PathFinder can discover catalog/search metadata via:
-
-- **Live WDK** calls (authoritative)
-- **Qdrant RAG** (fast semantic retrieval; may be stale/incomplete)
-
-RAG is controlled by a single setting named `rag_enabled` in `apps/api/config.toml` (see `apps/api/src/veupath_chatbot/platform/config.py`).
-
 ## Running locally
 
 ### Prerequisites
 
-- **Docker** (recommended for Postgres, Qdrant, and the full stack)
+- **Docker** (recommended for Postgres, Redis, and the full stack)
 - **Python 3.14+**
 - **Node.js 24+**
 
@@ -128,7 +118,7 @@ Docker Compose will pick up variables from a repo-root `.env` file (if present) 
 - **API**
   - `API_SECRET_KEY` (32+ chars)
   - At least one LLM provider key:
-    - `OPENAI_API_KEY` — default provider (`gpt-4.1`); also required for RAG embeddings (`text-embedding-3-small`)
+    - `OPENAI_API_KEY` — default provider (`gpt-4.1`)
     - `ANTHROPIC_API_KEY` — use with `chat_provider=anthropic` (default model: `claude-sonnet-4-6`)
     - `GEMINI_API_KEY` — use with `chat_provider=gemini` (default model: `gemini-2.5-pro`)
     - Ollama (local) — no key needed; set `OLLAMA_BASE_URL` and add models to `ollama_models.yaml`
@@ -136,9 +126,7 @@ Docker Compose will pick up variables from a repo-root `.env` file (if present) 
   - `NEXT_PUBLIC_API_URL=http://localhost:8000`
 - **Optional / common**
   - `DATABASE_URL` (defaults to PostgreSQL on `localhost:5432` if unset)
-  - `QDRANT_URL` / `QDRANT_API_KEY` (only needed if you’re not using the docker-compose defaults)
   - `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`; use `http://host.docker.internal:11434/v1` when running the API inside Docker)
-  - Startup-ingestion tuning is configured in `apps/api/config.toml` (keys: `rag_startup_*`)
 
 ### Local models (Ollama)
 
@@ -191,31 +179,7 @@ docker compose up --build
 
 Notes:
 
-- Compose includes **Postgres, Redis, and Qdrant** by default.
-
-### Populate Qdrant (RAG ingestion)
-
-PathFinder supports RAG for:
-
-- **WDK catalog** ingestion (record types + searches)
-- **Example plans** ingestion (public strategies → searchable examples)
-
-By default, ingestion runs **automatically in the API at startup** (in the background) when:
-
-- `rag_enabled=true` (default)
-- **`OPENAI_API_KEY` is set** (required for embeddings)
-
-Manual ingestion is usually unnecessary unless you want to reset/rebuild the collections.
-
-```bash
-# Full reset + rebuild of Qdrant collections (WDK + example plans)
-docker compose --profile ingest run --rm rag_reindex
-```
-
-Notes:
-
-- Both jobs require **`OPENAI_API_KEY`** (embeddings).
-- The manual reindex writes a JSONL report under `apps/api/ingest_reports/` (gitignored).
+- Compose includes **Postgres and Redis** by default.
 
 ### Option B: run API + Web directly (no Docker)
 
@@ -230,7 +194,7 @@ uv run uvicorn veupath_chatbot.main:app --reload --host 0.0.0.0 --port 8000
 If you’re not running the full stack via Docker Compose, you still need local services:
 
 ```bash
-docker compose up -d db redis qdrant
+docker compose up -d db redis
 ```
 
 Web:

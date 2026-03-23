@@ -22,10 +22,8 @@ from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
 )
 from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.ai.prompts.executor_prompt import build_agent_system_prompt
-from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
 from veupath_chatbot.ai.tools.conversation_tools import ConversationTools
-from veupath_chatbot.ai.tools.example_plans_rag_tools import ExamplePlansRagTools
 from veupath_chatbot.ai.tools.execution_tools import ExecutionTools
 from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
@@ -107,13 +105,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             site_id=site_id, strategy_graph=context.strategy_graph
         )
 
-        self.catalog_tools = CatalogTools()
-        self.catalog_rag_tools = CatalogRagTools(
-            site_id=site_id, disabled=context.disable_rag
-        )
-        self.example_plans_rag_tools = ExamplePlansRagTools(
-            site_id=site_id, disabled=context.disable_rag
-        )
+        self.catalog_tools = CatalogTools(site_id)
         self.strategy_tools = StrategyTools(self.strategy_session)
         self.execution_tools = ExecutionTools(self.strategy_session)
         self.result_tools = ResultTools(self.strategy_session)

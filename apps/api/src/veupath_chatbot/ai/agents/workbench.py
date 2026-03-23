@@ -9,13 +9,11 @@ from uuid import UUID
 from kani import ChatMessage, Kani
 from kani.engines.base import BaseEngine
 
-from veupath_chatbot.ai.tools.catalog_rag_tools import CatalogRagTools
-from veupath_chatbot.ai.tools.catalog_registry import CatalogToolsMixin
 from veupath_chatbot.ai.tools.catalog_tools import CatalogTools
-from veupath_chatbot.ai.tools.example_plans_rag_tools import ExamplePlansRagTools
 from veupath_chatbot.ai.tools.planner.gene_tools import GeneToolsMixin
 from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
 from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
+from veupath_chatbot.ai.tools.strategy_registry import StrategyToolsMixin
 from veupath_chatbot.ai.tools.workbench_read_tools import WorkbenchReadToolsMixin
 from veupath_chatbot.services.experiment.ai_analysis_tools import _AnalysisToolsMixin
 from veupath_chatbot.services.experiment.ai_refinement_tools import RefinementToolsMixin
@@ -30,19 +28,14 @@ class WorkbenchAgent(
     _AnalysisToolsMixin,
     GeneToolsMixin,
     WorkbenchToolsMixin,
-    CatalogToolsMixin,
+    StrategyToolsMixin,
     ResearchToolsMixin,
     Kani,
 ):
     """Conversational AI agent for the workbench.
 
-    Has access to all tool categories from the design spec:
-    - Research (web search, literature search)
-    - Gene data (lookup, detail, compare, distributions)
-    - WDK catalog (search discovery, parameters, record types)
-    - Strategy modification (refine, filter, re-evaluate)
-    - Workbench reads (metrics, enrichment, confidence, contributions)
-    - Workbench actions (gene sets: create, enrich, list)
+    CatalogTools methods are discovered via kani's dir() traversal
+    of self.catalog_tools (an attribute, not a mixin).
     """
 
     def __init__(
@@ -62,10 +55,8 @@ class WorkbenchAgent(
         self.web_search_service = WebSearchService()
         self.literature_search_service = LiteratureSearchService()
 
-        # Catalog tools (CatalogToolsMixin delegates via __dir__/__getattr__)
-        self.catalog_tools = CatalogTools()
-        self.catalog_rag_tools = CatalogRagTools(site_id=site_id)
-        self.example_plans_rag_tools = ExamplePlansRagTools(site_id=site_id)
+        # Catalog tools (discovered by kani via dir(self))
+        self.catalog_tools = CatalogTools(site_id)
 
         super().__init__(
             engine=engine,
@@ -75,4 +66,4 @@ class WorkbenchAgent(
 
     async def _get_experiment(self) -> Experiment | None:
         store = get_experiment_store()
-        return await store.aget(self.experiment_id)
+        return await store.get(self.experiment_id)

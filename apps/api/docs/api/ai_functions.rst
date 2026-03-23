@@ -9,15 +9,14 @@ PathfinderAgent (Unified)
 
 **Catalog / Discovery**
 
-- ``list_sites`` — List VEuPathDB sites (RAG + WDK)
+- ``list_sites`` — List VEuPathDB sites
 - ``get_record_types`` — Record types for the site
-- ``get_record_type_details`` — Details for one record type (RAG)
 - ``list_searches`` — Searches for a record type
 - ``search_for_searches`` — Semantic search for searches
 - ``get_search_parameters`` — Parameter specs for a search
 - ``get_dependent_vocab`` — Refresh dependent parameter options
 - ``lookup_phyletic_codes`` — Look up phyletic pattern codes for organisms
-- ``search_example_plans`` — Search example strategies (RAG + WDK)
+- ``search_example_plans`` — Search example strategies
 
 **Graph Building / Editing**
 

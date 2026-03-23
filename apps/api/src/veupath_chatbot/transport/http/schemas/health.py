@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -16,6 +16,8 @@ class HealthResponse(BaseModel):
 class ProviderStatus(BaseModel):
     """Per-provider API-key availability."""
 
+    model_config = {"populate_by_name": True}
+
     openai: bool
     anthropic: bool
     google: bool
@@ -25,6 +27,8 @@ class ProviderStatus(BaseModel):
 class SystemConfigResponse(BaseModel):
     """System configuration status (unauthenticated)."""
 
-    chat_provider: str
-    llm_configured: bool
+    model_config = {"populate_by_name": True}
+
+    chat_provider: str = Field(alias="chatProvider")
+    llm_configured: bool = Field(alias="llmConfigured")
     providers: ProviderStatus

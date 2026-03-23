@@ -8,7 +8,6 @@ from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
 _USER_A = uuid4()
-_USER_B = uuid4()
 
 
 def _make_set(
@@ -57,84 +56,6 @@ class TestSyncCrud:
     def test_delete_missing_returns_false(self) -> None:
         store = GeneSetStore()
         assert store.delete("nope") is False
-
-
-class TestListAll:
-    def test_returns_all(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a"))
-        store.save(_make_set("b"))
-        assert len(store.list_all()) == 2
-
-    def test_filters_by_site(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", site_id="plasmo"))
-        store.save(_make_set("b", site_id="toxo"))
-        assert len(store.list_all(site_id="plasmo")) == 1
-
-    def test_sorted_newest_first(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("old", created_at=datetime(2024, 1, 1, tzinfo=UTC)))
-        store.save(_make_set("new", created_at=datetime(2025, 1, 1, tzinfo=UTC)))
-        result = store.list_all()
-        assert result[0].id == "new"
-        assert result[1].id == "old"
-
-    def test_empty_store(self) -> None:
-        store = GeneSetStore()
-        assert store.list_all() == []
-
-    def test_no_match_returns_empty(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", site_id="plasmo"))
-        assert store.list_all(site_id="nonexistent") == []
-
-
-class TestListForUser:
-    def test_filters_by_user(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", user_id=_USER_A))
-        store.save(_make_set("b", user_id=_USER_B))
-        result = store.list_for_user(_USER_A)
-        assert len(result) == 1
-        assert result[0].id == "a"
-
-    def test_filters_by_user_and_site(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", user_id=_USER_A, site_id="plasmo"))
-        store.save(_make_set("b", user_id=_USER_A, site_id="toxo"))
-        store.save(_make_set("c", user_id=_USER_B, site_id="plasmo"))
-        result = store.list_for_user(_USER_A, site_id="plasmo")
-        assert len(result) == 1
-        assert result[0].id == "a"
-
-    def test_no_match_returns_empty(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", user_id=_USER_A))
-        assert store.list_for_user(_USER_B) == []
-
-    def test_sorted_newest_first(self) -> None:
-        store = GeneSetStore()
-        store.save(
-            _make_set(
-                "old", user_id=_USER_A, created_at=datetime(2024, 1, 1, tzinfo=UTC)
-            )
-        )
-        store.save(
-            _make_set(
-                "new", user_id=_USER_A, created_at=datetime(2025, 1, 1, tzinfo=UTC)
-            )
-        )
-        result = store.list_for_user(_USER_A)
-        assert result[0].id == "new"
-
-    def test_excludes_none_user_id(self) -> None:
-        store = GeneSetStore()
-        store.save(_make_set("a", user_id=None))
-        store.save(_make_set("b", user_id=_USER_A))
-        result = store.list_for_user(_USER_A)
-        assert len(result) == 1
-        assert result[0].id == "b"
 
 
 class TestAsyncGet:

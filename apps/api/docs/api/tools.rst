@@ -31,7 +31,7 @@ Catalog & Registry
 
 **Purpose:** Base tool registry. Provides catalog discovery (record types,
 searches, parameters), dependent vocab, and graph-building tools.
-Each tool returns combined RAG + WDK results when both are available.
+Each tool queries WDK directly for live results.
 
 **Key methods (on AgentToolRegistryMixin):** ``list_sites``, ``get_record_types``,
 ``list_searches``, ``get_search_parameters``, ``get_dependent_vocab``, plus
@@ -97,28 +97,6 @@ Catalog Tools
 parameter specs. Called by the agent to explore VEuPathDB data.
 
 .. automodule:: veupath_chatbot.ai.tools.catalog_tools
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Catalog RAG Tools
------------------
-
-**Purpose:** RAG-augmented catalog tools. Semantic search over the embedded
-VEuPathDB catalog for record types and searches.
-
-.. automodule:: veupath_chatbot.ai.tools.catalog_rag_tools
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Example Plans RAG Tools
------------------------
-
-**Purpose:** RAG retrieval of example strategy plans. Helps the agent suggest
-plan structures based on similar prior plans.
-
-.. automodule:: veupath_chatbot.ai.tools.example_plans_rag_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -243,22 +221,3 @@ WDK Error Handler
    :undoc-members:
    :show-inheritance:
 
-Combined Result
----------------
-
-**Purpose:** Combine and merge results from multiple tool sources.
-
-.. automodule:: veupath_chatbot.ai.tools.combined_result
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Catalog Registry
-----------------
-
-**Purpose:** Catalog tool registry mixin.
-
-.. automodule:: veupath_chatbot.ai.tools.catalog_registry
-   :members:
-   :undoc-members:
-   :show-inheritance:

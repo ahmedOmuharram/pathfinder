@@ -12,14 +12,7 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from veupath_chatbot import __version__
-from qdrant_client.http.exceptions import ApiException
-
-from veupath_chatbot.integrations.vectorstore.bootstrap import ensure_rag_collections
-from veupath_chatbot.integrations.vectorstore.qdrant_store import (
-    close_all_qdrant_stores,
-)
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
-from veupath_chatbot.jobs.rag_startup import start_rag_startup_ingestion_background
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory, close_db, init_db
 from veupath_chatbot.platform.config import get_settings
@@ -91,21 +84,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         if orphaned:
             await session.commit()
 
-    try:
-        await ensure_rag_collections()
-    except (OSError, RuntimeError, ApiException) as exc:
-        # Do not fail API startup if Qdrant is unavailable or misconfigured.
-        logger.warning("Failed to ensure RAG collections", error=str(exc))
-    try:
-        await start_rag_startup_ingestion_background()
-    except (OSError, RuntimeError, ApiException) as exc:
-        logger.warning("Failed to start RAG startup ingestion", error=str(exc))
-
     yield
 
     # Shutdown
     logger.info("Shutting down Pathfinder API")
-    await close_all_qdrant_stores()
     await close_all_clients()
     await close_redis()
     await close_db()

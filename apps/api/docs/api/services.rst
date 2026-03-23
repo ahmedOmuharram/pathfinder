@@ -214,18 +214,6 @@ vocabularies, and flattens nested parameter structures for agent consumption.
    :undoc-members:
    :show-inheritance:
 
-Catalog (RAG Search)
---------------------
-
-**Purpose:** RAG search orchestration — embed query → search Qdrant →
-threshold → prune results. Centralizes the shared RAG pipeline used by
-catalog and example-plan tools.
-
-.. automodule:: veupath_chatbot.services.catalog.rag_search
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Strategy Session
 ----------------
 

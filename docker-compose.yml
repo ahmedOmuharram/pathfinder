@@ -16,7 +16,6 @@ services:
     environment:
       # Container-friendly defaults; override as needed.
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
-      QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       DEFAULT_MODEL_ID: ${DEFAULT_MODEL_ID:-openai/gpt-4.1}
       DEFAULT_REASONING_EFFORT: ${DEFAULT_REASONING_EFFORT:-medium}
@@ -88,13 +87,6 @@ services:
       timeout: 5s
       retries: 5
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "${QDRANT_PORT:-6333}:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
   # Type codegen: fetches OpenAPI spec from API → generates TypeScript types.
   # Run with: docker compose --profile dev up -d
   codegen:
@@ -110,36 +102,6 @@ services:
       sh -c "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 &&
              cd /app && corepack enable && yarn install > /dev/null 2>&1 &&
              cd /app && sh scripts/sync-api-types.sh"
-    restart: "no"
-
-  # Optional manual re-index job (run on demand).
-  #
-  # By default, the API runs incremental ingestion in the background at startup
-  # when `rag_enabled=true` and `OPENAI_API_KEY` is set. This job is only needed
-  # when you want to *reset* and fully rebuild the Qdrant collections.
-  #
-  # Run with:
-  #   docker compose --profile ingest run --rm rag_reindex
-  rag_reindex:
-    profiles: ["ingest"]
-    image: pathfinder-api
-    working_dir: /app/apps/api
-    depends_on:
-      - qdrant
-    env_file:
-      - path: ./.env
-        required: false
-    environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
-      QDRANT_URL: http://qdrant:6333
-    volumes:
-      - ./apps/api/ingest_reports:/reports
-    command:
-      [
-        "/bin/sh",
-        "-lc",
-        "uv run python -m veupath_chatbot.services.vectorstore.ingest.wdk_catalog --sites all --reset && uv run python -m veupath_chatbot.services.vectorstore.ingest.public_strategies --sites all --reset --report-path /reports/ingest_public_strategies_report.jsonl"
-      ]
     restart: "no"
 
   # ── Code quality ────────────────────────────────────────────────
@@ -187,7 +149,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  qdrant_data:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:

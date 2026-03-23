@@ -2,33 +2,28 @@
 
 Composes category-specific mixins into a single ``AgentToolRegistryMixin``
 that provides all @ai_function methods for the agent.
+
+Tool discovery: ``StrategyToolsMixin`` uses ``__dir__``/``__getattr__`` to
+delegate @ai_function methods from tool instances (including ``catalog_tools``,
+``strategy_tools``, ``execution_tools``, etc.) to the agent class so kani
+discovers them.
 """
 
-from veupath_chatbot.ai.tools.catalog_registry import CatalogToolsMixin
 from veupath_chatbot.ai.tools.research_registry import ResearchToolsMixin
 from veupath_chatbot.ai.tools.strategy_registry import StrategyToolsMixin
 
 
 class AgentToolRegistryMixin(
-    CatalogToolsMixin,
     StrategyToolsMixin,
     ResearchToolsMixin,
 ):
     """Mixin for agent tool registration.
 
-    Inherits ``web_search`` and ``literature_search`` from
-    :class:`ResearchToolsMixin`.
-
-    Inherits catalog lookup tools from :class:`CatalogToolsMixin`.
-
-    Inherits strategy, execution, result, and conversation tools from
-    :class:`StrategyToolsMixin` (auto-delegated to underlying tool instances).
+    Tool instances are discovered via ``_TOOL_ATTRS`` in
+    ``StrategyToolsMixin.__dir__``/``__getattr__``.
 
     Classes using this mixin must provide these attributes:
-    - site_id: str
     - catalog_tools: CatalogTools
-    - catalog_rag_tools: CatalogRagTools
-    - example_plans_rag_tools: ExamplePlansRagTools
     - strategy_tools: StrategyTools
     - execution_tools: ExecutionTools
     - result_tools: ResultTools

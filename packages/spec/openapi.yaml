@@ -45,7 +45,7 @@ paths:
       description: 'Readiness check - is the service ready to accept requests?
 
 
-        Checks database connectivity and Qdrant availability (if RAG is enabled).
+        Checks database connectivity.
 
         Returns 503 if any dependency is unreachable.'
       operationId: readiness_check_health_ready_get
@@ -7543,18 +7543,18 @@ components:
       description: Payload for ``subkani_tool_call_start`` SSE events.
     SystemConfigResponse:
       properties:
-        chat_provider:
+        chatProvider:
           type: string
           title: Chat Provider
-        llm_configured:
+        llmConfigured:
           type: boolean
           title: Llm Configured
         providers:
           $ref: '#/components/schemas/ProviderStatus'
       type: object
       required:
-      - chat_provider
-      - llm_configured
+      - chatProvider
+      - llmConfigured
       - providers
       title: SystemConfigResponse
       description: System configuration status (unauthenticated).

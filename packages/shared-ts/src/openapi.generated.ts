@@ -60,7 +60,7 @@ export type paths = {
          * Readiness Check
          * @description Readiness check - is the service ready to accept requests?
          *
-         *     Checks database connectivity and Qdrant availability (if RAG is enabled).
+         *     Checks database connectivity.
          *     Returns 503 if any dependency is unreachable.
          */
         get: operations["readiness_check_health_ready_get"];
@@ -4417,9 +4417,9 @@ export type components = {
          */
         SystemConfigResponse: {
             /** Chat Provider */
-            chat_provider: string;
+            chatProvider: string;
             /** Llm Configured */
-            llm_configured: boolean;
+            llmConfigured: boolean;
             providers: components["schemas"]["ProviderStatus"];
         };
         /**

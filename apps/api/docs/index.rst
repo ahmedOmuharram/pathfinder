@@ -40,13 +40,6 @@ PathFinder API
       WDK client, catalog discovery, strategy API, and multi-site support
       across 15+ databases.
 
-   .. grid-item-card:: RAG & Vectorstore
-      :link: api/vectorstore
-      :link-type: doc
-
-      Qdrant-powered semantic retrieval for catalog search and example
-      strategy plans.
-
    .. grid-item-card:: LLM Engines
       :link: api/engines
       :link-type: doc

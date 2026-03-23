@@ -469,7 +469,7 @@ class TestExperimentPersisted:
 
         assert captured_id is not None
 
-    async def test_list_all_returns_experiment(self) -> None:
+    async def test_store_contains_experiment(self) -> None:
         config = _make_config()
 
         with (
@@ -486,9 +486,7 @@ class TestExperimentPersisted:
             experiment = await run_experiment(config)
 
         store = get_experiment_store()
-        all_exps = store.list_all(site_id="PlasmoDB")
-        assert len(all_exps) == 1
-        assert all_exps[0].id == experiment.id
+        assert store.get(experiment.id) is not None
 
 
 class TestErrorSetsStatus:
@@ -515,11 +513,11 @@ class TestErrorSetsStatus:
 
         # Even though it raised, the store should have the error experiment
         store = get_experiment_store()
-        all_exps = store.list_all()
-        assert len(all_exps) == 1
-        exp = all_exps[0]
-        assert exp.status == "error"
-        assert exp.error == "WDK connection refused"
+        error_exps = [
+            e for e in store._cache.values() if e.status == "error"
+        ]
+        assert len(error_exps) == 1
+        assert error_exps[0].error == "WDK connection refused"
 
     async def test_error_event_emitted(self) -> None:
         """The progress callback should receive an 'error' phase event."""

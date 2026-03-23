@@ -22,7 +22,7 @@ export function useSystemConfig(): {
     setConfigLoading(true);
     getSystemConfig()
       .then((cfg) => {
-        setSetupRequired(!cfg.llm_configured);
+        setSetupRequired(!cfg.llmConfigured);
       })
       .catch(() => {
         // If the endpoint is unreachable, don't block on setup screen —

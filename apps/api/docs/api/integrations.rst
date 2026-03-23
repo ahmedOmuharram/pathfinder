@@ -56,17 +56,6 @@ Design Decisions
    client. Each submodule handles one concern, making it easier to test and modify
    individual operations without touching the rest.
 
-Embeddings
-----------
-
-**Purpose:** OpenAI-compatible embeddings wrapper with batching. Used by the
-RAG ingestion pipeline and catalog RAG tools.
-
-.. automodule:: veupath_chatbot.integrations.embeddings.openai_embeddings
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Strategy API
 ------------
 
@@ -224,40 +213,3 @@ downloads, and analysis. Handles user session resolution.
    :undoc-members:
    :show-inheritance:
 
-Vectorstore — Ingest Pipeline
-------------------------------
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.pipeline
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.wdk_fetch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.wdk_index
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.wdk_transform
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.public_fetch
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.public_index
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: veupath_chatbot.integrations.vectorstore.ingest.public_transform
-   :members:
-   :undoc-members:
-   :show-inheritance:

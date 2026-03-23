@@ -166,7 +166,7 @@ class TestConcurrentAccess:
             for e in experiments:
                 store.save(e)
 
-        assert len(store.list_all()) == 10
+        assert len(store._cache) == 10
 
     async def test_concurrent_aget_same_id(self) -> None:
         """Multiple concurrent aget calls for the same ID should not cause issues."""
@@ -191,100 +191,6 @@ class TestConcurrentAccess:
 
         # Should be cached now
         assert store.get("shared") is not None
-
-
-# ---------------------------------------------------------------------------
-# List edge cases
-# ---------------------------------------------------------------------------
-
-
-class TestListEdgeCases:
-    def test_list_all_empty_string_filters(self) -> None:
-        """Empty string site_id/user_id should not match anything."""
-        store = ExperimentStore()
-        store.save(
-            _make_experiment(
-                "exp_001", "plasmodb", opts=_ExperimentOpts(user_id="alice")
-            )
-        )
-
-        # Empty string is falsy, so it should be treated as "no filter"
-        result = store.list_all(site_id="", user_id="")
-        # Empty string is falsy -> no filter applied -> returns all
-        assert len(result) == 1
-
-    def test_list_all_preserves_sort_on_identical_timestamps(self) -> None:
-        store = ExperimentStore()
-        ts = "2024-01-01T00:00:00"
-        store.save(_make_experiment("exp_a", created_at=ts))
-        store.save(_make_experiment("exp_b", created_at=ts))
-        store.save(_make_experiment("exp_c", created_at=ts))
-
-        result = store.list_all()
-        assert len(result) == 3
-        # All have same timestamp, order is stable (Python sort is stable)
-        ids = [e.id for e in result]
-        assert len(ids) == 3
-
-    def test_list_by_benchmark_no_match(self) -> None:
-        store = ExperimentStore()
-        store.save(
-            _make_experiment("exp_001", opts=_ExperimentOpts(benchmark_id="bench_1"))
-        )
-        result = store.list_by_benchmark("bench_nonexistent")
-        assert result == []
-
-    def test_list_by_benchmark_sort_order(self) -> None:
-        """Primary benchmark should sort first, then by created_at."""
-        store = ExperimentStore()
-        store.save(
-            _make_experiment(
-                "exp_a",
-                created_at="2024-01-03",
-                opts=_ExperimentOpts(benchmark_id="b1", is_primary=False),
-            )
-        )
-        store.save(
-            _make_experiment(
-                "exp_b",
-                created_at="2024-01-01",
-                opts=_ExperimentOpts(benchmark_id="b1", is_primary=True),
-            )
-        )
-        store.save(
-            _make_experiment(
-                "exp_c",
-                created_at="2024-01-02",
-                opts=_ExperimentOpts(benchmark_id="b1", is_primary=False),
-            )
-        )
-
-        result = store.list_by_benchmark("b1")
-        assert len(result) == 3
-        # Primary first (is_primary_benchmark=True -> not True = False -> sorts first)
-        assert result[0].is_primary_benchmark is True
-        assert result[0].id == "exp_b"
-
-
-# ---------------------------------------------------------------------------
-# aget cache population
-# ---------------------------------------------------------------------------
-
-
-class TestAgetCachePopulation:
-    async def test_aget_populates_cache_for_list_all(self) -> None:
-        """After aget loads from DB, the entity should be available in sync list_all."""
-        store = ExperimentStore()
-        db_exp = _make_experiment("from-db", site_id="plasmodb")
-
-        with patch.object(store, "_load", new_callable=AsyncMock, return_value=db_exp):
-            result = await store.aget("from-db")
-
-        assert result is db_exp
-        # Should now appear in sync list_all
-        all_exps = store.list_all(site_id="plasmodb")
-        assert len(all_exps) == 1
-        assert all_exps[0].id == "from-db"
 
 
 # ---------------------------------------------------------------------------
@@ -340,25 +246,3 @@ class TestSavePersistenceFailure:
 
         # Cache should still have the entity
         assert store.get("exp_001") is exp
-
-
-# ---------------------------------------------------------------------------
-# Large store behavior
-# ---------------------------------------------------------------------------
-
-
-class TestLargeStore:
-    def test_list_all_with_many_experiments(self) -> None:
-        store = ExperimentStore()
-        for i in range(100):
-            store.save(
-                _make_experiment(
-                    f"exp_{i:04d}", created_at=f"2024-{(i % 12) + 1:02d}-01T00:00:00"
-                )
-            )
-
-        result = store.list_all()
-        assert len(result) == 100
-        # Should be sorted newest-first
-        for i in range(len(result) - 1):
-            assert result[i].created_at >= result[i + 1].created_at

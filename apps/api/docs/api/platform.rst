@@ -60,7 +60,7 @@ Config
 ------
 
 **Purpose:** Application settings. API keys (OpenAI, Anthropic, etc.), database
-URL, Qdrant URL, feature flags (rag_enabled). Loaded via pydantic-settings.
+URL, and feature flags. Loaded via pydantic-settings.
 
 **Key function:** :py:func:`get_settings`
 

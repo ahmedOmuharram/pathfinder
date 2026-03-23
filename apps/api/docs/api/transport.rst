@@ -16,26 +16,14 @@ Application Factory
 -------------------
 
 **Purpose:** FastAPI application entrypoint. Creates the app with middleware,
-lifecycle management (database init, Redis, Qdrant), router registration, and
-startup background tasks (RAG ingestion).
+lifecycle management (database init, Redis), router registration, and
+startup background tasks.
 
 **Design:** The factory pattern (``create_app()``) enables testing with different
-configurations and ensures clean setup/teardown of database connections, Redis
-pools, and Qdrant clients via FastAPI lifespan events.
+configurations and ensures clean setup/teardown of database connections and Redis
+pools via FastAPI lifespan events.
 
 .. automodule:: veupath_chatbot.main
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Background Jobs
----------------
-
-**Purpose:** Background job for RAG ingestion at API startup. Incrementally
-ingests WDK catalog data and public strategies into Qdrant when
-``rag_enabled=true`` and ``OPENAI_API_KEY`` is set.
-
-.. automodule:: veupath_chatbot.jobs.rag_startup
    :members:
    :undoc-members:
    :show-inheritance:
