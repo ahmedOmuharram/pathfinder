@@ -3,9 +3,10 @@
 Only tests pure-logic functions that don't require Optuna or WDK calls.
 """
 
-import copy
 import math
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.services.experiment.tree_knobs import (
     _apply_knobs_recursive,
     _select_metric,
@@ -53,90 +54,105 @@ def _mcc(tp: int, fp: int, fn: int, tn: int) -> float:
 
 class TestApplyKnobsRecursive:
     def test_applies_operator_to_matching_node(self) -> None:
-        tree = {
-            "id": "combine1",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "leaf1", "parameters": {"score": "0.5"}},
-            "secondaryInput": {"id": "leaf2", "parameters": {"score": "0.8"}},
-        }
+        leaf1 = PlanStepNode(
+            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
+        )
+        leaf2 = PlanStepNode(
+            search_name="S2", parameters={"score": "0.8"}, id="leaf2"
+        )
+        tree = PlanStepNode(
+            search_name="combine",
+            primary_input=leaf1,
+            secondary_input=leaf2,
+            operator=CombineOp.INTERSECT,
+            id="combine1",
+        )
         _apply_knobs_recursive(tree, {}, {"combine1": "UNION"})
-        assert tree["operator"] == "UNION"
+        assert tree.operator == CombineOp.UNION
 
     def test_applies_threshold_to_matching_leaf(self) -> None:
-        tree = {
-            "id": "leaf1",
-            "parameters": {"score": "0.5", "evalue": "1e-5"},
-        }
+        tree = PlanStepNode(
+            search_name="S1",
+            parameters={"score": "0.5", "evalue": "1e-5"},
+            id="leaf1",
+        )
         _apply_knobs_recursive(tree, {"leaf1:score": 0.9}, {})
-        assert tree["parameters"]["score"] == "0.9"
-        assert tree["parameters"]["evalue"] == "1e-5"  # unchanged
+        assert tree.parameters["score"] == "0.9"
+        assert tree.parameters["evalue"] == "1e-5"  # unchanged
 
     def test_recursive_into_children(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "INTERSECT",
-            "primaryInput": {
-                "id": "leaf1",
-                "parameters": {"score": "0.5"},
-            },
-            "secondaryInput": {
-                "id": "leaf2",
-                "parameters": {"evalue": "1e-3"},
-            },
-        }
+        leaf1 = PlanStepNode(
+            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
+        )
+        leaf2 = PlanStepNode(
+            search_name="S2", parameters={"evalue": "1e-3"}, id="leaf2"
+        )
+        tree = PlanStepNode(
+            search_name="combine",
+            primary_input=leaf1,
+            secondary_input=leaf2,
+            operator=CombineOp.INTERSECT,
+            id="root",
+        )
         _apply_knobs_recursive(
             tree,
             {"leaf1:score": 0.7, "leaf2:evalue": 1e-6},
             {"root": "MINUS"},
         )
-        assert tree["operator"] == "MINUS"
-        assert tree["primaryInput"]["parameters"]["score"] == "0.7"
-        assert tree["secondaryInput"]["parameters"]["evalue"] == "1e-06"
+        assert tree.operator == CombineOp.MINUS
+        assert tree.primary_input is not None
+        assert tree.primary_input.parameters["score"] == "0.7"
+        assert tree.secondary_input is not None
+        assert tree.secondary_input.parameters["evalue"] == "1e-06"
 
     def test_no_matching_nodes(self) -> None:
-        tree = {
-            "id": "leaf1",
-            "parameters": {"score": "0.5"},
-        }
-        original = copy.deepcopy(tree)
+        tree = PlanStepNode(
+            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
+        )
         _apply_knobs_recursive(tree, {"other:score": 0.9}, {"other": "UNION"})
-        assert tree == original
+        assert tree.parameters["score"] == "0.5"  # unchanged
 
-    def test_missing_parameters(self) -> None:
-        """Node without parameters dict should not crash."""
-        tree = {"id": "leaf1"}
+    def test_empty_parameters_gets_value_added(self) -> None:
+        """Node with empty parameters dict gets threshold value injected."""
+        tree = PlanStepNode(search_name="S1", parameters={}, id="leaf1")
         _apply_knobs_recursive(tree, {"leaf1:score": 0.5}, {})
-        assert "parameters" not in tree
+        assert tree.parameters["score"] == "0.5"
 
     def test_deeply_nested_tree(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "mid",
-                "operator": "INTERSECT",
-                "primaryInput": {
-                    "id": "deep_leaf",
-                    "parameters": {"cutoff": "10"},
-                },
-                "secondaryInput": {
-                    "id": "deep_leaf2",
-                    "parameters": {"threshold": "0.01"},
-                },
-            },
-            "secondaryInput": {
-                "id": "side_leaf",
-                "parameters": {"pvalue": "0.05"},
-            },
-        }
+        deep_leaf = PlanStepNode(
+            search_name="S1", parameters={"cutoff": "10"}, id="deep_leaf"
+        )
+        deep_leaf2 = PlanStepNode(
+            search_name="S2", parameters={"threshold": "0.01"}, id="deep_leaf2"
+        )
+        mid = PlanStepNode(
+            search_name="combine",
+            primary_input=deep_leaf,
+            secondary_input=deep_leaf2,
+            operator=CombineOp.INTERSECT,
+            id="mid",
+        )
+        side_leaf = PlanStepNode(
+            search_name="S3", parameters={"pvalue": "0.05"}, id="side_leaf"
+        )
+        tree = PlanStepNode(
+            search_name="combine",
+            primary_input=mid,
+            secondary_input=side_leaf,
+            operator=CombineOp.UNION,
+            id="root",
+        )
         _apply_knobs_recursive(
             tree,
             {"deep_leaf:cutoff": 20, "side_leaf:pvalue": 0.01},
             {"mid": "MINUS"},
         )
-        assert tree["primaryInput"]["operator"] == "MINUS"
-        assert tree["primaryInput"]["primaryInput"]["parameters"]["cutoff"] == "20"
-        assert tree["secondaryInput"]["parameters"]["pvalue"] == "0.01"
+        assert tree.primary_input is not None
+        assert tree.primary_input.operator == CombineOp.MINUS
+        assert tree.primary_input.primary_input is not None
+        assert tree.primary_input.primary_input.parameters["cutoff"] == "20"
+        assert tree.secondary_input is not None
+        assert tree.secondary_input.parameters["pvalue"] == "0.01"
 
 
 class TestSelectMetric:

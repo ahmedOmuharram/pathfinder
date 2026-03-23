@@ -8,7 +8,7 @@ formatting.
 from dataclasses import dataclass
 from typing import Protocol
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import (
     CompilationResult,
     StepDecoratorAPI,
@@ -21,6 +21,7 @@ from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.integrations.veupathdb.factory import get_site, get_strategy_api
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
+    WDKStepTree,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import AppError, StrategyCompilationError
@@ -46,7 +47,7 @@ class StrategyBuildAPI(StrategyCompilerAPI, StepDecoratorAPI, Protocol):
 
     async def create_strategy(
         self,
-        step_tree: StepTreeNode,
+        step_tree: WDKStepTree,
         name: str,
         description: str | None = None,
     ) -> WDKIdentifier: ...
@@ -54,7 +55,7 @@ class StrategyBuildAPI(StrategyCompilerAPI, StepDecoratorAPI, Protocol):
     async def update_strategy(
         self,
         strategy_id: int,
-        step_tree: StepTreeNode | None = None,
+        step_tree: WDKStepTree | None = None,
         name: str | None = None,
     ) -> WDKStrategyDetails: ...
 

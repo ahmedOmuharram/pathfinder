@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api import (
     PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX,
@@ -15,6 +14,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKSearchConfig,
     WDKSearchResponse,
+    WDKStepTree,
 )
 
 
@@ -113,10 +113,10 @@ class TestStrategyAPI:
         """Test creating a strategy from step tree."""
         mock_client.post.return_value = {"id": 9999}
 
-        tree = StepTreeNode(
+        tree = WDKStepTree(
             step_id=100,
-            primary_input=StepTreeNode(step_id=10),
-            secondary_input=StepTreeNode(step_id=11),
+            primary_input=WDKStepTree(step_id=10),
+            secondary_input=WDKStepTree(step_id=11),
         )
 
         result = await strategy_api.create_strategy(
@@ -139,7 +139,7 @@ class TestStrategyAPI:
         """Test creating an internal (Pathfinder-tagged) strategy."""
         mock_client.post.return_value = {"id": 9999}
 
-        tree = StepTreeNode(step_id=100)
+        tree = WDKStepTree(step_id=100)
         await strategy_api.create_strategy(
             step_tree=tree,
             name="Pathfinder step counts",
@@ -153,20 +153,20 @@ class TestStrategyAPI:
         assert payload["isPublic"] is False
 
 
-class TestStepTreeNode:
-    """Tests for StepTreeNode."""
+class TestWDKStepTree:
+    """Tests for WDKStepTree."""
 
     def test_simple_tree(self) -> None:
         """Test simple step tree serialization."""
-        node = StepTreeNode(step_id=100)
+        node = WDKStepTree(step_id=100)
         assert node.to_dict() == {"stepId": 100}
 
     def test_nested_tree(self) -> None:
         """Test nested step tree serialization."""
-        tree = StepTreeNode(
+        tree = WDKStepTree(
             step_id=100,
-            primary_input=StepTreeNode(step_id=10),
-            secondary_input=StepTreeNode(step_id=11),
+            primary_input=WDKStepTree(step_id=10),
+            secondary_input=WDKStepTree(step_id=11),
         )
 
         result = tree.to_dict()
@@ -180,12 +180,12 @@ class TestStepTreeNode:
 
     def test_deeply_nested_tree(self) -> None:
         """Test deeply nested step tree."""
-        tree = StepTreeNode(
+        tree = WDKStepTree(
             step_id=100,
-            primary_input=StepTreeNode(
+            primary_input=WDKStepTree(
                 step_id=50,
-                primary_input=StepTreeNode(step_id=10),
-                secondary_input=StepTreeNode(step_id=11),
+                primary_input=WDKStepTree(step_id=10),
+                secondary_input=WDKStepTree(step_id=11),
             ),
         )
 

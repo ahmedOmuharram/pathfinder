@@ -2,7 +2,7 @@
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
-from veupath_chatbot.domain.strategy.ast import from_dict
+from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
@@ -113,7 +113,7 @@ def build_strategy_session(
         graph = StrategyGraph(graph_id, name, site_id)
         if plan and isinstance(plan, dict):
             try:
-                strategy = from_dict(plan)
+                strategy = StrategyAST.model_validate(plan)
                 graph.current_strategy = strategy
                 graph.name = strategy.name or name
                 graph.steps = {step.id: step for step in strategy.get_all_steps()}

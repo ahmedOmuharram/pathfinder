@@ -2,8 +2,9 @@
 
 from pydantic import Field
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat2
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types.core import (
     DEFAULT_STEP_ANALYSIS_PHASES,
     ControlValueFormat,
@@ -60,7 +61,7 @@ class ExperimentConfig(CamelModel):
     optimization_objective: OptimizationObjective = "balanced_accuracy"
     parameter_display_values: dict[str, str] | None = None
     mode: ExperimentMode = "single"
-    step_tree: JSONValue = None
+    step_tree: PlanStepNode | None = None
     source_strategy_id: str | None = None
     optimization_target_step: str | None = None
     enable_step_analysis: bool = False
@@ -81,9 +82,7 @@ class ExperimentConfig(CamelModel):
     @property
     def is_tree_mode(self) -> bool:
         """Whether this config uses a multi-step strategy tree."""
-        return self.mode in ("multi-step", "import") and isinstance(
-            self.step_tree, dict
-        )
+        return self.mode in ("multi-step", "import") and self.step_tree is not None
 
 
 class BatchOrganismTarget(CamelModel):

@@ -27,7 +27,7 @@ class TestStepsToPlan:
 
         assert plan is not None
         assert plan["recordType"] == "gene"
-        assert plan["metadata"]["name"] == "My Strategy"
+        assert plan["name"] == "My Strategy"
         root = plan["root"]
         assert root["searchName"] == "GenesByTextSearch"
         assert root["parameters"]["text_expression"] == "kinase"

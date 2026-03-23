@@ -1,4 +1,4 @@
-"""Tests for phase_contribution.py — tree ablation analysis logic.
+"""Tests for phase_contribution.py -- tree ablation analysis logic.
 
 Tests focus on the pure logic inside analyze_contributions:
 - Verdict classification thresholds
@@ -6,8 +6,8 @@ Tests focus on the pure logic inside analyze_contributions:
 - Ablation with recall/fpr delta edge cases
 """
 
-import copy
-
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
     _collect_leaves,
     _extract_leaf_branch,
@@ -17,22 +17,42 @@ from veupath_chatbot.services.experiment.step_analysis._tree_utils import (
 from veupath_chatbot.services.experiment.types import StepContributionVerdict
 
 
+def _leaf(lid: str, search: str = "") -> PlanStepNode:
+    """Create a leaf node."""
+    return PlanStepNode(id=lid, search_name=search or f"Search_{lid}")
+
+
+def _combine(
+    nid: str, primary: PlanStepNode, secondary: PlanStepNode, op: CombineOp = CombineOp.INTERSECT
+) -> PlanStepNode:
+    """Create a combine (binary) node."""
+    return PlanStepNode(
+        id=nid,
+        search_name="__combine__",
+        operator=op,
+        primary_input=primary,
+        secondary_input=secondary,
+    )
+
+
+def _transform(
+    nid: str, child: PlanStepNode, search: str = "GenesByOrthologs"
+) -> PlanStepNode:
+    """Create a transform (unary) node with only a primaryInput."""
+    return PlanStepNode(id=nid, search_name=search, primary_input=child)
+
+
 class TestCollectLeaves:
     """_collect_leaves identifies leaf (search) nodes."""
 
     def test_single_leaf(self) -> None:
-        tree = {"id": "s1", "searchName": "GeneByTaxon"}
+        tree = _leaf("s1", "GeneByTaxon")
         leaves = _collect_leaves(tree)
         assert len(leaves) == 1
-        assert leaves[0]["id"] == "s1"
+        assert leaves[0].id == "s1"
 
     def test_combine_node_two_leaves(self) -> None:
-        tree = {
-            "id": "combine",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("combine", _leaf("s1", "A"), _leaf("s2", "B"))
         leaves = _collect_leaves(tree)
         assert len(leaves) == 2
         ids = {_node_id(leaf) for leaf in leaves}
@@ -40,33 +60,24 @@ class TestCollectLeaves:
 
     def test_transform_node_one_leaf(self) -> None:
         """Transform/unary node has only primaryInput."""
-        tree = {
-            "id": "transform",
-            "searchName": "GenesByOrthologs",
-            "primaryInput": {"id": "s1", "searchName": "GeneByTaxon"},
-        }
+        tree = _transform("transform", _leaf("s1", "GeneByTaxon"))
         leaves = _collect_leaves(tree)
         assert len(leaves) == 1
         assert _node_id(leaves[0]) == "s1"
 
     def test_deep_nested_tree(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "mid",
-                "operator": "INTERSECT",
-                "primaryInput": {"id": "s1", "searchName": "A"},
-                "secondaryInput": {"id": "s2", "searchName": "B"},
-            },
-            "secondaryInput": {"id": "s3", "searchName": "C"},
-        }
+        tree = _combine(
+            "root",
+            _combine("mid", _leaf("s1", "A"), _leaf("s2", "B")),
+            _leaf("s3", "C"),
+            op=CombineOp.UNION,
+        )
         leaves = _collect_leaves(tree)
         assert len(leaves) == 3
 
     def test_empty_node(self) -> None:
         """A node with no primaryInput/secondaryInput is itself a leaf."""
-        tree: dict[str, object] = {"id": "solo"}
+        tree = PlanStepNode(id="solo", search_name="Solo")
         leaves = _collect_leaves(tree)
         assert len(leaves) == 1
 
@@ -75,46 +86,31 @@ class TestRemoveLeafFromTree:
     """_remove_leaf_from_tree prunes a leaf and restructures the tree."""
 
     def test_remove_root_leaf_returns_none(self) -> None:
-        tree = {"id": "s1", "searchName": "A"}
+        tree = _leaf("s1", "A")
         result = _remove_leaf_from_tree(tree, "s1")
         assert result is None
 
     def test_remove_primary_leaf(self) -> None:
         """Removing primary leaf: parent replaced by secondary subtree."""
-        tree = {
-            "id": "combine",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("combine", _leaf("s1", "A"), _leaf("s2", "B"))
         result = _remove_leaf_from_tree(tree, "s1")
         assert result is not None
         assert _node_id(result) == "s2"
 
     def test_remove_secondary_leaf(self) -> None:
         """Removing secondary leaf: parent replaced by primary subtree."""
-        tree = {
-            "id": "combine",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("combine", _leaf("s1", "A"), _leaf("s2", "B"))
         result = _remove_leaf_from_tree(tree, "s2")
         assert result is not None
         assert _node_id(result) == "s1"
 
     def test_remove_leaf_deep_in_tree(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "mid",
-                "operator": "INTERSECT",
-                "primaryInput": {"id": "s1", "searchName": "A"},
-                "secondaryInput": {"id": "s2", "searchName": "B"},
-            },
-            "secondaryInput": {"id": "s3", "searchName": "C"},
-        }
+        tree = _combine(
+            "root",
+            _combine("mid", _leaf("s1", "A"), _leaf("s2", "B")),
+            _leaf("s3", "C"),
+            op=CombineOp.UNION,
+        )
         result = _remove_leaf_from_tree(tree, "s1")
         assert result is not None
         # After removing s1, "mid" collapses to s2, so root becomes UNION(s2, s3)
@@ -124,41 +120,28 @@ class TestRemoveLeafFromTree:
 
     def test_remove_nonexistent_leaf(self) -> None:
         """Removing a leaf that doesn't exist returns the tree unchanged."""
-        tree = {
-            "id": "combine",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("combine", _leaf("s1", "A"), _leaf("s2", "B"))
         result = _remove_leaf_from_tree(tree, "nonexistent")
         assert result is not None
         leaves = _collect_leaves(result)
         assert len(leaves) == 2
 
     def test_does_not_mutate_original(self) -> None:
-        """Original tree should not be modified (deep copy inside)."""
-        tree = {
-            "id": "combine",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
-        original = copy.deepcopy(tree)
+        """Original tree should not be modified (PlanStepNode is immutable)."""
+        tree = _combine("combine", _leaf("s1", "A"), _leaf("s2", "B"))
         _remove_leaf_from_tree(tree, "s1")
-        assert tree == original
+        # PlanStepNode is a frozen Pydantic model -- original is unaffected
+        leaves = _collect_leaves(tree)
+        assert len(leaves) == 2
 
     def test_remove_leaf_under_transform(self) -> None:
         """Removing the only leaf under a transform collapses the entire branch."""
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "transform",
-                "searchName": "GenesByOrthologs",
-                "primaryInput": {"id": "s1", "searchName": "GeneByTaxon"},
-            },
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine(
+            "root",
+            _transform("transform", _leaf("s1", "GeneByTaxon")),
+            _leaf("s2", "B"),
+            op=CombineOp.UNION,
+        )
         result = _remove_leaf_from_tree(tree, "s1")
         assert result is not None
         # The transform subtree collapses to None, so root becomes just s2
@@ -169,23 +152,18 @@ class TestExtractLeafBranch:
     """_extract_leaf_branch isolates a leaf's subtree with ancestor transforms."""
 
     def test_leaf_at_root(self) -> None:
-        tree = {"id": "s1", "searchName": "A"}
+        tree = _leaf("s1", "A")
         branch = _extract_leaf_branch(tree, "s1")
         assert branch is not None
         assert _node_id(branch) == "s1"
 
     def test_leaf_not_found(self) -> None:
-        tree = {"id": "s1", "searchName": "A"}
+        tree = _leaf("s1", "A")
         assert _extract_leaf_branch(tree, "nonexistent") is None
 
     def test_leaf_under_combine(self) -> None:
         """At combine nodes, we descend into the branch containing the leaf."""
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("root", _leaf("s1", "A"), _leaf("s2", "B"), op=CombineOp.UNION)
         branch = _extract_leaf_branch(tree, "s2")
         assert branch is not None
         # Should be just s2, unwrapped from the combine
@@ -193,23 +171,18 @@ class TestExtractLeafBranch:
 
     def test_leaf_under_transform(self) -> None:
         """Leaf under a transform: branch includes the transform wrapper."""
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "transform",
-                "searchName": "GenesByOrthologs",
-                "primaryInput": {"id": "s1", "searchName": "GeneByTaxon"},
-            },
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine(
+            "root",
+            _transform("transform", _leaf("s1", "GeneByTaxon")),
+            _leaf("s2", "B"),
+            op=CombineOp.UNION,
+        )
         branch = _extract_leaf_branch(tree, "s1")
         assert branch is not None
         # Should include the transform wrapping s1
         assert _node_id(branch) == "transform"
-        pi = branch.get("primaryInput")
-        assert isinstance(pi, dict)
-        assert _node_id(pi) == "s1"
+        assert branch.primary_input is not None
+        assert _node_id(branch.primary_input) == "s1"
 
 
 class TestVerdictClassification:

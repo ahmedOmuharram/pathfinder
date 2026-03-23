@@ -3,13 +3,13 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
     StepAnalysis,
     StepFilter,
     StepReport,
-    StepTreeNode,
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.compile import (
@@ -24,6 +24,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKIdentifier,
     WDKSearchResponse,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import (
     InternalError,
@@ -134,10 +135,10 @@ class TestCompiledStepToDict:
                 display_name="Search 2",
             ),
         ]
-        tree = StepTreeNode(
+        tree = WDKStepTree(
             step_id=200,
-            primary_input=StepTreeNode(step_id=100),
-            secondary_input=StepTreeNode(step_id=101),
+            primary_input=WDKStepTree(step_id=100),
+            secondary_input=WDKStepTree(step_id=101),
         )
         result = CompilationResult(steps=steps, step_tree=tree, root_step_id=200)
         d = result.to_dict()
@@ -233,19 +234,17 @@ class TestCompileCombineStep:
             await compiler._compile_combine(node, "gene")
 
     async def test_combine_missing_operator_raises(self) -> None:
-        api = _mock_api()
+        """PlanStepNode's structural validator rejects secondary without operator."""
         left = _search_node(step_id="s1")
         right = _search_node(step_id="s2")
-        node = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=None,
-            id="c1",
-        )
-        compiler = StrategyCompiler(api, resolve_record_type=False)
-        with pytest.raises(StrategyCompilationError, match="missing operator"):
-            await compiler._compile_combine(node, "gene")
+        with pytest.raises(PydanticValidationError):
+            PlanStepNode(
+                search_name="bool",
+                primary_input=left,
+                secondary_input=right,
+                operator=None,
+                id="c1",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -322,30 +321,19 @@ class TestCompileColocation:
         assert params["span_end_offset_a"] == "200"
         assert params["span_sentence"] == "sentence"
 
-    async def test_colocate_without_params_still_works(self) -> None:
-        """When colocation_params is None, no upstream/downstream/strand params added."""
-        api = _mock_api()
-        step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101)])
-        api.create_step.side_effect = lambda *a, **kw: next(step_ids)
-        api.create_transform_step.return_value = WDKIdentifier(id=300)
-
+    def test_colocate_without_params_rejected(self) -> None:
+        """PlanStepNode's structural validator rejects COLOCATE without colocation_params."""
         left = _search_node(step_id="s1")
         right = _search_node(step_id="s2")
-        # Directly test _compile_colocation with no colocation_params
-        node = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=CombineOp.COLOCATE,
-            colocation_params=None,
-            id="c1",
-        )
-        compiler = StrategyCompiler(api, resolve_record_type=False)
-        await compiler._compile_colocation(node, 100, 101, "gene")
-        spec = api.create_transform_step.call_args.args[0]
-        params = spec.search_config.parameters
-        assert "upstream" not in params
-        assert "downstream" not in params
+        with pytest.raises(PydanticValidationError):
+            PlanStepNode(
+                search_name="bool",
+                primary_input=left,
+                secondary_input=right,
+                operator=CombineOp.COLOCATE,
+                colocation_params=None,
+                id="c1",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -618,7 +606,7 @@ class TestCompileRootFailure:
         # Override _compile_node to not register the step
         original_compile_search = compiler._compile_search
 
-        async def broken_compile_search(s: PlanStepNode, rt: str) -> StepTreeNode:
+        async def broken_compile_search(s: PlanStepNode, rt: str) -> WDKStepTree:
             tree = await original_compile_search(s, rt)
             # Remove the step from compiled_steps to simulate failure
             compiler._compiled_steps.clear()

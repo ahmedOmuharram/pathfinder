@@ -9,6 +9,8 @@ Tests focus on pure functions:
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.services.experiment.step_analysis._evaluation import (
     _EvalCounts,
     _extract_eval_counts,
@@ -24,6 +26,31 @@ from veupath_chatbot.services.experiment.types.control_result import (
     ControlTargetData,
     ControlTestResult,
 )
+
+
+def _leaf(lid: str, search: str = "") -> PlanStepNode:
+    """Create a leaf node."""
+    return PlanStepNode(id=lid, search_name=search or f"Search_{lid}")
+
+
+def _combine(
+    nid: str, primary: PlanStepNode, secondary: PlanStepNode, op: CombineOp = CombineOp.INTERSECT
+) -> PlanStepNode:
+    """Create a combine (binary) node."""
+    return PlanStepNode(
+        id=nid,
+        search_name="__combine__",
+        operator=op,
+        primary_input=primary,
+        secondary_input=secondary,
+    )
+
+
+def _transform(
+    nid: str, child: PlanStepNode, search: str = "GenesByOrthologs"
+) -> PlanStepNode:
+    """Create a transform (unary) node with only a primaryInput."""
+    return PlanStepNode(id=nid, search_name=search, primary_input=child)
 
 
 class TestExtractEvalCounts:
@@ -129,32 +156,22 @@ class TestCollectCombineNodes:
     """_collect_combine_nodes identifies binary (combine) nodes."""
 
     def test_single_leaf_no_combine(self) -> None:
-        tree = {"id": "s1", "searchName": "A"}
+        tree = _leaf("s1", "A")
         assert _collect_combine_nodes(tree) == []
 
     def test_single_combine(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine("root", _leaf("s1", "A"), _leaf("s2", "B"))
         nodes = _collect_combine_nodes(tree)
         assert len(nodes) == 1
         assert _node_id(nodes[0]) == "root"
 
     def test_nested_combines(self) -> None:
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "mid",
-                "operator": "INTERSECT",
-                "primaryInput": {"id": "s1", "searchName": "A"},
-                "secondaryInput": {"id": "s2", "searchName": "B"},
-            },
-            "secondaryInput": {"id": "s3", "searchName": "C"},
-        }
+        tree = _combine(
+            "root",
+            _combine("mid", _leaf("s1", "A"), _leaf("s2", "B")),
+            _leaf("s3", "C"),
+            op=CombineOp.UNION,
+        )
         nodes = _collect_combine_nodes(tree)
         assert len(nodes) == 2
         ids = {_node_id(n) for n in nodes}
@@ -162,16 +179,12 @@ class TestCollectCombineNodes:
 
     def test_transform_node_not_combine(self) -> None:
         """Transform (unary) nodes have primaryInput but no secondaryInput."""
-        tree = {
-            "id": "root",
-            "operator": "UNION",
-            "primaryInput": {
-                "id": "transform",
-                "searchName": "GenesByOrthologs",
-                "primaryInput": {"id": "s1", "searchName": "GeneByTaxon"},
-            },
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
+        tree = _combine(
+            "root",
+            _transform("transform", _leaf("s1", "GeneByTaxon")),
+            _leaf("s2", "B"),
+            op=CombineOp.UNION,
+        )
         nodes = _collect_combine_nodes(tree)
         assert len(nodes) == 1
         assert _node_id(nodes[0]) == "root"
@@ -181,63 +194,23 @@ class TestBuildSubtreeWithOperator:
     """_build_subtree_with_operator clones a subtree with a new operator."""
 
     def test_changes_operator(self) -> None:
-        combine = {
-            "id": "root",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
-        result = _build_subtree_with_operator(combine, "UNION")
-        assert result["operator"] == "UNION"
-        assert result["id"] == "root"
+        combine = _combine("root", _leaf("s1", "A"), _leaf("s2", "B"))
+        result = _build_subtree_with_operator(combine, CombineOp.UNION)
+        assert result.operator == CombineOp.UNION
+        assert result.id == "root"
 
     def test_does_not_mutate_original(self) -> None:
-        combine = {
-            "id": "root",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A"},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
-        _build_subtree_with_operator(combine, "UNION")
-        assert combine["operator"] == "INTERSECT"
-
-    def test_deep_copy_subtree(self) -> None:
-        """Modifying the result should not affect the original subtree."""
-        combine = {
-            "id": "root",
-            "operator": "INTERSECT",
-            "primaryInput": {"id": "s1", "searchName": "A", "params": {"x": 1}},
-            "secondaryInput": {"id": "s2", "searchName": "B"},
-        }
-        result = _build_subtree_with_operator(combine, "UNION")
-        # Modify nested structure in result
-        pi = result["primaryInput"]
-        assert isinstance(pi, dict)
-        pi_params = pi.get("params")
-        assert isinstance(pi_params, dict)
-        pi_params["x"] = 999
-
-        # Original should be unchanged
-        orig_pi = combine["primaryInput"]
-        assert isinstance(orig_pi, dict)
-        assert orig_pi["params"]["x"] == 1  # type: ignore[index]
+        combine = _combine("root", _leaf("s1", "A"), _leaf("s2", "B"))
+        _build_subtree_with_operator(combine, CombineOp.UNION)
+        assert combine.operator == CombineOp.INTERSECT
 
 
 class TestNodeId:
     """_node_id extracts the node identifier."""
 
     def test_id_field(self) -> None:
-        assert _node_id({"id": "s1"}) == "s1"
+        assert _node_id(_leaf("s1")) == "s1"
 
-    def test_search_name_fallback(self) -> None:
-        assert _node_id({"searchName": "GeneByTaxon"}) == "GeneByTaxon"
-
-    def test_both_prefers_id(self) -> None:
-        assert _node_id({"id": "s1", "searchName": "GeneByTaxon"}) == "s1"
-
-    def test_neither_returns_question_mark(self) -> None:
-        assert _node_id({}) == "?"
-
-    def test_non_string_id(self) -> None:
-        """Non-string IDs are converted via str()."""
-        assert _node_id({"id": 42}) == "42"
+    def test_both_returns_id(self) -> None:
+        node = PlanStepNode(id="s1", search_name="GeneByTaxon")
+        assert _node_id(node) == "s1"

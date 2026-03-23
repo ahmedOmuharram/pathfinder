@@ -9,12 +9,13 @@ WDK contracts validated:
 - Combine steps → boolean_question search with bq_left_op/bq_right_op/bq_operator
 - Transform steps → AnswerParams forced to "" (wiring via stepTree)
 - Dataset upload → raw gene IDs auto-uploaded, param replaced with int ID
-- Step tree → recursive StepTreeNode with primaryInput/secondaryInput
+- Step tree → recursive WDKStepTree with primaryInput/secondaryInput
 """
 
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock
 
+import pydantic
 import pytest
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
@@ -32,7 +33,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
     WDKValidation,
 )
-from veupath_chatbot.platform.errors import StrategyCompilationError, ValidationError
+from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject
 
 
@@ -309,23 +310,21 @@ class TestCompileCombineStep:
         assert tree.secondary_input is not None
         assert tree.secondary_input.step_id == 101  # right
 
-    @pytest.mark.asyncio
-    async def test_combine_missing_operator_raises(self) -> None:
-        api = FakeCompilerAPI()
+    def test_combine_missing_operator_raises(self) -> None:
+        """PlanStepNode validator rejects secondary_input without operator."""
         left = PlanStepNode(search_name="S1", parameters={}, id="l")
         right = PlanStepNode(search_name="S2", parameters={}, id="r")
-        ast = StrategyAST(
-            record_type="transcript",
-            root=PlanStepNode(
+        with pytest.raises(
+            pydantic.ValidationError,
+            match="operator is required when secondaryInput is present",
+        ):
+            PlanStepNode(
                 search_name="bq",
                 primary_input=left,
                 secondary_input=right,
                 operator=None,
                 id="root",
-            ),
-        )
-        with pytest.raises(StrategyCompilationError, match="missing operator"):
-            await compile_strategy(ast, api, resolve_record_type=False)
+            )
 
 
 # ── Transform step compilation ────────────────────────────────────

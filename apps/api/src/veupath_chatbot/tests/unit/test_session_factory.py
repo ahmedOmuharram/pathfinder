@@ -141,7 +141,7 @@ class TestBuildStrategySession:
         assert graph is not None
         assert len(graph.history) > 0
 
-    def test_plan_with_metadata_name(self) -> None:
+    def test_plan_with_top_level_name(self) -> None:
         plan = {
             "recordType": "gene",
             "root": {
@@ -149,7 +149,7 @@ class TestBuildStrategySession:
                 "searchName": "GenesByTextSearch",
                 "parameters": {},
             },
-            "metadata": {"name": "Plan Name"},
+            "name": "Plan Name",
         }
         strategy_graph = {"id": "g1", "name": "Graph Name", "plan": plan}
         session = build_strategy_session(
@@ -157,7 +157,7 @@ class TestBuildStrategySession:
         )
         graph = session.get_graph(None)
         assert graph is not None
-        # The plan name from metadata should be used
+        # The plan name from top-level field should be used
         assert graph.name == "Plan Name"
 
     def test_missing_name_uses_default(self) -> None:

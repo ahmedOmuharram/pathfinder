@@ -1,13 +1,10 @@
 """Module-level helpers for WDK strategy operations.
 
-Internal strategy name tagging utilities, shared constants, and
-re-export of :class:`StepTreeNode` (canonical definition lives in
-``domain.strategy.ast``).
+Internal strategy name tagging utilities and shared constants.
 """
 
 import pydantic
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKUserInfo
 
@@ -73,7 +70,6 @@ async def resolve_wdk_user_id(client: VEuPathDBClient) -> str | None:
 __all__ = [
     "CURRENT_USER",
     "PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX",
-    "StepTreeNode",
     "is_internal_wdk_strategy_name",
     "resolve_wdk_user_id",
     "strip_internal_wdk_strategy_name",

@@ -6,13 +6,13 @@ which handles single re-evaluation only.
 """
 
 import asyncio
-import copy
 import json as json_mod
 from collections.abc import AsyncIterator
 
-from veupath_chatbot.domain.strategy.tree import walk_dict_tree
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.tree import walk_plan_tree
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.platform.errors import AppError, DataParsingError, ValidationError
+from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import (
@@ -97,7 +97,7 @@ def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
 
     :raises ValidationError: If the parameter is missing.
     """
-    if exp.config.is_tree_mode:
+    if exp.config.is_tree_mode and exp.config.step_tree is not None:
         if _tree_has_parameter(exp.config.step_tree, param_name):
             return
     elif param_name in exp.config.parameters:
@@ -109,17 +109,16 @@ def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
     )
 
 
-def _tree_has_parameter(tree: object, param_name: str) -> bool:
-    """Check whether any node in a dict-based step tree contains *param_name*."""
+def _tree_has_parameter(tree: PlanStepNode, param_name: str) -> bool:
+    """Check whether any node in a plan step tree contains *param_name*."""
     found = False
 
-    def _check(node: JSONObject) -> None:
+    def _check(node: PlanStepNode) -> None:
         nonlocal found
-        params = node.get("parameters")
-        if isinstance(params, dict) and param_name in params:
+        if param_name in node.parameters:
             found = True
 
-    walk_dict_tree(tree, _check)
+    walk_plan_tree(tree, _check)
     return found
 
 
@@ -212,17 +211,17 @@ async def _run_sweep_point_tree(
     Deep-copies the step tree, injects *value* into every node whose
     ``parameters`` dict contains *param_name*, then evaluates against controls.
     """
-    tree = copy.deepcopy(exp.config.step_tree)
-    if not isinstance(tree, dict):
-        msg = "step_tree must be a dict in tree mode"
-        raise DataParsingError(msg)
+    if exp.config.step_tree is None:
+        msg = "step_tree must be set in tree mode"
+        raise ValidationError(detail=msg)
 
-    def _inject(node: JSONObject) -> None:
-        params = node.get("parameters")
-        if isinstance(params, dict) and param_name in params:
-            params[param_name] = value
+    tree = exp.config.step_tree.model_copy(deep=True)
 
-    walk_dict_tree(tree, _inject)
+    def _inject(node: PlanStepNode) -> None:
+        if param_name in node.parameters:
+            node.parameters[param_name] = value
+
+    walk_plan_tree(tree, _inject)
 
     return await asyncio.wait_for(
         run_controls_against_tree(

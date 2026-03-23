@@ -5,15 +5,15 @@ using Optuna, optimizing for rank-based objectives (Precision@K,
 Enrichment@K) with optional list-size constraints.
 """
 
-import copy
 import time
 from dataclasses import dataclass
 
 import optuna
 
-from veupath_chatbot.domain.strategy.tree import walk_dict_tree
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
+from veupath_chatbot.domain.strategy.tree import walk_plan_tree
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
@@ -48,7 +48,7 @@ class TreeOptimizationOptions:
 
 async def optimize_tree_knobs(
     ctx: ControlsContext,
-    base_tree: JSONObject,
+    base_tree: PlanStepNode,
     threshold_knobs: list[ThresholdKnob],
     operator_knobs: list[OperatorKnob],
     options: TreeOptimizationOptions | None = None,
@@ -56,7 +56,7 @@ async def optimize_tree_knobs(
     """Run Optuna optimization over tree knobs.
 
     :param ctx: Controls context (site, record type, controls).
-    :param base_tree: ``PlanStepNode``-shaped dict (the template tree).
+    :param base_tree: Strategy plan tree (the template tree).
     :param threshold_knobs: Numeric parameter knobs on leaf steps.
     :param operator_knobs: Boolean operator knobs on combine nodes.
     :param options: Optimization options (objective, budget, max_list_size).
@@ -74,12 +74,12 @@ async def optimize_tree_knobs(
     best_trial: TreeOptimizationTrial | None = None
 
     def _apply_knobs(
-        tree: JSONObject,
+        tree: PlanStepNode,
         threshold_vals: dict[str, float],
         operator_vals: dict[str, str],
-    ) -> JSONObject:
+    ) -> PlanStepNode:
         """Return a copy of the tree with knob values applied."""
-        modified = copy.deepcopy(tree)
+        modified = tree.model_copy(deep=True)
         _apply_knobs_recursive(modified, threshold_vals, operator_vals)
         return modified
 
@@ -165,24 +165,21 @@ async def optimize_tree_knobs(
 
 
 def _apply_knobs_recursive(
-    node: JSONObject,
+    node: PlanStepNode,
     threshold_vals: dict[str, float],
     operator_vals: dict[str, str],
 ) -> None:
     """Recursively apply knob values to a tree in-place."""
-
-    def _apply(n: JSONObject) -> None:
-        nid = str(n.get("id", ""))
+    def _apply(n: PlanStepNode) -> None:
+        nid = n.id
         if nid in operator_vals:
-            n["operator"] = operator_vals[nid]
-        raw_params = n.get("parameters")
-        if isinstance(raw_params, dict):
-            for key, val in threshold_vals.items():
-                step_id, param_name = key.split(":", 1)
-                if nid == step_id:
-                    raw_params[param_name] = str(val)
+            n.operator = CombineOp(operator_vals[nid])
+        for key, val in threshold_vals.items():
+            step_id, param_name = key.split(":", 1)
+            if nid == step_id:
+                n.parameters[param_name] = str(val)
 
-    walk_dict_tree(node, _apply)
+    walk_plan_tree(node, _apply)
 
 
 def _select_metric(

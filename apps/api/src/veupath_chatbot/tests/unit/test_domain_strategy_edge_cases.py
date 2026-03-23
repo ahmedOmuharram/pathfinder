@@ -3,7 +3,7 @@
 from typing import Literal, cast
 
 import pytest
-from pydantic import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -11,7 +11,6 @@ from veupath_chatbot.domain.strategy.ast import (
     StepFilter,
     StepReport,
     StrategyAST,
-    from_dict,
 )
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
@@ -52,18 +51,23 @@ def _combine(
 # ===========================================================================
 
 
-class TestFromDictEdgeCases:
-    def test_empty_string_search_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="searchName"):
-            from_dict({"recordType": "gene", "root": {"searchName": ""}})
+class TestModelValidateEdgeCases:
+    def test_empty_string_search_name_accepted(self) -> None:
+        """Empty search_name is accepted by model_validate (caught by validate_strategy)."""
+        ast = StrategyAST.model_validate(
+            {"recordType": "gene", "root": {"searchName": ""}}
+        )
+        assert ast.root.search_name == ""
 
     def test_non_string_search_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="searchName"):
-            from_dict({"recordType": "gene", "root": {"searchName": 42}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": "gene", "root": {"searchName": 42}}
+            )
 
     def test_parameters_as_list_raises(self) -> None:
-        with pytest.raises(TypeError, match="parameters"):
-            from_dict(
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {"searchName": "S1", "parameters": [1, 2, 3]},
@@ -71,21 +75,27 @@ class TestFromDictEdgeCases:
             )
 
     def test_non_string_record_type_raises(self) -> None:
-        with pytest.raises(TypeError, match="recordType"):
-            from_dict({"recordType": 42, "root": {"searchName": "S1"}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": 42, "root": {"searchName": "S1"}}
+            )
 
     def test_root_is_list_raises(self) -> None:
-        with pytest.raises(TypeError, match="root"):
-            from_dict({"recordType": "gene", "root": [{"searchName": "S1"}]})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": "gene", "root": [{"searchName": "S1"}]}
+            )
 
     def test_root_is_string_raises(self) -> None:
-        with pytest.raises(TypeError, match="root"):
-            from_dict({"recordType": "gene", "root": "not_a_dict"})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": "gene", "root": "not_a_dict"}
+            )
 
     def test_invalid_operator_string(self) -> None:
-        """Invalid operator string should raise ValueError from CombineOp()."""
-        with pytest.raises(ValueError, match="not a valid"):
-            from_dict(
+        """Invalid operator string should raise PydanticValidationError."""
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -99,7 +109,7 @@ class TestFromDictEdgeCases:
 
     def test_operator_without_secondary_input(self) -> None:
         """Operator present but no secondary input -> valid transform, not combine."""
-        ast = from_dict(
+        ast = StrategyAST.model_validate(
             {
                 "recordType": "gene",
                 "root": {
@@ -114,15 +124,15 @@ class TestFromDictEdgeCases:
         assert ast.root.operator == CombineOp.INTERSECT
         assert ast.root.infer_kind() == "transform"
 
-    def test_null_parameters_becomes_empty_dict(self) -> None:
-        """parameters: null should become {}."""
-        ast = from_dict(
-            {
-                "recordType": "gene",
-                "root": {"searchName": "S1", "parameters": None},
-            }
-        )
-        assert ast.root.parameters == {}
+    def test_null_parameters_raises(self) -> None:
+        """parameters: null is rejected by Pydantic (dict field, not Optional)."""
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {
+                    "recordType": "gene",
+                    "root": {"searchName": "S1", "parameters": None},
+                }
+            )
 
     def test_deeply_nested_tree(self) -> None:
         """Multi-level nested tree should parse correctly."""
@@ -140,7 +150,7 @@ class TestFromDictEdgeCases:
                 "operator": "INTERSECT",
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.infer_kind() == "combine"
         assert ast.root.primary_input is not None
         assert ast.root.primary_input.infer_kind() == "combine"
@@ -159,37 +169,36 @@ class TestStrategyASTEdgeCases:
         ast = StrategyAST(record_type="gene", root=root)
         assert ast.get_step_by_id("root") is root
 
-    def test_to_dict_metadata_none_when_no_name_no_desc(self) -> None:
-        """metadata should be None when no name/description/metadata."""
+    def test_to_dict_no_name_or_description_when_empty(self) -> None:
+        """name/description should not be in to_dict output when unset."""
         root = _leaf("s1")
         ast = StrategyAST(record_type="gene", root=root)
         d = ast.to_dict()
-        assert d["metadata"] is None
+        assert "name" not in d
+        assert "description" not in d
 
-    def test_to_dict_metadata_reflects_name_override(self) -> None:
-        """If metadata has custom fields and name is set, both should appear."""
+    def test_to_dict_name_at_top_level(self) -> None:
+        """If metadata has custom fields and name is set, name at top level."""
         root = _leaf("s1")
         ast = StrategyAST(
             record_type="gene",
             root=root,
             name="Override",
-            metadata={"custom": "value", "name": "original"},
+            metadata={"custom": "value"},
         )
         d = ast.to_dict()
+        assert d["name"] == "Override"
         meta = d["metadata"]
         assert isinstance(meta, dict)
-        assert meta["name"] == "Override"  # override wins
         assert meta["custom"] == "value"
 
-    def test_infer_kind_secondary_without_primary(self) -> None:
-        """secondary_input without primary_input: infer_kind returns 'search'
-        because primary_input is None -> not combine, not transform."""
-        node = PlanStepNode(
-            search_name="S1",
-            secondary_input=_leaf("s2"),
-        )
-        # This is structurally invalid but infer_kind doesn't validate
-        assert node.infer_kind() == "search"
+    def test_secondary_without_primary_rejected(self) -> None:
+        """secondary_input without primary_input is rejected by model validator."""
+        with pytest.raises(PydanticValidationError, match="primaryInput"):
+            PlanStepNode(
+                search_name="S1",
+                secondary_input=_leaf("s2"),
+            )
 
 
 class TestPlanStepNodeToDict:
@@ -626,7 +635,7 @@ class TestHydrateGraphEdgeCases:
 class TestValidationEdgeCases:
     def test_none_root_strategy(self) -> None:
         """Strategy with root=None should be rejected by Pydantic validation."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(PydanticValidationError):
             StrategyAST(record_type="gene", root=None)
 
     def test_empty_record_type_and_empty_search_name(self) -> None:
@@ -658,21 +667,18 @@ class TestValidationEdgeCases:
             for e in result.errors
         )
 
-    def test_combine_without_operator_still_checked(self) -> None:
-        """Combine node (primary+secondary) without operator should be flagged."""
+    def test_combine_without_operator_rejected_by_model(self) -> None:
+        """Combine node (primary+secondary) without operator is rejected at model level."""
         left = _leaf("s1")
         right = _leaf("s2")
-        combine = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=None,
-            id="c1",
-        )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
-        assert not result.valid
-        assert any(e.code == "MISSING_OPERATOR" for e in result.errors)
+        with pytest.raises(PydanticValidationError, match="operator"):
+            PlanStepNode(
+                search_name="bool",
+                primary_input=left,
+                secondary_input=right,
+                operator=None,
+                id="c1",
+            )
 
     def test_colocate_with_valid_params(self) -> None:
         left = _leaf("s1")
@@ -741,7 +747,7 @@ class TestRoundTripEdgeCases:
     def test_minimal_strategy_round_trip(self) -> None:
         ast = StrategyAST(record_type="gene", root=_leaf("s1", "S1"))
         d = ast.to_dict()
-        parsed = from_dict(d)
+        parsed = StrategyAST.model_validate(d)
         assert parsed.record_type == "gene"
         assert parsed.root.search_name == "S1"
 
@@ -776,7 +782,7 @@ class TestRoundTripEdgeCases:
             metadata={"custom": "field"},
         )
         d = ast.to_dict()
-        parsed = from_dict(d)
+        parsed = StrategyAST.model_validate(d)
 
         assert parsed.record_type == "gene"
         assert parsed.name == "My Strategy"
@@ -806,7 +812,7 @@ class TestRoundTripEdgeCases:
         )
         ast = StrategyAST(record_type="gene", root=root)
         d = ast.to_dict()
-        parsed = from_dict(d)
+        parsed = StrategyAST.model_validate(d)
         cp = parsed.root.colocation_params
         assert cp is not None
         assert cp.upstream == 500

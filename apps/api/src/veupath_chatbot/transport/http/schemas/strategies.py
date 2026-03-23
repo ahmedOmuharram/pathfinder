@@ -5,8 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.domain.strategy.ast import StrategyAST
+
 from .chat import MessageResponse, ThinkingResponse
-from .plan import StrategyPlan
 from .steps import StepResponse
 
 
@@ -14,7 +15,7 @@ class StepCountsRequest(BaseModel):
     """Request to compute step counts from a plan."""
 
     site_id: str = Field(alias="siteId")
-    plan: StrategyPlan
+    plan: StrategyAST
 
     model_config = {"populate_by_name": True}
 
@@ -94,7 +95,7 @@ class CreateStrategyRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=255)
     site_id: str = Field(alias="siteId")
-    plan: StrategyPlan
+    plan: StrategyAST
 
     model_config = {"populate_by_name": True}
 
@@ -103,7 +104,7 @@ class UpdateStrategyRequest(BaseModel):
     """Request to update a strategy."""
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    plan: StrategyPlan | None = None
+    plan: StrategyAST | None = None
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
     is_saved: bool | None = Field(default=None, alias="isSaved")
 

@@ -12,7 +12,6 @@ import httpx
 import pytest
 import respx
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.strategy_api.analyses import (
@@ -23,6 +22,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
@@ -244,9 +244,9 @@ class TestCreateStrategy:
             200, json=strategy_creation_response(200)
         )
 
-        leaf_a = StepTreeNode(step_id=10)
-        leaf_b = StepTreeNode(step_id=11)
-        root = StepTreeNode(step_id=100, primary_input=leaf_a, secondary_input=leaf_b)
+        leaf_a = WDKStepTree(step_id=10)
+        leaf_b = WDKStepTree(step_id=11)
+        root = WDKStepTree(step_id=100, primary_input=leaf_a, secondary_input=leaf_b)
 
         result = await api.create_strategy(
             step_tree=root,

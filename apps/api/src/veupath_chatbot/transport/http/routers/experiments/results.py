@@ -5,11 +5,11 @@ from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Depends, Query
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import (
     NotFoundError,
@@ -216,10 +216,10 @@ async def refine_experiment(
         )
         combined_id = combined.id
 
-        new_tree = StepTreeNode(
+        new_tree = WDKStepTree(
             step_id=combined_id,
-            primary_input=StepTreeNode(step_id=exp.wdk_step_id),
-            secondary_input=StepTreeNode(step_id=new_step_id),
+            primary_input=WDKStepTree(step_id=exp.wdk_step_id),
+            secondary_input=WDKStepTree(step_id=new_step_id),
         )
         await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
         exp.wdk_step_id = combined_id
@@ -241,9 +241,9 @@ async def refine_experiment(
         )
         new_step_id = new_step.id
 
-        new_tree = StepTreeNode(
+        new_tree = WDKStepTree(
             step_id=new_step_id,
-            primary_input=StepTreeNode(step_id=exp.wdk_step_id),
+            primary_input=WDKStepTree(step_id=exp.wdk_step_id),
         )
         await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
         exp.wdk_step_id = new_step_id

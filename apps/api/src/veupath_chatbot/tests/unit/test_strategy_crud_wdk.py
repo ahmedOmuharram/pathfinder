@@ -19,12 +19,12 @@ import json
 import pytest
 import respx
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.strategy_api.strategies import (
     StrategiesMixin,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.platform.errors import DataParsingError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     StrategyItemDetails,
@@ -67,7 +67,7 @@ class TestCreateStrategyPayload:
             route = respx.post(f"{BASE}/users/12345/strategies").respond(
                 200, json={"id": 200}
             )
-            step_tree = StepTreeNode(step_id=100)
+            step_tree = WDKStepTree(step_id=100)
             await api.create_strategy(step_tree, name="My Strategy")
 
             body = json.loads(route.calls[0].request.content)
@@ -85,9 +85,9 @@ class TestCreateStrategyPayload:
             route = respx.post(f"{BASE}/users/12345/strategies").respond(
                 200, json={"id": 200}
             )
-            left = StepTreeNode(step_id=100)
-            right = StepTreeNode(step_id=101)
-            root = StepTreeNode(
+            left = WDKStepTree(step_id=100)
+            right = WDKStepTree(step_id=101)
+            root = WDKStepTree(
                 step_id=102, primary_input=left, secondary_input=right
             )
             await api.create_strategy(root, name="Combined")
@@ -107,7 +107,7 @@ class TestCreateStrategyPayload:
                 200, json={"id": 200}
             )
             await api.create_strategy(
-                StepTreeNode(step_id=100),
+                WDKStepTree(step_id=100),
                 name="Test",
                 description="A detailed description",
             )
@@ -220,7 +220,7 @@ class TestUpdateStrategy:
             respx.get(f"{BASE}/users/12345/strategies/200").respond(
                 200, json=_realistic_wdk_strategy()
             )
-            new_tree = StepTreeNode(step_id=999)
+            new_tree = WDKStepTree(step_id=999)
             await api.update_strategy(200, step_tree=new_tree)
 
             assert put_route.called

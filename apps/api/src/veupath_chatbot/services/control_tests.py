@@ -7,7 +7,6 @@ positive controls are returned and known negative controls are excluded.
 from dataclasses import dataclass, field
 
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -17,6 +16,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError
@@ -260,10 +260,10 @@ async def _run_intersection_control(
 
     # WDK requires steps to be part of a strategy before they can be
     # queried for results (StepService enforces this).
-    root = StepTreeNode(
+    root = WDKStepTree(
         step_id=combined_step_id,
-        primary_input=StepTreeNode(step_id=target_step_id),
-        secondary_input=StepTreeNode(step_id=controls_step_id),
+        primary_input=WDKStepTree(step_id=target_step_id),
+        secondary_input=WDKStepTree(step_id=controls_step_id),
     )
     temp_strategy_id: int | None = None
     try:

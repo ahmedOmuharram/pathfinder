@@ -14,11 +14,11 @@ application.  Within a single batch, analyses run in parallel via
 
 import asyncio
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
@@ -125,7 +125,7 @@ class EnrichmentService:
             record_type=record_type or "transcript",
         )
         shared_step_id = step.id
-        root = StepTreeNode(step_id=shared_step_id)
+        root = WDKStepTree(step_id=shared_step_id)
         strategy_id: int | None = None
 
         async with _WDK_ENRICHMENT_SEMAPHORE:

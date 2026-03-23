@@ -16,10 +16,8 @@ from kani.models import FunctionCall
 from veupath_chatbot.ai.agents.executor import AgentContext, PathfinderAgent
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.compile import (
-    CompilationResult,
-    StepTreeNode,
-)
+from veupath_chatbot.domain.strategy.compile import CompilationResult
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.parsing import parse_jsonish
 from veupath_chatbot.services.strategies.build import BuildResult
@@ -75,7 +73,7 @@ def _build_result(wdk_strategy_id: int = 999) -> object:
         counts={"s1": 42},
         zero_step_ids=[],
         compilation=CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=100), root_step_id=100
+            steps=[], step_tree=WDKStepTree(step_id=100), root_step_id=100
         ),
     )
 

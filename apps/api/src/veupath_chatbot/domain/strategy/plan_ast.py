@@ -86,7 +86,7 @@ def steps_to_plan(
     return {
         "recordType": snapshot.get("recordType", "transcript"),
         "root": root,
-        "metadata": {"name": snapshot.get("name", "")},
+        "name": snapshot.get("name", ""),
     }
 
 

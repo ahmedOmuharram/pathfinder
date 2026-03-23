@@ -10,6 +10,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.transport.http.schemas.chat import ChatMention, ChatRequest
 from veupath_chatbot.transport.http.schemas.experiments import (
     BenchmarkControlSet,
@@ -29,12 +31,6 @@ from veupath_chatbot.transport.http.schemas.experiments import (
 from veupath_chatbot.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,
     SetOperationRequest,
-)
-from veupath_chatbot.transport.http.schemas.plan import (
-    BasePlanNode,
-    ColocationParams,
-    PlanNode,
-    StrategyPlan,
 )
 from veupath_chatbot.transport.http.schemas.sites import SearchDetailsResponse
 from veupath_chatbot.transport.http.schemas.strategies import (
@@ -73,73 +69,81 @@ class TestChatRequestConstraints:
 
 
 class TestColocationParamsConstraints:
-    def test_negative_upstream_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            ColocationParams(upstream=-1, downstream=0)
+    def test_negative_upstream_flagged_by_check_errors(self) -> None:
+        params = ColocationParams(upstream=-1, downstream=0)
+        errors = params.check_errors()
+        assert any("non-negative" in e.lower() or "upstream" in e.lower() for e in errors)
 
-    def test_negative_downstream_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            ColocationParams(upstream=0, downstream=-1)
+    def test_negative_downstream_flagged_by_check_errors(self) -> None:
+        params = ColocationParams(upstream=0, downstream=-1)
+        errors = params.check_errors()
+        assert any("non-negative" in e.lower() or "downstream" in e.lower() for e in errors)
+
+    def test_valid_params_no_errors(self) -> None:
+        params = ColocationParams(upstream=100, downstream=200)
+        assert params.check_errors() == []
 
 
-class TestPlanNodeValidators:
-    """Tests for model_validator rules on PlanNode."""
+class TestPlanStepNodeValidators:
+    """Tests for model_validator rules on PlanStepNode."""
 
     def test_secondary_without_primary_rejected(self) -> None:
-        leaf = PlanNode(searchName="A")
+        leaf = PlanStepNode(search_name="A")
         with pytest.raises(
             ValidationError, match="secondaryInput requires primaryInput"
         ):
-            PlanNode(searchName="X", secondaryInput=leaf)
+            PlanStepNode(search_name="X", secondary_input=leaf)
 
     def test_secondary_without_operator_rejected(self) -> None:
-        leaf1 = PlanNode(searchName="A")
-        leaf2 = PlanNode(searchName="B")
+        leaf1 = PlanStepNode(search_name="A")
+        leaf2 = PlanStepNode(search_name="B")
         with pytest.raises(
             ValidationError, match="operator is required when secondaryInput"
         ):
-            PlanNode(searchName="C", primaryInput=leaf1, secondaryInput=leaf2)
+            PlanStepNode(
+                search_name="C", primary_input=leaf1, secondary_input=leaf2
+            )
 
     def test_colocate_requires_colocation_params(self) -> None:
-        leaf1 = PlanNode(searchName="A")
-        leaf2 = PlanNode(searchName="B")
+        leaf1 = PlanStepNode(search_name="A")
+        leaf2 = PlanStepNode(search_name="B")
         with pytest.raises(
             ValidationError,
             match="colocationParams is required when operator is COLOCATE",
         ):
-            PlanNode(
-                searchName="C",
-                primaryInput=leaf1,
-                secondaryInput=leaf2,
-                operator="COLOCATE",
+            PlanStepNode(
+                search_name="C",
+                primary_input=leaf1,
+                secondary_input=leaf2,
+                operator=CombineOp.COLOCATE,
             )
 
     def test_colocation_params_only_with_colocate(self) -> None:
-        leaf1 = PlanNode(searchName="A")
-        leaf2 = PlanNode(searchName="B")
+        leaf1 = PlanStepNode(search_name="A")
+        leaf2 = PlanStepNode(search_name="B")
         with pytest.raises(
             ValidationError,
             match="colocationParams is only allowed when operator is COLOCATE",
         ):
-            PlanNode(
-                searchName="C",
-                primaryInput=leaf1,
-                secondaryInput=leaf2,
-                operator="INTERSECT",
-                colocationParams=ColocationParams(upstream=100, downstream=100),
+            PlanStepNode(
+                search_name="C",
+                primary_input=leaf1,
+                secondary_input=leaf2,
+                operator=CombineOp.INTERSECT,
+                colocation_params=ColocationParams(upstream=100, downstream=100),
             )
 
     def test_colocate_with_params_succeeds(self) -> None:
-        leaf1 = PlanNode(searchName="A")
-        leaf2 = PlanNode(searchName="B")
-        n = PlanNode(
-            searchName="C",
-            primaryInput=leaf1,
-            secondaryInput=leaf2,
-            operator="COLOCATE",
-            colocationParams=ColocationParams(upstream=500, downstream=500),
+        leaf1 = PlanStepNode(search_name="A")
+        leaf2 = PlanStepNode(search_name="B")
+        n = PlanStepNode(
+            search_name="C",
+            primary_input=leaf1,
+            secondary_input=leaf2,
+            operator=CombineOp.COLOCATE,
+            colocation_params=ColocationParams(upstream=500, downstream=500),
         )
-        assert n.colocationParams is not None
+        assert n.colocation_params is not None
 
 
 # ── Extra-field behavior ─────────────────────────────────────────────────────
@@ -153,35 +157,22 @@ class TestExtraFieldBehavior:
         assert r.model_extra is not None
         assert r.model_extra.get("custom_field") == "value"
 
-    def test_base_plan_node_extra_fields(self) -> None:
-        n = BasePlanNode.model_validate({"wdkStepId": 42, "estimatedSize": 100})
-        assert n.model_extra is not None
-        assert n.model_extra.get("wdkStepId") == 42
-
-    def test_plan_node_extra_fields(self) -> None:
-        n = PlanNode.model_validate({"searchName": "X", "wdkStepId": 123})
-        assert n.model_extra is not None
-        assert n.model_extra.get("wdkStepId") == 123
-
-    def test_strategy_plan_extra_fields(self) -> None:
-        plan = StrategyPlan.model_validate(
-            {"recordType": "gene", "root": {"searchName": "X"}, "customField": "yes"}
-        )
-        assert plan.model_extra is not None
-        assert plan.model_extra.get("customField") == "yes"
-
 
 # ── Strategy schema constraints ──────────────────────────────────────────────
 
 
 class TestCreateStrategyRequestConstraints:
     def test_name_min_length(self) -> None:
-        plan = StrategyPlan(recordType="gene", root=PlanNode(searchName="X"))
+        plan = StrategyAST(
+            record_type="gene", root=PlanStepNode(search_name="X")
+        )
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="", siteId="x", plan=plan)
 
     def test_name_max_length(self) -> None:
-        plan = StrategyPlan(recordType="gene", root=PlanNode(searchName="X"))
+        plan = StrategyAST(
+            record_type="gene", root=PlanStepNode(search_name="X")
+        )
         CreateStrategyRequest(name="a" * 255, siteId="x", plan=plan)
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="a" * 256, siteId="x", plan=plan)

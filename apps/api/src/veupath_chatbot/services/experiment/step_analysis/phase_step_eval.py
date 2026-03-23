@@ -2,6 +2,7 @@
 
 import asyncio
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -31,7 +32,7 @@ logger = get_logger(__name__)
 
 async def evaluate_steps(
     ctx: ControlsContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepEvaluation]:
     """Evaluate each leaf step against controls, preserving ancestor transforms.
@@ -40,7 +41,7 @@ async def evaluate_steps(
     (e.g. ``GenesByOrthologs``) so that cross-organism searches are
     converted before being compared against controls.
 
-    :param tree: ``PlanStepNode``-shaped dict.
+    :param tree: Strategy tree as a :class:`PlanStepNode`.
     :returns: One :class:`StepEvaluation` per leaf.
     """
     leaves = _collect_leaves(tree)
@@ -50,18 +51,16 @@ async def evaluate_steps(
     results: list[StepEvaluation] = []
     sem = asyncio.Semaphore(3)
 
-    async def _eval_leaf(leaf: JSONObject, idx: int) -> StepEvaluation | None:
-        search_name = str(leaf.get("searchName", ""))
+    async def _eval_leaf(leaf: PlanStepNode, idx: int) -> StepEvaluation | None:
+        search_name = leaf.search_name
         if not search_name or search_name.startswith("__"):
             return None
 
-        display = str(leaf.get("displayName", search_name))
+        display = leaf.display_name or search_name
         lid = _node_id(leaf)
 
         branch = _extract_leaf_branch(tree, lid)
-        has_transforms = branch is not None and isinstance(
-            branch.get("primaryInput"), dict
-        )
+        has_transforms = branch is not None and branch.primary_input is not None
 
         if progress_callback:
             label = f"{display} (via transforms)" if has_transforms else display
@@ -82,10 +81,7 @@ async def evaluate_steps(
                 if branch is not None and has_transforms:
                     raw = await run_controls_against_tree(ctx, branch)
                 else:
-                    raw_params = leaf.get("parameters")
-                    parameters: JSONObject = (
-                        raw_params if isinstance(raw_params, dict) else {}
-                    )
+                    parameters: JSONObject = leaf.parameters or {}
                     raw = await run_positive_negative_controls(
                         IntersectionConfig.from_controls_context(
                             ctx,

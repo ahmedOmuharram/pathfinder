@@ -1,32 +1,101 @@
 """Tree traversal and manipulation helpers for step analysis."""
 
-import copy
-
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.tree import (
-    collect_dict_combine_nodes,
-    collect_dict_leaves,
+    collect_plan_combine_nodes,
+    collect_plan_leaves,
 )
-from veupath_chatbot.platform.types import JSONObject
 
 
-def _collect_leaves(tree: JSONObject) -> list[JSONObject]:
+def _collect_leaves(tree: PlanStepNode) -> list[PlanStepNode]:
     """Return all leaf (search) nodes from the tree."""
-    return collect_dict_leaves(tree)
+    return collect_plan_leaves(tree)
 
 
-def _collect_combine_nodes(tree: JSONObject) -> list[JSONObject]:
+def _collect_combine_nodes(tree: PlanStepNode) -> list[PlanStepNode]:
     """Return all combine (binary) nodes from the tree."""
-    return collect_dict_combine_nodes(tree)
+    return collect_plan_combine_nodes(tree)
 
 
-def _node_id(node: JSONObject) -> str:
-    return str(node.get("id", node.get("searchName", "?")))
+def _node_id(node: PlanStepNode) -> str:
+    """Return the node's unique identifier."""
+    return node.id
+
+
+# ── Pruning internals ────────────────────────────────────────────────
+
+
+def _prune_combine(
+    node: PlanStepNode,
+    pi: PlanStepNode,
+    si: PlanStepNode,
+    target_leaf_id: str,
+) -> PlanStepNode | None:
+    """Prune *target_leaf_id* from a combine node."""
+    if pi.id == target_leaf_id:
+        return si
+    if si.id == target_leaf_id:
+        return pi
+
+    replacement_pi = _prune_node(pi, target_leaf_id)
+    replacement_si = _prune_node(si, target_leaf_id)
+
+    if replacement_pi is None:
+        return replacement_si
+    if replacement_si is None:
+        return replacement_pi
+
+    updates: dict[str, PlanStepNode] = {}
+    if replacement_pi is not pi:
+        updates["primary_input"] = replacement_pi
+    if replacement_si is not si:
+        updates["secondary_input"] = replacement_si
+    if updates:
+        return node.model_copy(update=updates)
+    return node
+
+
+def _prune_unary(
+    node: PlanStepNode,
+    pi: PlanStepNode,
+    target_leaf_id: str,
+) -> PlanStepNode | None:
+    """Prune *target_leaf_id* from a unary (transform) node."""
+    if pi.id == target_leaf_id:
+        return None
+    replacement = _prune_node(pi, target_leaf_id)
+    if replacement is None:
+        return None
+    if replacement is not pi:
+        return node.model_copy(update={"primary_input": replacement})
+    return node
+
+
+def _prune_node(node: PlanStepNode, target_leaf_id: str) -> PlanStepNode | None:
+    """Recursively prune *target_leaf_id*, returning the replacement node.
+
+    Returns ``None`` when the entire subtree collapses.
+    """
+    pi = node.primary_input
+    si = node.secondary_input
+
+    if pi is not None and si is not None:
+        return _prune_combine(node, pi, si, target_leaf_id)
+
+    if pi is not None:
+        return _prune_unary(node, pi, target_leaf_id)
+
+    return node
+
+
+# ── Public helpers ───────────────────────────────────────────────────
 
 
 def _remove_leaf_from_tree(
-    tree: JSONObject,
+    tree: PlanStepNode,
     target_leaf_id: str,
-) -> JSONObject | None:
+) -> PlanStepNode | None:
     """Build a tree with *target_leaf_id* pruned out.
 
     When a leaf is removed its parent combine node is replaced by the
@@ -34,67 +103,15 @@ def _remove_leaf_from_tree(
     also removed so the resulting tree always remains structurally valid.
     Returns ``None`` when the root itself is the target leaf (tree is empty).
     """
-    root_id = _node_id(tree)
-    if root_id == target_leaf_id:
+    if tree.id == target_leaf_id:
         return None
-
-    out = copy.deepcopy(tree)
-
-    def _prune(node: JSONObject) -> JSONObject | None:
-        """Recursively prune *target_leaf_id*, returning the replacement node.
-
-        Returns ``None`` when the entire subtree collapses (e.g. the only
-        remaining content was the removed leaf).
-        """
-        pi = node.get("primaryInput")
-        si = node.get("secondaryInput")
-
-        if isinstance(pi, dict) and isinstance(si, dict):
-            return _prune_combine(node, pi, si)
-
-        if isinstance(pi, dict):
-            return _prune_unary(node, pi)
-
-        return node
-
-    def _prune_combine(
-        node: JSONObject, pi: JSONObject, si: JSONObject
-    ) -> JSONObject | None:
-        pi_id = _node_id(pi)
-        si_id = _node_id(si)
-        if pi_id == target_leaf_id:
-            return si
-        if si_id == target_leaf_id:
-            return pi
-
-        replacement_pi = _prune(pi)
-        replacement_si = _prune(si)
-
-        if replacement_pi is None:
-            return replacement_si
-        if replacement_si is None:
-            return replacement_pi
-
-        if replacement_pi is not pi:
-            node["primaryInput"] = replacement_pi
-        if replacement_si is not si:
-            node["secondaryInput"] = replacement_si
-        return node
-
-    def _prune_unary(node: JSONObject, pi: JSONObject) -> JSONObject | None:
-        if _node_id(pi) == target_leaf_id:
-            return None
-        replacement = _prune(pi)
-        if replacement is None:
-            return None
-        if replacement is not pi:
-            node["primaryInput"] = replacement
-        return node
-
-    return _prune(out)
+    return _prune_node(tree, target_leaf_id)
 
 
-def _extract_leaf_branch(tree: JSONObject, leaf_id: str) -> JSONObject | None:
+def _extract_leaf_branch(
+    tree: PlanStepNode,
+    leaf_id: str,
+) -> PlanStepNode | None:
     """Extract the subtree that includes *leaf_id* and its ancestor transforms.
 
     Walks from the root toward *leaf_id*.  At combine nodes the function
@@ -105,34 +122,33 @@ def _extract_leaf_branch(tree: JSONObject, leaf_id: str) -> JSONObject | None:
 
     Returns ``None`` if *leaf_id* is not found.
     """
-    pi = tree.get("primaryInput")
-    si = tree.get("secondaryInput")
+    pi = tree.primary_input
+    si = tree.secondary_input
 
-    if not isinstance(pi, dict) and not isinstance(si, dict):
-        return copy.deepcopy(tree) if _node_id(tree) == leaf_id else None
+    # Leaf node
+    if pi is None and si is None:
+        return tree if tree.id == leaf_id else None
 
-    if isinstance(pi, dict) and isinstance(si, dict):
+    # Combine node: descend into whichever branch contains the leaf
+    if pi is not None and si is not None:
         branch = _extract_leaf_branch(pi, leaf_id)
         if branch is not None:
             return branch
         return _extract_leaf_branch(si, leaf_id)
 
-    if isinstance(pi, dict):
+    # Transform/unary node: preserve the wrapper around the child result
+    if pi is not None:
         child = _extract_leaf_branch(pi, leaf_id)
         if child is not None:
-            out = copy.deepcopy(tree)
-            out["primaryInput"] = child
-            return out
+            return tree.model_copy(update={"primary_input": child})
         return None
 
     return None
 
 
 def _build_subtree_with_operator(
-    combine_node: JSONObject,
-    operator: str,
-) -> JSONObject:
+    combine_node: PlanStepNode,
+    operator: CombineOp,
+) -> PlanStepNode:
     """Clone a combine node's subtree with a different operator."""
-    out = copy.deepcopy(combine_node)
-    out["operator"] = operator
-    return out
+    return combine_node.model_copy(update={"operator": operator})

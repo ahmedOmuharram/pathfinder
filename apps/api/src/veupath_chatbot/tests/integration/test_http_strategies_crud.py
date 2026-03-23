@@ -10,7 +10,7 @@ def _minimal_plan() -> JSONObject:
             "searchName": "GenesByTextSearch",
             "parameters": {"text": "kinase"},
         },
-        "metadata": {"name": "Test Plan"},
+        "name": "Test Plan",
     }
 
 

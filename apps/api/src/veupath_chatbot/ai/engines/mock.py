@@ -53,7 +53,7 @@ def _build_planning_artifact_call(site_id: str) -> list[ToolCall]:
             "displayName": f"All {organism} genes",
             "parameters": {"organism": f'["{organism}"]'},
         },
-        "metadata": {"name": f"{organism} gene search"},
+        "name": f"{organism} gene search",
     }
     return [
         ToolCall.from_function(
@@ -97,7 +97,7 @@ def _build_delegation_draft_call(site_id: str) -> list[ToolCall]:
                     "displayName": f"All {organism} genes",
                     "parameters": {"organism": f'["{organism}"]'},
                 },
-                "metadata": {"name": f"{organism} delegation strategy"},
+                "name": f"{organism} delegation strategy",
             },
         )
     ]

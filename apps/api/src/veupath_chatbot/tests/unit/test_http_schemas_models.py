@@ -4,6 +4,8 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.transport.http import schemas
 from veupath_chatbot.transport.http.schemas.chat import ChatMention
 from veupath_chatbot.transport.http.schemas.experiments import (
@@ -12,7 +14,6 @@ from veupath_chatbot.transport.http.schemas.experiments import (
     OverlapRequest,
     ThresholdSweepRequest,
 )
-from veupath_chatbot.transport.http.schemas.plan import PlanNode
 
 
 def test_http_schemas_import_and_basic_model_parsing() -> None:
@@ -120,9 +121,9 @@ def test_open_strategy_request_requires_at_least_one_id() -> None:
 
 
 def test_create_strategy_request_validates_name_length() -> None:
-    plan = schemas.StrategyPlan(
-        recordType="gene",
-        root=PlanNode(searchName="GenesByOrganism"),
+    plan = StrategyAST(
+        record_type="gene",
+        root=PlanStepNode(search_name="GenesByOrganism"),
     )
     req = schemas.CreateStrategyRequest(
         name="Valid Name",
@@ -133,9 +134,9 @@ def test_create_strategy_request_validates_name_length() -> None:
 
 
 def test_create_strategy_rejects_empty_name() -> None:
-    plan = schemas.StrategyPlan(
-        recordType="gene",
-        root=PlanNode(searchName="GenesByOrganism"),
+    plan = StrategyAST(
+        record_type="gene",
+        root=PlanStepNode(search_name="GenesByOrganism"),
     )
     with pytest.raises(ValidationError) as exc_info:
         schemas.CreateStrategyRequest(name="", siteId="plasmodb", plan=plan)
@@ -230,29 +231,29 @@ def test_custom_enrich_request_validation() -> None:
 # ── Strategy plan / PlanNode schema ──
 
 
-def test_strategy_plan_nested_structure() -> None:
-    plan = schemas.StrategyPlan(
-        recordType="gene",
-        root=PlanNode(
-            searchName="GenesByOrganism",
+def test_strategy_ast_nested_structure() -> None:
+    plan = StrategyAST(
+        record_type="gene",
+        root=PlanStepNode(
+            search_name="GenesByOrganism",
             parameters={"organism": "Plasmodium falciparum"},
         ),
     )
-    assert plan.recordType == "gene"
-    assert plan.root.searchName == "GenesByOrganism"
+    assert plan.record_type == "gene"
+    assert plan.root.search_name == "GenesByOrganism"
 
 
-def test_plan_node_with_combine() -> None:
-    leaf1 = PlanNode(searchName="GenesByOrganism")
-    leaf2 = PlanNode(searchName="GenesByProduct")
-    combined = PlanNode(
-        searchName="GenesByOrganism",
-        primaryInput=leaf1,
-        secondaryInput=leaf2,
-        operator="INTERSECT",
+def test_plan_step_node_with_combine() -> None:
+    leaf1 = PlanStepNode(search_name="GenesByOrganism")
+    leaf2 = PlanStepNode(search_name="GenesByProduct")
+    combined = PlanStepNode(
+        search_name="GenesByOrganism",
+        primary_input=leaf1,
+        secondary_input=leaf2,
+        operator=CombineOp.INTERSECT,
     )
-    assert combined.operator == "INTERSECT"
-    assert combined.secondaryInput is not None
+    assert combined.operator == CombineOp.INTERSECT
+    assert combined.secondary_input is not None
 
 
 # ── MessageResponse schema ──

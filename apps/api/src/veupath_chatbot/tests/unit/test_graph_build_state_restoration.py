@@ -224,7 +224,7 @@ class TestPlanPathRestoresWdkStepIds:
                         "displayName": "All genes",
                         "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
                     },
-                    "metadata": {"name": "My Strategy"},
+                    "name": "My Strategy",
                 },
                 "steps": [
                     {

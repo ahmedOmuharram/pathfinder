@@ -1,6 +1,6 @@
 """Tests for wdk_weight field on PlanStepNode."""
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, from_dict
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 
 
 class TestWdkWeightToDict:
@@ -28,10 +28,10 @@ class TestWdkWeightToDict:
         assert result["wdkWeight"] == 0
 
 
-class TestWdkWeightFromDict:
-    """Tests for wdk_weight deserialization in from_dict()."""
+class TestWdkWeightModelValidate:
+    """Tests for wdk_weight deserialization in model_validate()."""
 
-    def test_from_dict_parses_wdk_weight(self) -> None:
+    def test_model_validate_parses_wdk_weight(self) -> None:
         data = {
             "recordType": "gene",
             "root": {
@@ -40,10 +40,10 @@ class TestWdkWeightFromDict:
                 "wdkWeight": 5,
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.wdk_weight == 5
 
-    def test_from_dict_wdk_weight_absent(self) -> None:
+    def test_model_validate_wdk_weight_absent(self) -> None:
         data = {
             "recordType": "gene",
             "root": {
@@ -51,10 +51,10 @@ class TestWdkWeightFromDict:
                 "parameters": {},
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.wdk_weight is None
 
-    def test_from_dict_wdk_weight_zero(self) -> None:
+    def test_model_validate_wdk_weight_zero(self) -> None:
         data = {
             "recordType": "gene",
             "root": {
@@ -63,12 +63,12 @@ class TestWdkWeightFromDict:
                 "wdkWeight": 0,
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.wdk_weight == 0
 
 
 class TestWdkWeightRoundTrip:
-    """Tests for wdk_weight round-trip: to_dict -> from_dict."""
+    """Tests for wdk_weight round-trip: to_dict -> model_validate."""
 
     def test_round_trip_with_weight(self) -> None:
         node = PlanStepNode(search_name="GenesByTaxon", wdk_weight=10)
@@ -76,7 +76,7 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.to_dict(),
         }
-        ast = from_dict(serialized)
+        ast = StrategyAST.model_validate(serialized)
         assert ast.root.wdk_weight == 10
 
     def test_round_trip_without_weight(self) -> None:
@@ -85,7 +85,7 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.to_dict(),
         }
-        ast = from_dict(serialized)
+        ast = StrategyAST.model_validate(serialized)
         assert ast.root.wdk_weight is None
 
     def test_round_trip_preserves_zero_weight(self) -> None:
@@ -94,5 +94,5 @@ class TestWdkWeightRoundTrip:
             "recordType": "gene",
             "root": node.to_dict(),
         }
-        ast = from_dict(serialized)
+        ast = StrategyAST.model_validate(serialized)
         assert ast.root.wdk_weight == 0

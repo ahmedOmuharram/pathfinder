@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -195,12 +196,10 @@ async def _phase_evaluate(
             site_id=config.site_id,
             record_type=config.record_type,
         )
-    elif config.is_tree_mode:
-        tree_dict: JSONObject = cast("JSONObject", config.step_tree)
-
+    elif config.is_tree_mode and config.step_tree is not None:
         result = await run_controls_against_tree(
             ControlsContext.from_config(config),
-            tree_dict,
+            config.step_tree,
         )
     else:
         result = await _run_single_step_controls(config, config.parameters)
@@ -219,7 +218,7 @@ async def _phase_evaluate(
 
 async def _phase_step_analysis(
     pctx: PhaseContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     baseline_result: ControlTestResult,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
@@ -252,7 +251,7 @@ async def _phase_step_analysis(
 
 async def _phase_persist_strategy(
     pctx: PhaseContext,
-    final_tree: JSONObject | None,
+    final_tree: PlanStepNode | None,
 ) -> None:
     """Create a persisted WDK strategy for result exploration (best-effort)."""
     config, experiment = pctx.config, pctx.experiment
@@ -450,7 +449,7 @@ async def _phase_optimize_parameters(
 
 async def _phase_optimize_tree_knobs(
     pctx: PhaseContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
 ) -> None:
     """Optimize threshold parameters and boolean operators across a strategy tree."""
     config, experiment = pctx.config, pctx.experiment
@@ -487,7 +486,7 @@ async def _phase_optimize_tree_knobs(
 
 async def _phase_cross_validate(
     pctx: PhaseContext,
-    final_tree: JSONObject | None,
+    final_tree: PlanStepNode | None,
 ) -> None:
     """Run k-fold cross-validation (tree or single-step)."""
     config, experiment = pctx.config, pctx.experiment
@@ -617,17 +616,14 @@ async def run_experiment(
         # Phase 1: Control-test evaluation + metrics + gene enrichment
         result, metrics = await _phase_evaluate(pctx)
 
-        tree_dict: JSONObject = (
-            cast("JSONObject", config.step_tree) if config.is_tree_mode else {}
-        )
-        final_tree: JSONObject | None = tree_dict if config.is_tree_mode else None
+        plan_tree: PlanStepNode | None = config.step_tree if config.is_tree_mode else None
 
         # Phase 2: Step analysis (multi-step only)
-        if config.is_tree_mode and config.enable_step_analysis:
-            await _phase_step_analysis(pctx, tree_dict, result)
+        if config.is_tree_mode and plan_tree is not None and config.enable_step_analysis:
+            await _phase_step_analysis(pctx, plan_tree, result)
 
         # Phase 3: Persist WDK strategy for result exploration
-        await _phase_persist_strategy(pctx, final_tree)
+        await _phase_persist_strategy(pctx, plan_tree)
 
         # Phase 4: Rank-based metrics
         is_ranked = config.sort_attribute is not None
@@ -646,8 +642,8 @@ async def run_experiment(
 
         # Phase 7: Tree-knob optimization (multi-step only)
         has_tree_knobs = bool(config.threshold_knobs or config.operator_knobs)
-        if config.is_tree_mode and has_tree_knobs and final_tree is not None:
-            await _phase_optimize_tree_knobs(pctx, tree_dict)
+        if config.is_tree_mode and has_tree_knobs and plan_tree is not None:
+            await _phase_optimize_tree_knobs(pctx, plan_tree)
 
         # Phase 8: Cross-validation
         if (
@@ -655,7 +651,7 @@ async def run_experiment(
             and config.positive_controls
             and config.negative_controls
         ):
-            await _phase_cross_validate(pctx, final_tree)
+            await _phase_cross_validate(pctx, plan_tree)
 
         # Phase 9: Enrichment analysis
         if config.enrichment_types:

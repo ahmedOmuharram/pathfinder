@@ -8,7 +8,6 @@ import contextlib
 
 import pydantic
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     tag_internal_wdk_strategy_name,
@@ -31,7 +30,7 @@ class StrategiesMixin(StrategyAPIBase):
 
     async def create_strategy(  # noqa: PLR0913
         self,
-        step_tree: StepTreeNode,
+        step_tree: WDKStepTree,
         name: str,
         description: str | None = None,
         *,
@@ -104,7 +103,7 @@ class StrategiesMixin(StrategyAPIBase):
     async def update_strategy(
         self,
         strategy_id: int,
-        step_tree: StepTreeNode | None = None,
+        step_tree: WDKStepTree | None = None,
         name: str | None = None,
         user_id: str | None = None,
     ) -> WDKStrategyDetails:

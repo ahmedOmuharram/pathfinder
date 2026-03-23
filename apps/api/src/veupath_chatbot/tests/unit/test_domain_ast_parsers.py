@@ -5,6 +5,7 @@ ColocationParams.from_json(), PlanStepNode.infer_kind(), StrategyAST round-trip.
 """
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -12,7 +13,6 @@ from veupath_chatbot.domain.strategy.ast import (
     StepFilter,
     StepReport,
     StrategyAST,
-    from_dict,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 
@@ -187,7 +187,10 @@ class TestInferKind:
         left = PlanStepNode(search_name="S1")
         right = PlanStepNode(search_name="S2")
         node = PlanStepNode(
-            search_name="bq", primary_input=left, secondary_input=right
+            search_name="bq",
+            primary_input=left,
+            secondary_input=right,
+            operator=CombineOp.INTERSECT,
         )
         assert node.infer_kind() == "combine"
 
@@ -212,6 +215,7 @@ class TestGetAllSteps:
             id="root",
             primary_input=left,
             secondary_input=right,
+            operator=CombineOp.INTERSECT,
         )
         ast = StrategyAST(record_type="transcript", root=root)
         ids = [s.id for s in ast.get_all_steps()]
@@ -227,6 +231,7 @@ class TestGetAllSteps:
             id="root",
             primary_input=left,
             secondary_input=right,
+            operator=CombineOp.UNION,
         )
         ast = StrategyAST(record_type="transcript", root=root)
         ids = [s.id for s in ast.get_all_steps()]
@@ -248,10 +253,10 @@ class TestGetStepById:
         assert ast.get_step_by_id("nonexistent") is None
 
 
-# ── from_dict round-trip ──────────────────────────────────────────
+# ── model_validate round-trip ──────────────────────────────────────
 
 
-class TestFromDict:
+class TestModelValidate:
     def test_single_step(self) -> None:
         data = {
             "recordType": "transcript",
@@ -261,7 +266,7 @@ class TestFromDict:
                 "id": "step1",
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.record_type == "transcript"
         assert ast.root.search_name == "GenesByTaxon"
         assert ast.root.parameters == {"organism": "pfal"}
@@ -283,26 +288,28 @@ class TestFromDict:
                 },
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.operator == CombineOp.INTERSECT
         assert ast.root.primary_input is not None
         assert ast.root.secondary_input is not None
 
     def test_missing_record_type_raises(self) -> None:
-        with pytest.raises(TypeError, match="recordType"):
-            from_dict({"root": {"searchName": "S1"}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate({"root": {"searchName": "S1"}})
 
     def test_missing_root_raises(self) -> None:
-        with pytest.raises(TypeError, match="root"):
-            from_dict({"recordType": "transcript"})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate({"recordType": "transcript"})
 
     def test_missing_search_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="searchName"):
-            from_dict({"recordType": "transcript", "root": {"parameters": {}}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": "transcript", "root": {"parameters": {}}}
+            )
 
     def test_secondary_without_primary_raises(self) -> None:
-        with pytest.raises(ValueError, match="secondaryInput requires primaryInput"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="primaryInput"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "transcript",
                     "root": {
@@ -313,8 +320,8 @@ class TestFromDict:
             )
 
     def test_secondary_without_operator_raises(self) -> None:
-        with pytest.raises(ValueError, match="operator is required"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="operator"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "transcript",
                     "root": {
@@ -326,8 +333,8 @@ class TestFromDict:
             )
 
     def test_colocate_without_params_raises(self) -> None:
-        with pytest.raises(ValueError, match="colocationParams is required"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="colocationParams"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "transcript",
                     "root": {
@@ -340,8 +347,8 @@ class TestFromDict:
             )
 
     def test_colocation_params_on_non_colocate_raises(self) -> None:
-        with pytest.raises(ValueError, match="colocationParams is only allowed"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="colocationParams"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "transcript",
                     "root": {
@@ -355,7 +362,7 @@ class TestFromDict:
             )
 
     def test_round_trip_preserves_structure(self) -> None:
-        """to_dict → from_dict should preserve key fields."""
+        """to_dict -> model_validate should preserve key fields."""
         original = StrategyAST(
             record_type="transcript",
             root=PlanStepNode(
@@ -367,8 +374,7 @@ class TestFromDict:
             description="A test",
         )
         data = original.to_dict()
-        # from_dict reads name/description from metadata
-        restored = from_dict(data)
+        restored = StrategyAST.model_validate(data)
         assert restored.record_type == original.record_type
         assert restored.root.search_name == original.root.search_name
         assert restored.root.parameters == original.root.parameters
@@ -384,7 +390,7 @@ class TestFromDict:
                 "filters": [{"name": "gene_type", "value": "protein_coding"}],
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert len(ast.root.filters) == 1
         assert ast.root.filters[0].name == "gene_type"
 
@@ -399,7 +405,7 @@ class TestFromDict:
                 ],
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert len(ast.root.analyses) == 1
         assert ast.root.analyses[0].analysis_type == "go_enrichment"
 
@@ -412,5 +418,5 @@ class TestFromDict:
                 "wdkWeight": 10,
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.wdk_weight == 10

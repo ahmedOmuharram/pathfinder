@@ -13,7 +13,7 @@ not present there.
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -21,6 +21,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     PatchStepSpec,
     WDKDatasetConfig,
     WDKIdentifier,
+    WDKStepTree,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
@@ -387,7 +388,7 @@ class TestCreateOrUpdateEdgeCases:
         """Successful update returns the existing strategy ID."""
         api = _FakeBuildAPI()
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(record_type="gene", root=_step(), name="Keep")
         result = await create_or_update_wdk_strategy(api, compilation, strategy, 42)
@@ -398,7 +399,7 @@ class TestCreateOrUpdateEdgeCases:
         """Update sends the strategy name to the API."""
         api = _FakeBuildAPI()
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(record_type="gene", root=_step(), name="Named")
         await create_or_update_wdk_strategy(api, compilation, strategy, 1)
@@ -408,7 +409,7 @@ class TestCreateOrUpdateEdgeCases:
         """When strategy.name is None, the fallback 'Untitled Strategy' is used."""
         api = _FakeBuildAPI()
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(record_type="gene", root=_step(), name=None)
         await create_or_update_wdk_strategy(api, compilation, strategy, 1)
@@ -418,7 +419,7 @@ class TestCreateOrUpdateEdgeCases:
         """Create passes description to the API."""
         api = _FakeBuildAPI()
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(
             record_type="gene", root=_step(), name="S", description="Desc"
@@ -430,7 +431,7 @@ class TestCreateOrUpdateEdgeCases:
         """Create fallback name is 'Untitled Strategy'."""
         api = _FakeBuildAPI()
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(record_type="gene", root=_step(), name=None)
         await create_or_update_wdk_strategy(api, compilation, strategy, None)
@@ -443,7 +444,7 @@ class TestCreateOrUpdateEdgeCases:
             create_strategy_response=WDKIdentifier(id=777),
         )
         compilation = CompilationResult(
-            steps=[], step_tree=StepTreeNode(step_id=1), root_step_id=1
+            steps=[], step_tree=WDKStepTree(step_id=1), root_step_id=1
         )
         strategy = StrategyAST(record_type="gene", root=_step(), name="Fallback")
         result = await create_or_update_wdk_strategy(api, compilation, strategy, 99)

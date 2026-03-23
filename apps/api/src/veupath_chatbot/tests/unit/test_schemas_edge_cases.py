@@ -8,7 +8,7 @@ Covers gaps not addressed by the existing test_http_schemas_transport.py:
 - AuthStatusResponse uses non-aliased field names (camelCase directly)
 - StrategyResponse.record_type should be Optional with a default
 - Experiment CRUD PATCH body is untyped dict (no schema validation)
-- PlanNode allows operator without secondaryInput
+- PlanStepNode allows operator without secondaryInput
 """
 
 from datetime import UTC, datetime
@@ -17,6 +17,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from veupath_chatbot.domain.strategy.ops import ColocationParams
 from veupath_chatbot.transport.http.schemas.chat import (
     ChatMention,
     ChatRequest,
@@ -33,11 +34,8 @@ from veupath_chatbot.transport.http.schemas.gene_sets import (
     RunGeneSetAnalysisRequest,
     SetOperationRequest,
 )
-from veupath_chatbot.transport.http.schemas.plan import (
-    ColocationParams,
-    PlanNode,
-    StrategyPlan,
-)
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.transport.http.schemas.sites import (
     SearchDetailsResponse,
     SearchValidationErrors,
@@ -210,27 +208,21 @@ class TestStrategyResponseRecordType:
 
 
 # ---------------------------------------------------------------------------
-# PlanNode: operator without secondaryInput
+# PlanStepNode: operator without secondaryInput
 # ---------------------------------------------------------------------------
 
 
-class TestPlanNodeOperatorWithoutSecondary:
+class TestPlanStepNodeOperatorWithoutSecondary:
     def test_operator_without_secondary_allowed(self) -> None:
-        # operator without secondaryInput is allowed by the validator.
-        # The validator only checks "secondary requires primary" and
-        # "operator required when secondary present".
-        # Having an operator with only primaryInput (transform) is valid.
-        leaf = PlanNode(searchName="A")
-        n = PlanNode(searchName="B", primaryInput=leaf, operator="INTERSECT")
-        assert n.operator == "INTERSECT"
-        assert n.secondaryInput is None
+        leaf = PlanStepNode(search_name="A")
+        n = PlanStepNode(search_name="B", primary_input=leaf, operator=CombineOp.INTERSECT)
+        assert n.operator == CombineOp.INTERSECT
+        assert n.secondary_input is None
 
     def test_operator_alone_without_any_input_allowed(self) -> None:
-        # An operator on a leaf node is semantically nonsensical but the
-        # schema allows it. This is a minor validation gap.
-        n = PlanNode(searchName="A", operator="UNION")
-        assert n.operator == "UNION"
-        assert n.primaryInput is None
+        n = PlanStepNode(search_name="A", operator=CombineOp.UNION)
+        assert n.operator == CombineOp.UNION
+        assert n.primary_input is None
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +258,7 @@ class TestSpecialCharacterSerialization:
         assert "<script>" in msg.content
 
     def test_strategy_name_with_special_chars(self) -> None:
-        plan = StrategyPlan(recordType="gene", root=PlanNode(searchName="X"))
+        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
         req = CreateStrategyRequest(
             name='Strategy "with quotes" & <tags>',
             siteId="plasmodb",
@@ -507,9 +499,11 @@ class TestColocationParamsEdgeCases:
             c = ColocationParams(upstream=0, downstream=0, strand=strand)
             assert c.strand == strand
 
-    def test_invalid_strand_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            ColocationParams(upstream=0, downstream=0, strand="invalid_strand")
+    def test_invalid_strand_coerced_to_both(self) -> None:
+        # Domain ColocationParams coerces unrecognized strand to "both"
+        # (tolerant of AI-generated plans).
+        c = ColocationParams(upstream=0, downstream=0, strand="invalid_strand")
+        assert c.strand == "both"
 
 
 # ---------------------------------------------------------------------------

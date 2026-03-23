@@ -8,6 +8,7 @@ adapter that delegates to this module.
 from dataclasses import dataclass
 from typing import Any
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
 from veupath_chatbot.platform.logging import get_logger
@@ -44,8 +45,9 @@ async def build_gold_strategy(
     """
     api = get_strategy_api(site_id)
 
+    tree_node = PlanStepNode.model_validate(step_tree)
     root_tree = await _materialize_step_tree(
-        api, step_tree, record_type, site_id=site_id
+        api, tree_node, record_type, site_id=site_id
     )
     root_step_id = root_tree.step_id
 

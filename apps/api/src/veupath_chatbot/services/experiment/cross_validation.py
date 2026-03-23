@@ -12,6 +12,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -256,7 +257,7 @@ async def _run_kfold(
 
 async def run_cross_validation(
     ctx: ControlsContext,
-    tree: JSONObject | None,
+    tree: PlanStepNode | None,
     search_name: str | None,
     parameters: JSONObject | None,
     options: CrossValidationOptions | None = None,
@@ -269,7 +270,7 @@ async def run_cross_validation(
 
     :param ctx: Shared controls context (site, record type, controls config,
         positive/negative controls).
-    :param tree: Strategy tree dict for tree-mode evaluation, or ``None`` for
+    :param tree: Strategy plan tree for tree-mode evaluation, or ``None`` for
         single-step mode.
     :param search_name: WDK search name (single-step mode only).
     :param parameters: WDK search parameters (single-step mode only).

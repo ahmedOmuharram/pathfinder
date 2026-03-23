@@ -13,19 +13,6 @@ COMBINE_SEARCH_NAME = "__combine__"
 UNKNOWN_SEARCH_NAME = "__unknown__"
 
 
-class StepTreeNode(CamelModel):
-    """Node in a WDK step tree.
-
-    Represents a single step with optional primary (and for combines, secondary)
-    input references. Used to build the ``stepTree`` payload for WDK strategy
-    creation. Pure data structure with no I/O.
-    """
-
-    step_id: int
-    primary_input: StepTreeNode | None = None
-    secondary_input: StepTreeNode | None = None
-
-
 def generate_step_id() -> str:
     """Generate a unique step ID."""
     return f"step_{uuid4().hex[:8]}"
@@ -179,6 +166,22 @@ class PlanStepNode(CamelModel):
     wdk_weight: int | None = None
     id: str = Field(default_factory=generate_step_id)
 
+    @model_validator(mode="after")
+    def _validate_structure(self) -> PlanStepNode:
+        if self.secondary_input is not None and self.primary_input is None:
+            msg = "secondaryInput requires primaryInput"
+            raise ValueError(msg)
+        if self.secondary_input is not None and not self.operator:
+            msg = "operator is required when secondaryInput is present"
+            raise ValueError(msg)
+        if self.operator == CombineOp.COLOCATE and self.colocation_params is None:
+            msg = "colocationParams is required when operator is COLOCATE"
+            raise ValueError(msg)
+        if self.operator != CombineOp.COLOCATE and self.colocation_params is not None:
+            msg = "colocationParams is only allowed when operator is COLOCATE"
+            raise ValueError(msg)
+        return self
+
     def infer_kind(self) -> str:
         if self.primary_input is not None and self.secondary_input is not None:
             return "combine"
@@ -224,17 +227,17 @@ class StrategyAST(CamelModel):
 
     def to_dict(self) -> JSONObject:
         """Convert to dictionary representation."""
-        metadata: JSONObject = dict(self.metadata or {})
-        # Ensure name/description are always reflected in metadata.
-        if self.name is not None:
-            metadata["name"] = self.name
-        if self.description is not None:
-            metadata["description"] = self.description
-        return {
+        result: JSONObject = {
             "recordType": self.record_type,
             "root": self.root.to_dict(),
-            "metadata": metadata or None,
         }
+        if self.name is not None:
+            result["name"] = self.name
+        if self.description is not None:
+            result["description"] = self.description
+        if self.metadata:
+            result["metadata"] = self.metadata
+        return result
 
     def get_all_steps(self) -> list[PlanStepNode]:
         """Get all steps in the tree (depth-first)."""
@@ -262,96 +265,3 @@ class StrategyAST(CamelModel):
         return None
 
 
-def from_dict(data: JSONObject) -> StrategyAST:
-    """Parse strategy from dictionary representation.
-
-    :param data: Data dict.
-
-    """
-
-    def parse_node(node_data: JSONObject) -> PlanStepNode:
-        search_name = node_data.get("searchName")
-        if not isinstance(search_name, str) or not search_name:
-            msg = "Missing searchName"
-            raise ValueError(msg)
-
-        params = node_data.get("parameters") or {}
-        if not isinstance(params, dict):
-            msg = "parameters must be an object"
-            raise TypeError(msg)
-
-        primary_raw = node_data.get("primaryInput")
-        secondary_raw = node_data.get("secondaryInput")
-        primary = parse_node(primary_raw) if isinstance(primary_raw, dict) else None
-        secondary = (
-            parse_node(secondary_raw) if isinstance(secondary_raw, dict) else None
-        )
-
-        op_raw = node_data.get("operator")
-        operator = CombineOp(op_raw) if isinstance(op_raw, str) and op_raw else None
-
-        colocation = ColocationParams.from_json(node_data.get("colocationParams"))
-
-        # basic structural constraints
-        if secondary is not None and primary is None:
-            msg = "secondaryInput requires primaryInput"
-            raise ValueError(msg)
-        if secondary is not None and operator is None:
-            msg = "operator is required when secondaryInput is present"
-            raise ValueError(msg)
-        if operator == CombineOp.COLOCATE and colocation is None:
-            msg = "colocationParams is required when operator is COLOCATE"
-            raise ValueError(msg)
-        if operator != CombineOp.COLOCATE and colocation is not None:
-            msg = "colocationParams is only allowed when operator is COLOCATE"
-            raise ValueError(msg)
-
-        display_name_raw = node_data.get("displayName")
-        display_name = display_name_raw if isinstance(display_name_raw, str) else None
-        id_raw = node_data.get("id")
-        step_id = id_raw if isinstance(id_raw, str) else generate_step_id()
-        wdk_weight_raw = node_data.get("wdkWeight")
-        wdk_weight = (
-            int(wdk_weight_raw) if isinstance(wdk_weight_raw, (int, float)) else None
-        )
-        return PlanStepNode(
-            search_name=search_name,
-            parameters=params,
-            primary_input=primary,
-            secondary_input=secondary,
-            operator=operator,
-            colocation_params=colocation,
-            display_name=display_name,
-            filters=StepFilter.from_list(node_data.get("filters")),
-            analyses=StepAnalysis.from_list(node_data.get("analyses")),
-            reports=StepReport.from_list(node_data.get("reports")),
-            wdk_weight=wdk_weight,
-            id=step_id,
-        )
-
-    record_type_raw = data.get("recordType")
-    if not isinstance(record_type_raw, str):
-        msg = "Missing or invalid recordType"
-        raise TypeError(msg)
-
-    root_raw = data.get("root")
-    if not isinstance(root_raw, dict):
-        msg = "Missing or invalid root"
-        raise TypeError(msg)
-
-    metadata_raw = data.get("metadata", {})
-    metadata_obj = metadata_raw if isinstance(metadata_raw, dict) else {}
-
-    name_raw = metadata_obj.get("name")
-    name = name_raw if isinstance(name_raw, str) else None
-
-    description_raw = metadata_obj.get("description")
-    description = description_raw if isinstance(description_raw, str) else None
-
-    return StrategyAST(
-        record_type=record_type_raw,
-        root=parse_node(root_raw),
-        name=name,
-        description=description,
-        metadata=metadata_obj or None,
-    )

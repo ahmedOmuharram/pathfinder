@@ -1,7 +1,6 @@
 """Phase 4: Parameter sensitivity -- sweep numeric params across their range."""
 
 import asyncio
-import copy
 import math
 from typing import TypedDict
 
@@ -9,7 +8,12 @@ from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
     adapt_param_specs_from_search,
 )
-from veupath_chatbot.domain.strategy.tree import collect_dict_leaves, walk_dict_tree
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.tree import (
+    collect_plan_leaves,
+    map_plan_tree,
+    walk_plan_tree,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -119,10 +123,10 @@ async def _fetch_search_specs(
 async def _discover_numeric_params(
     site_id: str,
     record_type: str,
-    leaf: JSONObject,
+    leaf: PlanStepNode,
 ) -> list[_NumericParamSpec]:
     """Discover numeric parameters on a leaf from WDK metadata."""
-    search_name = str(leaf.get("searchName", ""))
+    search_name = leaf.search_name
     if not search_name:
         return []
 
@@ -130,9 +134,7 @@ async def _discover_numeric_params(
     if specs is None:
         return []
 
-    node_params = leaf.get("parameters", {})
-    if not isinstance(node_params, dict):
-        node_params = {}
+    node_params: JSONObject = leaf.parameters or {}
 
     result: list[_NumericParamSpec] = []
     for spec in specs.values():
@@ -319,13 +321,13 @@ def _prepare_sweep_range(
 async def _collect_sweep_specs(
     site_id: str,
     record_type: str,
-    leaves: list[JSONObject],
-) -> list[tuple[JSONObject, _NumericParamSpec, list[_NumericParamSpec]]]:
+    leaves: list[PlanStepNode],
+) -> list[tuple[PlanStepNode, _NumericParamSpec, list[_NumericParamSpec]]]:
     """Collect deduplicated (leaf, spec, all_params) tuples for sweeping."""
     seen: set[str] = set()
-    result: list[tuple[JSONObject, _NumericParamSpec, list[_NumericParamSpec]]] = []
+    result: list[tuple[PlanStepNode, _NumericParamSpec, list[_NumericParamSpec]]] = []
     for leaf in leaves:
-        search_name = str(leaf.get("searchName", ""))
+        search_name = leaf.search_name
         params = await _discover_numeric_params(site_id, record_type, leaf)
         for spec in params:
             dedup_key = f"{search_name}:{spec['name']}"
@@ -345,22 +347,28 @@ async def _eval_sweep_value(
     val: float,
     lid: str,
     pname: str,
-    tree: JSONObject,
+    tree: PlanStepNode,
     sem: asyncio.Semaphore,
     ctx: ControlsContext,
 ) -> ParameterSweepPoint | None:
     """Evaluate a single parameter value by running controls against a patched tree."""
-    modified = copy.deepcopy(tree)
+    patched_params: JSONObject | None = None
 
-    def _patch_node(node: JSONObject) -> None:
-        if _node_id(node) == lid:
-            params = node.get("parameters")
-            if not isinstance(params, dict):
-                params = {}
-                node["parameters"] = params
-            params[pname] = str(val)
+    def _patch_node(node: PlanStepNode) -> None:
+        nonlocal patched_params
+        if node.id == lid:
+            patched_params = dict(node.parameters)
+            patched_params[pname] = str(val)
 
-    walk_dict_tree(modified, _patch_node)
+    walk_plan_tree(tree, _patch_node)
+
+    # Build a modified tree with the patched parameters using model_copy
+    def _apply_patch(node: PlanStepNode) -> PlanStepNode:
+        if node.id == lid and patched_params is not None:
+            return node.model_copy(update={"parameters": patched_params})
+        return node
+
+    modified = map_plan_tree(tree, _apply_patch)
 
     try:
         async with sem:
@@ -392,7 +400,7 @@ async def _eval_sweep_value(
 
 async def sweep_parameters(
     ctx: ControlsContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[ParameterSensitivity]:
     """Sweep numeric params on each leaf across their WDK-declared range.
@@ -401,10 +409,10 @@ async def sweep_parameters(
     searches across leaves, and only recommends changes when the
     improvement is meaningful.
 
-    :param tree: ``PlanStepNode``-shaped dict.
+    :param tree: Strategy tree as a :class:`PlanStepNode`.
     :returns: One :class:`ParameterSensitivity` per numeric param.
     """
-    leaves = collect_dict_leaves(tree)
+    leaves = collect_plan_leaves(tree)
     if not leaves:
         return []
 

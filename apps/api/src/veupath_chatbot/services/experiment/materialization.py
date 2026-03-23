@@ -4,7 +4,7 @@ Creates, persists, and cleans up WDK strategies from experiment configs,
 including step tree materialization for multi-step and import modes.
 """
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -30,53 +30,50 @@ logger = get_logger(__name__)
 
 async def _materialize_step_tree(
     api: StrategyAPI,
-    node: JSONObject,
+    node: PlanStepNode,
     record_type: str,
     *,
     site_id: str = "",
-) -> StepTreeNode:
-    """Recursively create WDK steps from a ``PlanStepNode`` dict.
+) -> WDKStepTree:
+    """Recursively create WDK steps from a :class:`PlanStepNode`.
 
     Walks the tree bottom-up: leaf search nodes are created first,
     then combine/transform nodes reference them.
 
     :param api: Strategy API instance.
-    :param node: ``PlanStepNode``-shaped dict.
+    :param node: Strategy plan node.
     :param record_type: WDK record type for all steps.
     :param site_id: VEuPathDB site identifier (for param auto-expansion).
-    :returns: :class:`StepTreeNode` ready for strategy creation.
+    :returns: :class:`WDKStepTree` ready for strategy creation.
     """
-    primary_node = node.get("primaryInput")
-    secondary_node = node.get("secondaryInput")
+    primary_tree: WDKStepTree | None = None
+    secondary_tree: WDKStepTree | None = None
 
-    primary_tree: StepTreeNode | None = None
-    secondary_tree: StepTreeNode | None = None
-
-    if isinstance(primary_node, dict):
+    if node.primary_input is not None:
         primary_tree = await _materialize_step_tree(
-            api, primary_node, record_type, site_id=site_id
+            api, node.primary_input, record_type, site_id=site_id
         )
-    if isinstance(secondary_node, dict):
+    if node.secondary_input is not None:
         secondary_tree = await _materialize_step_tree(
-            api, secondary_node, record_type, site_id=site_id
+            api, node.secondary_input, record_type, site_id=site_id
         )
 
-    search_name = str(node.get("searchName", ""))
-    raw_params = node.get("parameters")
-    parameters: JSONObject = raw_params if isinstance(raw_params, dict) else {}
-    display_name = str(node.get("displayName", search_name))
+    search_name = node.search_name
+    parameters = node.parameters
+    display_name = node.display_name or search_name
 
     if primary_tree is not None and secondary_tree is not None:
-        operator = str(node.get("operator", DEFAULT_COMBINE_OPERATOR.value))
+        operator = (
+            node.operator.value
+            if node.operator is not None
+            else DEFAULT_COMBINE_OPERATOR.value
+        )
         if operator == "COLOCATE":
             # Colocation uses GenesBySpanLogic — two input-step params
             # (span_a, span_b) wired via stepTree at strategy creation.
-            coloc_raw = node.get("colocationParams")
-            upstream = "0"
-            downstream = "0"
-            if isinstance(coloc_raw, dict):
-                upstream = str(coloc_raw.get("upstream", 0))
-                downstream = str(coloc_raw.get("downstream", 0))
+            coloc = node.colocation_params
+            upstream = str(coloc.upstream) if coloc is not None else "0"
+            downstream = str(coloc.downstream) if coloc is not None else "0"
             coloc_params: JSONObject = {
                 "span_sentence": "sentence",
                 "span_operation": "overlap",
@@ -117,7 +114,7 @@ async def _materialize_step_tree(
                 spec_overrides=PatchStepSpec(custom_name=display_name),
             )
         step_id = step.id
-        return StepTreeNode(
+        return WDKStepTree(
             step_id=step_id, primary_input=primary_tree, secondary_input=secondary_tree
         )
     if primary_tree is not None:
@@ -133,7 +130,7 @@ async def _materialize_step_tree(
             record_type=record_type,
         )
         step_id = step.id
-        return StepTreeNode(step_id=step_id, primary_input=primary_tree)
+        return WDKStepTree(step_id=step_id, primary_input=primary_tree)
     step = await api.create_step(
         NewStepSpec(
             search_name=search_name,
@@ -145,14 +142,14 @@ async def _materialize_step_tree(
         record_type=record_type,
     )
     step_id = step.id
-    return StepTreeNode(step_id=step_id)
+    return WDKStepTree(step_id=step_id)
 
 
 async def _persist_experiment_strategy(
     config: ExperimentConfig,
     experiment_id: str,
     *,
-    override_tree: JSONObject | None = None,
+    override_tree: PlanStepNode | None = None,
 ) -> JSONObject:
     """Create a persisted WDK strategy for result exploration.
 
@@ -174,10 +171,8 @@ async def _persist_experiment_strategy(
     if mode == "import" and config.source_strategy_id and override_tree is None:
         return await _persist_import_strategy(api, config, experiment_id)
 
-    effective_tree = override_tree or (
-        config.step_tree if isinstance(config.step_tree, dict) else None
-    )
-    if mode in ("multi-step", "import") and isinstance(effective_tree, dict):
+    effective_tree = override_tree or config.step_tree
+    if mode in ("multi-step", "import") and effective_tree is not None:
         root_tree = await _materialize_step_tree(
             api, effective_tree, config.record_type, site_id=config.site_id
         )
@@ -193,7 +188,7 @@ async def _persist_experiment_strategy(
             record_type=config.record_type,
         )
         step_id = step_payload.id
-        root_tree = StepTreeNode(step_id=step_id)
+        root_tree = WDKStepTree(step_id=step_id)
 
     created = await api.create_strategy(
         step_tree=root_tree,
@@ -235,12 +230,12 @@ async def _persist_import_strategy(
     dup_tree = await api.get_duplicated_step_tree(source_id)
 
     # The duplicated tree already has real WDK step IDs, so we can
-    # directly wrap it in a StepTreeNode.
-    def _wdk_tree_to_node(tree: WDKStepTree) -> StepTreeNode:
+    # directly wrap it in a WDKStepTree.
+    def _wdk_tree_to_node(tree: WDKStepTree) -> WDKStepTree:
         sid = tree.step_id
         primary = tree.primary_input
         secondary = tree.secondary_input
-        return StepTreeNode(
+        return WDKStepTree(
             step_id=sid,
             primary_input=_wdk_tree_to_node(primary) if primary is not None else None,
             secondary_input=_wdk_tree_to_node(secondary)

@@ -13,7 +13,6 @@ from veupath_chatbot.domain.parameters.specs import (
 )
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
-    StepTreeNode,
     StrategyAST,
 )
 from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
@@ -26,6 +25,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
     WDKSearchConfig,
     WDKSearchResponse,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import (
     InternalError,
@@ -141,7 +141,7 @@ class CompiledStep(CamelModel):
 
     local_id: str
     wdk_step_id: int
-    step_type: str = Field(alias="type")
+    step_type: str = Field(serialization_alias="type")
     display_name: str
 
 
@@ -149,7 +149,7 @@ class CompilationResult(CamelModel):
     """Result of compiling a strategy to WDK."""
 
     steps: list[CompiledStep]
-    step_tree: StepTreeNode
+    step_tree: WDKStepTree
     root_step_id: int
 
 
@@ -203,7 +203,7 @@ class StrategyCompiler:
             root_step_id=root_step.wdk_step_id,
         )
 
-    async def _compile_node(self, node: PlanStepNode, record_type: str) -> StepTreeNode:
+    async def _compile_node(self, node: PlanStepNode, record_type: str) -> WDKStepTree:
         """Compile a single node, returning its step tree."""
         kind = node.infer_kind()
         if kind == "search":
@@ -251,7 +251,7 @@ class StrategyCompiler:
 
     async def _compile_search(
         self, step: PlanStepNode, record_type: str
-    ) -> StepTreeNode:
+    ) -> WDKStepTree:
         """Compile a search step."""
         logger.debug("Compiling search step", step_id=step.id, search=step.search_name)
 
@@ -281,11 +281,11 @@ class StrategyCompiler:
             step_type="search",
             display_name=step.display_name or step.search_name,
         )
-        return StepTreeNode(step_id=wdk_step_id)
+        return WDKStepTree(step_id=wdk_step_id)
 
     async def _compile_combine(
         self, step: PlanStepNode, record_type: str
-    ) -> StepTreeNode:
+    ) -> WDKStepTree:
         """Compile a combine step."""
         if not step.primary_input or not step.secondary_input:
             msg = "Combine step missing inputs"
@@ -321,7 +321,7 @@ class StrategyCompiler:
             step_type="combine",
             display_name=step.display_name or f"{step.operator.value}",
         )
-        return StepTreeNode(
+        return WDKStepTree(
             step_id=wdk_step_id, primary_input=left_tree, secondary_input=right_tree
         )
 
@@ -407,7 +407,7 @@ class StrategyCompiler:
 
     async def _compile_transform(
         self, step: PlanStepNode, record_type: str
-    ) -> StepTreeNode:
+    ) -> WDKStepTree:
         """Compile a transform step."""
         if not step.primary_input:
             msg = "Transform step missing primaryInput"
@@ -445,7 +445,7 @@ class StrategyCompiler:
             step_type="transform",
             display_name=step.display_name or step.search_name,
         )
-        return StepTreeNode(step_id=wdk_step_id, primary_input=input_tree)
+        return WDKStepTree(step_id=wdk_step_id, primary_input=input_tree)
 
     async def _coerce_parameters(
         self, record_type: str, search_name: str, parameters: JSONObject

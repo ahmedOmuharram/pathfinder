@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.persistence.repositories.control_set import ControlSetCreate
 from veupath_chatbot.platform.logging import get_logger
@@ -74,8 +75,9 @@ async def _process_single_seed(
         try:
             api = get_strategy_api(seed.site_id)
 
+            tree_node = PlanStepNode.model_validate(seed.step_tree)
             root_tree = await _materialize_step_tree(
-                api, seed.step_tree, seed.record_type, site_id=seed.site_id
+                api, tree_node, seed.record_type, site_id=seed.site_id
             )
 
             created = await api.create_strategy(

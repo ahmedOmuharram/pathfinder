@@ -10,8 +10,8 @@ from unittest.mock import patch
 import httpx
 import respx
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.domain.strategy.compile import CompilationResult, CompiledStep
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     step_get_response,
@@ -330,10 +330,10 @@ async def test_complex_step_counts_via_compilation(
                 display_name="Intersect",
             ),
         ],
-        step_tree=StepTreeNode(
+        step_tree=WDKStepTree(
             step_id=1003,
-            primary_input=StepTreeNode(step_id=1001),
-            secondary_input=StepTreeNode(step_id=1002),
+            primary_input=WDKStepTree(step_id=1001),
+            secondary_input=WDKStepTree(step_id=1002),
         ),
         root_step_id=1003,
     )

@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
     PATHFINDER_INTERNAL_STRATEGY_NAME_PREFIX,
 )
@@ -37,16 +36,16 @@ def _make_mixin(user_id: str = "12345") -> tuple[StrategiesMixin, MagicMock]:
     return mixin, client
 
 
-def _step_tree() -> StepTreeNode:
+def _step_tree() -> WDKStepTree:
     """Simple step tree for testing."""
-    return StepTreeNode(step_id=1)
+    return WDKStepTree(step_id=1)
 
 
-def _binary_step_tree() -> StepTreeNode:
+def _binary_step_tree() -> WDKStepTree:
     """Binary step tree: combine(step1, step2) -> step3."""
-    left = StepTreeNode(step_id=1)
-    right = StepTreeNode(step_id=2)
-    return StepTreeNode(step_id=3, primary_input=left, secondary_input=right)
+    left = WDKStepTree(step_id=1)
+    right = WDKStepTree(step_id=2)
+    return WDKStepTree(step_id=3, primary_input=left, secondary_input=right)
 
 
 def _strategy_details_dict(

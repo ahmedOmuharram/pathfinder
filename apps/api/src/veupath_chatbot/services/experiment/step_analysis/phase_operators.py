@@ -2,10 +2,10 @@
 
 import asyncio
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,
@@ -26,7 +26,7 @@ from veupath_chatbot.services.experiment.types import (
 )
 
 COMPARISON_OPERATORS = [
-    op.value
+    op
     for op in CombineOp
     if op not in (CombineOp.COLOCATE, CombineOp.LONLY, CombineOp.RONLY)
 ]
@@ -36,12 +36,12 @@ logger = get_logger(__name__)
 
 async def compare_operators(
     ctx: ControlsContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[OperatorComparison]:
     """For each combine node, evaluate INTERSECT, UNION, MINUS and recommend.
 
-    :param tree: ``PlanStepNode``-shaped dict.
+    :param tree: Strategy tree as a :class:`PlanStepNode`.
     :returns: One :class:`OperatorComparison` per combine node.
     """
     combine_nodes = _collect_combine_nodes(tree)
@@ -53,7 +53,7 @@ async def compare_operators(
 
     for ci, cnode in enumerate(combine_nodes):
         cid = _node_id(cnode)
-        current_op = str(cnode.get("operator", "INTERSECT"))
+        current_op = cnode.operator.value if cnode.operator is not None else "INTERSECT"
 
         if progress_callback:
             await progress_callback(
@@ -71,8 +71,8 @@ async def compare_operators(
         variants: list[OperatorVariant] = []
 
         async def _try_operator(
-            op: str,
-            _cnode: JSONObject = cnode,
+            op: CombineOp,
+            _cnode: PlanStepNode = cnode,
             _cid: str = cid,
         ) -> OperatorVariant | None:
             subtree = _build_subtree_with_operator(_cnode, op)
@@ -81,7 +81,10 @@ async def compare_operators(
                     raw = await run_controls_against_tree(ctx, subtree)
             except AppError as exc:
                 logger.warning(
-                    "Operator comparison failed", node=_cid, op=op, error=str(exc)
+                    "Operator comparison failed",
+                    node=_cid,
+                    op=op.value,
+                    error=str(exc),
                 )
                 return None
 
@@ -91,7 +94,7 @@ async def compare_operators(
             fpr = counts.neg_hits / counts.neg_total if counts.neg_total > 0 else 0.0
 
             return OperatorVariant(
-                operator=op,
+                operator=op.value,
                 positive_hits=counts.pos_hits,
                 negative_hits=counts.neg_hits,
                 total_results=counts.total_results,

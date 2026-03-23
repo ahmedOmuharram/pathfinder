@@ -10,6 +10,7 @@ from veupath_chatbot.ai.tools.strategy_tools.step_ops import (
     StrategyStepOps,
 )
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategySession
 
 
@@ -145,8 +146,8 @@ async def test_create_step_rejects_non_root_primary_input():
         parameters={},
         primary_input=step_a,
         secondary_input=step_b,
+        operator=CombineOp.INTERSECT,
     )
-    combine.operator = None  # will be set by parse_op
     graph.add_step(combine)
 
     ops = StrategyStepOps.__new__(StrategyStepOps)

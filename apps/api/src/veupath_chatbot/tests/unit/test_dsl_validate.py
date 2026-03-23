@@ -100,34 +100,28 @@ class TestStrategyValidator:
         assert not result.valid
         assert any(e.code == "UNKNOWN_SEARCH" for e in result.errors)
 
-    def test_validate_combine_missing_operator(self) -> None:
+    def test_combine_missing_operator_rejected_at_construction(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})
         right = PlanStepNode(search_name="S2", parameters={})
-        combine = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=None,
-        )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
-        assert not result.valid
-        assert any(e.code == "MISSING_OPERATOR" for e in result.errors)
+        with pytest.raises(ValidationError):
+            PlanStepNode(
+                search_name="bool",
+                primary_input=left,
+                secondary_input=right,
+                operator=None,
+            )
 
-    def test_validate_colocate_missing_params(self) -> None:
+    def test_colocate_missing_params_rejected_at_construction(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})
         right = PlanStepNode(search_name="S2", parameters={})
-        combine = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=CombineOp.COLOCATE,
-            colocation_params=None,
-        )
-        strategy = StrategyAST(record_type="gene", root=combine)
-        result = validate_strategy(strategy)
-        assert not result.valid
-        assert any(e.code == "MISSING_COLOCATION_PARAMS" for e in result.errors)
+        with pytest.raises(ValidationError):
+            PlanStepNode(
+                search_name="bool",
+                primary_input=left,
+                secondary_input=right,
+                operator=CombineOp.COLOCATE,
+                colocation_params=None,
+            )
 
     def test_validate_colocate_invalid_params(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})

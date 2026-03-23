@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.evaluation import re_evaluate
 from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.sweep_service import (
@@ -47,19 +47,19 @@ def _make_config(**overrides: object) -> ExperimentConfig:
         "controls_value_format": "newline",
     }
     defaults.update(overrides)
-    return ExperimentConfig(**defaults)  # type: ignore[arg-type]
+    return ExperimentConfig(**defaults)
 
 
 def _make_experiment(**overrides: object) -> Experiment:
     config_overrides = overrides.pop("config_overrides", {})
     defaults: dict[str, object] = {
         "id": "exp-001",
-        "config": _make_config(**config_overrides),  # type: ignore[arg-type]
+        "config": _make_config(**config_overrides),
         "user_id": "user-1",
         "status": "completed",
     }
     defaults.update(overrides)
-    return Experiment(**defaults)  # type: ignore[arg-type]
+    return Experiment(**defaults)
 
 
 def _make_metrics(**overrides: object) -> ExperimentMetrics:
@@ -203,7 +203,8 @@ class TestValidateSweepParameter:
             config_overrides={
                 "mode": "multi-step",
                 "step_tree": {
-                    "searchName": "CombineStep",
+                    "searchName": "__combine__",
+                    "operator": "INTERSECT",
                     "primaryInput": {
                         "searchName": "GenesByTaxon",
                         "parameters": {"organism": "Plasmodium falciparum 3D7"},
@@ -343,7 +344,9 @@ class TestRunSweepPoint:
             )
 
         assert point["metrics"] is None
-        assert "WDK down" in point["error"]
+        error = point["error"]
+        assert isinstance(error, str)
+        assert "WDK down" in error
 
 
 # ---------------------------------------------------------------------------
@@ -479,62 +482,59 @@ class TestGenerateSweepEvents:
 
 class TestTreeHasParameter:
     def test_finds_param_in_root(self) -> None:
-        tree = {"searchName": "S", "parameters": {"threshold": "0.5"}}
+        tree = PlanStepNode(search_name="S", parameters={"threshold": "0.5"})
         assert _tree_has_parameter(tree, "threshold") is True
 
     def test_finds_param_in_nested_primary_input(self) -> None:
-        tree = {
-            "searchName": "CombineStep",
-            "primaryInput": {
-                "searchName": "S",
-                "parameters": {"threshold": "0.5"},
-            },
-        }
+        tree = PlanStepNode(
+            search_name="CombineStep",
+            primary_input=PlanStepNode(
+                search_name="S",
+                parameters={"threshold": "0.5"},
+            ),
+        )
         assert _tree_has_parameter(tree, "threshold") is True
 
     def test_finds_param_in_nested_secondary_input(self) -> None:
-        tree = {
-            "searchName": "CombineStep",
-            "primaryInput": {
-                "searchName": "A",
-                "parameters": {"organism": "Pf"},
-            },
-            "secondaryInput": {
-                "searchName": "B",
-                "parameters": {"fold_change": "2.0"},
-            },
-        }
+        tree = PlanStepNode(
+            search_name="__combine__",
+            operator="INTERSECT",
+            primary_input=PlanStepNode(
+                search_name="A",
+                parameters={"organism": "Pf"},
+            ),
+            secondary_input=PlanStepNode(
+                search_name="B",
+                parameters={"fold_change": "2.0"},
+            ),
+        )
         assert _tree_has_parameter(tree, "fold_change") is True
 
     def test_deeply_nested_param(self) -> None:
-        tree = {
-            "searchName": "Root",
-            "primaryInput": {
-                "searchName": "Mid",
-                "primaryInput": {
-                    "searchName": "Leaf",
-                    "parameters": {"deep_param": "1"},
-                },
-            },
-        }
+        tree = PlanStepNode(
+            search_name="Root",
+            primary_input=PlanStepNode(
+                search_name="Mid",
+                primary_input=PlanStepNode(
+                    search_name="Leaf",
+                    parameters={"deep_param": "1"},
+                ),
+            ),
+        )
         assert _tree_has_parameter(tree, "deep_param") is True
 
     def test_returns_false_when_param_missing(self) -> None:
-        tree = {
-            "searchName": "S",
-            "parameters": {"threshold": "0.5"},
-        }
+        tree = PlanStepNode(
+            search_name="S",
+            parameters={"threshold": "0.5"},
+        )
         assert _tree_has_parameter(tree, "nonexistent") is False
 
-    def test_handles_non_dict_root(self) -> None:
-        assert _tree_has_parameter(None, "x") is False
-        assert _tree_has_parameter("not a tree", "x") is False
-
     def test_handles_node_without_parameters(self) -> None:
-        tree = {
-            "searchName": "CombineStep",
-            "primaryInput": {"searchName": "Leaf"},
-        }
+        tree = PlanStepNode(
+            search_name="CombineStep",
+            primary_input=PlanStepNode(search_name="Leaf"),
+        )
         assert _tree_has_parameter(tree, "threshold") is False
 
 
@@ -551,7 +551,8 @@ class TestRunSweepPointTree:
             config_overrides={
                 "mode": "multi-step",
                 "step_tree": {
-                    "searchName": "CombineStep",
+                    "searchName": "__combine__",
+                    "operator": "INTERSECT",
                     "primaryInput": {
                         "searchName": "GenesByTaxon",
                         "parameters": {"threshold": "0.5"},
@@ -571,10 +572,10 @@ class TestRunSweepPointTree:
             result_count=40,
         )
 
-        captured_tree = None
+        captured_tree: PlanStepNode | None = None
 
         async def _capture_tree(
-            ctx: ControlsContext, tree: JSONObject
+            ctx: ControlsContext, tree: PlanStepNode
         ) -> ControlTestResult:
             nonlocal captured_tree
             captured_tree = tree
@@ -598,16 +599,20 @@ class TestRunSweepPointTree:
 
         # Verify the tree was modified with the swept value
         assert captured_tree is not None
-        assert captured_tree["primaryInput"]["parameters"]["threshold"] == "0.99"
-        assert captured_tree["secondaryInput"]["parameters"]["threshold"] == "0.99"
+        assert captured_tree.primary_input is not None
+        assert captured_tree.primary_input.parameters["threshold"] == "0.99"
+        assert captured_tree.secondary_input is not None
+        assert captured_tree.secondary_input.parameters["threshold"] == "0.99"
         # Non-swept params should be preserved
-        assert captured_tree["secondaryInput"]["parameters"]["other"] == "keep"
+        assert captured_tree.secondary_input.parameters["other"] == "keep"
 
         # Verify original tree was NOT modified (deep copy)
-        assert exp.config.step_tree["primaryInput"]["parameters"]["threshold"] == "0.5"
-        assert (
-            exp.config.step_tree["secondaryInput"]["parameters"]["threshold"] == "0.5"
-        )
+        step_tree = exp.config.step_tree
+        assert step_tree is not None
+        assert step_tree.primary_input is not None
+        assert step_tree.primary_input.parameters["threshold"] == "0.5"
+        assert step_tree.secondary_input is not None
+        assert step_tree.secondary_input.parameters["threshold"] == "0.5"
 
 
 # ---------------------------------------------------------------------------

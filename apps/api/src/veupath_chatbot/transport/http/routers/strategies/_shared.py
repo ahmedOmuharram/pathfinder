@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from veupath_chatbot.domain.strategy.ast import from_dict as parse_plan
+from veupath_chatbot.domain.strategy.ast import StrategyAST
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.platform.logging import get_logger
@@ -53,7 +53,7 @@ def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
     if not plan or not isinstance(plan, dict) or "root" not in plan:
         return []
     try:
-        ast = parse_plan(plan)
+        ast = StrategyAST.model_validate(plan)
         steps_data = build_steps_data_from_ast(ast)
 
         # Inject stored step counts from plan metadata.
@@ -80,10 +80,8 @@ def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
 
 
 def extract_plan_description(plan: JSONObject) -> str | None:
-    """Extract ``plan["metadata"]["description"]`` with isinstance guards."""
-    metadata_raw = plan.get("metadata")
-    metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
-    desc_raw = metadata.get("description")
+    """Extract description from a plan dict."""
+    desc_raw = plan.get("description")
     return desc_raw if isinstance(desc_raw, str) else None
 
 

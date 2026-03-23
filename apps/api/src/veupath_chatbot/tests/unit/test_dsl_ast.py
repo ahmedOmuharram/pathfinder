@@ -1,6 +1,7 @@
 """Tests for strategy DSL AST serialization."""
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
@@ -8,7 +9,6 @@ from veupath_chatbot.domain.strategy.ast import (
     StepFilter,
     StepReport,
     StrategyAST,
-    from_dict,
     generate_step_id,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
@@ -73,22 +73,24 @@ class TestGetStepById:
         assert ast.get_step_by_id("nonexistent") is None
 
 
-class TestFromDictErrors:
+class TestModelValidateErrors:
     def test_missing_record_type(self) -> None:
-        with pytest.raises(TypeError, match="recordType"):
-            from_dict({"root": {"searchName": "S1"}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate({"root": {"searchName": "S1"}})
 
     def test_missing_root(self) -> None:
-        with pytest.raises(TypeError, match="root"):
-            from_dict({"recordType": "gene"})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate({"recordType": "gene"})
 
     def test_missing_search_name(self) -> None:
-        with pytest.raises(ValueError, match="searchName"):
-            from_dict({"recordType": "gene", "root": {"parameters": {}}})
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
+                {"recordType": "gene", "root": {"parameters": {}}}
+            )
 
     def test_invalid_parameters_type(self) -> None:
-        with pytest.raises(TypeError, match="parameters"):
-            from_dict(
+        with pytest.raises(PydanticValidationError):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {"searchName": "S1", "parameters": "bad"},
@@ -96,8 +98,8 @@ class TestFromDictErrors:
             )
 
     def test_secondary_without_primary(self) -> None:
-        with pytest.raises(ValueError, match="primaryInput"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="primaryInput"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -108,8 +110,8 @@ class TestFromDictErrors:
             )
 
     def test_secondary_without_operator(self) -> None:
-        with pytest.raises(ValueError, match="operator"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="operator"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -121,8 +123,8 @@ class TestFromDictErrors:
             )
 
     def test_colocate_without_params(self) -> None:
-        with pytest.raises(ValueError, match="colocationParams"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="colocationParams"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -135,8 +137,8 @@ class TestFromDictErrors:
             )
 
     def test_colocation_params_on_non_colocate(self) -> None:
-        with pytest.raises(ValueError, match="colocationParams"):
-            from_dict(
+        with pytest.raises(PydanticValidationError, match="colocationParams"):
+            StrategyAST.model_validate(
                 {
                     "recordType": "gene",
                     "root": {
@@ -150,7 +152,7 @@ class TestFromDictErrors:
             )
 
 
-class TestFromDictColocation:
+class TestModelValidateColocation:
     def test_valid_colocation_round_trip(self) -> None:
         data = {
             "recordType": "gene",
@@ -166,7 +168,7 @@ class TestFromDictColocation:
                 },
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         cp = ast.root.colocation_params
         assert cp is not None
         assert cp.upstream == 1000
@@ -184,7 +186,7 @@ class TestFromDictColocation:
                 "colocationParams": {"upstream": 0, "downstream": 0},
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.colocation_params is not None
         assert ast.root.colocation_params.strand == "both"
 
@@ -199,25 +201,26 @@ class TestFromDictColocation:
                 "colocationParams": {"upstream": 0, "downstream": 0, "strand": "bogus"},
             },
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.colocation_params is not None
         assert ast.root.colocation_params.strand == "both"
 
 
-class TestFromDictMetadata:
-    def test_name_and_description_from_metadata(self) -> None:
+class TestModelValidateMetadata:
+    def test_name_and_description_from_top_level(self) -> None:
         data = {
             "recordType": "gene",
             "root": {"searchName": "S1"},
-            "metadata": {"name": "My Strategy", "description": "Find kinases"},
+            "name": "My Strategy",
+            "description": "Find kinases",
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.name == "My Strategy"
         assert ast.description == "Find kinases"
 
-    def test_missing_metadata_gives_none(self) -> None:
+    def test_missing_name_gives_none(self) -> None:
         data = {"recordType": "gene", "root": {"searchName": "S1"}}
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.name is None
         assert ast.description is None
 
@@ -256,7 +259,7 @@ class TestToDictRoundTrip:
         strategy = StrategyAST(record_type="gene", root=combine, name="Test")
 
         payload = strategy.to_dict()
-        parsed = from_dict(payload)
+        parsed = StrategyAST.model_validate(payload)
 
         root = parsed.root
         assert root.infer_kind() == "combine"
@@ -284,7 +287,7 @@ class TestToDictRoundTrip:
         )
         ast = StrategyAST(record_type="gene", root=root)
         payload = ast.to_dict()
-        parsed = from_dict(payload)
+        parsed = StrategyAST.model_validate(payload)
         cp = parsed.root.colocation_params
         assert cp is not None
         assert cp.upstream == 100
@@ -376,7 +379,7 @@ class TestPlanStepNodeToDict:
 
 
 class TestStrategyASTToDict:
-    def test_metadata_includes_name_and_description(self) -> None:
+    def test_name_and_description_at_top_level(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
         ast = StrategyAST(
             record_type="gene",
@@ -386,16 +389,15 @@ class TestStrategyASTToDict:
         )
         d = ast.to_dict()
         assert d["recordType"] == "gene"
-        metadata = d["metadata"]
-        assert isinstance(metadata, dict)
-        assert metadata["name"] == "Test"
-        assert metadata["description"] == "A description"
+        assert d["name"] == "Test"
+        assert d["description"] == "A description"
 
-    def test_no_metadata_when_empty(self) -> None:
+    def test_no_name_or_description_when_empty(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
         ast = StrategyAST(record_type="gene", root=root)
         d = ast.to_dict()
-        assert d["metadata"] is None
+        assert "name" not in d
+        assert "description" not in d
 
     def test_metadata_preserves_extra_fields(self) -> None:
         root = PlanStepNode(search_name="S1", id="s1")
@@ -406,61 +408,44 @@ class TestStrategyASTToDict:
             metadata={"custom_key": "custom_value"},
         )
         d = ast.to_dict()
+        assert d["name"] == "Test"
         metadata = d["metadata"]
         assert isinstance(metadata, dict)
         assert metadata["custom_key"] == "custom_value"
-        assert metadata["name"] == "Test"
 
 
-class TestFromDictStepId:
+class TestModelValidateStepId:
     def test_preserves_explicit_id(self) -> None:
         data = {
             "recordType": "gene",
             "root": {"searchName": "S1", "id": "explicit_id"},
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.id == "explicit_id"
 
     def test_generates_id_when_missing(self) -> None:
         data = {"recordType": "gene", "root": {"searchName": "S1"}}
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.id.startswith("step_")
 
-    def test_non_string_metadata_ignored(self) -> None:
+    def test_name_and_description_from_top_level(self) -> None:
         data = {
             "recordType": "gene",
             "root": {"searchName": "S1"},
-            "metadata": {"name": 123, "description": True},
+            "name": "My Strategy",
+            "description": "Find kinases",
         }
-        ast = from_dict(data)
-        assert ast.name is None
-        assert ast.description is None
-
-    def test_non_dict_metadata_ignored(self) -> None:
-        data = {
-            "recordType": "gene",
-            "root": {"searchName": "S1"},
-            "metadata": "not a dict",
-        }
-        ast = from_dict(data)
-        assert ast.name is None
-        assert ast.description is None
+        ast = StrategyAST.model_validate(data)
+        assert ast.name == "My Strategy"
+        assert ast.description == "Find kinases"
 
     def test_display_name_parsed(self) -> None:
         data = {
             "recordType": "gene",
             "root": {"searchName": "S1", "displayName": "My Search"},
         }
-        ast = from_dict(data)
+        ast = StrategyAST.model_validate(data)
         assert ast.root.display_name == "My Search"
-
-    def test_non_string_display_name_ignored(self) -> None:
-        data = {
-            "recordType": "gene",
-            "root": {"searchName": "S1", "displayName": 42},
-        }
-        ast = from_dict(data)
-        assert ast.root.display_name is None
 
 
 class TestGetAllStepsDeep:

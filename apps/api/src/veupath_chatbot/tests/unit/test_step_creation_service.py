@@ -164,6 +164,7 @@ class TestFindConsumer:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.INTERSECT,
         )
         graph.add_step(step_a)
         graph.add_step(step_b)
@@ -259,6 +260,7 @@ class TestValidateRootStatus:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.INTERSECT,
         )
         graph.add_step(combine)
         error = _validate_root_status(graph, step_a.id)
@@ -394,6 +396,7 @@ class TestCreateStepIntegration:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.INTERSECT,
         )
         graph.add_step(combine)
 

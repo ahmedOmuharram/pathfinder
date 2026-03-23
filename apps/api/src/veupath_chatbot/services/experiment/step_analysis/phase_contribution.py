@@ -2,9 +2,9 @@
 
 import asyncio
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,
@@ -35,7 +35,7 @@ _RECALL_HARMFUL_IMPROVEMENT = 0.02
 
 async def analyze_contributions(
     ctx: ControlsContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     baseline_metrics: ControlTestResult,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepContribution]:
@@ -63,10 +63,10 @@ async def analyze_contributions(
     results: list[StepContribution] = []
     sem = asyncio.Semaphore(3)
 
-    async def _ablate_leaf(leaf: JSONObject, idx: int) -> StepContribution | None:
+    async def _ablate_leaf(leaf: PlanStepNode, idx: int) -> StepContribution | None:
         lid = _node_id(leaf)
-        search_name = str(leaf.get("searchName", ""))
-        display = str(leaf.get("displayName", search_name))
+        search_name = leaf.search_name
+        display = leaf.display_name or search_name
 
         if progress_callback:
             await progress_callback(

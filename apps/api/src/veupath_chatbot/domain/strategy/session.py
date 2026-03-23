@@ -14,7 +14,6 @@ from veupath_chatbot.domain.strategy.ast import (
     StepFilter,
     StepReport,
     StrategyAST,
-    from_dict,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.platform.logging import get_logger
@@ -150,7 +149,7 @@ class StrategyGraph:
         previous = self.history[-1]
         strategy_value = previous.get("strategy")
         if isinstance(strategy_value, dict):
-            self.current_strategy = from_dict(as_json_object(strategy_value))
+            self.current_strategy = StrategyAST.model_validate(as_json_object(strategy_value))
             self.steps = {s.id: s for s in self.current_strategy.get_all_steps()}
             self.recompute_roots()
             self.last_step_id = self.current_strategy.root.id

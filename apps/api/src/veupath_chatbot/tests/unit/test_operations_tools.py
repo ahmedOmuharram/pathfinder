@@ -110,8 +110,8 @@ class TestGraphStateConsistency:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.UNION,
         )
-        combine.operator = CombineOp.UNION
         graph.add_step(combine)
         assert graph.roots == {combine.id}
 
@@ -158,8 +158,8 @@ class TestGraphStateConsistency:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.UNION,
         )
-        combine_ab.operator = CombineOp.UNION
         graph.add_step(combine_ab)
 
         # Now combine (A+B) and C
@@ -168,8 +168,8 @@ class TestGraphStateConsistency:
             parameters={},
             primary_input=combine_ab,
             secondary_input=step_c,
+            operator=CombineOp.INTERSECT,
         )
-        combine_all.operator = CombineOp.INTERSECT
         graph.add_step(combine_all)
 
         ops_graph = StrategyGraphOps.__new__(StrategyGraphOps)
@@ -520,8 +520,8 @@ class TestOperatorOnNonBinaryStep:
             parameters={},
             primary_input=step_a,
             secondary_input=step_b,
+            operator=CombineOp.UNION,
         )
-        combine.operator = CombineOp.UNION
         graph.add_step(combine)
 
         ops = StrategyEditOps.__new__(StrategyEditOps)

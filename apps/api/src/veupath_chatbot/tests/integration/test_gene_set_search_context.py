@@ -14,12 +14,12 @@ from uuid import uuid4
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import (
@@ -68,7 +68,7 @@ class TestSingleStepGeneSet:
         step_id = step.id
         assert isinstance(step_id, int)
 
-        tree = StepTreeNode(step_id=step_id)
+        tree = WDKStepTree(step_id=step_id)
         strategy = await api.create_strategy(tree, name="Test Single")
         sid = strategy.id
         assert isinstance(sid, int)
@@ -110,7 +110,7 @@ class TestSingleStepGeneSet:
             ),
             record_type=RECORD_TYPE,
         )
-        tree = StepTreeNode(step_id=step.id)
+        tree = WDKStepTree(step_id=step.id)
         strategy = await api.create_strategy(tree, name="Eval Test")
         sid = strategy.id
 
@@ -177,10 +177,10 @@ class TestMultiStepGeneSet:
             "INTERSECT",
             RECORD_TYPE,
         )
-        tree = StepTreeNode(
+        tree = WDKStepTree(
             step_id=combined.id,
-            primary_input=StepTreeNode(step_id=step1.id),
-            secondary_input=StepTreeNode(step_id=step2.id),
+            primary_input=WDKStepTree(step_id=step1.id),
+            secondary_input=WDKStepTree(step_id=step2.id),
         )
         strategy = await api.create_strategy(tree, name="Test Multi")
         sid = strategy.id

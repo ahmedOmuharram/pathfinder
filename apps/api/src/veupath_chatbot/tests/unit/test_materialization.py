@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStepTree
 from veupath_chatbot.platform.errors import (
     StrategyCompilationError,
@@ -47,11 +48,11 @@ class TestMaterializeStepTree:
         api = AsyncMock()
         api.create_step.return_value = WDKIdentifier(id=100)
 
-        node = {
+        node = PlanStepNode.model_validate({
             "searchName": "GenesByText",
             "parameters": {"text": "kinase"},
             "displayName": "Text Search",
-        }
+        })
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 100
@@ -66,14 +67,14 @@ class TestMaterializeStepTree:
         # Second call: transform step creation
         api.create_transform_step.return_value = WDKIdentifier(id=200)
 
-        node = {
+        node = PlanStepNode.model_validate({
             "searchName": "GenesByTFBS",
             "parameters": {"tfbs": "AP2"},
             "primaryInput": {
                 "searchName": "GenesByText",
                 "parameters": {"text": "kinase"},
             },
-        }
+        })
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 200
@@ -86,7 +87,7 @@ class TestMaterializeStepTree:
         api.create_step.side_effect = [WDKIdentifier(id=100), WDKIdentifier(id=200)]
         api.create_combined_step.return_value = WDKIdentifier(id=300)
 
-        node = {
+        node = PlanStepNode.model_validate({
             "searchName": "combined",
             "operator": "INTERSECT",
             "primaryInput": {
@@ -97,7 +98,7 @@ class TestMaterializeStepTree:
                 "searchName": "GenesByText",
                 "parameters": {"text": "phosphatase"},
             },
-        }
+        })
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 300
@@ -129,10 +130,10 @@ class TestPersistExperimentStrategy:
         mock_get_api.return_value = api
 
         cfg = _cfg("multi-step")
-        cfg.step_tree = {
+        cfg.step_tree = PlanStepNode.model_validate({
             "searchName": "GenesByText",
             "parameters": {"text": "kinase"},
-        }
+        })
         result = await _persist_experiment_strategy(cfg, "exp-001")
 
         assert result["strategy_id"] == 500

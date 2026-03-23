@@ -2,54 +2,28 @@
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.domain.strategy.ast import StepAnalysis, StepFilter, StepReport
+from veupath_chatbot.domain.strategy.ops import ColocationParams
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.transport.http.schemas.plan import ColocationParams
-
-
-class StepFilterResponse(BaseModel):
-    """Filter attached to a step."""
-
-    name: str
-    value: JSONValue
-    disabled: bool = False
 
 
 class StepFiltersResponse(BaseModel):
     """Container for step filters."""
 
-    filters: list[StepFilterResponse]
-
-
-class StepAnalysisResponse(BaseModel):
-    """Analysis configuration attached to a step."""
-
-    analysis_type: str = Field(alias="analysisType")
-    parameters: JSONObject = Field(default_factory=dict)
-    custom_name: str | None = Field(default=None, alias="customName")
-
-    model_config = {"populate_by_name": True}
-
-
-class StepReportResponse(BaseModel):
-    """Report configuration attached to a step."""
-
-    report_name: str = Field(default="standard", alias="reportName")
-    config: JSONObject = Field(default_factory=dict)
-
-    model_config = {"populate_by_name": True}
+    filters: list[StepFilter]
 
 
 class StepAnalysisRunResponse(BaseModel):
     """Result of running a step analysis."""
 
-    analysis: StepAnalysisResponse
+    analysis: StepAnalysis
     wdk: JSONObject | None = None
 
 
 class StepReportRunResponse(BaseModel):
     """Result of running a step report."""
 
-    report: StepReportResponse
+    report: StepReport
     wdk: JSONObject | None = None
 
 
@@ -72,9 +46,9 @@ class StepResponse(BaseModel):
     )
     result_count: int | None = Field(default=None, alias="resultCount")
     wdk_step_id: int | None = Field(default=None, alias="wdkStepId")
-    filters: list[StepFilterResponse] | None = None
-    analyses: list[StepAnalysisResponse] | None = None
-    reports: list[StepReportResponse] | None = None
+    filters: list[StepFilter] | None = None
+    analyses: list[StepAnalysis] | None = None
+    reports: list[StepReport] | None = None
     validation_error: str | None = Field(default=None, alias="validationError")
 
     model_config = {"populate_by_name": True}

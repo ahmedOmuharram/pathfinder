@@ -1,5 +1,6 @@
 """Tests for ExperimentConfig.is_tree_mode property."""
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.services.experiment.types import ExperimentConfig
 
 
@@ -16,7 +17,10 @@ def _base_config(**overrides: object) -> ExperimentConfig:
         "controls_param_name": "single_gene_id",
     }
     defaults.update(overrides)
-    return ExperimentConfig(**defaults)  # type: ignore[arg-type]
+    return ExperimentConfig.model_validate(defaults)
+
+
+_SAMPLE_TREE = PlanStepNode(search_name="GenesByTaxon", parameters={})
 
 
 class TestIsTreeMode:
@@ -28,16 +32,12 @@ class TestIsTreeMode:
         config = _base_config(mode="multi-step", step_tree=None)
         assert config.is_tree_mode is False
 
-    def test_multi_step_with_non_dict_tree_returns_false(self) -> None:
-        config = _base_config(mode="multi-step", step_tree="not_a_dict")
-        assert config.is_tree_mode is False
-
-    def test_multi_step_with_dict_tree_returns_true(self) -> None:
-        config = _base_config(mode="multi-step", step_tree={"root": {}})
+    def test_multi_step_with_tree_returns_true(self) -> None:
+        config = _base_config(mode="multi-step", step_tree=_SAMPLE_TREE)
         assert config.is_tree_mode is True
 
-    def test_import_with_dict_tree_returns_true(self) -> None:
-        config = _base_config(mode="import", step_tree={"root": {}})
+    def test_import_with_tree_returns_true(self) -> None:
+        config = _base_config(mode="import", step_tree=_SAMPLE_TREE)
         assert config.is_tree_mode is True
 
     def test_import_without_tree_returns_false(self) -> None:

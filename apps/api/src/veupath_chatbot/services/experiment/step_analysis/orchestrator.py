@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,
@@ -133,7 +133,7 @@ def _enrich_contributions_with_narrative(
 
 async def run_step_analysis(
     ctx: ControlsContext,
-    tree: JSONObject,
+    tree: PlanStepNode,
     baseline_result: ControlTestResult,
     phases: list[str] | None = None,
     progress_callback: ProgressCallback | None = None,
@@ -141,7 +141,7 @@ async def run_step_analysis(
     """Run all requested step analysis phases.
 
     :param ctx: Shared controls context (site, record type, controls config).
-    :param tree: ``PlanStepNode``-shaped dict.
+    :param tree: Strategy tree as a :class:`PlanStepNode`.
     :param baseline_result: Typed control-test result from the initial tree evaluation.
     :param phases: Which phases to run. Defaults to all four.
     :returns: Aggregated :class:`StepAnalysisResult`.

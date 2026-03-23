@@ -62,8 +62,8 @@ async def test_delete_step_cascades_to_dependent_steps():
         parameters={},
         primary_input=step_a,
         secondary_input=step_b,
+        operator=CombineOp.UNION,
     )
-    combine.operator = CombineOp.UNION
     graph.add_step(combine)
 
     ops = StrategyEditOps.__new__(StrategyEditOps)

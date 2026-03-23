@@ -28,8 +28,8 @@ def _make_graph_ops(
                 parameters={},
                 primary_input=step_a,
                 secondary_input=step_b,
+                operator=CombineOp.UNION,
             )
-            combine.operator = CombineOp.UNION
             graph.add_step(combine)
             step_ids.append(combine.id)
 

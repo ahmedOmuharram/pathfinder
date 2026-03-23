@@ -6,7 +6,7 @@ extraction, full build orchestration, and result count lookup.
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode, StepTreeNode, StrategyAST
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, StrategyAST
 from veupath_chatbot.domain.strategy.compile import CompilationResult
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph
@@ -16,6 +16,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfig,
     WDKIdentifier,
     WDKSearchResponse,
+    WDKStepTree,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import StrategyCompilationError, WDKError
@@ -438,7 +439,7 @@ class TestCreateOrUpdateWdkStrategy:
         api = FakeBuildAPI(create_strategy_response=WDKIdentifier(id=555))
         compilation = CompilationResult(
             steps=[],
-            step_tree=StepTreeNode(step_id=1),
+            step_tree=WDKStepTree(step_id=1),
             root_step_id=1,
         )
         strategy = StrategyAST(record_type="gene", root=_make_step(), name="Test")
@@ -450,7 +451,7 @@ class TestCreateOrUpdateWdkStrategy:
         api = FakeBuildAPI()
         compilation = CompilationResult(
             steps=[],
-            step_tree=StepTreeNode(step_id=1),
+            step_tree=WDKStepTree(step_id=1),
             root_step_id=1,
         )
         strategy = StrategyAST(record_type="gene", root=_make_step(), name="Test")
@@ -466,7 +467,7 @@ class TestCreateOrUpdateWdkStrategy:
         )
         compilation = CompilationResult(
             steps=[],
-            step_tree=StepTreeNode(step_id=1),
+            step_tree=WDKStepTree(step_id=1),
             root_step_id=1,
         )
         strategy = StrategyAST(record_type="gene", root=_make_step(), name="Test")

@@ -8,12 +8,12 @@ Delegates parsing to ``enrichment_parser``, HTML extraction to
 import asyncio
 import json
 
-from veupath_chatbot.domain.strategy.ast import StepTreeNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     WDKSearchConfig,
+    WDKStepTree,
 )
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
@@ -170,7 +170,7 @@ async def run_enrichment_analysis(
     )
     step_id = step.id
 
-    root = StepTreeNode(step_id=step_id)
+    root = WDKStepTree(step_id=step_id)
     strategy_id: int | None = None
 
     try:
