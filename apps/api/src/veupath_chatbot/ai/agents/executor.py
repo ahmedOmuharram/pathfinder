@@ -18,7 +18,7 @@ from veupath_chatbot.ai.agents.engine_factory import create_engine
 from veupath_chatbot.ai.engines.mock import MockEngine
 from veupath_chatbot.ai.models.catalog import get_model_entry
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
-    delegate_strategy_subtasks as subkani_delegate_strategy_subtasks,
+    delegate_strategy_subtasks,
 )
 from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.ai.prompts.executor_prompt import build_agent_system_prompt
@@ -349,7 +349,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                     ),
                 )
 
-        return await subkani_delegate_strategy_subtasks(
+        return await delegate_strategy_subtasks(
             goal=goal,
             context=SubkaniContext(
                 site_id=self.site_id,

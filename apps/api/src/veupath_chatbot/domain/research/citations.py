@@ -11,17 +11,6 @@ from pydantic import ConfigDict, computed_field
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject
 
-CitationSource = Literal[
-    "web",
-    "europepmc",
-    "crossref",
-    "openalex",
-    "semanticscholar",
-    "pubmed",
-    "arxiv",
-    "biorxiv",
-    "medrxiv",
-]
 LiteratureSource = Literal[
     "europepmc",
     "crossref",
@@ -101,7 +90,17 @@ class Citation(CamelModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
-    source: CitationSource
+    source: Literal[
+        "web",
+        "europepmc",
+        "crossref",
+        "openalex",
+        "semanticscholar",
+        "pubmed",
+        "arxiv",
+        "biorxiv",
+        "medrxiv",
+    ]
     title: str
     url: str | None = None
     authors: list[str] | None = None

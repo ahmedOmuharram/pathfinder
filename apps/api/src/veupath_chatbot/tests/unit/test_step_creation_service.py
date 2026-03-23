@@ -5,64 +5,27 @@ from unittest.mock import AsyncMock, patch
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
-from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
-from veupath_chatbot.platform.errors import ErrorCode, ValidationError
-from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
 from veupath_chatbot.services.strategies.step_creation import (
     COMBINE_PLACEHOLDER_SEARCH_NAME,
-    StepCreationCallbacks,
     StepSpec,
-    _validate_inputs,
-    _validate_root_status,
     coerce_wdk_boolean_question_params,
     create_step,
 )
+from veupath_chatbot.services.strategies.step_validation import (
+    _validate_inputs,
+    _validate_root_status,
+)
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_graph(graph_id: str = "g1", site_id: str = "plasmodb") -> StrategyGraph:
-    return StrategyGraph(graph_id, "test", site_id)
-
-
-def _noop_validation_error_payload(exc: ValidationError) -> JSONObject:
-    """Simple validation error payload builder for tests."""
-    return tool_error(ErrorCode.VALIDATION_ERROR, exc.title, detail=exc.detail)
-
-
-async def _resolve_record_type_stub(
-    record_type: str | None,
-    search_name: str | None,
-    require_match: bool,
-    allow_fallback: bool,
-) -> str | None:
-    """Stub that always returns the record type as-is, or 'gene' as default."""
-    return record_type or "transcript"
-
-
-async def _find_record_type_hint_stub(
-    search_name: str, exclude: str | None = None
-) -> str | None:
-    return None
-
-
-def _extract_vocab_options_stub(vocabulary: JSONObject) -> list[str]:
-    return []
-
-
-def _make_callbacks() -> StepCreationCallbacks:
-    """Build a StepCreationCallbacks with stub implementations."""
-    return StepCreationCallbacks(
-        resolve_record_type_for_search=_resolve_record_type_stub,
-        find_record_type_hint=_find_record_type_hint_stub,
-        extract_vocab_options=_extract_vocab_options_stub,
-        validation_error_payload=_noop_validation_error_payload,
-    )
-
+from .conftest import (
+    extract_vocab_options_stub,
+    find_record_type_hint_stub,
+    make_step_creation_callbacks,
+    make_step_graph,
+    noop_validation_error_payload,
+)
 
 # ---------------------------------------------------------------------------
 # coerce_wdk_boolean_question_params
@@ -148,7 +111,7 @@ class TestCoerceWdkBooleanQuestionParams:
 
 class TestFindConsumer:
     def test_finds_consumer_via_primary(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={}, primary_input=step_a)
         graph.add_step(step_a)
@@ -156,7 +119,7 @@ class TestFindConsumer:
         assert graph.find_consumer(step_a.id) == step_b.id
 
     def test_finds_consumer_via_secondary(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         step_c = PlanStepNode(
@@ -172,7 +135,7 @@ class TestFindConsumer:
         assert graph.find_consumer(step_b.id) == step_c.id
 
     def test_returns_none_for_unconsumed(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
         assert graph.find_consumer(step_a.id) is None
@@ -185,20 +148,20 @@ class TestFindConsumer:
 
 class TestValidateInputs:
     def test_no_inputs(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         primary, secondary, error = _validate_inputs(graph, None, None, None)
         assert primary is None
         assert secondary is None
         assert error is None
 
     def test_primary_not_found(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         _, _, error = _validate_inputs(graph, "missing", None, None)
         assert error is not None
         assert error["code"] == "STEP_NOT_FOUND"
 
     def test_secondary_not_found(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
         _, _, error = _validate_inputs(graph, step_a.id, "missing", "UNION")
@@ -206,7 +169,7 @@ class TestValidateInputs:
         assert error["code"] == "STEP_NOT_FOUND"
 
     def test_secondary_without_primary(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_b)
         _, _, error = _validate_inputs(graph, None, step_b.id, "UNION")
@@ -214,7 +177,7 @@ class TestValidateInputs:
         assert "primary_input_step_id" in str(error["message"])
 
     def test_secondary_without_operator(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -224,7 +187,7 @@ class TestValidateInputs:
         assert "operator is required" in str(error["message"])
 
     def test_valid_binary_inputs(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -244,13 +207,13 @@ class TestValidateInputs:
 
 class TestValidateRootStatus:
     def test_root_step_passes(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
         assert _validate_root_status(graph, step_a.id) is None
 
     def test_non_root_step_fails(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -308,18 +271,18 @@ class TestCreateStepIntegration:
     """Test the full create_step flow with stubbed dependencies."""
 
     async def test_leaf_requires_search_name(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert "search_name is required" in str(result.error["message"])
 
     async def test_secondary_without_primary_returns_error(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -329,13 +292,13 @@ class TestCreateStepIntegration:
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(secondary_input_step_id=step_b.id, operator="UNION"),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert "primary_input_step_id" in str(result.error["message"])
 
     async def test_secondary_without_operator_returns_error(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -348,13 +311,13 @@ class TestCreateStepIntegration:
                 primary_input_step_id=step_a.id,
                 secondary_input_step_id=step_b.id,
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert "operator is required" in str(result.error["message"])
 
     async def test_primary_input_not_found(self):
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -362,13 +325,13 @@ class TestCreateStepIntegration:
             spec=StepSpec(
                 search_name="SomeSearch", primary_input_step_id="nonexistent"
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "STEP_NOT_FOUND"
 
     async def test_secondary_input_not_found(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
 
@@ -380,13 +343,13 @@ class TestCreateStepIntegration:
                 secondary_input_step_id="nonexistent",
                 operator="UNION",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "STEP_NOT_FOUND"
 
     async def test_non_root_primary_rejected(self):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -404,17 +367,17 @@ class TestCreateStepIntegration:
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(search_name="SomeSearch", primary_input_step_id=step_a.id),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert "not a subtree root" in str(result.error["message"])
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_binary_step_creation_success(self, mock_validate: AsyncMock):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -429,7 +392,7 @@ class TestCreateStepIntegration:
                 operator="UNION",
                 display_name="A or B",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -443,11 +406,11 @@ class TestCreateStepIntegration:
         mock_validate.assert_not_awaited()
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_leaf_step_creation_success(self, mock_validate: AsyncMock):
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -456,7 +419,7 @@ class TestCreateStepIntegration:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -469,17 +432,17 @@ class TestCreateStepIntegration:
         mock_validate.assert_awaited_once()
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.get_wdk_client",
+        "veupath_chatbot.services.strategies.step_validation.get_wdk_client",
     )
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_transform_step_validates_input_step_param(
         self, mock_validate: AsyncMock, mock_get_wdk: AsyncMock
     ):
         """Transform steps must verify the question accepts an input step."""
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
 
@@ -508,24 +471,24 @@ class TestCreateStepIntegration:
                 search_name="GenesByUpstream",
                 primary_input_step_id=step_a.id,
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
         assert result.step.primary_input is step_a
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.get_wdk_client",
+        "veupath_chatbot.services.strategies.step_validation.get_wdk_client",
     )
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_transform_step_rejects_non_transform_question(
         self, mock_validate: AsyncMock, mock_get_wdk: AsyncMock
     ):
         """A question without input-step param cannot be used as transform."""
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
 
@@ -552,18 +515,18 @@ class TestCreateStepIntegration:
                 search_name="GenesByText",
                 primary_input_step_id=step_a.id,
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert "cannot be used as a transform" in str(result.error["message"])
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_binary_with_bq_params_coercion(self, mock_validate: AsyncMock):
         """Boolean question params should be coerced into structural inputs."""
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -579,7 +542,7 @@ class TestCreateStepIntegration:
                     "bq_operator": "INTERSECT",
                 }
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -588,11 +551,11 @@ class TestCreateStepIntegration:
         assert result.step.secondary_input is step_b
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_colocate_step_creation(self, mock_validate: AsyncMock):
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -609,7 +572,7 @@ class TestCreateStepIntegration:
                 downstream=1000,
                 strand="same",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
@@ -620,19 +583,20 @@ class TestCreateStepIntegration:
         assert result.step.colocation_params.strand == "same"
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_record_type_defaults_to_gene(self, mock_validate: AsyncMock):
         """When no record type is available, it should default to 'gene'."""
-        graph = _make_graph()
+        graph = make_step_graph()
         assert graph.record_type is None
 
         async def always_none_resolver(
             record_type: str | None,
             search_name: str | None,
-            require_match: bool,
-            allow_fallback: bool,
+            *,
+            require_match: bool = False,
+            allow_fallback: bool = True,
         ) -> str | None:
             return None
 
@@ -640,11 +604,11 @@ class TestCreateStepIntegration:
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(search_name="GenesByText"),
-            callbacks=StepCreationCallbacks(
+            callbacks=ValidationCallbacks(
                 resolve_record_type_for_search=always_none_resolver,
-                find_record_type_hint=_find_record_type_hint_stub,
-                extract_vocab_options=_extract_vocab_options_stub,
-                validation_error_payload=_noop_validation_error_payload,
+                find_record_type_hint=find_record_type_hint_stub,
+                extract_vocab_options=extract_vocab_options_stub,
+                validation_error_payload=noop_validation_error_payload,
             ),
         )
         # The leaf validation will fail because always_none_resolver returns None
@@ -653,7 +617,7 @@ class TestCreateStepIntegration:
 
     async def test_step_added_to_graph(self):
         """Successful creation adds the step to the graph."""
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
         graph.add_step(step_a)
@@ -668,7 +632,7 @@ class TestCreateStepIntegration:
                 secondary_input_step_id=step_b.id,
                 operator="UNION",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert len(graph.steps) == initial_step_count + 1
@@ -679,18 +643,19 @@ class TestCreateStepIntegration:
         assert step_b.id not in graph.roots
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_leaf_step_search_not_found(self, mock_validate: AsyncMock):
         """Leaf step with unknown search should return SEARCH_NOT_FOUND."""
-        graph = _make_graph()
+        graph = make_step_graph()
 
         async def reject_search(
             record_type: str | None,
             search_name: str | None,
-            require_match: bool,
-            allow_fallback: bool,
+            *,
+            require_match: bool = False,
+            allow_fallback: bool = True,
         ) -> str | None:
             if require_match:
                 return None
@@ -700,18 +665,18 @@ class TestCreateStepIntegration:
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(search_name="NonexistentSearch"),
-            callbacks=StepCreationCallbacks(
+            callbacks=ValidationCallbacks(
                 resolve_record_type_for_search=reject_search,
-                find_record_type_hint=_find_record_type_hint_stub,
-                extract_vocab_options=_extract_vocab_options_stub,
-                validation_error_payload=_noop_validation_error_payload,
+                find_record_type_hint=find_record_type_hint_stub,
+                extract_vocab_options=extract_vocab_options_stub,
+                validation_error_payload=noop_validation_error_payload,
             ),
         )
         assert result.error is not None
         assert result.error["code"] == "SEARCH_NOT_FOUND"
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
         side_effect=ValidationError(
             title="Missing required parameters",
@@ -720,13 +685,13 @@ class TestCreateStepIntegration:
     )
     async def test_leaf_step_validation_error(self, mock_validate: AsyncMock):
         """Leaf step with validation error should return the error payload."""
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(search_name="GenesByText"),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "VALIDATION_ERROR"
@@ -823,13 +788,13 @@ class TestCrossOrganismIntersectGuard:
     """Combining steps from different organisms with INTERSECT must fail."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_intersect_different_organisms_rejected(
         self, mock_val: AsyncMock
     ) -> None:
-        graph = _make_graph()
+        graph = make_step_graph()
         pf = graph.add_step(
             PlanStepNode(
                 search_name="GenesByGoTerm",
@@ -850,18 +815,18 @@ class TestCrossOrganismIntersectGuard:
                 secondary_input_step_id=pb,
                 operator="INTERSECT",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"
         assert "different organism" in result.error["message"].lower()
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_intersect_same_organism_allowed(self, mock_val: AsyncMock) -> None:
-        graph = _make_graph()
+        graph = make_step_graph()
         a = graph.add_step(
             PlanStepNode(
                 search_name="GenesByGoTerm",
@@ -882,18 +847,18 @@ class TestCrossOrganismIntersectGuard:
                 secondary_input_step_id=b,
                 operator="INTERSECT",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_union_different_organisms_allowed(self, mock_val: AsyncMock) -> None:
         """UNION across organisms is valid (e.g. collecting genes from multiple species)."""
-        graph = _make_graph()
+        graph = make_step_graph()
         pf = graph.add_step(
             PlanStepNode(
                 search_name="GenesByGoTerm",
@@ -914,20 +879,20 @@ class TestCrossOrganismIntersectGuard:
                 secondary_input_step_id=pb,
                 operator="UNION",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_intersect_no_organism_param_skips_check(
         self, mock_val: AsyncMock
     ) -> None:
         """Steps without organism params (e.g. MassSpec) should not trigger the guard."""
-        graph = _make_graph()
+        graph = make_step_graph()
         a = graph.add_step(
             PlanStepNode(
                 search_name="GenesByGoTerm",
@@ -948,20 +913,20 @@ class TestCrossOrganismIntersectGuard:
                 secondary_input_step_id=b,
                 operator="INTERSECT",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is None
         assert result.step is not None
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
     async def test_intersect_orthologs_output_vs_different_species_rejected(
         self, mock_val: AsyncMock
     ) -> None:
         """Orthologs(Pf→Pb) INTERSECT Pf_expression should fail — Pb IDs vs Pf IDs."""
-        graph = _make_graph()
+        graph = make_step_graph()
         pf_kinases = PlanStepNode(
             search_name="GenesByGoTerm",
             parameters={"organism": '["Plasmodium falciparum 3D7"]'},
@@ -987,7 +952,7 @@ class TestCrossOrganismIntersectGuard:
                 secondary_input_step_id=pf_expr_id,
                 operator="INTERSECT",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"

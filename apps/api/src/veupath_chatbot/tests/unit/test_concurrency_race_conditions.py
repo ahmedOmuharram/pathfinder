@@ -1,14 +1,13 @@
 """Unit tests for concurrency and race-condition safety across the codebase.
 
-Tests five concurrency scenarios using asyncio primitives and unittest.mock
+Tests four concurrency scenarios using asyncio primitives and unittest.mock
 to control scheduling — no DB, no real WDK, no external I/O.
 
 Scenarios:
 1. Experiment lock prevents concurrent execution
-2. Auto-push lock prevents concurrent pushes
-3. Param optimization cache dedup
-4. Gene set concurrent deletion
-5. Experiment lock with error handling
+2. Param optimization cache dedup
+3. Gene set concurrent deletion
+4. Experiment lock with error handling
 """
 
 import asyncio
@@ -17,7 +16,6 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
-from uuid import UUID, uuid4
 
 import optuna
 import pytest
@@ -40,12 +38,6 @@ from veupath_chatbot.services.parameter_optimization.trials import (
     _KeyLocks,
     _TrialContext,
 )
-from veupath_chatbot.services.strategies.auto_push import (
-    _PUSH_LOCKS_MAX,
-    _get_push_lock,
-    _push_locks,
-    try_auto_push_to_wdk,
-)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -58,14 +50,6 @@ def _clear_experiment_locks() -> Iterator[None]:
     _experiment_locks.clear()
     yield
     _experiment_locks.clear()
-
-
-@pytest.fixture(autouse=True)
-def _clear_push_locks() -> Iterator[None]:
-    """Isolate the module-level push lock dict between tests."""
-    _push_locks.clear()
-    yield
-    _push_locks.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -185,100 +169,7 @@ class TestExperimentLockSerialisation:
 
 
 # ===================================================================
-# Test 2: Auto-push lock prevents concurrent pushes
-# ===================================================================
-
-
-class TestAutoPushLock:
-    """Verify that try_auto_push_to_wdk skips when a push is in-flight."""
-
-    async def test_concurrent_pushes_only_one_executes(self) -> None:
-        """Holding the push lock must cause try_auto_push_to_wdk to skip."""
-        strategy_id = uuid4()
-        lock = _get_push_lock(strategy_id)
-
-        # Acquire the lock to simulate an in-flight push
-        await lock.acquire()
-        assert lock.locked()
-
-        # Patch _do_push and async_session_factory so the real code never runs
-        with (
-            patch(
-                "veupath_chatbot.services.strategies.auto_push._do_push",
-                new_callable=AsyncMock,
-            ) as mock_do_push,
-            patch(
-                "veupath_chatbot.services.strategies.auto_push.async_session_factory",
-            ),
-        ):
-            await try_auto_push_to_wdk(strategy_id)
-
-            # _do_push should NOT have been called because the lock was held
-            mock_do_push.assert_not_called()
-
-        lock.release()
-
-    async def test_different_strategies_push_concurrently(self) -> None:
-        """Two different strategy IDs must be able to push simultaneously."""
-        call_log: list[str] = []
-
-        async def fake_do_push(_session: object, sid: UUID) -> None:
-            call_log.append(f"{sid}_start")
-            await asyncio.sleep(0.01)
-            call_log.append(f"{sid}_end")
-
-        sid_a = uuid4()
-        sid_b = uuid4()
-
-        # Build a mock async context manager for the session factory
-        mock_session = AsyncMock()
-
-        mock_cm = AsyncMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_cm.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch(
-                "veupath_chatbot.services.strategies.auto_push._do_push",
-                side_effect=fake_do_push,
-            ),
-            patch(
-                "veupath_chatbot.services.strategies.auto_push.async_session_factory",
-                return_value=mock_cm,
-            ),
-        ):
-            await asyncio.gather(
-                try_auto_push_to_wdk(sid_a),
-                try_auto_push_to_wdk(sid_b),
-            )
-
-        # Both pushes should have executed (both _start entries present)
-        starts = [e for e in call_log if e.endswith("_start")]
-        assert len(starts) == 2
-
-    async def test_lock_eviction_preserves_held_locks(self) -> None:
-        """Eviction must not remove a locked entry from the push lock cache."""
-        held_id = uuid4()
-        held_lock = _get_push_lock(held_id)
-        await held_lock.acquire()
-
-        # Fill remaining capacity
-        for _ in range(_PUSH_LOCKS_MAX - 1):
-            _get_push_lock(uuid4())
-
-        assert len(_push_locks) == _PUSH_LOCKS_MAX
-
-        # Trigger eviction
-        new_id = uuid4()
-        _get_push_lock(new_id)
-
-        assert held_id in _push_locks, "Held push lock was evicted"
-        assert new_id in _push_locks
-        held_lock.release()
-
-
-# ===================================================================
-# Test 3: Param optimization cache dedup
+# Test 2: Param optimization cache dedup
 # ===================================================================
 
 

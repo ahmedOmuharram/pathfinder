@@ -2,7 +2,6 @@
 
 Covers edge cases in:
 - resolve_root_step (root_count attribute on errors, graph.get_step returning None)
-- extract_step_counts (empty steps, non-int estimatedSize variants, ID mapping)
 - get_estimated_size (step in strategy but estimatedSize is None, non-dict steps)
 
 These tests complement test_strategy_build_service.py by covering scenarios
@@ -20,7 +19,6 @@ from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.build import (
     RootResolutionError,
     StepCountResult,
-    extract_step_counts,
     get_estimated_size,
     resolve_root_step,
 )
@@ -147,68 +145,6 @@ class TestResolveRootStepAttributes:
         # With 2 roots, auto-resolve would fail, but explicit works.
         result = resolve_root_step(graph, "target")
         assert result is step
-
-
-# ---------------------------------------------------------------------------
-# extract_step_counts -- empty / non-integer estimatedSize / mapping
-# ---------------------------------------------------------------------------
-
-
-class TestExtractStepCountsEdgeCases:
-    def test_empty_steps_dict_returns_empty(self):
-        info = _make_strategy_details(root_step_id=1, steps={})
-        counts, root = extract_step_counts(info, {"s1": 1})
-        assert counts == {}
-        assert root is None
-
-    def test_none_estimated_size_becomes_none(self):
-        info = _make_strategy_details(
-            root_step_id=10,
-            steps={"10": {"estimatedSize": None}},
-        )
-        counts, _root = extract_step_counts(info, {"local1": 10})
-        assert counts == {"local1": None}
-
-    def test_wdk_to_local_mapping_correct(self):
-        """Multiple local steps mapped to different WDK IDs."""
-        info = _make_strategy_details(
-            root_step_id=500,
-            steps={
-                "500": {"estimatedSize": 10},
-                "600": {"estimatedSize": 20},
-                "700": {"estimatedSize": 30},
-            },
-        )
-        compiled_map = {"alpha": 500, "beta": 600, "gamma": 700}
-        counts, root = extract_step_counts(info, compiled_map)
-        assert counts == {"alpha": 10, "beta": 20, "gamma": 30}
-        assert root == 10
-
-    def test_unmapped_wdk_id_ignored(self):
-        """WDK step IDs not in compiled_map are silently ignored."""
-        info = _make_strategy_details(
-            root_step_id=1,
-            steps={
-                "1": {"estimatedSize": 5},
-                "999": {"estimatedSize": 99},
-            },
-        )
-        counts, root = extract_step_counts(info, {"local": 1})
-        assert counts == {"local": 5}
-        assert root == 5
-
-    def test_root_step_id_maps_to_local_for_root_count(self):
-        """root_count is read from the local step mapped to rootStepId."""
-        info = _make_strategy_details(
-            root_step_id=200,
-            steps={
-                "100": {"estimatedSize": 5},
-                "200": {"estimatedSize": 42},
-            },
-        )
-        compiled_map = {"leaf": 100, "root_local": 200}
-        _counts, root = extract_step_counts(info, compiled_map)
-        assert root == 42
 
 
 # ---------------------------------------------------------------------------

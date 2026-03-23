@@ -1,4 +1,10 @@
-"""Enrichment analysis types for the Experiment Lab."""
+"""Enrichment domain types.
+
+Pure type definitions for enrichment analysis results. This module
+is a leaf — it imports only from ``platform.pydantic_base``.
+"""
+
+from typing import Literal
 
 from pydantic import ConfigDict, Field
 
@@ -7,7 +13,10 @@ from veupath_chatbot.platform.pydantic_base import (
     SafeFiniteFloat,
     SafeFiniteRoundedFloat,
 )
-from veupath_chatbot.services.experiment.types.core import EnrichmentAnalysisType
+
+EnrichmentAnalysisType = Literal[
+    "go_function", "go_component", "go_process", "pathway", "word"
+]
 
 
 class EnrichmentTerm(CamelModel):

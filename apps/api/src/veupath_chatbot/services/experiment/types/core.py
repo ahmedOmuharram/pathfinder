@@ -2,10 +2,6 @@
 
 from typing import Literal
 
-EnrichmentAnalysisType = Literal[
-    "go_function", "go_component", "go_process", "pathway", "word"
-]
-
 ExperimentMode = Literal["single", "multi-step", "import"]
 
 ParameterType = Literal["numeric", "integer", "categorical"]
@@ -36,8 +32,6 @@ OptimizationObjective = Literal[
     "youdens_j",
     "custom",
 ]
-
-ControlSetSource = Literal["paper", "curation", "db_build", "other"]
 
 StepContributionVerdict = Literal["essential", "helpful", "neutral", "harmful"]
 

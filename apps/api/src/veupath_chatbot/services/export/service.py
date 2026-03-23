@@ -14,8 +14,8 @@ from redis.asyncio import Redis
 
 from veupath_chatbot.platform.context import request_base_url_ctx
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.services.enrichment.types import EnrichmentResult
 from veupath_chatbot.services.experiment.types import Experiment
-from veupath_chatbot.services.experiment.types.enrichment import EnrichmentResult
 from veupath_chatbot.services.gene_sets.types import GeneSet
 
 logger = get_logger(__name__)
@@ -214,46 +214,16 @@ class ExportService:
             ["gene_id", "gene_name", "organism", "product", "classification"]
         )
 
-        for gene in experiment.true_positive_genes:
-            writer.writerow(
-                [
-                    gene.id,
-                    gene.name or "",
-                    gene.organism or "",
-                    gene.product or "",
-                    "TP",
-                ]
-            )
-        for gene in experiment.false_positive_genes:
-            writer.writerow(
-                [
-                    gene.id,
-                    gene.name or "",
-                    gene.organism or "",
-                    gene.product or "",
-                    "FP",
-                ]
-            )
-        for gene in experiment.false_negative_genes:
-            writer.writerow(
-                [
-                    gene.id,
-                    gene.name or "",
-                    gene.organism or "",
-                    gene.product or "",
-                    "FN",
-                ]
-            )
-        for gene in experiment.true_negative_genes:
-            writer.writerow(
-                [
-                    gene.id,
-                    gene.name or "",
-                    gene.organism or "",
-                    gene.product or "",
-                    "TN",
-                ]
-            )
+        for label, genes in [
+            ("TP", experiment.true_positive_genes),
+            ("FP", experiment.false_positive_genes),
+            ("FN", experiment.false_negative_genes),
+            ("TN", experiment.true_negative_genes),
+        ]:
+            for gene in genes:
+                writer.writerow(
+                    [gene.id, gene.name or "", gene.organism or "", gene.product or "", label]
+                )
 
         return await self._store(
             buf.getvalue().encode("utf-8"), f"{name_part}_results.{ext}", content_type

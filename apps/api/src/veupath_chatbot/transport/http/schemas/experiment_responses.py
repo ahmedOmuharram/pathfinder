@@ -10,9 +10,9 @@ All field aliases use camelCase to match the existing ``to_json`` codec output.
 from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.services.enrichment.types import EnrichmentAnalysisType
 from veupath_chatbot.services.experiment.types.core import (
     ControlValueFormat,
-    EnrichmentAnalysisType,
     ExperimentMode,
     ExperimentStatus,
     OptimizationObjective,

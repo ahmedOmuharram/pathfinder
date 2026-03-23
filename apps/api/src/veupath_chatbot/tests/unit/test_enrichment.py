@@ -6,14 +6,14 @@ Verifies parameter names match VEuPathDB WDK step analysis plugins
 
 import pytest
 
-from veupath_chatbot.services.experiment.enrichment_html import parse_result_genes_html
-from veupath_chatbot.services.experiment.enrichment_params import (
+from veupath_chatbot.services.enrichment.html import parse_result_genes_html
+from veupath_chatbot.services.enrichment.params import (
     encode_vocab_params,
     encode_vocab_value,
     extract_default_params,
     extract_vocab_values,
 )
-from veupath_chatbot.services.experiment.enrichment_parser import (
+from veupath_chatbot.services.enrichment.parser import (
     ANALYSIS_TYPE_MAP,
     GO_ONTOLOGY_MAP,
     infer_enrichment_type,
@@ -22,7 +22,7 @@ from veupath_chatbot.services.experiment.enrichment_parser import (
     parse_enrichment_terms,
     upsert_enrichment_result,
 )
-from veupath_chatbot.services.experiment.types import EnrichmentResult
+from veupath_chatbot.services.enrichment.types import EnrichmentResult
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     go_enrichment_form_response,
     pathway_enrichment_form_response,

@@ -24,12 +24,13 @@ from veupath_chatbot.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
 )
+from veupath_chatbot.services.enrichment.parser import (
+    upsert_enrichment_result,
+)
+from veupath_chatbot.services.enrichment.service import EnrichmentService
 from veupath_chatbot.services.experiment.cross_validation import (
     CrossValidationOptions,
     run_cross_validation,
-)
-from veupath_chatbot.services.experiment.enrichment_parser import (
-    upsert_enrichment_result,
 )
 from veupath_chatbot.services.experiment.helpers import (
     ControlsContext,
@@ -81,7 +82,6 @@ from veupath_chatbot.services.parameter_optimization import (
     optimize_search_parameters,
     result_to_json,
 )
-from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 logger = get_logger(__name__)
 

@@ -16,8 +16,10 @@ WDK contracts validated:
 """
 
 from veupath_chatbot.services.strategies.step_creation import (
-    _validate_fold_change_samples,
     coerce_wdk_boolean_question_params,
+)
+from veupath_chatbot.services.strategies.step_validation import (
+    _validate_fold_change_samples,
 )
 
 # ── coerce_wdk_boolean_question_params ────────────────────────────

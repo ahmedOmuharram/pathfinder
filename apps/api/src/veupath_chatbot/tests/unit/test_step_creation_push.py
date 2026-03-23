@@ -20,60 +20,18 @@ WDK contracts:
 from unittest.mock import AsyncMock, patch
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
     WDKSearchResponse,
     WDKStep,
 )
-from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
-from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.services.strategies.step_creation import (
-    StepCreationCallbacks,
     StepSpec,
     create_step,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_graph(graph_id: str = "g1", site_id: str = "plasmodb") -> StrategyGraph:
-    return StrategyGraph(graph_id, "test", site_id)
-
-
-def _noop_validation_error_payload(exc: ValidationError) -> JSONObject:
-    return tool_error(ErrorCode.VALIDATION_ERROR, exc.title, detail=exc.detail)
-
-
-async def _resolve_record_type_stub(
-    record_type: str | None,
-    search_name: str | None,
-    require_match: bool,
-    allow_fallback: bool,
-) -> str | None:
-    return record_type or "transcript"
-
-
-async def _find_record_type_hint_stub(
-    search_name: str, exclude: str | None = None
-) -> str | None:
-    return None
-
-
-def _extract_vocab_options_stub(vocabulary: JSONObject) -> list[str]:
-    return []
-
-
-def _make_callbacks() -> StepCreationCallbacks:
-    return StepCreationCallbacks(
-        resolve_record_type_for_search=_resolve_record_type_stub,
-        find_record_type_hint=_find_record_type_hint_stub,
-        extract_vocab_options=_extract_vocab_options_stub,
-        validation_error_payload=_noop_validation_error_payload,
-    )
+from .conftest import make_step_creation_callbacks, make_step_graph
 
 
 def _mock_wdk_step(step_id: int, is_valid: bool = True) -> WDKStep:
@@ -116,10 +74,10 @@ class TestLeafStepPush:
     """Leaf steps (no inputs) are POSTed to WDK via api.create_step."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_leaf_step_pushes_to_wdk(
         self,
         mock_get_api: AsyncMock,
@@ -128,7 +86,7 @@ class TestLeafStepPush:
         """Leaf step creation pushes to WDK and stores WDK step ID on graph."""
         api = _mock_strategy_api(create_step_id=42)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -137,7 +95,7 @@ class TestLeafStepPush:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -149,10 +107,10 @@ class TestLeafStepPush:
         api.create_step.assert_awaited_once()
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_leaf_step_stringifies_parameters(
         self,
         mock_get_api: AsyncMock,
@@ -161,7 +119,7 @@ class TestLeafStepPush:
         """Parameters with non-string values are converted to strings for WDKSearchConfig."""
         api = _mock_strategy_api(create_step_id=50)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         await create_step(
             graph=graph,
@@ -170,7 +128,7 @@ class TestLeafStepPush:
                 search_name="GenesByText",
                 parameters={"num_value": 42, "bool_value": True},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         call_args = api.create_step.call_args
@@ -178,10 +136,10 @@ class TestLeafStepPush:
         assert spec.search_config.parameters == {"num_value": "42", "bool_value": "True"}
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_leaf_step_skips_none_values(
         self,
         mock_get_api: AsyncMock,
@@ -190,7 +148,7 @@ class TestLeafStepPush:
         """Parameters with None values are excluded from stringified params."""
         api = _mock_strategy_api(create_step_id=51)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         await create_step(
             graph=graph,
@@ -199,7 +157,7 @@ class TestLeafStepPush:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase", "excluded": None},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         call_args = api.create_step.call_args
@@ -216,10 +174,10 @@ class TestCombineStepPush:
     """Combine steps require both inputs to have WDK IDs already."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_combine_step_pushes_to_wdk(
         self,
         mock_get_api: AsyncMock,
@@ -228,7 +186,7 @@ class TestCombineStepPush:
         """Combine step is pushed when both inputs have WDK IDs."""
         api = _mock_strategy_api(create_step_id=300)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
@@ -245,7 +203,7 @@ class TestCombineStepPush:
                 secondary_input_step_id=step_b.id,
                 operator="UNION",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -258,10 +216,10 @@ class TestCombineStepPush:
         assert call_args[0][2] == "UNION"  # boolean_operator
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_combine_step_skips_push_when_inputs_missing_wdk_ids(
         self,
         mock_get_api: AsyncMock,
@@ -270,7 +228,7 @@ class TestCombineStepPush:
         """Combine step is NOT pushed if input steps lack WDK IDs (graph only)."""
         api = _mock_strategy_api(create_step_id=301)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
@@ -286,7 +244,7 @@ class TestCombineStepPush:
                 secondary_input_step_id=step_b.id,
                 operator="INTERSECT",
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -305,13 +263,13 @@ class TestTransformStepPush:
     """Transform steps require their input to have a WDK ID."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.get_wdk_client",
+        "veupath_chatbot.services.strategies.step_validation.get_wdk_client",
     )
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_transform_step_pushes_to_wdk(
         self,
         mock_get_api: AsyncMock,
@@ -338,7 +296,7 @@ class TestTransformStepPush:
         )
         mock_get_wdk.return_value = mock_client
 
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
         graph.wdk_step_ids[step_a.id] = 55
@@ -351,7 +309,7 @@ class TestTransformStepPush:
                 parameters={"organism": '["Plasmodium berghei ANKA"]'},
                 primary_input_step_id=step_a.id,
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -362,13 +320,13 @@ class TestTransformStepPush:
         assert call_args[0][1] == 55  # input_step_id
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.get_wdk_client",
+        "veupath_chatbot.services.strategies.step_validation.get_wdk_client",
     )
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_transform_step_skips_push_when_input_missing_wdk_id(
         self,
         mock_get_api: AsyncMock,
@@ -393,7 +351,7 @@ class TestTransformStepPush:
         )
         mock_get_wdk.return_value = mock_client
 
-        graph = _make_graph()
+        graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         graph.add_step(step_a)
         # Intentionally NOT setting graph.wdk_step_ids[step_a.id]
@@ -405,7 +363,7 @@ class TestTransformStepPush:
                 search_name="GenesByOrthologs",
                 primary_input_step_id=step_a.id,
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -423,10 +381,10 @@ class TestWDKPushErrorResilience:
     """WDK push failure must be non-fatal: step exists in graph, error is logged."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_wdk_push_failure_does_not_fail_step_creation(
         self,
         mock_get_api: AsyncMock,
@@ -438,7 +396,7 @@ class TestWDKPushErrorResilience:
             side_effect=AppError(ErrorCode.WDK_ERROR, "WDK unavailable"),
         )
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -447,7 +405,7 @@ class TestWDKPushErrorResilience:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -459,10 +417,10 @@ class TestWDKPushErrorResilience:
         assert result.step_id not in graph.wdk_step_ids
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_os_error_during_push_is_nonfatal(
         self,
         mock_get_api: AsyncMock,
@@ -472,7 +430,7 @@ class TestWDKPushErrorResilience:
         api = AsyncMock()
         api.create_step = AsyncMock(side_effect=OSError("Connection refused"))
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -481,7 +439,7 @@ class TestWDKPushErrorResilience:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -489,10 +447,10 @@ class TestWDKPushErrorResilience:
         assert result.wdk_step_id is None
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_validation_fetch_failure_returns_none_validation(
         self,
         mock_get_api: AsyncMock,
@@ -505,7 +463,7 @@ class TestWDKPushErrorResilience:
             side_effect=AppError(ErrorCode.WDK_ERROR, "find_step failed"),
         )
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -514,7 +472,7 @@ class TestWDKPushErrorResilience:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -532,23 +490,23 @@ class TestStepCreationResultNewFields:
     """New wdk_step_id and wdk_validation fields default to None."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_error_result_has_none_wdk_fields(
         self,
         mock_get_api: AsyncMock,
         mock_validate: AsyncMock,
     ) -> None:
         """Error results have wdk_step_id=None and wdk_validation=None."""
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(),  # missing search_name -> error
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is not None
@@ -556,10 +514,10 @@ class TestStepCreationResultNewFields:
         assert result.wdk_validation is None
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_invalid_step_validation_returned(
         self,
         mock_get_api: AsyncMock,
@@ -568,7 +526,7 @@ class TestStepCreationResultNewFields:
         """WDK validation with isValid=False is faithfully returned."""
         api = _mock_strategy_api(create_step_id=99, find_step_valid=False)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
 
         result = await create_step(
             graph=graph,
@@ -577,7 +535,7 @@ class TestStepCreationResultNewFields:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         assert result.error is None
@@ -595,10 +553,10 @@ class TestRecordTypeFallback:
     """graph.record_type may be None — push uses 'transcript' as fallback."""
 
     @patch(
-        "veupath_chatbot.services.strategies.step_creation.validate_parameters",
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.services.strategies.step_creation.get_strategy_api")
+    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
     async def test_uses_graph_record_type_when_available(
         self,
         mock_get_api: AsyncMock,
@@ -606,7 +564,7 @@ class TestRecordTypeFallback:
     ) -> None:
         api = _mock_strategy_api(create_step_id=60)
         mock_get_api.return_value = api
-        graph = _make_graph()
+        graph = make_step_graph()
         graph.record_type = "gene"
 
         await create_step(
@@ -616,7 +574,7 @@ class TestRecordTypeFallback:
                 search_name="GenesByText",
                 parameters={"text_expression": "kinase"},
             ),
-            callbacks=_make_callbacks(),
+            callbacks=make_step_creation_callbacks(),
         )
 
         call_args = api.create_step.call_args

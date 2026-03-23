@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from veupath_chatbot.services.experiment.enrichment_compare import (
+from veupath_chatbot.services.enrichment.compare import (
     EnrichmentCompareResult,
     compare_enrichment_across,
 )

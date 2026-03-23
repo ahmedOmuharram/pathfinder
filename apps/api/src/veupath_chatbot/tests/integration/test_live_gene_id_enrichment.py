@@ -23,10 +23,10 @@ import pytest
 
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.errors import ValidationError
+from veupath_chatbot.services.enrichment.service import EnrichmentService
 from veupath_chatbot.services.gene_sets.operations import (
     _build_enrichment_params_from_gene_ids,
 )
-from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 SITE_ID = "plasmodb"
 

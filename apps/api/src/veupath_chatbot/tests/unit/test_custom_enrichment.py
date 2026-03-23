@@ -2,7 +2,7 @@
 
 import math
 
-from veupath_chatbot.services.experiment.custom_enrichment import run_custom_enrichment
+from veupath_chatbot.services.enrichment.custom import run_custom_enrichment
 from veupath_chatbot.services.experiment.types import (
     Experiment,
     ExperimentConfig,

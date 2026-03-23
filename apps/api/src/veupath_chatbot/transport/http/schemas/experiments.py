@@ -165,15 +165,6 @@ class ThresholdSweepRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class RunAnalysisRequest(BaseModel):
-    """Request to run a WDK step analysis."""
-
-    analysis_name: str = Field(alias="analysisName", min_length=1)
-    parameters: JSONObject = Field(default_factory=dict)
-
-    model_config = {"populate_by_name": True}
-
-
 class RefineRequest(BaseModel):
     """Request to refine an experiment's strategy."""
 

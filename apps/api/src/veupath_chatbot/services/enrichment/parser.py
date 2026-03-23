@@ -17,8 +17,8 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKWordEnrichmentRow,
 )
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.enrichment_html import parse_result_genes_html
-from veupath_chatbot.services.experiment.types import (
+from veupath_chatbot.services.enrichment.html import parse_result_genes_html
+from veupath_chatbot.services.enrichment.types import (
     EnrichmentAnalysisType,
     EnrichmentResult,
     EnrichmentTerm,

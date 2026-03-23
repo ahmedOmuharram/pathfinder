@@ -26,11 +26,13 @@ from veupath_chatbot.platform.errors import (
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.types import EnrichmentResult
-from veupath_chatbot.services.experiment.types.core import EnrichmentAnalysisType
+from veupath_chatbot.services.enrichment.service import EnrichmentService
+from veupath_chatbot.services.enrichment.types import (
+    EnrichmentAnalysisType,
+    EnrichmentResult,
+)
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
-from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
 from veupath_chatbot.services.wdk.step_results import StepResultsService
 

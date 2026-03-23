@@ -23,7 +23,6 @@ from veupath_chatbot.transport.http.schemas.experiments import (
     OptimizationSpecRequest,
     OverlapRequest,
     RefineRequest,
-    RunAnalysisRequest,
     RunCrossValidationRequest,
     RunEnrichmentRequest,
     ThresholdSweepRequest,
@@ -296,12 +295,6 @@ class TestThresholdSweepRequestConstraints:
     def test_invalid_sweep_type_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ThresholdSweepRequest(parameterName="x", sweepType="logarithmic")
-
-
-class TestRunAnalysisRequestConstraints:
-    def test_empty_name_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            RunAnalysisRequest(analysisName="")
 
 
 class TestRefineRequestConstraints:

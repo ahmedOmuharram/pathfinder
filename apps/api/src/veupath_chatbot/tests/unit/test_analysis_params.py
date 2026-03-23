@@ -15,7 +15,7 @@ All vocab param values must be JSON-encoded arrays per
 ``AbstractEnumParam.convertToTerms()`` → ``new JSONArray(stableValue)``.
 """
 
-from veupath_chatbot.services.experiment.enrichment_params import extract_default_params
+from veupath_chatbot.services.enrichment.params import extract_default_params
 from veupath_chatbot.services.wdk.helpers import merge_analysis_params
 
 # ---------------------------------------------------------------------------

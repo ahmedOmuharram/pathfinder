@@ -134,20 +134,6 @@ def gene_type_params(
     }
 
 
-def interpro_params(
-    organism: str,
-    database: str,
-    typeahead: str,
-) -> dict[str, str]:
-    """Build GenesByInterproDomain search parameters."""
-    return {
-        "organism": org([organism]),
-        "domain_database": database,
-        "domain_typeahead": typeahead,
-        "domain_accession": "*",
-    }
-
-
 def location_params(
     organism: str,
     chromosome: str,
@@ -176,11 +162,6 @@ def exon_count_params(
         "num_exons_gte": min_exons,
         "num_exons_lte": max_exons,
     }
-
-
-def taxon_params(organism: str) -> dict[str, str]:
-    """Build GenesByTaxon search parameters."""
-    return {"organism": org([organism])}
 
 
 @dataclass

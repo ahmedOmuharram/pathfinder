@@ -43,7 +43,6 @@ from veupath_chatbot.transport.http.schemas.sites import (
     SiteResponse,
 )
 from veupath_chatbot.transport.http.schemas.steps import (
-    StepAnalysisRequest,
     StepResponse,
 )
 from veupath_chatbot.transport.http.schemas.strategies import (
@@ -557,13 +556,3 @@ class TestChatMentionTypeValidation:
             ChatMention(type="gene_set", id="x", displayName="X")  # type: ignore[arg-type]
 
 
-# ---------------------------------------------------------------------------
-# StepAnalysisRequest: analysis_type has no validation
-# ---------------------------------------------------------------------------
-
-
-class TestStepAnalysisRequestEdgeCases:
-    def test_empty_analysis_type_accepted(self) -> None:
-        # No min_length on analysis_type
-        req = StepAnalysisRequest(analysisType="")
-        assert req.analysis_type == ""

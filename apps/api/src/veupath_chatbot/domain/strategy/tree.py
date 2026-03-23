@@ -14,13 +14,6 @@ def walk_plan_tree(root: PlanStepNode, visitor: Callable[[PlanStepNode], None]) 
         walk_plan_tree(root.secondary_input, visitor)
 
 
-def collect_plan_nodes(root: PlanStepNode) -> list[PlanStepNode]:
-    """Collect all AST nodes (pre-order)."""
-    nodes: list[PlanStepNode] = []
-    walk_plan_tree(root, nodes.append)
-    return nodes
-
-
 def collect_plan_leaves(root: PlanStepNode) -> list[PlanStepNode]:
     """Collect leaf AST nodes (no primary or secondary input)."""
     leaves: list[PlanStepNode] = []

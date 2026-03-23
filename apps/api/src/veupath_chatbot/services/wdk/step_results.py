@@ -14,7 +14,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.enrichment_parser import (
+from veupath_chatbot.services.enrichment.parser import (
     is_enrichment_analysis,
     parse_enrichment_from_raw,
 )

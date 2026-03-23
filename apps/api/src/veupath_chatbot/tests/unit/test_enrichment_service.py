@@ -5,44 +5,55 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from veupath_chatbot.platform.errors import ValidationError
-from veupath_chatbot.services.experiment.types import EnrichmentResult
-from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
+from veupath_chatbot.services.enrichment.service import EnrichmentService
+from veupath_chatbot.services.enrichment.types import EnrichmentResult
+
+_MOCK_RESULT = EnrichmentResult(
+    analysis_type="go_process",
+    terms=[],
+    total_genes_analyzed=0,
+    background_size=0,
+)
 
 
 class TestRunOnStep:
     @pytest.mark.asyncio
-    async def test_delegates_to_run_on_step(self) -> None:
-        with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.run_enrichment_on_step",
-            new_callable=AsyncMock,
-        ) as mock_run:
-            mock_run.return_value = MagicMock(analysis_type="go_process")
-            svc = EnrichmentService()
+    async def test_delegates_to_execute_analysis(self) -> None:
+        svc = EnrichmentService()
+        with (
+            patch(
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
+                return_value=MagicMock(),
+            ) as mock_api,
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock
+            ) as mock_exec,
+        ):
+            mock_exec.return_value = _MOCK_RESULT
             result = await svc.run(
                 site_id="plasmodb",
                 step_id=42,
                 analysis_type="go_process",
             )
-            mock_run.assert_called_once_with(
-                site_id="plasmodb", step_id=42, analysis_type="go_process"
+            mock_exec.assert_called_once_with(
+                mock_api.return_value, 42, "go_process"
             )
             assert result.analysis_type == "go_process"
 
     @pytest.mark.asyncio
     async def test_step_id_takes_priority_over_search(self) -> None:
         """When both step_id and search_name are given, step_id wins."""
+        svc = EnrichmentService()
         with (
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.run_enrichment_on_step",
-                new_callable=AsyncMock,
-            ) as mock_step,
-            patch(
-                "veupath_chatbot.services.wdk.enrichment_service.run_enrichment_analysis",
-                new_callable=AsyncMock,
-            ) as mock_search,
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
+                return_value=MagicMock(),
+            ),
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock
+            ) as mock_exec,
         ):
-            mock_step.return_value = MagicMock(analysis_type="go_process")
-            svc = EnrichmentService()
+            mock_exec.return_value = _MOCK_RESULT
             await svc.run(
                 site_id="plasmodb",
                 step_id=42,
@@ -51,19 +62,40 @@ class TestRunOnStep:
                 record_type="gene",
                 parameters={"text": "kinase"},
             )
-            mock_step.assert_called_once()
-            mock_search.assert_not_called()
+            # _execute_analysis called directly with step_id, no temp strategy
+            mock_exec.assert_called_once()
 
 
 class TestRunOnSearch:
     @pytest.mark.asyncio
-    async def test_delegates_to_run_enrichment_analysis(self) -> None:
-        with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.run_enrichment_analysis",
-            new_callable=AsyncMock,
-        ) as mock_run:
-            mock_run.return_value = MagicMock(analysis_type="pathway")
-            svc = EnrichmentService()
+    async def test_creates_temp_strategy(self) -> None:
+        svc = EnrichmentService()
+        mock_api = MagicMock()
+        mock_api.create_step = AsyncMock(
+            return_value=MagicMock(id=99)
+        )
+        mock_api.create_strategy = AsyncMock(
+            return_value=MagicMock(id=200)
+        )
+        with (
+            patch(
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
+                return_value=mock_api,
+            ),
+            patch(
+                "veupath_chatbot.services.enrichment.service.delete_temp_strategy",
+                new_callable=AsyncMock,
+            ) as mock_delete,
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock
+            ) as mock_exec,
+        ):
+            mock_exec.return_value = EnrichmentResult(
+                analysis_type="pathway",
+                terms=[],
+                total_genes_analyzed=0,
+                background_size=0,
+            )
             result = await svc.run(
                 site_id="plasmodb",
                 analysis_type="pathway",
@@ -71,31 +103,40 @@ class TestRunOnSearch:
                 record_type="gene",
                 parameters={"text": "kinase"},
             )
-            mock_run.assert_called_once_with(
-                site_id="plasmodb",
-                record_type="gene",
-                search_name="GenesByText",
-                parameters={"text": "kinase"},
-                analysis_type="pathway",
-            )
+            mock_api.create_step.assert_called_once()
+            mock_api.create_strategy.assert_called_once()
+            mock_exec.assert_called_once_with(mock_api, 99, "pathway")
+            mock_delete.assert_called_once_with(mock_api, 200)
             assert result.analysis_type == "pathway"
 
     @pytest.mark.asyncio
-    async def test_defaults_record_type_to_gene(self) -> None:
-        with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.run_enrichment_analysis",
-            new_callable=AsyncMock,
-        ) as mock_run:
-            mock_run.return_value = MagicMock(analysis_type="word")
-            svc = EnrichmentService()
+    async def test_defaults_record_type_to_transcript(self) -> None:
+        svc = EnrichmentService()
+        mock_api = MagicMock()
+        mock_api.create_step = AsyncMock(return_value=MagicMock(id=99))
+        mock_api.create_strategy = AsyncMock(return_value=MagicMock(id=200))
+        with (
+            patch(
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
+                return_value=mock_api,
+            ),
+            patch(
+                "veupath_chatbot.services.enrichment.service.delete_temp_strategy",
+                new_callable=AsyncMock,
+            ),
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock,
+                return_value=_MOCK_RESULT,
+            ),
+        ):
             await svc.run(
                 site_id="plasmodb",
                 analysis_type="word",
                 search_name="GenesByText",
                 parameters={"text": "kinase"},
             )
-            call_kwargs = mock_run.call_args[1]
-            assert call_kwargs["record_type"] == "transcript"
+            call_kwargs = mock_api.create_step.call_args
+            assert call_kwargs[1]["record_type"] == "transcript"
 
     @pytest.mark.asyncio
     async def test_raises_without_step_or_search(self) -> None:
@@ -107,14 +148,14 @@ class TestRunOnSearch:
 class TestRunBatch:
     @pytest.mark.asyncio
     async def test_runs_multiple_types(self) -> None:
+        svc = EnrichmentService()
         with (
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.get_strategy_api",
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ),
-            patch(
-                "veupath_chatbot.services.wdk.enrichment_service._execute_analysis",
-                new_callable=AsyncMock,
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock
             ) as mock_exec,
         ):
             mock_exec.side_effect = [
@@ -131,7 +172,6 @@ class TestRunBatch:
                     background_size=0,
                 ),
             ]
-            svc = EnrichmentService()
             results, errors = await svc.run_batch(
                 site_id="plasmodb",
                 step_id=42,
@@ -143,14 +183,14 @@ class TestRunBatch:
 
     @pytest.mark.asyncio
     async def test_collects_errors_without_stopping(self) -> None:
+        svc = EnrichmentService()
         with (
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.get_strategy_api",
+                "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ),
-            patch(
-                "veupath_chatbot.services.wdk.enrichment_service._execute_analysis",
-                new_callable=AsyncMock,
+            patch.object(
+                svc, "_execute_analysis", new_callable=AsyncMock
             ) as mock_exec,
         ):
             mock_exec.side_effect = [
@@ -168,7 +208,6 @@ class TestRunBatch:
                     background_size=0,
                 ),
             ]
-            svc = EnrichmentService()
             results, errors = await svc.run_batch(
                 site_id="plasmodb",
                 step_id=42,
@@ -185,11 +224,11 @@ class TestRunBatch:
 
     @pytest.mark.asyncio
     async def test_empty_types_returns_empty(self) -> None:
+        svc = EnrichmentService()
         with patch(
-            "veupath_chatbot.services.wdk.enrichment_service.get_strategy_api",
+            "veupath_chatbot.services.enrichment.service.get_strategy_api",
             return_value=MagicMock(),
         ):
-            svc = EnrichmentService()
             results, errors = await svc.run_batch(
                 site_id="plasmodb",
                 step_id=42,

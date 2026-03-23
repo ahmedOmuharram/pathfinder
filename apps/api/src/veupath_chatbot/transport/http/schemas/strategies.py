@@ -45,20 +45,6 @@ class StepCountsResponse(BaseModel):
     counts: dict[str, int | None]
 
 
-class WdkStrategySummaryResponse(BaseModel):
-    """WDK strategy summary for list views (backend-only)."""
-
-    wdk_strategy_id: int = Field(alias="wdkStrategyId")
-    name: str
-    site_id: str = Field(alias="siteId")
-    wdk_url: str | None = Field(default=None, alias="wdkUrl")
-    root_step_id: int | None = Field(default=None, alias="rootStepId")
-    is_saved: bool | None = Field(default=None, alias="isSaved")
-    is_internal: bool = Field(default=False, alias="isInternal")
-
-    model_config = {"populate_by_name": True}
-
-
 class OpenStrategyRequest(BaseModel):
     """Request to open a strategy."""
 

@@ -10,7 +10,7 @@ from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType
+from veupath_chatbot.services.enrichment.types import EnrichmentAnalysisType
 from veupath_chatbot.services.gene_sets.enrichment import run_enrichment_for_gene_set
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource

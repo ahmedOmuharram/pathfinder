@@ -6,27 +6,7 @@ from veupath_chatbot.domain.strategy.ast import StepAnalysis, StepFilter, StepRe
 from veupath_chatbot.domain.strategy.ops import ColocationParams
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.pydantic_base import CamelModel
-from veupath_chatbot.platform.types import JSONObject, JSONValue
-
-
-class StepFiltersResponse(BaseModel):
-    """Container for step filters."""
-
-    filters: list[StepFilter]
-
-
-class StepAnalysisRunResponse(BaseModel):
-    """Result of running a step analysis."""
-
-    analysis: StepAnalysis
-    wdk: JSONObject | None = None
-
-
-class StepReportRunResponse(BaseModel):
-    """Result of running a step report."""
-
-    report: StepReport
-    wdk: JSONObject | None = None
+from veupath_chatbot.platform.types import JSONObject
 
 
 class StepResponse(CamelModel):
@@ -50,32 +30,6 @@ class StepResponse(CamelModel):
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None
     reports: list[StepReport] | None = None
-
-
-class StepFilterRequest(BaseModel):
-    """Request to set or update a step filter."""
-
-    value: JSONValue
-    disabled: bool = False
-
-
-class StepAnalysisRequest(BaseModel):
-    """Request to run a step analysis."""
-
-    analysis_type: str = Field(alias="analysisType")
-    parameters: JSONObject = Field(default_factory=dict)
-    custom_name: str | None = Field(default=None, alias="customName")
-
-    model_config = {"populate_by_name": True}
-
-
-class StepReportRequest(BaseModel):
-    """Request to run a step report."""
-
-    report_name: str = Field(default="standard", alias="reportName")
-    config: JSONObject = Field(default_factory=dict)
-
-    model_config = {"populate_by_name": True}
 
 
 class PrimaryKeyPart(BaseModel):

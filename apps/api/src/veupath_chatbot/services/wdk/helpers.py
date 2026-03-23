@@ -14,7 +14,7 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-from veupath_chatbot.services.experiment.enrichment_params import (
+from veupath_chatbot.services.enrichment.params import (
     encode_vocab_params,
     extract_default_params,
 )

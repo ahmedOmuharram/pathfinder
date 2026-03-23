@@ -4,9 +4,7 @@ import pytest
 
 from veupath_chatbot.domain.strategy.ops import (
     BOOLEAN_OPERATOR_OPTIONS_DESC,
-    COMBINE_OP_ORDER,
     DEFAULT_COMBINE_OPERATOR,
-    OP_LABELS,
     ColocationParams,
     CombineOp,
     get_wdk_operator,
@@ -127,13 +125,6 @@ class TestColocationParamsValidate:
 class TestModuleConstants:
     """Tests for module-level constants."""
 
-    def test_combine_op_order_contains_all_ops(self) -> None:
-        for op_name in COMBINE_OP_ORDER:
-            assert CombineOp(op_name) is not None
-
-    def test_combine_op_order_has_7_elements(self) -> None:
-        assert len(COMBINE_OP_ORDER) == 7
-
     def test_default_combine_operator_is_intersect(self) -> None:
         assert DEFAULT_COMBINE_OPERATOR == CombineOp.INTERSECT
 
@@ -141,10 +132,6 @@ class TestModuleConstants:
         assert "INTERSECT" in BOOLEAN_OPERATOR_OPTIONS_DESC
         assert "UNION" in BOOLEAN_OPERATOR_OPTIONS_DESC
         assert "MINUS" in BOOLEAN_OPERATOR_OPTIONS_DESC
-
-    def test_op_labels_cover_all_ops(self) -> None:
-        for op in CombineOp:
-            assert op in OP_LABELS
 
     def test_combine_op_is_str_enum(self) -> None:
         assert CombineOp.INTERSECT == "INTERSECT"

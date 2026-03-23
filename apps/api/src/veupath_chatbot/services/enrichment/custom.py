@@ -3,7 +3,7 @@
 import math
 from typing import TypedDict
 
-from veupath_chatbot.services.experiment.stats import hypergeometric_log_sf
+from veupath_chatbot.services.enrichment.stats import hypergeometric_log_sf
 from veupath_chatbot.services.experiment.types import Experiment
 
 

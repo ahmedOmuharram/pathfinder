@@ -16,7 +16,6 @@ from veupath_chatbot.services.catalog.searches import resolve_record_type_from_s
 from veupath_chatbot.services.strategies.build import (
     RootResolutionError,
     StepCountResult,
-    extract_step_counts,
     get_estimated_size,
     resolve_root_step,
 )
@@ -169,11 +168,6 @@ class TestResolveRecordTypeFromSteps:
         assert result == "gene"
 
 
-# ---------------------------------------------------------------------------
-# extract_step_counts
-# ---------------------------------------------------------------------------
-
-
 def _make_strategy_details(
     root_step_id: int = 100,
     steps: dict[str, dict[str, object]] | None = None,
@@ -198,64 +192,6 @@ def _make_strategy_details(
             },
         }
     )
-
-
-class TestExtractStepCounts:
-    def test_basic_extraction(self):
-        strategy_info = _make_strategy_details(
-            root_step_id=100,
-            steps={
-                "100": {"estimatedSize": 42},
-                "200": {"estimatedSize": 0},
-            },
-        )
-        compiled_map = {"s1": 100, "s2": 200}
-        counts, root_count = extract_step_counts(strategy_info, compiled_map)
-        assert counts == {"s1": 42, "s2": 0}
-        assert root_count == 42
-
-    def test_missing_estimated_size(self):
-        strategy_info = _make_strategy_details(
-            root_step_id=100,
-            steps={"100": {}},
-        )
-        compiled_map = {"s1": 100}
-        counts, root_count = extract_step_counts(strategy_info, compiled_map)
-        assert counts == {"s1": None}
-        assert root_count is None
-
-    def test_no_steps(self):
-        strategy_info = _make_strategy_details(root_step_id=100, steps={})
-        compiled_map = {"s1": 100}
-        counts, root_count = extract_step_counts(strategy_info, compiled_map)
-        assert counts == {}
-        assert root_count is None
-
-    def test_non_int_wdk_id_skipped(self):
-        strategy_info = _make_strategy_details(
-            root_step_id=100,
-            steps={
-                "abc": {"estimatedSize": 10},
-                "100": {"estimatedSize": 5},
-            },
-        )
-        compiled_map = {"s1": 100}
-        counts, _root_count = extract_step_counts(strategy_info, compiled_map)
-        assert counts == {"s1": 5}
-
-    def test_zero_counts_detected(self):
-        strategy_info = _make_strategy_details(
-            root_step_id=100,
-            steps={
-                "100": {"estimatedSize": 10},
-                "200": {"estimatedSize": 0},
-                "300": {"estimatedSize": 0},
-            },
-        )
-        compiled_map = {"s1": 100, "s2": 200, "s3": 300}
-        counts, _ = extract_step_counts(strategy_info, compiled_map)
-        zeros = sorted([sid for sid, c in counts.items() if c == 0])
-        assert zeros == ["s2", "s3"]
 
 
 # ---------------------------------------------------------------------------

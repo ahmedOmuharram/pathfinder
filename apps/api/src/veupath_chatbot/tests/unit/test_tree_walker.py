@@ -5,7 +5,6 @@ from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.tree import (
     collect_plan_combine_nodes,
     collect_plan_leaves,
-    collect_plan_nodes,
     map_plan_tree,
     walk_plan_tree,
 )
@@ -69,18 +68,8 @@ class TestWalkPlanTree:
 
 
 # =========================================================================
-# collect_plan_nodes / collect_plan_leaves
+# collect_plan_leaves
 # =========================================================================
-
-
-class TestCollectPlanNodes:
-    def test_collects_all(self) -> None:
-        inner = _combine("C2", _leaf("L1"), _leaf("L2"))
-        tree = _combine("C1", inner, _leaf("L3"))
-        assert len(collect_plan_nodes(tree)) == 5
-
-    def test_single_leaf(self) -> None:
-        assert len(collect_plan_nodes(_leaf("L1"))) == 1
 
 
 class TestCollectPlanLeaves:

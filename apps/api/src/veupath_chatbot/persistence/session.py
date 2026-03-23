@@ -3,6 +3,8 @@
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -60,11 +62,6 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     return factory
 
 
-def get_engine() -> AsyncEngine:
-    """Get the lazily-initialized async engine."""
-    return _get_engine()
-
-
 def async_session_factory() -> AsyncSession:
     """Create a new async session from the lazily-initialized factory."""
     return _get_session_factory()()
@@ -83,9 +80,6 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
 
 def _run_alembic_upgrade(connection: object) -> None:
     """Run Alembic migrations synchronously on the given connection."""
-    from alembic import command
-    from alembic.config import Config
-
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.attributes["connection"] = connection
     command.upgrade(alembic_cfg, "head")

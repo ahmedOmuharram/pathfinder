@@ -5,15 +5,17 @@ from pydantic import Field
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.pydantic_base import CamelModel, RoundedFloat2
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.enrichment.types import (
+    EnrichmentAnalysisType,
+    EnrichmentResult,
+)
 from veupath_chatbot.services.experiment.types.core import (
     DEFAULT_STEP_ANALYSIS_PHASES,
     ControlValueFormat,
-    EnrichmentAnalysisType,
     ExperimentMode,
     ExperimentStatus,
     OptimizationObjective,
 )
-from veupath_chatbot.services.experiment.types.enrichment import EnrichmentResult
 from veupath_chatbot.services.experiment.types.metrics import (
     CrossValidationResult,
     ExperimentMetrics,

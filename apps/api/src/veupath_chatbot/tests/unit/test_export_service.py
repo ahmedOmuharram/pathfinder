@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from veupath_chatbot.services.experiment.types import Experiment, ExperimentConfig
-from veupath_chatbot.services.experiment.types.enrichment import (
+from veupath_chatbot.services.enrichment.types import (
     EnrichmentResult,
     EnrichmentTerm,
 )
+from veupath_chatbot.services.experiment.types import Experiment, ExperimentConfig
 from veupath_chatbot.services.experiment.types.metrics import GeneInfo
 from veupath_chatbot.services.export.service import ExportService, _sanitize_filename
 from veupath_chatbot.services.gene_sets.types import GeneSet

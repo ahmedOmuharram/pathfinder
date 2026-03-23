@@ -6,9 +6,9 @@ from kani import AIParam, ai_function
 from pydantic import BaseModel
 
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 from veupath_chatbot.services.strategies.step_creation import (
-    StepCreationCallbacks,
     StepSpec,
     create_step,
 )
@@ -110,7 +110,7 @@ class StrategyStepOps(StrategyToolsHelpers):
             downstream=inp.downstream,
             strand=inp.strand,
         )
-        callbacks = StepCreationCallbacks(
+        callbacks = ValidationCallbacks(
             resolve_record_type_for_search=self._find_record_type_for_search,
             find_record_type_hint=self._find_record_type_hint,
             extract_vocab_options=self._extract_vocab_options,

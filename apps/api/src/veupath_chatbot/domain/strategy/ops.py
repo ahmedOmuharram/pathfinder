@@ -13,17 +13,6 @@ from pydantic import model_validator
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONValue
 
-# Order matches WDK; use this tuple for iteration / descriptions
-COMBINE_OP_ORDER = (
-    "INTERSECT",
-    "MINUS",
-    "RMINUS",
-    "LONLY",
-    "RONLY",
-    "COLOCATE",
-    "UNION",
-)
-
 
 class CombineOp(StrEnum):
     """Set operations for combining two step results."""
@@ -43,17 +32,6 @@ DEFAULT_COMBINE_OPERATOR = CombineOp.INTERSECT
 BOOLEAN_OPERATOR_OPTIONS_DESC = ", ".join(
     o.value for o in (CombineOp.INTERSECT, CombineOp.UNION, CombineOp.MINUS)
 )
-
-# User-friendly labels for operators
-OP_LABELS: dict[CombineOp, str] = {
-    CombineOp.INTERSECT: "IDs in common (AND)",
-    CombineOp.UNION: "Combined (OR)",
-    CombineOp.MINUS: "In left, not in right",
-    CombineOp.RMINUS: "In right, not in left",
-    CombineOp.LONLY: "Left only",
-    CombineOp.RONLY: "Right only",
-    CombineOp.COLOCATE: "Genomic colocation",
-}
 
 
 class ColocationParams(CamelModel):

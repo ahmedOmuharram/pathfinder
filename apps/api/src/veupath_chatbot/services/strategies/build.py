@@ -104,42 +104,6 @@ def resolve_root_step(
 
 
 # ---------------------------------------------------------------------------
-# Step counts extraction
-# ---------------------------------------------------------------------------
-
-
-def extract_step_counts(
-    strategy_info: WDKStrategyDetails,
-    compiled_map: dict[str, int],
-) -> tuple[dict[str, int | None], int | None]:
-    """Extract per-step result counts from a WDK strategy payload.
-
-    :param strategy_info: Typed WDK strategy details (from ``api.get_strategy``).
-    :param compiled_map: Mapping of local_step_id -> wdk_step_id.
-    :returns: Tuple of (step_counts dict, root_count).
-    """
-    step_counts: dict[str, int | None] = {}
-    root_count: int | None = None
-
-    wdk_to_local = {v: k for k, v in compiled_map.items()}
-
-    for wdk_id_str, step in strategy_info.steps.items():
-        try:
-            wdk_id_int = int(wdk_id_str)
-        except ValueError, TypeError:
-            continue
-        local_id = wdk_to_local.get(wdk_id_int)
-        if local_id:
-            step_counts[local_id] = step.estimated_size
-
-    root_local = wdk_to_local.get(strategy_info.root_step_id)
-    if root_local:
-        root_count = step_counts.get(root_local)
-
-    return step_counts, root_count
-
-
-# ---------------------------------------------------------------------------
 # Result count lookup
 # ---------------------------------------------------------------------------
 

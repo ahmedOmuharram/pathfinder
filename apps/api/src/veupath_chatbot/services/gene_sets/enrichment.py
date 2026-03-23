@@ -6,10 +6,10 @@ from redis.exceptions import RedisError
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.services.experiment.types import EnrichmentAnalysisType
+from veupath_chatbot.services.enrichment.service import EnrichmentService
+from veupath_chatbot.services.enrichment.types import EnrichmentAnalysisType
 from veupath_chatbot.services.export import get_export_service
 from veupath_chatbot.services.gene_sets.types import GeneSet
-from veupath_chatbot.services.wdk.enrichment_service import EnrichmentService
 
 logger = get_logger(__name__)
 

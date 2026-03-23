@@ -10,7 +10,6 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 # Sentinel search names for non-search nodes in the step graph.
 COMBINE_SEARCH_NAME = "__combine__"
-UNKNOWN_SEARCH_NAME = "__unknown__"
 
 
 def generate_step_id() -> str:

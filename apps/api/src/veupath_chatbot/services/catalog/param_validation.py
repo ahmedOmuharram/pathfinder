@@ -49,11 +49,18 @@ class ResolveRecordTypeFn(Protocol):
 
 @dataclass(frozen=True)
 class ValidationCallbacks:
-    """Caller-provided callbacks for parameter validation."""
+    """Caller-provided callbacks for parameter validation.
+
+    The first three fields are required by :func:`validate_parameters`.
+    ``validation_error_payload`` is optional — only needed when the caller
+    wants to convert :class:`ValidationError` into a ``tool_error`` payload
+    (e.g. during step creation).
+    """
 
     resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
     extract_vocab_options: Callable[[JSONObject], list[str]]
+    validation_error_payload: Callable[[ValidationError], JSONObject] | None = None
 
 
 # Truncate vocab option lists in validation error responses to keep

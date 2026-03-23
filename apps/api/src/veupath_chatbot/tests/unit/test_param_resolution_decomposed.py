@@ -1,6 +1,6 @@
 """Tests for decomposed helpers in services/catalog/param_resolution.py.
 
-Covers allowed_values(), format_param_info(), and fetch_search_details().
+Covers allowed_values() and fetch_search_details().
 """
 
 from typing import Any
@@ -18,7 +18,6 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
-from veupath_chatbot.services.catalog.param_formatting import format_param_info
 from veupath_chatbot.services.catalog.param_resolution import get_search_parameters
 from veupath_chatbot.services.catalog.vocab_rendering import allowed_values
 
@@ -115,158 +114,6 @@ class TestAllowedValues:
         result = self._call(vocab)
         values = self._values(result)
         assert "good_val" in values
-
-
-# ---------------------------------------------------------------------------
-# format_param_info
-# ---------------------------------------------------------------------------
-
-
-class TestFormatParamInfo:
-    """Tests for format_param_info() helper."""
-
-    def _call(self, param_specs: JSONArray) -> JSONArray:
-        return format_param_info(param_specs)
-
-    def test_basic_param_spec(self) -> None:
-        specs: JSONArray = [
-            {
-                "name": "organism",
-                "displayName": "Organism",
-                "type": "single-pick-vocabulary",
-                "allowEmptyValue": False,
-                "isVisible": True,
-                "help": "Choose an organism",
-            }
-        ]
-        result = self._call(specs)
-        assert len(result) == 1
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["name"] == "organism"
-        assert p["displayName"] == "Organism"
-        assert p["type"] == "single-pick-vocabulary"
-        assert p["required"] is True
-        assert p["isVisible"] is True
-        assert p["help"] == "Choose an organism"
-
-    def test_skips_non_dict_entries(self) -> None:
-        specs: JSONArray = ["not_a_dict", 42, {"name": "valid", "type": "string"}]
-        result = self._call(specs)
-        assert len(result) == 1
-
-    def test_skips_entries_without_name(self) -> None:
-        specs: JSONArray = [
-            {"type": "string"},  # no name
-            {"name": "", "type": "string"},  # empty name
-            {"name": "valid", "type": "string"},
-        ]
-        result = self._call(specs)
-        assert len(result) == 1
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["name"] == "valid"
-
-    def test_required_from_allow_empty_value(self) -> None:
-        specs: JSONArray = [
-            {"name": "optional", "allowEmptyValue": True},
-            {"name": "required", "allowEmptyValue": False},
-        ]
-        result = self._call(specs)
-        opt = next(p for p in result if isinstance(p, dict) and p["name"] == "optional")
-        req = next(p for p in result if isinstance(p, dict) and p["name"] == "required")
-        assert opt["required"] is False
-        assert req["required"] is True
-
-    def test_defaults_for_missing_fields(self) -> None:
-        """When optional fields are missing, use sensible defaults."""
-        specs: JSONArray = [{"name": "bare_param"}]
-        result = self._call(specs)
-        assert len(result) == 1
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["displayName"] == "bare_param"  # falls back to name
-        assert p["type"] == "string"  # default type
-        assert p["help"] == ""  # default help
-        assert p["isVisible"] is True  # default visibility
-        assert p["required"] is True  # default required (no allowEmptyValue)
-
-    def test_initial_display_value_sets_default(self) -> None:
-        specs: JSONArray = [
-            {"name": "p1", "initialDisplayValue": "init_val"},
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["defaultValue"] == "init_val"
-
-    def test_default_value_fallback(self) -> None:
-        specs: JSONArray = [
-            {"name": "p1", "defaultValue": "fallback_val"},
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["defaultValue"] == "fallback_val"
-
-    def test_initial_display_value_takes_priority_over_default(self) -> None:
-        specs: JSONArray = [
-            {
-                "name": "p1",
-                "initialDisplayValue": "preferred",
-                "defaultValue": "secondary",
-            },
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert p["defaultValue"] == "preferred"
-
-    def test_vocabulary_producesallowed_values(self) -> None:
-        specs: JSONArray = [
-            {
-                "name": "organism",
-                "vocabulary": [
-                    ["Pf3D7", "P. falciparum 3D7"],
-                    ["PvP01", "P. vivax P01"],
-                ],
-            },
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert "allowedValues" in p
-        allowed = p["allowedValues"]
-        assert isinstance(allowed, list)
-        values = [e["value"] for e in allowed if isinstance(e, dict)]
-        assert "Pf3D7" in values
-        displays = [e["display"] for e in allowed if isinstance(e, dict)]
-        assert "P. falciparum 3D7" in displays
-
-    def test_noallowed_values_when_vocabulary_empty(self) -> None:
-        specs: JSONArray = [
-            {"name": "p1", "vocabulary": []},
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert "allowedValues" not in p
-
-    def test_non_string_name_skipped(self) -> None:
-        specs: JSONArray = [
-            {"name": 123, "type": "string"},
-        ]
-        result = self._call(specs)
-        assert len(result) == 0
-
-    def test_non_dict_vocabulary_ignored(self) -> None:
-        specs: JSONArray = [
-            {"name": "p1", "vocabulary": "not_a_list_or_dict"},
-        ]
-        result = self._call(specs)
-        p = result[0]
-        assert isinstance(p, dict)
-        assert "allowedValues" not in p
 
 
 # ---------------------------------------------------------------------------

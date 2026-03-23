@@ -1,6 +1,6 @@
 """Tests for cross-experiment enrichment comparison."""
 
-from veupath_chatbot.services.experiment.enrichment_compare import (
+from veupath_chatbot.services.enrichment.compare import (
     compare_enrichment_across,
 )
 from veupath_chatbot.services.experiment.types import (

@@ -2,7 +2,7 @@
 
 import math
 
-from veupath_chatbot.services.experiment.stats import hypergeometric_log_sf
+from veupath_chatbot.services.enrichment.stats import hypergeometric_log_sf
 
 
 class TestHypergeometricLogSf:
