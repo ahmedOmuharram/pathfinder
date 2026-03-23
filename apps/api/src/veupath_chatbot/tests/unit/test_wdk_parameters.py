@@ -163,7 +163,7 @@ class TestWDKEnumParam:
     def test_max_selected_count_unlimited(self) -> None:
         data = wdk_enum_param_json()
         param = WDKEnumParam.model_validate(data)
-        assert param.max_selected_count == -1
+        assert param.max_selected_count is None  # WDK sends -1, normalized to None
 
     def test_count_only_leaves_treebox(self) -> None:
         data = wdk_enum_param_json(display_type="treeBox")
@@ -337,3 +337,65 @@ class TestParamSpecBridge:
         param = WDKEnumParam.model_validate(wdk_enum_param_json(display_type="treeBox"))
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.count_only_leaves is True
+
+
+# ---------------------------------------------------------------------------
+# Subtype fields accessible on base (no getattr needed)
+# ---------------------------------------------------------------------------
+
+
+class TestSubtypeFieldsOnBase:
+    """Subtype-specific fields are hoisted to WDKBaseParameter with safe defaults.
+
+    This allows adapters like ParamSpecNormalized.from_wdk() to read fields
+    directly instead of using getattr/hasattr.
+    """
+
+    def test_date_param_has_vocabulary_none(self) -> None:
+        param = WDKDateParam(name="d", type="date")
+        assert param.vocabulary is None
+
+    def test_date_param_has_count_only_leaves_false(self) -> None:
+        param = WDKDateParam(name="d", type="date")
+        assert param.count_only_leaves is False
+
+    def test_date_param_has_min_none(self) -> None:
+        param = WDKDateParam(name="d", type="date")
+        assert param.min is None
+
+    def test_date_param_has_length_zero(self) -> None:
+        param = WDKDateParam(name="d", type="date")
+        assert param.length == 0
+
+    def test_date_param_has_is_number_false(self) -> None:
+        param = WDKDateParam(name="d", type="date")
+        assert param.is_number is False
+
+    def test_timestamp_param_has_all_defaults(self) -> None:
+        param = WDKTimestampParam(name="t", type="timestamp")
+        assert param.vocabulary is None
+        assert param.min is None
+        assert param.max is None
+        assert param.increment is None
+        assert param.length == 0
+        assert param.is_number is False
+        assert param.count_only_leaves is False
+        assert param.display_type == ""
+        assert param.min_selected_count == 0
+        assert param.max_selected_count is None
+
+    def test_enum_param_shadows_base_defaults(self) -> None:
+        param = WDKEnumParam.model_validate(wdk_enum_param_json())
+        assert param.vocabulary is not None
+        assert param.max_selected_count is None  # -1 normalized to None
+
+    def test_number_param_shadows_base_defaults(self) -> None:
+        param = WDKNumberParam(name="n", type="number", min=0.0, max=100.0, increment=1.0)
+        assert param.min == 0.0
+        assert param.max == 100.0
+        assert param.increment == 1.0
+
+    def test_string_param_shadows_base_defaults(self) -> None:
+        param = WDKStringParam.model_validate(wdk_string_param_json(is_number=True))
+        assert param.is_number is True
+        assert param.length == 0

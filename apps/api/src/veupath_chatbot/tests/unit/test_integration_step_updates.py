@@ -76,7 +76,7 @@ class TestPrepareSearchConfig:
     @pytest.mark.anyio
     async def test_normalizes_parameters(self) -> None:
         mixin, _client = _make_mixin()
-        params, payload = await mixin._prepare_search_config(
+        params, config = await mixin._prepare_search_config(
             raw_params={"text_expression": "kinase", "num_param": 42},
             record_type="transcript",
             search_name="GenesByTextSearch",
@@ -84,29 +84,29 @@ class TestPrepareSearchConfig:
         # Parameters should be normalized to strings
         assert params["text_expression"] == "kinase"
         assert params["num_param"] == "42"
-        # Payload should contain the normalized parameters
-        assert payload["parameters"] == params
+        # Config should contain the normalized parameters
+        assert config.parameters == params
 
     @pytest.mark.anyio
     async def test_no_wdk_weight_when_zero(self) -> None:
         mixin, _client = _make_mixin()
-        _params, payload = await mixin._prepare_search_config(
+        _params, config = await mixin._prepare_search_config(
             raw_params={"text_expression": "kinase"},
             record_type="transcript",
             search_name="GenesByTextSearch",
         )
-        assert "wdkWeight" not in payload
+        assert config.wdk_weight == 0
 
     @pytest.mark.anyio
     async def test_wdk_weight_included_when_nonzero(self) -> None:
         mixin, _client = _make_mixin()
-        _params, payload = await mixin._prepare_search_config(
+        _params, config = await mixin._prepare_search_config(
             raw_params={"text_expression": "kinase"},
             record_type="transcript",
             search_name="GenesByTextSearch",
             wdk_weight=10,
         )
-        assert payload["wdkWeight"] == 10
+        assert config.wdk_weight == 10
 
     @pytest.mark.anyio
     async def test_profile_pattern_expansion_triggered(self) -> None:

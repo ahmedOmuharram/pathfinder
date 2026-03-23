@@ -19,6 +19,7 @@ import pytest
 import respx
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     search_details_response,
@@ -302,7 +303,7 @@ class TestRunSearchReport:
             answer = await client.run_search_report(
                 "transcript",
                 "GenesByTaxon",
-                {"parameters": {"organism": '["Plasmodium falciparum 3D7"]'}},
+                WDKSearchConfig(parameters={"organism": '["Plasmodium falciparum 3D7"]'}),
             )
             assert answer.meta.total_count > 0
             assert len(answer.records) > 0
@@ -314,4 +315,4 @@ class TestRunSearchReport:
                 f"{client.base_url}/record-types/transcript/searches/Bad/reports/standard"
             ).respond(200, json={"not": "an answer"})
             with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
-                await client.run_search_report("transcript", "Bad", {"parameters": {}})
+                await client.run_search_report("transcript", "Bad", WDKSearchConfig())

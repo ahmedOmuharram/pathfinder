@@ -5,14 +5,11 @@ from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
 
+from veupath_chatbot.ai.orchestration.delegation import CompiledNode
+from veupath_chatbot.ai.orchestration.results import NodeResult
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import (
-    JSONArray,
-    JSONObject,
-    as_json_array,
-    as_json_object,
-)
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
@@ -21,29 +18,22 @@ logger = get_logger(__name__)
 class SchedulerState:
     """Shared state for the dependency-aware node scheduler."""
 
-    nodes_by_id: dict[str, JSONObject]
+    nodes_by_id: dict[str, CompiledNode]
     format_dependency_context: Callable[..., str | None]
-    results_by_id: dict[str, JSONObject]
-    guarded_run: Callable[..., Coroutine[Any, Any, JSONObject]]
+    results_by_id: dict[str, NodeResult]
+    guarded_run: Callable[..., Coroutine[Any, Any, NodeResult]]
     max_concurrency: int
 
 
 def _compute_remaining_deps(
-    nodes_by_id: dict[str, JSONObject],
+    nodes_by_id: dict[str, CompiledNode],
     node_ids: set[str],
 ) -> dict[str, set[str]]:
     """Compute initial remaining dependencies for each node."""
-    remaining_deps: dict[str, set[str]] = {}
-    for node_id, node in nodes_by_id.items():
-        depends_on_value = node.get("depends_on")
-        if isinstance(depends_on_value, list):
-            deps_list = as_json_array(depends_on_value)
-            remaining_deps[node_id] = {
-                dep for dep in deps_list if isinstance(dep, str) and dep in node_ids
-            }
-        else:
-            remaining_deps[node_id] = set()
-    return remaining_deps
+    return {
+        node_id: {dep for dep in node.depends_on if dep in node_ids}
+        for node_id, node in nodes_by_id.items()
+    }
 
 
 async def _schedule_and_run(
@@ -51,11 +41,11 @@ async def _schedule_and_run(
     state: SchedulerState,
     dependents: dict[str, list[str]],
     remaining_deps: dict[str, set[str]],
-) -> tuple[JSONArray, set[str]]:
+) -> tuple[list[NodeResult], set[str]]:
     """Run nodes with concurrency control and dependency tracking."""
     ready = [node_id for node_id, deps in remaining_deps.items() if not deps]
-    running: dict[asyncio.Task[JSONObject], str] = {}
-    results: JSONArray = []
+    running: dict[asyncio.Task[NodeResult], str] = {}
+    results: list[NodeResult] = []
     all_scheduled: set[str] = set()
 
     while ready or running:
@@ -76,8 +66,7 @@ async def _schedule_and_run(
             finished_id = running.pop(finished)
             result = finished.result()
             results.append(result)
-            if isinstance(result, dict):
-                state.results_by_id[finished_id] = result
+            state.results_by_id[finished_id] = result
             for child in dependents.get(finished_id, []):
                 remaining_deps[child].discard(finished_id)
                 if not remaining_deps[child]:
@@ -89,7 +78,7 @@ async def _schedule_and_run(
 def _launch_ready_nodes(
     *,
     ready: list[str],
-    running: dict[asyncio.Task[JSONObject], str],
+    running: dict[asyncio.Task[NodeResult], str],
     all_scheduled: set[str],
     state: SchedulerState,
 ) -> None:
@@ -103,7 +92,7 @@ def _launch_ready_nodes(
             tasks_by_id=state.nodes_by_id,
             results_by_id=state.results_by_id,
         )
-        running_task: asyncio.Task[JSONObject] = asyncio.create_task(
+        running_task: asyncio.Task[NodeResult] = asyncio.create_task(
             state.guarded_run(node_id, node, dependency_context)
         )
         running[running_task] = node_id
@@ -111,13 +100,13 @@ def _launch_ready_nodes(
 
 async def run_nodes_with_dependencies(
     *,
-    nodes_by_id: dict[str, JSONObject],
+    nodes_by_id: dict[str, CompiledNode],
     dependents: dict[str, list[str]],
     max_concurrency: int,
-    run_node: Callable[[str, JSONObject, str | None], Awaitable[JSONObject]],
+    run_node: Callable[[str, CompiledNode, str | None], Awaitable[NodeResult]],
     format_dependency_context: Callable[..., str | None],
-    results_by_id: dict[str, JSONObject] | None = None,
-) -> tuple[JSONArray, dict[str, JSONObject]]:
+    results_by_id: dict[str, NodeResult] | None = None,
+) -> tuple[list[NodeResult], dict[str, NodeResult]]:
     """Execute nodes concurrently while honoring their depends_on edges."""
     node_ids = set(nodes_by_id.keys())
     remaining_deps = _compute_remaining_deps(nodes_by_id, node_ids)
@@ -127,8 +116,8 @@ async def run_nodes_with_dependencies(
     semaphore = asyncio.Semaphore(max(1, int(max_concurrency)))
 
     async def guarded_run(
-        node_id: str, node: JSONObject, dependency_context: str | None
-    ) -> JSONObject:
+        node_id: str, node: CompiledNode, dependency_context: str | None
+    ) -> NodeResult:
         async with semaphore:
             return await run_node(node_id, node, dependency_context)
 
@@ -153,13 +142,6 @@ async def run_nodes_with_dependencies(
             "Circular dependency detected - nodes never scheduled",
             unscheduled_nodes=sorted(unscheduled),
         )
-        for node_id in unscheduled:
-            results.append(
-                tool_error(
-                    "CIRCULAR_DEPENDENCY",
-                    f"Task '{node_id}' has circular dependencies and was skipped.",
-                )
-            )
 
     return results, results_by_id
 
@@ -174,10 +156,10 @@ def partition_task_results(
     for result_value in results:
         if not isinstance(result_value, dict):
             continue
-        result = as_json_object(result_value)
+        result: JSONObject = result_value
         steps_value = result.get("steps")
         steps: JSONArray = (
-            as_json_array(steps_value) if isinstance(steps_value, list) else []
+            list(steps_value) if isinstance(steps_value, list) else []
         )
         if not steps:
             _add_rejected_result(result, validated, rejected)

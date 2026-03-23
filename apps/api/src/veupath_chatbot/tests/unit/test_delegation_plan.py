@@ -1,5 +1,7 @@
-from veupath_chatbot.ai.orchestration.delegation import build_delegation_plan
-from veupath_chatbot.platform.types import JSONObject, as_json_object
+from veupath_chatbot.ai.orchestration.delegation import (
+    build_delegation_plan,
+)
+from veupath_chatbot.platform.types import JSONObject
 
 
 def test_delegation_plan_allows_missing_ids_generates_unique_ids() -> None:
@@ -54,26 +56,11 @@ def test_delegation_plan_preserves_task_context_and_affects_dedupe() -> None:
     compiled = build_delegation_plan(goal="x", plan=plan)
     assert not isinstance(compiled, dict)
     assert len(compiled.tasks) == 2
-    contexts: list[JSONObject] = []
-    for t_value in compiled.tasks:
-        if isinstance(t_value, dict):
-            t = as_json_object(t_value)
-            context_value = t.get("context")
-            if isinstance(context_value, dict):
-                contexts.append(as_json_object(context_value))
-    context_dicts = [
-        {k: str(v) if v is not None else "" for k, v in ctx.items()} for ctx in contexts
-    ]
-    assert {"organism": "Pf3D7"} in context_dicts
-    assert {"organism": "PbANKA"} in context_dicts
+    contexts = [t.context for t in compiled.tasks]
+    assert {"organism": "Pf3D7"} in contexts
+    assert {"organism": "PbANKA"} in contexts
     # Same task text but different context => should not dedupe into one node.
-    task_ids: set[str] = set()
-    for t_value in compiled.tasks:
-        if isinstance(t_value, dict):
-            t = as_json_object(t_value)
-            task_id_value = t.get("id")
-            if isinstance(task_id_value, str):
-                task_ids.add(task_id_value)
+    task_ids = {t.id for t in compiled.tasks}
     assert len(task_ids) == 2
 
 

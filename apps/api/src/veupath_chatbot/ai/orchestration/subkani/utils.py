@@ -6,6 +6,8 @@ from collections.abc import Awaitable, Callable
 from kani import Kani
 from kani.models import ChatRole
 
+from veupath_chatbot.ai.orchestration.delegation import CompiledNode
+from veupath_chatbot.ai.orchestration.results import NodeResult
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.parsing import parse_jsonish
 from veupath_chatbot.platform.types import (
@@ -194,39 +196,30 @@ def _collect_dep_steps(
 def format_dependency_context(
     *,
     task_id: str,
-    tasks_by_id: dict[str, JSONObject],
-    results_by_id: dict[str, JSONObject],
+    tasks_by_id: dict[str, CompiledNode],
+    results_by_id: dict[str, NodeResult],
 ) -> str | None:
     """Format dependency context for a subtask prompt."""
     task_obj = tasks_by_id.get(task_id)
-    deps_value = (
-        as_json_object(task_obj).get("depends_on")
-        if isinstance(task_obj, dict)
-        else None
-    )
-    deps = as_json_array(deps_value) if isinstance(deps_value, list) else []
+    if task_obj is None:
+        return None
+    deps = task_obj.depends_on
     if not deps:
         return None
 
     lines: list[str] = []
     structured_steps: JSONArray = []
 
-    for dep_id_value in deps:
-        if not isinstance(dep_id_value, str):
-            continue
-        dep_id = dep_id_value
-        dep_node_value = tasks_by_id.get(dep_id)
-        dep_node: JSONObject = (
-            as_json_object(dep_node_value) if isinstance(dep_node_value, dict) else {}
-        )
-        dep_task_value = dep_node.get("task", dep_id)
-        dep_task = str(dep_task_value) if dep_task_value is not None else dep_id
-        dep_instructions = dep_node.get("instructions")
-        dep_result_value = results_by_id.get(dep_id)
+    for dep_id in deps:
+        dep_node = tasks_by_id.get(dep_id)
+        dep_task = dep_node.task if dep_node else dep_id
+        dep_instructions = dep_node.instructions if dep_node else ""
+        dep_result = results_by_id.get(dep_id)
 
+        dep_result_dict = dep_result.model_dump(by_alias=True, exclude_none=True) if dep_result else None
         dep_steps: list[str] = (
-            _collect_dep_steps(as_json_object(dep_result_value), structured_steps)
-            if isinstance(dep_result_value, dict)
+            _collect_dep_steps(as_json_object(dep_result_dict), structured_steps)
+            if isinstance(dep_result_dict, dict)
             else []
         )
 
@@ -257,28 +250,3 @@ def format_task_context(context: JSONValue) -> str | None:
     return result or None
 
 
-def extract_primary_step_id(result: JSONObject | None) -> str | None:
-    """Pick the subtree root from a subtask result.
-
-    Prefers the ``subtreeRoot`` field (set by the tree-first contract
-    enforcement in the orchestrator).  Falls back to the last created step
-    ID when subtreeRoot is not set (e.g. combine results).
-    """
-    if not isinstance(result, dict):
-        return None
-    subtree_root = result.get("subtreeRoot")
-    if isinstance(subtree_root, str) and subtree_root:
-        return subtree_root
-    steps = result.get("steps")
-    return (
-        next(
-            (
-                str(step.get("stepId") or step.get("id"))
-                for step in reversed(steps)
-                if isinstance(step, dict) and (step.get("stepId") or step.get("id"))
-            ),
-            None,
-        )
-        if isinstance(steps, list)
-        else None
-    )

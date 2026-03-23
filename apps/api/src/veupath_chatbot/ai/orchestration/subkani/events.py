@@ -7,6 +7,8 @@ events during sub-kani execution.
 from dataclasses import dataclass
 
 from veupath_chatbot.ai.models.pricing import estimate_cost
+from veupath_chatbot.ai.orchestration.delegation import CompiledCombine, CompiledTask
+from veupath_chatbot.ai.orchestration.results import NodeResult
 from veupath_chatbot.ai.orchestration.subkani.utils import get_round_result
 from veupath_chatbot.ai.orchestration.types import EmitEvent
 from veupath_chatbot.domain.strategy.session import StrategyGraph
@@ -28,9 +30,9 @@ class DelegationRunData:
     graph_id: str | None
     graph_name: str
     graph_description: str
-    normalized: JSONArray
-    normalized_combines: JSONArray
-    results: JSONArray
+    normalized: list[CompiledTask]
+    normalized_combines: list[CompiledCombine]
+    results: list[NodeResult]
     start: float
 
 

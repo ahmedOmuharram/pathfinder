@@ -368,9 +368,8 @@ class TestFetchWdkTextGenes:
         )
 
         call_kwargs = mock_client.run_search_report.call_args[1]
-        sent_fields = json.loads(
-            call_kwargs["search_config"]["parameters"]["text_fields"]
-        )
+        search_config = call_kwargs["search_config"]
+        sent_fields = json.loads(search_config.parameters["text_fields"])
         assert sent_fields == WDK_TEXT_FIELDS_ID
 
 

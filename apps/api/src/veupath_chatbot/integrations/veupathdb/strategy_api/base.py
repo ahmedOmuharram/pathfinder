@@ -162,10 +162,9 @@ class StrategyAPIBase:
                 continue
             if spec.type not in ("multi-pick-vocabulary", "single-pick-vocabulary"):
                 continue
-            count_only_leaves = getattr(spec, "count_only_leaves", False)
-            if not count_only_leaves:
+            if not spec.count_only_leaves:
                 continue
-            vocab = getattr(spec, "vocabulary", None)
+            vocab = spec.vocabulary
             if not isinstance(vocab, dict):
                 continue
             expanded = self._expand_single_tree_param(vocab, result[spec.name])
@@ -262,7 +261,7 @@ class StrategyAPIBase:
         )
         for param in response.search_data.parameters or []:
             if param.name == "phyletic_indent_map":
-                vocab = getattr(param, "vocabulary", None)
+                vocab = param.vocabulary
                 if isinstance(vocab, list):
                     return vocab
         return []

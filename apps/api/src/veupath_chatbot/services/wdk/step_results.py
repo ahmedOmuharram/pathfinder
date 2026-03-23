@@ -9,6 +9,8 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKColumnDistribution,
+    WDKSortDirection,
+    WDKSortSpec,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import AppError
@@ -61,13 +63,13 @@ class StepResultsService:
         offset: int = 0,
         limit: int = 50,
         sort: str | None = None,
-        direction: str = "ASC",
+        direction: WDKSortDirection = "ASC",
         attributes: list[str] | None = None,
     ) -> WDKAnswer:
         """Get paginated result records."""
-        sorting: list[JSONObject] | None = None
+        sorting: list[WDKSortSpec] | None = None
         if sort:
-            sorting = [{"attributeName": sort, "direction": direction.upper()}]
+            sorting = [WDKSortSpec(attribute_name=sort, direction=direction)]
 
         return await self._api.get_step_records(
             step_id=self._step_id,

@@ -101,18 +101,18 @@ class StepsMixin(StrategyAPIBase):
         *,
         wdk_weight: int = 0,
         keep_empty: set[str] | None = None,
-    ) -> tuple[dict[str, str], JSONObject]:
-        """Normalize and expand parameters, return (normalized_params, search_config_payload).
+    ) -> tuple[dict[str, str], WDKSearchConfig]:
+        """Normalize and expand parameters, return (normalized_params, search_config).
 
         Shared by create_step, create_transform_step, and update_step_search_config.
-        Returns the normalized params dict AND the ready-to-send search_config JSON object.
+        Returns the normalized params dict AND a typed WDKSearchConfig.
 
         :param raw_params: Raw parameter dict (values may be non-string).
         :param record_type: WDK record type (e.g., "gene", "transcript").
         :param search_name: Search/question URL segment.
         :param wdk_weight: WDK weight for result ranking (0 = omit from payload).
         :param keep_empty: Param names to preserve even when empty (e.g. AnswerParams).
-        :returns: Tuple of (normalized_params, search_config_payload).
+        :returns: Tuple of (normalized_params, search_config).
         """
         normalized = self._normalize_parameters(raw_params, keep_empty=keep_empty)
 
@@ -131,10 +131,7 @@ class StepsMixin(StrategyAPIBase):
             record_type, search_name, normalized
         )
 
-        search_config: JSONObject = {"parameters": {**normalized}}
-        if wdk_weight != 0:
-            search_config["wdkWeight"] = wdk_weight
-
+        search_config = WDKSearchConfig(parameters=normalized, wdk_weight=wdk_weight)
         return normalized, search_config
 
     async def create_step(
@@ -159,7 +156,7 @@ class StepsMixin(StrategyAPIBase):
 
         payload: JSONObject = {
             "searchName": spec.search_name,
-            "searchConfig": search_config,
+            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
         }
         if spec.custom_name:
             payload["customName"] = spec.custom_name
@@ -275,7 +272,7 @@ class StepsMixin(StrategyAPIBase):
 
         payload: JSONObject = {
             "searchName": spec.search_name,
-            "searchConfig": search_config,
+            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
         }
         if spec.custom_name:
             payload["customName"] = spec.custom_name
@@ -337,7 +334,7 @@ class StepsMixin(StrategyAPIBase):
         uid = await self._get_user_id(user_id)
         await self.client.put(
             f"/users/{uid}/steps/{step_id}/search-config",
-            json=config_payload,
+            json=config_payload.model_dump(by_alias=True, exclude_defaults=True),
         )
 
     async def update_step_properties(

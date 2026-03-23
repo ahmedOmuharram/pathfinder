@@ -150,25 +150,24 @@ def _validate_root_status(
     )
 
 
-async def _resolve_and_set_record_type(
-    graph: StrategyGraph,
-    record_type: str | None,
+async def _resolve_record_type_for_step(
+    current: str | None,
+    hint: str | None,
     search_name: str | None,
     resolve_record_type_for_search: ResolveRecordTypeFn,
 ) -> str:
-    """Establish best-effort record type context on the graph.
+    """Best-effort record type resolution for step creation.
 
-    Returns the resolved type.
+    Tries, in order: *current* (graph's existing type), *hint* (caller-
+    supplied), resolver lookup by *search_name*, and finally ``"transcript"``
+    as the VEuPathDB default.  Pure — does **not** mutate the graph.
     """
-    resolved = graph.record_type or record_type
+    resolved = current or hint
     if resolved is None and search_name:
         resolved = await resolve_record_type_for_search(
             None, search_name, require_match=False, allow_fallback=True
         )
-    if resolved is None:
-        resolved = "gene"
-    graph.record_type = resolved
-    return resolved
+    return resolved or "transcript"
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +244,7 @@ async def _validate_leaf_or_transform(
     Callers must invoke ``_resolve_and_set_record_type`` before this function;
     the resolved type is read from ``graph.record_type``.
     """
-    resolved_record_type = graph.record_type or "gene"
+    resolved_record_type = graph.record_type or "transcript"
     rt, error = await _resolve_search_and_validate_params(
         graph=graph,
         site_id=site_id,

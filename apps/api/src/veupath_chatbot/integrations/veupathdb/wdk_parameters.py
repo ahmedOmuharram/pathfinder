@@ -10,14 +10,21 @@ wdk_models : Structural response models that reference ``WDKParameter``.
 
 from typing import Annotated, Literal
 
-from pydantic import Discriminator, Field
+from pydantic import Discriminator, Field, field_validator
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKModel
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 
 class WDKBaseParameter(WDKModel):
-    """Common fields for all WDK parameter types."""
+    """Common fields for all WDK parameter types.
+
+    Subtype-specific fields (vocabulary, min/max, etc.) are declared here with
+    tight types so adapters like ``ParamSpecNormalized.from_wdk()`` can read
+    them directly without ``getattr`` / ``isinstance`` narrowing.  Concrete
+    subtypes shadow these with their own declarations where semantically
+    meaningful.
+    """
 
     name: str
     display_name: str = ""
@@ -32,6 +39,26 @@ class WDKBaseParameter(WDKModel):
     dependent_params: list[str] = Field(default_factory=list)
     initial_display_value: str | None = None
     properties: dict[str, list[str]] = Field(default_factory=dict)
+
+    # -- Subtype fields with safe defaults for uniform access ----------------
+    vocabulary: JSONObject | JSONArray | None = None
+    count_only_leaves: bool = False
+    display_type: str = ""
+    min_selected_count: int = 0
+    max_selected_count: int | None = None
+    min: float | None = None
+    max: float | None = None
+    increment: float | None = None
+    length: int = 0
+    is_number: bool = False
+
+    @field_validator("max_selected_count", mode="before")
+    @classmethod
+    def _normalize_unlimited(cls, v: object) -> object:
+        """WDK uses -1 for 'unlimited'. Normalize to None at the boundary."""
+        if isinstance(v, int) and v < 0:
+            return None
+        return v
 
 
 class WDKStringParam(WDKBaseParameter):
@@ -107,9 +134,9 @@ class WDKEnumParam(WDKBaseParameter):
 
     type: Literal["single-pick-vocabulary", "multi-pick-vocabulary"]
     display_type: str = ""
-    max_selected_count: int | None = -1
+    max_selected_count: int | None = None
     min_selected_count: int = 0
-    vocabulary: JSONValue = None
+    vocabulary: JSONObject | JSONArray | None = None
     count_only_leaves: bool = False
     depth_expanded: int = 0
 

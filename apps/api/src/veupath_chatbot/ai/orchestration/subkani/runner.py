@@ -7,7 +7,6 @@ and finalizing successful runs by emitting events and computing subtree roots.
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import cast
 
 from kani.engines.base import BaseEngine
 from kani.models import ChatMessage, ChatRole
@@ -16,6 +15,7 @@ from shared_py.defaults import DEFAULT_STREAM_NAME
 from veupath_chatbot.ai.agents.subtask import SubtaskAgent
 from veupath_chatbot.ai.engines.cached_anthropic import CachedAnthropicEngine
 from veupath_chatbot.ai.engines.responses_openai import ResponsesOpenAIEngine
+from veupath_chatbot.ai.orchestration.results import TaskResult
 from veupath_chatbot.ai.orchestration.subkani.events import (
     _emit_step_events,
     _emit_task_end,
@@ -26,7 +26,7 @@ from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.platform.config import Settings, get_settings
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONArray
 from veupath_chatbot.transport.http.schemas.sse import (
     SubKaniTaskEndEventData,
     SubKaniTaskRetryEventData,
@@ -134,7 +134,7 @@ async def run_subkani_task(
     context: SubkaniContext,
     graph_id: str | None,
     dependency_context: str | None,
-) -> JSONObject:
+) -> TaskResult:
     settings = get_settings()
     engine = _create_subkani_engine(settings, context.engine_factory)
     subkani_model_id = _derive_model_id(engine)
@@ -178,7 +178,7 @@ async def _run_subkani_retry_loop(
     *,
     run_state: SubkaniRunState,
     context: SubkaniContext,
-) -> JSONObject:
+) -> TaskResult:
     """Execute the sub-kani with retry logic for no-step results."""
     created_steps: JSONArray = []
     emitted_step_ids: set[str] = set()
@@ -210,7 +210,7 @@ async def _run_subkani_retry_loop(
                     ).model_dump(by_alias=True),
                 }
             )
-            return {"task": run_state.task, "steps": [], "notes": "timeout"}
+            return TaskResult(id="", task=run_state.task, notes="timeout")
 
         last_errors = round_errors
         created_steps.extend(round_steps)
@@ -246,12 +246,12 @@ async def _run_subkani_retry_loop(
             ).model_dump(by_alias=True),
         }
     )
-    return {
-        "task": run_state.task,
-        "steps": [],
-        "notes": "no_steps",
-        "errors": cast("JSONArray", last_errors),
-    }
+    return TaskResult(
+        id="",
+        task=run_state.task,
+        notes="no_steps",
+        errors=last_errors or None,
+    )
 
 
 async def _finalize_successful_run(
@@ -261,7 +261,7 @@ async def _finalize_successful_run(
     created_steps: JSONArray,
     emitted_step_ids: set[str],
     roots_before: set[str],
-) -> JSONObject:
+) -> TaskResult:
     """Finalize a successful sub-kani run: emit events and return result."""
     graph = context.strategy_session.get_graph(run_state.graph_id)
     await _emit_step_events(
@@ -288,11 +288,10 @@ async def _finalize_successful_run(
         subkani_model_id=run_state.subkani_model_id,
         emit_event=context.emit_event,
     )
-    result: JSONObject = {
-        "task": run_state.task,
-        "steps": created_steps,
-        "notes": "created",
-    }
-    if subtree_root:
-        result["subtreeRoot"] = subtree_root
-    return result
+    return TaskResult(
+        id="",
+        task=run_state.task,
+        steps=created_steps,
+        notes="created",
+        subtree_root=subtree_root,
+    )

@@ -5,12 +5,16 @@ payload in its result when sub-kani tasks complete with valid steps,
 and that the event extractor pipeline picks it up.
 """
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.ai.orchestration.delegation import DelegationPlan
+from veupath_chatbot.ai.orchestration.delegation import (
+    CompiledNode,
+    CompiledTask,
+    DelegationPlan,
+)
+from veupath_chatbot.ai.orchestration.results import TaskResult
 from veupath_chatbot.ai.orchestration.subkani.orchestrator import (
     delegate_strategy_subtasks,
 )
@@ -49,10 +53,20 @@ def _make_strategy_session(
     return session
 
 
-def _make_delegation_plan(tasks: list[dict[str, Any]]) -> DelegationPlan:
+def _make_compiled_task(task_id: str, task_text: str) -> CompiledTask:
+    return CompiledTask(
+        id=task_id,
+        task=task_text,
+        instructions="",
+        context=None,
+        depends_on=(),
+    )
+
+
+def _make_delegation_plan(tasks: list[CompiledTask]) -> DelegationPlan:
     """Build a real DelegationPlan for testing."""
-    nodes_by_id = {t.get("id", f"t{i}"): t for i, t in enumerate(tasks)}
-    dependents = {tid: [] for tid in nodes_by_id}
+    nodes_by_id: dict[str, CompiledNode] = {t.id: t for t in tasks}
+    dependents: dict[str, list[str]] = {t.id: [] for t in tasks}
     return DelegationPlan(
         goal="test",
         tasks=tasks,
@@ -62,15 +76,14 @@ def _make_delegation_plan(tasks: list[dict[str, Any]]) -> DelegationPlan:
     )
 
 
-def _make_task_result(task: str, step_id: str = "step-1") -> dict[str, Any]:
+def _make_task_result(task: str, step_id: str = "step-1") -> TaskResult:
     """Successful sub-kani task result."""
-    return {
-        "id": "t0",
-        "task": task,
-        "kind": "task",
-        "steps": [{"stepId": step_id, "graphId": _FAKE_GRAPH_ID}],
-        "notes": "created",
-    }
+    return TaskResult(
+        id="t0",
+        task=task,
+        steps=[{"stepId": step_id, "graphId": _FAKE_GRAPH_ID}],
+        notes="created",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +148,7 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_has_correct_structure(self) -> None:
         """When delegation succeeds with valid steps, result has expected keys."""
-        task = {"id": "t0", "task": "Find kinases", "kind": "task"}
+        task = _make_compiled_task("t0", "Find kinases")
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
         emit = AsyncMock()
@@ -187,20 +200,18 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_no_gene_set_when_no_validated(self) -> None:
         """When delegation has no validated results, no gene set key appears."""
-        task = {"id": "t0", "task": "Find kinases", "kind": "task"}
+        task = _make_compiled_task("t0", "Find kinases")
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
         emit = AsyncMock()
         strategy_tools = MagicMock()
         strategy_tools._build_graph_snapshot = MagicMock(return_value={"steps": []})
 
-        rejected_result = {
-            "id": "t0",
-            "task": "Find kinases",
-            "kind": "task",
-            "steps": [],
-            "notes": "no_steps",
-        }
+        rejected_result = TaskResult(
+            id="t0",
+            task="Find kinases",
+            notes="no_steps",
+        )
 
         with (
             patch(
@@ -240,7 +251,7 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_result_contains_graph_metadata(self) -> None:
         """Delegation result includes graphName and graphDescription from derive_graph_metadata."""
-        task = {"id": "t0", "task": "Find kinases", "kind": "task"}
+        task = _make_compiled_task("t0", "Find kinases")
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
         emit = AsyncMock()
@@ -287,7 +298,7 @@ class TestDelegationGeneSetCreation:
     @pytest.mark.asyncio
     async def test_delegation_does_not_accept_user_id(self) -> None:
         """delegate_strategy_subtasks no longer accepts a user_id parameter."""
-        task = {"id": "t0", "task": "Find kinases", "kind": "task"}
+        task = _make_compiled_task("t0", "Find kinases")
         plan = _make_delegation_plan([task])
         session = _make_strategy_session()
         emit = AsyncMock()

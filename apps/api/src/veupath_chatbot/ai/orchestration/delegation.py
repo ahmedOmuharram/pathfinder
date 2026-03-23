@@ -5,35 +5,89 @@ into a strict, executable shape.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import cast
 
-from veupath_chatbot.domain.strategy.ops import parse_op
+from veupath_chatbot.domain.strategy.ops import CombineOp, parse_op
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import (
     JSONArray,
     JSONObject,
     JSONValue,
-    as_json_object,
 )
 
 _REQUIRED_COMBINE_INPUTS = 2
 
 
+# ---------------------------------------------------------------------------
+# Compiled node types (output of the plan compiler)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CompiledTask:
+    """A validated, flat task node in the delegation DAG."""
+
+    id: str
+    task: str
+    instructions: str
+    context: JSONValue
+    depends_on: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CompiledCombine:
+    """A validated, flat combine node in the delegation DAG."""
+
+    id: str
+    operator: CombineOp
+    inputs: tuple[str, str]
+    depends_on: tuple[str, ...]
+    display_name: str | None
+    instructions: str
+    task: str
+
+
+CompiledNode = CompiledTask | CompiledCombine
+
+
+def compiled_node_to_dict(node: CompiledNode) -> JSONObject:
+    """Serialize a compiled node to a JSON-compatible dict."""
+    raw = asdict(node)
+    if isinstance(node, CompiledTask):
+        raw["kind"] = "task"
+    else:
+        raw["kind"] = "combine"
+        raw["operator"] = node.operator.value
+        raw["inputs"] = list(node.inputs)
+    raw["depends_on"] = list(node.depends_on)
+    return raw
+
+
+# ---------------------------------------------------------------------------
+# Delegation plan (compiler output)
+# ---------------------------------------------------------------------------
+
+
 @dataclass(frozen=True)
 class DelegationPlan:
     goal: str
-    tasks: JSONArray
-    combines: JSONArray
-    nodes_by_id: dict[str, JSONObject]
+    tasks: list[CompiledTask]
+    combines: list[CompiledCombine]
+    nodes_by_id: dict[str, CompiledNode]
     dependents: dict[str, list[str]]
 
 
-def _op_value(value: JSONValue) -> str | None:
+# ---------------------------------------------------------------------------
+# Compiler internals
+# ---------------------------------------------------------------------------
+
+
+def _op_value(value: JSONValue) -> CombineOp | None:
     if value is None:
         return None
     try:
-        return parse_op(str(value).strip()).value
+        return parse_op(str(value).strip())
     except ValueError, KeyError:
         return None
 
@@ -58,36 +112,14 @@ def _get_field(node: JSONObject, *keys: str, default: JSONValue = None) -> JSONV
     return default
 
 
-def _get_or_create_node_id(
-    signature_obj: JSONObject,
-    target_list: JSONArray,
-    node_data: JSONObject,
-    seen_signatures: dict[str, str],
-    new_id_fn: Callable[[], str],
-    task_formatter: Callable[[str], str] | None = None,
-) -> str:
-    """Get existing node ID from signature or create new one."""
-    signature = str(_canon(signature_obj))
-    existing = seen_signatures.get(signature)
-    if existing:
-        return existing
-    node_id = new_id_fn()
-    seen_signatures[signature] = node_id
-    node_data["id"] = node_id
-    if task_formatter is not None:
-        node_data["task"] = task_formatter(node_id)
-    target_list.append(node_data)
-    return node_id
-
-
 class _PlanCompiler:
     """Stateful compiler that transforms a nested plan tree into a flat DAG."""
 
     def __init__(self, goal: str) -> None:
         self._goal = goal
         self._node_counter = 0
-        self.tasks: JSONArray = []
-        self.combines: JSONArray = []
+        self.tasks: list[CompiledTask] = []
+        self.combines: list[CompiledCombine] = []
         self._seen_signatures: dict[str, str] = {}
 
     def _plan_error(self, message: str, detail: str, **extra: JSONValue) -> JSONObject:
@@ -102,6 +134,15 @@ class _PlanCompiler:
     def _new_id(self) -> str:
         self._node_counter += 1
         return f"node_{self._node_counter}"
+
+    def _dedup_check(self, signature: JSONObject) -> str | None:
+        """Return existing node ID for this signature, or None."""
+        sig_str = str(_canon(signature))
+        return self._seen_signatures.get(sig_str)
+
+    def _register_signature(self, signature: JSONObject, node_id: str) -> None:
+        sig_str = str(_canon(signature))
+        self._seen_signatures[sig_str] = node_id
 
     def _compile_dependencies(
         self, *nodes: JSONValue
@@ -130,7 +171,7 @@ class _PlanCompiler:
         return ""
 
     def _compile_combine_node(
-        self, node: JSONObject, node_type: str
+        self, node: JSONObject
     ) -> str | JSONObject:
         """Compile a combine node into the DAG."""
         op_raw = _get_field(node, "operator", "op")
@@ -153,37 +194,37 @@ class _PlanCompiler:
             return dep_error
         left_id, right_id = dep_ids[0], dep_ids[1]
 
-        display_name = _get_field(node, "display_name", "displayName")
-        instructions = _get_field(node, "instructions")
-        combine_node_data: JSONObject = {
+        display_name_raw = _get_field(node, "display_name", "displayName")
+        display_name = str(display_name_raw) if display_name_raw is not None else None
+        instructions_raw = _get_field(node, "instructions")
+        instructions = str(instructions_raw).strip() if instructions_raw is not None else ""
+
+        signature: JSONObject = {
             "kind": "combine",
-            "operator": operator,
-            "inputs": [left_id, right_id],
-            "depends_on": cast("JSONArray", [left_id, right_id]),
-            "display_name": display_name,
-            "instructions": instructions,
-            "task": display_name or "",
-        }
-        combine_signature_obj: JSONObject = {
-            "kind": "combine",
-            "operator": operator,
+            "operator": operator.value,
             "inputs": [left_id, right_id],
             "display_name": display_name,
             "instructions": instructions,
         }
+        existing = self._dedup_check(signature)
+        if existing:
+            return existing
 
-        def task_formatter(nid: str) -> str:
-            display_str = str(display_name) if display_name is not None else ""
-            return display_str or f"Combine {nid} ({operator})"
-
-        return _get_or_create_node_id(
-            combine_signature_obj,
-            self.combines,
-            combine_node_data,
-            self._seen_signatures,
-            self._new_id,
-            task_formatter,
+        node_id = self._new_id()
+        self._register_signature(signature, node_id)
+        task_label = display_name or f"Combine {node_id} ({operator.value})"
+        self.combines.append(
+            CompiledCombine(
+                id=node_id,
+                operator=operator,
+                inputs=(left_id, right_id),
+                depends_on=(left_id, right_id),
+                display_name=display_name,
+                instructions=instructions,
+                task=task_label,
+            )
         )
+        return node_id
 
     def _resolve_combine_inputs(
         self, node: JSONObject
@@ -251,32 +292,32 @@ class _PlanCompiler:
             if input_node is not None
             else ([], None)
         )
-        task_depends_json: JSONArray = cast("JSONArray", dep_ids)
-        task_node_data: JSONObject = {
+        if error is not None:
+            return error
+
+        signature: JSONObject = {
             "kind": "task",
             "task": task_text,
             "instructions": instructions,
             "context": context,
-            "depends_on": task_depends_json,
+            "depends_on": cast("JSONArray", dep_ids),
         }
-        task_signature_obj: JSONObject = {
-            "kind": "task",
-            "task": task_text,
-            "instructions": instructions,
-            "context": context,
-            "depends_on": task_depends_json,
-        }
-        return (
-            error
-            if error is not None
-            else _get_or_create_node_id(
-                task_signature_obj,
-                self.tasks,
-                task_node_data,
-                self._seen_signatures,
-                self._new_id,
+        existing = self._dedup_check(signature)
+        if existing:
+            return existing
+
+        node_id = self._new_id()
+        self._register_signature(signature, node_id)
+        self.tasks.append(
+            CompiledTask(
+                id=node_id,
+                task=task_text,
+                instructions=instructions,
+                context=context,
+                depends_on=tuple(dep_ids),
             )
         )
+        return node_id
 
     def compile_node(self, node: JSONValue) -> str | JSONObject:
         """Compile a single plan node (task or combine)."""
@@ -296,48 +337,49 @@ class _PlanCompiler:
                     "Provide a full node object with 'type'."
                 ),
             )
-        compiled: str | JSONObject = (
-            self._compile_combine_node(node, node_type)
-            if node_type in ("combine", "op", "operator")
-            else self._compile_task_node(node)
-            if node_type in ("task", "step", "subtask")
-            else self._plan_error(
-                "Invalid node type.",
-                "Node 'type' must be either 'task' or 'combine'.",
-                nodeId=node.get("id"),
-                nodeType=node_type,
-            )
+        if node_type in ("combine", "op", "operator"):
+            return self._compile_combine_node(node)
+        if node_type in ("task", "step", "subtask"):
+            return self._compile_task_node(node)
+        return self._plan_error(
+            "Invalid node type.",
+            "Node 'type' must be either 'task' or 'combine'.",
+            nodeId=node.get("id"),
+            nodeType=node_type,
         )
-        return compiled
 
 
-def _build_nodes_by_id(node_list: JSONArray) -> dict[str, JSONObject]:
-    """Extract nodes from list into nodes_by_id dict."""
-    result: dict[str, JSONObject] = {}
-    for node in node_list:
-        if isinstance(node, dict):
-            node_obj = as_json_object(node)
-            node_id = node_obj.get("id")
-            if isinstance(node_id, str):
-                result[node_id] = node_obj
+# ---------------------------------------------------------------------------
+# DAG validation + public entry point
+# ---------------------------------------------------------------------------
+
+
+def _build_nodes_by_id(
+    tasks: list[CompiledTask],
+    combines: list[CompiledCombine],
+) -> dict[str, CompiledNode]:
+    """Build a nodes_by_id dict from typed task and combine lists."""
+    result: dict[str, CompiledNode] = {}
+    for task in tasks:
+        result[task.id] = task
+    for combine in combines:
+        result[combine.id] = combine
     return result
 
 
 def _validate_dag(
     all_ids: set[str],
-    nodes_by_id: dict[str, JSONObject],
+    nodes_by_id: dict[str, CompiledNode],
     dependents: dict[str, list[str]],
     plan_error_fn: Callable[..., JSONObject],
 ) -> JSONObject | None:
     """Topological sort to detect cycles. Returns error if cycle found."""
     indegree: dict[str, int] = dict.fromkeys(all_ids, 0)
     for node_id, node in nodes_by_id.items():
-        depends_on = node.get("depends_on")
-        if isinstance(depends_on, list):
-            for dep in depends_on:
-                if isinstance(dep, str) and dep in all_ids:
-                    indegree[node_id] += 1
-                    dependents[dep].append(node_id)
+        for dep in node.depends_on:
+            if dep in all_ids:
+                indegree[node_id] += 1
+                dependents[dep].append(node_id)
 
     queue = [node_id for node_id, count in indegree.items() if count == 0]
     processed = 0
@@ -384,9 +426,7 @@ def build_delegation_plan(
         return compiler_result
 
     root_id: str = compiler_result
-    nodes_by_id: dict[str, JSONObject] = {}
-    nodes_by_id.update(_build_nodes_by_id(compiler.tasks))
-    nodes_by_id.update(_build_nodes_by_id(compiler.combines))
+    nodes_by_id = _build_nodes_by_id(compiler.tasks, compiler.combines)
 
     all_ids = set(nodes_by_id.keys())
     dependents: dict[str, list[str]] = {node_id: [] for node_id in all_ids}

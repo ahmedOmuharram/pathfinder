@@ -114,10 +114,10 @@ async def test_get_refreshed_dependent_params(client: VEuPathDBClient) -> None:
         },
     ]
 
-    context = {
+    context = encode_context_param_values_for_wdk({
         "organism": ["Plasmodium falciparum 3D7"],
         "text_expression": "kinase",
-    }
+    })
 
     route = respx.post(
         f"{BASE}/record-types/gene/searches/GenesByTaxon/refreshed-dependent-params",

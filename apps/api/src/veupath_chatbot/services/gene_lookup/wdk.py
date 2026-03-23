@@ -12,6 +12,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKRecordInstance,
+    WDKSearchConfig,
 )
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
@@ -120,14 +121,14 @@ async def fetch_wdk_text_genes(
             answer = await client.run_search_report(
                 record_type=record_type,
                 search_name="GenesByText",
-                search_config={
-                    "parameters": {
+                search_config=WDKSearchConfig(
+                    parameters={
                         "text_expression": pattern,
                         "text_fields": json.dumps(fields),
                         "text_search_organism": json.dumps([organism]),
                         "document_type": "gene",
                     },
-                },
+                ),
                 report_config=report_config,
             )
         except AppError:
@@ -196,7 +197,7 @@ async def _fetch_gene_answer(
         return await client.run_search_report(
             record_type=record_type,
             search_name=search_name,
-            search_config={"parameters": {param_name: str(dataset_id)}},
+            search_config=WDKSearchConfig(parameters={param_name: str(dataset_id)}),
             report_config=report_config,
         )
     except AppError:

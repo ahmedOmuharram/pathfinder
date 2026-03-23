@@ -23,6 +23,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKFilterValue,
     WDKRecordType,
     WDKSearch,
+    WDKSearchConfig,
     WDKSearchResponse,
     WDKStep,
     WDKStepAnalysisConfig,
@@ -40,16 +41,17 @@ logger = get_logger(__name__)
 _HTTP_SERVER_ERROR = 500
 
 
-def encode_context_param_values_for_wdk(context: JSONObject) -> JSONObject:
+def encode_context_param_values_for_wdk(context: JSONObject) -> dict[str, str]:
     """Encode contextParamValues in the format WDK expects.
 
-    Many WDK endpoints expect multi-pick values as JSON-encoded *strings*
-    (e.g. '["a","b"]'), not arrays.
+    WDK's ``ParameterValues`` is ``Record<string, string>`` — all values must be
+    strings.  Multi-pick values (lists, dicts) are JSON-encoded to strings
+    (e.g. ``'["a","b"]'``).
 
-    :param context: Context dict.
-    :returns: Encoded context suitable for WDK wire format.
+    :param context: Context dict (may contain non-string values).
+    :returns: Encoded context with all values as strings.
     """
-    encoded: JSONObject = {}
+    encoded: dict[str, str] = {}
     for k, v in (context or {}).items():
         if v is None:
             continue
@@ -379,16 +381,20 @@ class VEuPathDBClient:
         self,
         record_type: str,
         search_name: str,
-        context: JSONObject,
+        context: dict[str, str],
         *,
         expand_params: bool = True,
     ) -> WDKSearchResponse:
-        """Get detailed search configuration using provided parameters."""
+        """Get detailed search configuration using provided parameters.
+
+        :param context: WDK-encoded parameter values (all values must be strings).
+            Use :func:`encode_context_param_values_for_wdk` to encode non-string
+            values before calling.
+        """
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
-        encoded_context = encode_context_param_values_for_wdk(context or {})
         raw = await self.post(
             f"/record-types/{record_type}/searches/{search_name}",
-            json={"contextParamValues": encoded_context},
+            json={"contextParamValues": context},
             params=params,
         )
         return validate_response(
@@ -402,23 +408,22 @@ class VEuPathDBClient:
         record_type: str,
         search_name: str,
         param_name: str,
-        context: JSONObject,
+        context: dict[str, str],
     ) -> list[WDKParameter]:
         """Refresh dependent params using WDK's refreshed-dependent-params endpoint.
 
-        WDK's ``ParamContainerFormatter.getParamsJson()`` returns a JSON array
-        of parameter objects.  Each item is parsed via the ``WDKParameter``
-        discriminated union; items that fail validation are skipped.
+        :param context: WDK-encoded parameter values (all values must be strings).
+            Use :func:`encode_context_param_values_for_wdk` to encode non-string
+            values before calling.
         """
-        encoded_context = encode_context_param_values_for_wdk(context or {})
         raw = await self.post(
             f"/record-types/{record_type}/searches/{search_name}/refreshed-dependent-params",
             json={
                 "changedParam": {
                     "name": param_name,
-                    "value": encoded_context.get(param_name, ""),
+                    "value": context.get(param_name, ""),
                 },
-                "contextParamValues": encoded_context,
+                "contextParamValues": context,
             },
         )
         if not isinstance(raw, list):
@@ -440,7 +445,7 @@ class VEuPathDBClient:
         self,
         record_type: str,
         search_name: str,
-        search_config: JSONObject,
+        search_config: WDKSearchConfig,
         report_config: JSONObject | None = None,
     ) -> WDKAnswer:
         """Run a report on a search without creating a step or strategy.
@@ -453,12 +458,12 @@ class VEuPathDBClient:
 
         :param record_type: WDK record type (e.g. ``"transcript"``).
         :param search_name: WDK search name (e.g. ``"GenesByTaxon"``).
-        :param search_config: Search config with ``parameters`` dict.
+        :param search_config: Typed search config (parameters, filters, weight).
         :param report_config: Report config (pagination, attributes, etc.).
         :returns: Parsed ``WDKAnswer`` with typed ``meta`` and ``records``.
         """
         payload: JSONObject = {
-            "searchConfig": search_config,
+            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
             "reportConfig": report_config or {},
         }
         result = await self.post(

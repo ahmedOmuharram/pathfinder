@@ -10,6 +10,10 @@ from typing import Annotated, cast
 from kani import AIParam, ai_function
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSortDirection,
+    WDKSortSpec,
+)
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.ai_analysis_helpers import (
@@ -63,9 +67,10 @@ class _AnalysisToolsMixin:
             return {"error": "Experiment has no WDK strategy"}
 
         api = get_strategy_api(self.site_id)
-        sorting: list[JSONObject] | None = None
+        sorting: list[WDKSortSpec] | None = None
         if sort_attribute:
-            sorting = [{"attributeName": sort_attribute, "direction": sort_direction}]
+            direction: WDKSortDirection = "DESC" if sort_direction.upper() == "DESC" else "ASC"
+            sorting = [WDKSortSpec(attribute_name=sort_attribute, direction=direction)]
 
         answer = await api.get_step_records(
             step_id=exp.wdk_step_id,

@@ -15,7 +15,7 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
 from veupath_chatbot.services.strategies.step_validation import (
-    _resolve_and_set_record_type,
+    _resolve_record_type_for_step,
     _resolve_search_name_and_validate,
     _StepInputs,
     _validate_inputs_and_roots,
@@ -170,9 +170,9 @@ async def create_step(
     if error is not None:
         return _error_result(error)
 
-    # Resolve record type (mutates graph in-place).
-    await _resolve_and_set_record_type(
-        graph,
+    # Resolve record type context for the graph.
+    graph.record_type = await _resolve_record_type_for_step(
+        graph.record_type,
         spec.record_type,
         spec.search_name,
         callbacks.resolve_record_type_for_search,

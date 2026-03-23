@@ -149,11 +149,14 @@ class WDKIdentifier(WDKModel):
     id: int
 
 
+WDKSortDirection = Literal["ASC", "DESC"]
+
+
 class WDKSortSpec(WDKModel):
-    """Sorting specification."""
+    """Sorting specification (matches monorepo AttributeSortingSpec)."""
 
     attribute_name: str
-    direction: str = "ASC"
+    direction: WDKSortDirection = "ASC"
 
 
 class WDKReporter(WDKModel):

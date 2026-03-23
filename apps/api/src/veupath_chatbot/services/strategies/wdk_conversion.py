@@ -15,6 +15,9 @@ from veupath_chatbot.domain.strategy.ast import (
     walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
+from veupath_chatbot.integrations.veupathdb.client import (
+    encode_context_param_values_for_wdk,
+)
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearch,
@@ -150,7 +153,7 @@ async def _load_search_spec(
     api: StrategyAPI,
     record_type: str,
     search_name: str,
-    context: JSONObject,
+    context: dict[str, str],
 ) -> WDKSearch | None:
     """Load and unwrap search details for parameter normalization.
 
@@ -207,8 +210,9 @@ async def normalize_synced_parameters(
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
+            encoded_context = encode_context_param_values_for_wdk(step.parameters or {})
             spec_cache[cache_key] = await _load_search_spec(
-                api, record_type, search_name, step.parameters or {}
+                api, record_type, search_name, encoded_context
             )
 
         cached_search = spec_cache.get(cache_key)

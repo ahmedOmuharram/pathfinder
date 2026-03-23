@@ -35,33 +35,20 @@ class ParamSpecNormalized:
     @classmethod
     def from_wdk(cls, param: WDKBaseParameter) -> ParamSpecNormalized:
         """Convert a typed WDK parameter to the canonical spec."""
-        vocabulary = param.vocabulary if hasattr(param, "vocabulary") else None
-        min_sel = getattr(param, "min_selected_count", None)
-        max_sel = getattr(param, "max_selected_count", None)
-        if isinstance(max_sel, int) and max_sel < 0:
-            max_sel = None
-        is_number = getattr(param, "is_number", False)
-        min_val = getattr(param, "min", None)
-        max_val = getattr(param, "max", None)
-        increment = getattr(param, "increment", None)
-        length = getattr(param, "length", None)
-        max_length = length if isinstance(length, int) and length > 0 else None
-        count_only_leaves = getattr(param, "count_only_leaves", False)
-        display_type = getattr(param, "display_type", "")
         return cls(
             name=param.name,
             param_type=param.type,
             allow_empty_value=param.allow_empty_value,
-            min_selected_count=min_sel if isinstance(min_sel, int) else None,
-            max_selected_count=max_sel if isinstance(max_sel, int) else None,
-            vocabulary=vocabulary,
-            count_only_leaves=bool(count_only_leaves),
-            is_number=bool(is_number),
-            min_value=float(min_val) if isinstance(min_val, (int, float)) else None,
-            max_value=float(max_val) if isinstance(max_val, (int, float)) else None,
-            increment=float(increment) if isinstance(increment, (int, float)) else None,
-            max_length=max_length,
-            display_type=str(display_type),
+            min_selected_count=param.min_selected_count,
+            max_selected_count=param.max_selected_count,
+            vocabulary=param.vocabulary,
+            count_only_leaves=param.count_only_leaves,
+            is_number=param.is_number,
+            min_value=float(param.min) if param.min is not None else None,
+            max_value=float(param.max) if param.max is not None else None,
+            increment=float(param.increment) if param.increment is not None else None,
+            max_length=param.length if param.length > 0 else None,
+            display_type=param.display_type,
             is_visible=param.is_visible,
             group=param.group,
             dependent_params=tuple(param.dependent_params),

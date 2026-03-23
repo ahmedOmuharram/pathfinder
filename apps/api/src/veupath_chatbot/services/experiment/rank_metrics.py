@@ -6,8 +6,11 @@ classifiers, which better matches how researchers use strategy results
 """
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSortDirection,
+    WDKSortSpec,
+)
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.types import (
     DEFAULT_K_VALUES,
     RankMetrics,
@@ -106,7 +109,7 @@ async def fetch_ordered_result_ids(
     step_id: int,
     max_results: int = 5000,
     sort_attribute: str | None = None,
-    sort_direction: str = "ASC",
+    sort_direction: WDKSortDirection = "ASC",
 ) -> list[str]:
     """Fetch ordered gene IDs from a persisted WDK strategy step.
 
@@ -123,9 +126,10 @@ async def fetch_ordered_result_ids(
     """
     api = get_strategy_api(site_id)
 
-    sorting: list[JSONObject] | None = None
+    sorting: list[WDKSortSpec] | None = None
     if sort_attribute:
-        sorting = [{"attributeName": sort_attribute, "direction": sort_direction}]
+        direction: WDKSortDirection = "DESC" if sort_direction == "DESC" else "ASC"
+        sorting = [WDKSortSpec(attribute_name=sort_attribute, direction=direction)]
 
     if sorting is not None:
         answer = await api.get_step_records(

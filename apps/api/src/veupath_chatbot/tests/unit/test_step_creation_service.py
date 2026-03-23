@@ -586,8 +586,8 @@ class TestCreateStepIntegration:
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
     )
-    async def test_record_type_defaults_to_gene(self, mock_validate: AsyncMock):
-        """When no record type is available, it should default to 'gene'."""
+    async def test_record_type_defaults_to_transcript(self, mock_validate: AsyncMock):
+        """When no record type is available, it should default to 'transcript'."""
         graph = make_step_graph()
         assert graph.record_type is None
 
@@ -613,7 +613,7 @@ class TestCreateStepIntegration:
         )
         # The leaf validation will fail because always_none_resolver returns None
         # when called with require_match=True. But graph.record_type should be set.
-        assert graph.record_type == "gene"
+        assert graph.record_type == "transcript"
 
     async def test_step_added_to_graph(self):
         """Successful creation adds the step to the graph."""

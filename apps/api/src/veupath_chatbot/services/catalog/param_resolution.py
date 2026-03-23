@@ -9,7 +9,10 @@ from veupath_chatbot.domain.parameters.specs import (
     find_input_step_param,
 )
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.client import (
+    VEuPathDBClient,
+    encode_context_param_values_for_wdk,
+)
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
@@ -221,7 +224,7 @@ async def expand_search_details_with_params(
             fallback_response = await client.get_search_details_with_params(
                 resolved_record_type,
                 ctx.search_name,
-                filtered_context,
+                encode_context_param_values_for_wdk(filtered_context),
                 expand_params=True,
             )
             specs = adapt_param_specs_from_search(fallback_response.search_data)
@@ -240,7 +243,7 @@ async def expand_search_details_with_params(
         client=client,
         record_type=resolved_record_type,
         search_name=ctx.search_name,
-        context_values=normalized_context,
+        context_values=encode_context_param_values_for_wdk(normalized_context),
     )
 
 
@@ -283,7 +286,7 @@ async def _get_search_details_with_portal_fallback(
     client: VEuPathDBClient,
     record_type: str,
     search_name: str,
-    context_values: JSONObject,
+    context_values: dict[str, str],
 ) -> WDKSearchResponse:
     """Call WDK contextual search details, falling back to portal when appropriate."""
     try:
@@ -315,13 +318,14 @@ async def get_refreshed_dependent_params(
     ``WDKError`` and the site is not already ``veupathdb``, retries against
     the portal client (``veupathdb``).
     """
+    encoded = encode_context_param_values_for_wdk(context_values)
     client = get_wdk_client(ctx.site_id)
     try:
         return await client.get_refreshed_dependent_params(
             ctx.record_type,
             ctx.search_name,
             parameter_name,
-            context_values,
+            encoded,
         )
     except WDKError:
         if ctx.site_id != "veupathdb":
@@ -330,7 +334,7 @@ async def get_refreshed_dependent_params(
                 ctx.record_type,
                 ctx.search_name,
                 parameter_name,
-                context_values,
+                encoded,
             )
         raise
 

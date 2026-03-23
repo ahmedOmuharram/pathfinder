@@ -5,7 +5,7 @@ answers and records, and get step counts.
 """
 
 from veupath_chatbot.integrations.veupathdb.strategy_api.base import StrategyAPIBase
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer, WDKSortSpec
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
@@ -52,7 +52,7 @@ class ReportsMixin(StrategyAPIBase):
         attributes: list[str] | None = None,
         tables: list[str] | None = None,
         pagination: dict[str, int] | None = None,
-        sorting: list[JSONObject] | None = None,
+        sorting: list[WDKSortSpec] | None = None,
         user_id: str | None = None,
     ) -> WDKAnswer:
         """Get paginated records for a step with configurable attributes and sorting.
@@ -61,7 +61,7 @@ class ReportsMixin(StrategyAPIBase):
         :param attributes: Attribute names to include.
         :param tables: Table names to include.
         :param pagination: ``{offset, numRecords}`` for server-side paging.
-        :param sorting: List of ``{attributeName, direction}`` dicts.
+        :param sorting: Typed sort specs (attributeName + direction).
         :returns: Validated WDK answer with ``records`` and ``meta``.
         """
         report_config: dict[str, object] = {}
@@ -72,7 +72,9 @@ class ReportsMixin(StrategyAPIBase):
         if pagination:
             report_config["pagination"] = pagination
         if sorting:
-            report_config["sorting"] = sorting
+            report_config["sorting"] = [
+                s.model_dump(by_alias=True) for s in sorting
+            ]
 
         uid = await self._get_user_id(user_id)
         return await self._standard_report(step_id, report_config, user_id=uid)

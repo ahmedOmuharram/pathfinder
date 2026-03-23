@@ -606,8 +606,8 @@ class TestConvenienceMethodEdgeCases:
         assert result[0].disabled is False
         await client.close()
 
-    async def test_get_search_details_with_params_encodes_context(self) -> None:
-        """Context param values should be JSON-encoded before posting."""
+    async def test_get_search_details_with_params_passes_context_through(self) -> None:
+        """Client passes pre-encoded context values through to WDK."""
         client = VEuPathDBClient("https://example.com/service")
         captured_json = {}
 
@@ -631,13 +631,17 @@ class TestConvenienceMethodEdgeCases:
             ).mock(side_effect=capture)
             p1, p2 = _patch_settings_and_ctx()
             with p1, p2:
+                # Callers are responsible for encoding; client passes through.
+                encoded = encode_context_param_values_for_wdk(
+                    {"organism": ["P. falciparum", "P. vivax"]}
+                )
                 await client.get_search_details_with_params(
                     "gene",
                     "GenesByTaxonGene",
-                    context={"organism": ["P. falciparum", "P. vivax"]},
+                    context=encoded,
                 )
 
-        # The list should have been JSON-encoded as a string
+        # The list should have been JSON-encoded as a string by the encoder
         cpv = captured_json.get("contextParamValues", {})
         assert isinstance(cpv.get("organism"), str)
         assert "P. falciparum" in cpv["organism"]

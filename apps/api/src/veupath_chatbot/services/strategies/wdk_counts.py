@@ -18,7 +18,10 @@ from veupath_chatbot.domain.strategy.ast import (
     walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import get_wdk_operator
-from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
+from veupath_chatbot.integrations.veupathdb.client import (
+    VEuPathDBClient,
+    encode_context_param_values_for_wdk,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -55,11 +58,11 @@ async def _count_via_anonymous_report(
     with ``numRecords: 0`` returns only ``meta.totalCount`` -- no step or
     strategy creation needed. Returns ``None`` on failure.
     """
-    search_config: JSONObject = {"parameters": parameters}
+    config = WDKSearchConfig(parameters=encode_context_param_values_for_wdk(parameters))
     report_config: JSONObject = {"pagination": {"offset": 0, "numRecords": 0}}
     try:
         answer = await client.run_search_report(
-            record_type, search_name, search_config, report_config
+            record_type, search_name, config, report_config
         )
     except AppError as e:
         logger.warning(
