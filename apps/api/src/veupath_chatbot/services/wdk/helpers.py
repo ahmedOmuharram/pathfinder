@@ -125,8 +125,7 @@ def order_primary_key(
     :returns: Ordered PK parts matching ``pk_refs``.
     """
     pk_by_name: dict[str, str] = {
-        p.get("name", ""): p.get("value", "")
-        for p in pk_parts
+        p.get("name", ""): p.get("value", "") for p in pk_parts
     }
     ordered: list[dict[str, str]] = []
     for col in pk_refs:
@@ -149,15 +148,17 @@ def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JSONValue]:
     attributes: list[JSONValue] = []
     for field in attrs:
         sortable = is_sortable(field.type)
-        attributes.append({
-            "name": field.name,
-            "displayName": field.display_name or field.name,
-            "help": field.help,
-            "type": field.type,
-            "isDisplayable": field.is_displayable,
-            "isSortable": sortable,
-            "isSuggested": sortable and is_suggested_score(field.name),
-        })
+        attributes.append(
+            {
+                "name": field.name,
+                "displayName": field.display_name or field.name,
+                "help": field.help,
+                "type": field.type,
+                "isDisplayable": field.is_displayable,
+                "isSortable": sortable,
+                "isSuggested": sortable and is_suggested_score(field.name),
+            }
+        )
     return attributes
 
 

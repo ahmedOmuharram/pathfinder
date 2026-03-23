@@ -59,7 +59,9 @@ class StrategiesMixin(StrategyAPIBase):
             "name": name,
             "isPublic": is_public,
             "isSaved": is_saved,
-            "stepTree": step_tree.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            "stepTree": step_tree.model_dump(
+                by_alias=True, exclude_none=True, mode="json"
+            ),
         }
         if description:
             payload["description"] = description
@@ -111,7 +113,11 @@ class StrategiesMixin(StrategyAPIBase):
         if step_tree is not None:
             await self.client.put(
                 f"/users/{uid}/strategies/{strategy_id}/step-tree",
-                json={"stepTree": step_tree.model_dump(by_alias=True, exclude_none=True, mode="json")},
+                json={
+                    "stepTree": step_tree.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    )
+                },
             )
 
         if name:

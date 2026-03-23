@@ -30,7 +30,9 @@ from veupath_chatbot.platform.errors import AppError, ErrorCode
 
 def _to_wdk_searches(raw_list: list[Any]) -> list[WDKSearch]:
     """Convert raw dicts to WDKSearch objects."""
-    return [WDKSearch.model_validate(item) for item in raw_list if isinstance(item, dict)]
+    return [
+        WDKSearch.model_validate(item) for item in raw_list if isinstance(item, dict)
+    ]
 
 
 def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse:
@@ -67,7 +69,9 @@ def _to_wdk_record_types(raw: Any) -> list[WDKRecordType]:
             typed_searches: list[WDKSearch] | None = None
             if isinstance(searches_raw, list):
                 typed_searches = [
-                    WDKSearch.model_validate(s) for s in searches_raw if isinstance(s, dict)
+                    WDKSearch.model_validate(s)
+                    for s in searches_raw
+                    if isinstance(s, dict)
                 ]
             if typed_searches is not None:
                 rt_data["searches"] = typed_searches
@@ -479,7 +483,9 @@ class TestDiscoveryService:
             if call_count == 1:
                 msg = "Boom"
                 raise RuntimeError(msg)
-            return [WDKRecordType(url_segment="gene", display_name="Genes", searches=[])]
+            return [
+                WDKRecordType(url_segment="gene", display_name="Genes", searches=[])
+            ]
 
         mock_client = MagicMock()
         mock_client.get_record_types = AsyncMock(side_effect=_get_record_types)

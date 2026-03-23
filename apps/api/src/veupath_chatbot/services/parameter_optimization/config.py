@@ -63,11 +63,11 @@ class ParameterSpec(BaseModel):
             and self.max_value is not None
             and self.min_value >= self.max_value
         ):
-                msg = (
-                    f"'min' ({self.min_value}) must be strictly less than "
-                    f"'max' ({self.max_value})"
-                )
-                raise ValueError(msg)
+            msg = (
+                f"'min' ({self.min_value}) must be strictly less than "
+                f"'max' ({self.max_value})"
+            )
+            raise ValueError(msg)
         if self.step is not None and self.step <= 0:
             msg = f"'step' must be positive, got {self.step}"
             raise ValueError(msg)

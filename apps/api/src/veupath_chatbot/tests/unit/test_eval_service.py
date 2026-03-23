@@ -32,7 +32,9 @@ class TestExtractGeneId:
         assert extract_gene_id(record) == "PF3D7_0100100"
 
     def test_extracts_gene_source_id(self) -> None:
-        record = WDKRecordInstance(id=[{"name": "gene_source_id", "value": "PF3D7_0200300"}])
+        record = WDKRecordInstance(
+            id=[{"name": "gene_source_id", "value": "PF3D7_0200300"}]
+        )
         assert extract_gene_id(record) == "PF3D7_0200300"
 
     def test_fallback_to_first_value(self) -> None:
@@ -58,13 +60,15 @@ class TestFetchAllGeneIds:
     async def test_fetches_single_page(self) -> None:
         mock_api = AsyncMock()
         mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate({
-                "records": [
-                    {"id": [{"name": "source_id", "value": "GENE_A"}]},
-                    {"id": [{"name": "source_id", "value": "GENE_B"}]},
-                ],
-                "meta": {"totalCount": 2},
-            })
+            return_value=WDKAnswer.model_validate(
+                {
+                    "records": [
+                        {"id": [{"name": "source_id", "value": "GENE_A"}]},
+                        {"id": [{"name": "source_id", "value": "GENE_B"}]},
+                    ],
+                    "meta": {"totalCount": 2},
+                }
+            )
         )
         result = await fetch_all_gene_ids(mock_api, 1)
         assert result == ["GENE_A", "GENE_B"]
@@ -73,7 +77,9 @@ class TestFetchAllGeneIds:
     async def test_handles_empty_result(self) -> None:
         mock_api = AsyncMock()
         mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate({"records": [], "meta": {"totalCount": 0}})
+            return_value=WDKAnswer.model_validate(
+                {"records": [], "meta": {"totalCount": 0}}
+            )
         )
         result = await fetch_all_gene_ids(mock_api, 1)
         assert result == []
@@ -93,12 +99,14 @@ class TestBuildGoldStrategy:
 
         mock_api.create_strategy = AsyncMock(return_value=WDKIdentifier(id=123))
         mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate({
-                "records": [
-                    {"id": [{"name": "source_id", "value": "GENE_A"}]},
-                ],
-                "meta": {"totalCount": 1},
-            })
+            return_value=WDKAnswer.model_validate(
+                {
+                    "records": [
+                        {"id": [{"name": "source_id", "value": "GENE_A"}]},
+                    ],
+                    "meta": {"totalCount": 1},
+                }
+            )
         )
 
         with (
@@ -132,22 +140,26 @@ class TestBuildGoldStrategy:
 class TestFetchStrategyGeneIds:
     @pytest.mark.asyncio
     async def test_returns_gene_ids(self) -> None:
-        mock_strategy = WDKStrategyDetails.model_validate({
-            "strategyId": 42,
-            "name": "Test",
-            "rootStepId": 99,
-            "stepTree": {"stepId": 99},
-        })
+        mock_strategy = WDKStrategyDetails.model_validate(
+            {
+                "strategyId": 42,
+                "name": "Test",
+                "rootStepId": 99,
+                "stepTree": {"stepId": 99},
+            }
+        )
 
         mock_api = AsyncMock()
         mock_api.get_strategy = AsyncMock(return_value=mock_strategy)
         mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate({
-                "records": [
-                    {"id": [{"name": "source_id", "value": "GENE_X"}]},
-                ],
-                "meta": {"totalCount": 1},
-            })
+            return_value=WDKAnswer.model_validate(
+                {
+                    "records": [
+                        {"id": [{"name": "source_id", "value": "GENE_X"}]},
+                    ],
+                    "meta": {"totalCount": 1},
+                }
+            )
         )
 
         mock_projection = MagicMock()

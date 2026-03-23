@@ -304,7 +304,9 @@ class TestDiscoveryTypedResponses:
 
         mock_client = MagicMock(spec=VEuPathDBClient)
         mock_client.get_record_types = AsyncMock(
-            return_value=[WDKRecordType(url_segment="transcript", searches=typed_searches)]
+            return_value=[
+                WDKRecordType(url_segment="transcript", searches=typed_searches)
+            ]
         )
         mock_client.get_searches = AsyncMock(return_value=[])
         mock_client.get_search_details = AsyncMock(

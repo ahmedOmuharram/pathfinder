@@ -41,7 +41,8 @@ def resolve_record_type(
 
     # --- Strategy 3: match on display_name (single match only) ------------
     display_matches = [
-        rt for rt in available_types
+        rt
+        for rt in available_types
         if rt.display_name and rt.display_name.strip().lower() == normalized
     ]
 

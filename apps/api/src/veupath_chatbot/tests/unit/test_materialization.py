@@ -48,11 +48,13 @@ class TestMaterializeStepTree:
         api = AsyncMock()
         api.create_step.return_value = WDKIdentifier(id=100)
 
-        node = PlanStepNode.model_validate({
-            "searchName": "GenesByText",
-            "parameters": {"text": "kinase"},
-            "displayName": "Text Search",
-        })
+        node = PlanStepNode.model_validate(
+            {
+                "searchName": "GenesByText",
+                "parameters": {"text": "kinase"},
+                "displayName": "Text Search",
+            }
+        )
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 100
@@ -67,14 +69,16 @@ class TestMaterializeStepTree:
         # Second call: transform step creation
         api.create_transform_step.return_value = WDKIdentifier(id=200)
 
-        node = PlanStepNode.model_validate({
-            "searchName": "GenesByTFBS",
-            "parameters": {"tfbs": "AP2"},
-            "primaryInput": {
-                "searchName": "GenesByText",
-                "parameters": {"text": "kinase"},
-            },
-        })
+        node = PlanStepNode.model_validate(
+            {
+                "searchName": "GenesByTFBS",
+                "parameters": {"tfbs": "AP2"},
+                "primaryInput": {
+                    "searchName": "GenesByText",
+                    "parameters": {"text": "kinase"},
+                },
+            }
+        )
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 200
@@ -87,18 +91,20 @@ class TestMaterializeStepTree:
         api.create_step.side_effect = [WDKIdentifier(id=100), WDKIdentifier(id=200)]
         api.create_combined_step.return_value = WDKIdentifier(id=300)
 
-        node = PlanStepNode.model_validate({
-            "searchName": "combined",
-            "operator": "INTERSECT",
-            "primaryInput": {
-                "searchName": "GenesByText",
-                "parameters": {"text": "kinase"},
-            },
-            "secondaryInput": {
-                "searchName": "GenesByText",
-                "parameters": {"text": "phosphatase"},
-            },
-        })
+        node = PlanStepNode.model_validate(
+            {
+                "searchName": "combined",
+                "operator": "INTERSECT",
+                "primaryInput": {
+                    "searchName": "GenesByText",
+                    "parameters": {"text": "kinase"},
+                },
+                "secondaryInput": {
+                    "searchName": "GenesByText",
+                    "parameters": {"text": "phosphatase"},
+                },
+            }
+        )
         result = await _materialize_step_tree(api, node, "gene")
 
         assert result.step_id == 300
@@ -130,10 +136,12 @@ class TestPersistExperimentStrategy:
         mock_get_api.return_value = api
 
         cfg = _cfg("multi-step")
-        cfg.step_tree = PlanStepNode.model_validate({
-            "searchName": "GenesByText",
-            "parameters": {"text": "kinase"},
-        })
+        cfg.step_tree = PlanStepNode.model_validate(
+            {
+                "searchName": "GenesByText",
+                "parameters": {"text": "kinase"},
+            }
+        )
         result = await _persist_experiment_strategy(cfg, "exp-001")
 
         assert result["strategy_id"] == 500
@@ -157,10 +165,12 @@ class TestPersistExperimentStrategy:
 class TestPersistImportStrategy:
     async def test_successful_import(self) -> None:
         api = AsyncMock()
-        dup_tree = WDKStepTree.model_validate({
-            "stepId": 100,
-            "primaryInput": {"stepId": 50},
-        })
+        dup_tree = WDKStepTree.model_validate(
+            {
+                "stepId": 100,
+                "primaryInput": {"stepId": 50},
+            }
+        )
         api.get_duplicated_step_tree.return_value = dup_tree
         api.create_strategy.return_value = WDKIdentifier(id=500)
 

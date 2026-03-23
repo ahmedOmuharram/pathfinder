@@ -95,9 +95,7 @@ describe("buildStepSaveHandler", () => {
         validation: expect.objectContaining({
           isValid: false,
           errors: expect.objectContaining({
-            general: expect.arrayContaining([
-              expect.stringContaining("not available"),
-            ]),
+            general: expect.arrayContaining([expect.stringContaining("not available")]),
           }),
         }),
       }),

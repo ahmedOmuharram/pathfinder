@@ -57,10 +57,10 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const isTransform = kind === "transform";
 
   const validation = step.validation;
-  const hasValidationError =
-    validation != null && validation.isValid === false;
+  const hasValidationError = validation != null && validation.isValid === false;
   const validationMessage =
-    validation?.errors?.general?.[0] ?? (hasValidationError ? "Validation error" : null);
+    validation?.errors?.general?.[0] ??
+    (hasValidationError ? "Validation error" : null);
   const isZeroResults = step.estimatedSize === 0;
   const resultLabel =
     step.recordType != null && step.recordType !== ""

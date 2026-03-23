@@ -143,7 +143,9 @@ class TestEnsureUniqueCitationTags:
 
 class TestCitation:
     def test_tag_computed_from_author_and_year(self) -> None:
-        c = Citation(id="x", source="pubmed", title="Test", authors=["Smith J"], year=2020)
+        c = Citation(
+            id="x", source="pubmed", title="Test", authors=["Smith J"], year=2020
+        )
         assert c.tag == "smith2020"
 
     def test_tag_falls_back_to_title_word(self) -> None:

@@ -97,7 +97,7 @@ class RecordsMixin(StrategyAPIBase):
                 json={"reportConfig": {}},
             )
             return WDKColumnDistribution.model_validate(result)
-        except (WDKError, pydantic.ValidationError):
+        except WDKError, pydantic.ValidationError:
             logger.warning(
                 "Column reporter unavailable",
                 step_id=step_id,

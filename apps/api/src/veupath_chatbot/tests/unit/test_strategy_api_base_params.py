@@ -91,9 +91,7 @@ class TestNormalizeParameters:
     def test_profile_pattern_sorted(self) -> None:
         """profile_pattern entries should be sorted alphabetically."""
         api = self._make_api()
-        result = api._normalize_parameters(
-            {"profile_pattern": "%ZEBRA:Y%APPLE:Y%"}
-        )
+        result = api._normalize_parameters({"profile_pattern": "%ZEBRA:Y%APPLE:Y%"})
         assert result["profile_pattern"] == "%APPLE:Y%ZEBRA:Y%"
 
 
@@ -173,7 +171,11 @@ class TestBuildPhyleticTree:
         assert "ROOT" in children_of
         # ROOT's descendants include everything below it
         assert set(children_of["ROOT"]) == {
-            "GROUP_A", "LEAF_1", "LEAF_2", "GROUP_B", "LEAF_3"
+            "GROUP_A",
+            "LEAF_1",
+            "LEAF_2",
+            "GROUP_B",
+            "LEAF_3",
         }
         assert set(children_of["GROUP_A"]) == {"LEAF_1", "LEAF_2"}
         assert set(children_of["GROUP_B"]) == {"LEAF_3"}

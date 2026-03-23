@@ -19,9 +19,7 @@ def _leaf(lid: str, search: str = "") -> PlanStepNode:
     return PlanStepNode(search_name=search or f"Search_{lid}", id=lid)
 
 
-def _combine(
-    nid: str, primary: PlanStepNode, secondary: PlanStepNode
-) -> PlanStepNode:
+def _combine(nid: str, primary: PlanStepNode, secondary: PlanStepNode) -> PlanStepNode:
     return PlanStepNode(
         search_name="boolean_question",
         primary_input=primary,

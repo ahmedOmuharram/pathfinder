@@ -56,7 +56,6 @@ class TestParseFilters:
         assert filters[0].value == [1, 2, 3]
 
 
-
 class TestParseAnalyses:
     def test_camel_case_key(self) -> None:
         raw = [{"analysisType": "go_enrichment", "parameters": {"ontology": "BP"}}]
@@ -105,7 +104,6 @@ class TestParseAnalyses:
         assert len(analyses) == 1
 
 
-
 class TestParseReports:
     def test_valid_report(self) -> None:
         raw = [{"reportName": "standard", "config": {"attributes": ["gene_id"]}}]
@@ -134,7 +132,6 @@ class TestParseReports:
 
     def test_empty_list(self) -> None:
         assert StepReport.from_list([]) == []
-
 
 
 class TestParseColocationParams:

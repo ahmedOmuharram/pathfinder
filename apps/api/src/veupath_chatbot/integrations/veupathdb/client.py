@@ -370,7 +370,9 @@ class VEuPathDBClient:
             params=params,
         )
         return validate_response(
-            WDKSearchResponse, raw, f"WDK search response for {record_type}/{search_name}"
+            WDKSearchResponse,
+            raw,
+            f"WDK search response for {record_type}/{search_name}",
         )
 
     async def get_search_details_with_params(
@@ -390,7 +392,9 @@ class VEuPathDBClient:
             params=params,
         )
         return validate_response(
-            WDKSearchResponse, raw, f"WDK search response for {record_type}/{search_name}"
+            WDKSearchResponse,
+            raw,
+            f"WDK search response for {record_type}/{search_name}",
         )
 
     async def get_refreshed_dependent_params(
@@ -489,9 +493,7 @@ class VEuPathDBClient:
             f"/users/{user_id}/steps/{step_id}",
             json={
                 "answerSpec": {
-                    "viewFilters": [
-                        f.model_dump(by_alias=True) for f in filters
-                    ],
+                    "viewFilters": [f.model_dump(by_alias=True) for f in filters],
                 },
             },
         )

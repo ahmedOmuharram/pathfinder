@@ -44,7 +44,9 @@ RECORD_TYPE = "transcript"
 async def _get_organism_vocab(search_name: str = "GenesByTaxon") -> dict:
     """Fetch the organism parameter vocabulary from a real WDK search."""
     wdk = get_wdk_client(SITE)
-    response = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
+    response = await wdk.get_search_details(
+        RECORD_TYPE, search_name, expand_params=True
+    )
     params = response.search_data.parameters or []
     for p in params:
         if p.name == "organism":
@@ -58,7 +60,9 @@ async def _get_organism_vocab(search_name: str = "GenesByTaxon") -> dict:
 async def _get_organism_spec(search_name: str = "GenesByTaxon") -> dict:
     """Fetch the full organism parameter spec."""
     wdk = get_wdk_client(SITE)
-    response = await wdk.get_search_details(RECORD_TYPE, search_name, expand_params=True)
+    response = await wdk.get_search_details(
+        RECORD_TYPE, search_name, expand_params=True
+    )
     specs = adapt_param_specs_from_search(response.search_data)
     assert "organism" in specs, f"No organism param in {search_name}"
     return specs

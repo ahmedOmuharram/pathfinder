@@ -82,23 +82,27 @@ class TestResolveRootStepId:
 class TestFetchGeneIdsFromStep:
     async def test_extracts_gene_ids(self) -> None:
         mock_api = AsyncMock()
-        mock_api.get_step_answer.return_value = WDKAnswer.model_validate({
-            "records": [
-                {"id": [{"name": "source_id", "value": "GENE1"}]},
-                {"id": [{"name": "source_id", "value": "GENE2"}]},
-            ],
-            "meta": {"totalCount": 2},
-        })
+        mock_api.get_step_answer.return_value = WDKAnswer.model_validate(
+            {
+                "records": [
+                    {"id": [{"name": "source_id", "value": "GENE1"}]},
+                    {"id": [{"name": "source_id", "value": "GENE2"}]},
+                ],
+                "meta": {"totalCount": 2},
+            }
+        )
 
         result = await fetch_gene_ids_from_step(mock_api, step_id=99)
         assert result == ["GENE1", "GENE2"]
 
     async def test_empty_records(self) -> None:
         mock_api = AsyncMock()
-        mock_api.get_step_answer.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {"totalCount": 0},
-        })
+        mock_api.get_step_answer.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {"totalCount": 0},
+            }
+        )
 
         result = await fetch_gene_ids_from_step(mock_api, step_id=99)
         assert result == []
@@ -106,9 +110,11 @@ class TestFetchGeneIdsFromStep:
     async def test_missing_records_defaults_empty(self) -> None:
         """WDKAnswer defaults records to [] when key is absent."""
         mock_api = AsyncMock()
-        mock_api.get_step_answer.return_value = WDKAnswer.model_validate({
-            "meta": {"totalCount": 0},
-        })
+        mock_api.get_step_answer.return_value = WDKAnswer.model_validate(
+            {
+                "meta": {"totalCount": 0},
+            }
+        )
 
         result = await fetch_gene_ids_from_step(mock_api, step_id=99)
         assert result == []
@@ -277,16 +283,26 @@ class TestCreate:
                 primary_input=WDKStepTree(step_id=41),
             ),
             steps={
-                "41": WDKStep(id=41, search_name="GenesByTextSearch", search_config=WDKSearchConfig()),
-                "42": WDKStep(id=42, search_name="BooleanQuestion", search_config=WDKSearchConfig()),
+                "41": WDKStep(
+                    id=41,
+                    search_name="GenesByTextSearch",
+                    search_config=WDKSearchConfig(),
+                ),
+                "42": WDKStep(
+                    id=42,
+                    search_name="BooleanQuestion",
+                    search_config=WDKSearchConfig(),
+                ),
             },
         )
-        mock_api.get_step_answer.return_value = WDKAnswer.model_validate({
-            "records": [
-                {"id": [{"name": "source_id", "value": "RESOLVED_G1"}]},
-            ],
-            "meta": {"totalCount": 1},
-        })
+        mock_api.get_step_answer.return_value = WDKAnswer.model_validate(
+            {
+                "records": [
+                    {"id": [{"name": "source_id", "value": "RESOLVED_G1"}]},
+                ],
+                "meta": {"totalCount": 1},
+            }
+        )
 
         store = GeneSetStore()
         svc = GeneSetService(store)

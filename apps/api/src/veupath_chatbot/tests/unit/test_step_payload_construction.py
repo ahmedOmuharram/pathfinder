@@ -93,7 +93,11 @@ class TestCreateStepPayload:
         api.client.post.assert_awaited_once()
         call_args = api.client.post.call_args
         path = call_args[0][0] if call_args[0] else call_args[1].get("path")
-        payload = call_args[1].get("json") or call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("json")
+        payload = (
+            call_args[1].get("json") or call_args[0][1]
+            if len(call_args[0]) > 1
+            else call_args[1].get("json")
+        )
 
         assert path == "/users/12345/steps"
         assert payload["searchName"] == "GenesByTaxon"
@@ -166,9 +170,7 @@ class TestCreateCombinedStepPayload:
     """
 
     @pytest.mark.asyncio
-    async def test_boolean_params_are_empty_strings(
-        self, api: _TestableSteps
-    ) -> None:
+    async def test_boolean_params_are_empty_strings(self, api: _TestableSteps) -> None:
         """Verify bq_left_op and bq_right_op are empty strings.
 
         WDK wires combine step inputs via stepTree, NOT via parameters.

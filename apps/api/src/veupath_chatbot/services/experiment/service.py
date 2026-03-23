@@ -616,10 +616,16 @@ async def run_experiment(
         # Phase 1: Control-test evaluation + metrics + gene enrichment
         result, metrics = await _phase_evaluate(pctx)
 
-        plan_tree: PlanStepNode | None = config.step_tree if config.is_tree_mode else None
+        plan_tree: PlanStepNode | None = (
+            config.step_tree if config.is_tree_mode else None
+        )
 
         # Phase 2: Step analysis (multi-step only)
-        if config.is_tree_mode and plan_tree is not None and config.enable_step_analysis:
+        if (
+            config.is_tree_mode
+            and plan_tree is not None
+            and config.enable_step_analysis
+        ):
             await _phase_step_analysis(pctx, plan_tree, result)
 
         # Phase 3: Persist WDK strategy for result exploration

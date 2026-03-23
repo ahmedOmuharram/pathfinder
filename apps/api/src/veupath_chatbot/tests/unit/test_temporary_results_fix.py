@@ -131,5 +131,3 @@ class TestGetDownloadUrlFormats:
 
         payload = client.post.call_args.kwargs["json"]
         assert payload["reportConfig"]["attributes"] == ["gene_name", "product"]
-
-

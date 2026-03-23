@@ -45,10 +45,12 @@ class TestStrategyAPI:
         """Test creating a search step."""
         mock_client.post.return_value = {"id": 12345}
         # _expand_tree_params_to_leaves fetches search details
-        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {"urlSegment": "GenesByGoTerm", "parameters": []},
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {"urlSegment": "GenesByGoTerm", "parameters": []},
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
         result = await strategy_api.create_step(
             NewStepSpec(
@@ -71,28 +73,32 @@ class TestStrategyAPI:
         """Test creating a combined step."""
         mock_client.post.return_value = {"id": 12346}
         mock_client.get_searches.return_value = [
-            WDKSearch.model_validate({
-                "urlSegment": "boolean_question",
-                "fullName": "InternalQuestions.boolean_question",
-                "displayName": "Boolean",
-                "outputRecordClassName": "gene",
-                "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
-                "isAnalyzable": True,
-                "isCacheable": True,
-                "groups": [],
-            })
+            WDKSearch.model_validate(
+                {
+                    "urlSegment": "boolean_question",
+                    "fullName": "InternalQuestions.boolean_question",
+                    "displayName": "Boolean",
+                    "outputRecordClassName": "gene",
+                    "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
+                    "isAnalyzable": True,
+                    "isCacheable": True,
+                    "groups": [],
+                }
+            )
         ]
-        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question",
-                "fullName": "InternalQuestions.boolean_question",
-                "displayName": "Boolean",
-                "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
-                "groups": [],
-                "parameters": [],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        mock_client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question",
+                    "fullName": "InternalQuestions.boolean_question",
+                    "displayName": "Boolean",
+                    "paramNames": ["bq_left_op1", "bq_right_op1", "bq_operator"],
+                    "groups": [],
+                    "parameters": [],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
         result = await strategy_api.create_combined_step(
             primary_step_id=100,
@@ -159,7 +165,9 @@ class TestWDKStepTree:
     def test_simple_tree(self) -> None:
         """Test simple step tree serialization."""
         node = WDKStepTree(step_id=100)
-        assert node.model_dump(by_alias=True, exclude_none=True, mode="json") == {"stepId": 100}
+        assert node.model_dump(by_alias=True, exclude_none=True, mode="json") == {
+            "stepId": 100
+        }
 
     def test_nested_tree(self) -> None:
         """Test nested step tree serialization."""

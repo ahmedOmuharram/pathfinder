@@ -116,7 +116,9 @@ class TestColocationParams:
         assert result is None
 
     def test_from_raw_none_operator_returns_none(self) -> None:
-        result = ColocationParams.from_raw(None, upstream=1000, downstream=500, strand="same")
+        result = ColocationParams.from_raw(
+            None, upstream=1000, downstream=500, strand="same"
+        )
         assert result is None
 
     def test_from_raw_defaults(self) -> None:

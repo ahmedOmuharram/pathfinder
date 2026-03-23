@@ -38,17 +38,19 @@ from veupath_chatbot.platform.errors import (
 
 def _default_search_details() -> WDKSearchResponse:
     """Return search details with specs matching the default test parameters."""
-    return WDKSearchResponse.model_validate({
-        "searchData": {
-            "urlSegment": "GenesByTextSearch",
-            "parameters": [
-                {"name": "text_expression", "type": "string"},
-                {"name": "taxon", "type": "string"},
-                {"name": "organism", "type": "string"},
-            ],
-        },
-        "validation": {"level": "DISPLAYABLE", "isValid": True},
-    })
+    return WDKSearchResponse.model_validate(
+        {
+            "searchData": {
+                "urlSegment": "GenesByTextSearch",
+                "parameters": [
+                    {"name": "text_expression", "type": "string"},
+                    {"name": "taxon", "type": "string"},
+                    {"name": "organism", "type": "string"},
+                ],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    )
 
 
 def _mock_api() -> AsyncMock:
@@ -197,7 +199,9 @@ class TestCompileSearchStep:
 class TestCompileCombineStep:
     async def test_compiles_combine(self) -> None:
         api = _mock_api()
-        step_ids = iter([WDKIdentifier(id=100), WDKIdentifier(id=101), WDKIdentifier(id=200)])
+        step_ids = iter(
+            [WDKIdentifier(id=100), WDKIdentifier(id=101), WDKIdentifier(id=200)]
+        )
         api.create_step.side_effect = lambda *a, **kw: next(step_ids)
         api.create_combined_step.return_value = WDKIdentifier(id=200)
 
@@ -443,27 +447,33 @@ class TestCoerceParameters:
         """When normalization fails, compiler retries with contextParamValues."""
         api = _mock_api()
         # First call returns spec that causes validation error
-        api.client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByTextSearch",
-                "parameters": [
-                    {"name": "organism", "type": "single-pick-vocabulary"},
-                    {"name": "text_expression", "type": "string"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByTextSearch",
+                    "parameters": [
+                        {"name": "organism", "type": "single-pick-vocabulary"},
+                        {"name": "text_expression", "type": "string"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         # Second call with params provides richer spec
-        api.client.get_search_details_with_params.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByTextSearch",
-                "parameters": [
-                    {"name": "organism", "type": "string"},
-                    {"name": "text_expression", "type": "string"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details_with_params.return_value = (
+            WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": "GenesByTextSearch",
+                        "parameters": [
+                            {"name": "organism", "type": "string"},
+                            {"name": "text_expression", "type": "string"},
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            )
+        )
 
         compiler = StrategyCompiler(api, resolve_record_type=False)
         result = await compiler._coerce_parameters(
@@ -476,16 +486,18 @@ class TestCoerceParameters:
     async def test_input_step_param_cleared(self) -> None:
         """Input step params should be set to empty string."""
         api = _mock_api()
-        api.client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByOrthology",
-                "parameters": [
-                    {"name": "answer", "type": "input-step"},
-                    {"name": "taxon", "type": "string"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByOrthology",
+                    "parameters": [
+                        {"name": "answer", "type": "input-step"},
+                        {"name": "taxon", "type": "string"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
         compiler = StrategyCompiler(api, resolve_record_type=False)
         result = await compiler._coerce_parameters(
@@ -496,15 +508,17 @@ class TestCoerceParameters:
     async def test_dataset_param_upload(self) -> None:
         """When a dataset param has raw IDs, they should be uploaded."""
         api = _mock_api()
-        api.client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByDataset",
-                "parameters": [
-                    {"name": "ds_gene_ids", "type": "input-dataset"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByDataset",
+                    "parameters": [
+                        {"name": "ds_gene_ids", "type": "input-dataset"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         api.create_dataset.return_value = 42
 
         compiler = StrategyCompiler(api, resolve_record_type=False)
@@ -523,15 +537,17 @@ class TestCoerceParameters:
     async def test_dataset_param_integer_no_upload(self) -> None:
         """When dataset param is already an integer ID, skip upload."""
         api = _mock_api()
-        api.client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByDataset",
-                "parameters": [
-                    {"name": "ds_gene_ids", "type": "input-dataset"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByDataset",
+                    "parameters": [
+                        {"name": "ds_gene_ids", "type": "input-dataset"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
         compiler = StrategyCompiler(api, resolve_record_type=False)
         await compiler._coerce_parameters(
@@ -542,15 +558,17 @@ class TestCoerceParameters:
     async def test_unwraps_search_data(self) -> None:
         """Details wrapped in searchData should be unwrapped."""
         api = _mock_api()
-        api.client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByTextSearch",
-                "parameters": [
-                    {"name": "text_expression", "type": "string"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        api.client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByTextSearch",
+                    "parameters": [
+                        {"name": "text_expression", "type": "string"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
         compiler = StrategyCompiler(api, resolve_record_type=False)
         result = await compiler._coerce_parameters(

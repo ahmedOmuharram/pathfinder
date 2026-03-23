@@ -134,7 +134,11 @@ def _format_single_param(
     type_raw = spec.get("type")
     param_type = type_raw if isinstance(type_raw, str) else "string"
     help_raw = spec.get("help")
-    help_text = _PROFILE_PATTERN_HELP if name == "profile_pattern" else (help_raw if isinstance(help_raw, str) else "")
+    help_text = (
+        _PROFILE_PATTERN_HELP
+        if name == "profile_pattern"
+        else (help_raw if isinstance(help_raw, str) else "")
+    )
     is_visible_raw = spec.get("isVisible")
 
     info: JSONObject = {

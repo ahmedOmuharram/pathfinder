@@ -112,12 +112,15 @@ def _parse_plan_ast(plan: JSONObject) -> StrategyAST | None:
         return None
     try:
         return StrategyAST.model_validate(plan)
-    except (ValueError, KeyError, TypeError):
+    except ValueError, KeyError, TypeError:
         return None
 
 
 def _format_step_context(
-    lines: list[str], index: int, step: PlanStepNode, ast: StrategyAST,
+    lines: list[str],
+    index: int,
+    step: PlanStepNode,
+    ast: StrategyAST,
 ) -> None:
     """Append formatted lines for a single step to the output."""
     display_name = step.display_name or step.search_name or f"Step {index + 1}"
@@ -176,7 +179,8 @@ async def _build_experiment_context(experiment_id: str) -> str | None:
 
 
 def _format_experiment_config(
-    lines: list[str], cfg: ExperimentConfig,
+    lines: list[str],
+    cfg: ExperimentConfig,
 ) -> None:
     """Append config details (parameters, controls) to lines."""
     if cfg.parameters:
@@ -188,10 +192,16 @@ def _format_experiment_config(
             lines.append(f"- **Parameters**: {', '.join(param_strs)}")
 
     _format_control_list(
-        lines, "Positive controls", cfg.positive_controls, _MAX_DISPLAYED_POSITIVE_CONTROLS
+        lines,
+        "Positive controls",
+        cfg.positive_controls,
+        _MAX_DISPLAYED_POSITIVE_CONTROLS,
     )
     _format_control_list(
-        lines, "Negative controls", cfg.negative_controls, _MAX_DISPLAYED_NEGATIVE_CONTROLS
+        lines,
+        "Negative controls",
+        cfg.negative_controls,
+        _MAX_DISPLAYED_NEGATIVE_CONTROLS,
     )
 
 
@@ -205,16 +215,13 @@ def _format_control_list(
     if not controls:
         return
     ids = ", ".join(controls[:max_displayed])
-    suffix = (
-        f" ... ({len(controls)} total)"
-        if len(controls) > max_displayed
-        else ""
-    )
+    suffix = f" ... ({len(controls)} total)" if len(controls) > max_displayed else ""
     lines.append(f"- **{label}** ({len(controls)}): {ids}{suffix}")
 
 
 def _format_experiment_results(
-    lines: list[str], experiment: Experiment,
+    lines: list[str],
+    experiment: Experiment,
 ) -> None:
     """Append metrics, cross-validation, enrichment, and optimization."""
     if experiment.metrics:
@@ -228,7 +235,8 @@ def _format_experiment_results(
 
 
 def _format_cross_validation(
-    lines: list[str], experiment: Experiment,
+    lines: list[str],
+    experiment: Experiment,
 ) -> None:
     """Append cross-validation summary."""
     cv = experiment.cross_validation
@@ -245,7 +253,8 @@ def _format_cross_validation(
 
 
 def _format_enrichment_results(
-    lines: list[str], experiment: Experiment,
+    lines: list[str],
+    experiment: Experiment,
 ) -> None:
     """Append enrichment result summaries."""
     for er in experiment.enrichment_results[:3]:
@@ -267,7 +276,8 @@ def _format_enrichment_results(
 
 
 def _format_optimization_result(
-    lines: list[str], experiment: Experiment,
+    lines: list[str],
+    experiment: Experiment,
 ) -> None:
     """Append optimization result summary."""
     if not experiment.optimization_result:

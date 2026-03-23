@@ -87,9 +87,7 @@ class TestCreateStrategyPayload:
             )
             left = WDKStepTree(step_id=100)
             right = WDKStepTree(step_id=101)
-            root = WDKStepTree(
-                step_id=102, primary_input=left, secondary_input=right
-            )
+            root = WDKStepTree(step_id=102, primary_input=left, secondary_input=right)
             await api.create_strategy(root, name="Combined")
 
             body = json.loads(route.calls[0].request.content)
@@ -231,9 +229,7 @@ class TestUpdateStrategy:
     async def test_name_sent_via_patch(self, api: _TestableStrategies) -> None:
         """Name update uses PATCH on strategy endpoint."""
         with respx.mock:
-            patch_route = respx.patch(
-                f"{BASE}/users/12345/strategies/200"
-            ).respond(200)
+            patch_route = respx.patch(f"{BASE}/users/12345/strategies/200").respond(200)
             respx.get(f"{BASE}/users/12345/strategies/200").respond(
                 200, json=_realistic_wdk_strategy()
             )

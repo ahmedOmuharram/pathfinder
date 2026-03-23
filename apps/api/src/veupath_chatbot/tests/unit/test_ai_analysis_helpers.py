@@ -14,7 +14,9 @@ class TestExtractPk:
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_strips_whitespace(self) -> None:
-        record = WDKRecordInstance(id=[{"name": "source_id", "value": "  PF3D7_0100100  "}])
+        record = WDKRecordInstance(
+            id=[{"name": "source_id", "value": "  PF3D7_0100100  "}]
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_empty_id_list(self) -> None:

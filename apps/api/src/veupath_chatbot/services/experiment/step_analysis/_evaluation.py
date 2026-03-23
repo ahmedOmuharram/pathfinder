@@ -117,9 +117,7 @@ async def _eval_control_set(
                 combined_step_id,
                 pagination={
                     "offset": 0,
-                    "numRecords": min(
-                        len(control_ids), _MAX_CONTROL_IDS_FOR_ANSWER
-                    ),
+                    "numRecords": min(len(control_ids), _MAX_CONTROL_IDS_FOR_ANSWER),
                 },
             )
             intersection_ids = extract_record_ids(answer.records)

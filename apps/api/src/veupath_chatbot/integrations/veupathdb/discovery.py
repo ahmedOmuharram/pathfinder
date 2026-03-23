@@ -72,9 +72,7 @@ class SearchCatalog:
 
             try:
                 record_types = await client.get_record_types(expanded=True)
-                expanded_supported = any(
-                    rt.searches is not None for rt in record_types
-                )
+                expanded_supported = any(rt.searches is not None for rt in record_types)
 
                 await self._populate_from_record_types(
                     client, record_types, expanded_supported=expanded_supported

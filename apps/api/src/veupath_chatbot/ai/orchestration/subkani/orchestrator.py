@@ -167,7 +167,11 @@ async def _emit_step_events(
                     graph_id=graph_id_str,
                     step=step,
                     all_steps=[
-                        StepResponse(id=sid, kind=s.infer_kind(), display_name=s.display_name or s.search_name)
+                        StepResponse(
+                            id=sid,
+                            kind=s.infer_kind(),
+                            display_name=s.display_name or s.search_name,
+                        )
                         for sid, s in graph.steps.items()
                     ],
                 ).model_dump(by_alias=True, exclude_none=True),

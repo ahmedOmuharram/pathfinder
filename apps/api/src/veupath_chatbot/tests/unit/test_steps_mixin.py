@@ -35,11 +35,13 @@ class TestFindStep:
 
     async def test_returns_wdk_step(self) -> None:
         mixin = _make_mixin()
-        mixin.client.get = AsyncMock(return_value={
-            "id": 42,
-            "searchName": "GenesByTaxon",
-            "searchConfig": {"parameters": {}},
-        })
+        mixin.client.get = AsyncMock(
+            return_value={
+                "id": 42,
+                "searchName": "GenesByTaxon",
+                "searchConfig": {"parameters": {}},
+            }
+        )
 
         result = await mixin.find_step(42)
 
@@ -50,11 +52,13 @@ class TestFindStep:
 
     async def test_uses_explicit_user_id(self) -> None:
         mixin = _make_mixin()
-        mixin.client.get = AsyncMock(return_value={
-            "id": 42,
-            "searchName": "GenesByTaxon",
-            "searchConfig": {"parameters": {}},
-        })
+        mixin.client.get = AsyncMock(
+            return_value={
+                "id": 42,
+                "searchName": "GenesByTaxon",
+                "searchConfig": {"parameters": {}},
+            }
+        )
 
         await mixin.find_step(42, user_id="99999")
 
@@ -103,14 +107,22 @@ class TestCreateCombinedStepReturnsWDKIdentifier:
     async def test_returns_wdk_identifier(self) -> None:
         mixin = _make_mixin()
         mixin.client.post = AsyncMock(return_value={"id": 300})
-        mixin.client.get_searches = AsyncMock(return_value=[
-            AsyncMock(url_segment="boolean_question_gene"),
-        ])
-        mixin.client.get_search_details = AsyncMock(return_value=AsyncMock(
-            search_data=AsyncMock(
-                param_names=["bq_left_op__genes", "bq_right_op__genes", "bq_operator__genes"],
-            ),
-        ))
+        mixin.client.get_searches = AsyncMock(
+            return_value=[
+                AsyncMock(url_segment="boolean_question_gene"),
+            ]
+        )
+        mixin.client.get_search_details = AsyncMock(
+            return_value=AsyncMock(
+                search_data=AsyncMock(
+                    param_names=[
+                        "bq_left_op__genes",
+                        "bq_right_op__genes",
+                        "bq_operator__genes",
+                    ],
+                ),
+            )
+        )
 
         result = await mixin.create_combined_step(
             primary_step_id=100,
@@ -129,9 +141,11 @@ class TestCreateTransformStepReturnsWDKIdentifier:
     async def test_returns_wdk_identifier(self) -> None:
         mixin = _make_mixin()
         mixin.client.post = AsyncMock(return_value={"id": 400})
-        mixin.client.get_search_details = AsyncMock(return_value=AsyncMock(
-            search_data=AsyncMock(parameters=[]),
-        ))
+        mixin.client.get_search_details = AsyncMock(
+            return_value=AsyncMock(
+                search_data=AsyncMock(parameters=[]),
+            )
+        )
 
         result = await mixin.create_transform_step(
             NewStepSpec(

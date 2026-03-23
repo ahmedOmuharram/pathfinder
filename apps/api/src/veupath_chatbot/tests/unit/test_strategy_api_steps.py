@@ -53,7 +53,9 @@ class TestGetBooleanSearchName:
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
             WDKSearch.model_validate({"urlSegment": "GenesByTaxonGene"}),
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
         name = await mixin._get_boolean_search_name("gene")
         assert name == "boolean_question_GeneRecordClasses_GeneRecordClass"
@@ -61,7 +63,9 @@ class TestGetBooleanSearchName:
     async def test_caches_result(self) -> None:
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
         await mixin._get_boolean_search_name("gene")
         await mixin._get_boolean_search_name("gene")
@@ -94,19 +98,23 @@ class TestGetBooleanParamNames:
     async def test_resolves_param_names(self) -> None:
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                "paramNames": [
-                    "bq_left_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_right_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_operator",
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
+                    "paramNames": [
+                        "bq_left_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_right_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_operator",
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         left, right, op = await mixin._get_boolean_param_names("gene")
         assert left == "bq_left_op_GeneRecordClasses_GeneRecordClass"
         assert right == "bq_right_op_GeneRecordClasses_GeneRecordClass"
@@ -115,15 +123,19 @@ class TestGetBooleanParamNames:
     async def test_raises_when_params_missing(self) -> None:
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                "paramNames": ["bq_operator"],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
+                    "paramNames": ["bq_operator"],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         with pytest.raises(DataParsingError, match="Boolean param names not found"):
             await mixin._get_boolean_param_names("gene")
 
@@ -131,15 +143,19 @@ class TestGetBooleanParamNames:
         """With typed models, empty paramNames means no bq_ params are found."""
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                "paramNames": [],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
+                    "paramNames": [],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         with pytest.raises(DataParsingError, match="Boolean param names not found"):
             await mixin._get_boolean_param_names("gene")
 
@@ -154,16 +170,18 @@ class TestGetAnswerParamNames:
 
     async def test_finds_input_step_params(self) -> None:
         mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByRNASeqEvidence",
-                "parameters": [
-                    {"name": "gene_result", "type": "input-step"},
-                    {"name": "threshold", "type": "number"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByRNASeqEvidence",
+                    "parameters": [
+                        {"name": "gene_result", "type": "input-step"},
+                        {"name": "threshold", "type": "number"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         names = await mixin._get_answer_param_names(
             "transcript", "GenesByRNASeqEvidence"
         )
@@ -171,15 +189,17 @@ class TestGetAnswerParamNames:
 
     async def test_caches_result(self) -> None:
         mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "SomeTransform",
-                "parameters": [
-                    {"name": "gene_result", "type": "input-step"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "SomeTransform",
+                    "parameters": [
+                        {"name": "gene_result", "type": "input-step"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         await mixin._get_answer_param_names("transcript", "SomeTransform")
         await mixin._get_answer_param_names("transcript", "SomeTransform")
         client.get_search_details.assert_awaited_once()
@@ -269,19 +289,23 @@ class TestCreateCombinedStep:
         mixin, client = _make_mixin()
         # Setup boolean search resolution
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                "paramNames": [
-                    "bq_left_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_right_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_operator",
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
+                    "paramNames": [
+                        "bq_left_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_right_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_operator",
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         client.post.return_value = {"id": 300}
 
         result = await mixin.create_combined_step(
@@ -306,19 +330,23 @@ class TestCreateCombinedStep:
     async def test_combined_step_with_custom_name(self) -> None:
         mixin, client = _make_mixin()
         client.get_searches.return_value = [
-            WDKSearch.model_validate({"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}),
+            WDKSearch.model_validate(
+                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
+            ),
         ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                "paramNames": [
-                    "bq_left_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_right_op_GeneRecordClasses_GeneRecordClass",
-                    "bq_operator",
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
+                    "paramNames": [
+                        "bq_left_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_right_op_GeneRecordClasses_GeneRecordClass",
+                        "bq_operator",
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         client.post.return_value = {"id": 300}
 
         await mixin.create_combined_step(
@@ -343,16 +371,18 @@ class TestCreateTransformStep:
     async def test_clears_answer_params_to_empty_string(self) -> None:
         """WDK requires input-step params to be '' on step creation."""
         mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "GenesByRNASeqEvidence",
-                "parameters": [
-                    {"name": "gene_result", "type": "input-step"},
-                    {"name": "threshold", "type": "number"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "GenesByRNASeqEvidence",
+                    "parameters": [
+                        {"name": "gene_result", "type": "input-step"},
+                        {"name": "threshold", "type": "number"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         client.post.return_value = {"id": 400}
 
         await mixin.create_transform_step(
@@ -379,15 +409,17 @@ class TestCreateTransformStep:
     async def test_adds_missing_answer_params(self) -> None:
         """Even if caller doesn't include the AnswerParam, it should be added as ''."""
         mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate({
-            "searchData": {
-                "urlSegment": "SomeTransform",
-                "parameters": [
-                    {"name": "gene_result", "type": "input-step"},
-                ],
-            },
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        client.get_search_details.return_value = WDKSearchResponse.model_validate(
+            {
+                "searchData": {
+                    "urlSegment": "SomeTransform",
+                    "parameters": [
+                        {"name": "gene_result", "type": "input-step"},
+                    ],
+                },
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
         client.post.return_value = {"id": 400}
 
         await mixin.create_transform_step(

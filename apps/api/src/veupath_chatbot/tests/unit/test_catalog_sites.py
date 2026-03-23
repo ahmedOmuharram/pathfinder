@@ -147,9 +147,7 @@ class TestGetRecordTypes:
         assert rt.description == "Gene records"
 
     async def test_handles_missing_optional_fields(self) -> None:
-        discovery = _mock_discovery(
-            record_types=[_wdk_rt(url_segment="gene")]
-        )
+        discovery = _mock_discovery(record_types=[_wdk_rt(url_segment="gene")])
         with patch(
             "veupath_chatbot.services.catalog.sites.get_discovery_service",
             return_value=discovery,

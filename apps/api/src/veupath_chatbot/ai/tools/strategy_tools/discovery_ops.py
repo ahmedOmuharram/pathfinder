@@ -116,7 +116,10 @@ class StrategyDiscoveryOps(StrategyToolsHelpers):
 
         matches = await self._collect_matches(record_types, terms)
         matches.sort(key=_sort_key)
-        return {"keywords": cast("JSONValue", terms), "results": matches[: max(limit, 1)]}
+        return {
+            "keywords": cast("JSONValue", terms),
+            "results": matches[: max(limit, 1)],
+        }
 
     async def _collect_matches(
         self,

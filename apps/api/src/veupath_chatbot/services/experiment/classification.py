@@ -35,10 +35,12 @@ def classify_records(
     for rec in records:
         gene_id = extract_pk(rec)
         classification = _classify_gene_id(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-        classified.append({
-            **rec.model_dump(by_alias=True),
-            "_classification": classification,
-        })
+        classified.append(
+            {
+                **rec.model_dump(by_alias=True),
+                "_classification": classification,
+            }
+        )
     return classified
 
 

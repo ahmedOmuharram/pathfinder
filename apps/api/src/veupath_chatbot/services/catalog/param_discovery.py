@@ -35,9 +35,7 @@ async def fetch_search_details(
     :raises CoreValidationError: When the search cannot be found.
     """
     try:
-        response = await discovery.get_search_details(
-            ctx, expand_params=True
-        )
+        response = await discovery.get_search_details(ctx, expand_params=True)
     except AppError as e:
         return await _fallback_scan_record_types(
             discovery,

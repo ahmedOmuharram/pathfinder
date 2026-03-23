@@ -57,7 +57,9 @@ class FakeCompilerAPI:
         # Mock client for param spec loading
         self.client = AsyncMock()
         # Default: get_search_details returns a search with no params
-        self.client.get_search_details = AsyncMock(side_effect=self._fake_search_details)
+        self.client.get_search_details = AsyncMock(
+            side_effect=self._fake_search_details
+        )
         self.client.get_search_details_with_params = AsyncMock(
             side_effect=self._fake_search_details_with_params
         )
@@ -139,7 +141,9 @@ class FakeCompilerAPI:
                     "secondary_step_id": secondary_step_id,
                     "boolean_operator": boolean_operator,
                     "record_type": record_type,
-                    "custom_name": spec_overrides.custom_name if spec_overrides else None,
+                    "custom_name": spec_overrides.custom_name
+                    if spec_overrides
+                    else None,
                     "wdk_weight": wdk_weight,
                     "returned_id": step_id,
                 },
@@ -172,10 +176,14 @@ class FakeCompilerAPI:
         )
         return WDKIdentifier(id=step_id)
 
-    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int:
+    async def create_dataset(
+        self, config: WDKDatasetConfig, user_id: str | None = None
+    ) -> int:
         ds_id = self._alloc_id()
         self.calls.append(
-            StepCall(method="create_dataset", kwargs={"config": config, "returned_id": ds_id})
+            StepCall(
+                method="create_dataset", kwargs={"config": config, "returned_id": ds_id}
+            )
         )
         return ds_id
 
@@ -323,9 +331,7 @@ class TestCompileTransformStep:
     @pytest.mark.asyncio
     async def test_transform_creates_two_steps(self) -> None:
         api = FakeCompilerAPI()
-        child = PlanStepNode(
-            search_name="GenesByTaxon", parameters={}, id="child"
-        )
+        child = PlanStepNode(search_name="GenesByTaxon", parameters={}, id="child")
         ast = StrategyAST(
             record_type="transcript",
             root=PlanStepNode(
@@ -393,7 +399,10 @@ class TestRecordTypeResolution:
         )
         with pytest.raises(ValidationError, match="multiple record types"):
             await compile_strategy(
-                ast, api, resolve_record_type=True, resolve_search_record_type=resolve_rt
+                ast,
+                api,
+                resolve_record_type=True,
+                resolve_search_record_type=resolve_rt,
             )
 
     @pytest.mark.asyncio

@@ -39,7 +39,9 @@ def tool_error(code: str | Enum, message: str, **details: JSONValue) -> JSONObje
     code_value = code.value if isinstance(code, Enum) else str(code)
     details_obj: JSONObject | None = dict(details) if details else None
     payload = ToolErrorPayload(
-        code=code_value, message=message, details=details_obj,
+        code=code_value,
+        message=message,
+        details=details_obj,
     ).model_dump(by_alias=True, exclude_none=True, mode="json")
     # Flat-promote detail keys so the AI agent sees them at the top level.
     if details:

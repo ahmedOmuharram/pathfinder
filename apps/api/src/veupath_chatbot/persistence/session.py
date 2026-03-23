@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from veupath_chatbot.persistence.models import Base
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 

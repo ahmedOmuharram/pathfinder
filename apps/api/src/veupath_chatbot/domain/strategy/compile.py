@@ -104,7 +104,9 @@ class StrategyCompilerAPI(Protocol):
         user_id: str | None = None,
     ) -> WDKIdentifier: ...
 
-    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int: ...
+    async def create_dataset(
+        self, config: WDKDatasetConfig, user_id: str | None = None
+    ) -> int: ...
 
 
 @runtime_checkable
@@ -151,7 +153,6 @@ class CompilationResult(CamelModel):
     steps: list[CompiledStep]
     step_tree: WDKStepTree
     root_step_id: int
-
 
 
 class StrategyCompiler:
@@ -310,7 +311,9 @@ class StrategyCompiler:
                 secondary_step_id=right_tree.step_id,
                 boolean_operator=wdk_op,
                 record_type=record_type,
-                spec_overrides=PatchStepSpec(custom_name=step.display_name) if step.display_name else None,
+                spec_overrides=PatchStepSpec(custom_name=step.display_name)
+                if step.display_name
+                else None,
                 wdk_weight=step.wdk_weight,
             )
 

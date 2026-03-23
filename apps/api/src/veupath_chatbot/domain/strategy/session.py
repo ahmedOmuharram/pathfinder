@@ -129,7 +129,9 @@ class StrategyGraph:
             self.history.append(
                 {
                     "description": description,
-                    "strategy": self.current_strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
+                    "strategy": self.current_strategy.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    ),
                 }
             )
 
@@ -146,7 +148,9 @@ class StrategyGraph:
         previous = self.history[-1]
         strategy_value = previous.get("strategy")
         if isinstance(strategy_value, dict):
-            self.current_strategy = StrategyAST.model_validate(as_json_object(strategy_value))
+            self.current_strategy = StrategyAST.model_validate(
+                as_json_object(strategy_value)
+            )
             self.steps = {s.id: s for s in self.current_strategy.get_all_steps()}
             self.recompute_roots()
             self.last_step_id = self.current_strategy.root.id

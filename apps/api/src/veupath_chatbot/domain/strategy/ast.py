@@ -50,7 +50,7 @@ class StepFilter(CamelModel):
         for item in raw:
             try:
                 result.append(cls.model_validate(item))
-            except (ValueError, TypeError, ValidationError):
+            except ValueError, TypeError, ValidationError:
                 continue
         return result
 
@@ -96,7 +96,7 @@ class StepAnalysis(CamelModel):
         for item in raw:
             try:
                 result.append(cls.model_validate(item))
-            except (ValueError, TypeError, ValidationError):
+            except ValueError, TypeError, ValidationError:
                 continue
         return result
 
@@ -131,7 +131,7 @@ class StepReport(CamelModel):
         for item in raw:
             try:
                 result.append(cls.model_validate(item))
-            except (ValueError, TypeError, ValidationError):
+            except ValueError, TypeError, ValidationError:
                 continue
         return result
 
@@ -220,5 +220,3 @@ class StrategyAST(CamelModel):
             if step.id == step_id:
                 return step
         return None
-
-

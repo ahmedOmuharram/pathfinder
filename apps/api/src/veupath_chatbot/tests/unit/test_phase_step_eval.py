@@ -34,7 +34,10 @@ def _leaf(lid: str, search: str = "") -> PlanStepNode:
 
 
 def _combine(
-    nid: str, primary: PlanStepNode, secondary: PlanStepNode, op: CombineOp = CombineOp.INTERSECT
+    nid: str,
+    primary: PlanStepNode,
+    secondary: PlanStepNode,
+    op: CombineOp = CombineOp.INTERSECT,
 ) -> PlanStepNode:
     """Create a combine (binary) node."""
     return PlanStepNode(

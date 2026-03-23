@@ -72,12 +72,16 @@ class TestColocationParamsConstraints:
     def test_negative_upstream_flagged_by_check_errors(self) -> None:
         params = ColocationParams(upstream=-1, downstream=0)
         errors = params.check_errors()
-        assert any("non-negative" in e.lower() or "upstream" in e.lower() for e in errors)
+        assert any(
+            "non-negative" in e.lower() or "upstream" in e.lower() for e in errors
+        )
 
     def test_negative_downstream_flagged_by_check_errors(self) -> None:
         params = ColocationParams(upstream=0, downstream=-1)
         errors = params.check_errors()
-        assert any("non-negative" in e.lower() or "downstream" in e.lower() for e in errors)
+        assert any(
+            "non-negative" in e.lower() or "downstream" in e.lower() for e in errors
+        )
 
     def test_valid_params_no_errors(self) -> None:
         params = ColocationParams(upstream=100, downstream=200)
@@ -100,9 +104,7 @@ class TestPlanStepNodeValidators:
         with pytest.raises(
             ValidationError, match="operator is required when secondaryInput"
         ):
-            PlanStepNode(
-                search_name="C", primary_input=leaf1, secondary_input=leaf2
-            )
+            PlanStepNode(search_name="C", primary_input=leaf1, secondary_input=leaf2)
 
     def test_colocate_requires_colocation_params(self) -> None:
         leaf1 = PlanStepNode(search_name="A")
@@ -163,16 +165,12 @@ class TestExtraFieldBehavior:
 
 class TestCreateStrategyRequestConstraints:
     def test_name_min_length(self) -> None:
-        plan = StrategyAST(
-            record_type="gene", root=PlanStepNode(search_name="X")
-        )
+        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="", siteId="x", plan=plan)
 
     def test_name_max_length(self) -> None:
-        plan = StrategyAST(
-            record_type="gene", root=PlanStepNode(search_name="X")
-        )
+        plan = StrategyAST(record_type="gene", root=PlanStepNode(search_name="X"))
         CreateStrategyRequest(name="a" * 255, siteId="x", plan=plan)
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="a" * 256, siteId="x", plan=plan)

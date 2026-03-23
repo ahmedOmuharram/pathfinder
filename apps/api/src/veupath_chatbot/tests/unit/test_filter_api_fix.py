@@ -40,7 +40,6 @@ class TestClientGetStepViewFilters:
         assert result[0].disabled is False
 
 
-
 class TestClientUpdateStepViewFilters:
     """client.update_step_view_filters PATCHes answerSpec.viewFilters."""
 

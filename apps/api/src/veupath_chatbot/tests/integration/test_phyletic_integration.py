@@ -173,7 +173,9 @@ class TestGetSearchParametersNormalSearch:
 
     @pytest.mark.asyncio
     async def test_genes_by_taxon_unaffected(self) -> None:
-        result = await get_search_parameters(SearchContext("plasmodb", "transcript", "GenesByTaxon"))
+        result = await get_search_parameters(
+            SearchContext("plasmodb", "transcript", "GenesByTaxon")
+        )
         names = _param_names(result)
 
         # GenesByTaxon has organism param — it should be present

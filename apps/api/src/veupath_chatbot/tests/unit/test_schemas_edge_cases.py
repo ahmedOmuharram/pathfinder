@@ -214,7 +214,9 @@ class TestStrategyResponseRecordType:
 class TestPlanStepNodeOperatorWithoutSecondary:
     def test_operator_without_secondary_allowed(self) -> None:
         leaf = PlanStepNode(search_name="A")
-        n = PlanStepNode(search_name="B", primary_input=leaf, operator=CombineOp.INTERSECT)
+        n = PlanStepNode(
+            search_name="B", primary_input=leaf, operator=CombineOp.INTERSECT
+        )
         assert n.operator == CombineOp.INTERSECT
         assert n.secondary_input is None
 

@@ -171,9 +171,9 @@ async def start_chat_stream(
         stream_id_str,
         operation_id,
         "user_message",
-        UserMessageEventData(
-            content=message, message_id=str(uuid4())
-        ).model_dump(by_alias=True, exclude_none=True),
+        UserMessageEventData(content=message, message_id=str(uuid4())).model_dump(
+            by_alias=True, exclude_none=True
+        ),
         session=context.stream_repo.session,
     )
 
@@ -389,9 +389,7 @@ async def _handle_error(
         stream_id_str,
         operation_id,
         "error",
-        ErrorEventData(
-            error=str(error)
-        ).model_dump(by_alias=True, exclude_none=True),
+        ErrorEventData(error=str(error)).model_dump(by_alias=True, exclude_none=True),
         session=session,
     )
     await emit(
@@ -424,9 +422,9 @@ async def _chat_producer(
                 turn.stream_id_str,
                 operation_id,
                 "error",
-                ErrorEventData(
-                    error="Stream not found"
-                ).model_dump(by_alias=True, exclude_none=True),
+                ErrorEventData(error="Stream not found").model_dump(
+                    by_alias=True, exclude_none=True
+                ),
             )
             await bg_stream_repo.fail_operation(operation_id)
             await session.commit()
@@ -446,9 +444,9 @@ async def _chat_producer(
             turn.stream_id_str,
             operation_id,
             "model_selected",
-            ModelSelectedEventData(
-                model_id=effective_model
-            ).model_dump(by_alias=True, exclude_none=True),
+            ModelSelectedEventData(model_id=effective_model).model_dump(
+                by_alias=True, exclude_none=True
+            ),
             session=session,
         )
 

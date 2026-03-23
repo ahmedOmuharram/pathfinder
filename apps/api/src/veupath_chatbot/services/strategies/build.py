@@ -400,9 +400,7 @@ async def build_strategy(
     if wdk_strategy_id is not None:
         try:
             strategy_info = await api.get_strategy(wdk_strategy_id)
-            step_counts, root_count = extract_step_counts(
-                strategy_info, compiled_map
-            )
+            step_counts, root_count = extract_step_counts(strategy_info, compiled_map)
             for local_id, wdk_id in compiled_map.items():
                 wdk_step = strategy_info.steps.get(str(wdk_id))
                 if wdk_step is not None:

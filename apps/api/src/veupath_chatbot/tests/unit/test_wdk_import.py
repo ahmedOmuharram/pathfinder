@@ -65,10 +65,12 @@ def _make_wdk_strategy(
 
 def _mock_api(wdk_strategy: WDKStrategyDetails) -> AsyncMock:
     """Create a mock StrategyAPI whose get_strategy returns the given model."""
-    _empty_response = WDKSearchResponse.model_validate({
-        "searchData": {"urlSegment": "_stub"},
-        "validation": {"level": "DISPLAYABLE", "isValid": True},
-    })
+    _empty_response = WDKSearchResponse.model_validate(
+        {
+            "searchData": {"urlSegment": "_stub"},
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    )
     api = AsyncMock()
     api.get_strategy = AsyncMock(return_value=wdk_strategy)
     api.client = MagicMock()
@@ -88,7 +90,9 @@ class TestFetchAndConvertSingleStep:
     async def test_single_leaf_step(self) -> None:
         wdk = _make_wdk_strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})},
+            steps={
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})
+            },
             name="Kinase Search",
             is_saved=True,
         )

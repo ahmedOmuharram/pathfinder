@@ -35,7 +35,6 @@ from veupath_chatbot.transport.http.schemas.sse import (
 logger = get_logger(__name__)
 
 
-
 # ---------------------------------------------------------------------------
 # Event emission
 # ---------------------------------------------------------------------------

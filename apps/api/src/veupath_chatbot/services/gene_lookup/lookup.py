@@ -254,11 +254,7 @@ def _apply_organism_filter(
     ol = organism_input.lower()
 
     if explicit_organism:
-        filtered = [
-            r
-            for r in results
-            if r.organism.strip().lower() == ol
-        ]
+        filtered = [r for r in results if r.organism.strip().lower() == ol]
         return filtered, None
 
     suggested = suggest_organisms(organism_input, available_organisms)

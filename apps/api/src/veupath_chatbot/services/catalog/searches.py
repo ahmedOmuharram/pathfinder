@@ -198,15 +198,15 @@ def _parse_site_search_doc(doc: SiteSearchDocument) -> SearchMatch | None:
     found = doc.found_in_fields
     display = doc.hyperlink_name
     if not display:
-        candidates = found.get("TEXT__search_displayName") or found.get("autocomplete") or []
+        candidates = (
+            found.get("TEXT__search_displayName") or found.get("autocomplete") or []
+        )
         if candidates:
             display = str(candidates[0]) if candidates[0] is not None else ""
     display_name = strip_html_tags(display) or search_name
 
     descs = (
-        found.get("TEXT__search_description")
-        or found.get("TEXT__search_summary")
-        or []
+        found.get("TEXT__search_description") or found.get("TEXT__search_summary") or []
     )
     desc_val = str(descs[0]) if descs else ""
     description = strip_html_tags(desc_val)
@@ -231,11 +231,15 @@ async def _search_for_searches_via_site_search(
     documentType=search.
     """
     try:
-        response = await get_site_router().get_site_search_client(site_id).search(
-            query,
-            document_type_filter=DocumentTypeFilter(document_type="search"),
-            limit=limit,
-            offset=0,
+        response = (
+            await get_site_router()
+            .get_site_search_client(site_id)
+            .search(
+                query,
+                document_type_filter=DocumentTypeFilter(document_type="search"),
+                limit=limit,
+                offset=0,
+            )
         )
     except AppError as exc:
         logger.warning(

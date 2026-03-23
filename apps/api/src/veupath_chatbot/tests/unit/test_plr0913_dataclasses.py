@@ -385,7 +385,9 @@ class TestOptimizationCompletedEvent:
 
 class TestOptimizationInput:
     def test_required_fields(self) -> None:
-        spec = ParameterSpec(name="fold_change", param_type="numeric", min_value=1.5, max_value=20.0)
+        spec = ParameterSpec(
+            name="fold_change", param_type="numeric", min_value=1.5, max_value=20.0
+        )
         inp = OptimizationInput(
             site_id="plasmodb",
             record_type="transcript",
@@ -402,7 +404,9 @@ class TestOptimizationInput:
         assert len(inp.parameter_space) == 1
 
     def test_optional_defaults(self) -> None:
-        spec = ParameterSpec(name="fc", param_type="numeric", min_value=1.0, max_value=10.0)
+        spec = ParameterSpec(
+            name="fc", param_type="numeric", min_value=1.0, max_value=10.0
+        )
         inp = OptimizationInput(
             site_id="toxodb",
             record_type="transcript",
@@ -419,7 +423,9 @@ class TestOptimizationInput:
         assert inp.id_field is None
 
     def test_with_controls(self) -> None:
-        spec = ParameterSpec(name="fc", param_type="numeric", min_value=1.0, max_value=10.0)
+        spec = ParameterSpec(
+            name="fc", param_type="numeric", min_value=1.0, max_value=10.0
+        )
         pos = ["PF3D7_0100100", "PF3D7_0200200"]
         neg = ["PF3D7_0300300"]
         inp = OptimizationInput(
@@ -436,7 +442,9 @@ class TestOptimizationInput:
         assert inp.negative_controls == neg
 
     def test_fixed_parameters_can_be_populated(self) -> None:
-        spec = ParameterSpec(name="fc", param_type="numeric", min_value=1.0, max_value=10.0)
+        spec = ParameterSpec(
+            name="fc", param_type="numeric", min_value=1.0, max_value=10.0
+        )
         inp = OptimizationInput(
             site_id="plasmodb",
             record_type="transcript",
@@ -485,10 +493,20 @@ class TestLiteratureFilters:
     def test_year_from_filters_old_papers(self) -> None:
         filters = LiteratureFilters(year_from=2020)
         item_old = LiteratureItemContext(
-            title="Old paper", authors=None, year=2015, doi=None, pmid=None, journal=None
+            title="Old paper",
+            authors=None,
+            year=2015,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         item_new = LiteratureItemContext(
-            title="New paper", authors=None, year=2022, doi=None, pmid=None, journal=None
+            title="New paper",
+            authors=None,
+            year=2022,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_old, filters) is False
         assert passes_filters(item_new, filters) is True
@@ -496,10 +514,20 @@ class TestLiteratureFilters:
     def test_year_to_filters_future_papers(self) -> None:
         filters = LiteratureFilters(year_to=2018)
         item_recent = LiteratureItemContext(
-            title="Recent paper", authors=None, year=2023, doi=None, pmid=None, journal=None
+            title="Recent paper",
+            authors=None,
+            year=2023,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         item_old = LiteratureItemContext(
-            title="Old paper", authors=None, year=2015, doi=None, pmid=None, journal=None
+            title="Old paper",
+            authors=None,
+            year=2015,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_recent, filters) is False
         assert passes_filters(item_old, filters) is True
@@ -510,7 +538,12 @@ class TestLiteratureFilters:
             title="Paper", authors=None, year=2022, doi=None, pmid=None, journal=None
         )
         item_with_doi = LiteratureItemContext(
-            title="Paper", authors=None, year=2022, doi="10.1234/abc", pmid=None, journal=None
+            title="Paper",
+            authors=None,
+            year=2022,
+            doi="10.1234/abc",
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_no_doi, filters) is False
         assert passes_filters(item_with_doi, filters) is True
@@ -518,10 +551,20 @@ class TestLiteratureFilters:
     def test_title_includes_case_insensitive(self) -> None:
         filters = LiteratureFilters(title_includes="malaria")
         item_match = LiteratureItemContext(
-            title="Malaria parasite genomics", authors=None, year=2022, doi=None, pmid=None, journal=None
+            title="Malaria parasite genomics",
+            authors=None,
+            year=2022,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         item_no_match = LiteratureItemContext(
-            title="Dengue fever study", authors=None, year=2022, doi=None, pmid=None, journal=None
+            title="Dengue fever study",
+            authors=None,
+            year=2022,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_match, filters) is True
         assert passes_filters(item_no_match, filters) is False
@@ -529,10 +572,20 @@ class TestLiteratureFilters:
     def test_author_includes_matches_substring(self) -> None:
         filters = LiteratureFilters(author_includes="Smith")
         item_match = LiteratureItemContext(
-            title="Study", authors=["Smith J", "Jones B"], year=2022, doi=None, pmid=None, journal=None
+            title="Study",
+            authors=["Smith J", "Jones B"],
+            year=2022,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         item_no_match = LiteratureItemContext(
-            title="Study", authors=["Brown A", "White C"], year=2022, doi=None, pmid=None, journal=None
+            title="Study",
+            authors=["Brown A", "White C"],
+            year=2022,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_match, filters) is True
         assert passes_filters(item_no_match, filters) is False
@@ -540,10 +593,20 @@ class TestLiteratureFilters:
     def test_doi_equals_exact_match(self) -> None:
         filters = LiteratureFilters(doi_equals="10.1234/abc")
         item_match = LiteratureItemContext(
-            title="Study", authors=None, year=2022, doi="10.1234/ABC", pmid=None, journal=None
+            title="Study",
+            authors=None,
+            year=2022,
+            doi="10.1234/ABC",
+            pmid=None,
+            journal=None,
         )
         item_no_match = LiteratureItemContext(
-            title="Study", authors=None, year=2022, doi="10.9999/xyz", pmid=None, journal=None
+            title="Study",
+            authors=None,
+            year=2022,
+            doi="10.9999/xyz",
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_match, filters) is True
         assert passes_filters(item_no_match, filters) is False
@@ -551,7 +614,12 @@ class TestLiteratureFilters:
     def test_year_with_none_year_fails_ranged_filter(self) -> None:
         filters = LiteratureFilters(year_from=2020)
         item_no_year = LiteratureItemContext(
-            title="Undated paper", authors=None, year=None, doi=None, pmid=None, journal=None
+            title="Undated paper",
+            authors=None,
+            year=None,
+            doi=None,
+            pmid=None,
+            journal=None,
         )
         assert passes_filters(item_no_year, filters) is False
 
@@ -674,7 +742,10 @@ class TestGeneSetWdkContext:
         assert ctx.wdk_step_id == 888
         assert ctx.search_name == "GenesByExpressionTwoChannel"
         assert ctx.record_type == "transcript"
-        assert ctx.parameters == {"fold_change": "2.0", "organism": "Plasmodium falciparum 3D7"}
+        assert ctx.parameters == {
+            "fold_change": "2.0",
+            "organism": "Plasmodium falciparum 3D7",
+        }
 
     def test_partial_construction(self) -> None:
         ctx = GeneSetWdkContext(wdk_strategy_id=123)
@@ -744,12 +815,14 @@ class TestGeneSetServiceHelpers:
     async def test_resolve_root_step_fetches_from_strategy_when_none(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
-            "strategyId": 100,
-            "name": "test",
-            "rootStepId": 77,
-            "stepTree": {"stepId": 77},
-        })
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate(
+            {
+                "strategyId": 100,
+                "name": "test",
+                "rootStepId": 77,
+                "stepTree": {"stepId": 77},
+            }
+        )
         result = await svc._resolve_root_step(api, strategy_id=100, step_id=None)
         assert result == 77
         api.get_strategy.assert_called_once_with(100)
@@ -774,13 +847,15 @@ class TestGeneSetServiceHelpers:
     async def test_fetch_step_genes_returns_ids_from_step(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.get_step_answer.return_value = WDKAnswer.model_validate({
-            "records": [
-                {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
-                {"id": [{"name": "source_id", "value": "PF3D7_0200200"}]},
-            ],
-            "meta": {"totalCount": 2},
-        })
+        api.get_step_answer.return_value = WDKAnswer.model_validate(
+            {
+                "records": [
+                    {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]},
+                    {"id": [{"name": "source_id", "value": "PF3D7_0200200"}]},
+                ],
+                "meta": {"totalCount": 2},
+            }
+        )
         result = await svc._fetch_step_genes(api, step_id=55)
         assert "PF3D7_0100100" in result
         assert "PF3D7_0200200" in result
@@ -798,15 +873,21 @@ class TestGeneSetServiceHelpers:
         svc = _make_service()
         api = _make_api()
         _sc = WDKSearchConfig()
-        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
-            "strategyId": 200,
-            "name": "test",
-            "rootStepId": 10,
-            "stepTree": {"stepId": 10},
-            "steps": {
-                "10": {"id": 10, "searchName": "GenesByTextSearch", "searchConfig": _sc.model_dump(by_alias=True)},
-            },
-        })
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate(
+            {
+                "strategyId": 200,
+                "name": "test",
+                "rootStepId": 10,
+                "stepTree": {"stepId": 10},
+                "steps": {
+                    "10": {
+                        "id": 10,
+                        "searchName": "GenesByTextSearch",
+                        "searchConfig": _sc.model_dump(by_alias=True),
+                    },
+                },
+            }
+        )
         count = await svc._count_strategy_steps(api, strategy_id=200)
         assert count == 1
 
@@ -815,21 +896,35 @@ class TestGeneSetServiceHelpers:
         svc = _make_service()
         api = _make_api()
         _sc = WDKSearchConfig()
-        api.get_strategy.return_value = WDKStrategyDetails.model_validate({
-            "strategyId": 300,
-            "name": "test",
-            "rootStepId": 30,
-            "stepTree": {
-                "stepId": 30,
-                "primaryInput": {"stepId": 10},
-                "secondaryInput": {"stepId": 20},
-            },
-            "steps": {
-                "10": {"id": 10, "searchName": "Search1", "searchConfig": _sc.model_dump(by_alias=True)},
-                "20": {"id": 20, "searchName": "Search2", "searchConfig": _sc.model_dump(by_alias=True)},
-                "30": {"id": 30, "searchName": "BooleanQuestion", "searchConfig": _sc.model_dump(by_alias=True)},
-            },
-        })
+        api.get_strategy.return_value = WDKStrategyDetails.model_validate(
+            {
+                "strategyId": 300,
+                "name": "test",
+                "rootStepId": 30,
+                "stepTree": {
+                    "stepId": 30,
+                    "primaryInput": {"stepId": 10},
+                    "secondaryInput": {"stepId": 20},
+                },
+                "steps": {
+                    "10": {
+                        "id": 10,
+                        "searchName": "Search1",
+                        "searchConfig": _sc.model_dump(by_alias=True),
+                    },
+                    "20": {
+                        "id": 20,
+                        "searchName": "Search2",
+                        "searchConfig": _sc.model_dump(by_alias=True),
+                    },
+                    "30": {
+                        "id": 30,
+                        "searchName": "BooleanQuestion",
+                        "searchConfig": _sc.model_dump(by_alias=True),
+                    },
+                },
+            }
+        )
         count = await svc._count_strategy_steps(api, strategy_id=300)
         assert count == 3
 
@@ -845,14 +940,16 @@ class TestGeneSetServiceHelpers:
     async def test_extract_step_search_context_returns_search_name(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.find_step = AsyncMock(return_value=WDKStep(
-            id=99,
-            search_name="GenesByExpressionTwoChannel",
-            search_config=WDKSearchConfig(
-                parameters={"fold_change": "2.0", "organism": "Pf3D7"}
-            ),
-            record_class_name="GeneRecordClass",
-        ))
+        api.find_step = AsyncMock(
+            return_value=WDKStep(
+                id=99,
+                search_name="GenesByExpressionTwoChannel",
+                search_config=WDKSearchConfig(
+                    parameters={"fold_change": "2.0", "organism": "Pf3D7"}
+                ),
+                record_class_name="GeneRecordClass",
+            )
+        )
         search_name, _record_type, parameters = await svc._extract_step_search_context(
             api, step_id=99, record_type=None
         )
@@ -864,12 +961,14 @@ class TestGeneSetServiceHelpers:
     async def test_extract_step_search_context_ignores_boolean_questions(self) -> None:
         svc = _make_service()
         api = _make_api()
-        api.find_step = AsyncMock(return_value=WDKStep(
-            id=77,
-            search_name="boolean_question_combined",
-            search_config=WDKSearchConfig(parameters={}),
-            record_class_name="GeneRecordClass",
-        ))
+        api.find_step = AsyncMock(
+            return_value=WDKStep(
+                id=77,
+                search_name="boolean_question_combined",
+                search_config=WDKSearchConfig(parameters={}),
+                record_class_name="GeneRecordClass",
+            )
+        )
         search_name, _record_type, _parameters = await svc._extract_step_search_context(
             api, step_id=77, record_type=None
         )

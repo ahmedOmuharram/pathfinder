@@ -139,17 +139,20 @@ class TestBuildSnapshotStepCounts:
             ),
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon",
+                    100,
+                    "GenesByTaxon",
                     parameters={"organism": "pfal"},
                     estimated_size=5000,
                 ),
                 "200": _make_step(
-                    200, "GenesByText",
+                    200,
+                    "GenesByText",
                     parameters={"text_expression": "kinase"},
                     estimated_size=200,
                 ),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                     estimated_size=150,
                 ),
@@ -214,7 +217,8 @@ class TestBuildSnapshotWdkStepIds:
                 "100": _make_step(100, "GenesByTaxon"),
                 "200": _make_step(200, "GenesByText"),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                 ),
             },
@@ -261,10 +265,13 @@ class TestNodeConstruction:
             ),
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon", parameters={"organism": "pfal"},
+                    100,
+                    "GenesByTaxon",
+                    parameters={"organism": "pfal"},
                 ),
                 "200": _make_step(
-                    200, "GenesByOrthologPattern",
+                    200,
+                    "GenesByOrthologPattern",
                     parameters={"pattern": "%PFAL:Y%"},
                 ),
             },
@@ -287,14 +294,18 @@ class TestNodeConstruction:
             ),
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon", parameters={"organism": "pfal"},
+                    100,
+                    "GenesByTaxon",
+                    parameters={"organism": "pfal"},
                 ),
                 "200": _make_step(
-                    200, "GenesByText",
+                    200,
+                    "GenesByText",
                     parameters={"text_expression": "kinase"},
                 ),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                 ),
             },
@@ -320,7 +331,8 @@ class TestNodeConstruction:
                 "100": _make_step(100, "S1"),
                 "200": _make_step(200, "S2"),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "UNION", "bq_input_step": ""},
                 ),
             },
@@ -341,7 +353,8 @@ class TestNodeConstruction:
                 "100": _make_step(100, "S1"),
                 "200": _make_step(200, "S2"),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "MINUS", "bq_input_step": ""},
                 ),
             },
@@ -364,14 +377,20 @@ class TestNodeConstruction:
             ),
             steps={
                 "100": _make_step(100, "GenesByTaxon", parameters={"organism": "pfal"}),
-                "200": _make_step(200, "GenesByText", parameters={"text_expression": "kinase"}),
+                "200": _make_step(
+                    200, "GenesByText", parameters={"text_expression": "kinase"}
+                ),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                 ),
-                "400": _make_step(400, "GenesByGoTerm", parameters={"go_term": "GO:0006915"}),
+                "400": _make_step(
+                    400, "GenesByGoTerm", parameters={"go_term": "GO:0006915"}
+                ),
                 "500": _make_step(
-                    500, "boolean_question_2",
+                    500,
+                    "boolean_question_2",
                     parameters={"bq_operator": "UNION", "bq_input_step": ""},
                 ),
             },
@@ -408,7 +427,8 @@ class TestNodeConstruction:
         wdk = _make_strategy(
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon",
+                    100,
+                    "GenesByTaxon",
                     parameters={
                         "organism": '["Plasmodium falciparum 3D7"]',
                         "nonterminal_param": "value",
@@ -432,7 +452,9 @@ class TestDisplayName:
         wdk = _make_strategy(
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon", custom_name="My Custom Step",
+                    100,
+                    "GenesByTaxon",
+                    custom_name="My Custom Step",
                 ),
             },
         )
@@ -444,7 +466,9 @@ class TestDisplayName:
         wdk = _make_strategy(
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon", display_name="Genes by Taxon",
+                    100,
+                    "GenesByTaxon",
+                    display_name="Genes by Taxon",
                 ),
             },
         )
@@ -456,7 +480,8 @@ class TestDisplayName:
         wdk = _make_strategy(
             steps={
                 "100": _make_step(
-                    100, "GenesByTaxon",
+                    100,
+                    "GenesByTaxon",
                     custom_name="Custom",
                     display_name="Display",
                 ),
@@ -524,7 +549,8 @@ class TestBuildSnapshotErrors:
                 "100": _make_step(100, "S1"),
                 "200": _make_step(200, "S2"),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_input_step": ""},
                 ),
             },
@@ -544,7 +570,8 @@ class TestBuildSnapshotErrors:
             steps={
                 "100": _make_step(100, "GenesByTaxon"),
                 "300": _make_step(
-                    300, "boolean_question_1",
+                    300,
+                    "boolean_question_1",
                     parameters={"bq_operator": "INTERSECT", "bq_input_step": ""},
                 ),
             },

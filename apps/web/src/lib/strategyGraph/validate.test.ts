@@ -182,7 +182,12 @@ describe("core/strategyGraph/validate", () => {
   it("resolves record types through transform/combine and detects mismatch", () => {
     const steps: Step[] = [
       step({ id: "left", displayName: "Left", searchName: "q1", recordType: "gene" }),
-      step({ id: "right", displayName: "Right", searchName: "q2", recordType: "genome" }),
+      step({
+        id: "right",
+        displayName: "Right",
+        searchName: "q2",
+        recordType: "genome",
+      }),
       step({
         id: "combine",
         displayName: "Combine",

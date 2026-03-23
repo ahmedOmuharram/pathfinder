@@ -41,7 +41,9 @@ def parse_site_search_docs(docs: list[SiteSearchDocument]) -> list[GeneResult]:
 
         summary = doc.summary_field_data
 
-        doc_organism = normalize_organism(str(summary.get("TEXT__gene_organism_full", "")))
+        doc_organism = normalize_organism(
+            str(summary.get("TEXT__gene_organism_full", ""))
+        )
         doc_product = strip_html_tags(str(summary.get("TEXT__gene_product", "")))
         doc_gene_name = strip_html_tags(str(summary.get("TEXT__gene_name", "")))
         doc_gene_type = strip_html_tags(str(summary.get("TEXT__gene_type", "")))
@@ -77,12 +79,16 @@ async def fetch_site_search_genes(
 
     :returns: ``(gene_results, available_organisms, total_count)``
     """
-    response = await get_site_router().get_site_search_client(site_id).search(
-        search_text,
-        document_type_filter=DocumentTypeFilter(document_type="gene"),
-        organisms=organisms,
-        limit=limit,
-        offset=0,
+    response = (
+        await get_site_router()
+        .get_site_search_client(site_id)
+        .search(
+            search_text,
+            document_type_filter=DocumentTypeFilter(document_type="gene"),
+            organisms=organisms,
+            limit=limit,
+            offset=0,
+        )
     )
 
     results = parse_site_search_docs(response.search_results.documents)

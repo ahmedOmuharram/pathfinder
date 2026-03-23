@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
-import type { Experiment, EnrichmentResult, GeneConfidenceScore } from "@pathfinder/shared";
+import type {
+  Experiment,
+  EnrichmentResult,
+  GeneConfidenceScore,
+} from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { useWorkbenchStore } from "../../store";
@@ -85,8 +89,9 @@ export function ConfidencePanel() {
       setLoading(true);
       setError(null);
 
-      const { enrichmentGeneCounts, maxEnrichmentTerms } =
-        extractEnrichmentCounts(experiment.enrichmentResults ?? []);
+      const { enrichmentGeneCounts, maxEnrichmentTerms } = extractEnrichmentCounts(
+        experiment.enrichmentResults ?? [],
+      );
 
       try {
         const data = await requestJson<GeneConfidenceScore[]>(
@@ -108,8 +113,7 @@ export function ConfidencePanel() {
         );
         if (!cancelled) setScores(data);
       } catch (err) {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -137,9 +141,7 @@ export function ConfidencePanel() {
         </div>
       )}
 
-      {error != null && (
-        <p className="text-xs text-destructive">{error}</p>
-      )}
+      {error != null && <p className="text-xs text-destructive">{error}</p>}
 
       {!loading && error == null && scores.length > 0 && (
         <div className="max-h-96 overflow-auto">

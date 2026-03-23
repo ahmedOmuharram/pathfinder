@@ -199,7 +199,11 @@ async def refine_experiment(
             NewStepSpec(
                 search_name=request.search_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in request.parameters.items() if v is not None},
+                    parameters={
+                        k: str(v)
+                        for k, v in request.parameters.items()
+                        if v is not None
+                    },
                 ),
                 custom_name=f"Refinement: {request.search_name}",
             ),
@@ -232,7 +236,11 @@ async def refine_experiment(
             NewStepSpec(
                 search_name=request.transform_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in request.parameters.items() if v is not None},
+                    parameters={
+                        k: str(v)
+                        for k, v in request.parameters.items()
+                        if v is not None
+                    },
                 ),
                 custom_name=f"Transform: {request.transform_name}",
             ),

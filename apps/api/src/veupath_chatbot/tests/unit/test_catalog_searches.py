@@ -34,7 +34,11 @@ def _to_wdk_searches(dicts: list[Any]) -> list[WDKSearch]:
     for d in dicts:
         if isinstance(d, dict):
             # WDKSearch requires urlSegment; fall back to "name" key.
-            entry = {**d, "urlSegment": d["name"]} if "urlSegment" not in d and "name" in d else d
+            entry = (
+                {**d, "urlSegment": d["name"]}
+                if "urlSegment" not in d and "name" in d
+                else d
+            )
             result.append(WDKSearch.model_validate(entry))
     return result
 
@@ -81,9 +85,7 @@ def _mock_client(
         parsed: dict[str, list[WDKSearch]] = {
             rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
         }
-        client.get_searches = AsyncMock(
-            side_effect=lambda rt: parsed.get(rt, [])
-        )
+        client.get_searches = AsyncMock(side_effect=lambda rt: parsed.get(rt, []))
     else:
         client.get_searches = AsyncMock(return_value=[])
     return client
@@ -288,7 +290,9 @@ class TestSearchForSearchesViaSiteSearch:
             SiteSearchDocument(primary_key=["onlyone"]),  # too short
             SiteSearchDocument(primary_key=["", "gene"]),  # empty search name
             SiteSearchDocument(primary_key=["GenesByTaxon", ""]),  # empty record type
-            SiteSearchDocument(primary_key=["ValidSearch", "gene"], hyperlink_name="Valid"),
+            SiteSearchDocument(
+                primary_key=["ValidSearch", "gene"], hyperlink_name="Valid"
+            ),
         ]
         router = _mock_site_router(_make_site_search_response(docs))
         with patch(
@@ -724,7 +728,9 @@ class TestResolveRecordTypeForSearch:
 
     async def test_falls_back_to_record_type_on_empty_string(self) -> None:
         with self._patch_catalog(""):
-            result = await find_record_type_for_search(SearchContext("plasmodb", "gene", "SomeSearch"))
+            result = await find_record_type_for_search(
+                SearchContext("plasmodb", "gene", "SomeSearch")
+            )
         assert result == "gene"
 
     async def test_passes_site_id_to_get_catalog(self) -> None:
@@ -736,7 +742,9 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search(SearchContext("toxodb", "gene", "GenesByTaxon"))
+            await find_record_type_for_search(
+                SearchContext("toxodb", "gene", "GenesByTaxon")
+            )
         discovery.get_catalog.assert_awaited_once_with("toxodb")
 
     async def test_passes_search_name_to_catalog(self) -> None:
@@ -748,5 +756,7 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search(SearchContext("plasmodb", "gene", "GenesByTaxon"))
+            await find_record_type_for_search(
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
+            )
         catalog.find_record_type_for_search.assert_called_once_with("GenesByTaxon")

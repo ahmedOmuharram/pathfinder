@@ -31,7 +31,10 @@ class TestSampleRecordsEdgeCases:
         fake_api = FakeStrategyAPI(
             response={
                 "records": [
-                    {"id": [{"name": "source_id", "value": "g1"}], "attributes": {"gene_id": "g1"}}
+                    {
+                        "id": [{"name": "source_id", "value": "g1"}],
+                        "attributes": {"gene_id": "g1"},
+                    }
                 ],
                 "meta": {"totalCount": 1},
             }

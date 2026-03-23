@@ -22,9 +22,7 @@ def _rt(
 
 class TestExactMatch:
     def test_url_segment_exact(self) -> None:
-        result = resolve_record_type(
-            [_rt("gene"), _rt("transcript")], "gene"
-        )
+        result = resolve_record_type([_rt("gene"), _rt("transcript")], "gene")
         assert result == "gene"
 
     def test_dict_url_segment_exact(self) -> None:
@@ -34,7 +32,10 @@ class TestExactMatch:
     def test_full_name_exact(self) -> None:
         """Strategy 2: match on full_name when url_segment doesn't match."""
         available = [_rt("gene", full_name="GeneRecordClasses.GeneRecordClass")]
-        assert resolve_record_type(available, "GeneRecordClasses.GeneRecordClass") == "gene"
+        assert (
+            resolve_record_type(available, "GeneRecordClasses.GeneRecordClass")
+            == "gene"
+        )
 
 
 # -- Case-insensitive matching ----------------------------------------------
@@ -42,9 +43,7 @@ class TestExactMatch:
 
 class TestCaseInsensitive:
     def test_uppercase_input(self) -> None:
-        result = resolve_record_type(
-            [_rt("gene"), _rt("transcript")], "GENE"
-        )
+        result = resolve_record_type([_rt("gene"), _rt("transcript")], "GENE")
         assert result == "gene"
 
     def test_mixed_case_input(self) -> None:
@@ -116,9 +115,7 @@ class TestPluralAndPartial:
 
     def test_partial_input_no_match(self) -> None:
         """Partial substrings do NOT match (strict equality only)."""
-        result = resolve_record_type(
-            [_rt("gene"), _rt("transcript")], "gen"
-        )
+        result = resolve_record_type([_rt("gene"), _rt("transcript")], "gen")
         assert result is None
 
 
@@ -127,9 +124,7 @@ class TestPluralAndPartial:
 
 class TestNoMatch:
     def test_nonexistent_type_returns_none(self) -> None:
-        result = resolve_record_type(
-            [_rt("gene"), _rt("transcript")], "nonexistent"
-        )
+        result = resolve_record_type([_rt("gene"), _rt("transcript")], "nonexistent")
         assert result is None
 
     def test_empty_available_types(self) -> None:

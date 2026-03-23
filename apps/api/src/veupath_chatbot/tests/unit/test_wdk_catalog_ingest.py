@@ -85,7 +85,9 @@ class TestFetchRecordTypesAndSearches:
                     url_segment="gene",
                     full_name="GeneRecordClass",
                     searches=[
-                        WDKSearch(url_segment="GenesByTaxon", display_name="Genes by Taxon"),
+                        WDKSearch(
+                            url_segment="GenesByTaxon", display_name="Genes by Taxon"
+                        ),
                     ],
                 ),
             ]
@@ -135,9 +137,7 @@ class TestFetchRecordTypesAndSearches:
         assert len(record_types) == 2
 
     async def test_skips_record_type_without_name(self) -> None:
-        client = _mock_client(
-            record_types=[WDKRecordType(url_segment="")]
-        )
+        client = _mock_client(record_types=[WDKRecordType(url_segment="")])
         record_types, _ = await fetch_record_types_and_searches(client)
         assert len(record_types) == 0
 
@@ -207,9 +207,7 @@ class TestFetchSearchDetails:
         }
         client = _mock_client()
 
-        details, error = await fetch_search_details(
-            client, "gene", "AllGenes", summary
-        )
+        details, error = await fetch_search_details(client, "gene", "AllGenes", summary)
 
         assert error is None
         assert details is summary
@@ -299,9 +297,7 @@ class TestFetchSearchDetails:
             parameters=None,
         )
         client = MagicMock()
-        client.get_search_details = AsyncMock(
-            side_effect=RuntimeError("timeout")
-        )
+        client.get_search_details = AsyncMock(side_effect=RuntimeError("timeout"))
 
         details, error = await fetch_search_details(
             client, "gene", "GenesByTaxon", typed_summary

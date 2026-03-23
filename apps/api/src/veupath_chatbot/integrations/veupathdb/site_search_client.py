@@ -271,7 +271,7 @@ class SiteSearchClient:
             if not resp.content:
                 return SiteSearchResponse()
             return SiteSearchResponse.model_validate(resp.json())
-        except (httpx.TimeoutException, httpx.ConnectError):
+        except httpx.TimeoutException, httpx.ConnectError:
             raise
         except httpx.HTTPError as exc:
             raise AppError(

@@ -57,7 +57,9 @@ def step_response_from_ast(ast: StrategyAST, step: PlanStepNode) -> StepResponse
         operator=step.operator.value if step.operator else None,
         colocation_params=step.colocation_params,
         primary_input_step_id=step.primary_input.id if step.primary_input else None,
-        secondary_input_step_id=step.secondary_input.id if step.secondary_input else None,
+        secondary_input_step_id=step.secondary_input.id
+        if step.secondary_input
+        else None,
         estimated_size=counts.get(step.id),
         wdk_step_id=wdk_step_id,
         is_built=wdk_step_id is not None,

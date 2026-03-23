@@ -247,7 +247,12 @@ describe("useOperationRecovery", () => {
 
   it("resets isStreaming when subscription errors (e.g., 404 stale op)", async () => {
     fetchActiveOperationsMock.mockResolvedValue([
-      { operationId: "op-stale", streamId: "strategy-a", type: "chat", status: "active" },
+      {
+        operationId: "op-stale",
+        streamId: "strategy-a",
+        type: "chat",
+        status: "active",
+      },
     ]);
 
     let capturedOnError: (() => void) | undefined;
@@ -278,7 +283,12 @@ describe("useOperationRecovery", () => {
     // never fires onComplete or onError, so isStreaming stays true.
     // A proper fix would add a timeout or heartbeat mechanism.
     fetchActiveOperationsMock.mockResolvedValue([
-      { operationId: "op-orphaned", streamId: "strategy-a", type: "chat", status: "active" },
+      {
+        operationId: "op-orphaned",
+        streamId: "strategy-a",
+        type: "chat",
+        status: "active",
+      },
     ]);
 
     // Subscription that never fires any callbacks (simulates hanging SSE)

@@ -316,7 +316,9 @@ class TestFetchWdkTextGenes:
         mock_client = self._mock_client(
             [
                 self._make_answer(total_count=100, records=records),
-                self._make_answer(total_count=50, records=records),  # Should not be called
+                self._make_answer(
+                    total_count=50, records=records
+                ),  # Should not be called
             ]
         )
         mock_get_client.return_value = mock_client

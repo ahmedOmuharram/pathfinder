@@ -3,9 +3,7 @@ import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "./strategy/store";
 
 /** Minimal Step with required boolean fields defaulted. */
-function step(
-  partial: Partial<Step> & { id: string; displayName: string },
-): Step {
+function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
   return { isBuilt: false, isFiltered: false, ...partial } as Step;
 }
 
@@ -214,7 +212,9 @@ describe("state/useStrategyStore", () => {
     );
     setStepValidationErrors({ s1: "Error message" });
     const state = useStrategyStore.getState();
-    expect(state.stepsById["s1"]?.validation?.errors?.general?.[0]).toBe("Error message");
+    expect(state.stepsById["s1"]?.validation?.errors?.general?.[0]).toBe(
+      "Error message",
+    );
   });
 
   it("setStepCounts updates step counts", () => {

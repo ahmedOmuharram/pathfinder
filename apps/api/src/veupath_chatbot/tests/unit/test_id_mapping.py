@@ -154,12 +154,20 @@ class TestResolveRecordType:
     @pytest.mark.asyncio
     async def test_match_by_full_name_in_dict(self) -> None:
         catalog = _make_catalog(
-            [{"urlSegment": "gene", "fullName": "GeneRecordClasses.GeneRecordClass", "displayName": "Genes"}]
+            [
+                {
+                    "urlSegment": "gene",
+                    "fullName": "GeneRecordClasses.GeneRecordClass",
+                    "displayName": "Genes",
+                }
+            ]
         )
         with _patch_catalog(catalog):
             mixin = _make_mixin()
             # Matching by the full_name field when urlSegment doesn't match
-            result = await mixin._resolve_record_type("GeneRecordClasses.GeneRecordClass")
+            result = await mixin._resolve_record_type(
+                "GeneRecordClasses.GeneRecordClass"
+            )
             assert result == "gene"  # Should return urlSegment
 
     @pytest.mark.asyncio

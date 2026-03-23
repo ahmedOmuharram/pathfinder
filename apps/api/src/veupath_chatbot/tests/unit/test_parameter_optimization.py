@@ -141,7 +141,9 @@ class TestComputeScore:
         score_no_penalty = _compute_score(
             recall=0.8, fpr=0.1, cfg=cfg, estimated_size=5000
         )
-        score_baseline = _compute_score(recall=0.8, fpr=0.1, cfg=cfg, estimated_size=None)
+        score_baseline = _compute_score(
+            recall=0.8, fpr=0.1, cfg=cfg, estimated_size=None
+        )
         assert score_no_penalty == score_baseline
 
     def test_estimated_size_penalty_applied(self) -> None:

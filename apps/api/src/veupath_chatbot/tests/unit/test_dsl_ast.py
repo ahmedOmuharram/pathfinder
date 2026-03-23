@@ -312,7 +312,9 @@ class TestPlanStepNodeDisplayName:
         assert node.display_name is None
 
     def test_display_name_preserved_when_set(self) -> None:
-        node = PlanStepNode(search_name="GenesByTaxon", display_name="Organism", id="s1")
+        node = PlanStepNode(
+            search_name="GenesByTaxon", display_name="Organism", id="s1"
+        )
         assert node.display_name == "Organism"
 
 

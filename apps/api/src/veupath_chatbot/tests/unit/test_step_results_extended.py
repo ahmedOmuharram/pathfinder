@@ -68,12 +68,14 @@ class TestGetAttributes:
     async def test_returns_attributes_from_attributes_key(self) -> None:
         """Standard WDK response has 'attributes' as a list."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate({
-            "urlSegment": "gene",
-            "attributes": [
-                {"name": "gene_name", "displayName": "Gene Name", "type": "string"},
-            ],
-        })
+        api.get_record_type_info.return_value = WDKRecordType.model_validate(
+            {
+                "urlSegment": "gene",
+                "attributes": [
+                    {"name": "gene_name", "displayName": "Gene Name", "type": "string"},
+                ],
+            }
+        )
         result = await svc.get_attributes()
         assert result["recordType"] == "gene"
         assert len(result["attributes"]) == 1
@@ -82,30 +84,40 @@ class TestGetAttributes:
     async def test_falls_back_to_attributes_map(self) -> None:
         """Some WDK deployments use 'attributesMap' dict format."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate({
-            "urlSegment": "gene",
-            "attributesMap": {
-                "gene_name": {"name": "gene_name", "displayName": "Gene Name", "type": "string"},
-            },
-        })
+        api.get_record_type_info.return_value = WDKRecordType.model_validate(
+            {
+                "urlSegment": "gene",
+                "attributesMap": {
+                    "gene_name": {
+                        "name": "gene_name",
+                        "displayName": "Gene Name",
+                        "type": "string",
+                    },
+                },
+            }
+        )
         result = await svc.get_attributes()
         assert len(result["attributes"]) == 1
 
     async def test_empty_attributes(self) -> None:
         svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate({
-            "urlSegment": "gene",
-            "attributes": [],
-        })
+        api.get_record_type_info.return_value = WDKRecordType.model_validate(
+            {
+                "urlSegment": "gene",
+                "attributes": [],
+            }
+        )
         result = await svc.get_attributes()
         assert result["attributes"] == []
 
     async def test_no_attributes_key(self) -> None:
         """If neither 'attributes' nor 'attributesMap' exists, return empty."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate({
-            "urlSegment": "gene",
-        })
+        api.get_record_type_info.return_value = WDKRecordType.model_validate(
+            {
+                "urlSegment": "gene",
+            }
+        )
         result = await svc.get_attributes()
         assert result["attributes"] == []
 
@@ -120,10 +132,12 @@ class TestGetRecords:
 
     async def test_default_pagination(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {"totalCount": 0},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {"totalCount": 0},
+            }
+        )
         result = await svc.get_records()
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["pagination"] == {"offset": 0, "numRecords": 50}
@@ -131,20 +145,24 @@ class TestGetRecords:
 
     async def test_custom_pagination(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [{"id": [{"name": "source_id", "value": "X"}]}],
-            "meta": {"totalCount": 1},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [{"id": [{"name": "source_id", "value": "X"}]}],
+                "meta": {"totalCount": 1},
+            }
+        )
         await svc.get_records(offset=10, limit=5)
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["pagination"] == {"offset": 10, "numRecords": 5}
 
     async def test_sorting_applied(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {"totalCount": 0},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {"totalCount": 0},
+            }
+        )
         await svc.get_records(sort="gene_name", direction="DESC")
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"] == [
@@ -153,20 +171,24 @@ class TestGetRecords:
 
     async def test_no_sorting_when_sort_is_none(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {"totalCount": 0},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {"totalCount": 0},
+            }
+        )
         await svc.get_records()
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"] is None
 
     async def test_direction_uppercased(self) -> None:
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {"totalCount": 0},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {"totalCount": 0},
+            }
+        )
         await svc.get_records(sort="col", direction="asc")
         call_kwargs = api.get_step_records.call_args.kwargs
         assert call_kwargs["sorting"][0]["direction"] == "ASC"
@@ -174,19 +196,23 @@ class TestGetRecords:
     async def test_missing_records_key_defaults_empty(self) -> None:
         """WDKAnswer defaults 'records' to empty list when omitted."""
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "meta": {"totalCount": 0},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "meta": {"totalCount": 0},
+            }
+        )
         result = await svc.get_records()
         assert result.records == []
 
     async def test_empty_meta_defaults(self) -> None:
         """WDKAnswerMeta defaults all fields when meta dict is empty."""
         svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate({
-            "records": [],
-            "meta": {},
-        })
+        api.get_step_records.return_value = WDKAnswer.model_validate(
+            {
+                "records": [],
+                "meta": {},
+            }
+        )
         result = await svc.get_records()
         assert result.meta.total_count == 0
 
@@ -221,7 +247,9 @@ class TestListAnalysisTypes:
         svc, api = _make_service()
         api.list_analysis_types.return_value = [
             WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment"),
-            WDKStepAnalysisType(name="pathway-enrichment", display_name="Pathway Enrichment"),
+            WDKStepAnalysisType(
+                name="pathway-enrichment", display_name="Pathway Enrichment"
+            ),
         ]
         result = await svc.list_analysis_types()
         assert len(result["analysisTypes"]) == 2
@@ -238,14 +266,18 @@ class TestGetRecordDetail:
     async def test_reorders_pk_parts(self) -> None:
         """PK parts should be reordered to match WDK record class definition."""
         svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate({
-            "urlSegment": "gene",
-            "primaryKeyColumnRefs": ["source_id", "project_id"],
-        })
-        api.get_single_record.return_value = WDKRecordInstance.model_validate({
-            "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
-            "attributes": {},
-        })
+        api.get_record_type_info.return_value = WDKRecordType.model_validate(
+            {
+                "urlSegment": "gene",
+                "primaryKeyColumnRefs": ["source_id", "project_id"],
+            }
+        )
+        api.get_single_record.return_value = WDKRecordInstance.model_validate(
+            {
+                "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
+                "attributes": {},
+            }
+        )
         with patch(
             "veupath_chatbot.integrations.veupathdb.factory.get_site",
             return_value=MagicMock(project_id="PlasmoDB"),
@@ -287,19 +319,23 @@ class TestExtractPkEdgeCases:
 
     def test_composite_pk_returns_first_value(self) -> None:
         """Only the first PK part's value is returned."""
-        record = WDKRecordInstance.model_validate({
-            "id": [
-                {"name": "source_id", "value": "PF3D7_0100100"},
-                {"name": "project_id", "value": "PlasmoDB"},
-            ]
-        })
+        record = WDKRecordInstance.model_validate(
+            {
+                "id": [
+                    {"name": "source_id", "value": "PF3D7_0100100"},
+                    {"name": "project_id", "value": "PlasmoDB"},
+                ]
+            }
+        )
         assert extract_pk(record) == "PF3D7_0100100"
 
     def test_empty_value_string(self) -> None:
         """Empty/whitespace PK values return None — an empty PK is meaningless."""
-        record = WDKRecordInstance.model_validate({
-            "id": [{"name": "source_id", "value": ""}],
-        })
+        record = WDKRecordInstance.model_validate(
+            {
+                "id": [{"name": "source_id", "value": ""}],
+            }
+        )
         assert extract_pk(record) is None
 
 
@@ -314,8 +350,12 @@ class TestExtractRecordIdsEdgeCases:
     def test_duplicate_ids_preserved(self) -> None:
         """Duplicate IDs from WDK are not deduplicated at this level."""
         records = [
-            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}),
-            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}),
+            WDKRecordInstance.model_validate(
+                {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+            ),
+            WDKRecordInstance.model_validate(
+                {"id": [{"name": "source_id", "value": "PF3D7_0100100"}]}
+            ),
         ]
         assert extract_record_ids(records) == [
             "PF3D7_0100100",
@@ -325,7 +365,9 @@ class TestExtractRecordIdsEdgeCases:
     def test_large_batch(self) -> None:
         """Should handle hundreds of records."""
         records = [
-            WDKRecordInstance.model_validate({"id": [{"name": "source_id", "value": f"GENE_{i:05d}"}]})
+            WDKRecordInstance.model_validate(
+                {"id": [{"name": "source_id", "value": f"GENE_{i:05d}"}]}
+            )
             for i in range(500)
         ]
         ids = extract_record_ids(records)
@@ -372,7 +414,9 @@ class TestBuildAttributeListEdgeCases:
     def test_large_attribute_set(self) -> None:
         """WDK gene record type can have 100+ attributes."""
         attrs = [
-            WDKAttributeField(name=f"attr_{i}", display_name=f"Attribute {i}", type="string")
+            WDKAttributeField(
+                name=f"attr_{i}", display_name=f"Attribute {i}", type="string"
+            )
             for i in range(100)
         ]
         result = build_attribute_list(attrs)

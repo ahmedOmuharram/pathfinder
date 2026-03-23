@@ -45,9 +45,10 @@ def _setup_wdk_for_build(
         200, json=search_details_response("GenesByTextSearch")
     )
     router.get(url__regex=r".*/record-types/.*/searches/boolean_question.*$").respond(
-        200, json=search_details_response(
+        200,
+        json=search_details_response(
             "boolean_question_TranscriptRecordClasses_TranscriptRecordClass"
-        )
+        ),
     )
     # Catch-all for any other search metadata
     router.get(url__regex=r".*/record-types/.*/searches/[^/]+$").respond(

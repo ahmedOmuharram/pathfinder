@@ -33,6 +33,7 @@ class EventType(StrEnum):
     EXECUTOR_BUILD_REQUEST = "executor_build_request"
     WORKBENCH_GENE_SET = "workbench_gene_set"
 
+
 type GetGraphFn = Callable[[str | None], StrategyGraph | None] | None
 
 
@@ -56,7 +57,10 @@ def _extract_planning_artifact(
 ) -> JSONObject | None:
     artifact = result.get("planningArtifact")
     if artifact:
-        return {"type": EventType.PLANNING_ARTIFACT, "data": {"planningArtifact": artifact}}
+        return {
+            "type": EventType.PLANNING_ARTIFACT,
+            "data": {"planningArtifact": artifact},
+        }
     return None
 
 
@@ -110,10 +114,18 @@ def _extract_step_update(
     raw_graph_id = result.get("graphId")
     graph_id = raw_graph_id if isinstance(raw_graph_id, str) else None
     graph = get_graph(graph_id) if get_graph and graph_id else None
-    all_steps = [
-        StepResponse(id=sid, kind=s.infer_kind(), display_name=s.display_name or s.search_name)
-        for sid, s in graph.steps.items()
-    ] if graph else []
+    all_steps = (
+        [
+            StepResponse(
+                id=sid,
+                kind=s.infer_kind(),
+                display_name=s.display_name or s.search_name,
+            )
+            for sid, s in graph.steps.items()
+        ]
+        if graph
+        else []
+    )
     return {
         "type": EventType.STRATEGY_UPDATE,
         "data": StrategyUpdateEventData(
@@ -155,7 +167,11 @@ def _extract_strategy_meta(
 ) -> JSONObject | None:
     if not result.get("graphId"):
         return None
-    if "name" not in result and "description" not in result and "recordType" not in result:
+    if (
+        "name" not in result
+        and "description" not in result
+        and "recordType" not in result
+    ):
         return None
     return {
         "type": EventType.STRATEGY_META,

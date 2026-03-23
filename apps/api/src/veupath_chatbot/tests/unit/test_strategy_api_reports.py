@@ -132,7 +132,9 @@ class TestFilterOperations:
 
     async def test_list_analysis_types(self) -> None:
         mixin, client = _make_analysis_mixin()
-        go_type = WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment")
+        go_type = WDKStepAnalysisType(
+            name="go-enrichment", display_name="GO Enrichment"
+        )
         client.list_analysis_types.return_value = [go_type]
         result = await mixin.list_analysis_types(step_id=42)
         assert len(result) == 1
@@ -140,7 +142,9 @@ class TestFilterOperations:
 
     async def test_get_analysis_type(self) -> None:
         mixin, client = _make_analysis_mixin()
-        go_type = WDKStepAnalysisType(name="go-enrichment", display_name="GO Enrichment")
+        go_type = WDKStepAnalysisType(
+            name="go-enrichment", display_name="GO Enrichment"
+        )
         client.get_analysis_type.return_value = go_type
         result = await mixin.get_analysis_type(
             step_id=42, analysis_type="go-enrichment"

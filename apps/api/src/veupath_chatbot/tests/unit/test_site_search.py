@@ -94,7 +94,9 @@ class TestSiteSearchModels:
         resp = SiteSearchResponse.model_validate(raw)
         assert resp.search_results.total_count == 42
         assert len(resp.search_results.documents) == 1
-        assert resp.search_results.documents[0].wdk_primary_key_string == "PF3D7_0523000"
+        assert (
+            resp.search_results.documents[0].wdk_primary_key_string == "PF3D7_0523000"
+        )
         assert resp.organism_counts["Plasmodium falciparum 3D7"] == 100
 
     def test_response_handles_empty(self) -> None:
@@ -246,7 +248,9 @@ class TestSiteSearchResponseFullAlignment:
                         "organism": ["Plasmodium falciparum 3D7"],
                         "score": 43.7,
                         "summaryFieldData": {"TEXT__gene_product": "protein kinase"},
-                        "foundInFields": {"TEXT__gene_product": ["protein <em>kinase</em>"]},
+                        "foundInFields": {
+                            "TEXT__gene_product": ["protein <em>kinase</em>"]
+                        },
                     }
                 ],
             },
@@ -424,6 +428,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -443,6 +448,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -463,6 +469,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -489,6 +496,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -511,6 +519,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -528,6 +537,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -545,6 +555,7 @@ class TestSiteSearchClientPostBody:
         captured_body: dict[str, object] = {}
 
         with respx.mock(assert_all_called=False) as router:
+
             def capture(request: httpx.Request) -> httpx.Response:
                 captured_body.update(json.loads(request.content))
                 return httpx.Response(200, json={})
@@ -575,12 +586,16 @@ class TestSiteSearchClientResponseParsing:
 
     async def test_parses_documents(self) -> None:
         with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(json={
-                "searchResults": {
-                    "totalCount": 1,
-                    "documents": [{"documentType": "gene", "primaryKey": ["PF3D7_0523000"]}],
-                },
-            })
+            router.post("https://plasmodb.org/site-search").respond(
+                json={
+                    "searchResults": {
+                        "totalCount": 1,
+                        "documents": [
+                            {"documentType": "gene", "primaryKey": ["PF3D7_0523000"]}
+                        ],
+                    },
+                }
+            )
             client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
             try:
                 resp = await client.search("kinase")
@@ -591,21 +606,31 @@ class TestSiteSearchClientResponseParsing:
 
     async def test_parses_organism_counts(self) -> None:
         with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(json={
-                "organismCounts": {"Plasmodium falciparum 3D7": 100, "Toxoplasma gondii": 50},
-            })
+            router.post("https://plasmodb.org/site-search").respond(
+                json={
+                    "organismCounts": {
+                        "Plasmodium falciparum 3D7": 100,
+                        "Toxoplasma gondii": 50,
+                    },
+                }
+            )
             client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
             try:
                 resp = await client.search("kinase")
             finally:
                 await client.close()
-            assert resp.organism_counts == {"Plasmodium falciparum 3D7": 100, "Toxoplasma gondii": 50}
+            assert resp.organism_counts == {
+                "Plasmodium falciparum 3D7": 100,
+                "Toxoplasma gondii": 50,
+            }
 
     async def test_parses_total_count(self) -> None:
         with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(json={
-                "searchResults": {"totalCount": 42, "documents": []},
-            })
+            router.post("https://plasmodb.org/site-search").respond(
+                json={
+                    "searchResults": {"totalCount": 42, "documents": []},
+                }
+            )
             client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
             try:
                 resp = await client.search("kinase")
@@ -630,6 +655,7 @@ class TestSiteSearchClientRetry:
         call_count = 0
 
         with respx.mock(assert_all_called=False) as router:
+
             def handler(request: httpx.Request) -> httpx.Response:
                 nonlocal call_count
                 call_count += 1
@@ -651,6 +677,7 @@ class TestSiteSearchClientRetry:
         call_count = 0
 
         with respx.mock(assert_all_called=False) as router:
+
             def handler(request: httpx.Request) -> httpx.Response:
                 nonlocal call_count
                 call_count += 1
@@ -681,6 +708,7 @@ class TestSiteSearchClientRetry:
 
     async def test_raises_app_error_after_max_retries(self) -> None:
         with respx.mock(assert_all_called=False) as router:
+
             def handler(request: httpx.Request) -> httpx.Response:
                 msg = "timeout"
                 raise httpx.ReadTimeout(msg, request=request)

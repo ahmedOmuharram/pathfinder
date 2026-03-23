@@ -29,7 +29,7 @@ def _restore_wdk_state(graph: StrategyGraph, strategy_graph: JSONObject) -> None
         return
     try:
         ast = StrategyAST.model_validate(plan)
-    except (ValueError, TypeError, KeyError):
+    except ValueError, TypeError, KeyError:
         return
 
     if ast.wdk_step_ids:

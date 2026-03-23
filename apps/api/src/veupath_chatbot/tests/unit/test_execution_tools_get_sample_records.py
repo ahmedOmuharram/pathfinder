@@ -67,4 +67,7 @@ async def test_get_sample_records_returns_records_total_and_attributes() -> None
     assert result["totalCount"] == 17
     assert result["attributes"] == ["record_primary_key", "display_name"]
     assert len(result["records"]) == 1
-    assert result["records"][0]["attributes"] == {"record_primary_key": "A", "display_name": "alpha"}
+    assert result["records"][0]["attributes"] == {
+        "record_primary_key": "A",
+        "display_name": "alpha",
+    }

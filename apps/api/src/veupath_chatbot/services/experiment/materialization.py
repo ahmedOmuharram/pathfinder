@@ -98,7 +98,9 @@ async def _materialize_step_tree(
                 NewStepSpec(
                     search_name="GenesBySpanLogic",
                     search_config=WDKSearchConfig(
-                        parameters={k: str(v) for k, v in coloc_params.items() if v is not None},
+                        parameters={
+                            k: str(v) for k, v in coloc_params.items() if v is not None
+                        },
                     ),
                     custom_name=display_name,
                 ),
@@ -122,7 +124,9 @@ async def _materialize_step_tree(
             NewStepSpec(
                 search_name=search_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in parameters.items() if v is not None},
+                    parameters={
+                        k: str(v) for k, v in parameters.items() if v is not None
+                    },
                 ),
                 custom_name=display_name,
             ),
@@ -181,7 +185,11 @@ async def _persist_experiment_strategy(
             NewStepSpec(
                 search_name=config.search_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in (config.parameters or {}).items() if v is not None},
+                    parameters={
+                        k: str(v)
+                        for k, v in (config.parameters or {}).items()
+                        if v is not None
+                    },
                 ),
                 custom_name=f"Experiment: {config.name}",
             ),

@@ -78,9 +78,7 @@ class TestCoerceWdkBooleanQuestionParams:
         assert (left, right, op) == (None, None, None)
 
     def test_returns_none_for_non_dict(self) -> None:
-        left, right, op = coerce_wdk_boolean_question_params(
-            parameters="not a dict"
-        )
+        left, right, op = coerce_wdk_boolean_question_params(parameters="not a dict")
         assert (left, right, op) == (None, None, None)
 
     def test_prefix_matching(self) -> None:
@@ -122,14 +120,20 @@ class TestValidateFoldChangeSamples:
     def test_different_samples_ok(self) -> None:
         result = _validate_fold_change_samples(
             "GenesByFoldChangeExpression",
-            {"samples_fc_ref_generic": "sample_A", "samples_fc_comp_generic": "sample_B"},
+            {
+                "samples_fc_ref_generic": "sample_A",
+                "samples_fc_comp_generic": "sample_B",
+            },
         )
         assert result is None
 
     def test_identical_samples_rejected(self) -> None:
         result = _validate_fold_change_samples(
             "GenesByFoldChangeExpression",
-            {"samples_fc_ref_generic": "sample_A", "samples_fc_comp_generic": "sample_A"},
+            {
+                "samples_fc_ref_generic": "sample_A",
+                "samples_fc_comp_generic": "sample_A",
+            },
         )
         assert result is not None
         assert "identical" in str(result).lower()

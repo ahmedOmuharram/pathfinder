@@ -135,9 +135,7 @@ class AnalysisMixin(StrategyAPIBase):
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
 
-            status = await self.client.get_analysis_status(
-                uid, step_id, analysis_id
-            )
+            status = await self.client.get_analysis_status(uid, step_id, analysis_id)
             logger.debug(
                 "Analysis status poll",
                 analysis_id=analysis_id,
@@ -179,18 +177,14 @@ class AnalysisMixin(StrategyAPIBase):
                     status=status,
                     retry=retries,
                 )
-                await self.client.run_analysis_instance(
-                    uid, step_id, analysis_id
-                )
+                await self.client.run_analysis_instance(uid, step_id, analysis_id)
 
         raise InternalError(
             title="Step analysis timed out",
             detail=f"Analysis {analysis_id} did not complete within {max_wait}s",
         )
 
-    def _log_analysis_failure(
-        self, uid: str, step_id: int, analysis_id: int
-    ) -> None:
+    def _log_analysis_failure(self, uid: str, step_id: int, analysis_id: int) -> None:
         """Best-effort logging of analysis failure details.
 
         Fires off async tasks to fetch the analyses list and error result

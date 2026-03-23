@@ -14,6 +14,6 @@ def count_plan_nodes(plan: JSONObject) -> int:
     """
     try:
         ast = StrategyAST.model_validate(plan)
-    except (ValidationError, TypeError, ValueError):
+    except ValidationError, TypeError, ValueError:
         return 0
     return len(ast.get_all_steps())

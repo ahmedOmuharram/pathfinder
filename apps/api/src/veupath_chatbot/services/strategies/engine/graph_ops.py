@@ -108,7 +108,9 @@ class GraphOpsMixin(StrategyToolsBase):
             operator=step.operator.value if step.operator else None,
             colocation_params=step.colocation_params,
             primary_input_step_id=step.primary_input.id if step.primary_input else None,
-            secondary_input_step_id=step.secondary_input.id if step.secondary_input else None,
+            secondary_input_step_id=step.secondary_input.id
+            if step.secondary_input
+            else None,
             estimated_size=estimated_size,
             wdk_step_id=wdk_step_id,
             is_built=wdk_step_id is not None,
@@ -119,21 +121,26 @@ class GraphOpsMixin(StrategyToolsBase):
             reports=step.reports or None,
         )
 
-
     def _serialize_step(self, graph: StrategyGraph, step: PlanStepNode) -> JSONObject:
         """Serialize a step for AI tool responses."""
-        return self._build_step_response(graph, step).model_dump(by_alias=True, exclude_none=True, mode="json")
+        return self._build_step_response(graph, step).model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
 
     def _build_graph_snapshot(self, graph: StrategyGraph) -> JSONObject:
         ctx = self._build_context_plan(graph)
         roots = find_root_step_ids(graph)
 
         steps = [
-            self._build_step_response(graph, step).model_dump(by_alias=True, exclude_none=True, mode="json")
+            self._build_step_response(graph, step).model_dump(
+                by_alias=True, exclude_none=True, mode="json"
+            )
             for step in graph.steps.values()
         ]
         edges = [
-            GraphEdge(source_id=inp.id, target_id=step.id, kind=kind).model_dump(by_alias=True, exclude_none=True, mode="json")
+            GraphEdge(source_id=inp.id, target_id=step.id, kind=kind).model_dump(
+                by_alias=True, exclude_none=True, mode="json"
+            )
             for step in graph.steps.values()
             for kind, inp in [
                 ("primary", step.primary_input),

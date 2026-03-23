@@ -264,9 +264,7 @@ async def _load_discovery_details_and_allowed(
     """Load discovery search details + extract allowed param names (best-effort)."""
     try:
         discovery = get_discovery_service()
-        response = await discovery.get_search_details(
-            ctx, expand_params=True
-        )
+        response = await discovery.get_search_details(ctx, expand_params=True)
         return response, _extract_param_names_from_response(response)
     except AppError as exc:
         logger.warning(
@@ -349,5 +347,3 @@ def _extract_param_names_from_response(response: WDKSearchResponse) -> set[str]:
     if search.parameters:
         return {p.name for p in search.parameters}
     return set()
-
-

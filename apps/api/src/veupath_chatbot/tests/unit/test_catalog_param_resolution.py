@@ -92,7 +92,11 @@ def _to_wdk_search_response(details: dict[str, Any] | None) -> WDKSearchResponse
         normalized = _normalize_search_dict(search_data_raw)
         search = WDKSearch.model_validate(normalized)
         validation_raw = details.get("validation", {})
-        validation = WDKValidation.model_validate(validation_raw) if isinstance(validation_raw, dict) else WDKValidation()
+        validation = (
+            WDKValidation.model_validate(validation_raw)
+            if isinstance(validation_raw, dict)
+            else WDKValidation()
+        )
         return WDKSearchResponse(search_data=search, validation=validation)
     # Flat format: the dict IS the search data
     normalized = _normalize_search_dict(details)
@@ -152,9 +156,7 @@ def _mock_wdk_client(
         parsed: dict[str, list[WDKSearch]] = {
             rt: _to_wdk_searches(raw) for rt, raw in searches_by_rt.items()
         }
-        client.get_searches = AsyncMock(
-            side_effect=lambda rt: parsed.get(rt, [])
-        )
+        client.get_searches = AsyncMock(side_effect=lambda rt: parsed.get(rt, []))
     else:
         client.get_searches = AsyncMock(return_value=[])
     if search_details_with_params_raises:
@@ -277,7 +279,9 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "gene", "GenesByTaxon"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "gene", "GenesByTaxon")
+            )
 
         assert result["searchName"] == "GenesByTaxon"
         assert result["displayName"] == "Genes by Taxon"
@@ -340,7 +344,9 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "genes", "S"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "genes", "S")
+            )
 
         assert result["resolvedRecordType"] == "gene"
 
@@ -357,7 +363,9 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "genes", "S"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "genes", "S")
+            )
 
         # Falls back to the original
         assert result["resolvedRecordType"] == "genes"
@@ -564,7 +572,9 @@ class TestGetSearchParameters:
             ),
             pytest.raises(ValidationError) as exc_info,
         ):
-            await get_search_parameters(SearchContext("plasmodb", "gene", "NonexistentSearch"))
+            await get_search_parameters(
+                SearchContext("plasmodb", "gene", "NonexistentSearch")
+            )
 
         assert "NonexistentSearch" in (exc_info.value.detail or "")
 
@@ -580,11 +590,13 @@ class TestGetSearchParameters:
             if call_count == 1:
                 msg = "not found on first try"
                 raise AppError(ErrorCode.SEARCH_NOT_FOUND, msg)
-            return _to_wdk_search_response({
-                "displayName": "Found It",
-                "description": "desc",
-                "parameters": [{"name": "p1", "type": "string"}],
-            })
+            return _to_wdk_search_response(
+                {
+                    "displayName": "Found It",
+                    "description": "desc",
+                    "parameters": [{"name": "p1", "type": "string"}],
+                }
+            )
 
         discovery = MagicMock()
         discovery.get_record_types = AsyncMock(
@@ -604,7 +616,9 @@ class TestGetSearchParameters:
             "veupath_chatbot.services.catalog.param_resolution.get_discovery_service",
             return_value=discovery,
         ):
-            result = await get_search_parameters(SearchContext("plasmodb", "gene", "SharedSearch"))
+            result = await get_search_parameters(
+                SearchContext("plasmodb", "gene", "SharedSearch")
+            )
 
         assert result["resolvedRecordType"] == "transcript"
         assert result["displayName"] == "Found It"

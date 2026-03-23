@@ -63,7 +63,9 @@ export function normalizeNodeSelection(data: Record<string, unknown>): NodeSelec
             ? { parameters: n.parameters as StepParameters }
             : {}),
           ...(typeof n.recordType === "string" ? { recordType: n.recordType } : {}),
-          ...(typeof n.estimatedSize === "number" ? { estimatedSize: n.estimatedSize } : {}),
+          ...(typeof n.estimatedSize === "number"
+            ? { estimatedSize: n.estimatedSize }
+            : {}),
           ...(typeof n.wdkStepId === "number" ? { wdkStepId: n.wdkStepId } : {}),
         }))
       : fallbackNodeIds.map((id) => ({ id, displayName: id }));

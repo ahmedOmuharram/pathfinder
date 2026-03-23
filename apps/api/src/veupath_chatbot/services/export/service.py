@@ -66,7 +66,9 @@ class ExportService:
             content_type=content_type,
             data=base64.b64encode(content).decode("ascii"),
         )
-        await self._redis.set(key, payload.model_dump_json().encode("utf-8"), ex=EXPORT_TTL)
+        await self._redis.set(
+            key, payload.model_dump_json().encode("utf-8"), ex=EXPORT_TTL
+        )
         logger.info(
             "Export stored",
             export_id=export_id,

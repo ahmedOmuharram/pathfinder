@@ -54,12 +54,8 @@ def _mcc(tp: int, fp: int, fn: int, tn: int) -> float:
 
 class TestApplyKnobsRecursive:
     def test_applies_operator_to_matching_node(self) -> None:
-        leaf1 = PlanStepNode(
-            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
-        )
-        leaf2 = PlanStepNode(
-            search_name="S2", parameters={"score": "0.8"}, id="leaf2"
-        )
+        leaf1 = PlanStepNode(search_name="S1", parameters={"score": "0.5"}, id="leaf1")
+        leaf2 = PlanStepNode(search_name="S2", parameters={"score": "0.8"}, id="leaf2")
         tree = PlanStepNode(
             search_name="combine",
             primary_input=leaf1,
@@ -81,9 +77,7 @@ class TestApplyKnobsRecursive:
         assert tree.parameters["evalue"] == "1e-5"  # unchanged
 
     def test_recursive_into_children(self) -> None:
-        leaf1 = PlanStepNode(
-            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
-        )
+        leaf1 = PlanStepNode(search_name="S1", parameters={"score": "0.5"}, id="leaf1")
         leaf2 = PlanStepNode(
             search_name="S2", parameters={"evalue": "1e-3"}, id="leaf2"
         )
@@ -106,9 +100,7 @@ class TestApplyKnobsRecursive:
         assert tree.secondary_input.parameters["evalue"] == "1e-06"
 
     def test_no_matching_nodes(self) -> None:
-        tree = PlanStepNode(
-            search_name="S1", parameters={"score": "0.5"}, id="leaf1"
-        )
+        tree = PlanStepNode(search_name="S1", parameters={"score": "0.5"}, id="leaf1")
         _apply_knobs_recursive(tree, {"other:score": 0.9}, {"other": "UNION"})
         assert tree.parameters["score"] == "0.5"  # unchanged
 

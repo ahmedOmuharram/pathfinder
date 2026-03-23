@@ -145,9 +145,7 @@ class TestGetTotalCountForStep:
 
 class TestCleanupInternalControlTestStrategies:
     @staticmethod
-    def _summary(
-        strategy_id: int = 100, name: str = "Test"
-    ) -> WDKStrategySummary:
+    def _summary(strategy_id: int = 100, name: str = "Test") -> WDKStrategySummary:
         return WDKStrategySummary(
             strategy_id=strategy_id,
             name=name,

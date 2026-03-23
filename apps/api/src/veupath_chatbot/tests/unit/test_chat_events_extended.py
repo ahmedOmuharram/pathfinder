@@ -118,8 +118,12 @@ class TestEventOrdering:
         events = tool_result_to_events(result)
         types = [e["type"] for e in events]
         # strategy_link should come after strategy_update and strategy_meta
-        assert types.index(EventType.STRATEGY_LINK) > types.index(EventType.STRATEGY_UPDATE)
-        assert types.index(EventType.STRATEGY_LINK) > types.index(EventType.STRATEGY_META)
+        assert types.index(EventType.STRATEGY_LINK) > types.index(
+            EventType.STRATEGY_UPDATE
+        )
+        assert types.index(EventType.STRATEGY_LINK) > types.index(
+            EventType.STRATEGY_META
+        )
 
 
 # ---------------------------------------------------------------------------

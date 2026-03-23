@@ -118,7 +118,11 @@ class EnrichmentService:
             NewStepSpec(
                 search_name=search_name,
                 search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in (parameters or {}).items() if v is not None},
+                    parameters={
+                        k: str(v)
+                        for k, v in (parameters or {}).items()
+                        if v is not None
+                    },
                 ),
                 custom_name="Enrichment target",
             ),

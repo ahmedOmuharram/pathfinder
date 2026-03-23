@@ -170,6 +170,7 @@ def _apply_knobs_recursive(
     operator_vals: dict[str, str],
 ) -> None:
     """Recursively apply knob values to a tree in-place."""
+
     def _apply(n: PlanStepNode) -> None:
         nid = n.id
         if nid in operator_vals:

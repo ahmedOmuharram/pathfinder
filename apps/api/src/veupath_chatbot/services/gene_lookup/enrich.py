@@ -45,9 +45,7 @@ async def enrich_sparse_gene_results(
     the gaps.
     """
     ids_to_enrich: list[str] = [
-        r.gene_id
-        for r in results
-        if r.gene_id and (not r.organism or not r.product)
+        r.gene_id for r in results if r.gene_id and (not r.organism or not r.product)
     ]
     if not ids_to_enrich:
         return results

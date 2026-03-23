@@ -120,9 +120,7 @@ class TestSuccessResponse:
     @pytest.mark.asyncio
     async def test_json_response_parsed(self, client: VEuPathDBClient) -> None:
         with respx.mock:
-            respx.get(f"{client.base_url}/data").respond(
-                200, json={"key": "value"}
-            )
+            respx.get(f"{client.base_url}/data").respond(200, json={"key": "value"})
             result = await client.get("/data")
             assert result == {"key": "value"}
 
@@ -170,15 +168,11 @@ class TestJsessionIdInit:
             assert app_route.called, "First auth request must hit /app for JSESSIONID"
 
     @pytest.mark.asyncio
-    async def test_session_init_only_once(
-        self, authed_client: VEuPathDBClient
-    ) -> None:
+    async def test_session_init_only_once(self, authed_client: VEuPathDBClient) -> None:
         """Session initialization should happen only on first request."""
         with respx.mock:
             app_route = respx.get("https://plasmodb.org/plasmo/app").respond(200)
-            respx.get(f"{authed_client.base_url}/data").respond(
-                200, json={"ok": True}
-            )
+            respx.get(f"{authed_client.base_url}/data").respond(200, json={"ok": True})
             await authed_client.get("/data")
             await authed_client.get("/data")
             assert app_route.call_count == 1, "Session init should happen only once"
@@ -216,11 +210,10 @@ class TestAuthCookie:
             request = route.calls[0].request
             # httpx stores cookies in the request's extensions or headers
             # The auth token should be in cookie jar, not in Authorization header
-            assert "Authorization" not in request.headers or request.headers.get(
-                "Authorization"
-            ) != "test-token", (
-                "Auth token should be in cookies, not Authorization header"
-            )
+            assert (
+                "Authorization" not in request.headers
+                or request.headers.get("Authorization") != "test-token"
+            ), "Auth token should be in cookies, not Authorization header"
 
 
 # ── get_searches response handling ────────────────────────────────
@@ -233,9 +226,7 @@ class TestGetSearches:
     async def test_skips_unparseable_entries(self, client: VEuPathDBClient) -> None:
         """Graceful: unparseable search entries are skipped, not fatal."""
         with respx.mock:
-            respx.get(
-                f"{client.base_url}/record-types/transcript/searches"
-            ).respond(
+            respx.get(f"{client.base_url}/record-types/transcript/searches").respond(
                 200,
                 json=[
                     {
@@ -254,9 +245,9 @@ class TestGetSearches:
     @pytest.mark.asyncio
     async def test_non_list_response(self, client: VEuPathDBClient) -> None:
         with respx.mock:
-            respx.get(
-                f"{client.base_url}/record-types/transcript/searches"
-            ).respond(200, json={"error": "unexpected"})
+            respx.get(f"{client.base_url}/record-types/transcript/searches").respond(
+                200, json={"error": "unexpected"}
+            )
             searches = await client.get_searches("transcript")
             assert searches == []
 
@@ -288,7 +279,9 @@ class TestGetSearchDetails:
             respx.get(
                 f"{client.base_url}/record-types/transcript/searches/Bad"
             ).respond(200, json={"completely": "wrong"})
-            with pytest.raises(DataParsingError, match="Unexpected WDK search response"):
+            with pytest.raises(
+                DataParsingError, match="Unexpected WDK search response"
+            ):
                 await client.get_search_details("transcript", "Bad")
 
 

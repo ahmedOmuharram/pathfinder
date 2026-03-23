@@ -42,9 +42,7 @@ class FilterMixin(StrategyAPIBase):
         """
         uid = await self._get_user_id(user_id)
         current = await self.client.get_step_view_filters(uid, step_id)
-        updated: list[WDKFilterValue] = [
-            f for f in current if f.name != filter_name
-        ]
+        updated: list[WDKFilterValue] = [f for f in current if f.name != filter_name]
         new_filter = WDKFilterValue(
             name=filter_name,
             value=value,
@@ -63,7 +61,5 @@ class FilterMixin(StrategyAPIBase):
         """
         uid = await self._get_user_id(user_id)
         current = await self.client.get_step_view_filters(uid, step_id)
-        updated: list[WDKFilterValue] = [
-            f for f in current if f.name != filter_name
-        ]
+        updated: list[WDKFilterValue] = [f for f in current if f.name != filter_name]
         return await self.client.update_step_view_filters(uid, step_id, updated)

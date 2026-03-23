@@ -15,7 +15,9 @@ from veupath_chatbot.services.strategies.wdk_conversion import (
 from veupath_chatbot.services.strategies.wdk_counts import plan_cache_key
 
 
-def _wdk_step(step_id: int, search_name: str, params: dict[str, str] | None = None) -> WDKStep:
+def _wdk_step(
+    step_id: int, search_name: str, params: dict[str, str] | None = None
+) -> WDKStep:
     return WDKStep(
         id=step_id,
         search_name=search_name,
@@ -73,7 +75,9 @@ class TestBuildSnapshotFromWdk:
     def test_simple_strategy(self) -> None:
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})},
+            steps={
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})
+            },
             name="My Strategy",
             description="Test description",
         )
@@ -158,7 +162,9 @@ class TestBuildSnapshotFromWdk:
     def test_leaf_step_has_correct_kind(self) -> None:
         wdk = _strategy(
             step_tree=WDKStepTree(step_id=1),
-            steps={"1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})},
+            steps={
+                "1": _wdk_step(1, "GenesByTextSearch", {"text_expression": "kinase"})
+            },
         )
         ast = build_snapshot_from_wdk(wdk)
         assert ast.root.infer_kind() == "search"

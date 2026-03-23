@@ -62,9 +62,7 @@ async def fetch_record_types_and_searches(
         record_types.append(rt.model_dump(by_alias=True))
 
         if searches:
-            searches_to_fetch.extend(
-                (rt_name, s) for s in searches
-            )
+            searches_to_fetch.extend((rt_name, s) for s in searches)
         else:
             fetched = await _fetch_searches_for_rt(client, rt_name)
             searches_to_fetch.extend(

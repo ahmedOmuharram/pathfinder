@@ -53,7 +53,9 @@ class FakeBuildAPI:
         step_count: int = 42,
     ) -> None:
         self._create_step_response = create_step_response or WDKIdentifier(id=100)
-        self._create_strategy_response = create_strategy_response or WDKIdentifier(id=999)
+        self._create_strategy_response = create_strategy_response or WDKIdentifier(
+            id=999
+        )
         self._update_strategy_error = update_strategy_error
         self._get_strategy_response = get_strategy_response or _make_strategy_details()
         self._step_count = step_count
@@ -92,7 +94,9 @@ class FakeBuildAPI:
     ) -> WDKIdentifier:
         return WDKIdentifier(id=300)
 
-    async def create_dataset(self, config: WDKDatasetConfig, user_id: str | None = None) -> int:
+    async def create_dataset(
+        self, config: WDKDatasetConfig, user_id: str | None = None
+    ) -> int:
         return 1
 
     async def set_step_filter(
@@ -145,10 +149,12 @@ class FakeCompilerClient:
     """Fake compiler client for StrategyCompilerAPI.client."""
 
     def _default_response(self) -> WDKSearchResponse:
-        return WDKSearchResponse.model_validate({
-            "searchData": {"urlSegment": "FakeSearch", "parameters": []},
-            "validation": {"level": "DISPLAYABLE", "isValid": True},
-        })
+        return WDKSearchResponse.model_validate(
+            {
+                "searchData": {"urlSegment": "FakeSearch", "parameters": []},
+                "validation": {"level": "DISPLAYABLE", "isValid": True},
+            }
+        )
 
     async def get_search_details(
         self, record_type: str, search_name: str, expand_params: bool = False
@@ -354,21 +360,23 @@ def _make_strategy_details(
 ) -> WDKStrategyDetails:
     """Build a WDKStrategyDetails from step data for tests."""
     raw_steps = steps or {}
-    return WDKStrategyDetails.model_validate({
-        "strategyId": strategy_id,
-        "name": "Test",
-        "rootStepId": root_step_id,
-        "stepTree": {"stepId": root_step_id},
-        "steps": {
-            k: {
-                "id": int(k) if k.isdigit() else 0,
-                "searchName": "TestSearch",
-                "searchConfig": {"parameters": {}},
-                **v,
-            }
-            for k, v in raw_steps.items()
-        },
-    })
+    return WDKStrategyDetails.model_validate(
+        {
+            "strategyId": strategy_id,
+            "name": "Test",
+            "rootStepId": root_step_id,
+            "stepTree": {"stepId": root_step_id},
+            "steps": {
+                k: {
+                    "id": int(k) if k.isdigit() else 0,
+                    "searchName": "TestSearch",
+                    "searchConfig": {"parameters": {}},
+                    **v,
+                }
+                for k, v in raw_steps.items()
+            },
+        }
+    )
 
 
 class TestExtractStepCounts:

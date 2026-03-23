@@ -36,12 +36,13 @@ _MAX_BUDGET = 50
 _NONEMPTY = StringConstraints(min_length=1, strip_whitespace=True)
 
 _DICT_ADAPTER: TypeAdapter[JSONObject] = TypeAdapter(JSONObject)
-_PARAM_SPACE_ADAPTER: TypeAdapter[list[ParameterSpec]] = TypeAdapter(list[ParameterSpec])
+_PARAM_SPACE_ADAPTER: TypeAdapter[list[ParameterSpec]] = TypeAdapter(
+    list[ParameterSpec]
+)
 
 
 def _err(msg: str) -> str:
     return json.dumps({"error": msg})
-
 
 
 def _parse_parameter_space(raw_json: str) -> list[ParameterSpec]:
@@ -88,7 +89,6 @@ def _parse_json_object(
     return _DICT_ADAPTER.validate_json(raw_json)
 
 
-
 def _parse_and_validate_inputs(
     target: "OptimizationTarget",
     controls: "OptimizationControls",
@@ -105,11 +105,12 @@ def _parse_and_validate_inputs(
     return specs, fixed or {}, controls_extra
 
 
-
 class OptimizationTarget(BaseModel):
     """Target search and parameter space to optimise."""
 
-    record_type: Annotated[str, _NONEMPTY, AIParam(desc="WDK record type (e.g. 'transcript')")]
+    record_type: Annotated[
+        str, _NONEMPTY, AIParam(desc="WDK record type (e.g. 'transcript')")
+    ]
     search_name: Annotated[
         str, _NONEMPTY, AIParam(desc="WDK search/question urlSegment to optimise")
     ]
@@ -152,11 +153,13 @@ class OptimizationControls(BaseModel):
         return self
 
     controls_search_name: Annotated[
-        str, _NONEMPTY,
+        str,
+        _NONEMPTY,
         AIParam(desc="Search that accepts a list of record IDs (for controls)"),
     ]
     controls_param_name: Annotated[
-        str, _NONEMPTY,
+        str,
+        _NONEMPTY,
         AIParam(desc="Parameter name within controls_search_name that accepts IDs"),
     ]
     positive_controls: Annotated[
@@ -192,7 +195,8 @@ class OptimizationSettings(BaseModel):
         return self
 
     budget: Annotated[
-        int, AIParam(desc="Max number of trials (default 15, max 50)"),
+        int,
+        AIParam(desc="Max number of trials (default 15, max 50)"),
         Field(ge=1, le=_MAX_BUDGET),
     ] = 15
     objective: Annotated[
@@ -225,7 +229,6 @@ class OptimizationSettings(BaseModel):
 
 
 _DEFAULT_SETTINGS = OptimizationSettings()
-
 
 
 class OptimizationToolsMixin:

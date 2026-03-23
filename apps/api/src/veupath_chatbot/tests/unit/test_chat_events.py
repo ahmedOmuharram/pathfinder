@@ -53,7 +53,9 @@ class TestPlanningArtifactEvent:
         for val in [None, "", 0, False, {}, []]:
             result = {"planningArtifact": val}
             events = tool_result_to_events(result)
-            artifact_events = [e for e in events if e["type"] == EventType.PLANNING_ARTIFACT]
+            artifact_events = [
+                e for e in events if e["type"] == EventType.PLANNING_ARTIFACT
+            ]
             assert len(artifact_events) == 0, f"Should not emit for {val!r}"
 
 
@@ -117,7 +119,9 @@ class TestExecutorBuildRequestEvent:
     def test_non_dict_executor_build_request_not_emitted(self):
         result = {"executorBuildRequest": "not a dict"}
         events = tool_result_to_events(result)
-        ebr_events = [e for e in events if e["type"] == EventType.EXECUTOR_BUILD_REQUEST]
+        ebr_events = [
+            e for e in events if e["type"] == EventType.EXECUTOR_BUILD_REQUEST
+        ]
         assert len(ebr_events) == 0
 
 

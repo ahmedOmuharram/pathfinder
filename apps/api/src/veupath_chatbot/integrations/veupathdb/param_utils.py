@@ -52,5 +52,3 @@ def wdk_entity_name(obj: JSONObject | JSONValue) -> str:
     url_seg = url_seg_raw if isinstance(url_seg_raw, str) else None
     name = name_raw if isinstance(name_raw, str) else None
     return url_seg or name or ""
-
-

@@ -76,7 +76,10 @@ class TestSiteInfo:
     def test_portal_site_is_portal_true(self) -> None:
         site = self._make_site(site_id="veupathdb", is_portal=True)
         assert site.is_portal is True
-        assert site.model_dump(by_alias=True, exclude_none=True, mode="json")["isPortal"] is True
+        assert (
+            site.model_dump(by_alias=True, exclude_none=True, mode="json")["isPortal"]
+            is True
+        )
 
     def test_from_config_factory(self) -> None:
         cfg = SiteConfig(

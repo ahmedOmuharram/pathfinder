@@ -194,9 +194,7 @@ async def upsert_summary_projection(
     wdk_id = wdk_item.strategy_id
     name = wdk_item.name or f"WDK Strategy {wdk_id}"
     record_type = (
-        wdk_item.record_class_name.strip()
-        if wdk_item.record_class_name
-        else None
+        wdk_item.record_class_name.strip() if wdk_item.record_class_name else None
     )
     is_saved = wdk_item.is_saved
     estimated_size = wdk_item.estimated_size

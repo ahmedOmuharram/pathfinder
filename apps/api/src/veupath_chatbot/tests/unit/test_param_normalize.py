@@ -58,9 +58,7 @@ class TestMultiPick:
 
 class TestScalar:
     def test_string_value(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=True)})
         result = normalizer.normalize({"q": "kinase"})
         assert result["q"] == "kinase"
 
@@ -112,16 +110,12 @@ class TestScalar:
             normalizer.normalize({"threshold": 1.5})
 
     def test_string_length_validation(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", max_length=5)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", max_length=5)})
         with pytest.raises(ValidationError, match="maximum length"):
             normalizer.normalize({"q": "toolong"})
 
     def test_list_value_for_scalar_raises(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=True)})
         with pytest.raises(ValidationError, match="scalar"):
             normalizer.normalize({"q": [1, 2, 3]})
 
@@ -146,9 +140,7 @@ class TestRange:
         assert parsed["max"] == 100
 
     def test_date_range(self) -> None:
-        normalizer = _make_normalizer(
-            {"d": _spec("d", "date-range", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"d": _spec("d", "date-range", allow_empty=True)})
         result = normalizer.normalize({"d": {"min": "2024-01-01", "max": "2024-12-31"}})
         parsed = json.loads(result["d"])
         assert parsed["min"] == "2024-01-01"
@@ -163,25 +155,19 @@ class TestRange:
 
 class TestFilter:
     def test_dict_filter_becomes_json_string(self) -> None:
-        normalizer = _make_normalizer(
-            {"f": _spec("f", "filter", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"f": _spec("f", "filter", allow_empty=True)})
         result = normalizer.normalize({"f": {"values": ["a", "b"]}})
         parsed = json.loads(result["f"])
         assert parsed["values"] == ["a", "b"]
 
     def test_list_filter_becomes_json_string(self) -> None:
-        normalizer = _make_normalizer(
-            {"f": _spec("f", "filter", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"f": _spec("f", "filter", allow_empty=True)})
         result = normalizer.normalize({"f": [{"name": "x", "value": "y"}]})
         parsed = json.loads(result["f"])
         assert len(parsed) == 1
 
     def test_string_filter_passes_through(self) -> None:
-        normalizer = _make_normalizer(
-            {"f": _spec("f", "filter", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"f": _spec("f", "filter", allow_empty=True)})
         result = normalizer.normalize({"f": "raw_string"})
         assert result["f"] == "raw_string"
 
@@ -224,29 +210,21 @@ class TestUnknownParam:
 
 class TestNoneHandling:
     def test_none_value_for_allow_empty(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=True)})
         result = normalizer.normalize({"q": None})
         assert result["q"] == ""
 
     def test_none_value_for_required_raises(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=False)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=False)})
         with pytest.raises(ValidationError, match="requires a value"):
             normalizer.normalize({"q": None})
 
     def test_none_parameters_returns_empty(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=True)})
         result = normalizer.normalize(None)
         assert result == {}
 
     def test_empty_parameters(self) -> None:
-        normalizer = _make_normalizer(
-            {"q": _spec("q", "string", allow_empty=True)}
-        )
+        normalizer = _make_normalizer({"q": _spec("q", "string", allow_empty=True)})
         result = normalizer.normalize({})
         assert result == {}

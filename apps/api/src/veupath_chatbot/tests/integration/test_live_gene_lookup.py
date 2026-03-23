@@ -331,7 +331,9 @@ class TestResolveGeneIdsLargeSet:
 
         assert isinstance(result, GeneResolveResult)
         # Some IDs may not map to transcripts, but most should resolve
-        assert result.total_count >= 40, f"Expected >= 40 resolved, got {result.total_count}"
+        assert result.total_count >= 40, (
+            f"Expected >= 40 resolved, got {result.total_count}"
+        )
         assert len(result.records) >= 40
 
     @pytest.mark.asyncio
@@ -340,7 +342,9 @@ class TestResolveGeneIdsLargeSet:
         result = await resolve_gene_ids("toxodb", TOXO_50)
 
         assert isinstance(result, GeneResolveResult)
-        assert result.total_count >= 40, f"Expected >= 40 resolved, got {result.total_count}"
+        assert result.total_count >= 40, (
+            f"Expected >= 40 resolved, got {result.total_count}"
+        )
         assert len(result.records) >= 40
 
 

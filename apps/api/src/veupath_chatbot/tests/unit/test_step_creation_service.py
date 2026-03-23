@@ -486,16 +486,18 @@ class TestCreateStepIntegration:
         # Mock WDK client to return a search with an input-step param
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": "GenesByUpstream",
-                    "parameters": [
-                        {"name": "input_step", "type": "input-step"},
-                        {"name": "other_param", "type": "string"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }),
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": "GenesByUpstream",
+                        "parameters": [
+                            {"name": "input_step", "type": "input-step"},
+                            {"name": "other_param", "type": "string"},
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            ),
         )
         mock_get_wdk.return_value = mock_client
 
@@ -529,15 +531,17 @@ class TestCreateStepIntegration:
 
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": "GenesByText",
-                    "parameters": [
-                        {"name": "text_expression", "type": "string"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }),
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": "GenesByText",
+                        "parameters": [
+                            {"name": "text_expression", "type": "string"},
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            ),
         )
         mock_get_wdk.return_value = mock_client
 

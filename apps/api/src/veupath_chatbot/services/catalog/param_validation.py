@@ -195,10 +195,10 @@ async def _resolve_search_details(
                 search_name=ctx.search_name,
                 error=str(exc),
             )
-            resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
-            return await discovery.get_search_details(
-                resolved_ctx, expand_params=True
+            resolved_ctx = SearchContext(
+                ctx.site_id, resolved_record_type, ctx.search_name
             )
+            return await discovery.get_search_details(resolved_ctx, expand_params=True)
     except AppError as exc:
         hint_record_type = await _find_search_record_type_hint(discovery, ctx)
         available = await _collect_available_search_names(

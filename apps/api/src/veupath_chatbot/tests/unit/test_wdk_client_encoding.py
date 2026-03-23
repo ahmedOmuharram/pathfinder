@@ -25,9 +25,7 @@ class TestEncodeContextParamValues:
         assert result == {"orgs": '["pfal", "pviv"]'}
 
     def test_dict_becomes_json_string(self) -> None:
-        result = encode_context_param_values_for_wdk(
-            {"filter": {"min": 0, "max": 100}}
-        )
+        result = encode_context_param_values_for_wdk({"filter": {"min": 0, "max": 100}})
         assert result == {"filter": '{"min": 0, "max": 100}'}
 
     def test_none_values_omitted(self) -> None:

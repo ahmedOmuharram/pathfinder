@@ -51,7 +51,9 @@ def _two_leaf_ast() -> StrategyAST:
 
 def _transform_ast() -> StrategyAST:
     """Transform step (primary input only)."""
-    child = PlanStepNode(search_name="GenesByTaxon", parameters={"org": "pfal"}, id="s1")
+    child = PlanStepNode(
+        search_name="GenesByTaxon", parameters={"org": "pfal"}, id="s1"
+    )
     return StrategyAST(
         record_type="gene",
         root=PlanStepNode(

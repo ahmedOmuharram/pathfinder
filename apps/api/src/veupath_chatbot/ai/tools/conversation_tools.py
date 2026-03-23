@@ -94,7 +94,9 @@ class ConversationTools:
             "name": new_name,
             "recordType": graph.current_strategy.record_type,
             "description": graph.current_strategy.description,
-            "plan": graph.current_strategy.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            "plan": graph.current_strategy.model_dump(
+                by_alias=True, exclude_none=True, mode="json"
+            ),
         }
 
     @ai_function()

@@ -103,7 +103,11 @@ def _compute_score(
     base = _score_for_objective(r, precision, specificity, raw_fpr, cfg)
 
     # Apply optional result-count penalty (tiebreaker for large result sets).
-    if cfg.estimated_size_penalty > 0 and estimated_size is not None and estimated_size > 0:
+    if (
+        cfg.estimated_size_penalty > 0
+        and estimated_size is not None
+        and estimated_size > 0
+    ):
         penalty = cfg.estimated_size_penalty * (estimated_size / _DEFAULT_TOTAL_GENES)
         base = max(base - penalty, 0.0)
 
@@ -249,4 +253,6 @@ def _trial_to_json(trial: TrialResult) -> JSONObject:
 
 
 def result_to_json(result: OptimizationResult) -> JSONObject:
-    return OptimizationResultResponse.from_result(result).model_dump(by_alias=True, mode="json")
+    return OptimizationResultResponse.from_result(result).model_dump(
+        by_alias=True, mode="json"
+    )
